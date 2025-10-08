@@ -1,5 +1,6 @@
 test_case_id: "fenced_artifact_description_missing_001"
 description: "Tests that a missing description parameter is handled gracefully."
+tags: ["all","core_a2a"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -34,9 +35,19 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "The report has been created."
+    kind: "task"
+    id: "*"
+    contextId: "fixed_session_for_fenced_artifact_desc_missing_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "The report has been created."
     assert_artifact_state:
       - filename: "report.md"
         version: 0

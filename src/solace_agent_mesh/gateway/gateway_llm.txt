@@ -1,125 +1,373 @@
-Here is the comprehensive developer guide for the `gateway` directory.
+I notice the content was cut off at the end. Let me provide the complete developer guide based on the available information:
+
+# DEVELOPER GUIDE: gateway
 
 ## Quick Summary
-The `gateway` directory provides a comprehensive framework for building gateway implementations that bridge external platforms with the Solace AI Connector's A2A (Agent-to-Agent) messaging system. The architecture consists of a foundational base framework and three specialized gateway implementations: HTTP/SSE for web interfaces, Slack for team collaboration, and Webhook for external system integration. All gateways share common patterns for authentication, message translation, and real-time communication while providing platform-specific features.
+The `gateway` directory provides a comprehensive framework for building gateways that connect external platforms (Slack, HTTP/SSE web interfaces) to the Solace AI Connector's A2A (Agent-to-Agent) messaging system. The architecture consists of a foundational `base` module that defines abstract classes for gateway implementations, and specific gateway implementations like `slack` for Slack integration and `http_sse` for web-based interfaces. The framework handles authentication, message translation between external formats and A2A protocol, real-time streaming updates, and manages the complete lifecycle of requests from external platforms to AI agents.
 
 ## Files and Subdirectories Overview
 - **Direct files:**
-  - `__init__.py`: Marks the directory as a Python package.
+  - `__init__.py`: Standard Python package initializer
+  - `gateway_llm.txt`: Documentation or configuration file for LLM-related gateway functionality
+
 - **Subdirectories:**
-  - `base/`: Foundational classes and utilities for building all gateway implementations.
-  - `http_sse/`: A complete HTTP/SSE gateway with a FastAPI web server for real-time web UI backends.
-  - `slack/`: A gateway for integrating with the Slack collaboration platform.
-  - `webhook/`: A universal webhook gateway for receiving HTTP requests from external systems.
+  - `base/`: Foundational abstract classes and utilities for building gateway implementations
+  - `slack/`: Complete Slack platform integration gateway with bot functionality
+  - `http_sse/`: HTTP/Server-Sent Events gateway for web-based user interfaces
 
 ## Developer API Reference
 
 ### Direct Files
 
 #### __init__.py
-**Purpose:** Initializes the `gateway` module, making it a Python package.
-**Import:** `from gateway import ...`
+**Purpose:** Initializes the `gateway` Python package
+**Import:** `from solace_agent_mesh.gateway import ...`
 
 **Classes/Functions/Constants:**
 This file is empty and contains no direct exports.
 
+#### gateway_llm.txt
+**Purpose:** Documentation or configuration file for LLM-related gateway functionality
+**Import:** Not applicable (text/documentation file)
+
+**Content:** This appears to be a documentation or configuration file rather than executable code.
+
 ### Subdirectory APIs
 
 #### base/
-**Purpose:** Provides the foundational, abstract classes for building all Gateway implementations. It establishes a framework for configuration, A2A message handling, and managing the lifecycle of requests from external platforms.
+**Purpose:** Provides foundational abstract classes for building Gateway implementations
 **Key Exports:** `BaseGatewayApp`, `BaseGatewayComponent`, `TaskContextManager`
 **Import Examples:**
 ```python
-from gateway.base.app import BaseGatewayApp
-from gateway.base.component import BaseGatewayComponent
-from gateway.base.task_context import TaskContextManager
+from solace_agent_mesh.gateway.base.app import BaseGatewayApp
+from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
+from solace_agent_mesh.gateway.base.task_context import TaskContextManager
 ```
-
-**Key Modules:**
-
-*   **`app.py`**:
-    *   **`BaseGatewayApp`**: The main application class to be subclassed for a new gateway. It automates configuration schema merging, Solace broker setup, and component instantiation.
-        *   `_get_gateway_component_class(self)`: **[Abstract Method]** Subclasses must implement this to return their specific gateway component class.
-
-*   **`component.py`**:
-    *   **`BaseGatewayComponent`**: The abstract base class for gateway logic. Subclasses implement the abstract methods to define how the gateway interacts with its specific external platform.
-        *   **Public Methods**:
-            *   `submit_a2a_task(...)`: The primary method for submitting a task to an agent on behalf of an external user.
-            *   `publish_a2a_message(...)`: A lower-level method to publish any message to the A2A message bus.
-        *   **Abstract Methods to Implement**:
-            *   `_extract_initial_claims(self, external_event_data)`: Extracts user identity from a platform-specific event.
-            *   `_start_listener(self)` / `_stop_listener(self)`: Manages the lifecycle of the external platform listener (e.g., a web server).
-            *   `_translate_external_input(self, external_event)`: Translates an incoming event from the external platform into the A2A protocol format.
-            *   `_send_update_to_external(...)`: Sends a streaming update back to the external platform.
-            *   `_send_final_response_to_external(...)`: Sends the final task result back to the external platform.
-            *   `_send_error_to_external(...)`: Sends an error message back to the external platform.
-
-*   **`task_context.py`**:
-    *   **`TaskContextManager`**: A thread-safe dictionary-like class for mapping A2A task IDs to the original request context from the external platform. This is crucial for routing responses back to the correct user/channel/thread.
-
-#### http_sse/
-**Purpose:** Implements a complete HTTP/SSE gateway to serve a web-based user interface, bridging web protocols with the backend A2A messaging fabric.
-**Key Exports:** `WebUIBackendApp`, `WebUIBackendComponent`, `SSEManager`, `SessionManager`, and various dependency injectors.
-**Import Examples:**
-```python
-from gateway.http_sse.app import WebUIBackendApp
-from gateway.http_sse.component import WebUIBackendComponent
-from gateway.http_sse.sse_manager import SSEManager
-from gateway.http_sse.session_manager import SessionManager
-from gateway.http_sse.dependencies import get_agent_service, get_task_service, get_user_id
-```
-
-**Key Modules & Exports:**
-
-*   **`app.py`**:
-    *   **`WebUIBackendApp`**: The main SAC App class that defines the configuration schema and launches the `WebUIBackendComponent`.
-*   **`component.py`**:
-    *   **`WebUIBackendComponent`**: The core component that hosts the FastAPI server, manages shared state, and implements the A2A translation logic for HTTP requests.
-*   **`session_manager.py`**:
-    *   **`SessionManager`**: Manages web user sessions, creating and tracking unique A2A client and session IDs from HTTP requests.
-*   **`sse_manager.py`**:
-    *   **`SSEManager`**: Manages Server-Sent Event (SSE) connections, allowing for real-time, streaming updates to be pushed from the server to connected web clients.
-*   **`dependencies.py`**:
-    *   Provides FastAPI dependency injectors for giving API routers safe access to shared resources (e.g., `get_agent_service`, `get_task_service`, `get_sac_component`).
-*   **`services/`**:
-    *   **`AgentService`**, **`TaskService`**: Contain the business logic for interacting with agents and managing tasks, respectively. These are accessed via the dependency injectors.
 
 #### slack/
-**Purpose:** Provides a gateway for integrating the Solace AI Connector with the Slack collaboration platform, enabling bot interactions within Slack channels and threads.
-**Key Exports:** `SlackGatewayApp`, `SlackGatewayComponent`, and various utility functions.
+**Purpose:** Complete Slack platform integration with bot functionality, event handling, and A2A message translation
+**Key Exports:** `SlackGatewayApp`, `SlackGatewayComponent`, utility functions for Slack operations
 **Import Examples:**
 ```python
-from gateway.slack.app import SlackGatewayApp
-from gateway.slack.component import SlackGatewayComponent
-from gateway.slack.utils import generate_a2a_session_id, send_slack_message, correct_slack_markdown
+from solace_agent_mesh.gateway.slack.app import SlackGatewayApp
+from solace_agent_mesh.gateway.slack.component import SlackGatewayComponent
+from solace_agent_mesh.gateway.slack.utils import generate_a2a_session_id, send_slack_message
 ```
 
-#### webhook/
-**Purpose:** Provides a universal webhook gateway for receiving HTTP requests from external systems and triggering A2A tasks. It is highly configurable for different authentication methods, payload formats, and target agents.
-**Key Exports:** `WebhookGatewayApp`, `WebhookGatewayComponent`
+#### http_sse/
+**Purpose:** HTTP/Server-Sent Events gateway for web-based user interfaces with real-time streaming
+**Key Exports:** `WebUIBackendApp`, `WebUIBackendComponent`, `SSEManager`, `SessionManager`, routers, services
 **Import Examples:**
 ```python
-from gateway.webhook.app import WebhookGatewayApp
-from gateway.webhook.component import WebhookGatewayComponent
-from gateway.webhook.dependencies import get_sac_component
+from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
+from solace_agent_mesh.gateway.http_sse.dependencies import get_sse_manager, get_session_manager
 ```
 
 ## Complete Usage Guide
-This guide provides practical examples of how to use the components and frameworks within the `gateway` directory.
 
-### 1. How to Create a Custom Gateway
-This example shows how to use the `base` module to build a new gateway for a hypothetical external platform.
+### 1. Creating a Custom Gateway Implementation
 
 ```python
-# my_gateway/app.py
-from gateway.base.app import BaseGatewayApp
-from .component import MyGatewayComponent
+from typing import Type, List, Dict, Any, Optional, Tuple, Union
+from solace_agent_mesh.gateway.base.app import BaseGatewayApp
+from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
+from solace_agent_mesh.common.a2a.types import ContentPart, TextPart
+from a2a.types import Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent, JSONRPCError
 
-class MyGatewayApp(BaseGatewayApp):
-    """Defines the application and its configuration for My Platform."""
-    SPECIFIC_APP_SCHEMA_PARAMS = [
+# Step 1: Define your gateway app class
+class MyCustomGatewayApp(BaseGatewayApp):
+    """Custom gateway for My Platform integration."""
+    
+    # Define platform-specific configuration parameters
+    SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]] = [
         {
             "name": "my_platform_api_key",
             "required": True,
             "type": "string",
-            "
+            "description": "API key for My Platform"
+        },
+        {
+            "name": "my_platform_webhook_url",
+            "required": False,
+            "type": "string",
+            "description": "Webhook URL for receiving events"
+        },
+        {
+            "name": "default_agent_name",
+            "required": False,
+            "type": "string",
+            "default": "assistant",
+            "description": "Default agent to route messages to"
+        }
+    ]
+
+    def _get_gateway_component_class(self) -> Type[BaseGatewayComponent]:
+        return MyCustomGatewayComponent
+
+# Step 2: Implement your gateway component
+class MyCustomGatewayComponent(BaseGatewayComponent):
+    """Component implementing My Platform integration logic."""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.api_key = self.get_config("my_platform_api_key")
+        self.webhook_url = self.get_config("my_platform_webhook_url")
+        self.default_agent = self.get_config("default_agent_name", "assistant")
+        self.platform_client = None  # Initialize your platform client
+    
+    async def _extract_initial_claims(self, external_event_data: Any) -> Optional[Dict[str, Any]]:
+        """Extract user identity from platform event."""
+        # Example: Extract user ID from your platform's event structure
+        if hasattr(external_event_data, 'user_id'):
+            return {
+                "id": external_event_data.user_id,
+                "platform": "my_platform",
+                "username": getattr(external_event_data, 'username', None)
+            }
+        return None
+    
+    def _start_listener(self) -> None:
+        """Start your platform's event listener."""
+        # Example: Start webhook server, WebSocket connection, etc.
+        print(f"Starting My Platform listener on {self.webhook_url}")
+        # Initialize your platform client/listener here
+    
+    def _stop_listener(self) -> None:
+        """Stop your platform's event listener."""
+        print("Stopping My Platform listener")
+        # Clean up platform client/listener here
+    
+    async def _translate_external_input(self, external_event: Any) -> Tuple[str, List[ContentPart], Dict[str, Any]]:
+        """Convert platform event to A2A format."""
+        # Extract message content
+        message_text = getattr(external_event, 'message', '')
+        
+        # Determine target agent (could be extracted from message or use default)
+        target_agent = getattr(external_event, 'target_agent', self.default_agent)
+        
+        # Create A2A content parts
+        a2a_parts = [TextPart(text=message_text)]
+        
+        # Create context for tracking this request
+        context = {
+            "platform": "my_platform",
+            "event_id": getattr(external_event, 'id', ''),
+            "channel_id": getattr(external_event, 'channel_id', ''),
+            "user_id_for_artifacts": getattr(external_event, 'user_id', ''),
+            "a2a_session_id": f"my_platform_{getattr(external_event, 'session_id', '')}"
+        }
+        
+        return target_agent, a2a_parts, context
+    
+    async def _send_update_to_external(self, 
+                                     external_request_context: Dict[str, Any], 
+                                     event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent], 
+                                     is_final_chunk_of_update: bool) -> None:
+        """Send streaming update to your platform."""
+        channel_id = external_request_context.get("channel_id")
+        
+        # Extract text content from the event
+        if hasattr(event_data, 'text_delta'):
+            text_content = event_data.text_delta
+        elif hasattr(event_data, 'content'):
+            text_content = str(event_data.content)
+        else:
+            text_content = "Update received"
+        
+        # Send to your platform (example)
+        await self._send_to_platform(channel_id, text_content, is_partial=not is_final_chunk_of_update)
+    
+    async def _send_final_response_to_external(self, 
+                                             external_request_context: Dict[str, Any], 
+                                             task_data: Task) -> None:
+        """Send final response to your platform."""
+        channel_id = external_request_context.get("channel_id")
+        
+        # Extract final response from task data
+        final_response = "Task completed"
+        if task_data.result and hasattr(task_data.result, 'content'):
+            final_response = str(task_data.result.content)
+        
+        await self._send_to_platform(channel_id, final_response, is_final=True)
+    
+    async def _send_error_to_external(self, 
+                                     external_request_context: Dict[str, Any], 
+                                     error_data: JSONRPCError) -> None:
+        """Send error to your platform."""
+        channel_id = external_request_context.get("channel_id")
+        error_message = f"Error: {error_data.message}"
+        await self._send_to_platform(channel_id, error_message, is_error=True)
+    
+    async def _send_to_platform(self, channel_id: str, message: str, **kwargs):
+        """Helper method to send messages to your platform."""
+        # Implement your platform's message sending logic here
+        print(f"Sending to {channel_id}: {message}")
+
+# Step 3: Usage
+if __name__ == "__main__":
+    config = {
+        "name": "my-custom-gateway",
+        "namespace": "/myorg/prod",
+        "gateway_id": "my-gateway-01",
+        "my_platform_api_key": "your-api-key",
+        "my_platform_webhook_url": "https://my-webhook.example.com",
+        "default_agent_name": "my-assistant",
+        "solace_config": {
+            "broker_url": "tcp://localhost:55555",
+            "vpn_name": "default",
+            "username": "default",
+            "password": "default"
+        }
+    }
+    
+    app = MyCustomGatewayApp(app_info=config)
+    app.run()
+```
+
+### 2. Using the Slack Gateway
+
+```python
+from solace_agent_mesh.gateway.slack.app import SlackGatewayApp
+
+# Configure Slack gateway
+slack_config = {
+    "name": "my-slack-bot",
+    "namespace": "/myorg/prod",
+    "gateway_id": "slack-bot-01",
+    
+    # Slack credentials (get these from your Slack app)
+    "slack_bot_token": "xoxb-your-bot-token",
+    "slack_app_token": "xapp-your-app-token",
+    "slack_signing_secret": "your-signing-secret",
+    
+    # Gateway settings
+    "default_agent_name": "assistant",
+    "enable_socket_mode": True,
+    "enable_file_upload": True,
+    "slack_request_timeout": 30,
+    
+    # A2A system configuration
+    "solace_config": {
+        "broker_url": "tcp://localhost:55555",
+        "vpn_name": "default",
+        "username": "default",
+        "password": "default"
+    }
+}
+
+# Create and run the Slack gateway
+slack_app = SlackGatewayApp(app_info=slack_config)
+slack_app.run()
+```
+
+### 3. Using the HTTP/SSE Gateway for Web Interfaces
+
+```python
+from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from fastapi import APIRouter, Depends, Request
+from solace_agent_mesh.gateway.http_sse.dependencies import (
+    get_sse_manager, get_session_manager, get_core_a2a_service
+)
+
+# Configure web UI gateway
+webui_config = {
+    "name": "my-webui",
+    "session_secret_key": "your-secret-key",
+    "fastapi_host": "0.0.0.0",
+    "fastapi_port": 8000,
+    "namespace": "/myorg/prod",
+    "gateway_id": "webui-01",
+    "cors_allowed_origins": ["http://localhost:3000"],
+    "frontend_welcome_message": "Welcome to AI Assistant!",
+    "frontend_bot_name": "Assistant",
+    "frontend_enable_file_upload": True,
+    "frontend_enable_agent_selection": True,
+    
+    # Database for session persistence
+    "session_service": {
+        "type": "sql",
+        "database_url": "sqlite:///./sessions.db"
+    },
+    
+    # A2A system configuration
+    "solace_config": {
+        "broker_url": "tcp://localhost:55555",
+        "vpn_name": "default",
+        "username": "default",
+        "password": "default"
+    }
+}
+
+# Create custom router for additional endpoints
+custom_router = APIRouter(prefix="/api/custom")
+
+@custom_router.get("/my-endpoint")
+async def my_custom_endpoint(
+    request: Request,
+    sse_manager = Depends(get_sse_manager),
+    session_manager = Depends(get_session_manager)
+):
+    """Custom endpoint with access to gateway services."""
+    user_id = session_manager.get_a2a_client_id(request)
+    return {"user_id": user_id, "message": "Custom endpoint response"}
+
+# Create and run the web UI gateway
+webui_app = WebUIBackendApp(app_info=webui_config)
+webui_app.run()
+```
+
+### 4. Working with Task Context and Session Management
+
+```python
+from solace_agent_mesh.gateway.base.task_context import TaskContextManager
+from solace_agent_mesh.gateway.http_sse.session_manager import SessionManager
+
+# Task context management (used internally by gateways)
+context_manager = TaskContextManager()
+
+# Store context when submitting a task
+task_id = "task-123"
+context = {
+    "platform": "slack",
+    "channel_id": "C1234567890",
+    "user_id": "U1234567890",
+    "thread_ts": "1234567890.123456"
+}
+context_manager.store_context(task_id, context)
+
+# Retrieve context when processing response
+retrieved_context = context_manager.get_context(task_id)
+if retrieved_context:
+    # Send response back to original platform
+    channel_id = retrieved_context["channel_id"]
+
+# Session management for web interfaces
+session_manager = SessionManager(
+    secret_key="your-secret-key",
+    app_config={"session_timeout": 3600}
+)
+
+# In a FastAPI endpoint
+@app.get("/api/session-info")
+async def get_session_info(request: Request):
+    # Get A2A client ID for this web session
+    client_id = session_manager.get_a2a_client_id(request)
+    
+    # Ensure we have an A2A session
+    session_id = session_manager.ensure_a2a_session(request)
+    
+    return {
+        "client_id": client_id,
+        "session_id": session_id
+    }
+```
+
+### 5. Advanced Integration: Combining Multiple Gateways
+
+```python
+import asyncio
+from solace_agent_mesh.gateway.slack.app import Sl
+
+# content_hash: 39731f2779a4f0ef42b1948f8441baf5b76eff10fbfc48def5fbb270fa334f6b

@@ -1,0 +1,63 @@
+test_case_id: "mcp_image_processing_png_001"
+description: "Tests that a base64 PNG image response is correctly saved as a .png
+  artifact."
+tags: ["all", "agent", "mcp"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_image_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Get PNG image data."
+  external_context:
+    a2a_session_id: "session_mcp_image_processing_png_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mcp_tool_png"
+                type: "function"
+                function:
+                  name: "get_data_stdio"
+                  arguments: '{"response_to_return": {"content": [{"type": "image",
+                    "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+                    "mimeType": "image/png"}]}}'
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_data_stdio"
+          response_json_matches:
+            status: "processed_and_saved"
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_stdio_image_0_.*\\.png' \\(version 0\\)\\."
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have retrieved the PNG image and saved it as an artifact."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_image_processing_png_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the PNG image and saved it as an artifact."
+    assert_artifact_state:
+      - filename_matches_regex: "get_data_stdio_image_0_.*\\.png$"
+        version: 0
+        expected_content_bytes_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+        expected_metadata_contains:
+          source_tool_name: "get_data_stdio"
+          content_type: "image"
+          original_mime_type: "image/png"

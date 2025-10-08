@@ -3,48 +3,41 @@ Contains event handling logic for the A2A_ADK_HostComponent.
 """
 
 import json
-import yaml
 import asyncio
-from typing import Union, TYPE_CHECKING, List, Dict, Any
+from typing import TYPE_CHECKING, Dict, Any
 import fnmatch
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message as SolaceMessage
+from ...agent.adk.callbacks import _publish_data_part_status_update
+from ...common.data_parts import ToolResultData
+from ...common.a2a.types import ToolsExtensionParams
 from solace_ai_connector.common.event import Event, EventType
-from ...common.types import (
-    Message as A2AMessage,
-    SendTaskRequest,
-    SendTaskStreamingRequest,
-    CancelTaskRequest,
-    GetTaskRequest,
-    SetTaskPushNotificationRequest,
-    GetTaskPushNotificationRequest,
-    TaskResubscriptionRequest,
-    TaskIdParams,
-    JSONParseError,
-    InvalidRequestError,
-    InternalError,
-    JSONRPCResponse,
+from a2a.types import (
+    A2ARequest,
     AgentCard,
     AgentCapabilities,
-    Task,
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
-    TaskStatus,
-    TaskState,
+    AgentExtension,
     DataPart,
-    A2ARequest,
+    JSONRPCResponse,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
+    TextPart,
 )
-from ...common.a2a_protocol import (
+from ...common import a2a
+from ...common.a2a import (
     get_agent_request_topic,
     get_discovery_topic,
     translate_a2a_to_adk_content,
     get_client_response_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
-    _extract_text_from_parts,
+    get_sam_events_subscription_topic,
+    get_text_from_message,
+    topic_matches_subscription,
 )
 from ...agent.utils.artifact_helpers import (
-    load_artifact_content_or_metadata,
+    generate_artifact_metadata_summary,
 )
 from ...agent.adk.runner import run_adk_async_task_thread_wrapper
 from ..sac.task_execution_context import TaskExecutionContext
@@ -53,118 +46,6 @@ from google.adk.agents import RunConfig
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
 from google.adk.agents.run_config import StreamingMode
-from google.adk.events import Event as ADKEvent
-from google.genai import types as adk_types
-
-
-async def _format_artifact_summary_from_manifest(
-    component: "SamAgentComponent",
-    produced_artifacts: List[Dict[str, Any]],
-    peer_agent_name: str,
-    correlation_data: Dict[str, Any],
-) -> str:
-    """
-    Loads metadata for a list of produced artifacts and formats it into a
-    human-readable YAML summary string.
-    """
-    if not produced_artifacts:
-        return ""
-
-    artifact_summary_lines = [
-        f"Peer agent `{peer_agent_name}` created {len(produced_artifacts)} artifact(s):"
-    ]
-
-    original_task_context = correlation_data.get("original_task_context", {})
-    user_id = original_task_context.get("user_id")
-    session_id = original_task_context.get("session_id")
-
-    if not (component.artifact_service and user_id and session_id):
-        log.warning(
-            "%s Cannot load artifact metadata: missing artifact_service or context.",
-            component.log_identifier,
-        )
-        for artifact_ref in produced_artifacts:
-            artifact_summary_lines.append(
-                f"- `{artifact_ref.get('filename')}` (v{artifact_ref.get('version')})"
-            )
-        return "\n".join(artifact_summary_lines)
-
-    peer_agent_name_for_artifact = peer_agent_name
-    if (
-        not peer_agent_name_for_artifact
-        or peer_agent_name_for_artifact == "A peer agent"
-    ):
-        log.warning(
-            "%s Peer agent name not in task metadata, using self agent name for artifact loading.",
-            component.log_identifier,
-        )
-        peer_agent_name_for_artifact = component.agent_name
-
-    for artifact_ref in produced_artifacts:
-        filename = artifact_ref.get("filename")
-        version = artifact_ref.get("version")
-        if not filename or version is None:
-            continue
-
-        try:
-            metadata_result = await load_artifact_content_or_metadata(
-                artifact_service=component.artifact_service,
-                app_name=peer_agent_name_for_artifact,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename,
-                version=version,
-                load_metadata_only=True,
-            )
-            if metadata_result.get("status") == "success":
-                metadata = metadata_result.get("metadata", {})
-                TRUNCATION_LIMIT_BYTES = 1024
-                TRUNCATION_MESSAGE = "\n... [truncated] ..."
-
-                try:
-                    formatted_metadata_str = yaml.safe_dump(
-                        metadata,
-                        default_flow_style=False,
-                        sort_keys=False,
-                        allow_unicode=True,
-                    )
-
-                    if (
-                        len(formatted_metadata_str.encode("utf-8"))
-                        > TRUNCATION_LIMIT_BYTES
-                    ):
-                        cutoff = TRUNCATION_LIMIT_BYTES - len(
-                            TRUNCATION_MESSAGE.encode("utf-8")
-                        )
-                        formatted_metadata_str = (
-                            formatted_metadata_str[:cutoff] + TRUNCATION_MESSAGE
-                        )
-
-                    summary_line = f"- `{filename}` (v{version}):\n  ```yaml\n{formatted_metadata_str}\n  ```"
-                    artifact_summary_lines.append(summary_line)
-                except Exception as e_format:
-                    log.error(
-                        "Error formatting metadata for %s v%s: %s",
-                        filename,
-                        version,
-                        e_format,
-                    )
-                    artifact_summary_lines.append(
-                        f"- `{filename}` (v{version}): Error formatting metadata."
-                    )
-            else:
-                artifact_summary_lines.append(
-                    f"- `{filename}` (v{version}): Could not load metadata."
-                )
-        except Exception as e_meta:
-            log.error(
-                "Error loading metadata for %s v%s: %s", filename, version, e_meta
-            )
-            artifact_summary_lines.append(
-                f"- `{filename}` (v{version}): Error loading metadata."
-            )
-
-    return "\n".join(artifact_summary_lines)
 
 
 def _register_peer_artifacts_in_parent_context(
@@ -216,17 +97,6 @@ async def process_event(component, event: Event):
                     component.log_identifier,
                 )
                 return
-            if component.invocation_monitor:
-                component.invocation_monitor.log_message_event(
-                    direction="RECEIVED",
-                    topic=topic,
-                    payload=message.get_payload(),
-                    component_identifier=component.log_identifier,
-                )
-            else:
-                log.warning(
-                    f"{component.log_identifier} InvocationMonitor not available in component for event on topic {topic}"
-                )
             namespace = component.get_config("namespace")
             agent_name = component.get_config("agent_name")
             agent_request_topic = get_agent_request_topic(namespace, agent_name)
@@ -237,6 +107,7 @@ async def process_event(component, event: Event):
             agent_status_sub_prefix = (
                 get_agent_status_subscription_topic(namespace, agent_name)[:-2] + "/"
             )
+            sam_events_topic = get_sam_events_subscription_topic(namespace, "session")
             if topic == agent_request_topic:
                 await handle_a2a_request(component, message)
             elif topic == discovery_topic:
@@ -245,6 +116,8 @@ async def process_event(component, event: Event):
                     handle_agent_card_message(component, message)
                 else:
                     message.call_acknowledgements()
+            elif topic_matches_subscription(topic, sam_events_topic):
+                handle_sam_event(component, message, topic)
             elif topic.startswith(agent_response_sub_prefix) or topic.startswith(
                 agent_status_sub_prefix
             ):
@@ -292,6 +165,50 @@ async def process_event(component, event: Event):
         component.handle_error(e, event)
 
 
+async def _publish_peer_tool_result_notification(
+    component: "SamAgentComponent",
+    correlation_data: Dict[str, Any],
+    payload_to_queue: Any,
+    log_identifier: str,
+):
+    """Publishes a ToolResultData status update for a completed peer tool call."""
+    peer_tool_name = correlation_data.get("peer_tool_name")
+    function_call_id = correlation_data.get("adk_function_call_id")
+    original_task_context_data = correlation_data.get("original_task_context")
+
+    if not (peer_tool_name and function_call_id and original_task_context_data):
+        log.warning(
+            "%s Missing data in correlation_data. Cannot publish peer tool result notification.",
+            log_identifier,
+        )
+        return
+
+    log.info(
+        "%s Publishing tool_result notification for completed peer task '%s'.",
+        log_identifier,
+        peer_tool_name,
+    )
+    try:
+        tool_result_notification = ToolResultData(
+            tool_name=peer_tool_name,
+            result_data=payload_to_queue,
+            function_call_id=function_call_id,
+        )
+        await _publish_data_part_status_update(
+            host_component=component,
+            a2a_context=original_task_context_data,
+            data_part_model=tool_result_notification,
+        )
+    except Exception as e:
+        log.error(
+            "%s Failed to publish peer tool result notification for '%s': %s",
+            log_identifier,
+            peer_tool_name,
+            e,
+            exc_info=True,
+        )
+
+
 async def handle_a2a_request(component, message: SolaceMessage):
     """
     Handles an incoming A2A request message.
@@ -304,44 +221,31 @@ async def handle_a2a_request(component, message: SolaceMessage):
         component.log_identifier,
         message.get_topic(),
     )
-    a2a_context = {}
-    adk_session = None
-    jsonrpc_request_id = None
-    logical_task_id = None
-    client_id = message.get_user_properties().get("clientId", "default_client")
-    status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
-    reply_topic_from_peer = message.get_user_properties().get("replyTo")
-    namespace = component.get_config("namespace")
-    a2a_user_config = message.get_user_properties().get("a2aUserConfig", {})
-    if not isinstance(a2a_user_config, dict):
-        log.warning(
-            "%s 'a2aUserConfig' user property is not a dictionary, received: %s. Defaulting to empty dict.",
-            component.log_identifier,
-            type(a2a_user_config),
-        )
-        a2a_user_config = {}
-    log.debug(
-        "%s Extracted 'a2aUserConfig': %s",
-        component.log_identifier,
-        a2a_user_config,
-    )
     try:
         payload_dict = message.get_payload()
         if not isinstance(payload_dict, dict):
             raise ValueError("Payload is not a dictionary.")
-        jsonrpc_request_id = payload_dict.get("id")
-        a2a_request: Union[
-            SendTaskRequest,
-            SendTaskStreamingRequest,
-            CancelTaskRequest,
-            GetTaskRequest,
-            SetTaskPushNotificationRequest,
-            GetTaskPushNotificationRequest,
-            TaskResubscriptionRequest,
-        ] = A2ARequest.validate_python(payload_dict)
-        jsonrpc_request_id = a2a_request.id
-        logical_task_id = a2a_request.params.id
-        if isinstance(a2a_request, CancelTaskRequest):
+            
+            
+        a2a_request: A2ARequest = A2ARequest.model_validate(payload_dict)
+        jsonrpc_request_id = a2a.get_request_id(a2a_request)
+
+        # Extract properties from message user properties  
+        client_id = message.get_user_properties().get("clientId", "default_client")
+        status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
+        reply_topic_from_peer = message.get_user_properties().get("replyTo")
+        namespace = component.get_config("namespace")
+        a2a_user_config = message.get_user_properties().get("a2aUserConfig", {})
+        if not isinstance(a2a_user_config, dict):
+            log.warning("a2aUserConfig is not a dict, using empty dict instead")
+            a2a_user_config = {}
+
+        # The concept of logical_task_id changes. For Cancel, it's in params.id.
+        # For Send, we will generate it.
+        logical_task_id = None
+        method = a2a.get_request_method(a2a_request)
+        if method == "tasks/cancel":
+            logical_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
             log.info(
                 "%s Received CancelTaskRequest for Task ID: %s.",
                 component.log_identifier,
@@ -359,28 +263,38 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     logical_task_id,
                 )
 
-                peer_sub_tasks = task_context.peer_sub_tasks
+                peer_sub_tasks = task_context.active_peer_sub_tasks.copy()
                 if peer_sub_tasks:
-                    for sub_task_info in peer_sub_tasks:
-                        sub_task_id = sub_task_info.get("sub_task_id")
+                    for sub_task_id, sub_task_info in peer_sub_tasks.items():
                         target_peer_agent_name = sub_task_info.get("peer_agent_name")
-                        if sub_task_id and target_peer_agent_name:
-                            log.info(
-                                "%s Attempting to cancel peer sub-task %s for agent %s (main task %s).",
+                        peer_task_id_to_cancel = sub_task_info.get("peer_task_id")
+
+                        if not peer_task_id_to_cancel:
+                            log.warning(
+                                "%s Cannot cancel peer sub-task %s for main task %s because the peer's taskId is not yet known.",
                                 component.log_identifier,
                                 sub_task_id,
+                                logical_task_id,
+                            )
+                            continue
+
+                        if peer_task_id_to_cancel and target_peer_agent_name:
+                            log.info(
+                                "%s Attempting to cancel peer sub-task %s (Peer Task ID: %s) for agent %s (main task %s).",
+                                component.log_identifier,
+                                sub_task_id,
+                                peer_task_id_to_cancel,
                                 target_peer_agent_name,
                                 logical_task_id,
                             )
                             try:
-                                peer_cancel_params = TaskIdParams(id=sub_task_id)
-                                peer_cancel_request = CancelTaskRequest(
-                                    params=peer_cancel_params
+                                peer_cancel_request = a2a.create_cancel_task_request(
+                                    task_id=peer_task_id_to_cancel
                                 )
                                 peer_cancel_user_props = {
                                     "clientId": component.agent_name
                                 }
-                                component._publish_a2a_message(
+                                component.publish_a2a_message(
                                     payload=peer_cancel_request.model_dump(
                                         exclude_none=True
                                     ),
@@ -390,17 +304,17 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                     user_properties=peer_cancel_user_props,
                                 )
                                 log.info(
-                                    "%s Sent CancelTaskRequest to peer %s for sub-task %s.",
+                                    "%s Sent CancelTaskRequest to peer %s for its task %s.",
                                     component.log_identifier,
                                     target_peer_agent_name,
-                                    sub_task_id,
+                                    peer_task_id_to_cancel,
                                 )
                             except Exception as e_peer_cancel:
                                 log.error(
-                                    "%s Failed to send CancelTaskRequest to peer %s for sub-task %s: %s",
+                                    "%s Failed to send CancelTaskRequest to peer %s for task %s: %s",
                                     component.log_identifier,
                                     target_peer_agent_name,
-                                    sub_task_id,
+                                    peer_task_id_to_cancel,
                                     e_peer_cancel,
                                 )
                         else:
@@ -431,10 +345,18 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     ack_e,
                 )
             return None
-        elif isinstance(a2a_request, (SendTaskRequest, SendTaskStreamingRequest)):
-            original_session_id = a2a_request.params.sessionId
-            task_id = a2a_request.params.id
-            task_metadata = a2a_request.params.metadata or {}
+        elif method in ["message/send", "message/stream"]:
+            a2a_message = a2a.get_message_from_send_request(a2a_request)
+            if not a2a_message:
+                raise ValueError("Could not extract message from SendMessageRequest")
+
+            # The gateway/client is the source of truth for the task ID.
+            # The agent adopts the ID from the JSON-RPC request envelope.
+            logical_task_id = str(a2a.get_request_id(a2a_request))
+            # The session id is now contextId on the message
+            original_session_id = a2a_message.context_id
+            message_id = a2a_message.message_id
+            task_metadata = a2a_message.metadata or {}
             system_purpose = task_metadata.get("system_purpose")
             response_format = task_metadata.get("response_format")
             session_behavior_from_meta = task_metadata.get("sessionBehavior")
@@ -463,7 +385,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 )
             user_id = message.get_user_properties().get("userId", "default_user")
             agent_name = component.get_config("agent_name")
-            is_streaming_request = isinstance(a2a_request, SendTaskStreamingRequest)
+            is_streaming_request = method == "message/stream"
             host_supports_streaming = component.get_config("supports_streaming", False)
             if is_streaming_request and not host_supports_streaming:
                 raise ValueError(
@@ -472,16 +394,30 @@ async def handle_a2a_request(component, message: SolaceMessage):
             effective_session_id = original_session_id
             is_run_based_session = False
             temporary_run_session_id_for_cleanup = None
+
+            session_id_from_data = None
+            if a2a_message and a2a_message.parts:
+                for part in a2a_message.parts:
+                    if isinstance(part, DataPart) and "session_id" in part.data:
+                        session_id_from_data = part.data["session_id"]
+                        log.info(
+                            f"Extracted session_id '{session_id_from_data}' from DataPart."
+                        )
+                        break
+
+            if session_id_from_data:
+                original_session_id = session_id_from_data
+
             if session_behavior == "RUN_BASED":
                 is_run_based_session = True
-                effective_session_id = f"{original_session_id}:{task_id}:run"
+                effective_session_id = f"{original_session_id}:{logical_task_id}:run"
                 temporary_run_session_id_for_cleanup = effective_session_id
                 log.info(
                     "%s Session behavior is RUN_BASED. OriginalID='%s', EffectiveID for this run='%s', TaskID='%s'.",
                     component.log_identifier,
                     original_session_id,
                     effective_session_id,
-                    task_id,
+                    logical_task_id,
                 )
             else:
                 is_run_based_session = False
@@ -491,8 +427,9 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     "%s Session behavior is PERSISTENT. EffectiveID='%s' for TaskID='%s'.",
                     component.log_identifier,
                     effective_session_id,
-                    task_id,
+                    logical_task_id,
                 )
+
             adk_session_for_run = await component.session_service.get_session(
                 app_name=agent_name, user_id=user_id, session_id=effective_session_id
             )
@@ -506,15 +443,17 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     "%s Created new ADK session '%s' for task '%s'.",
                     component.log_identifier,
                     effective_session_id,
-                    task_id,
+                    logical_task_id,
                 )
+
             else:
                 log.info(
                     "%s Reusing existing ADK session '%s' for task '%s'.",
                     component.log_identifier,
                     effective_session_id,
-                    task_id,
+                    logical_task_id,
                 )
+
             if is_run_based_session:
                 try:
                     original_adk_session_data = (
@@ -553,27 +492,29 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                 "%s No history to copy from original session '%s' for run-based task '%s'.",
                                 component.log_identifier,
                                 original_session_id,
-                                task_id,
+                                logical_task_id,
                             )
                     else:
                         log.debug(
                             "%s Original session '%s' not found or has no history, cannot copy for run-based task '%s'.",
                             component.log_identifier,
                             original_session_id,
-                            task_id,
+                            logical_task_id,
                         )
                 except Exception as e_copy:
                     log.error(
                         "%s Error copying history for run-based session '%s' (task '%s'): %s. Proceeding with empty session.",
                         component.log_identifier,
                         effective_session_id,
-                        task_id,
+                        logical_task_id,
                         e_copy,
                     )
             a2a_context = {
                 "jsonrpc_request_id": jsonrpc_request_id,
                 "logical_task_id": logical_task_id,
-                "session_id": original_session_id,
+                "contextId": original_session_id,
+                "messageId": message_id,
+                "session_id": original_session_id,  # Keep for now for compatibility
                 "user_id": user_id,
                 "client_id": client_id,
                 "is_streaming": is_streaming_request,
@@ -610,8 +551,51 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 logical_task_id,
             )
 
-            adk_content = translate_a2a_to_adk_content(
-                a2a_request.params.message, component.log_identifier
+            a2a_message_for_adk = a2a_message
+            invoked_artifacts = (
+                a2a_message_for_adk.metadata.get("invoked_with_artifacts", [])
+                if a2a_message_for_adk.metadata
+                else []
+            )
+
+            if invoked_artifacts:
+                log.info(
+                    "%s Task %s invoked with %d artifact(s). Preparing context from metadata.",
+                    component.log_identifier,
+                    logical_task_id,
+                    len(invoked_artifacts),
+                )
+                header_text = (
+                    "The user has provided the following artifacts as context for your task. "
+                    "Use the information contained within their metadata to complete your objective."
+                )
+                artifact_summary = await generate_artifact_metadata_summary(
+                    component=component,
+                    artifact_identifiers=invoked_artifacts,
+                    user_id=user_id,
+                    session_id=effective_session_id,
+                    app_name=agent_name,
+                    header_text=header_text,
+                )
+
+                task_description = get_text_from_message(a2a_message_for_adk)
+                final_prompt = f"{task_description}\n\n{artifact_summary}"
+
+                a2a_message_for_adk = a2a.update_message_parts(
+                    message=a2a_message_for_adk,
+                    new_parts=[a2a.create_text_part(text=final_prompt)],
+                )
+                log.debug(
+                    "%s Generated new prompt for task %s with artifact context.",
+                    component.log_identifier,
+                    logical_task_id,
+                )
+
+            adk_content = await translate_a2a_to_adk_content(
+                a2a_message=a2a_message_for_adk,
+                component=component,
+                user_id=user_id,
+                session_id=effective_session_id,
             )
 
             adk_session = await component.session_service.get_session(
@@ -684,7 +668,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
             log.warning(
                 "%s Received unhandled A2A request type: %s. Acknowledging.",
                 component.log_identifier,
-                type(a2a_request).__name__,
+                method,
             )
             try:
                 message.call_acknowledgements()
@@ -692,7 +676,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 log.error(
                     "%s Failed to ACK unhandled request type %s: %s",
                     component.log_identifier,
-                    type(a2a_request).__name__,
+                    method,
                     ack_e,
                 )
             return None
@@ -704,22 +688,15 @@ async def handle_a2a_request(component, message: SolaceMessage):
             e,
         )
         error_data = {"taskId": logical_task_id} if logical_task_id else None
-        if isinstance(e, ValueError):
-            error_response = JSONRPCResponse(
-                id=jsonrpc_request_id,
-                error=InvalidRequestError(message=str(e), data=error_data),
-            )
-        else:
-            error_response = JSONRPCResponse(
-                id=jsonrpc_request_id,
-                error=JSONParseError(message=str(e), data=error_data),
-            )
+        error_response = a2a.create_internal_error_response(
+            message=str(e), request_id=jsonrpc_request_id, data=error_data
+        )
 
         target_topic = reply_topic_from_peer or (
             get_client_response_topic(namespace, client_id) if client_id else None
         )
         if target_topic:
-            component._publish_a2a_message(
+            component.publish_a2a_message(
                 error_response.model_dump(exclude_none=True),
                 target_topic,
             )
@@ -744,18 +721,16 @@ async def handle_a2a_request(component, message: SolaceMessage):
         log.exception(
             "%s Unexpected error handling A2A request: %s", component.log_identifier, e
         )
-        error_response = JSONRPCResponse(
-            id=jsonrpc_request_id,
-            error=InternalError(
-                message=f"Unexpected server error: {e}",
-                data={"taskId": logical_task_id},
-            ),
+        error_response = a2a.create_internal_error_response(
+            message=f"Unexpected server error: {e}",
+            request_id=jsonrpc_request_id,
+            data={"taskId": logical_task_id},
         )
         target_topic = reply_topic_from_peer or (
             get_client_response_topic(namespace, client_id) if client_id else None
         )
         if target_topic:
-            component._publish_a2a_message(
+            component.publish_a2a_message(
                 error_response.model_dump(exclude_none=True),
                 target_topic,
             )
@@ -818,7 +793,7 @@ def handle_agent_card_message(component, message: SolaceMessage):
                     break
 
         if is_allowed:
-            agent_card.peer_agents = {}
+            # The received card is stored as-is. We don't need to modify it.
             component.peer_agents[agent_name] = agent_card
 
         message.call_acknowledgements()
@@ -839,18 +814,25 @@ async def handle_a2a_response(component, message: SolaceMessage):
 
     try:
         topic = message.get_topic()
-        topic_parts = topic.split("/")
-        if len(topic_parts) > 0:
-            sub_task_id = topic_parts[-1]
-            if not sub_task_id.startswith(component.CORRELATION_DATA_PREFIX):
-                log.warning(
-                    "%s Topic %s does not end with expected sub-task ID format. Ignoring.",
-                    component.log_identifier,
-                    topic,
-                )
-                message.call_acknowledgements()
-                return
+        agent_response_sub = a2a.get_agent_response_subscription_topic(
+            component.namespace, component.agent_name
+        )
+        agent_status_sub = a2a.get_agent_status_subscription_topic(
+            component.namespace, component.agent_name
+        )
+
+        if a2a.topic_matches_subscription(topic, agent_response_sub):
+            sub_task_id = a2a.extract_task_id_from_topic(
+                topic, agent_response_sub, component.log_identifier
+            )
+        elif a2a.topic_matches_subscription(topic, agent_status_sub):
+            sub_task_id = a2a.extract_task_id_from_topic(
+                topic, agent_status_sub, component.log_identifier
+            )
         else:
+            sub_task_id = None
+
+        if not sub_task_id:
             log.error(
                 "%s Could not extract sub-task ID from topic: %s",
                 component.log_identifier,
@@ -876,159 +858,185 @@ async def handle_a2a_response(component, message: SolaceMessage):
             is_final_response = True
         else:
             try:
-                a2a_response = JSONRPCResponse(**payload_dict)
+                a2a_response = JSONRPCResponse.model_validate(payload_dict)
 
-                if a2a_response.result and isinstance(a2a_response.result, dict):
-                    payload_data = a2a_response.result
+                result = a2a.get_response_result(a2a_response)
+                if result:
+                    payload_data = result
+
+                    # Store the peer's task ID if we see it for the first time
+                    peer_task_id = getattr(payload_data, "task_id", None)
+                    if peer_task_id:
+                        correlation_data = (
+                            await component._get_correlation_data_for_sub_task(
+                                sub_task_id
+                            )
+                        )
+                        if correlation_data and "peer_task_id" not in correlation_data:
+                            log.info(
+                                "%s Received first response for sub-task %s. Storing peer taskId: %s",
+                                component.log_identifier,
+                                sub_task_id,
+                                peer_task_id,
+                            )
+                            main_logical_task_id = correlation_data.get(
+                                "logical_task_id"
+                            )
+                            with component.active_tasks_lock:
+                                task_context = component.active_tasks.get(
+                                    main_logical_task_id
+                                )
+                                if task_context:
+                                    with task_context.lock:
+                                        if (
+                                            sub_task_id
+                                            in task_context.active_peer_sub_tasks
+                                        ):
+                                            task_context.active_peer_sub_tasks[
+                                                sub_task_id
+                                            ]["peer_task_id"] = peer_task_id
+
                     parsed_successfully = False
                     is_final_response = False
                     payload_to_queue = None
 
-                    if (
-                        "final" in payload_data
-                        and "status" in payload_data
-                        and isinstance(payload_data.get("final"), bool)
-                    ):
+                    if isinstance(payload_data, TaskStatusUpdateEvent):
                         try:
-                            status_event = TaskStatusUpdateEvent(**payload_data)
-
-                            if (
-                                status_event.status
-                                and status_event.status.message
-                                and status_event.status.message.parts
-                            ):
-                                for part_from_peer in status_event.status.message.parts:
-                                    if (
-                                        isinstance(part_from_peer, DataPart)
-                                        and part_from_peer.data.get("a2a_signal_type")
-                                        == "agent_status_message"
-                                    ):
-                                        log.info(
-                                            "%s Received agent_status_message signal from peer for sub-task %s.",
+                            status_event = payload_data
+                            data_parts = a2a.get_data_parts_from_status_update(
+                                status_event
+                            )
+                            if data_parts:
+                                for data_part in data_parts:
+                                    log.info(
+                                        "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
+                                        component.log_identifier,
+                                        sub_task_id,
+                                    )
+                                    correlation_data = await component._get_correlation_data_for_sub_task(
+                                        sub_task_id
+                                    )
+                                    if not correlation_data:
+                                        log.warning(
+                                            "%s Correlation data not found for sub-task %s. Cannot forward status signal.",
                                             component.log_identifier,
                                             sub_task_id,
                                         )
-                                        correlation_data = await component._get_correlation_data_for_sub_task(
-                                            sub_task_id
-                                        )
-                                        if not correlation_data:
-                                            log.warning(
-                                                "%s Correlation data not found for sub-task %s. Cannot forward status signal.",
-                                                component.log_identifier,
-                                                sub_task_id,
-                                            )
-                                            message.call_acknowledgements()
-                                            return
-
-                                        original_task_context = correlation_data.get(
-                                            "original_task_context"
-                                        )
-                                        if not original_task_context:
-                                            log.warning(
-                                                "%s original_task_context not found in correlation data for sub-task %s. Cannot forward status signal.",
-                                                component.log_identifier,
-                                                sub_task_id,
-                                            )
-                                            message.call_acknowledgements()
-                                            return
-
-                                        main_logical_task_id = (
-                                            original_task_context.get("logical_task_id")
-                                        )
-                                        original_jsonrpc_request_id = (
-                                            original_task_context.get(
-                                                "jsonrpc_request_id"
-                                            )
-                                        )
-
-                                        target_topic_for_forward = (
-                                            original_task_context.get("statusTopic")
-                                        )
-
-                                        if (
-                                            not main_logical_task_id
-                                            or not original_jsonrpc_request_id
-                                            or not target_topic_for_forward
-                                        ):
-                                            log.error(
-                                                "%s Missing critical info (main_task_id, original_rpc_id, or target_status_topic) in context for sub-task %s. Cannot forward. Context: %s",
-                                                component.log_identifier,
-                                                sub_task_id,
-                                                original_task_context,
-                                            )
-                                            message.call_acknowledgements()
-                                            return
-
-                                        peer_agent_name = (
-                                            status_event.metadata.get(
-                                                "agent_name", "UnknownPeer"
-                                            )
-                                            if status_event.metadata
-                                            else "UnknownPeer"
-                                        )
-
-                                        forwarded_message = A2AMessage(
-                                            role="agent",
-                                            parts=[part_from_peer],
-                                            metadata={
-                                                "agent_name": component.agent_name,
-                                                "forwarded_from_peer": peer_agent_name,
-                                                "original_peer_event_id": status_event.id,
-                                                "original_peer_event_timestamp": (
-                                                    status_event.status.timestamp.isoformat()
-                                                    if status_event.status
-                                                    and status_event.status.timestamp
-                                                    else None
-                                                ),
-                                                "function_call_id": correlation_data.get(
-                                                    "adk_function_call_id", None
-                                                ),
-                                            },
-                                        )
-                                        forwarded_status = TaskStatus(
-                                            state=TaskState.WORKING,
-                                            message=forwarded_message,
-                                            timestamp=status_event.status.timestamp,
-                                        )
-                                        forwarded_event = TaskStatusUpdateEvent(
-                                            id=main_logical_task_id,
-                                            status=forwarded_status,
-                                            final=False,
-                                        )
-                                        forwarded_rpc_response = JSONRPCResponse(
-                                            id=original_jsonrpc_request_id,
-                                            result=forwarded_event,
-                                        )
-                                        payload_to_publish = (
-                                            forwarded_rpc_response.model_dump(
-                                                exclude_none=True
-                                            )
-                                        )
-
-                                        try:
-                                            component._publish_a2a_message(
-                                                payload_to_publish,
-                                                target_topic_for_forward,
-                                            )
-                                            log.info(
-                                                "%s Forwarded agent_status_message signal for main task %s (from peer %s) to %s.",
-                                                component.log_identifier,
-                                                main_logical_task_id,
-                                                peer_agent_name,
-                                                target_topic_for_forward,
-                                            )
-                                        except Exception as pub_err:
-                                            log.exception(
-                                                "%s Failed to publish forwarded status signal for main task %s: %s",
-                                                component.log_identifier,
-                                                main_logical_task_id,
-                                                pub_err,
-                                            )
                                         message.call_acknowledgements()
                                         return
 
+                                    original_task_context = correlation_data.get(
+                                        "original_task_context"
+                                    )
+                                    if not original_task_context:
+                                        log.warning(
+                                            "%s original_task_context not found in correlation data for sub-task %s. Cannot forward status signal.",
+                                            component.log_identifier,
+                                            sub_task_id,
+                                        )
+                                        message.call_acknowledgements()
+                                        return
+
+                                    main_logical_task_id = original_task_context.get(
+                                        "logical_task_id"
+                                    )
+                                    original_jsonrpc_request_id = (
+                                        original_task_context.get("jsonrpc_request_id")
+                                    )
+                                    main_context_id = original_task_context.get(
+                                        "contextId"
+                                    )
+
+                                    target_topic_for_forward = (
+                                        original_task_context.get("statusTopic")
+                                    )
+
+                                    if (
+                                        not main_logical_task_id
+                                        or not original_jsonrpc_request_id
+                                        or not target_topic_for_forward
+                                    ):
+                                        log.error(
+                                            "%s Missing critical info (main_task_id, original_rpc_id, or target_status_topic) in context for sub-task %s. Cannot forward. Context: %s",
+                                            component.log_identifier,
+                                            sub_task_id,
+                                            original_task_context,
+                                        )
+                                        message.call_acknowledgements()
+                                        return
+
+                                    peer_agent_name = (
+                                        status_event.metadata.get(
+                                            "agent_name", "UnknownPeer"
+                                        )
+                                        if status_event.metadata
+                                        else "UnknownPeer"
+                                    )
+
+                                    forwarded_message = a2a.create_agent_parts_message(
+                                        parts=[data_part],
+                                        metadata={
+                                            "agent_name": component.agent_name,
+                                            "forwarded_from_peer": peer_agent_name,
+                                            "original_peer_event_taskId": status_event.task_id,
+                                            "original_peer_event_timestamp": (
+                                                status_event.status.timestamp
+                                                if status_event.status
+                                                and status_event.status.timestamp
+                                                else None
+                                            ),
+                                            "function_call_id": correlation_data.get(
+                                                "adk_function_call_id", None
+                                            ),
+                                        },
+                                    )
+                                    forwarded_event = a2a.create_status_update(
+                                        task_id=main_logical_task_id,
+                                        context_id=main_context_id,
+                                        message=forwarded_message,
+                                        is_final=False,
+                                    )
+                                    if (
+                                        status_event.status
+                                        and status_event.status.timestamp
+                                    ):
+                                        forwarded_event.status.timestamp = (
+                                            status_event.status.timestamp
+                                        )
+                                    forwarded_rpc_response = JSONRPCResponse(
+                                        id=original_jsonrpc_request_id,
+                                        result=forwarded_event,
+                                    )
+                                    payload_to_publish = (
+                                        forwarded_rpc_response.model_dump(
+                                            by_alias=True, exclude_none=True
+                                        )
+                                    )
+
+                                    try:
+                                        component.publish_a2a_message(
+                                            payload_to_publish,
+                                            target_topic_for_forward,
+                                        )
+                                        log.info(
+                                            "%s Forwarded DataPart signal for main task %s (from peer %s) to %s.",
+                                            component.log_identifier,
+                                            main_logical_task_id,
+                                            peer_agent_name,
+                                            target_topic_for_forward,
+                                        )
+                                    except Exception as pub_err:
+                                        log.exception(
+                                            "%s Failed to publish forwarded status signal for main task %s: %s",
+                                            component.log_identifier,
+                                            main_logical_task_id,
+                                            pub_err,
+                                        )
+                                    message.call_acknowledgements()
+                                    return
+
                             payload_to_queue = status_event.model_dump(
-                                exclude_none=True
+                                by_alias=True, exclude_none=True
                             )
                             if status_event.final:
                                 log.debug(
@@ -1037,22 +1045,15 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                     sub_task_id,
                                 )
 
-                                if (
-                                    status_event.status
-                                    and status_event.status.message
-                                    and status_event.status.message.parts
-                                ):
+                                if status_event.status and status_event.status.message:
                                     response_parts_data = []
-                                    for part in status_event.status.message.parts:
-                                        if (
-                                            hasattr(part, "text")
-                                            and part.text is not None
-                                        ):
+                                    unwrapped_parts = a2a.get_parts_from_message(
+                                        status_event.status.message
+                                    )
+                                    for part in unwrapped_parts:
+                                        if isinstance(part, TextPart):
                                             response_parts_data.append(str(part.text))
-                                        elif (
-                                            hasattr(part, "data")
-                                            and part.data is not None
-                                        ):
+                                        elif isinstance(part, DataPart):
                                             try:
                                                 response_parts_data.append(
                                                     json.dumps(part.data)
@@ -1086,7 +1087,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
                             parsed_successfully = True
                         except Exception as e:
                             log.warning(
-                                "%s Failed to parse payload as TaskStatusUpdateEvent for sub-task %s. Payload: %s. Error: %s",
+                                "%s Failed to process payload as TaskStatusUpdateEvent for sub-task %s. Payload: %s. Error: %s",
                                 component.log_identifier,
                                 sub_task_id,
                                 payload_data,
@@ -1094,15 +1095,11 @@ async def handle_a2a_response(component, message: SolaceMessage):
                             )
                             payload_to_queue = None
 
-                    if (
-                        not parsed_successfully
-                        and "artifact" in payload_data
-                        and isinstance(payload_data.get("artifact"), dict)
-                    ):
+                    elif isinstance(payload_data, TaskArtifactUpdateEvent):
                         try:
-                            artifact_event = TaskArtifactUpdateEvent(**payload_data)
+                            artifact_event = payload_data
                             payload_to_queue = artifact_event.model_dump(
-                                exclude_none=True
+                                by_alias=True, exclude_none=True
                             )
                             is_final_response = False
                             log.debug(
@@ -1121,10 +1118,12 @@ async def handle_a2a_response(component, message: SolaceMessage):
                             )
                             payload_to_queue = None
 
-                    if not parsed_successfully:
+                    elif isinstance(payload_data, Task):
                         try:
-                            final_task = Task(**payload_data)
-                            payload_to_queue = final_task.model_dump(exclude_none=True)
+                            final_task = payload_data
+                            payload_to_queue = final_task.model_dump(
+                                by_alias=True, exclude_none=True
+                            )
                             is_final_response = True
                             log.debug(
                                 "%s Parsed final Task object from peer for sub-task %s.",
@@ -1134,26 +1133,31 @@ async def handle_a2a_response(component, message: SolaceMessage):
                             parsed_successfully = True
                         except Exception as task_parse_error:
                             log.error(
-                                "%s Failed to parse peer response for sub-task %s as any known type. Payload: %s. Error: %s",
+                                "%s Failed to parse peer response for sub-task %s as Task. Payload: %s. Error: %s",
                                 component.log_identifier,
                                 sub_task_id,
                                 payload_data,
                                 task_parse_error,
                             )
-                            if not a2a_response.error:
-                                a2a_response.error = InternalError(
+                            if not a2a.get_response_error(a2a_response):
+                                error = a2a.create_internal_error(
                                     message=f"Failed to parse response from peer agent for sub-task {sub_task_id}",
                                     data={
-                                        "original_payload": payload_data,
+                                        "original_payload": payload_data.model_dump(
+                                            by_alias=True, exclude_none=True
+                                        ),
                                         "error": str(task_parse_error),
                                     },
+                                )
+                                a2a_response = a2a.create_error_response(
+                                    error, a2a.get_response_id(a2a_response)
                                 )
                             payload_to_queue = None
                             is_final_response = True
 
                     if (
                         not parsed_successfully
-                        and not a2a_response.error
+                        and not a2a.get_response_error(a2a_response)
                         and payload_to_queue is None
                     ):
                         log.error(
@@ -1162,23 +1166,30 @@ async def handle_a2a_response(component, message: SolaceMessage):
                             sub_task_id,
                             payload_data,
                         )
-                        a2a_response.error = InternalError(
+                        error = a2a.create_internal_error(
                             message=f"Unknown response structure from peer agent for sub-task {sub_task_id}",
-                            data={"original_payload": payload_data},
+                            data={
+                                "original_payload": payload_data.model_dump(
+                                    by_alias=True, exclude_none=True
+                                )
+                            },
+                        )
+                        a2a_response = a2a.create_error_response(
+                            error, a2a.get_response_id(a2a_response)
                         )
                         is_final_response = True
 
-                elif a2a_response.error:
+                elif error := a2a.get_response_error(a2a_response):
                     log.warning(
                         "%s Received error response from peer for sub-task %s: %s",
                         component.log_identifier,
                         sub_task_id,
-                        a2a_response.error,
+                        error,
                     )
                     payload_to_queue = {
-                        "error": a2a_response.error.message,
-                        "code": a2a_response.error.code,
-                        "data": a2a_response.error.data,
+                        "error": error.message,
+                        "code": error.code,
+                        "data": error.data,
                     }
                     is_final_response = True
                 else:
@@ -1271,9 +1282,7 @@ async def handle_a2a_response(component, message: SolaceMessage):
                     try:
                         task_obj = Task(**payload_to_queue)
                         if task_obj.status and task_obj.status.message:
-                            final_text = _extract_text_from_parts(
-                                task_obj.status.message.parts
-                            )
+                            final_text = get_text_from_message(task_obj.status.message)
 
                         if (
                             task_obj.metadata
@@ -1286,14 +1295,31 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                 peer_agent_name = task_obj.metadata.get(
                                     "agent_name", "A peer agent"
                                 )
-                                artifact_summary = (
-                                    await _format_artifact_summary_from_manifest(
-                                        component,
-                                        produced_artifacts,
-                                        peer_agent_name,
-                                        correlation_data,
-                                    )
+                                original_task_context = correlation_data.get(
+                                    "original_task_context", {}
                                 )
+                                user_id = original_task_context.get("user_id")
+                                session_id = original_task_context.get("session_id")
+
+                                header_text = f"Peer agent `{peer_agent_name}` created {len(produced_artifacts)} artifact(s):"
+
+                                if user_id and session_id:
+                                    artifact_summary = (
+                                        await generate_artifact_metadata_summary(
+                                            component=component,
+                                            artifact_identifiers=produced_artifacts,
+                                            user_id=user_id,
+                                            session_id=session_id,
+                                            app_name=peer_agent_name,
+                                            header_text=header_text,
+                                        )
+                                    )
+                                else:
+                                    log.warning(
+                                        "%s Could not generate artifact summary: missing user_id or session_id in correlation data.",
+                                        log_retrigger,
+                                    )
+                                    artifact_summary = ""
                                 # Bubble up the peer's artifacts to the parent context
                                 _register_peer_artifacts_in_parent_context(
                                     task_context, task_obj, log_retrigger
@@ -1311,6 +1337,13 @@ async def handle_a2a_response(component, message: SolaceMessage):
             full_response_text = final_text
             if artifact_summary:
                 full_response_text = f"{artifact_summary}\n\n{full_response_text}"
+
+            await _publish_peer_tool_result_notification(
+                component=component,
+                correlation_data=correlation_data,
+                payload_to_queue=payload_to_queue,
+                log_identifier=log_retrigger,
+            )
 
             current_result = {
                 "adk_function_call_id": correlation_data.get("adk_function_call_id"),
@@ -1403,34 +1436,92 @@ def publish_agent_card(component):
         agent_request_topic = get_agent_request_topic(namespace, agent_name)
         dynamic_url = f"solace:{agent_request_topic}"
 
+        # Define unique URIs for our custom extensions.
+        PEER_TOPOLOGY_EXTENSION_URI = (
+            "https://solace.com/a2a/extensions/peer-agent-topology"
+        )
+        DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name"
+        TOOLS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools"
+
+        extensions_list = []
+
+        # Create the extension object for peer agents.
+        if peer_agents:
+            peer_topology_extension = AgentExtension(
+                uri=PEER_TOPOLOGY_EXTENSION_URI,
+                description="A list of peer agents this agent is configured to communicate with.",
+                params={"peer_agent_names": list(peer_agents.keys())},
+            )
+            extensions_list.append(peer_topology_extension)
+
+        # Create the extension object for the UI display name.
+        if display_name:
+            display_name_extension = AgentExtension(
+                uri=DISPLAY_NAME_EXTENSION_URI,
+                description="A UI-friendly display name for the agent.",
+                params={"display_name": display_name},
+            )
+            extensions_list.append(display_name_extension)
+
+        # Create the extension object for the agent's tools.
+        dynamic_tools = getattr(component, "agent_card_tool_manifest", [])
+        if dynamic_tools:
+            # Ensure all tools have a 'tags' field to prevent validation errors.
+            processed_tools = []
+            for tool in dynamic_tools:
+                if "tags" not in tool:
+                    log.debug(
+                        "%s Tool '%s' in manifest is missing 'tags' field. Defaulting to empty list.",
+                        component.log_identifier,
+                        tool.get("id", "unknown"),
+                    )
+                    tool["tags"] = []
+                processed_tools.append(tool)
+
+            tools_params = ToolsExtensionParams(tools=processed_tools)
+            tools_extension = AgentExtension(
+                uri=TOOLS_EXTENSION_URI,
+                description="A list of tools available to the agent.",
+                params=tools_params.model_dump(exclude_none=True),
+            )
+            extensions_list.append(tools_extension)
+
+        # Build the capabilities object, including our custom extensions.
         capabilities = AgentCapabilities(
             streaming=supports_streaming,
-            pushNotifications=False,
-            stateTransitionHistory=False,
+            push_notifications=False,
+            state_transition_history=False,
+            extensions=extensions_list if extensions_list else None,
         )
 
-        skills = card_config.get("skills", [])
-        dynamic_tools = getattr(component, "agent_card_tool_manifest", [])
+        skills_from_config = card_config.get("skills", [])
+        # The 'tools' field is not part of the official AgentCard spec.
+        # The tools are now included as an extension.
+
+        # Ensure all skills have a 'tags' field to prevent validation errors.
+        processed_skills = []
+        for skill in skills_from_config:
+            if "tags" not in skill:
+                skill["tags"] = []
+            processed_skills.append(skill)
 
         agent_card = AgentCard(
             name=agent_name,
-            display_name=display_name,
+            protocol_version=card_config.get("protocolVersion", "0.3.0"),
             version=component.HOST_COMPONENT_VERSION,
             url=dynamic_url,
             capabilities=capabilities,
             description=card_config.get("description", ""),
-            skills=skills,
-            tools=dynamic_tools,
-            defaultInputModes=card_config.get("defaultInputModes", ["text"]),
-            defaultOutputModes=card_config.get("defaultOutputModes", ["text"]),
-            documentationUrl=card_config.get("documentationUrl"),
+            skills=processed_skills,
+            default_input_modes=card_config.get("defaultInputModes", ["text"]),
+            default_output_modes=card_config.get("defaultOutputModes", ["text"]),
+            documentation_url=card_config.get("documentationUrl"),
             provider=card_config.get("provider"),
-            peer_agents=peer_agents,
         )
 
         discovery_topic = get_discovery_topic(namespace)
 
-        component._publish_a2a_message(
+        component.publish_a2a_message(
             agent_card.model_dump(exclude_none=True), discovery_topic
         )
         log.debug(
@@ -1444,3 +1535,87 @@ def publish_agent_card(component):
             "%s Failed to publish Agent Card: %s", component.log_identifier, e
         )
         component.handle_error(e, None)
+
+
+def handle_sam_event(component, message, topic):
+    """Handle incoming SAM system events."""
+    try:
+        payload = message.get_payload()
+        
+        if not isinstance(payload, dict):
+            log.warning("Invalid SAM event payload - not a dict")
+            message.call_acknowledgements()
+            return
+        
+        event_type = payload.get("event_type")
+        if not event_type:
+            log.warning("SAM event missing event_type field")
+            message.call_acknowledgements()
+            return
+            
+        log.info("%s Received SAM event: %s", component.log_identifier, event_type)
+        
+        if event_type == "session.deleted":
+            data = payload.get("data", {})
+            session_id = data.get("session_id")
+            user_id = data.get("user_id")
+            agent_id = data.get("agent_id")
+            
+            if not all([session_id, user_id, agent_id]):
+                log.warning("Missing required fields in session.deleted event")
+                message.call_acknowledgements()
+                return
+                
+            current_agent = component.get_config("agent_name")
+            
+            if agent_id == current_agent:
+                log.info("%s Processing session.deleted event for session %s", 
+                        component.log_identifier, session_id)
+                asyncio.create_task(cleanup_agent_session(component, session_id, user_id))
+            else:
+                log.debug("Session deletion event for different agent: %s != %s", agent_id, current_agent)
+        else:
+            log.debug("Unhandled SAM event type: %s", event_type)
+            
+        message.call_acknowledgements()
+        
+    except Exception as e:
+        log.error("Error handling SAM event %s: %s", topic, e)
+        message.call_acknowledgements()
+
+
+
+async def cleanup_agent_session(component, session_id: str, user_id: str):
+    """Clean up agent-side session data."""
+    try:
+        log.info("Starting cleanup for session %s, user %s", session_id, user_id)
+        
+        if hasattr(component, 'session_service') and component.session_service:
+            agent_name = component.get_config("agent_name")
+            log.info("Deleting session %s from agent %s session service", session_id, agent_name)
+            await component.session_service.delete_session(
+                app_name=agent_name,
+                user_id=user_id,
+                session_id=session_id
+            )
+            log.info("Successfully deleted session %s from session service", session_id)
+        else:
+            log.info("No session service available for cleanup")
+            
+        with component.active_tasks_lock:
+            tasks_to_cancel = []
+            for task_id, context in component.active_tasks.items():
+                if (hasattr(context, 'a2a_context') and 
+                    context.a2a_context.get('session_id') == session_id):
+                    tasks_to_cancel.append(task_id)
+                    
+            for task_id in tasks_to_cancel:
+                context = component.active_tasks.get(task_id)
+                if context:
+                    context.cancel()
+                    log.info("Cancelled task %s for deleted session %s", task_id, session_id)
+        
+        log.info("Session cleanup completed for session %s", session_id)
+                    
+    except Exception as e:
+        log.error("Error cleaning up session %s: %s", session_id, e)

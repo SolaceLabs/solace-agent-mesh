@@ -11,7 +11,7 @@ from solace_ai_connector.common.utils import deep_merge
 from solace_ai_connector.flow.app import App
 from solace_ai_connector.components.component_base import ComponentBase
 
-from ...common.a2a_protocol import (
+from ...common.a2a import (
     get_discovery_topic,
     get_gateway_response_subscription_topic,
     get_gateway_status_subscription_topic,
@@ -63,6 +63,26 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "type": "integer",
             "default": 12,
             "description": "Maximum depth for recursively resolving 'artifact_content' embeds within files.",
+        },
+        {
+            "name": "artifact_handling_mode",
+            "required": False,
+            "type": "string",
+            "default": "reference",
+            "description": (
+                "How the gateway handles file parts from clients. "
+                "'reference': Save inline file bytes to the artifact store and replace with a URI. "
+                "'embed': Resolve file URIs and embed content as bytes. "
+                "'passthrough': Send file parts to the agent as-is."
+            ),
+            "enum": ["reference", "embed", "passthrough"],
+        },
+        {
+            "name": "gateway_max_message_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 10_000_000,  # 10MB
+            "description": "Maximum allowed message size in bytes for messages published by the gateway.",
         },
         # --- Default User Identity Configuration ---
         {
@@ -199,6 +219,12 @@ class BaseGatewayApp(App):
 
         self.gateway_recursive_embed_depth: int = resolved_app_config_block.get(
             "gateway_recursive_embed_depth", 12
+        )
+        self.artifact_handling_mode: str = resolved_app_config_block.get(
+            "artifact_handling_mode", "reference"
+        )
+        self.gateway_max_message_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_message_size_bytes", 10_000_000
         )
 
         modified_app_info = app_info.copy()

@@ -12,7 +12,7 @@ The advantages of centralized orchestration such as task breakdown and managemen
 
 
 :::tip[In one sentence]
-The OrchestratorAgent allows for a centralized workflow management in the Solace Agent Mesh by coordinating tasks and communication between agents.
+The OrchestratorAgent allows for a centralized workflow management in Solace Agent Mesh by coordinating tasks and communication between agents.
 :::
 
 The system is not limited to a single orchestrator agent, and multiple orchestrator agents can be deployed to handle different workflows or domains. This allows for flexibility and scalability in managing complex tasks.

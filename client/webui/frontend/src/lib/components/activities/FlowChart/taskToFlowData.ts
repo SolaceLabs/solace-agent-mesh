@@ -31,6 +31,9 @@ import {
 } from "./taskToFlowData.helpers";
 import { EdgeAnimationService } from "./edgeAnimationService";
 
+// Relevant step types that should be processed in the flow chart
+const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED"];
+
 interface FlowData {
     nodes: Node[];
     edges: Edge[];
@@ -177,17 +180,19 @@ function handleLLMCall(step: VisualizerStep, manager: TimelineLayoutManager, nod
 }
 
 function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
-    // If this is a parallel tool decision, set up the parallel flow context
+    // If this is a parallel tool decision with multiple peer agents delegation, set up the parallel flow context
     if (step.type === "AGENT_LLM_RESPONSE_TOOL_DECISION" && step.data.toolDecision?.isParallel) {
         const parallelFlowId = `parallel-${step.id}`;
-        manager.parallelFlows.set(parallelFlowId, {
-            subflowFunctionCallIds: step.data.toolDecision.decisions.filter(d => d.isPeerDelegation).map(d => d.functionCallId),
-            completedSubflows: new Set(),
-            startX: LANE_X_POSITIONS.MAIN_FLOW - 50,
-            startY: manager.nextAvailableGlobalY,
-            currentXOffset: 0,
-            maxHeight: 0,
-        });
+        if (step.data.toolDecision.decisions.filter(d => d.isPeerDelegation).length > 1) {
+            manager.parallelFlows.set(parallelFlowId, {
+                subflowFunctionCallIds: step.data.toolDecision.decisions.filter(d => d.isPeerDelegation).map(d => d.functionCallId),
+                completedSubflows: new Set(),
+                startX: LANE_X_POSITIONS.MAIN_FLOW - 50,
+                startY: manager.nextAvailableGlobalY,
+                currentXOffset: 0,
+                maxHeight: 0,
+            });
+        }
     }
 
     const currentPhase = getCurrentPhase(manager);
@@ -201,7 +206,6 @@ function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutM
     // Find the most recent LLM instance within the correct context
     const context = subflow || currentPhase;
 
-    // Use enhanced tool finder with function call ID matching
     const llmInstance = findToolInstanceByNameEnhanced(context.toolInstances, "LLM", nodes, step.functionCallId);
 
     if (llmInstance) {
@@ -352,7 +356,7 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
             // 3. Connect ALL completed parallel agents to this single join node.
             sourceSubflows.forEach(subflow => {
                 createTimelineEdge(
-                    subflow.peerAgent.id,
+                    subflow.lastSubflow?.peerAgent.id ?? subflow.peerAgent.id,
                     joinNode.id,
                     step, // Use the final step as the representative event for the join
                     edges,
@@ -385,7 +389,11 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
         } else {
             // Peer-to-peer sequential return.
             manager.indentationLevel = Math.max(0, manager.indentationLevel - 1);
-            const newSubflow = startNewSubflow(manager, targetAgentName, step, nodes, false);
+
+            // Check if we need to consider parallel flow context for this return
+            const isWithinParallelContext = isParallelFlow(step, manager) || Array.from(manager.parallelFlows.values()).some(pf => pf.subflowFunctionCallIds.some(id => currentPhase.subflows.some(sf => sf.functionCallId === id)));
+
+            const newSubflow = startNewSubflow(manager, targetAgentName, step, nodes, isWithinParallelContext);
             if (newSubflow) {
                 createTimelineEdge(sourceAgent.id, newSubflow.peerAgent.id, step, edges, manager, edgeAnimationService, processedSteps, "peer-bottom-output", "peer-top-input");
             }
@@ -628,7 +636,7 @@ function createErrorEdge(sourceNodeId: string, targetNodeId: string, step: Visua
 }
 
 // Main transformation function
-export const transformProcessedStepsToTimelineFlow = (processedSteps: VisualizerStep[]): FlowData => {
+export const transformProcessedStepsToTimelineFlow = (processedSteps: VisualizerStep[], agentNameMap: Record<string, string> = {}): FlowData => {
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
 
@@ -653,13 +661,22 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
         agentRegistry: createAgentRegistry(),
         indentationLevel: 0,
         indentationStep: 50, // Pixels to indent per level
+        agentNameMap: agentNameMap,
     };
 
-    const relevantStepTypes = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED"];
+    const filteredSteps = processedSteps.filter(step => RELEVANT_STEP_TYPES.includes(step.type));
 
-    const filteredSteps = processedSteps.filter(step => relevantStepTypes.includes(step.type));
+    // Ensure the first USER_REQUEST step is processed first
+    const firstUserRequestIndex = filteredSteps.findIndex(step => step.type === "USER_REQUEST");
+    let reorderedSteps = filteredSteps;
 
-    for (const step of filteredSteps) {
+    if (firstUserRequestIndex > 0) {
+        // Move the first USER_REQUEST to the beginning
+        const firstUserRequest = filteredSteps[firstUserRequestIndex];
+        reorderedSteps = [firstUserRequest, ...filteredSteps.slice(0, firstUserRequestIndex), ...filteredSteps.slice(firstUserRequestIndex + 1)];
+    }
+
+    for (const step of reorderedSteps) {
         // Special handling for AGENT_LLM_RESPONSE_TOOL_DECISION if it's a peer delegation trigger
         // This step often precedes AGENT_TOOL_INVOCATION_START for peers.
         // The plan implies AGENT_TOOL_INVOCATION_START is the primary trigger for peer delegation.

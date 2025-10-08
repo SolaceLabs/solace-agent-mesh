@@ -2,14 +2,16 @@
 Handles ADK Agent and Runner initialization, including tool loading and callback assignment.
 """
 
-from typing import Dict, List, Optional, Union, Callable, Tuple, Set
+from typing import Dict, List, Optional, Union, Callable, Tuple, Set, Any, TYPE_CHECKING, Type
 import functools
 import inspect
 from solace_ai_connector.common.log import log
 from solace_ai_connector.common.utils import import_module
+from ...common.utils.type_utils import is_subclass_by_name
 
 from .app_llm_agent import AppLlmAgent
 from .tool_wrapper import ADKToolWrapper
+from .embed_resolving_mcp_toolset import EmbedResolvingMCPToolset
 from google.adk.runners import Runner
 from google.adk.models import BaseLlm
 from google.adk.tools import BaseTool, ToolContext
@@ -17,334 +19,599 @@ from google.adk import tools as adk_tools_module
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from google.adk.tools.mcp_tool import MCPToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import SseServerParams, StdioConnectionParams
+from google.adk.tools.mcp_tool.mcp_session_manager import (
+    SseServerParams,
+    StdioConnectionParams,
+    StreamableHTTPServerParams,
+
+)
 
 from mcp import StdioServerParameters
 
+if TYPE_CHECKING:
+    from ..sac.component import SamAgentComponent
+
 from ..tools.registry import tool_registry
 from ..tools.tool_definition import BuiltinTool
+from ..tools.dynamic_tool import DynamicTool, DynamicToolProvider
+from ..tools.tool_config_types import (
+    AnyToolConfig,
+    BuiltinToolConfig,
+    BuiltinGroupToolConfig,
+    McpToolConfig,
+    PythonToolConfig,
+)
 
 
 from ...agent.adk import callbacks as adk_callbacks
 from ...agent.adk.models.lite_llm import LiteLlm
 
 
-async def load_adk_tools(
-    component,
-) -> Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool]]:
+# Define a clear return type for all tool-loading helpers
+ToolLoadingResult = Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable]]
+
+
+def _find_dynamic_tool_class(module) -> Optional[type]:
+    """Finds a single non-abstract DynamicTool subclass in a module."""
+    found_classes = []
+    for name, obj in inspect.getmembers(module, inspect.isclass):
+        if (
+            is_subclass_by_name(obj, "DynamicTool")
+            and not is_subclass_by_name(obj, "DynamicToolProvider")
+            and not inspect.isabstract(obj)
+        ):
+            found_classes.append(obj)
+    if len(found_classes) > 1:
+        raise TypeError(
+            f"Module '{module.__name__}' contains multiple DynamicTool subclasses. "
+            "Please specify which one to use with 'class_name' in the config."
+        )
+    return found_classes[0] if found_classes else None
+
+
+async def _execute_lifecycle_hook(
+    component: "SamAgentComponent",
+    func_name: Optional[str],
+    module_name: str,
+    base_path: Optional[str],
+    tool_config_model: AnyToolConfig,
+):
+    """Dynamically loads and executes a lifecycle hook function."""
+    if not func_name:
+        return
+
+    log.info(
+        "%s Executing lifecycle hook: %s.%s",
+        component.log_identifier,
+        module_name,
+        func_name,
+    )
+
+    try:
+        module = import_module(module_name, base_path=base_path)
+        func = getattr(module, func_name)
+
+        if not inspect.iscoroutinefunction(func):
+            raise TypeError(
+                f"Lifecycle hook '{func_name}' in module '{module_name}' must be an async function."
+            )
+
+        await func(component, tool_config_model)
+        log.info(
+            "%s Successfully executed lifecycle hook: %s.%s",
+            component.log_identifier,
+            module_name,
+            func_name,
+        )
+    except Exception as e:
+        log.exception(
+            "%s Fatal error during lifecycle hook execution for '%s.%s': %s",
+            component.log_identifier,
+            module_name,
+            func_name,
+            e,
+        )
+        raise RuntimeError(f"Tool lifecycle initialization failed: {e}") from e
+
+
+def _create_cleanup_partial(
+    component: "SamAgentComponent",
+    func_name: Optional[str],
+    module_name: str,
+    base_path: Optional[str],
+    tool_config_model: AnyToolConfig,
+) -> Optional[Callable]:
+    """Creates a functools.partial for a cleanup hook function."""
+    if not func_name:
+        return None
+
+    try:
+        module = import_module(module_name, base_path=base_path)
+        func = getattr(module, func_name)
+
+        if not inspect.iscoroutinefunction(func):
+            raise TypeError(
+                f"Lifecycle hook '{func_name}' in module '{module_name}' must be an async function."
+            )
+
+        return functools.partial(func, component, tool_config_model)
+    except Exception as e:
+        log.exception(
+            "%s Fatal error creating partial for cleanup hook '%s.%s': %s",
+            component.log_identifier,
+            module_name,
+            func_name,
+            e,
+        )
+        raise RuntimeError(f"Tool lifecycle setup failed: {e}") from e
+
+
+def _find_dynamic_tool_provider_class(module) -> Optional[type]:
+    """Finds a single non-abstract DynamicToolProvider subclass in a module."""
+    found_classes = []
+    for name, obj in inspect.getmembers(module, inspect.isclass):
+        if is_subclass_by_name(obj, "DynamicToolProvider") and not inspect.isabstract(
+            obj
+        ):
+            found_classes.append(obj)
+    if len(found_classes) > 1:
+        raise TypeError(
+            f"Module '{module.__name__}' contains multiple DynamicToolProvider subclasses. "
+            "Only one is permitted per module."
+        )
+    return found_classes[0] if found_classes else None
+
+
+def _check_and_register_tool_name(name: str, source: str, loaded_tool_names: Set[str]):
+    """Checks for duplicate tool names and raises ValueError if found."""
+    if name in loaded_tool_names:
+        raise ValueError(
+            f"Configuration Error: Duplicate tool name '{name}' found from source '{source}'. "
+            "This name is already in use. Please resolve the conflict by renaming or "
+            "disabling one of the tools in your agent's configuration."
+        )
+    loaded_tool_names.add(name)
+
+
+async def _create_python_tool_lifecycle_hooks(
+    component: "SamAgentComponent",
+    tool_config_model: "PythonToolConfig",
+    loaded_python_tools: List[Union[BaseTool, Callable]],
+) -> List[Callable]:
     """
-    Loads all configured tools for the agent.
-    - Explicitly configured tools (Python, MCP, ADK Built-ins) from YAML.
-    - SAM Built-in tools (Artifact, Data, etc.) from the tool registry,
-      filtered by agent configuration.
-
-    Args:
-        component: The SamAgentComponent instance.
-
-    Returns:
-        A tuple containing:
-        - A list of loaded tool callables/instances for the ADK agent.
-        - A list of enabled BuiltinTool definition objects for prompt generation.
-
-    Raises:
-        ImportError: If a configured tool or its dependencies cannot be loaded.
+    Executes init hooks and collects cleanup hooks for a Python tool.
+    Handles both YAML-defined hooks and class-based init/cleanup methods.
+    Returns cleanup hooks in LIFO order.
     """
+    module_name = tool_config_model.component_module
+    base_path = tool_config_model.component_base_path
+    cleanup_hooks = []
+
+    # 1. YAML Init (runs first)
+    await _execute_lifecycle_hook(
+        component,
+        tool_config_model.init_function,
+        module_name,
+        base_path,
+        tool_config_model,
+    )
+
+    # 2. DynamicTool/Provider Init (runs second)
+    for tool_instance in loaded_python_tools:
+        if is_subclass_by_name(type(tool_instance), "DynamicTool"):
+            log.info(
+                "%s Executing .init() method for DynamicTool '%s'.",
+                component.log_identifier,
+                tool_instance.tool_name,
+            )
+            await tool_instance.init(component, tool_config_model)
+
+    # 3. Collect Cleanup Hooks (in reverse order of init)
+    # Class-based cleanup hook (will be executed first)
+    for tool_instance in loaded_python_tools:
+        if is_subclass_by_name(type(tool_instance), "DynamicTool"):
+            cleanup_hooks.append(
+                functools.partial(
+                    tool_instance.cleanup, component, tool_config_model
+                )
+            )
+
+    # YAML-based cleanup hook (will be executed second)
+    yaml_cleanup_partial = _create_cleanup_partial(
+        component,
+        tool_config_model.cleanup_function,
+        module_name,
+        base_path,
+        tool_config_model,
+    )
+    if yaml_cleanup_partial:
+        cleanup_hooks.append(yaml_cleanup_partial)
+
+    # Return in LIFO order relative to init
+    return list(reversed(cleanup_hooks))
+
+
+def _load_python_class_based_tool(
+    module: Any,
+    tool_config: Dict,
+    component: "SamAgentComponent",
+) -> List[DynamicTool]:
+    """
+    Loads a class-based tool, which can be a single DynamicTool or a
+    DynamicToolProvider that generates multiple tools.
+    """
+    from pydantic import BaseModel, ValidationError
+
+    specific_tool_config = tool_config.get("tool_config")
+    dynamic_tools: List[DynamicTool] = []
+    module_name = module.__name__
+
+    # Determine the class to load
+    tool_class = None
+    class_name = tool_config.get("class_name")
+    if class_name:
+        tool_class = getattr(module, class_name)
+    else:
+        # Auto-discover: provider first, then single tool
+        tool_class = _find_dynamic_tool_provider_class(module)
+        if not tool_class:
+            tool_class = _find_dynamic_tool_class(module)
+
+    if not tool_class:
+        raise TypeError(
+            f"Module '{module_name}' does not contain a 'function_name' or 'class_name' to load, "
+            "and no DynamicTool or DynamicToolProvider subclass could be auto-discovered."
+        )
+
+    # Check for a Pydantic model declaration on the tool class
+    config_model: Optional[Type["BaseModel"]] = getattr(
+        tool_class, "config_model", None
+    )
+    validated_config: Union[dict, "BaseModel"] = specific_tool_config
+
+    if config_model:
+        log.debug(
+            "%s Found config_model '%s' for tool class '%s'. Validating...",
+            component.log_identifier,
+            config_model.__name__,
+            tool_class.__name__,
+        )
+        try:
+            # Validate the raw dict and get a Pydantic model instance
+            validated_config = config_model.model_validate(specific_tool_config or {})
+            log.debug(
+                "%s Successfully validated tool_config for '%s'.",
+                component.log_identifier,
+                tool_class.__name__,
+            )
+        except ValidationError as e:
+            # Provide a clear error message and raise
+            error_msg = (
+                f"Configuration error for tool '{tool_class.__name__}' from module '{module_name}'. "
+                f"The provided 'tool_config' in your YAML is invalid:\n{e}"
+            )
+            log.error("%s %s", component.log_identifier, error_msg)
+            raise ValueError(error_msg) from e
+
+    # Instantiate tools from the class
+    if is_subclass_by_name(tool_class, "DynamicToolProvider"):
+        provider_instance = tool_class()
+        dynamic_tools = provider_instance.get_all_tools_for_framework(
+            tool_config=validated_config
+        )
+        log.info(
+            "%s Loaded %d tools from DynamicToolProvider '%s' in %s",
+            component.log_identifier,
+            len(dynamic_tools),
+            tool_class.__name__,
+            module_name,
+        )
+    elif is_subclass_by_name(tool_class, "DynamicTool"):
+        tool_instance = tool_class(tool_config=validated_config)
+        dynamic_tools = [tool_instance]
+    else:
+        raise TypeError(
+            f"Class '{tool_class.__name__}' in module '{module_name}' is not a valid "
+            "DynamicTool or DynamicToolProvider subclass."
+        )
+
+    # Post-process all generated tools
+    for tool in dynamic_tools:
+        tool.origin = "dynamic"
+        declaration = tool._get_declaration()
+        if not declaration:
+            log.warning(
+                "Dynamic tool '%s' from module '%s' did not generate a valid declaration. Skipping.",
+                tool.__class__.__name__,
+                module_name,
+            )
+            continue
+        log.info(
+            "%s Loaded dynamic tool: %s from %s",
+            component.log_identifier,
+            declaration.name,
+            module_name,
+        )
+
+    return dynamic_tools
+
+
+async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    from pydantic import TypeAdapter
+
+    python_tool_adapter = TypeAdapter(PythonToolConfig)
+    tool_config_model = python_tool_adapter.validate_python(tool_config)
+
+    module_name = tool_config_model.component_module
+    base_path = tool_config_model.component_base_path
+    if not module_name:
+        raise ValueError("'component_module' is required for python tools.")
+    module = import_module(module_name, base_path=base_path)
+
+    loaded_python_tools: List[Union[BaseTool, Callable]] = []
+
+    # Case 1: Simple function-based tool
+    if tool_config_model.function_name:
+        func = getattr(module, tool_config_model.function_name)
+        if not callable(func):
+            raise TypeError(
+                f"'{tool_config_model.function_name}' in module '{module_name}' is not callable."
+            )
+
+        tool_callable = ADKToolWrapper(
+            func,
+            tool_config_model.tool_config,
+            tool_config_model.function_name,
+            origin="python",
+            raw_string_args=tool_config_model.raw_string_args,
+        )
+
+        if tool_config_model.tool_name:
+            tool_callable.__name__ = tool_config_model.tool_name
+        if tool_config_model.tool_description:
+            tool_callable.__doc__ = tool_config_model.tool_description
+
+        loaded_python_tools.append(tool_callable)
+        log.info(
+            "%s Loaded Python tool: %s from %s.",
+            component.log_identifier,
+            tool_callable.__name__,
+            module_name,
+        )
+    # Case 2: Advanced class-based dynamic tool or provider
+    else:
+        dynamic_tools = _load_python_class_based_tool(module, tool_config, component)
+        loaded_python_tools.extend(dynamic_tools)
+
+    # --- Lifecycle Hook Execution for all Python Tools ---
+    cleanup_hooks = await _create_python_tool_lifecycle_hooks(
+        component, tool_config_model, loaded_python_tools
+    )
+
+    return loaded_python_tools, [], cleanup_hooks
+
+async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    """Loads a single built-in tool from the SAM or ADK tool registry."""
+    from pydantic import TypeAdapter
+
+    builtin_tool_adapter = TypeAdapter(BuiltinToolConfig)
+    tool_config_model = builtin_tool_adapter.validate_python(tool_config)
+
+    tool_name = tool_config_model.tool_name
+    if not tool_name:
+        raise ValueError("'tool_name' required for builtin tool.")
+
+    # Check SAM registry first
+    sam_tool_def = tool_registry.get_tool_by_name(tool_name)
+    if sam_tool_def:
+        tool_callable = ADKToolWrapper(
+            sam_tool_def.implementation,
+            tool_config_model.tool_config,
+            sam_tool_def.name,
+            origin="builtin",
+            raw_string_args=sam_tool_def.raw_string_args,
+        )
+        log.info(
+            "%s Loaded SAM built-in tool: %s",
+            component.log_identifier,
+            sam_tool_def.name,
+        )
+        return [tool_callable], [sam_tool_def], []
+
+    # Fallback to ADK built-in tools module
+    adk_tool = getattr(adk_tools_module, tool_name, None)
+    if adk_tool and isinstance(adk_tool, (BaseTool, Callable)):
+        adk_tool.origin = "adk_builtin"
+        log.info(
+            "%s Loaded ADK built-in tool: %s",
+            component.log_identifier,
+            tool_name,
+        )
+        return [adk_tool], [], []
+
+    raise ValueError(
+        f"Built-in tool '{tool_name}' not found in SAM or ADK registry."
+    )
+
+async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    """Loads a group of built-in tools by category from the SAM tool registry."""
+    from pydantic import TypeAdapter
+
+    group_tool_adapter = TypeAdapter(BuiltinGroupToolConfig)
+    tool_config_model = group_tool_adapter.validate_python(tool_config)
+
+    group_name = tool_config_model.group_name
+    if not group_name:
+        raise ValueError("'group_name' required for builtin-group.")
+
+    tools_in_group = tool_registry.get_tools_by_category(group_name)
+    if not tools_in_group:
+        log.warning("No tools found for built-in group: %s", group_name)
+        return [], [], []
+
+    # Run initializers for the group
+    initializers_to_run: Dict[Callable, Dict] = {}
+    for tool_def in tools_in_group:
+        if (
+            tool_def.initializer
+            and tool_def.initializer not in initializers_to_run
+        ):
+            initializers_to_run[tool_def.initializer] = tool_config_model.tool_config
+
+    for init_func, init_config in initializers_to_run.items():
+        try:
+            log.info(
+                "%s Running initializer '%s' for tool group '%s'.",
+                component.log_identifier,
+                init_func.__name__,
+                group_name,
+            )
+            init_func(component, init_config)
+            log.info(
+                "%s Successfully executed initializer '%s' for tool group '%s'.",
+                component.log_identifier,
+                init_func.__name__,
+                group_name,
+            )
+        except Exception as e:
+            log.exception(
+                "%s Failed to run initializer '%s' for tool group '%s': %s",
+                component.log_identifier,
+                init_func.__name__,
+                group_name,
+                e,
+            )
+            raise e
+
     loaded_tools: List[Union[BaseTool, Callable]] = []
     enabled_builtin_tools: List[BuiltinTool] = []
-    loaded_tool_names: Set[str] = set()
-    tools_config = component.get_config("tools", [])
-
-    if not tools_config:
-        log.info(
-            "%s No explicit tools configured in 'tools' list.", component.log_identifier
+    for tool_def in tools_in_group:
+        specific_tool_config = tool_config_model.tool_config.get(tool_def.name)
+        tool_callable = ADKToolWrapper(
+            tool_def.implementation,
+            specific_tool_config,
+            tool_def.name,
+            origin="builtin",
+            raw_string_args=tool_def.raw_string_args,
         )
+        loaded_tools.append(tool_callable)
+        enabled_builtin_tools.append(tool_def)
+
+    log.info(
+        "Loaded %d tools from built-in group: %s",
+        len(loaded_tools),
+        group_name,
+    )
+    return loaded_tools, enabled_builtin_tools, []
+
+async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    """Loads an MCP toolset based on connection parameters."""
+    from pydantic import TypeAdapter
+
+    mcp_tool_adapter = TypeAdapter(McpToolConfig)
+    tool_config_model = mcp_tool_adapter.validate_python(tool_config)
+
+    connection_params_config = tool_config_model.connection_params
+    if not connection_params_config:
+        raise ValueError("'connection_params' required for mcp tool.")
+
+    connection_type = connection_params_config.get("type", "").lower()
+    connection_args = {
+        k: v for k, v in connection_params_config.items() if k != "type"
+    }
+    connection_args["timeout"] = connection_args.get("timeout", 30)
+
+    environment_variables = tool_config_model.environment_variables
+    env_param = {}
+    if connection_type == "stdio" and environment_variables:
+        if isinstance(environment_variables, dict):
+            env_param = environment_variables
+            log.debug(
+                "%s Found environment_variables for stdio MCP tool.",
+                component.log_identifier,
+            )
+        else:
+            log.warning(
+                "%s 'environment_variables' provided for stdio MCP tool but it is not a dictionary. Ignoring.",
+                component.log_identifier,
+            )
+
+    if connection_type == "stdio":
+        cmd_arg = connection_args.get("command")
+        args_list = connection_args.get("args", [])
+        if isinstance(cmd_arg, list):
+            command_str = " ".join(cmd_arg)
+        elif isinstance(cmd_arg, str):
+            command_str = cmd_arg
+        else:
+            raise ValueError(
+                f"MCP tool 'command' parameter must be a string or a list of strings, got {type(cmd_arg)}"
+            )
+        if not isinstance(args_list, list):
+            raise ValueError(
+                f"MCP tool 'args' parameter must be a list, got {type(args_list)}"
+            )
+        final_connection_args = {
+            k: v
+            for k, v in connection_args.items()
+            if k not in ["command", "args", "timeout"]
+        }
+        connection_params = StdioConnectionParams(
+            server_params=StdioServerParameters(
+                command=command_str,
+                args=args_list,
+                **final_connection_args,
+                env=env_param if env_param else None,
+            ),
+            timeout=connection_args.get("timeout"),
+        )
+
+    elif connection_type == "sse":
+        connection_params = SseServerParams(**connection_args)
+    elif connection_type == "streamable-http":
+        connection_params = StreamableHTTPServerParams(**connection_args)
     else:
+        raise ValueError(f"Unsupported MCP connection type: {connection_type}")
+
+    tool_filter_list = (
+        [tool_config_model.tool_name] if tool_config_model.tool_name else None
+    )
+    if tool_filter_list:
         log.info(
-            "%s Loading tools from 'tools' list configuration...",
+            "%s MCP tool config specifies tool_name: '%s'. Applying as tool_filter.",
             component.log_identifier,
+            tool_config_model.tool_name,
         )
-        for tool_config in tools_config:
-            tool_type = tool_config.get("tool_type", "").lower()
 
-            try:
-                if tool_type == "python":
-                    module_name = tool_config.get("component_module")
-                    function_name = tool_config.get("function_name")
-                    tool_name = tool_config.get("tool_name")
-                    tool_description = tool_config.get("tool_description")
-                    base_path = tool_config.get("component_base_path")
-                    if not module_name or not function_name:
-                        raise ValueError(
-                            "'component_module' and 'function_name' required for python tool."
-                        )
+    mcp_toolset_instance = EmbedResolvingMCPToolset(
+        connection_params=connection_params,
+        tool_filter=tool_filter_list,
+        tool_config=tool_config,
+    )
+    mcp_toolset_instance.origin = "mcp"
 
-                    module = import_module(module_name, base_path=base_path)
-                    func = getattr(module, function_name)
-                    if not callable(func):
-                        raise TypeError(
-                            f"'{function_name}' in module '{module_name}' is not callable."
-                        )
+    log.info(
+        "%s Initialized MCPToolset (filter: %s) for server: %s",
+        component.log_identifier,
+        (tool_filter_list if tool_filter_list else "none (all tools)"),
+        connection_params,
+    )
 
-                    specific_tool_config = tool_config.get("tool_config")
-                    tool_callable = ADKToolWrapper(
-                        func,
-                        specific_tool_config,
-                        function_name,
-                        raw_string_args=tool_config.get("raw_string_args", []),
-                    )
+    return [mcp_toolset_instance], [], []
 
-                    if tool_name:
-                        function_name = tool_name
-                        tool_callable.__name__ = tool_name
-
-                    if tool_description:
-                        tool_callable.__doc__ = tool_description
-
-                    if function_name not in loaded_tool_names:
-                        loaded_tools.append(tool_callable)
-                        loaded_tool_names.add(function_name)
-                        log.info(
-                            "%s Loaded Python tool: %s from %s.",
-                            component.log_identifier,
-                            function_name,
-                            module_name,
-                        )
-                    else:
-                        log.debug(
-                            "%s Python tool '%s' already loaded. Skipping duplicate.",
-                            component.log_identifier,
-                            function_name,
-                        )
-
-                elif tool_type == "builtin":
-                    tool_name = tool_config.get("tool_name")
-                    if not tool_name:
-                        raise ValueError("'tool_name' required for builtin tool.")
-
-                    if tool_name in loaded_tool_names:
-                        log.debug(
-                            "%s Tool '%s' already loaded. Skipping duplicate.",
-                            component.log_identifier,
-                            tool_name,
-                        )
-                        continue
-
-                    sam_tool_def = tool_registry.get_tool_by_name(tool_name)
-                    if sam_tool_def:
-                        specific_tool_config = tool_config.get("tool_config")
-                        tool_callable = ADKToolWrapper(
-                            sam_tool_def.implementation,
-                            specific_tool_config,
-                            sam_tool_def.name,
-                            raw_string_args=sam_tool_def.raw_string_args,
-                        )
-                        loaded_tools.append(tool_callable)
-                        enabled_builtin_tools.append(sam_tool_def)
-                        loaded_tool_names.add(sam_tool_def.name)
-                        log.info(
-                            "%s Loaded SAM built-in tool: %s",
-                            component.log_identifier,
-                            sam_tool_def.name,
-                        )
-                        continue
-
-                    adk_tool = getattr(adk_tools_module, tool_name, None)
-                    if adk_tool and isinstance(adk_tool, (BaseTool, Callable)):
-                        loaded_tools.append(adk_tool)
-                        loaded_tool_names.add(tool_name)
-                        log.info(
-                            "%s Loaded ADK built-in tool: %s",
-                            component.log_identifier,
-                            tool_name,
-                        )
-                        continue
-
-                    raise ValueError(
-                        f"Built-in tool '{tool_name}' not found in SAM or ADK registry."
-                    )
-
-                elif tool_type == "builtin-group":
-                    group_name = tool_config.get("group_name")
-                    if not group_name:
-                        raise ValueError("'group_name' required for builtin-group.")
-
-                    tools_in_group = tool_registry.get_tools_by_category(group_name)
-                    if not tools_in_group:
-                        log.warning("No tools found for built-in group: %s", group_name)
-                        continue
-
-                    initializers_to_run: Dict[Callable, Dict] = {}
-                    for tool_def in tools_in_group:
-                        if (
-                            tool_def.initializer
-                            and tool_def.initializer not in initializers_to_run
-                        ):
-                            initializers_to_run[tool_def.initializer] = tool_config.get(
-                                "config", {}
-                            )
-
-                    for init_func, init_config in initializers_to_run.items():
-                        try:
-                            log.info(
-                                "%s Running initializer '%s' for tool group '%s'.",
-                                component.log_identifier,
-                                init_func.__name__,
-                                group_name,
-                            )
-                            init_func(component, init_config)
-                            log.info(
-                                "%s Successfully executed initializer '%s' for tool group '%s'.",
-                                component.log_identifier,
-                                init_func.__name__,
-                                group_name,
-                            )
-                        except Exception as e:
-                            log.exception(
-                                "%s Failed to run initializer '%s' for tool group '%s': %s",
-                                component.log_identifier,
-                                init_func.__name__,
-                                group_name,
-                                e,
-                            )
-                            raise e
-
-                    group_tool_count = 0
-                    for tool_def in tools_in_group:
-                        if tool_def.name not in loaded_tool_names:
-                            specific_tool_config = tool_config.get(
-                                "tool_configs", {}
-                            ).get(tool_def.name)
-                            tool_callable = ADKToolWrapper(
-                                tool_def.implementation,
-                                specific_tool_config,
-                                tool_def.name,
-                                raw_string_args=tool_def.raw_string_args,
-                            )
-                            loaded_tools.append(tool_callable)
-                            enabled_builtin_tools.append(tool_def)
-                            loaded_tool_names.add(tool_def.name)
-                            group_tool_count += 1
-                    log.info(
-                        "Loaded %d tools from built-in group: %s",
-                        group_tool_count,
-                        group_name,
-                    )
-
-                elif tool_type == "mcp":
-                    tool_name = tool_config.get("tool_name")
-                    if not tool_name:
-                        log.info(
-                            "%s No specific 'tool_name' for MCP tool, will load all tools from server unless tool_filter is specified in MCPToolset itself.",
-                            component.log_identifier,
-                        )
-
-                    connection_params_config = tool_config.get("connection_params")
-                    if not connection_params_config:
-                        raise ValueError("'connection_params' required for mcp tool.")
-
-                    connection_type = connection_params_config.get("type", "").lower()
-                    connection_args = {
-                        k: v for k, v in connection_params_config.items() if k != "type"
-                    }
-                    connection_args["timeout"] = connection_args.get("timeout", 30)
-
-
-                    environment_variables = tool_config.get("environment_variables")
-                    env_param = {}
-                    if connection_type == "stdio" and environment_variables:
-                        if isinstance(environment_variables, dict):
-                            env_param = environment_variables
-                            log.debug(
-                                "%s Found environment_variables for stdio MCP tool.",
-                                component.log_identifier,
-                            )
-                        else:
-                            log.warning(
-                                "%s 'environment_variables' provided for stdio MCP tool but it is not a dictionary. Ignoring.",
-                                component.log_identifier,
-                            )
-
-                    if connection_type == "stdio":
-                        cmd_arg = connection_args.get("command")
-                        args_list = connection_args.get("args", [])
-                        if isinstance(cmd_arg, list):
-                            command_str = " ".join(cmd_arg)
-                        elif isinstance(cmd_arg, str):
-                            command_str = cmd_arg
-                        else:
-                            raise ValueError(
-                                f"MCP tool 'command' parameter must be a string or a list of strings, got {type(cmd_arg)}"
-                            )
-                        if not isinstance(args_list, list):
-                            raise ValueError(
-                                f"MCP tool 'args' parameter must be a list, got {type(args_list)}"
-                            )
-                        final_connection_args = {
-                            k: v
-                            for k, v in connection_args.items()
-                            if k not in ["command", "args", "timeout"]
-                        }
-                        connection_params = StdioConnectionParams(
-                            server_params=StdioServerParameters(
-                                command=command_str,
-                                args=args_list,
-                                **final_connection_args,
-                                env=env_param if env_param else None,
-                            ),
-                            timeout=connection_args.get("timeout")
-                        )
-                        
-                    elif connection_type == "sse":
-                        connection_params = SseServerParams(**connection_args)
-                    else:
-                        raise ValueError(
-                            f"Unsupported MCP connection type: {connection_type}"
-                        )
-
-                    tool_filter_list = [tool_name] if tool_name else None
-                    if tool_filter_list:
-                        log.info(
-                            "%s MCP tool config specifies tool_name: '%s'. Applying as tool_filter.",
-                            component.log_identifier,
-                            tool_name,
-                        )
-
-                    mcp_toolset_instance = MCPToolset(
-                        connection_params=connection_params,
-                        tool_filter=tool_filter_list,
-                    )
-                    loaded_tools.append(mcp_toolset_instance)
-                    log.info(
-                        "%s Initialized MCPToolset (filter: %s) for server: %s",
-                        component.log_identifier,
-                        (tool_filter_list if tool_filter_list else "none (all tools)"),
-                        connection_params,
-                    )
-
-                else:
-                    log.warning(
-                        "%s Unknown tool type '%s' in config: %s",
-                        component.log_identifier,
-                        tool_type,
-                        tool_config,
-                    )
-
-            except Exception as e:
-                log.error(
-                    "%s Failed to load tool config %s: %s",
-                    component.log_identifier,
-                    tool_config,
-                    e,
-                )
-                raise e
+def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[str]) -> ToolLoadingResult:
+    """Loads internal framework tools that are not explicitly configured by the user."""
+    loaded_tools: List[Union[BaseTool, Callable]] = []
+    enabled_builtin_tools: List[BuiltinTool] = []
 
     internal_tool_names = ["_notify_artifact_save"]
     if component.get_config("enable_auto_continuation", True):
         internal_tool_names.append("_continue_generation")
 
     for tool_name in internal_tool_names:
-        if tool_name in loaded_tool_names:
+        try:
+            _check_and_register_tool_name(tool_name, "internal", loaded_tool_names)
+        except ValueError:
             log.debug(
                 "%s Internal tool '%s' was already loaded explicitly. Skipping implicit load.",
                 component.log_identifier,
@@ -359,13 +626,13 @@ async def load_adk_tools(
                 tool_def.implementation,
                 None,  # No specific config for internal tools
                 tool_def.name,
+                origin="internal",
             )
 
             tool_callable.__doc__ = tool_def.description
 
             loaded_tools.append(tool_callable)
             enabled_builtin_tools.append(tool_def)
-            loaded_tool_names.add(tool_def.name)
             log.info(
                 "%s Implicitly loaded internal framework tool: %s",
                 component.log_identifier,
@@ -378,13 +645,147 @@ async def load_adk_tools(
                 tool_name,
             )
 
+    return loaded_tools, enabled_builtin_tools, []
+
+
+async def load_adk_tools(
+    component,
+) -> Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable]]:
+    """
+    Loads all configured tools for the agent.
+    - Explicitly configured tools (Python, MCP, ADK Built-ins) from YAML.
+    - SAM Built-in tools (Artifact, Data, etc.) from the tool registry,
+      filtered by agent configuration.
+
+    Args:
+        component: The SamAgentComponent instance.
+
+    Returns:
+        A tuple containing:
+        - A list of loaded tool callables/instances for the ADK agent.
+        - A list of enabled BuiltinTool definition objects for prompt generation.
+        - A list of awaitable cleanup functions for the tools.
+
+    Raises:
+        ImportError: If a configured tool or its dependencies cannot be loaded.
+    """
+    loaded_tools: List[Union[BaseTool, Callable]] = []
+    enabled_builtin_tools: List[BuiltinTool] = []
+    loaded_tool_names: Set[str] = set()
+    cleanup_hooks: List[Callable] = []
+    tools_config = component.get_config("tools", [])
+
+    from pydantic import TypeAdapter, ValidationError
+
+    any_tool_adapter = TypeAdapter(AnyToolConfig)
+
+    if not tools_config:
+        log.info(
+            "%s No explicit tools configured in 'tools' list.", component.log_identifier
+        )
+    else:
+        log.info(
+            "%s Loading %d tool(s) from 'tools' list configuration...",
+            component.log_identifier,
+            len(tools_config),
+        )
+        for tool_config in tools_config:
+            try:
+                tool_config_model = any_tool_adapter.validate_python(tool_config)
+                tool_type = tool_config_model.tool_type.lower()
+
+                new_tools, new_builtins, new_cleanups = [], [], []
+
+                if tool_type == "python":
+                    (
+                        new_tools,
+                        new_builtins,
+                        new_cleanups,
+                    ) = await _load_python_tool(component, tool_config)
+                elif tool_type == "builtin":
+                    (
+                        new_tools,
+                        new_builtins,
+                        new_cleanups,
+                    ) = await _load_builtin_tool(component, tool_config)
+                elif tool_type == "builtin-group":
+                    (
+                        new_tools,
+                        new_builtins,
+                        new_cleanups,
+                    ) = await _load_builtin_group_tool(component, tool_config)
+                elif tool_type == "mcp":
+                    (
+                        new_tools,
+                        new_builtins,
+                        new_cleanups,
+                    ) = await _load_mcp_tool(component, tool_config)
+                else:
+                    log.warning(
+                        "%s Unknown tool type '%s' in config: %s",
+                        component.log_identifier,
+                        tool_type,
+                        tool_config,
+                    )
+
+                # Centralized name checking and result aggregation
+                for tool in new_tools:
+                    if isinstance(tool, EmbedResolvingMCPToolset):
+                        # Special handling for MCPToolset which can load multiple tools
+                        try:
+                            mcp_tools = await tool.get_tools()
+                            for mcp_tool in mcp_tools:
+                                _check_and_register_tool_name(
+                                    mcp_tool.name, "mcp", loaded_tool_names
+                                )
+                        except Exception as e:
+                            log.error(
+                                "%s Failed to discover tools from MCP server for name registration: %s",
+                                component.log_identifier,
+                                str(e),
+                            )
+                            raise
+                    else:
+                        tool_name = getattr(
+                            tool, "name", getattr(tool, "__name__", None)
+                        )
+                        if tool_name:
+                            _check_and_register_tool_name(
+                                tool_name, tool_type, loaded_tool_names
+                            )
+
+                loaded_tools.extend(new_tools)
+                enabled_builtin_tools.extend(new_builtins)
+                # Prepend cleanup hooks to maintain LIFO execution order
+                cleanup_hooks = new_cleanups + cleanup_hooks
+
+            except Exception as e:
+                log.error(
+                    "%s Failed to load tool config %s: %s",
+                    component.log_identifier,
+                    tool_config,
+                    e,
+                )
+                raise e
+
+    # Load internal framework tools
+    (
+        internal_tools,
+        internal_builtins,
+        internal_cleanups,
+    ) = _load_internal_tools(component, loaded_tool_names)
+    loaded_tools.extend(internal_tools)
+    enabled_builtin_tools.extend(internal_builtins)
+    cleanup_hooks.extend(internal_cleanups)
+
     log.info(
-        "%s Finished loading tools. Total tools for ADK: %d. Total SAM built-ins for prompt: %d. Peer tools added dynamically.",
+        "%s Finished loading tools. Total tools for ADK: %d. Total SAM built-ins for prompt: %d. Total cleanup hooks: %d. Peer tools added dynamically.",
         component.log_identifier,
         len(loaded_tools),
         len(enabled_builtin_tools),
+        len(cleanup_hooks),
     )
-    return loaded_tools, enabled_builtin_tools
+    return loaded_tools, enabled_builtin_tools, cleanup_hooks
 
 
 def initialize_adk_agent(
@@ -579,6 +980,10 @@ def initialize_adk_agent(
         track_artifacts_cb_with_component = functools.partial(
             adk_callbacks.track_produced_artifacts_callback, host_component=component
         )
+        notify_tool_result_cb_with_component = functools.partial(
+            adk_callbacks.notify_tool_execution_result_callback,
+            host_component=component,
+        )
 
         async def chained_after_tool_callback(
             tool: BaseTool,
@@ -594,6 +999,13 @@ def initialize_adk_agent(
             )
 
             try:
+                # First, notify the UI about the raw result.
+                # This is a fire-and-forget notification that does not modify the response.
+                notify_tool_result_cb_with_component(
+                    tool, args, tool_context, tool_response
+                )
+
+                # Now, proceed with the existing chain that modifies the response for the LLM.
                 processed_by_large_handler = await large_response_cb_with_component(
                     tool, args, tool_context, tool_response
                 )

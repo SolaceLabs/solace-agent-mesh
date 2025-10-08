@@ -3,7 +3,9 @@ Manages the asynchronous execution of the ADK Runner.
 """
 
 import asyncio
+
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
+from litellm.exceptions import BadRequestError
 
 
 class TaskCancelledError(Exception):
@@ -12,17 +14,16 @@ class TaskCancelledError(Exception):
     pass
 
 
-from typing import Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from solace_ai_connector.common.log import log
-
-from google.adk.sessions import Session as ADKSession
 from google.adk.agents import RunConfig
-from google.genai import types as adk_types
 from google.adk.events import Event as ADKEvent
 from google.adk.events.event_actions import EventActions
+from google.adk.sessions import Session as ADKSession
+from google.genai import types as adk_types
+from solace_ai_connector.common.log import log
 
-from ...common.types import CancelTaskRequest, TaskIdParams
+from ...common import a2a
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
@@ -34,7 +35,7 @@ async def run_adk_async_task_thread_wrapper(
     adk_session: ADKSession,
     adk_content: adk_types.Content,
     run_config: RunConfig,
-    a2a_context: Dict[str, Any],
+    a2a_context: dict[str, Any],
 ):
     """
     Wrapper to run the async ADK task.
@@ -72,22 +73,25 @@ async def run_adk_async_task_thread_wrapper(
 
         if adk_session and component.session_service:
             context_setting_invocation_id = logical_task_id
-            context_setting_event = ADKEvent(
-                invocation_id=context_setting_invocation_id,
-                author="A2A_Host_System",
-                content=adk_types.Content(
-                    parts=[
-                        adk_types.Part(text="Initializing A2A context for task run.")
-                    ]
-                ),
-                actions=EventActions(state_delta={"a2a_context": a2a_context}),
-                branch=None,
-            )
+            original_message = a2a_context.pop("original_solace_message", None)
             try:
+                context_setting_event = ADKEvent(
+                    invocation_id=context_setting_invocation_id,
+                    author="A2A_Host_System",
+                    content=adk_types.Content(
+                        parts=[
+                            adk_types.Part(
+                                text="Initializing A2A context for task run."
+                            )
+                        ]
+                    ),
+                    actions=EventActions(state_delta={"a2a_context": a2a_context}),
+                    branch=None,
+                )
                 await component.session_service.append_event(
                     session=adk_session, event=context_setting_event
                 )
-                log.info(
+                log.debug(
                     "%s Appended context-setting event to ADK session %s (via component.session_service) for task %s.",
                     component.log_identifier,
                     adk_session.id,
@@ -95,12 +99,15 @@ async def run_adk_async_task_thread_wrapper(
                 )
             except Exception as e_append:
                 log.error(
-                    "%s Failed to append context-setting event for task %s: %s. Tool scope filtering might not work if state is not persisted.",
+                    "%s Failed to append context-setting event for task %s: %s.",
                     component.log_identifier,
                     logical_task_id,
                     e_append,
                     exc_info=True,
                 )
+            finally:
+                if original_message:
+                    a2a_context["original_solace_message"] = original_message
         else:
             log.warning(
                 "%s Could not inject a2a_context into ADK session state via event for task %s (session or session_service invalid). Tool scope filtering might not work.",
@@ -156,13 +163,14 @@ async def run_adk_async_task_thread_wrapper(
                     task_id_for_peer = sub_task_id.replace(
                         component.CORRELATION_DATA_PREFIX, "", 1
                     )
-                    peer_cancel_params = TaskIdParams(id=task_id_for_peer)
-                    peer_cancel_request = CancelTaskRequest(params=peer_cancel_params)
+                    peer_cancel_request = a2a.create_cancel_task_request(
+                        task_id=task_id_for_peer
+                    )
                     peer_cancel_user_props = {"clientId": component.agent_name}
                     peer_request_topic = component._get_agent_request_topic(
                         target_peer_agent_name
                     )
-                    component._publish_a2a_message(
+                    component.publish_a2a_message(
                         payload=peer_cancel_request.model_dump(exclude_none=True),
                         topic=peer_request_topic,
                         user_properties=peer_cancel_user_props,
@@ -183,6 +191,14 @@ async def run_adk_async_task_thread_wrapper(
             logical_task_id,
             llm_limit_e,
         )
+    except BadRequestError as e:
+        log.error(
+            "%s Bad Request for task %s: %s.",
+            component.log_identifier,
+            logical_task_id,
+            e.message
+        )
+        raise
     except Exception as e:
         exception_to_finalize_with = e
         log.exception(
@@ -225,7 +241,7 @@ async def run_adk_async_task(
     adk_session: ADKSession,
     adk_content: adk_types.Content,
     run_config: RunConfig,
-    a2a_context: Dict[str, Any],
+    a2a_context: dict[str, Any],
 ) -> bool:
     """
     Runs the ADK Runner asynchronously and calls component methods to process
@@ -321,6 +337,14 @@ async def run_adk_async_task(
                             pass
 
     except TaskCancelledError:
+        raise
+    except BadRequestError as e:
+        log.error(
+            "%s Bad Request for task %s: %s.",
+            component.log_identifier,
+            logical_task_id,
+            e.message
+        )
         raise
     except Exception as e:
         log.exception(

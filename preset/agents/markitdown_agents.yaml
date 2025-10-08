@@ -1,0 +1,51 @@
+# Markitdown Agent Configuration
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: markitdown_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: markitdown_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "MarkitdownAgent"
+      display_name: "Markdown Agent"
+      model: *general_model
+      instruction: |
+        The Markitdown Agent has the following capability:
+        * convert various file types (like PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) to Markdown.
+        Any files you get that might be useful should be saved using create_artifact.
+        There is no need to provide a preview of the content in the response.
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+        - tool_type: builtin
+          tool_name: "convert_file_to_markdown"
+      session_service:
+        type: "${PERSISTENCE_TYPE, memory}"
+        database_url: "${AGENT_MARKITDOWN_DATABASE_URL, sqlite:///markitdown-agent.db}"
+        default_behavior: "PERSISTENT"
+      artifact_service: *default_artifact_service
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      agent_card:
+        description: "An agent that converts various file types (like PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) to Markdown format."
+        defaultInputModes: ["text", "file"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+        - id: "convert_file_to_markdown"
+          name: "Markdown Converter"
+          description: "Converts various file types to Markdown format."
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []

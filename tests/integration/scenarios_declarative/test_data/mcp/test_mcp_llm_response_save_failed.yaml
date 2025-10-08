@@ -1,0 +1,75 @@
+test_case_id: "mcp_llm_response_save_failed_001"
+description: "Verifies that if artifact saving fails, the LLM receives a clear error
+  message."
+tags: ["all", "agent", "mcp"]
+skip_intermediate_events: true
+
+monkeypatch_spec:
+  - target: "solace_agent_mesh.agent.adk.intelligent_mcp_callbacks.save_artifact_with_metadata"
+    side_effect: "exception"
+    exception_type: "IOError"
+    exception_message: "Disk is full"
+
+test_runner_config_overrides:
+  agent_config:
+    mcp_tool_response_save_threshold_bytes: 10 # Force saving
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_llm_formatter@example.com"
+  parts:
+    - type: "text"
+      text: "Get a response that will fail to save."
+  external_context:
+    a2a_session_id: "session_mcp_llm_response_save_failed_001"
+
+llm_interactions:
+  # 1. LLM calls the MCP tool
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mcp_tool_123"
+                type: "function"
+                function:
+                  name: "get_data_stdio"
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "This response should trigger a save, which will then
+                    fail."}]}}'
+
+  # 2. LLM gets the tool response indicating the save failure
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_data_stdio"
+          response_json_matches:
+            status: "processed_save_failed"
+            message_to_llm: "Saving the full response as an artifact failed."
+            saved_mcp_response_artifact_details:
+              status: "error"
+              message: "Content processing failed. First error: Failed to save content
+                item as artifact: Disk is full"
+
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I tried to save the data as an artifact, but the operation failed.
+              The content is still available if you need it."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_llm_response_save_failed_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I tried to save the data as an artifact, but the operation
+              failed. The content is still available if you need it."
+    # No assert_artifact_state, as no artifact should be created.

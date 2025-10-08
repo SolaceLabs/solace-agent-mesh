@@ -1,8 +1,21 @@
 import click
+from importlib import metadata
 from pathlib import Path
 
 from evaluation.run import main as run_evaluation_main
 from cli.utils import error_exit, load_template
+
+
+def _ensure_sam_rest_gateway_installed():
+    """Checks if the sam-rest-gateway package is installed."""
+    try:
+        metadata.distribution("sam-rest-gateway")
+    except metadata.PackageNotFoundError:
+        error_exit(
+            "Error: 'sam-rest-gateway' is not installed. "
+            "Please install it using: "
+            'pip install "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"'
+        )
 
 
 def _ensure_eval_backend_config_exists():
@@ -44,7 +57,13 @@ def _ensure_eval_backend_config_exists():
     required=True,
     metavar="<PATH>",
 )
-def eval_cmd(test_suite_config_path):
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="Enable verbose output.",
+)
+def eval_cmd(test_suite_config_path, verbose):
     """
     Run an evaluation suite using a specified configuration file. Such as path/to/file.yaml.
 
@@ -56,9 +75,10 @@ def eval_cmd(test_suite_config_path):
             fg="blue",
         )
     )
+    _ensure_sam_rest_gateway_installed()
     _ensure_eval_backend_config_exists()
     try:
-        run_evaluation_main(test_suite_config_path)
+        run_evaluation_main(test_suite_config_path, verbose=verbose)
         click.echo(click.style("Evaluation completed successfully.", fg="green"))
     except Exception as e:
         error_exit(f"An error occurred during evaluation: {e}")

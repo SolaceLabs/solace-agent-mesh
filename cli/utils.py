@@ -1,8 +1,12 @@
-import os
-from pathlib import Path
 import importlib
-import click
+import os
 import re
+from pathlib import Path
+from time import sleep
+
+import click
+import requests
+from sqlalchemy import create_engine, event
 
 
 def ask_yes_no_question(question: str, default=False) -> bool:
@@ -81,7 +85,7 @@ def load_template(name, parser=None, *args):
     if not os.path.exists(template_file):
         raise FileNotFoundError(f"Template file '{template_file}' does not exist.")
 
-    with open(template_file, "r", encoding="utf-8") as f:
+    with open(template_file, encoding="utf-8") as f:
         if parser:
             file = parser(f.read(), *args)
         else:
@@ -91,21 +95,32 @@ def load_template(name, parser=None, *args):
 
 
 def get_formatted_names(name: str):
-    # Normalize the name
-    parts = [
-        segment
-        for segment in re.split(
-            r"[\s_-]", re.sub(r"(?<!^)(?=[A-Z])", "_", name.strip()).lower()
-        )
-        if segment
-    ]
+    # Normalize separators
+    normalized = re.sub(r"[\s\-_]+", "_", name.strip())
+
+    camel_case_split = re.sub(
+        r"([a-z0-9])([A-Z])", r"\1_\2", normalized
+    )  # fooBar -> foo_Bar
+    acronym_split = re.sub(
+        r"([A-Z]+)([A-Z][a-z])", r"\1_\2", camel_case_split
+    )  # APIKey -> API_Key
+
+    raw_parts = [p for p in acronym_split.split("_") if p]
+
+    parts = [p.lower() for p in raw_parts]
+
+    # Spaced capitalized name:
+    #   - If original was all caps, keep it all caps (API -> API)
+    #   - Else capitalize normally
+    spaced_capitalized_parts = [p if p.isupper() else p.capitalize() for p in raw_parts]
+
     return {
-        "KEBAB_CASE_NAME": "-".join([word.lower() for word in parts]),
-        "PASCAL_CASE_NAME": "".join([word.capitalize() for word in parts]),
-        "SNAKE_CASE_NAME": "_".join([word.lower() for word in parts]),
-        "SNAKE_UPPER_CASE_NAME": "_".join([word.upper() for word in parts]),
+        "KEBAB_CASE_NAME": "-".join(parts),
+        "PASCAL_CASE_NAME": "".join(word.capitalize() for word in parts),
+        "SNAKE_CASE_NAME": "_".join(parts),
+        "SNAKE_UPPER_CASE_NAME": "_".join(word.upper() for word in parts),
         "SPACED_NAME": " ".join(parts),
-        "SPACED_CAPITALIZED_NAME": " ".join([word.capitalize() for word in parts]),
+        "SPACED_CAPITALIZED_NAME": " ".join(spaced_capitalized_parts),
     }
 
 
@@ -180,3 +195,68 @@ def indent_multiline_string(
         )
     else:
         return "\n".join(indentation + line for line in text.splitlines()).lstrip()
+
+
+def wait_for_server(url, timeout=30):
+    start = 0
+    while start < timeout:
+        try:
+            r = requests.get(url)
+            if r.status_code == 200:
+                return True
+        except Exception:
+            pass
+        sleep(0.5)
+        start += 0.5
+    return False
+
+
+def create_and_validate_database(database_url: str, db_name: str = "database") -> bool:
+    """
+    Create and validate a database connection.
+
+    Args:
+        database_url (str): Database URL to validate
+        db_name (str): Descriptive name for logging purposes
+
+    Returns:
+        bool: True if successful, raises exception if failed
+    """
+    try:
+        # Handle SQLite file creation
+        if database_url.startswith("sqlite:///"):
+            db_file_path_str = database_url.replace("sqlite:///", "")
+            db_file_path = Path(db_file_path_str)
+            db_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            engine = create_engine(database_url)
+
+            @event.listens_for(engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+        elif database_url.startswith("postgresql"):
+            # Check if PostgreSQL driver is available
+            try:
+                import psycopg2
+            except ImportError:
+                raise ImportError(
+                    "PostgreSQL support requires psycopg2. Install with: "
+                    "pip install 'solace-agent-mesh[postgresql]'"
+                )
+            engine = create_engine(database_url)
+        else:
+            engine = create_engine(database_url)
+
+        with engine.connect() as connection:
+            pass
+
+        engine.dispose()
+        click.echo(click.style(f"  {db_name} validation successful.", fg="green"))
+        return True
+
+    except Exception as e:
+        error_msg = f"Database connection failed for {db_name}: {e}"
+        click.echo(click.style(f"  Error: {error_msg}", fg="red"), err=True)
+        raise ValueError(error_msg)

@@ -6,23 +6,23 @@ toc_max_heading_level: 4
 
 # Solace Agent Mesh CLI
 
-Solace Agent Mesh comes with a comprehensive CLI tool that you can use to create, and run an instance of Solace Agent Mesh, which is referred to as a Solace Agent Mesh (SAM) application. The Solace Agent Mesh (SAM) CLI also allows you to add agents and gateways, manage plugins, help you debug, and much more.
+Solace Agent Mesh comes with a comprehensive CLI tool that you can use to create, and run an instance of Solace Agent Mesh, which is referred to as a Solace Agent Mesh application. Solace Agent Mesh CLI also allows you to add agents and gateways, manage plugins, help you debug, and much more.
 
 ## Installation
 
-The SAM CLI is installed as part of the package for Solace Agent Mesh. For more information, see [Installation](../getting-started/installation.md).
+The Solace Agent Mesh CLI is installed as part of the package for Solace Agent Mesh. For more information, see [Installation](../getting-started/installation.md).
 
 :::tip[CLI Tips]
 
 - The Solace Agent Mesh CLI comes with a short alias of `sam` which can be used in place of `solace-agent-mesh`.
-- You can determine the version of the SAM CLI by running `solace-agent-mesh --version`.
+- You can determine the version of the Solace Agent Mesh CLI by running `solace-agent-mesh --version`.
 - You can get help on any command by running `solace-agent-mesh [COMMAND] --help`.
   :::
 
 
 ## Commands
 
-### `init` - Initialize a SAM Application
+### `init` - Initialize a Solace Agent Mesh Application
 
 ```sh
 sam init [OPTIONS]
@@ -30,9 +30,9 @@ sam init [OPTIONS]
 
 When this command is run with no options, it runs in interactive mode. It first prompts you to choose between configuring your project in the terminal or through a browser-based interface.
 
-If you choose to use the browser, the SAM CLI starts a local web configuration portal, available at `http://127.0.0.1:5002`
+If you choose to use the browser, the Solace Agent Mesh CLI starts a local web configuration portal, available at `http://127.0.0.1:5002`
 
-You can skip some questions by providing the appropriate options for that step during the SAM CLI-based setup.
+You can skip some questions by providing the appropriate options for that step during the Solace Agent Mesh CLI-based setup.
 
 Optionally, you can skip all the questions by providing the `--skip` option. This option uses the provided or default values for all the questions.
 
@@ -42,7 +42,7 @@ Use the `--skip` option and provide the necessary options to run the command in 
 
 ##### Options:
 
-- `--gui` – Launch the browser-based initialization interface directly, skipping the prompt. (Recommended way to configure SAM applications)
+- `--gui` – Launch the browser-based initialization interface directly, skipping the prompt. (Recommended way to configure Solace Agent Mesh applications)
 - `--skip` – Runs in non-interactive mode, using default values where available.
 - `--llm-service-endpoint TEXT` – LLM Service Endpoint URL.
 - `--llm-service-api-key TEXT` – LLM Service API Key.
@@ -105,8 +105,8 @@ sam add agent [OPTIONS] [NAME]
 ##### Options:
 
 - `--gui` – Launch the browser-based configuration interface for agent setup. (Recommended way to configure agents)
-- `--skip` – Skip interactive prompts and use defaults (SAM CLI mode only).
-- `--namespace TEXT` – A2A namespace (for example, myorg/dev).
+- `--skip` – Skip interactive prompts and use defaults (Solace Agent Mesh CLI mode only).
+- `--namespace TEXT` – namespace (for example, myorg/dev).
 - `--supports-streaming BOOLEAN` – Enable streaming support.
 - `--model-type TEXT` – Model type for the agent. Options: planning, general, image_gen, report_gen, multimodal, gemini_pro.
 - `--instruction TEXT` – Custom instruction for the agent.
@@ -143,8 +143,8 @@ sam add gateway [OPTIONS] [NAME]
 ##### Options:
 
 - `--gui` – Launch the browser-based configuration interface for gateway setup. (Recommended way to configure gateways)
-- `--skip` – Skip interactive prompts and use defaults (SAM CLI mode only).
-- `--namespace TEXT` – A2A namespace for the gateway (for example, myorg/dev).
+- `--skip` – Skip interactive prompts and use defaults (Solace Agent Mesh CLI mode only).
+- `--namespace TEXT` – namespace for the gateway (for example, myorg/dev).
 - `--gateway-id TEXT` – Custom Gateway ID for the gateway.
 - `--artifact-service-type TEXT` – Artifact service type for the gateway. Options: memory, filesystem, gcs.
 - `--artifact-service-base-path TEXT` – Base path for filesystem artifact service (if type is 'filesystem').
@@ -157,9 +157,9 @@ For more information, see [Gateways](../concepts/gateways.md).
 
 
 
-### `run` - Run the SAM Application
+### `run` - Run the Solace Agent Mesh Application
 
-To run the SAM application, use the `run` command.
+To run the Solace Agent Mesh application, use the `run` command.
 
 ```sh
 sam run [OPTIONS] [FILES]...
@@ -173,12 +173,18 @@ If you want to use your system's environment variables instead, you can add the 
 
 While running the `run` command, you can also skip specific files by providing the `-s` or `--skip` option.
 
-Or, you can only run the provided files by providing them as arguments. You might want to separate your project into multiple processes to meet your scaling needs. For more information, see [Deployment](../deployment/deploy.md).
+You can provide paths to specific YAML configuration files or directories. When you provide a directory, `run` will recursively search for and load all `.yaml` and `.yml` files within that directory. This allows you to organize your configurations and run them together easily.
 
-For example:
+For example, to run specific files:
 
 ```sh
-solace-agent-mesh run configs/config1.yaml configs/config2.yaml
+solace-agent-mesh run configs/agent1.yaml configs/gateway.yaml
+```
+
+To run all YAML files within the `configs` directory:
+
+```sh
+solace-agent-mesh run configs/
 ```
 
 ##### Options:
@@ -208,7 +214,7 @@ If a requested page is not found, it will redirect to the main documentation pag
 
 ### `plugin` - Manage Plugins
 
-The `plugin` command allows you to manage plugins for SAM application.
+The `plugin` command allows you to manage plugins for Solace Agent Mesh application.
 
 ```sh
 sam plugin [COMMAND] [OPTIONS]
@@ -248,7 +254,7 @@ Compiles and prepares the plugin for use.
 sam plugin build [PLUGIN_PATH]
 ```
 
-Builds the SAM plugin in the specified directory (defaults to current directory).
+Builds the Solace Agent Mesh plugin in the specified directory (defaults to current directory).
 
 ##### Options:
 
@@ -257,7 +263,7 @@ Builds the SAM plugin in the specified directory (defaults to current directory)
 
 #### `add` - Add an Existing Plugin
 
-Creates a new component instance from a specified plugin source.
+Installs the plugins and creates a new component instance from a specified plugin source.
 
 ```sh
 sam plugin add [OPTIONS] COMPONENT_NAME
@@ -269,9 +275,29 @@ sam plugin add [OPTIONS] COMPONENT_NAME
 - `--install-command TEXT` – Command to use to install a python package. Must follow the format `command {package} args`, by default `pip3 install {package}`. Can also be set through the environment variable SAM_PLUGIN_INSTALL_COMMAND.
 - `-h, --help` – Displays the help message and exits.
 
+
+#### `installs` - Installs a Plugin
+
+Installs a plugin from a specified plugin source.
+
+```sh
+sam plugin install [OPTIONS] PLUGIN_SOURCE
+```
+
+PLUGIN_SOURCE can be:
+  - A local path to a directory (e.g., '/path/to/plugin')
+  - A local path to a wheel file (e.g., '/path/to/plugin.whl')
+  - A Git URL (e.g., 'https://github.com/user/repo.git')
+  - The name of the plugin from https://github.com/SolaceLabs/solace-agent-mesh-core-plugins
+
+##### Options:
+
+- `--install-command TEXT` – Command to use to install a python package. Must follow the format `command {package} args`, by default `pip3 install {package}`. Can also be set through the environment variable SAM_PLUGIN_INSTALL_COMMAND.
+- `-h, --help` – Displays the help message and exits.
+
 #### `catalog` - Launch Plugin Catalog
 
-Launch the SAM Plugin Catalog web interface.
+Launch the Solace Agent Mesh Plugin Catalog web interface.
 
 ```sh
 sam plugin catalog [OPTIONS]

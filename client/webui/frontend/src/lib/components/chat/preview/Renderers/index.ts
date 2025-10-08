@@ -15,3 +15,4 @@ export { ImageRenderer } from "./ImageRenderer";
 export { MarkdownRenderer } from "./MarkdownRenderer";
 export { MermaidRenderer } from "./MermaidRenderer";
 export { StructuredDataRenderer } from "./StructuredDataRenderer";
+export { TextRenderer } from "./TextRenderer";

@@ -1,0 +1,41 @@
+test_case_id: "dynamic_tool_empty_provider_001"
+description: |
+  Verifies that an agent can be configured with a DynamicToolProvider
+  that provides zero tools, and that the agent starts and runs correctly
+  without declaring any tools from that provider.
+tags: ["all", "agent", "tools", "dynamic_tools"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "EmptyProviderAgent"
+  user_identity: "empty_provider_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Hello, do you have any tools?"
+
+llm_interactions:
+  - step_id: "llm_sees_no_dynamic_tools"
+    expected_request:
+      # We assert that NO tools from the provider are present.
+      # The agent will still have its default internal tools.
+      assert_tools_exact:
+        - "_notify_artifact_save"
+        - "_continue_generation"
+    static_response:
+      id: "chatcmpl-empty-provider-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have no special tools from that provider."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    status:
+      state: "completed"
+      message:
+        parts:
+          - type: "text"
+            text_exact: "I have no special tools from that provider."

@@ -1,0 +1,61 @@
+# Mermaid Agent Configuration (Python Tool based)
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: mermaid_pytool_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: mermaid_pytool_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "MermaidAgent"
+      display_name: "Mermaid Diagram Agent"
+      model: *general_model
+      instruction: |
+        The MermaidAgent can generate PNG images from Mermaid diagram syntax.
+        You will be provided with the Mermaid syntax as a string.
+
+        You require detailed data to fulfill requests, and if a request doesn't have all the 
+        data required to fulfill a task, you must request it from the caller.
+
+        Don't use fake data unless you are explicitly told to do so.
+
+        Use the 'mermaid_diagram_generator' tool to create the PNG image.
+        The tool accepts 'mermaid_syntax' (the diagram code) and an optional 'output_filename'.
+        The generated image will be saved as a PNG artifact.
+        Confirm completion by stating the name and version of the created artifact.
+      tools:
+        - tool_type: builtin
+          tool_name: "mermaid_diagram_generator"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service:
+        type: "${PERSISTENCE_TYPE, memory}"
+        database_url: "${AGENT_MERMAID_DATABASE_URL, sqlite:///mermaid-agent.db}"
+        default_behavior: "PERSISTENT"
+      artifact_service: *default_artifact_service
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      agent_card:
+        description: |
+          An agent that generates PNG images from Mermaid diagram syntax using a Python tool.
+          Requires detailed Mermaid syntax input. Include all necessary data for the task.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+        - id: "mermaid_diagram_generator"
+          name: "Mermaid Diagram Generator"
+          description: "Generates a PNG image from Mermaid diagram syntax. Requires detailed data. Input: mermaid_syntax (string), output_filename (string, optional)."
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []

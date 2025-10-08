@@ -1,0 +1,31 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "ArtifactCreationProgressData",
+    "description": "Schema for the data part of an artifact creation progress signal.",
+    "type": "object",
+    "properties": {
+        "type": {
+            "type": "string",
+            "const": "artifact_creation_progress",
+            "description": "The constant type for this data part."
+        },
+        "filename": {
+            "type": "string",
+            "description": "The name of the artifact being created."
+        },
+        "bytes_saved": {
+            "type": "integer",
+            "description": "The number of bytes saved so far."
+        },
+        "artifact_chunk": {
+            "type": "string",
+            "description": "The chunk of artifact data that was saved in this progress update."
+        }
+    },
+    "required": [
+        "type",
+        "filename",
+        "bytes_saved",
+        "artifact_chunk"
+    ]
+}

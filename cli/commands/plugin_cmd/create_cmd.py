@@ -18,12 +18,10 @@ DEFAULT_PLUGIN_VERSION = "0.1.0"
 
 
 def ensure_directory_exists(path: pathlib.Path):
-    """Creates a directory if it doesn't exist."""
     path.mkdir(parents=True, exist_ok=True)
 
 
 def replace_placeholders(content: str, replacements: dict) -> str:
-    """Replaces placeholders in a string."""
     for placeholder, value in replacements.items():
         content = content.replace(placeholder, str(value))
     return content
@@ -244,7 +242,6 @@ def create_plugin_cmd(
         "__PLUGIN_DESCRIPTION__": options["description"],
         "__PLUGIN_VERSION__": options["version"],
         "__PLUGIN_META_DATA_TYPE__": options["type"].lower(),
-        "__SAM_VERSION__": cli_version,
         "__COMPONENT_KEBAB_CASE_NAME__": "__COMPONENT_KEBAB_CASE_NAME__",
         "__COMPONENT_PASCAL_CASE_NAME__": "__COMPONENT_PASCAL_CASE_NAME__",
         "__COMPONENT_UPPER_SNAKE_CASE_NAME__": "__COMPONENT_UPPER_SNAKE_CASE_NAME__",

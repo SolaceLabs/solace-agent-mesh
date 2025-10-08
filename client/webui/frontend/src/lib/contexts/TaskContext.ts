@@ -9,8 +9,6 @@ interface TaskState {
     monitoredTasks: Record<string, TaskFE>;
     monitoredTaskOrder: string[];
     highlightedStepId: string | null;
-    isReplaying: boolean;
-    currentReplayStep: number;
     isReconnecting: boolean;
     reconnectionAttempts: number;
 }
@@ -19,7 +17,6 @@ interface TaskActions {
     connectTaskMonitorStream: () => Promise<void>;
     disconnectTaskMonitorStream: () => Promise<void>;
     setHighlightedStepId: (stepId: string | null) => void;
-    setReplayState: (isReplaying: boolean, currentStep: number) => void;
 }
 
 export type TaskContextValue = TaskState & TaskActions;

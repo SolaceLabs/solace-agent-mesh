@@ -2,6 +2,7 @@ test_case_id: "builtin_load_artifact_version_not_found_error_001"
 description: |
   Tests the 'load_artifact' tool's error handling when the specified
   artifact version does not exist for a known filename.
+tags: ["all","agent","tools","builtin_artifact_tools"]
 skip_intermediate_events: true
 
 setup_artifacts:
@@ -64,7 +65,15 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I couldn't load version 99 of 'existing_doc_for_version_test.txt' as that version was not found."
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_load_version_error_artifact_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "I couldn't load version 99 of 'existing_doc_for_version_test.txt' as that version was not found."

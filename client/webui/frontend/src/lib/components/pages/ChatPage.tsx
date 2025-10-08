@@ -5,12 +5,15 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
+import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useAgents, useChatContext, useSessionPreview, useTaskContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext } from "@/lib/hooks";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
+import { ChatSessionDialog } from "../chat/ChatSessionDialog";
 import { SessionSidePanel } from "../chat/SessionSidePanel";
+import { ChatSessionDeleteDialog } from "../chat/ChatSessionDeleteDialog";
 import type { ChatMessageListRef } from "../ui/chat/chat-message-list";
 
 // Constants for sidepanel behavior
@@ -33,11 +36,28 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, handleNewSession, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
+    const {
+        agents,
+        sessionId,
+        messages,
+        setMessages,
+        selectedAgentName,
+        setSelectedAgentName,
+        isSidePanelCollapsed,
+        setIsSidePanelCollapsed,
+        openSidePanelTab,
+        setTaskIdInSidePanel,
+        isResponding,
+        latestStatusText,
+        sessionToDelete,
+        closeSessionDeleteModal,
+        confirmSessionDelete,
+        sessionName,
+    } = useChatContext();
+    const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
-    const sessionPreview = useSessionPreview();
-    const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
+    const [isChatSessionDialogOpen, setChatSessionDialogOpen] = useState(false);
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -110,7 +130,6 @@ export function ChatPage() {
         };
     }, [isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
 
-    const { agents } = useAgents();
     useEffect(() => {
         if (!selectedAgentName && agents.length > 0) {
             const orchestratorAgent = agents.find(agent => agent.name === "OrchestratorAgent");
@@ -119,14 +138,17 @@ export function ChatPage() {
             setSelectedAgentName(agentName);
 
             const selectedAgent = agents.find(agent => agent.name === agentName);
-            const displayedText = selectedAgent?.display_name ? `Hi! I'm the ${selectedAgent?.display_name} Agent. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
+            const displayedText = selectedAgent?.displayName ? `Hi! I'm the ${selectedAgent?.displayName} Agent. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
 
             setMessages(prev => {
                 const filteredMessages = prev.filter(msg => !msg.isStatusBubble);
                 return [
                     ...filteredMessages,
                     {
-                        text: displayedText,
+                        role: "agent",
+                        kind: "message",
+                        messageId: `welcome-${Date.now()}`,
+                        parts: [{ kind: "text", text: displayedText }],
                         isUser: false,
                         isComplete: true,
                         metadata: { sessionId, lastProcessedEventSequence: 0 },
@@ -149,6 +171,12 @@ export function ChatPage() {
     const loadingMessage = useMemo(() => {
         return messages.find(message => message.isStatusBubble);
     }, [messages]);
+
+    const backendStatusText = useMemo(() => {
+        if (!loadingMessage || !loadingMessage.parts) return null;
+        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
+        return textPart?.text || null;
+    }, [loadingMessage]);
 
     const handleViewProgressClick = useMemo(() => {
         if (!loadingMessage?.taskId) return undefined;
@@ -181,10 +209,9 @@ export function ChatPage() {
             <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
                 <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
             </div>
-            {/* Header */}
             <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                 <Header
-                    title={sessionPreview}
+                    title={sessionName || "New Chat"}
                     leadingAction={
                         isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
@@ -192,7 +219,7 @@ export function ChatPage() {
                                     <PanelLeftIcon className="size-5" />
                                 </Button>
                                 <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-                                <Button variant="ghost" onClick={handleNewSession} className="h-10 w-10 p-0" tooltip="Start New Chat Session">
+                                <Button variant="ghost" onClick={() => setChatSessionDialogOpen(true)} className="h-10 w-10 p-0" tooltip="Start New Chat Session">
                                     <Edit className="size-5" />
                                 </Button>
                             </div>
@@ -212,7 +239,7 @@ export function ChatPage() {
                                     })}
                                 </ChatMessageList>
                                 <div style={CHAT_STYLES}>
-                                    {loadingMessage && <LoadingMessageRow statusText={loadingMessage.text} onViewWorkflow={handleViewProgressClick} />}
+                                    {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
                                     <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                 </div>
                             </div>
@@ -238,6 +265,8 @@ export function ChatPage() {
                     </ResizablePanelGroup>
                 </div>
             </div>
+            <ChatSessionDialog isOpen={isChatSessionDialogOpen} onClose={() => setChatSessionDialogOpen(false)} />
+            <ChatSessionDeleteDialog isOpen={!!sessionToDelete} onClose={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`} />
         </div>
     );
 }

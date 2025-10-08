@@ -1,5 +1,6 @@
 test_case_id: "fenced_artifact_filename_special_chars_001"
 description: "Tests that a filename with spaces, hyphens, and multiple dots is handled correctly."
+tags: ["all","core_a2a"]
 skip_intermediate_events: true
 
 gateway_input:
@@ -35,9 +36,19 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_contains: "I have created the artifact 'Q1 Sales Report - 2024.v2.md'."
+    kind: "task"
+    id: "*"
+    contextId: "fixed_session_for_fenced_artifact_special_chars_test_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_contains:
+              - "I have created the artifact 'Q1 Sales Report - 2024.v2.md'."
     assert_artifact_state:
       - filename: "Q1 Sales Report - 2024.v2.md"
         version: 0

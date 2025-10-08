@@ -1,0 +1,18 @@
+# Required environment variables
+LLM_SERVICE_ENDPOINT=
+LLM_SERVICE_API_KEY=
+LLM_SERVICE_PLANNING_MODEL_NAME=
+LLM_SERVICE_GENERAL_MODEL_NAME=
+
+# Defaulted environment variables in the Dockerfile
+NAMESPACE="sam/"
+SOLACE_BROKER_URL="ws://localhost:8008"
+SOLACE_BROKER_VPN="default"
+SOLACE_BROKER_USERNAME="default"
+SOLACE_BROKER_PASSWORD="default"
+SOLACE_DEV_MODE="True"
+
+SESSION_SECRET_KEY="replace_with_your_secret_key"
+FASTAPI_HOST="127.0.0.1" # Must be 0.0.0.0 for containerized environments
+FASTAPI_PORT="8000"
+FASTAPI_HTTPS_PORT="8443"

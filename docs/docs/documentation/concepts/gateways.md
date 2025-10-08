@@ -22,7 +22,7 @@ Gateways are the external interfaces that connect various systems to the A2A age
 
 2. **Authentication & Authorization**: Common authentication and user enrichment flow across all gateway types, with pluggable identity providers.
 
-3. **Configurable System Purpose**: Each gateway has a configurable system purpose that sets the context for all stimuli entering the Solace Agent Mesh through that gateway. This design allows for tailored processing based on the specific use case or domain.
+3. **Configurable System Purpose**: Each gateway has a configurable system purpose that sets the context for all stimuli entering Solace Agent Mesh through that gateway. This design allows for tailored processing based on the specific use case or domain.
 
 4. **Customizable Output Formatting**: Gateways have a configurable output description that controls how stimuli responses are formatted when sent back to the outside world. This configurable output description ensures that the output meets the requirements of the receiving system or user interface.
 
@@ -97,7 +97,7 @@ Additional gateway types are available through the plugin ecosystem:
 
 For more information about plugins and how to configure them, see [Plugins](./plugins.md).
 
-One of the official core plugin gateway interfaces is the [Solace Event Mesh Gateway](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/solace-event-mesh), which enables communication with the PubSub+ event broker directly as an input interface.
+One of the official core plugin gateway interfaces is the [Solace Event Mesh Gateway](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/tree/main/sam-event-mesh-gateway), which enables communication with the PubSub+ event broker directly as an input interface.
 
 :::note
 Each gateway type has its own configuration options and specific features. See the individual gateway documentation pages for detailed information on setup and usage.
@@ -105,7 +105,7 @@ Each gateway type has its own configuration options and specific features. See t
 
 ## Create a Gateway
 
-To create a gateway, you can either [use one of the pre-existing plugins](./plugins.md#use-a-plugins) or create yours from scratch.
+To create a gateway, you can either [use one of the pre-existing plugins](./plugins.md#use-a-plugin) or create yours from scratch.
 
 
 ### Gateway from Scratch

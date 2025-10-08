@@ -32,6 +32,10 @@ share/python-wheels/
 *.egg
 MANIFEST
 .DS_Store
+SolaceLabs-solace-agent-mesh-ui-*
+
+# logs
+sam.log.*
 
 *.manifest
 *.spec
@@ -141,11 +145,15 @@ cython_debug/
 .pypirc
 tmp
 .sam 
+playground.py
 
 # VS Code
 .history
 evaluation/results/
 tests/integration/reports/
+
+#  JetBrains
+.idea/
 
 # Node
 node_modules/
@@ -154,3 +162,4 @@ my-dev-project
 
 # workaround requirements.txt not working in ci
 requirements.txt
+

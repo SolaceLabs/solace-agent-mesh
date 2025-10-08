@@ -5,9 +5,9 @@ Programmatic integration tests for agent card discovery and peer tool creation.
 import pytest
 import asyncio
 
-from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
-from tests.integration.infrastructure.llm_server.server import TestLLMServer
-from tests.integration.infrastructure.gateway_interface.component import (
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from sam_test_infrastructure.llm_server.server import TestLLMServer
+from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
 from .test_helpers import (
@@ -17,7 +17,12 @@ from .test_helpers import (
     get_all_task_events,
 )
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [
+    pytest.mark.all,
+    pytest.mark.asyncio,
+    pytest.mark.agent,
+    pytest.mark.delegation
+]
 
 
 async def test_agent_discovery_and_peer_tools_for_main_agent(

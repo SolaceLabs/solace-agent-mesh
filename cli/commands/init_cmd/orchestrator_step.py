@@ -1,21 +1,28 @@
-import click
-from pathlib import Path
-import yaml
 import re
-from ...utils import ask_if_not_provided, load_template, get_formatted_names
+from pathlib import Path
+
+import click
+import yaml
+
 from config_portal.backend.common import DEFAULT_COMMUNICATION_TIMEOUT
+
+from ...utils import ask_if_not_provided, get_formatted_names, load_template
 
 ORCHESTRATOR_DEFAULTS = {
     "agent_name": "OrchestratorAgent",
     "supports_streaming": True,
-    "artifact_handling_mode": "embed",
+    "artifact_handling_mode": "reference",
     "enable_embed_resolution": True,
     "enable_artifact_content_instruction": True,
-    "session_service": {"type": "memory", "default_behavior": "PERSISTENT"},
+    "enable_builtin_artifact_tools": {"enabled": True},
+    "enable_builtin_data_tools": {"enabled": True},
     "artifact_service": {
         "type": "filesystem",
         "base_path": "/tmp/samv2",
         "artifact_scope": "namespace",
+        "bucket_name": "",
+        "endpoint_url": "",
+        "region": "us-east-1",
     },
     "agent_card": {
         "description": "The Orchestrator component. It manages tasks and coordinates multi-agent workflows.",
@@ -29,6 +36,7 @@ ORCHESTRATOR_DEFAULTS = {
         "allow_list": ["*"],
         "request_timeout_seconds": DEFAULT_COMMUNICATION_TIMEOUT,
     },
+    "use_orchestrator_db": True,
 }
 
 
@@ -80,16 +88,26 @@ def create_orchestrator_config(
         options,
         "session_service_type",
         "Enter session service type",
-        ORCHESTRATOR_DEFAULTS["session_service"]["type"],
+        "sql",
         skip_interactive,
-        choices=["memory", "vertex_rag"],
+        choices=["sql", "memory", "vertex_rag"],
     )
+
+    if session_type == "sql":
+        options["use_orchestrator_db"] = ask_if_not_provided(
+            options,
+            "use_orchestrator_db",
+            "Use default orchestrator database? (true/false)",
+            ORCHESTRATOR_DEFAULTS["use_orchestrator_db"],
+            skip_interactive,
+            is_bool=True,
+        )
 
     session_behavior = ask_if_not_provided(
         options,
         "session_service_behavior",
         "Enter session service behavior",
-        ORCHESTRATOR_DEFAULTS["session_service"]["default_behavior"],
+        "PERSISTENT",
         skip_interactive,
         choices=["PERSISTENT", "RUN_BASED"],
     )
@@ -100,16 +118,50 @@ def create_orchestrator_config(
         "Enter artifact service type",
         ORCHESTRATOR_DEFAULTS["artifact_service"]["type"],
         skip_interactive,
-        choices=["memory", "filesystem", "gcs"],
+        choices=["memory", "filesystem", "gcs", "s3"],
     )
 
     artifact_base_path = None
+    s3_bucket_name = None
+    s3_endpoint_url = None
+    s3_region = None
+
     if artifact_type == "filesystem":
         artifact_base_path = ask_if_not_provided(
             options,
             "artifact_service_base_path",
             "Enter artifact service base path",
             ORCHESTRATOR_DEFAULTS["artifact_service"]["base_path"],
+            skip_interactive,
+        )
+    elif artifact_type == "s3":
+        # Map CLI artifact-service-* parameters to s3_* keys
+        if options.get("artifact_service_bucket_name"):
+            options["s3_bucket_name"] = options["artifact_service_bucket_name"]
+        if options.get("artifact_service_endpoint_url"):
+            options["s3_endpoint_url"] = options["artifact_service_endpoint_url"]
+        if options.get("artifact_service_region"):
+            options["s3_region"] = options["artifact_service_region"]
+
+        s3_bucket_name = ask_if_not_provided(
+            options,
+            "s3_bucket_name",
+            "Enter S3 bucket name",
+            ORCHESTRATOR_DEFAULTS["artifact_service"]["bucket_name"],
+            skip_interactive,
+        )
+        s3_endpoint_url = ask_if_not_provided(
+            options,
+            "s3_endpoint_url",
+            "Enter S3 endpoint URL (leave empty for AWS S3)",
+            ORCHESTRATOR_DEFAULTS["artifact_service"]["endpoint_url"],
+            skip_interactive,
+        )
+        s3_region = ask_if_not_provided(
+            options,
+            "s3_region",
+            "Enter S3 region",
+            ORCHESTRATOR_DEFAULTS["artifact_service"]["region"],
             skip_interactive,
         )
 
@@ -266,12 +318,14 @@ def create_orchestrator_config(
         artifact_base_path_line = ""
         if artifact_type == "filesystem":
             artifact_base_path_line = f'base_path: "{artifact_base_path}"'
+        elif artifact_type == "s3":
+            s3_config_lines = ["bucket_name: ${S3_BUCKET_NAME}"]
+            s3_config_lines.append("endpoint_url: ${S3_ENDPOINT_URL}")
+            s3_config_lines.append("region: ${S3_REGION}")
+            artifact_base_path_line = "\n      ".join(s3_config_lines)
 
         shared_replacements = {
-            "__DEFAULT_SESSION_SERVICE_TYPE__": session_type,
-            "__DEFAULT_SESSION_SERVICE_BEHAVIOR__": session_behavior,
             "__DEFAULT_ARTIFACT_SERVICE_TYPE__": artifact_type,
-            "__DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__": artifact_base_path_line,
             "__DEFAULT_ARTIFACT_SERVICE_SCOPE__": artifact_scope,
         }
 
@@ -279,6 +333,18 @@ def create_orchestrator_config(
         for placeholder, value in shared_replacements.items():
             modified_shared_content = modified_shared_content.replace(
                 placeholder, str(value)
+            )
+
+        if not artifact_base_path_line:
+            modified_shared_content = re.sub(
+                r"\s*# __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__.*",
+                "",
+                modified_shared_content,
+            )
+        else:
+            modified_shared_content = modified_shared_content.replace(
+                "      # __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__",
+                f"      {artifact_base_path_line}",
             )
 
         shared_config_dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -295,6 +361,26 @@ def create_orchestrator_config(
         )
         return False
 
+    try:
+        logging_config_dest_path = project_root / "configs" / "logging_config.ini"
+        logging_template_content = load_template("logging_config_template.ini")
+        with open(logging_config_dest_path, "w", encoding="utf-8") as f:
+            f.write(logging_template_content)
+        click.echo(
+            f"  Configured: {logging_config_dest_path.relative_to(project_root)}"
+        )
+    except Exception as e:
+        error_message = (
+            f"Error configuring file {logging_config_dest_path}: {e}"
+            if logging_config_dest_path
+            else f"Error configuring logging configuration: {e}"
+        )
+        click.echo(
+            click.style(error_message, fg="red"),
+            err=True,
+        )
+        return False
+
     main_orchestrator_path = (
         project_root / "configs" / "agents" / "main_orchestrator.yaml"
     )
@@ -302,8 +388,8 @@ def create_orchestrator_config(
     try:
         orchestrator_template_content = load_template("main_orchestrator.yaml")
 
-        session_service_block_for_orchestrator = "*default_session_service"
-        artifact_service_block_for_orchestrator = "*default_artifact_service"
+        formatted_name = get_formatted_names(options["agent_name"])
+        kebab_case_name = formatted_name.get("KEBAB_CASE_NAME")
 
         deny_list_line = ""
         if deny_list:
@@ -312,7 +398,7 @@ def create_orchestrator_config(
                 .strip()
                 .replace("'", '"')
             )
-            deny_list_line = f"deny_list: {deny_list_yaml}\n        "
+            deny_list_line = f"deny_list: {deny_list_yaml}"
 
         default_instruction = """You are the Orchestrator Agent within an AI agentic system. Your primary responsibilities are to:
         1. Process tasks received from external sources via the system Gateway.
@@ -326,8 +412,40 @@ def create_orchestrator_config(
         - You must then review the list of artifacts and return the ones that are important for the user by using the `signal_artifact_for_return` tool.
         - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call."""
 
-        formatted_name = get_formatted_names(options["agent_name"])
-        kebab_case_name = formatted_name.get("KEBAB_CASE_NAME")
+        if session_type == "sql":
+            session_service_lines = [
+                f'type: "{session_type}"',
+                'database_url: "${ORCHESTRATOR_DATABASE_URL}"',
+                f'default_behavior: "{session_behavior}"',
+            ]
+            session_service_block = "\n" + "\n".join(
+                [f"        {line}" for line in session_service_lines]
+            )
+
+            data_dir = project_root / "data"
+            data_dir.mkdir(exist_ok=True)
+            orchestrator_db_file = data_dir / "orchestrator.db"
+            orchestrator_database_url = f"sqlite:///{orchestrator_db_file.resolve()}"
+
+            try:
+                env_path = project_root / ".env"
+                with open(env_path, "a", encoding="utf-8") as f:
+                    f.write(
+                        f'\nORCHESTRATOR_DATABASE_URL="{orchestrator_database_url}"\n'
+                    )
+                click.echo(
+                    f"  Added ORCHESTRATOR_DATABASE_URL to .env: {orchestrator_database_url}"
+                )
+            except Exception as e:
+                click.echo(
+                    click.style(
+                        f"Warning: Could not add ORCHESTRATOR_DATABASE_URL to .env: {e}",
+                        fg="yellow",
+                    ),
+                    err=True,
+                )
+        else:
+            session_service_block = "*default_session_service"
 
         orchestrator_replacements = {
             "__NAMESPACE__": "${NAMESPACE}",
@@ -336,8 +454,8 @@ def create_orchestrator_config(
             "__AGENT_NAME__": options["agent_name"],
             "__LOG_FILE_NAME__": f"{kebab_case_name}.log",
             "__INSTRUCTION__": default_instruction,
-            "__SESSION_SERVICE__": session_service_block_for_orchestrator,
-            "__ARTIFACT_SERVICE__": artifact_service_block_for_orchestrator,
+            "__SESSION_SERVICE__": session_service_block,
+            "__ARTIFACT_SERVICE__": "*default_artifact_service",
             "__ARTIFACT_HANDLING_MODE__": artifact_handling_mode,
             "__ENABLE_EMBED_RESOLUTION__": str(enable_embed_resolution).lower(),
             "__ENABLE_ARTIFACT_CONTENT_INSTRUCTION__": str(
@@ -361,7 +479,6 @@ def create_orchestrator_config(
             )
             .strip()
             .replace("'", '"'),
-            "__INTER_AGENT_COMMUNICATION_DENY_LIST_LINE__": deny_list_line,
             "__INTER_AGENT_COMMUNICATION_TIMEOUT__": str(
                 inter_agent_communication_timeout
             ),
@@ -371,6 +488,19 @@ def create_orchestrator_config(
         for placeholder, value in orchestrator_replacements.items():
             modified_orchestrator_content = modified_orchestrator_content.replace(
                 placeholder, str(value)
+            )
+
+        if deny_list:
+            modified_orchestrator_content = modified_orchestrator_content.replace(
+                "__INTER_AGENT_COMMUNICATION_DENY_LIST_LINE__",
+                deny_list_line,
+            )
+        else:
+            modified_orchestrator_content = re.sub(
+                r"^\s*__INTER_AGENT_COMMUNICATION_DENY_LIST_LINE__\n?$",
+                "",
+                modified_orchestrator_content,
+                flags=re.MULTILINE,
             )
 
         main_orchestrator_path.parent.mkdir(parents=True, exist_ok=True)

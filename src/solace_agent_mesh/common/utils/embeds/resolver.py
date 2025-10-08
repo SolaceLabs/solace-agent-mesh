@@ -23,6 +23,7 @@ from .converter import (
 from .types import DataFormat
 from ..mime_helpers import is_text_based_mime_type
 
+
 try:
     import yaml
     from .converter import PYYAML_AVAILABLE

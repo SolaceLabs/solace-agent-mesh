@@ -66,35 +66,79 @@ Agents in Solace Agent Mesh follow the A2A protocol lifecycle and interact with 
 - **Natural Language Processing Agent**: An agent that can perform tasks like sentiment analysis, named entity recognition, or language translation.
 
 
-## Built-In Tools
+## Tool Ecosystem
 
-Solace Agent Mesh comes with a comprehensive set of built-in tools that agents can use. These tools are automatically available to all agents and provide essential capabilities, and can be added through the agent configuration file.
+Agents perform tasks by using **tools**. A tool is a specific capability, like querying a database, calling an external API, or generating an image. The Solace Agent Mesh framework provides a flexible and powerful tool ecosystem, allowing you to equip your agents with the right capabilities for any job.
 
-### Artifact Tools
-- **Create Artifact**: Create and manage files with automatic metadata injection
-- **Load Artifact**: Retrieve and process existing artifacts
-- **Append to Artifact**: Add content to existing files
-- **Extract Content**: Extract and analyze content from various file types
-- **List Artifacts**: Browse available artifacts in the system
+There are three primary ways to add tools to an agent:
 
-### Data Analysis Tools
-- **SQL Query**: Execute SQL queries against databases
-- **JQ Transform**: Transform JSON data using JQ expressions
-- **Plotly Charts**: Generate interactive charts and visualizations
-- **SQLite Database**: Create and query SQLite databases
+### 1. Built-in Tools
 
-### Web Tools
-- **Web Scraping**: Extract content from web pages
-- **HTTP Requests**: Make API calls and web requests
+Solace Agent Mesh includes a rich library of pre-packaged tools for common tasks like data analysis, file management, and web requests. These are the easiest to use and can be enabled with just a few lines of configuration.
 
-### Communication Tools
-- **Peer Agent Tool**: Delegate tasks to other agents in the agent mesh
-- **Audio Tools**: Process and analyze audio content
-- **Image Tools**: Handle image processing and analysis
+-   **Use Case**: For standard, out-of-the-box functionality.
+-   **Learn More**: See the [Built-in Tools Reference](../user-guide/builtin-tools/builtin-tools.md) for a complete list and configuration details.
+
+### 2. Custom Python Tools
+
+For unique business logic or specialized tasks, you can create your own tools using Python. This is the most powerful and flexible method, supporting everything from simple functions to advanced, class-based tool factories that can generate multiple tools programmatically.
+
+-   **Use Case**: For implementing custom logic, integrating with proprietary systems, or creating dynamically configured tools.
+-   **Learn More**: See the [Creating Python Tools](../user-guide/creating-python-tools.md) guide for a complete walkthrough.
+
+### 3. MCP (Model Context Protocol) Tools
+
+For integrating with external, standalone tool servers that conform to the Model Context Protocol, you can configure an MCP tool. This allows agents to communicate with tools running in separate processes or on different machines.
+
+-   **Use Case**: For integrating with existing MCP-compliant tool servers or language-agnostic tool development.
+-   **Learn More**: See the [MCP Integration Tutorial](../tutorials/mcp-integration.md).
+
+## Agent Card
+
+The Agent Card is a public-facing profile that describes an agent's identity, capabilities, and how to interact with it. It functions like a digital business card, allowing other agents and clients within Solace Agent Mesh to discover what an agent can do. This information is published by the agent and is crucial for dynamic discovery and interoperability.
+
+The Agent Card is defined in the agent's YAML configuration file under the `agent_card` section.
+
+### Key Fields
+
+You can configure the following fields in the `agent card`:
+
+-   **`description`**: A summary of the agent's purpose and capabilities.
+-   **`defaultInputModes`**: A list of supported MIME types for input (e.g., `["text/plain", "application/json", "file"]`).
+-   **`defaultOutputModes`**: A list of supported MIME types for output.
+-   **`skills`**: A list of specific skills the agent possesses. Each skill corresponds to a capability, often backed by a tool.
+
+### Skills
+
+A skill describes a specific function the agent can perform. It provides granular detail about the agent's abilities.
+
+Key attributes of a skill include:
+
+-   **`id`**: A unique identifier for the skill, which should match the `tool_name` if the skill is directly mapped to a tool.
+-   **`name`**: A human-readable name for the skill.
+-   **`description`**: A clear explanation of what the skill does, which helps the LLM (and other agents) decide when to use it.
+
+### Example Configuration
+
+Here is an example of an `agent_card` configuration for a "Mermaid Diagram Generator" agent:
+
+```yaml
+# ... inside app_config ...
+agent_card:
+  description: "An agent that generates PNG images from Mermaid diagram syntax."
+  defaultInputModes: ["text"] # Expects Mermaid syntax as text
+  defaultOutputModes: ["text", "file"] # Confirms with text, outputs file artifact
+  skills:
+  - id: "mermaid_diagram_generator"
+    name: "Mermaid Diagram Generator"
+    description: "Generates a PNG image from Mermaid diagram syntax. Input: mermaid_syntax (string), output_filename (string, optional)."
+```
+
+This card clearly communicates that the agent can take text (the Mermaid syntax) and produce a file (the PNG image), and it details the specific "mermaid_diagram_generator" skill it offers. For more details on creating agents and configuring their cards, see [Creating Custom Agents](../user-guide/create-agents.md).
 
 ## User-Defined Agents
 
-Using Solace Agent Mesh and the SAM CLI, you can create your own agents. Agents are configured through YAML files that specify:
+Using Solace Agent Mesh and the Solace Agent Mesh CLI, you can create your own agents. Agents are configured through YAML files that specify:
 
 - Agent name and instructions
 - LLM model configuration
@@ -102,7 +146,7 @@ Using Solace Agent Mesh and the SAM CLI, you can create your own agents. Agents 
 - Artifact and session management settings
 - Discovery settings
 
-The following SAM CLI command creates an agent configuration:
+The following Solace Agent Mesh CLI command creates an agent configuration:
 
 ```sh
 sam add agent my-agent [--gui]
@@ -114,5 +158,5 @@ For more information, see [Creating Custom Agents](../user-guide/create-agents.m
 
 You can also use agents built by the community or Solace directly in your app with little to no configuration.
 
-For more information, see [Use a Plugin](./plugins.md#use-a-plugins).
+For more information, see [Use a Plugin](./plugins.md#use-a-plugin).
 

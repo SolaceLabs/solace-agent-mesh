@@ -106,16 +106,22 @@ class TaskIdExtractor:
         Extract task ID using multiple strategies in order of preference.
         Returns (parent_task_id, sub_task_id) tuple.
         """
+        if not isinstance(message.payload, dict):
+            return None, None
+
         strategies = [
-            self._extract_from_payload_metadata,
-            self._extract_from_payload_params,
-            self._extract_from_payload_result,
+            self._extract_from_subtask_delegation,
+            self._extract_from_toplevel_id,
+            self._extract_from_result_object,
             self._extract_from_topic,
         ]
 
         for strategy in strategies:
             try:
-                task_id, sub_task_id = strategy(message)
+                if strategy.__name__ == "_extract_from_topic":
+                    task_id, sub_task_id = strategy(message)
+                else:
+                    task_id, sub_task_id = strategy(message.payload)
                 if task_id:
                     return task_id, sub_task_id
             except Exception as e:
@@ -124,67 +130,40 @@ class TaskIdExtractor:
 
         return None, None
 
-    def _extract_from_payload_metadata(
-        self, message: TaskMessage
+    def _extract_from_subtask_delegation(
+        self, payload: dict
     ) -> Tuple[Optional[str], Optional[str]]:
-        """Strategy 1: Extract from payload metadata (parent-child relationship)."""
-        payload = message.payload
-
-        if not isinstance(payload, dict):
-            return None, None
-
+        """Strategy 1: Check for sub-task delegation (agent-to-agent calls)."""
         params = payload.get("params", {})
-        if not isinstance(params, dict):
-            return None, None
-
-        metadata = params.get("metadata", {})
-        if not isinstance(metadata, dict):
-            return None, None
-
-        parent_task_id = metadata.get("parentTaskId")
-        sub_task_id = params.get("id")
-
-        if parent_task_id and sub_task_id:
-            return parent_task_id, sub_task_id
-
+        if isinstance(params, dict):
+            message_param = params.get("message", {})
+            if isinstance(message_param, dict):
+                metadata = message_param.get("metadata", {})
+                if isinstance(metadata, dict):
+                    parent_task_id = metadata.get("parentTaskId")
+                    sub_task_id = payload.get("id")
+                    if parent_task_id and sub_task_id:
+                        return parent_task_id, sub_task_id
         return None, None
 
-    def _extract_from_payload_params(
-        self, message: TaskMessage
+    def _extract_from_toplevel_id(
+        self, payload: dict
     ) -> Tuple[Optional[str], Optional[str]]:
-        """Strategy 2: Extract from payload params (direct task ID)."""
-        payload = message.payload
-
-        if not isinstance(payload, dict):
-            return None, None
-
-        params = payload.get("params", {})
-        if not isinstance(params, dict):
-            return None, None
-
-        task_id = params.get("id")
-        if task_id and isinstance(task_id, str) and task_id.startswith("task-"):
+        """Strategy 2: Get the primary task ID from the top-level 'id' field."""
+        task_id = payload.get("id")
+        if task_id and isinstance(task_id, str):
             return task_id, None
-
         return None, None
 
-    def _extract_from_payload_result(
-        self, message: TaskMessage
+    def _extract_from_result_object(
+        self, payload: dict
     ) -> Tuple[Optional[str], Optional[str]]:
-        """Strategy 3: Extract from payload result."""
-        payload = message.payload
-
-        if not isinstance(payload, dict):
-            return None, None
-
+        """Strategy 3: Fallback for status updates which also have taskId nested."""
         result = payload.get("result", {})
-        if not isinstance(result, dict):
-            return None, None
-
-        task_id = result.get("id")
-        if task_id and isinstance(task_id, str) and task_id.startswith("task-"):
-            return task_id, None
-
+        if isinstance(result, dict):
+            task_id = result.get("taskId")
+            if task_id and isinstance(task_id, str):
+                return task_id, None
         return None, None
 
     def _extract_from_topic(
@@ -197,7 +176,7 @@ class TaskIdExtractor:
 
         # Extract the last part of the topic path
         task_id = topic.split("/")[-1]
-        if task_id.startswith("task-"):
+        if task_id.startswith("gdk-task-"):
             return task_id, None
 
         return None, None

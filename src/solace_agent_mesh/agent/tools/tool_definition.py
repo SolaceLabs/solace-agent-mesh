@@ -32,6 +32,14 @@ class BuiltinTool(BaseModel):
         default="General",
         description="A category for grouping tools, e.g., 'Artifact', 'Data Analysis'. Used for configuration toggles.",
     )
+    category_name: Optional[str] = Field(
+        default=None,
+        description="A human-readable name for the tool's category.",
+    )
+    category_description: Optional[str] = Field(
+        default=None,
+        description="A description for the tool's category. Will be the same for all tools in a category.",
+    )
     initializer: Optional[Callable[[Any, Dict[str, Any]], None]] = Field(
         default=None,
         description="An optional function to initialize the tool or its dependencies.",

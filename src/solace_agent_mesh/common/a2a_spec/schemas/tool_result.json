@@ -1,0 +1,48 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "ToolResultData",
+    "description": "Schema for the data part of a tool execution result signal.",
+    "type": "object",
+    "properties": {
+        "type": {
+            "type": "string",
+            "const": "tool_result",
+            "description": "The constant type for this data part."
+        },
+        "tool_name": {
+            "type": "string",
+            "description": "The name of the tool that was called."
+        },
+        "result_data": {
+            "description": "The data returned by the tool."
+        },
+        "function_call_id": {
+            "type": "string",
+            "description": "The ID from the LLM's function call that this result corresponds to."
+        },
+        "llm_usage": {
+            "type": "object",
+            "description": "Token usage if this tool made LLM calls.",
+            "properties": {
+                "input_tokens": {
+                    "type": "integer",
+                    "description": "Total input tokens used by tool's LLM calls."
+                },
+                "output_tokens": {
+                    "type": "integer",
+                    "description": "Total output tokens used by tool's LLM calls."
+                },
+                "cached_input_tokens": {
+                    "type": "integer",
+                    "description": "Number of cached input tokens (optional)."
+                },
+                "model": {
+                    "type": "string",
+                    "description": "Model identifier(s) used by the tool."
+                }
+            },
+            "required": ["input_tokens", "output_tokens", "model"]
+        }
+    },
+    "required": ["type", "tool_name", "result_data", "function_call_id"]
+}

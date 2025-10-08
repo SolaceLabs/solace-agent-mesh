@@ -1,0 +1,145 @@
+# Example Configuration for SAM Event Mesh Gateway Plugin
+# You'd need to install the `sam-event-mesh-gateway` plugin first with:
+# 'pip install "sam-event-mesh-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-event-mesh-gateway"'
+# This file provides a template for configuring the Event Mesh Gateway.
+# It should be included or adapted into your main Solace Agent Mesh Host YAML file.
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG # Changed from INFO to DEBUG to capture ADK INFO logs
+  log_file: sam_em_gateway.log
+
+!include ../shared_config.yaml
+
+# --- App Definition (to be placed under the 'apps:' list in your main config) ---
+apps:
+  - name: my_event_mesh_gateway_app # Unique name for this gateway app instance
+    app_module: sam_event_mesh_gateway.app
+    broker: # Standard SAC broker config for the A2A control plane
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE} # Namespace for A2A communication
+      gateway_id: "event-mesh-gw-01" # Unique ID for this gateway instance
+      artifact_service: # Configuration for shared ADK Artifact Service
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+      authorization_service: # Optional: Configure authorization
+        type: "default_rbac" # Or "none", "custom"
+        role_definitions_path: "examples/auth/dev-roles.yaml" # Example path
+        user_assignments_path: "examples/auth/dev-users.yaml" # Example path
+      # Force all user identities to sam_dev_user (overrides web-client-xxxxx)
+      force_user_identity: "sam_dev_user"
+      # Fallback for null identities (kept for completeness)
+      default_user_identity: "sam_dev_user"
+
+      # --- Event Mesh Gateway Specific Parameters ---
+      event_mesh_broker_config: # For the data plane Solace client
+        broker_url: ${DATAPLANE_SOLACE_BROKER_URL} # Can be same or different from control plane
+        broker_vpn: ${DATAPLANE_SOLACE_BROKER_VPN}
+        broker_username: ${DATAPLANE_SOLACE_BROKER_USERNAME}
+        broker_password: ${DATAPLANE_SOLACE_BROKER_PASSWORD}
+        # Other data plane client settings (e.g., client_name, reconnection_strategy)
+
+      event_handlers: # List of handlers for incoming Solace messages
+        - name: "generic_json_event_handler"
+          subscriptions:
+            - topic: "ed_demo/abc/jira/issue/create/>"
+              qos: 1
+          input_expression: "template:Summarize this new Jira issue: {{json://input.payload}}"
+          payload_encoding: "utf-8"
+          payload_format: "json"
+          on_success: "success_response_handler"
+          on_error: "error_response_handler"
+          user_identity_expression: "input.user_properties:initiator_id" # Optional
+          target_agent_name: "OrchestratorAgent" # Static target agent
+          # target_agent_name_expression: "input.user_properties:target_agent" # Or dynamic
+          forward_context: # Optional: Forward data from input to output handlers
+            correlation_id: "input.user_properties:correlation_id" # Example: forward a correlation ID
+
+        - name: "image_analysis_handler"
+          subscriptions:
+            - topic: "solace/images/>"
+          payload_format: "text"
+          user_identity_expression: "static:sam_dev_user"
+          artifact_processing:
+            extract_artifacts_expression: "input.payload"
+            artifact_definition:
+              # Corrected expression for filename
+              filename: "template:image-{{text://input.topic_levels:2}}.jpg"
+              content: "list_item:"
+              mime_type: "static:image/jpg"
+              content_encoding: "static:base64"
+          input_expression: "template:Please examine the attached image and provide a detailed description."
+          target_agent_name: "MultiModalAgent"
+          on_success: "image_description_response_handler"
+          on_error: "error_response_handler"
+          forward_context:
+            # Corrected expression for forwarding context
+            some_id: "input.topic_levels:2"
+
+        # --- Example: Handler with Artifact Processing ---
+        # This handler processes a JSON payload containing a list of base64-encoded documents.
+        # It creates an artifact for each document and then calls an agent.
+        # - name: "json_with_embedded_artifact_handler"
+        #   subscriptions:
+        #     - topic: "acme/documents/new"
+        #   payload_format: "json"
+        #   # --- New Artifact Processing Block ---
+        #   artifact_processing:
+        #     extract_artifacts_expression: "input.payload:documents" # Points to a list in the payload
+        #     artifact_definition:
+        #       # These expressions are evaluated for EACH item in the 'documents' list
+        #       filename: "list_item:docName"
+        #       content: "list_item:docContent"
+        #       mime_type: "list_item:docType"
+        #       content_encoding: "static:base64" # Explicitly state the content is a base64 string
+        #   # --- Main Prompt ---
+        #   input_expression: "template:Please process insurance case {{text://input.payload:caseId}}. The relevant documents have been attached."
+        #   target_agent_name: "ClaimsProcessingAgent"
+        #   on_success: "success_response_handler"
+        #   on_error: "error_response_handler"
+        #   forward_context:
+        #     correlation_id: "input.payload:caseId"
+
+  # Example of a second event handler, commented out
+  #       - name: "text_event_to_specific_agent"
+  #         subscriptions:
+  #           - topic: "external/systemB/events/text/>"
+  #         input_expression: "template:User query from System B: {{text://input.payload}}"
+  #         payload_encoding: "utf-8" # Or "none" if payload is already string
+  #         payload_format: "text"
+  #         on_success: "text_response_to_systemB"
+  #         target_agent_name_expression: "static:TextAnalysisAgent" # Example of static via expression
+
+      output_handlers: # Optional: List of handlers for publishing A2A responses
+        - name: "success_response_handler"
+          max_file_size_for_base64_bytes: 5242880 # 5MB limit for embedded files
+          topic_expression: "template:event_mesh/responses/{{text://user_data.forward_context:correlation_id}}"
+          payload_expression: "task_response:text" # Use the simplified payload's text field
+          payload_encoding: "utf-8"
+          payload_format: "text"
+          # output_schema: # Optional: Embedded JSON schema for validation
+          #   type: "object"
+          #   properties:
+          #     processed_data: { "type": "string" }
+          #   required: ["processed_data"]
+          # on_validation_error: "log" # Or "drop"
+        - name: "error_response_handler"
+          topic_expression: "template:event_mesh/errors/{{text://user_data.forward_context:correlation_id}}"
+          payload_expression: "task_response:a2a_task_response.error" # Send the full error object
+          payload_encoding: "utf-8"
+          payload_format: "json"
+
+        - name: "image_description_response_handler"
+          topic_expression: "template:event_mesh/responses/image_description/{{text://user_data.forward_context:some_id}}"
+          payload_expression: "task_response:text"
+          payload_encoding: "utf-8"
+          payload_format: "text"
+
+  # Example of a second output handler, commented out
+  #       - name: "text_response_to_systemB"
+  #         topic_expression: "template:external/systemB/responses/{{text://task_response:id}}"
+  #         payload_expression: "task_response:status.message.parts.0.text" # Direct access
+  #         payload_encoding: "utf-8"
+  #         payload_format: "text"

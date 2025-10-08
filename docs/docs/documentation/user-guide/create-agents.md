@@ -12,19 +12,21 @@ For a more comprehensive tutorial example, see the [Build Your Own Agent](../tut
 This page provides an in-depth theoretical overview of creating agents in Solace Agent Mesh.
 :::
 
-Solace Agent Mesh (SAM) is a powerful platform that enables you to create intelligent agents that can communicate with each other and perform complex tasks. At its core, SAM uses a **tool-based architecture** where LLM-powered agents are equipped with specific capabilities (tools) that they can use to accomplish user requests.
+Solace Agent Mesh is a powerful platform that enables you to create intelligent agents that can communicate with each other and perform complex tasks. At its core, Solace Agent Mesh uses a **tool-based architecture** where LLM-powered agents are equipped with specific capabilities (tools) that they can use to accomplish user requests.
 
-This tutorial guides you through creating your first SAM agent from scratch. You will learn how to:
+**Before continuing with this tutorial, make sure you are familiar with the basic [agent concept](../concepts/agents.md).**
+
+This tutorial guides you through creating your first Solace Agent Mesh agent from scratch. You will learn how to:
 
 - Define tools as Python functions
 - Configure an agent using YAML
 - Set up agent lifecycle functions
 
-By the end of this tutorial, you should have a working "Hello World" agent that demonstrates the fundamental concepts of SAM agent development.
+By the end of this tutorial, you should have a working "Hello World" agent that demonstrates the fundamental concepts of Solace Agent Mesh agent development.
 
 ## Quick Start: Creating Your First Agent
 
-You can create an agent directly using the SAM CLI `sam add agent`:
+You can create an agent directly using the Solace Agent Mesh CLI `sam add agent`:
 
 ```bash
 sam add agent my-first-agent
@@ -48,11 +50,11 @@ sam add agent --help
 
 ## Core Concepts
 
-Before diving into the implementation, it is important to understand the key concepts that make SAM agents work:
+Before diving into the implementation, it is important to understand the key concepts that make Solace Agent Mesh agents work:
 
 ### Tools
 
-**Tools are the fundamental building blocks of SAM agents.** Each tool is implemented as a Python function that performs a specific task. Tools can:
+**Tools are the fundamental building blocks of Solace Agent Mesh agents.** Each tool is implemented as a Python function that performs a specific task. Tools can:
 
 - Process text and data
 - Interact with external APIs
@@ -62,8 +64,8 @@ Before diving into the implementation, it is important to understand the key con
 
 The LLM (Large Language Model) orchestrating your agent decides which tools to use based on the user's request and the tool descriptions you provide.
 
-:::info
-Solace Agent Mesh provides a set of built-in tools plus built-in support [model context protocol (MCP)](../tutorials/mcp-integration.md) servers which can be configured in the tools list of your agent configuration
+:::tip
+Solace Agent Mesh provides a set of [built-in tools](./builtin-tools/builtin-tools.md) plus support for [model context protocol (MCP)](../tutorials/mcp-integration.md) servers, which can be configured in the tools list of your agent configuration.
 :::
 
 ### Configuration File 
@@ -72,14 +74,14 @@ The `config.yaml` (for plugin template) or `agent-name.yaml` (for agent instance
 
 - **Agent identity**: Name, description, and capabilities
 - **Model configuration**: Which LLM to use
-- **Tools list**: Which tools the agent can access and how they're configured
+- **Tools list**: Defines which tools the agent can access and how they're configured
 - **Lifecycle functions**: Setup and cleanup procedures
 - **Framework services**: Session management, artifact storage, and so on.
-- **Agent card**: Metadata describing the agent capabilities, skills and its visibility in the system
+- **[Agent card](../concepts/agents.md#agent-card)**: Metadata describing the agent capabilities, skills and its visibility in the system
 
 ### Tool Configuration
 
-Within the `tools` list in your yaml config, each tool can have its own `tool_config` section. This allows you to:
+Within the `tools` list in your YAML config, each tool can have its own `tool_config` section. This allows you to:
 
 - Configure the same tool function for different purposes
 - Pass specific parameters to tool instances
@@ -93,7 +95,7 @@ This is useful when using a generic tool function for multiple purposes, allowin
 
 ### ToolContext
 
-The `ToolContext` object (passed as one of the arguments to your tool function) provides your tools with access to SAM core services:
+The `ToolContext` object (passed as one of the arguments to your tool function) provides your tools with access to Solace Agent Mesh core services:
 
 - **Logging**: Structured logging for debugging and monitoring
 - **Artifact Service**: File storage and retrieval
@@ -107,36 +109,27 @@ Lifecycle functions allow you to manage resources that should persist for the ag
 - **`agent_init_function`**: Runs when the agent starts (for example, database connections)
 - **`agent_cleanup_function`**: Runs when the agent shuts down (for example, closing connections)
 
-## Step-by-Step Guide
+:::note
+Lifecycle functions are optional but recommended for managing resources effectively.
+:::
+
+## Creating an Agent Plugin: Step-by-Step
 
 Create a simple agent that can greet users and demonstrate the core concepts.
 
 You can create an agent either by using the `sam add agent` command or by creating a new plugin of type agent, `sam plugin create my-hello-agent --type agent`. 
 
-:::tip[Agent as plugin]
-
-Agent can be implemented as plugins. This allows you to easily package your agent logic and reuse it across different projects. 
-
-To create a plugin of type agent, use the `sam plugin create <your_agent_plugin_name> --type agent` command.
-
-For a complete list of options, run:
-```bash
-sam plugin create --help
-```
-
-To create an agent instance based on plugin, use the `sam plugin add <your_agent_name> --plugin <your_agent_plugin>` command.
-
-For a complete list of options, run:
-```bash
-sam plugin add --help
-```
-
-Although their directory structure is slightly different, both agents require a yaml configuration file, and a python module with the respective tools and lifecycle functions.
+:::tip
+For information and recommendations about these options, see [`Agent or Plugin: Which To use?`](../concepts/plugins.md#agent-or-plugin-which-to-use).
 :::
+
 
 ### Step 1: Initialize your Agent
 
 In this tutorial, you create a new agent by creating a new plugin of type agent.
+For an example of custom agents, see [Build Your Own Agent](../tutorials/custom-agent.md) guide.
+
+Although the directory structure for plugins is slightly different than the one for agents, both require a YAML configuration file, and a python module with the tools and lifecycle functions you want.
 
 To create a new agent plugin, run the following command:
 
@@ -177,6 +170,11 @@ graph TD
 ### Step 2: The Tool Function
 
 Create your first tool function:
+The following arguments are provided by the framework:
+- tool_context: Solace Agent Mesh framework context
+- tool_config: Tool-specific configuration (from config.yaml)
+
+For a complete guide on creating python tools, see our **[Creating Python Tools](./creating-python-tools.md)** documentation.
 
 ```python
 # src/my_hello_agent/tools.py
@@ -199,8 +197,6 @@ async def hello_tool(
     
     Args:
         name: The name of the person to greet
-        tool_context: SAM framework context (provided automatically)
-        tool_config: Tool-specific configuration (from config.yaml)
     
     Returns:
         A dictionary with the greeting message
@@ -235,8 +231,6 @@ async def farewell_tool(
     
     Args:
         name: The name of the person to say goodbye to
-        tool_context: SAM framework context (provided automatically)
-        tool_config: Tool-specific configuration (from config.yaml)
     
     Returns:
         A dictionary with the farewell message
@@ -265,7 +259,7 @@ async def farewell_tool(
 
 - **Function Signature**: All tool functions should be `async` and accept `tool_context` and `tool_config` parameters
 - **Return Format**: Return a dictionary with at least a `status` field
-- **Logging**: Use the SAM logger for consistent logging
+- **Logging**: Use the Solace Agent Mesh logger for consistent logging
 - **Configuration**: Access tool-specific config via the `tool_config` parameter
 
 ### Step 3: The Agent Configuration
@@ -273,12 +267,14 @@ async def farewell_tool(
 Create the main configuration file for your agent:
 
 ```yaml
+# File: config.yaml (at root of project directory)
 # ... (additional services and configurations)
 
 apps:
   - name: my-hello-agent
     app_module: solace_agent_mesh.agent.sac.app 
     broker:
+      # Can be found in configs/shared_config.yaml after running sam init
       <<: *broker_connection
     
     # Agent-specific configuration
@@ -307,12 +303,14 @@ apps:
       agent_init_function:
         module: "my_hello_agent.lifecycle" # This should point to your lifecycle python module
         name: "initialize_hello_agent"
+        base_path: .
         config:
           startup_message: "Hello Agent is starting up!"
           log_level: "INFO"
       
       agent_cleanup_function:
         module: "my_hello_agent.lifecycle"
+        base_path: .
         name: "cleanup_hello_agent"
       
       # Tools configuration
@@ -320,6 +318,7 @@ apps:
         # Hello tool with custom greeting
         - tool_type: python
           component_module: "my_hello_agent.tools"
+          component_base_path: .
           function_name: "hello_tool"
           tool_name: "greet_user" # Renaming the tool, must use this name in the agent card
           tool_config:
@@ -328,6 +327,7 @@ apps:
         # Farewell tool with custom farewell
         - tool_type: python
           component_module: "my_hello_agent.tools"
+          component_base_path: .
           function_name: "farewell_tool"
           tool_name: "say_goodbye"
           tool_config:
@@ -339,7 +339,7 @@ apps:
       
       # Agent card (describes the agent's capabilities)
       agent_card:
-        description: "A friendly Hello World agent that demonstrates SAM capabilities"
+        description: "A friendly Hello World agent that demonstrates Solace Agent Mesh capabilities"
         defaultInputModes: ["text"]
         defaultOutputModes: ["text"]
         skills:
@@ -454,9 +454,13 @@ def cleanup_hello_agent(host_component: Any):
 
 ### Working with Artifacts
 
-You can enhance our hello tool to save greetings to a file using SAM's artifact service:
+You can enhance our hello tool to save greetings to a file using Solace Agent Mesh's artifact service:
 
 ```python
+
+from datetime import datetime
+from solace_agent_mesh.agent.utils.artifact_helpers import save_artifact_with_metadata
+
 async def hello_tool_with_artifact(
     name: str,
     save_to_file: bool = False,
@@ -481,26 +485,30 @@ async def hello_tool_with_artifact(
     # Save to artifact if requested
     if save_to_file and tool_context:
         try:
-            from datetime import datetime
-            timestamp = datetime.now().isoformat()
+            # Prepare content
+            timestamp = datetime.now(timezone.utc)
+            filename = f"greeting_{name}_{timestamp}.txt"
+            content = f"Greeting: {greeting_message}\nTimestamp: {timestamp}\n"
             
-            # Use the artifact service to save the greeting
+            # Save artifact
             artifact_service = tool_context._invocation_context.artifact_service
-            if artifact_service:
-                filename = f"greeting_{name}_{timestamp}.txt"
-                content = f"Greeting: {greeting_message}\nTimestamp: {timestamp}\n"
-                
-                await artifact_service.save_artifact(
-                    app_name=tool_context._invocation_context.app_name,
-                    user_id=tool_context._invocation_context.user_id,
-                    session_id=tool_context._invocation_context.session.id,
-                    filename=filename,
-                    content=content.encode('utf-8'),
-                    mime_type="text/plain"
-                )
-                
-                result["artifact_saved"] = filename
-                log.info(f"{log_identifier} Saved greeting to artifact: {filename}")
+            await save_artifact_with_metadata(
+                artifact_service=artifact_service,
+                app_name=tool_context._invocation_context.app_name,
+                user_id=tool_context._invocation_context.user_id,
+                session_id=tool_context._invocation_context.session.id,
+                filename=filename,
+                content_bytes=content.encode('utf-8'),
+                mime_type="application/json",
+                metadata_dict={
+                    "description": "Greeting message",
+                    "source": "Greeting Agent",
+                },
+                timestamp=timestamp
+            )
+            
+            result["artifact_saved"] = filename
+            log.info(f"{log_identifier} Saved greeting to artifact: {filename}")
         
         except Exception as e:
             log.error(f"{log_identifier} Failed to save artifact: {e}")
@@ -544,19 +552,44 @@ This gives your agent multiple greeting styles to choose from based on the conte
 
 ## Running Your Agent
 
-To run a plugin agent, you first need to package and install it as a plugin. But for debugging or isolated development testing, you can run your agent from the `src` directory directly using the SAM CLI.
+To run a plugin agent, you first need to package and install it as a plugin. 
+
+:::tip[Quick Debug]
+
+For debugging or isolated development testing, you can run your agent from the `src` directory directly using the Solace Agent Mesh CLI.
 
 ```bash
 cd src
 sam run ../config.yaml
 ```
 
-By moving to the `src` directory, the module path is set correctly, allowing SAM to find your functions without having to install them in your python environment as a plugin package.
+Changing to the src directory allows the module path to be set correctly so that Solace Agent Mesh can find your functions without your having to install them in your python environment as a plugin package.
+:::
 
-**Interact with your agent:**
- - Through the SAM Web UI
- - Via REST API calls
- - Through other SAM agents
+To properly instantiate your plugin agent, first build the plugin.
+The following command will produce a python wheel file under `dist` directory:
+```bash
+sam plugin build
+```
+
+Check into [your Solace Agent Mesh project directory](../getting-started/quick-start.md#create-a-project), and add the plugin wheel with a given name:
+
+```
+sam plugin add my-first-weather-agent --plugin PATH/TO/weather-agent/dist/weather-agent.whl
+```
+
+:::note
+Using the `sam plugin add` command installs your plugin as a python dependency into your python environment.
+This also means changing the source code without reinstalling the plugin will not reflect the changes.
+:::
+
+Now, you can run the complete Solace Agent Mesh application along with your newly added agent:
+```
+sam run
+```
+
+Alternatively, only run the newly added agent using `sam run configs/agents/my-first-weather-agent.yaml`
+
 
 ## Architecture Overview
 
@@ -614,5 +647,5 @@ graph TD
 
 ### Testing
 - **Unit Tests**: Test your tool functions independently
-- **Integration Tests**: Test your agent with real SAM infrastructure
+- **Integration Tests**: Test your agent with real Solace Agent Mesh infrastructure
 - **Mock Dependencies**: Mock external services for reliable testing

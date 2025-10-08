@@ -2,7 +2,8 @@ test_case_id: "builtin_signal_artifact_not_found_error_001"
 description: |
   Tests the 'signal_artifact_for_return' tool's error handling when the
   specified artifact filename does not exist.
-skip_intermediate_events: true # We only care about the tool's direct response to LLM
+tags: ["all","agent","tools","builtin_artifact_tools"]
+skip_intermediate_events: true
 
 # No setup_artifacts for the target file.
 
@@ -58,8 +59,16 @@ llm_interactions:
 
 expected_gateway_output:
   - type: "final_response"
-    content_parts:
-      - type: "text"
-        text_exact: "I couldn't signal 'non_existent_signal_target.txt' (v0) because it was not found."
-    task_state: "completed"
+    kind: "task"
+    id: "*"
+    contextId: "session_signal_error_artifact_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "I couldn't signal 'non_existent_signal_target.txt' (v0) because it was not found."
     # No assert_artifact_state as no artifact should be involved or changed.

@@ -16,12 +16,13 @@ from google.adk.artifacts import BaseArtifactService
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from ...common.a2a_protocol import (
-    A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY,
-)
 from google.genai import types as adk_types
 from google.adk.tools.mcp_tool import MCPTool
 from solace_ai_connector.common.log import log
+from .intelligent_mcp_callbacks import (
+    save_mcp_response_as_artifact_intelligent,
+    McpSaveStatus,
+)
 
 from ...agent.utils.artifact_helpers import (
     METADATA_SUFFIX,
@@ -44,14 +45,14 @@ from ...common.utils.embeds import (
 
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
-if TYPE_CHECKING:
-    from ..sac.component import SamAgentComponent
-
-from ...common.types import (
-    TaskStatusUpdateEvent,
-    TaskStatus,
-    TaskState,
-    Message as A2AMessage,
+from ...common import a2a
+from ...common.a2a.types import ContentPart
+from ...common.data_parts import (
+    AgentProgressUpdateData,
+    ArtifactCreationProgressData,
+    LlmInvocationData,
+    ToolInvocationStartData,
+    ToolResultData,
 )
 
 from ...agent.utils.artifact_helpers import (
@@ -64,6 +65,7 @@ from ..tools.builtin_artifact_tools import _internal_create_artifact
 from ...agent.adk.tool_wrapper import ADKToolWrapper
 
 # Import the new parser and its events
+from pydantic import BaseModel
 from ...agent.adk.stream_parser import (
     FencedBlockStreamParser,
     BlockStartedEvent,
@@ -73,6 +75,44 @@ from ...agent.adk.stream_parser import (
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
 )
+
+A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
+
+if TYPE_CHECKING:
+    from ..sac.component import SamAgentComponent
+
+
+async def _publish_data_part_status_update(
+    host_component: "SamAgentComponent",
+    a2a_context: Dict[str, Any],
+    data_part_model: BaseModel,
+):
+    """Helper to construct and publish a TaskStatusUpdateEvent with a DataPart."""
+    logical_task_id = a2a_context.get("logical_task_id")
+    context_id = a2a_context.get("contextId")
+
+    status_update_event = a2a.create_data_signal_event(
+        task_id=logical_task_id,
+        context_id=context_id,
+        signal_data=data_part_model,
+        agent_name=host_component.agent_name,
+    )
+
+    loop = host_component.get_async_loop()
+    if loop and loop.is_running():
+        asyncio.run_coroutine_threadsafe(
+            host_component._publish_status_update_with_buffer_flush(
+                status_update_event,
+                a2a_context,
+                skip_buffer_flush=False,
+            ),
+            loop,
+        )
+    else:
+        log.error(
+            "%s Async loop not available. Cannot publish status update.",
+            host_component.log_identifier,
+        )
 
 
 async def process_artifact_blocks_callback(
@@ -128,8 +168,11 @@ async def process_artifact_blocks_callback(
                         )
                         filename = event.params.get("filename", "unknown_artifact")
                         if a2a_context:
-                            await host_component._publish_agent_status_signal_update(
-                                f"Receiving artifact `{filename}`...", a2a_context
+                            progress_data = AgentProgressUpdateData(
+                                status_text=f"Receiving artifact `{filename}`..."
+                            )
+                            await _publish_data_part_status_update(
+                                host_component, a2a_context, progress_data
                             )
                         params_str = " ".join(
                             [f'{k}="{v}"' for k, v in event.params.items()]
@@ -145,10 +188,14 @@ async def process_artifact_blocks_callback(
                         )
                         params = parser._block_params
                         filename = params.get("filename", "unknown_artifact")
-                        status_message = f"Creating artifact `{filename}` ({event.buffered_size}B saved)..."
                         if a2a_context:
-                            await host_component._publish_agent_status_signal_update(
-                                status_message, a2a_context
+                            progress_data = ArtifactCreationProgressData(
+                                filename=filename,
+                                bytes_saved=event.buffered_size,
+                                artifact_chunk=event.chunk,
+                            )
+                            await _publish_data_part_status_update(
+                                host_component, a2a_context, progress_data
                             )
 
                     elif isinstance(event, BlockCompletedEvent):
@@ -212,6 +259,8 @@ async def process_artifact_blocks_callback(
                             original_func=_internal_create_artifact,
                             tool_config=None,  # No specific config for this internal tool
                             tool_name="_internal_create_artifact",
+                            origin="internal",
+                            resolution_type="early",
                         )
                         save_result = await wrapped_creator(**kwargs_for_call)
 
@@ -451,102 +500,40 @@ def repair_history_callback(
     return None
 
 
-async def _save_mcp_response_as_artifact(
-    tool: BaseTool,
-    tool_context: ToolContext,
-    host_component: "SamAgentComponent",
-    mcp_response_dict: Dict[str, Any],
-    original_tool_args: Dict[str, Any],
-) -> Dict[str, Any]:
+def _recursively_clean_pydantic_types(data: Any) -> Any:
     """
-    Saves the full MCP tool response as a JSON artifact with associated metadata.
-
-    Args:
-        tool: The MCPTool instance that generated the response.
-        tool_context: The ADK ToolContext.
-        host_component: The A2A_ADK_HostComponent instance for accessing config and services.
-        mcp_response_dict: The raw MCP tool response dictionary.
-        original_tool_args: The original arguments passed to the MCP tool.
-
-    Returns:
-        A dictionary containing details of the saved artifact (filename, version, etc.),
-        as returned by `save_artifact_with_metadata`.
+    Recursively traverses a data structure (dicts, lists) and converts
+    Pydantic-specific types like AnyUrl to their primitive string representation
+    to ensure JSON serializability.
     """
-    log_identifier = f"[CallbackHelper:{tool.name}]"
-    log.debug("%s Saving MCP response as artifact...", log_identifier)
-
-    try:
-        a2a_context = tool_context.state.get("a2a_context", {})
-        logical_task_id = a2a_context.get("logical_task_id", "unknownTask")
-        task_id_suffix = logical_task_id[-6:]
-        random_suffix = uuid.uuid4().hex[:6]
-        filename = f"{task_id_suffix}_{tool.name}_{random_suffix}.json"
-        log.debug("%s Generated artifact filename: %s", log_identifier, filename)
-
-        content_bytes = json.dumps(mcp_response_dict, indent=2).encode("utf-8")
-        mime_type = "application/json"
-        artifact_timestamp = datetime.now(timezone.utc)
-
-        metadata_for_saving = {
-            "description": f"Full JSON response from MCP tool {tool.name}.",
-            "source_tool_name": tool.name,
-            "source_tool_args": original_tool_args,
-        }
-        log.debug("%s Prepared content and metadata for saving.", log_identifier)
-
-        artifact_service = host_component.artifact_service
-        if not artifact_service:
-            raise ValueError("ArtifactService is not available on host_component.")
-
-        app_name = host_component.agent_name
-        user_id = tool_context._invocation_context.user_id
-        session_id = get_original_session_id(tool_context._invocation_context)
-        schema_max_keys = host_component.get_config(
-            "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
-        )
-
-        log.debug(
-            "%s Calling save_artifact_with_metadata with: app_name=%s, user_id=%s, session_id=%s, filename=%s, schema_max_keys=%d",
-            log_identifier,
-            app_name,
-            user_id,
-            session_id,
-            filename,
-            schema_max_keys,
-        )
-
-        save_result = await save_artifact_with_metadata(
-            artifact_service=artifact_service,
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=filename,
-            content_bytes=content_bytes,
-            mime_type=mime_type,
-            metadata_dict=metadata_for_saving,
-            timestamp=artifact_timestamp,
-            schema_max_keys=schema_max_keys,
-            tool_context=tool_context,
-        )
-
-        log.info(
-            "%s MCP response saved as artifact '%s' (version %s). Result: %s",
-            log_identifier,
-            save_result.get("data_filename", filename),
-            save_result.get("data_version", "N/A"),
-            save_result.get("status"),
-        )
-        return save_result
-
-    except Exception as e:
-        log.exception(
-            "%s Error in _save_mcp_response_as_artifact: %s", log_identifier, e
-        )
+    if isinstance(data, dict):
         return {
-            "status": "error",
-            "data_filename": filename if "filename" in locals() else "unknown_filename",
-            "message": f"Failed to save MCP response as artifact: {e}",
+            key: _recursively_clean_pydantic_types(value) for key, value in data.items()
         }
+    elif isinstance(data, list):
+        return [_recursively_clean_pydantic_types(item) for item in data]
+    # Check for Pydantic's AnyUrl without a direct import to avoid dependency issues.
+    elif type(data).__name__ == "AnyUrl" and hasattr(data, "__str__"):
+        return str(data)
+    return data
+
+
+def _mcp_response_contains_non_text(mcp_response_dict: Dict[str, Any]) -> bool:
+    """
+    Checks if the 'content' list in an MCP response dictionary contains any
+    items that are not of type 'text'.
+    """
+    if not isinstance(mcp_response_dict, dict):
+        return False
+
+    content_list = mcp_response_dict.get("content")
+    if not isinstance(content_list, list):
+        return False
+
+    for item in content_list:
+        if isinstance(item, dict) and item.get("type") != "text":
+            return True
+    return False
 
 
 async def manage_large_mcp_tool_responses_callback(
@@ -557,9 +544,24 @@ async def manage_large_mcp_tool_responses_callback(
     host_component: "SamAgentComponent",
 ) -> Optional[Dict[str, Any]]:
     """
-    Manages large responses from MCP tools by conditionally saving them as artifacts
-    and/or truncating them before returning to the LLM.
-    The 'tool_response' is the direct output from the tool's run_async method.
+    Manages large or non-textual responses from MCP tools.
+
+    This callback intercepts the response from an MCPTool. Based on the response's
+    size and content type, it performs one or more of the following actions:
+    1.  **Saves as Artifact:** If the response size exceeds a configured threshold,
+        or if it contains non-textual content (like images), it calls the
+        `save_mcp_response_as_artifact_intelligent` function to save the
+        response as one or more typed artifacts.
+    2.  **Truncates for LLM:** If the response size exceeds a configured limit for
+        the LLM, it truncates the content to a preview string.
+    3.  **Constructs Final Response:** It builds a new dictionary to be returned
+        to the LLM, which includes:
+        - A `message_to_llm` summarizing what was done (e.g., saved, truncated).
+        - `saved_mcp_response_artifact_details` with the result of the save operation.
+        - `mcp_tool_output` containing either the original response or the truncated preview.
+        - A `status` field indicating the outcome (e.g., 'processed_and_saved').
+
+    The `tool_response` is the direct output from the tool's `run_async` method.
     """
     log_identifier = f"[Callback:ManageLargeMCPResponse:{tool.name}]"
     log.info(
@@ -601,6 +603,10 @@ async def manage_large_mcp_tool_responses_callback(
         )
         mcp_response_dict = tool_response
 
+    # Clean any Pydantic-specific types before serialization
+    mcp_response_dict = _recursively_clean_pydantic_types(mcp_response_dict)
+    cleaned_args = _recursively_clean_pydantic_types(args)
+
     try:
         save_threshold = host_component.get_config(
             "mcp_tool_response_save_threshold_bytes", 2048
@@ -619,53 +625,43 @@ async def manage_large_mcp_tool_responses_callback(
         save_threshold = 2048
         llm_max_bytes = 4096
 
-    try:
-        serialized_original_response_str = json.dumps(mcp_response_dict)
-        original_response_bytes = len(serialized_original_response_str.encode("utf-8"))
-        log.debug(
-            "%s Original response size: %d bytes.",
-            log_identifier,
-            original_response_bytes,
-        )
-    except TypeError as e:
-        log.error(
-            "%s Failed to serialize original MCP tool response dictionary: %s. Returning original response object.",
-            log_identifier,
-            e,
-        )
-        return tool_response
+    contains_non_text_content = _mcp_response_contains_non_text(mcp_response_dict)
+    if not contains_non_text_content:
+        try:
+            serialized_original_response_str = json.dumps(mcp_response_dict)
+            original_response_bytes = len(
+                serialized_original_response_str.encode("utf-8")
+            )
+            log.debug(
+                "%s Original response size: %d bytes.",
+                log_identifier,
+                original_response_bytes,
+            )
+        except TypeError as e:
+            log.error(
+                "%s Failed to serialize original MCP tool response dictionary: %s. Returning original response object.",
+                log_identifier,
+                e,
+            )
+            return tool_response
+        needs_truncation_for_llm = original_response_bytes > llm_max_bytes
+        needs_saving_as_artifact = (
+            original_response_bytes > save_threshold
+        ) or needs_truncation_for_llm
+    else:
+        needs_truncation_for_llm = False
+        needs_saving_as_artifact = True
 
-    needs_truncation_for_llm = original_response_bytes > llm_max_bytes
-    needs_saving_as_artifact = (
-        original_response_bytes > save_threshold
-    ) or needs_truncation_for_llm
-    log.debug(
-        "%s Conditions: needs_truncation_for_llm=%s, needs_saving_as_artifact=%s",
-        log_identifier,
-        needs_truncation_for_llm,
-        needs_saving_as_artifact,
-    )
-
-    saved_artifact_details = None
+    save_result = None
     if needs_saving_as_artifact:
-        log.info(
-            "%s Original response (%d bytes) requires saving (save_threshold=%d, llm_max_bytes=%d). Saving as artifact.",
-            log_identifier,
-            original_response_bytes,
-            save_threshold,
-            llm_max_bytes,
+        save_result = await save_mcp_response_as_artifact_intelligent(
+            tool, tool_context, host_component, mcp_response_dict, cleaned_args
         )
-        saved_artifact_details = await _save_mcp_response_as_artifact(
-            tool, tool_context, host_component, mcp_response_dict, args
-        )
-        if not (
-            saved_artifact_details.get("status") == "success"
-            or saved_artifact_details.get("status") == "partial_success"
-        ):
+        if save_result.status == McpSaveStatus.ERROR:
             log.warning(
                 "%s Failed to save artifact: %s. Proceeding without saved artifact details.",
                 log_identifier,
-                saved_artifact_details.get("message"),
+                save_result.message,
             )
 
     final_llm_response_dict: Dict[str, Any] = {}
@@ -692,27 +688,36 @@ async def manage_large_mcp_tool_responses_callback(
             f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) for direct display and has been truncated."
         )
         log.debug("%s MCP tool output truncated for LLM.", log_identifier)
-    else:
-        final_llm_response_dict["mcp_tool_output"] = mcp_response_dict
-        log.debug(
-            "%s MCP tool output is the full original response for LLM.", log_identifier
-        )
 
     if needs_saving_as_artifact:
-        if saved_artifact_details and (
-            saved_artifact_details.get("status") == "success"
-            or saved_artifact_details.get("status") == "partial_success"
-        ):
+        if save_result and save_result.status in [
+            McpSaveStatus.SUCCESS,
+            McpSaveStatus.PARTIAL_SUCCESS,
+        ]:
             final_llm_response_dict["saved_mcp_response_artifact_details"] = (
-                saved_artifact_details
+                save_result.model_dump(exclude_none=True)
             )
-            filename = saved_artifact_details.get(
-                "data_filename", "unknown_artifact.json"
-            )
-            version = saved_artifact_details.get("data_version", "N/A")
-            message_parts_for_llm.append(
-                f"The full response has been saved as artifact '{filename}' (version {version})."
-            )
+
+            total_artifacts = len(save_result.artifacts_saved)
+            if total_artifacts > 0:
+                first_artifact = save_result.artifacts_saved[0]
+                filename = first_artifact.data_filename
+                version = first_artifact.data_version
+                if total_artifacts > 1:
+                    message_parts_for_llm.append(
+                        f"The full response has been saved as {total_artifacts} artifacts, starting with '{filename}' (version {version})."
+                    )
+                else:
+                    message_parts_for_llm.append(
+                        f"The full response has been saved as artifact '{filename}' (version {version})."
+                    )
+            elif save_result.fallback_artifact:
+                filename = save_result.fallback_artifact.data_filename
+                version = save_result.fallback_artifact.data_version
+                message_parts_for_llm.append(
+                    f"The full response has been saved as artifact '{filename}' (version {version})."
+                )
+
             log.debug(
                 "%s Added saved artifact details to LLM response.", log_identifier
             )
@@ -720,21 +725,20 @@ async def manage_large_mcp_tool_responses_callback(
             message_parts_for_llm.append(
                 "Saving the full response as an artifact failed."
             )
-            final_llm_response_dict["saved_mcp_response_artifact_details"] = {
-                "status": "error",
-                "message": saved_artifact_details.get(
-                    "message", "Artifact saving failed."
-                ),
-                "filename": saved_artifact_details.get("data_filename", "unknown"),
-            }
+            if save_result:
+                final_llm_response_dict["saved_mcp_response_artifact_details"] = (
+                    save_result.model_dump(exclude_none=True)
+                )
             log.warning(
                 "%s Artifact save failed, error details included in LLM response.",
                 log_identifier,
             )
+    else:
+        final_llm_response_dict["mcp_tool_output"] = mcp_response_dict
 
     if needs_saving_as_artifact and (
-        saved_artifact_details.get("status") == "success"
-        or saved_artifact_details.get("status") == "partial_success"
+        save_result
+        and save_result.status in [McpSaveStatus.SUCCESS, McpSaveStatus.PARTIAL_SUCCESS]
     ):
         if needs_truncation_for_llm:
             final_llm_response_dict["status"] = "processed_saved_and_truncated"
@@ -784,6 +788,28 @@ It can span multiple lines.
   - You **MUST NOT** use double quotes `"` inside the parameter values (e.g., within the description string). Use single quotes or rephrase instead.
 
 The system will automatically save the content and give you a confirmation in the next turn."""
+
+
+def _generate_artifact_creation_instruction() -> str:
+    return """
+    **Creating Text-Based Artifacts:**
+
+    **When to Create Text-based Artifacts:**
+    Create an artifact when the content provides value as a standalone file:
+    - Content with special formatting (HTML, Markdown, CSS, structured markup) that requires proper rendering
+    - Content explicitly intended for use outside this conversation (reports, emails, presentations, reference documents)
+    - Structured reference content users will save or follow (schedules, guides, templates)
+    - Content that will be edited, expanded, or reused
+    - Substantial text documents
+    - Technical documentation meant as reference material
+
+    **When NOT to Create Text-based Artifacts:**
+    - Simple answers, explanations, or conversational responses
+    - Brief advice, opinions, or quick information
+    - Short lists, summaries, or single paragraphs  
+    - Temporary content only relevant to the immediate conversation
+    - Basic explanations that don't require reference material
+    """
 
 
 def _generate_embed_instruction(
@@ -918,7 +944,7 @@ When faced with a complex goal or request that involves multiple steps, data ret
 Simple, direct requests like 'create an image of a dog' or 'write an email to thank my boss' do not require a plan.
 
 If a plan is created:
-1. It should be a terse, hierarchical list describing the steps needed.
+1. It should be a terse, hierarchical list describing the steps needed, with each checkbox item on its own line.
 2. Use '☐' (empty checkbox emoji) for pending items and '☑' (checked checkbox emoji) for completed items.
 3. If the plan changes significantly during execution, restate the updated plan.
 4. As items are completed, update the plan to check them off.
@@ -926,6 +952,8 @@ If a plan is created:
 """
     injected_instructions.append(planning_instruction)
     log.debug("%s Added hardcoded planning instructions.", log_identifier)
+    artifact_creation_instruction = _generate_artifact_creation_instruction()
+    injected_instructions.append(artifact_creation_instruction)
     fenced_artifact_instruction = _generate_fenced_artifact_instruction()
     injected_instructions.append(fenced_artifact_instruction)
 
@@ -1179,6 +1207,7 @@ async def after_tool_callback_inject_metadata(
                         metadata_part.inline_data.data.decode("utf-8")
                     )
                     metadata_dict["version"] = version
+                    metadata_dict["filename"] = filename
                     formatted_text = format_metadata_for_llm(metadata_dict)
                     metadata_texts.append(formatted_text)
                     log.info(
@@ -1359,20 +1388,10 @@ def solace_llm_invocation_callback(
         )
         return None
 
-    try:
-        from ...common.a2a_protocol import A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY
-
-        callback_context.state[A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY] = False
-        log.debug(
-            "%s Reset %s to False.", log_identifier, A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY
-        )
-    except Exception as e_flag_reset:
-        log.error(
-            "%s Error resetting %s: %s",
-            log_identifier,
-            A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY,
-            e_flag_reset,
-        )
+    callback_context.state[A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY] = False
+    log.debug(
+        "%s Reset %s to False.", log_identifier, A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY
+    )
 
     try:
         a2a_context = callback_context.state.get("a2a_context")
@@ -1383,28 +1402,21 @@ def solace_llm_invocation_callback(
             )
             return None
 
-        agent_name = host_component.get_config("agent_name", "unknown_agent")
         logical_task_id = a2a_context.get("logical_task_id")
+        context_id = a2a_context.get("contextId")
 
-        llm_invocation_metadata = {
-            "type": "llm_invocation",
-            "data": llm_request.model_dump(exclude_none=True),
-        }
-        a2a_message = A2AMessage(
-            role="agent",
-            parts=[],
-            metadata=llm_invocation_metadata,
-        )
-        task_status = TaskStatus(
-            state=TaskState.WORKING,
-            message=a2a_message,
-            timestamp=datetime.now(timezone.utc),
-        )
-        status_update_event = TaskStatusUpdateEvent(
-            id=logical_task_id,
-            status=task_status,
-            final=False,
-            metadata={"agent_name": agent_name},
+        # Store model name in callback state for later use in response callback
+        model_name = host_component.model_config
+        if isinstance(model_name, dict):
+            model_name = model_name.get("model", "unknown")
+        callback_context.state["model_name"] = model_name
+
+        llm_data = LlmInvocationData(request=llm_request.model_dump(exclude_none=True))
+        status_update_event = a2a.create_data_signal_event(
+            task_id=logical_task_id,
+            context_id=context_id,
+            signal_data=llm_data,
+            agent_name=host_component.agent_name,
         )
 
         loop = host_component.get_async_loop()
@@ -1441,8 +1453,8 @@ def solace_llm_response_callback(
     host_component: "SamAgentComponent",
 ) -> Optional[LlmResponse]:
     """
-    ADK after_model_callback to send a Solace message with the LLM's response,
-    using the host_component's process_and_publish_adk_event method.
+    ADK after_model_callback to send a Solace message with the LLM's response
+    and token usage information.
     """
     log_identifier = "[Callback:SolaceLLMResponse]"
     if llm_response.partial:  # Don't send partial responses for this notification
@@ -1468,20 +1480,66 @@ def solace_llm_response_callback(
         agent_name = host_component.get_config("agent_name", "unknown_agent")
         logical_task_id = a2a_context.get("logical_task_id")
 
-        llm_response_metadata = {
+        llm_response_data = {
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
         }
-        a2a_message = A2AMessage(role="agent", parts=[], metadata=llm_response_metadata)
-        task_status = TaskStatus(
-            state=TaskState.WORKING,
-            message=a2a_message,
-            timestamp=datetime.now(timezone.utc),
+        
+        # Extract and record token usage
+        if llm_response.usage_metadata:
+            usage = llm_response.usage_metadata
+            model_name = callback_context.state.get("model_name", "unknown")
+            
+            usage_dict = {
+                "input_tokens": usage.prompt_token_count,
+                "output_tokens": usage.candidates_token_count,
+                "model": model_name,
+            }
+            
+            # Check for cached tokens (provider-specific)
+            cached_tokens = 0
+            if hasattr(usage, 'prompt_tokens_details') and usage.prompt_tokens_details:
+                cached_tokens = getattr(usage.prompt_tokens_details, 'cached_tokens', 0)
+                if cached_tokens > 0:
+                    usage_dict["cached_input_tokens"] = cached_tokens
+            
+            # Add to response data
+            llm_response_data["usage"] = usage_dict
+            
+            # Record in task context for aggregation
+            with host_component.active_tasks_lock:
+                task_context = host_component.active_tasks.get(logical_task_id)
+            
+            if task_context:
+                task_context.record_token_usage(
+                    input_tokens=usage.prompt_token_count,
+                    output_tokens=usage.candidates_token_count,
+                    model=model_name,
+                    source="agent",
+                    cached_input_tokens=cached_tokens,
+                )
+                log.debug(
+                    "%s Recorded token usage: input=%d, output=%d, cached=%d, model=%s",
+                    log_identifier,
+                    usage.prompt_token_count,
+                    usage.candidates_token_count,
+                    cached_tokens,
+                    model_name,
+                )
+        
+        # This signal doesn't have a dedicated Pydantic model, so we create the
+        # DataPart directly and use the lower-level helpers.
+        data_part = a2a.create_data_part(data=llm_response_data)
+        a2a_message = a2a.create_agent_parts_message(
+            parts=[data_part],
+            task_id=logical_task_id,
+            context_id=a2a_context.get("contextId"),
         )
-        status_update_event = TaskStatusUpdateEvent(
-            id=logical_task_id,
-            status=task_status,
-            final=True,
+        status_update_event = a2a.create_status_update(
+            task_id=logical_task_id,
+            context_id=a2a_context.get("contextId"),
+            message=a2a_message,
+            is_final=False,
             metadata={"agent_name": agent_name},
         )
         loop = host_component.get_async_loop()
@@ -1543,8 +1601,6 @@ def notify_tool_invocation_start_callback(
         )
         return
 
-    logical_task_id = a2a_context.get("logical_task_id")
-
     try:
         serializable_args = {}
         for k, v in args.items():
@@ -1554,57 +1610,97 @@ def notify_tool_invocation_start_callback(
             except TypeError:
                 serializable_args[k] = str(v)
 
-        a2a_message_parts = []
-        message_metadata = {
-            "type": "tool_invocation_start",
-            "data": {
-                "tool_name": tool.name,
-                "tool_args": serializable_args,
-                "function_call_id": tool_context.function_call_id,
-            },
-        }
-
-        a2a_message = A2AMessage(
-            role="agent", parts=a2a_message_parts, metadata=message_metadata
+        tool_data = ToolInvocationStartData(
+            tool_name=tool.name,
+            tool_args=serializable_args,
+            function_call_id=tool_context.function_call_id,
         )
-
-        task_status = TaskStatus(
-            state=TaskState.WORKING,
-            message=a2a_message,
-            timestamp=datetime.now(timezone.utc),
+        asyncio.run_coroutine_threadsafe(
+            _publish_data_part_status_update(host_component, a2a_context, tool_data),
+            host_component.get_async_loop(),
         )
-
-        status_update_event = TaskStatusUpdateEvent(
-            id=logical_task_id,
-            status=task_status,
-            final=False,
-            metadata={"agent_name": host_component.get_config("agent_name")},
+        log.debug(
+            "%s Scheduled tool_invocation_start notification.",
+            log_identifier,
         )
-
-        loop = host_component.get_async_loop()
-        if loop and loop.is_running():
-
-            asyncio.run_coroutine_threadsafe(
-                host_component._publish_status_update_with_buffer_flush(
-                    status_update_event,
-                    a2a_context,
-                    skip_buffer_flush=False,
-                ),
-                loop,
-            )
-            log.debug(
-                "%s Scheduled tool_invocation_start notification with buffer flush.",
-                log_identifier,
-            )
-        else:
-            log.error(
-                "%s Async loop not available. Cannot publish tool_invocation_start notification.",
-                log_identifier,
-            )
 
     except Exception as e:
         log.exception(
             "%s Error publishing tool_invocation_start status update: %s",
+            log_identifier,
+            e,
+        )
+
+    return None
+
+
+def notify_tool_execution_result_callback(
+    tool: BaseTool,
+    args: Dict[str, Any],
+    tool_context: ToolContext,
+    tool_response: Any,
+    host_component: "SamAgentComponent",
+) -> None:
+    """
+    ADK after_tool_callback to send an A2A status message with the result
+    of a tool's execution.
+    """
+    log_identifier = f"[Callback:NotifyToolResult:{tool.name}]"
+    log.debug("%s Triggered for tool '%s'", log_identifier, tool.name)
+
+    if not host_component:
+        log.error(
+            "%s Host component instance not provided. Cannot send notification.",
+            log_identifier,
+        )
+        return
+
+    a2a_context = tool_context.state.get("a2a_context")
+    if not a2a_context:
+        log.error(
+            "%s a2a_context not found in tool_context.state. Cannot send notification.",
+            log_identifier,
+        )
+        return
+
+    if tool.is_long_running and not tool_response:
+        log.debug(
+            "%s Tool is long-running and is not yet complete. Don't notify its completion",
+            log_identifier,
+        )
+        return
+
+    try:
+        # Attempt to make the response JSON serializable
+        serializable_response = tool_response
+        if hasattr(tool_response, "model_dump"):
+            serializable_response = tool_response.model_dump(exclude_none=True)
+        else:
+            try:
+                # A simple check to see if it can be dumped.
+                # This isn't perfect but catches many non-serializable types.
+                json.dumps(tool_response)
+            except (TypeError, OverflowError):
+                serializable_response = str(tool_response)
+
+        tool_data = ToolResultData(
+            tool_name=tool.name,
+            result_data=serializable_response,
+            function_call_id=tool_context.function_call_id,
+        )
+        asyncio.run_coroutine_threadsafe(
+            _publish_data_part_status_update(host_component, a2a_context, tool_data),
+            host_component.get_async_loop(),
+        )
+        log.debug(
+            "%s Scheduled tool_result notification for function call ID %s.",
+            log_identifier,
+            tool_context.function_call_id,
+        )
+
+    except Exception as e:
+        log.exception(
+            "%s Error publishing tool_result status update: %s",
             log_identifier,
             e,
         )

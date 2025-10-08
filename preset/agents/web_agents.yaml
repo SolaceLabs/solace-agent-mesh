@@ -1,0 +1,52 @@
+# Web Agent Configuration
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: web_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: web_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "WebAgent"
+      display_name: "Web Content Agent"
+      model: *general_model
+      instruction: |
+        You are an agent that can fetch content from web URLs using the 'web_request' tool.
+        You can make various types of HTTP requests (GET, POST, etc.) and include custom headers or a body.
+        The tool will return the fetched content (HTML converted to Markdown, other text types as is, or raw binary data).
+        You will then need to process this content based on the user's request.
+        Always save useful fetched content as an artifact.
+      tools:
+        - tool_type: builtin
+          tool_name: "web_request"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service:
+        type: "${PERSISTENCE_TYPE, memory}"
+        database_url: "${AGENT_WEB_DATABASE_URL, sqlite:///web-agent.db}"
+        default_behavior: "PERSISTENT"
+      artifact_service: *default_artifact_service
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      agent_card:
+        description: "An agent that fetches content from web URLs."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: "web_request"
+            name: "Web Request"
+            description: "Fetches content from a URL."
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []

@@ -44,7 +44,7 @@ export const SortPopover: React.FC<SortPopoverProps> = ({ currentSortOption, onS
     return (
         <Popover>
             <PopoverTrigger asChild>{children}</PopoverTrigger>
-            <PopoverContent align="end" side="bottom" className="bg-background min-w-[200px] p-1" sideOffset={0}>
+            <PopoverContent align="end" side="bottom" className="w-auto" sideOffset={0}>
                 <Menu actions={menuActions} />
             </PopoverContent>
         </Popover>

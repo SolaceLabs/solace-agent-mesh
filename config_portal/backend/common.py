@@ -24,13 +24,13 @@ INIT_DEFAULT = {
 USE_DEFAULT_SHARED_SESSION = "use_default_shared_session"
 USE_DEFAULT_SHARED_ARTIFACT = "use_default_shared_artifact"
 
-DEFAULT_COMMUNICATION_TIMEOUT = 600  # 10 minutes
+DEFAULT_COMMUNICATION_TIMEOUT = 600
 
 AGENT_DEFAULTS = {
     "supports_streaming": True,
     "model_type": "general",
     "instruction": "You are a helpful AI assistant named __AGENT_NAME__.",
-    "artifact_handling_mode": "embed",
+    "artifact_handling_mode": "reference",
     "enable_embed_resolution": True,
     "enable_artifact_content_instruction": True,
     "tools": "[]",
@@ -45,7 +45,7 @@ AGENT_DEFAULTS = {
     "agent_card_skills_str": "[]",
     "agent_card_publishing_interval": 10,
     "agent_discovery_enabled": True,
-    "inter_agent_communication_allow_list": ["*"],
+    "inter_agent_communication_allow_list": [],
     "inter_agent_communication_deny_list": [],
     "inter_agent_communication_timeout": DEFAULT_COMMUNICATION_TIMEOUT,
     "namespace": "${NAMESPACE}",

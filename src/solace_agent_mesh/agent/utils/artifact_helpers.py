@@ -8,17 +8,23 @@ import json
 import csv
 import io
 import inspect
-import datetime
 import os
+import yaml
+import traceback
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
-from datetime import timezone
+from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
+from ...common.a2a.types import ArtifactInfo
 from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file
+from ...common.constants import TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
+from ...agent.utils.context_helpers import get_original_session_id
 
 if TYPE_CHECKING:
     from google.adk.tools import ToolContext
+    from ...agent.sac.component import SamAgentComponent
 
 METADATA_SUFFIX = ".metadata.json"
 DEFAULT_SCHEMA_MAX_KEYS = 20
@@ -79,6 +85,39 @@ def ensure_correct_extension(filename_from_llm: str, desired_extension: str) -> 
         return filename_stripped
     else:
         return f"{base_name}.{desired_ext_clean}"
+
+
+def format_artifact_uri(
+    app_name: str, user_id: str, session_id: str, filename: str, version: Union[int, str]
+) -> str:
+    """Formats the components into a standard artifact:// URI."""
+    path = f"/{user_id}/{session_id}/{filename}"
+    query = urlencode({"version": str(version)})
+    return urlunparse(("artifact", app_name, path, "", query, ""))
+
+
+def parse_artifact_uri(uri: str) -> Dict[str, Any]:
+    """Parses an artifact:// URI into its constituent parts."""
+    parsed = urlparse(uri)
+    if parsed.scheme != "artifact":
+        raise ValueError("Invalid URI scheme, must be 'artifact'.")
+
+    path_parts = parsed.path.strip("/").split("/")
+    if len(path_parts) != 3:
+        raise ValueError("Invalid URI path. Expected /user_id/session_id/filename")
+
+    query_params = parse_qs(parsed.query)
+    version = query_params.get("version", [None])[0]
+    if not version:
+        raise ValueError("Version is missing from URI query parameters.")
+
+    return {
+        "app_name": parsed.netloc,
+        "user_id": path_parts[0],
+        "session_id": path_parts[1],
+        "filename": path_parts[2],
+        "version": int(version) if version.isdigit() else version,
+    }
 
 
 def _inspect_structure(
@@ -155,13 +194,9 @@ def _infer_schema(
             "text/x-yaml",
         ]:
             try:
-                import yaml
-
                 data = yaml.safe_load(content_bytes)
                 schema_info["structure"] = _inspect_structure(data, depth, max_keys)
                 schema_info["inferred"] = True
-            except ImportError:
-                schema_info["error"] = "YAML inference skipped: PyYAML not installed."
             except (yaml.YAMLError, UnicodeDecodeError) as e:
                 schema_info["error"] = f"YAML structure inference failed: {e}"
     except Exception as e:
@@ -188,7 +223,7 @@ async def save_artifact_with_metadata(
     content_bytes: bytes,
     mime_type: str,
     metadata_dict: Dict[str, Any],
-    timestamp: datetime.datetime,
+    timestamp: datetime,
     explicit_schema: Optional[Dict] = None,
     schema_inference_depth: int = 2,
     schema_max_keys: int = DEFAULT_SCHEMA_MAX_KEYS,
@@ -399,6 +434,143 @@ def format_metadata_for_llm(metadata: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+async def generate_artifact_metadata_summary(
+    component: "SamAgentComponent",
+    artifact_identifiers: List[Dict[str, Any]],
+    user_id: str,
+    session_id: str,
+    app_name: str,
+    header_text: Optional[str] = None,
+) -> str:
+    """
+    Loads metadata for a list of artifacts and formats it into a human-readable
+    YAML summary string, suitable for LLM context.
+    """
+    if not artifact_identifiers:
+        return ""
+
+    log_identifier = f"{component.log_identifier}[ArtifactSummary]"
+    summary_parts = []
+    if header_text:
+        summary_parts.append(header_text)
+
+    if not (component.artifact_service and user_id and session_id):
+        log.warning(
+            "%s Cannot load artifact metadata: missing artifact_service or context.",
+            log_identifier,
+        )
+        for artifact_ref in artifact_identifiers:
+            filename = artifact_ref.get("filename", "unknown")
+            version = artifact_ref.get("version", "latest")
+            summary_parts.append(
+                f"---\nArtifact: '{filename}' (version: {version})\nError: Could not load metadata. Host component context missing."
+            )
+        return "\n\n".join(summary_parts)
+
+    for artifact_ref in artifact_identifiers:
+        filename = artifact_ref.get("filename")
+        version = artifact_ref.get("version", "latest")
+        if not filename:
+            log.warning(
+                "%s Skipping artifact with no filename in identifier: %s",
+                log_identifier,
+                artifact_ref,
+            )
+            continue
+
+        try:
+            metadata_result = await load_artifact_content_or_metadata(
+                artifact_service=component.artifact_service,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=get_original_session_id(session_id),
+                filename=filename,
+                version=version,
+                load_metadata_only=True,
+            )
+            if metadata_result.get("status") == "success":
+                metadata = metadata_result.get("metadata", {})
+                resolved_version = metadata_result.get("version", version)
+                artifact_header = (
+                    f"Artifact: '{filename}' (version: {resolved_version})"
+                )
+
+                # Remove redundant fields before dumping to YAML
+                metadata.pop("filename", None)
+                metadata.pop("version", None)
+
+                TRUNCATION_LIMIT_BYTES = 1024
+                TRUNCATION_MESSAGE = "\n... [truncated] ..."
+
+                try:
+                    formatted_metadata_str = yaml.safe_dump(
+                        metadata,
+                        default_flow_style=False,
+                        sort_keys=False,
+                        allow_unicode=True,
+                    )
+
+                    if (
+                        len(formatted_metadata_str.encode("utf-8"))
+                        > TRUNCATION_LIMIT_BYTES
+                    ):
+                        cutoff = TRUNCATION_LIMIT_BYTES - len(
+                            TRUNCATION_MESSAGE.encode("utf-8")
+                        )
+                        # Ensure we don't cut in the middle of a multi-byte character
+                        encoded_str = formatted_metadata_str.encode("utf-8")
+                        if cutoff > 0:
+                            truncated_encoded = encoded_str[:cutoff]
+                            formatted_metadata_str = (
+                                truncated_encoded.decode("utf-8", "ignore")
+                                + TRUNCATION_MESSAGE
+                            )
+                        else:
+                            formatted_metadata_str = TRUNCATION_MESSAGE
+
+                    summary_parts.append(
+                        f"---\n{artifact_header}\n{formatted_metadata_str}"
+                    )
+                except Exception as e_format:
+                    log.error(
+                        "%s Error formatting metadata for %s v%s: %s",
+                        log_identifier,
+                        filename,
+                        version,
+                        e_format,
+                    )
+                    summary_parts.append(
+                        f"---\n{artifact_header}\nError: Could not format metadata."
+                    )
+            else:
+                error_message = metadata_result.get(
+                    "message", "Could not load metadata."
+                )
+                log.warning(
+                    "%s Failed to load metadata for %s v%s: %s",
+                    log_identifier,
+                    filename,
+                    version,
+                    error_message,
+                )
+                artifact_header = f"Artifact: '{filename}' (version: {version})"
+                summary_parts.append(f"---\n{artifact_header}\nError: {error_message}")
+        except Exception as e_meta:
+            log.error(
+                "%s Unexpected error loading metadata for %s v%s: %s",
+                log_identifier,
+                filename,
+                version,
+                e_meta,
+            )
+            artifact_header = f"Artifact: '{filename}' (version: {version})"
+            summary_parts.append(
+                f"---\n{artifact_header}\nError: An unexpected error occurred while loading metadata."
+            )
+
+    return "\n\n".join(summary_parts)
+
+
 def decode_and_get_bytes(
     content_str: str, mime_type: str, log_identifier: str
 ) -> Tuple[bytes, str]:
@@ -441,12 +613,6 @@ def decode_and_get_bytes(
     return file_bytes, final_mime_type
 
 
-from google.adk.artifacts import BaseArtifactService
-from datetime import datetime, timezone
-import traceback
-from ...common.types import ArtifactInfo
-
-
 async def get_latest_artifact_version(
     artifact_service: BaseArtifactService,
     app_name: str,
@@ -476,7 +642,10 @@ async def get_latest_artifact_version(
             return None
 
         versions = await artifact_service.list_versions(
-            app_name=app_name, user_id=user_id, session_id=session_id, filename=filename
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
         )
         if not versions:
             log.debug("%s No versions found for artifact.", log_identifier)
@@ -650,9 +819,12 @@ async def load_artifact_content_or_metadata(
     )
 
     if max_content_length is None and component:
-        max_content_length = component.get_config(
-            "text_artifact_content_max_length", 1000
-        )
+        max_content_length = component.get_config("text_artifact_content_max_length")
+        if max_content_length is None:
+            raise ValueError(
+                f"{log_identifier_req} Component config 'text_artifact_content_max_length' is not set."
+            )
+
         if max_content_length < 100:
             log.warning(
                 "%s text_artifact_content_max_length too small (%d), using minimum: 100",
@@ -660,15 +832,16 @@ async def load_artifact_content_or_metadata(
                 max_content_length,
             )
             max_content_length = 100
-        elif max_content_length > 100000:
+        elif max_content_length > TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY:
             log.warning(
-                "%s text_artifact_content_max_length too large (%d), using maximum: 100000",
+                "%s text_artifact_content_max_length too large (%d), using maximum: %d",
                 log_identifier_req,
                 max_content_length,
+                TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY,
             )
-            max_content_length = 100000
+            max_content_length = TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
     elif max_content_length is None:
-        max_content_length = 1000
+        max_content_length = TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
 
     log.debug(
         "%s Using max_content_length: %d characters (from %s).",
@@ -815,8 +988,18 @@ async def load_artifact_content_or_metadata(
                 if is_text:
                     try:
                         content_str = data_bytes.decode(encoding, errors=error_handling)
+                        message_to_llm = ""
                         if len(content_str) > max_content_length:
                             truncated_content = content_str[:max_content_length] + "..."
+
+                            if max_content_length < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY:
+                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
+                                                The artifact is larger ({len(content_str)} characters).
+                                                Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact."""
+                            else:
+                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
+                                                The artifact content met the maximum allowed size of {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} characters.
+                                                Please continue with this truncated content as the full artifact cannot be provided."""
                             log.info(
                                 "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).",
                                 log_identifier,
@@ -840,6 +1023,7 @@ async def load_artifact_content_or_metadata(
                             "version": version_to_load,
                             "mime_type": mime_type,
                             "content": truncated_content,
+                            "message_to_llm": message_to_llm,
                             "size_bytes": size_bytes,
                         }
                     except UnicodeDecodeError as decode_err:

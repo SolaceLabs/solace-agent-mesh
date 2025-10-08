@@ -1,0 +1,14 @@
+name: Cleanup WhiteSource Project
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup-whitesource:
+    uses: SolaceDev/solace-public-workflows/.github/workflows/cleanup_ws.yml@main
+    secrets:
+      ws_api_key: ${{ secrets.WHITESOURCE_API_KEY }}

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 
-import { ArrowDown, ArrowLeft, Ellipsis, FileText } from "lucide-react";
+import { ArrowDown, ArrowLeft, Ellipsis, FileText, Loader2 } from "lucide-react";
 
 import { Button } from "@/lib/components";
 import { useChatContext } from "@/lib/hooks";
@@ -10,7 +10,7 @@ import { ArtifactCard } from "./ArtifactCard";
 import { ArtifactDeleteDialog } from "./ArtifactDeleteDialog";
 import { ArtifactPreviewContent } from "./ArtifactPreviewContent";
 import { SortOption, SortPopover, type SortOptionType } from "./ArtifactSortPopover";
-import { MorePopover } from "./ArtifactMorePopover";
+import { ArtifactMorePopover } from "./ArtifactMorePopover";
 import { ArtifactDeleteAllDialog } from "./ArtifactDeleteAllDialog";
 
 const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo) => number> = {
@@ -21,12 +21,14 @@ const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo)
 };
 
 export const ArtifactPanel: React.FC = () => {
-    const { artifacts, previewArtifact, setPreviewArtifact } = useChatContext();
+    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact } = useChatContext();
 
     const [sortOption, setSortOption] = useState<SortOptionType>(SortOption.DateDesc);
     const sortedArtifacts = useMemo(() => {
+        if (artifactsLoading) return [];
+
         return artifacts ? [...artifacts].sort(sortFunctions[sortOption]) : [];
-    }, [artifacts, sortOption]);
+    }, [artifacts, artifactsLoading, sortOption]);
 
     const header = useMemo(() => {
         if (previewArtifact) {
@@ -39,7 +41,7 @@ export const ArtifactPanel: React.FC = () => {
                 </div>
             );
         }
-        
+
         return (
             sortedArtifacts.length > 0 && (
                 <div className="flex items-center justify-end border-b p-2">
@@ -49,11 +51,11 @@ export const ArtifactPanel: React.FC = () => {
                             <div>Sort By</div>
                         </Button>
                     </SortPopover>
-                    <MorePopover key="more-popover">
-                        <Button variant="ghost" tooltip="More" >
+                    <ArtifactMorePopover key="more-popover">
+                        <Button variant="ghost" tooltip="More">
                             <Ellipsis className="h-5 w-5" />
                         </Button>
-                    </MorePopover>
+                    </ArtifactMorePopover>
                 </div>
             )
         );
@@ -62,36 +64,37 @@ export const ArtifactPanel: React.FC = () => {
     return (
         <div className="flex h-full flex-col">
             {header}
-
-            {/* Panel Content */}
             <div className="flex min-h-0 flex-1">
                 {!previewArtifact && (
                     <div className="flex-1 overflow-y-auto">
                         {sortedArtifacts.map(artifact => (
                             <ArtifactCard key={artifact.filename} artifact={artifact} />
                         ))}
-                        {artifacts.length === 0 && (
+                        {sortedArtifacts.length === 0 && (
                             <div className="flex h-full items-center justify-center p-4">
                                 <div className="text-muted-foreground text-center">
-                                    <FileText className="mx-auto mb-4 h-12 w-12" />
-                                    <div className="text-lg font-medium">Files</div>
-                                    <div className="mt-2 text-sm">No files available</div>
+                                    {artifactsLoading && <Loader2 className="size-6 animate-spin" />}
+                                    {!artifactsLoading && (
+                                        <>
+                                            <FileText className="mx-auto mb-4 h-12 w-12" />
+                                            <div className="text-lg font-medium">Files</div>
+                                            <div className="mt-2 text-sm">No files available</div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         )}
                     </div>
                 )}
                 {previewArtifact && (
-                    <div className="flex flex-1 flex-col gap-2 min-h-0 min-w-0">
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
                         <ArtifactCard key={previewArtifact.filename} artifact={previewArtifact} isPreview={true} />
-                        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto">
+                        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
                             <ArtifactPreviewContent artifact={previewArtifact} />
                         </div>
                     </div>
                 )}
             </div>
-
-            {/* Delete Modals */}
             <ArtifactDeleteDialog />
             <ArtifactDeleteAllDialog />
         </div>

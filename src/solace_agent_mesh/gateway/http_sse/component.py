@@ -3,52 +3,60 @@ Custom Solace AI Connector Component to host the FastAPI backend for the Web UI.
 """
 
 import asyncio
-import queue
-import uuid
 import json
+import queue
 import re
 import threading
-from typing import Any, Dict, Optional, List, Tuple, Union, Set
+import uuid
 from datetime import datetime, timezone
-from fastapi import UploadFile, Request as FastAPIRequest
+from typing import Any
 
 import uvicorn
-from fastapi import FastAPI
-
+from fastapi import FastAPI, UploadFile
+from fastapi import Request as FastAPIRequest
 from solace_ai_connector.common.log import log
+from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
-from solace_ai_connector.components.inputs_outputs.broker_input import (
-    BrokerInput,
-)
+from solace_ai_connector.common.event import Event, EventType
 
-from ...gateway.http_sse.sse_manager import SSEManager
-
-from .components import VisualizationForwarderComponent
-from ...gateway.http_sse.session_manager import SessionManager
-from ...gateway.base.component import BaseGatewayComponent
 from ...common.agent_registry import AgentRegistry
 from ...core_a2a.service import CoreA2AService
-from google.adk.artifacts import BaseArtifactService
+from ...gateway.base.component import BaseGatewayComponent
+from ...gateway.http_sse.session_manager import SessionManager
+from ...gateway.http_sse.sse_manager import SSEManager
+from .sse_event_buffer import SSEEventBuffer
+from .components import VisualizationForwarderComponent
+from .components.task_logger_forwarder import TaskLoggerForwarderComponent
+from .services.feedback_service import FeedbackService
+from .services.task_logger_service import TaskLoggerService
+from . import dependencies
 
-from ...common.types import (
+try:
+    from google.adk.artifacts import BaseArtifactService
+except ImportError:
+
+    class BaseArtifactService:
+        pass
+
+
+from a2a.types import (
+    A2ARequest,
     AgentCard,
-    Part as A2APart,
-    Task,
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
     JSONRPCError,
     JSONRPCResponse,
-    TextPart,
-    FilePart,
-    FileContent,
-)
-from ...common.a2a_protocol import (
-    _topic_matches_subscription,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
 )
 
-from ...agent.utils.artifact_helpers import save_artifact_with_metadata
+from ...common import a2a
+from ...common.a2a.types import ContentPart
 from ...common.middleware.config_resolver import ConfigResolver
-
+from ...common.utils.embeds import (
+    EARLY_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
+)
 
 info = {
     "class_name": "WebUIBackendComponent",
@@ -82,7 +90,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """
         Initializes the WebUIBackendComponent, inheriting from BaseGatewayComponent.
         """
-        super().__init__(**kwargs)
+        component_config = kwargs.get("component_config", {})
+        app_config = component_config.get("app_config", {})
+        resolve_uris = app_config.get("resolve_artifact_uris_in_gateway", True)
+
+        super().__init__(resolve_artifact_uris_in_gateway=resolve_uris, **kwargs)
         log.info("%s Initializing Web UI Backend Component...", self.log_identifier)
 
         try:
@@ -97,9 +109,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.fastapi_https_port = self.get_config("fastapi_https_port", 8443)
             self.session_secret_key = self.get_config("session_secret_key")
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
-            self.resolve_artifact_uris_in_gateway = self.get_config(
-                "resolve_artifact_uris_in_gateway", True
-            )
             self.ssl_keyfile = self.get_config("ssl_keyfile", "")
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
@@ -115,8 +124,56 @@ class WebUIBackendComponent(BaseGatewayComponent):
             raise ValueError(f"Configuration retrieval error: {e}") from e
 
         sse_max_queue_size = self.get_config("sse_max_queue_size", 200)
+        sse_buffer_max_age_seconds = self.get_config("sse_buffer_max_age_seconds", 600)
 
-        self.sse_manager = SSEManager(max_queue_size=sse_max_queue_size)
+        self.sse_event_buffer = SSEEventBuffer(
+            max_queue_size=sse_max_queue_size,
+            max_age_seconds=sse_buffer_max_age_seconds,
+        )
+        self.sse_manager = SSEManager(
+            max_queue_size=sse_max_queue_size, event_buffer=self.sse_event_buffer
+        )
+
+        self._sse_cleanup_timer_id = f"sse_cleanup_{self.gateway_id}"
+        cleanup_interval_sec = self.get_config(
+            "sse_buffer_cleanup_interval_seconds", 300
+        )
+        self.add_timer(
+            delay_ms=cleanup_interval_sec * 1000,
+            timer_id=self._sse_cleanup_timer_id,
+            interval_ms=cleanup_interval_sec * 1000,
+        )
+
+        session_config = self._resolve_session_config()
+        if session_config.get("type") == "sql":
+            # SQL type explicitly configured - database_url is required
+            database_url = session_config.get("database_url")
+            if not database_url:
+                raise ValueError(
+                    f"{self.log_identifier} Session service type is 'sql' but no database_url provided. "
+                    "Please provide a database_url in the session_service configuration or use type 'memory'."
+                )
+            self.database_url = database_url
+        else:
+            # Memory storage or no explicit configuration - no persistence service needed
+            self.database_url = None
+            
+            # Validate that features requiring database persistence are not enabled
+            task_logging_config = self.get_config("task_logging", {})
+            if task_logging_config.get("enabled", False):
+                raise ValueError(
+                    f"{self.log_identifier} Task logging requires SQL session storage. "
+                    "Either set session_service.type='sql' with a valid database_url, "
+                    "or disable task_logging.enabled."
+                )
+            
+            feedback_config = self.get_config("feedback_publishing", {})
+            if feedback_config.get("enabled", False):
+                log.warning(
+                    "%s Feedback publishing is enabled but database persistence is not configured. "
+                    "Feedback will only be published to the broker, not stored locally.",
+                    self.log_identifier
+                )
 
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
@@ -126,21 +183,106 @@ class WebUIBackendComponent(BaseGatewayComponent):
             app_config=app_config,
         )
 
-        self.fastapi_app: Optional[FastAPI] = None
-        self.uvicorn_server: Optional[uvicorn.Server] = None
-        self.fastapi_thread: Optional[threading.Thread] = None
-        self.fastapi_event_loop: Optional[asyncio.AbstractEventLoop] = None
+        self.fastapi_app: FastAPI | None = None
+        self.uvicorn_server: uvicorn.Server | None = None
+        self.fastapi_thread: threading.Thread | None = None
+        self.fastapi_event_loop: asyncio.AbstractEventLoop | None = None
 
-        self._visualization_internal_app: Optional[SACApp] = None
-        self._visualization_broker_input: Optional[BrokerInput] = None
+        self._visualization_internal_app: SACApp | None = None
+        self._visualization_broker_input: BrokerInput | None = None
         self._visualization_message_queue: queue.Queue = queue.Queue(maxsize=200)
-        self._active_visualization_streams: Dict[str, Dict[str, Any]] = {}
-        self._visualization_locks: Dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
+        self._task_logger_queue: queue.Queue = queue.Queue(maxsize=200)
+        self._active_visualization_streams: dict[str, dict[str, Any]] = {}
+        self._visualization_locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._visualization_locks_lock = threading.Lock()
-        self._global_visualization_subscriptions: Dict[str, int] = {}
-        self._visualization_processor_task: Optional[asyncio.Task] = None
+        self._global_visualization_subscriptions: dict[str, int] = {}
+        self._visualization_processor_task: asyncio.Task | None = None
+
+        self._task_logger_internal_app: SACApp | None = None
+        self._task_logger_broker_input: BrokerInput | None = None
+        self._task_logger_processor_task: asyncio.Task | None = None
+        self.task_logger_service: TaskLoggerService | None = None
+
+        # Initialize SAM Events service for system events
+        from ...common.sam_events import SamEventService
+
+        self.sam_events = SamEventService(
+            namespace=self.namespace,
+            component_name=f"{self.name}_gateway",
+            publish_func=self.publish_a2a,
+        )
+
+        # Initialize data retention service and timer
+        self.data_retention_service = None
+        self._data_retention_timer_id = None
+        data_retention_config = self.get_config("data_retention", {})
+        if data_retention_config.get("enabled", True):
+            log.info("%s Data retention is enabled. Initializing service and timer...", self.log_identifier)
+            
+            # Import and initialize the DataRetentionService
+            from .services.data_retention_service import DataRetentionService
+            
+            session_factory = None
+            if self.database_url:
+                # SessionLocal will be initialized later in setup_dependencies
+                # We'll pass a lambda that returns SessionLocal when called
+                session_factory = lambda: dependencies.SessionLocal() if dependencies.SessionLocal else None
+            
+            self.data_retention_service = DataRetentionService(
+                session_factory=session_factory,
+                config=data_retention_config
+            )
+            
+            # Create and start the cleanup timer
+            cleanup_interval_hours = data_retention_config.get("cleanup_interval_hours", 24)
+            cleanup_interval_ms = cleanup_interval_hours * 60 * 60 * 1000
+            self._data_retention_timer_id = f"data_retention_cleanup_{self.gateway_id}"
+            
+            self.add_timer(
+                delay_ms=cleanup_interval_ms,
+                timer_id=self._data_retention_timer_id,
+                interval_ms=cleanup_interval_ms,
+            )
+            log.info(
+                "%s Data retention timer created with ID '%s' and interval %d hours.",
+                self.log_identifier,
+                self._data_retention_timer_id,
+                cleanup_interval_hours,
+            )
+        else:
+            log.info("%s Data retention is disabled via configuration.", self.log_identifier)
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
+
+    def process_event(self, event: Event):
+        if event.event_type == EventType.TIMER:
+            timer_id = event.data.get("timer_id")
+            
+            if timer_id == self._sse_cleanup_timer_id:
+                log.debug("%s SSE buffer cleanup timer triggered.", self.log_identifier)
+                self.sse_event_buffer.cleanup_stale_buffers()
+                return
+            
+            if timer_id == self._data_retention_timer_id:
+                log.debug("%s Data retention cleanup timer triggered.", self.log_identifier)
+                if self.data_retention_service:
+                    try:
+                        self.data_retention_service.cleanup_old_data()
+                    except Exception as e:
+                        log.error(
+                            "%s Error during data retention cleanup: %s",
+                            self.log_identifier,
+                            e,
+                            exc_info=True,
+                        )
+                else:
+                    log.warning(
+                        "%s Data retention timer fired but service is not initialized.",
+                        self.log_identifier,
+                    )
+                return
+
+        super().process_event(event)
 
     def _get_visualization_lock(self) -> asyncio.Lock:
         """Get or create a visualization lock for the current event loop."""
@@ -216,9 +358,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             forwarder_cfg = {
                 "component_class": VisualizationForwarderComponent,
                 "component_name": f"{self.gateway_id}_viz_forwarder",
-                "component_config": {
-                    "target_queue_ref": self._visualization_message_queue
-                },
+                "component_config": {"target_queue_ref": self._visualization_message_queue},
             }
 
             flow_config = {
@@ -301,11 +441,156 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self._visualization_broker_input = None
             raise
 
+    def _ensure_task_logger_flow_is_running(self) -> None:
+        """
+        Ensures the internal SAC flow for A2A task logging is created and running.
+        """
+        log_id_prefix = f"{self.log_identifier}[EnsureTaskLogFlow]"
+        if self._task_logger_internal_app is not None:
+            log.debug("%s Task logger flow already running.", log_id_prefix)
+            return
+
+        log.info("%s Initializing internal A2A task logger flow...", log_id_prefix)
+        try:
+            main_app = self.get_app()
+            if not main_app or not main_app.connector:
+                raise RuntimeError(
+                    "Main app or connector not available for internal flow creation."
+                )
+
+            main_broker_config = main_app.app_info.get("broker", {})
+            if not main_broker_config:
+                raise ValueError("Main app broker configuration is missing.")
+
+            # The task logger needs to see ALL messages.
+            subscriptions = [{"topic": f"{self.namespace}/a2a/>"}]
+
+            broker_input_cfg = {
+                "component_module": "broker_input",
+                "component_name": f"{self.gateway_id}_task_log_broker_input",
+                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/task_log/{self.gateway_id}/{uuid.uuid4().hex}",
+                "create_queue_on_start": True,
+                "component_config": {
+                    "broker_url": main_broker_config.get("broker_url"),
+                    "broker_username": main_broker_config.get("broker_username"),
+                    "broker_password": main_broker_config.get("broker_password"),
+                    "broker_vpn": main_broker_config.get("broker_vpn"),
+                    "trust_store_path": main_broker_config.get("trust_store_path"),
+                    "dev_mode": main_broker_config.get("dev_mode"),
+                    "broker_subscriptions": subscriptions,
+                    "reconnection_strategy": main_broker_config.get(
+                        "reconnection_strategy"
+                    ),
+                    "retry_interval": main_broker_config.get("retry_interval"),
+                    "retry_count": main_broker_config.get("retry_count"),
+                    "temporary_queue": True,
+                },
+            }
+
+            forwarder_cfg = {
+                "component_class": TaskLoggerForwarderComponent,
+                "component_name": f"{self.gateway_id}_task_log_forwarder",
+                "component_config": {"target_queue_ref": self._task_logger_queue},
+            }
+
+            flow_config = {
+                "name": f"{self.gateway_id}_task_log_flow",
+                "components": [broker_input_cfg, forwarder_cfg],
+            }
+
+            internal_app_broker_config = main_broker_config.copy()
+            internal_app_broker_config["input_enabled"] = True
+            internal_app_broker_config["output_enabled"] = False
+
+            app_config_for_internal_flow = {
+                "name": f"{self.gateway_id}_task_log_internal_app",
+                "flows": [flow_config],
+                "broker": internal_app_broker_config,
+                "app_config": {},
+            }
+
+            self._task_logger_internal_app = main_app.connector.create_internal_app(
+                app_name=app_config_for_internal_flow["name"],
+                flows=app_config_for_internal_flow["flows"],
+            )
+
+            if (
+                not self._task_logger_internal_app
+                or not self._task_logger_internal_app.flows
+            ):
+                raise RuntimeError("Internal task logger app/flow creation failed.")
+
+            self._task_logger_internal_app.run()
+            log.info("%s Internal task logger app started.", log_id_prefix)
+
+            flow_instance = self._task_logger_internal_app.flows[0]
+            if flow_instance.component_groups and flow_instance.component_groups[0]:
+                self._task_logger_broker_input = flow_instance.component_groups[0][0]
+                if not isinstance(self._task_logger_broker_input, BrokerInput):
+                    raise RuntimeError(
+                        "Task logger flow setup error: BrokerInput not found."
+                    )
+                log.info(
+                    "%s Obtained reference to internal task logger BrokerInput component.",
+                    log_id_prefix,
+                )
+            else:
+                raise RuntimeError(
+                    "Task logger flow setup error: BrokerInput instance not accessible."
+                )
+
+        except Exception as e:
+            log.exception(
+                "%s Failed to ensure task logger flow is running: %s", log_id_prefix, e
+            )
+            if self._task_logger_internal_app:
+                try:
+                    self._task_logger_internal_app.cleanup()
+                except Exception as cleanup_err:
+                    log.error(
+                        "%s Error during cleanup after task logger flow init failure: %s",
+                        log_id_prefix,
+                        cleanup_err,
+                    )
+            self._task_logger_internal_app = None
+            self._task_logger_broker_input = None
+            raise
+
+    def _resolve_session_config(self) -> dict:
+        """
+        Resolve session service configuration with backward compatibility.
+
+        Priority order:
+        1. Component-specific session_service config (new approach)
+        2. Shared default_session_service config (deprecated, with warning)
+        3. Hardcoded default (SQLite for Web UI)
+        """
+        # Check component-specific session_service config first
+        component_session_config = self.get_config("session_service")
+        if component_session_config:
+            log.debug("Using component-specific session_service configuration")
+            return component_session_config
+
+        # Backward compatibility: check shared config
+        shared_session_config = self.get_config("default_session_service")
+        if shared_session_config:
+            log.warning(
+                "Using session_service from shared config is deprecated. "
+                "Move to component-specific configuration in app_config.session_service"
+            )
+            return shared_session_config
+
+        # Default configuration for Web UI (backward compatibility)
+        default_config = {"type": "memory", "default_behavior": "PERSISTENT"}
+        log.info(
+            "Using default memory session configuration for Web UI (backward compatibility)"
+        )
+        return default_config
+
     async def _visualization_message_processor_loop(self) -> None:
         """
         Asynchronously consumes messages from the _visualization_message_queue,
         filters them, and forwards them to relevant SSE connections.
-        Placeholder for Phase 2: Just logs messages.
         """
         log_id_prefix = f"{self.log_identifier}[VizMsgProcessor]"
         log.info("%s Starting visualization message processor loop...", log_id_prefix)
@@ -332,7 +617,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 max_size = self._visualization_message_queue.maxsize
                 if max_size > 0 and (current_size / max_size) > 0.90:
                     log.warning(
-                        "%s Visualization queue is over 90%% full. Current size: %d/%d",
+                        "%s Visualization message queue is over 90%% full. Current size: %d/%d",
                         log_id_prefix,
                         current_size,
                         max_size,
@@ -427,7 +712,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                     "solace_topics", set()
                                 )
                                 if any(
-                                    _topic_matches_subscription(topic, pattern)
+                                    a2a.topic_matches_subscription(topic, pattern)
                                     for pattern in subscribed_topics_for_stream
                                 ):
                                     is_permitted = True
@@ -449,6 +734,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 "task_id": event_details["task_id"],
                                 "payload_summary": event_details["payload_summary"],
                                 "full_payload": payload_dict,
+                                "debug_type": event_details["debug_type"],
                             }
 
                             try:
@@ -507,6 +793,59 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 await asyncio.sleep(1)
 
         log.info("%s Visualization message processor loop finished.", log_id_prefix)
+
+    async def _task_logger_loop(self) -> None:
+        """
+        Asynchronously consumes messages from the _task_logger_queue and
+        passes them to the TaskLoggerService for persistence.
+        """
+        log_id_prefix = f"{self.log_identifier}[TaskLoggerLoop]"
+        log.info("%s Starting task logger loop...", log_id_prefix)
+        loop = asyncio.get_running_loop()
+
+        while not self.stop_signal.is_set():
+            msg_data = None
+            try:
+                msg_data = await loop.run_in_executor(
+                    None,
+                    self._task_logger_queue.get,
+                    True,
+                    1.0,
+                )
+
+                if msg_data is None:
+                    log.info(
+                        "%s Received shutdown signal for task logger loop.",
+                        log_id_prefix,
+                    )
+                    break
+
+                if self.task_logger_service:
+                    self.task_logger_service.log_event(msg_data)
+                else:
+                    log.warning(
+                        "%s Task logger service not available. Cannot log event.",
+                        log_id_prefix,
+                    )
+
+                self._task_logger_queue.task_done()
+
+            except queue.Empty:
+                continue
+            except asyncio.CancelledError:
+                log.info("%s Task logger loop cancelled.", log_id_prefix)
+                break
+            except Exception as e:
+                log.exception(
+                    "%s Error in task logger loop: %s",
+                    log_id_prefix,
+                    e,
+                )
+                if msg_data and self._task_logger_queue:
+                    self._task_logger_queue.task_done()
+                await asyncio.sleep(1)
+
+        log.info("%s Task logger loop finished.", log_id_prefix)
 
     async def _add_visualization_subscription(
         self, topic_str: str, stream_id: str
@@ -567,7 +906,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     if not hasattr(
                         self._visualization_broker_input, "add_subscription"
                     ) or not callable(
-                        getattr(self._visualization_broker_input, "add_subscription")
+                        self._visualization_broker_input.add_subscription
                     ):
                         log.error(
                             "%s Visualization BrokerInput does not support dynamic 'add_subscription'. "
@@ -682,9 +1021,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             try:
                 if not hasattr(
                     self._visualization_broker_input, "remove_subscription"
-                ) or not callable(
-                    getattr(self._visualization_broker_input, "remove_subscription")
-                ):
+                ) or not callable(self._visualization_broker_input.remove_subscription):
                     log.error(
                         "%s Visualization BrokerInput does not support dynamic 'remove_subscription'. "
                         "Please upgrade the 'solace-ai-connector' module. Cannot remove subscription '%s'.",
@@ -771,7 +1108,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     async def _extract_initial_claims(
         self, external_event_data: Any
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Extracts initial identity claims from the incoming external event.
         For the WebUI, this means inspecting the FastAPIRequest.
@@ -789,6 +1126,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         request = external_event_data
         try:
+            user_info = {}
             if hasattr(request.state, "user") and request.state.user:
                 user_info = request.state.user
                 username = user_info.get("username")
@@ -798,7 +1136,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         log_id_prefix,
                         username,
                     )
-                    return {"id": username, "name": username, "email": username}
+                    return {"id": username, "name": username, "email": username, "user_info": user_info}
 
             log.debug(
                 "%s No authenticated user in request.state, falling back to SessionManager.",
@@ -808,7 +1146,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             log.debug(
                 "%s Extracted user_id '%s' via SessionManager.", log_id_prefix, user_id
             )
-            return {"id": user_id, "name": user_id}
+            return {"id": user_id, "name": user_id, "user_info": user_info}
 
         except Exception as e:
             log.error("%s Failed to extract user_id from request: %s", log_id_prefix, e)
@@ -827,18 +1165,30 @@ class WebUIBackendComponent(BaseGatewayComponent):
             return
 
         try:
-            from ...gateway.http_sse.main import (
-                app as fastapi_app_instance,
-            )
-            from ...gateway.http_sse.main import (
-                setup_dependencies,
-            )
+            from ...gateway.http_sse.main import app as fastapi_app_instance
+            from ...gateway.http_sse.main import setup_dependencies
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self)
+            setup_dependencies(self, self.database_url)
 
-            port = self.fastapi_https_port if self.ssl_keyfile and self.ssl_certfile else self.fastapi_port
+            # Instantiate services that depend on the database session factory.
+            # This must be done *after* setup_dependencies has run.
+            session_factory = dependencies.SessionLocal if self.database_url else None
+            task_logging_config = self.get_config("task_logging", {})
+            self.task_logger_service = TaskLoggerService(
+                session_factory=session_factory, config=task_logging_config
+            )
+            log.info(
+                "%s Services dependent on database session factory have been initialized.",
+                self.log_identifier,
+            )
+
+            port = (
+                self.fastapi_https_port
+                if self.ssl_keyfile and self.ssl_certfile
+                else self.fastapi_port
+            )
 
             config = uvicorn.Config(
                 app=self.fastapi_app,
@@ -891,6 +1241,35 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 "%s Visualization message processor task already running.",
                                 self.log_identifier,
                             )
+
+                        task_logging_config = self.get_config("task_logging", {})
+                        if task_logging_config.get("enabled", False):
+                            log.info(
+                                "%s Task logging is enabled. Ensuring flow is running...",
+                                self.log_identifier,
+                            )
+                            self._ensure_task_logger_flow_is_running()
+
+                            if (
+                                self._task_logger_processor_task is None
+                                or self._task_logger_processor_task.done()
+                            ):
+                                log.info(
+                                    "%s Starting task logger processor task.",
+                                    self.log_identifier,
+                                )
+                                self._task_logger_processor_task = (
+                                    self.fastapi_event_loop.create_task(
+                                        self._task_logger_loop()
+                                    )
+                                )
+                            else:
+                                log.info(
+                                    "%s Task logger processor task already running.",
+                                    self.log_identifier,
+                                )
+                        else:
+                            log.info("%s Task logging is disabled.", self.log_identifier)
                     else:
                         log.error(
                             "%s FastAPI event loop not captured. Cannot start visualization processor.",
@@ -926,7 +1305,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
 
         except Exception as e:
-            log.exception(
+            log.error(
                 "%s [_start_listener] Failed to start FastAPI/Uvicorn server: %s",
                 self.log_identifier,
                 e,
@@ -935,14 +1314,27 @@ class WebUIBackendComponent(BaseGatewayComponent):
             raise
 
     def publish_a2a(
-        self, topic: str, payload: Dict, user_properties: Optional[Dict] = None
+        self, topic: str, payload: dict, user_properties: dict | None = None
     ):
         """
         Publishes an A2A message using the SAC App's send_message method.
         This method can be called from FastAPI handlers (via dependency injection).
         It's thread-safe as it uses the SAC App instance.
         """
-        super().publish_a2a_message(topic, payload, user_properties)
+        log.debug(f"[publish_a2a] Starting to publish message to topic: {topic}")
+        log.debug(
+            f"[publish_a2a] Payload type: {type(payload)}, size: {len(str(payload))} chars"
+        )
+        log.debug(f"[publish_a2a] User properties: {user_properties}")
+
+        try:
+            super().publish_a2a_message(payload, topic, user_properties)
+            log.debug(
+                f"[publish_a2a] Successfully called super().publish_a2a_message for topic: {topic}"
+            )
+        except Exception as e:
+            log.error(f"[publish_a2a] Exception in publish_a2a: {e}", exc_info=True)
+            raise
 
     def _cleanup_visualization_locks(self):
         """Remove locks for closed event loops to prevent memory leaks."""
@@ -961,9 +1353,23 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def cleanup(self):
         """Gracefully shuts down the component and the FastAPI server."""
         log.info("%s Cleaning up Web UI Backend Component...", self.log_identifier)
+        
+        # Cancel timers
+        self.cancel_timer(self._sse_cleanup_timer_id)
+        if self._data_retention_timer_id:
+            self.cancel_timer(self._data_retention_timer_id)
+            log.info("%s Cancelled data retention cleanup timer.", self.log_identifier)
+        
+        # Clean up data retention service
+        if self.data_retention_service:
+            self.data_retention_service = None
+            log.info("%s Data retention service cleaned up.", self.log_identifier)
+        
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
         if self._visualization_message_queue:
             self._visualization_message_queue.put(None)
+        if self._task_logger_queue:
+            self._task_logger_queue.put(None)
 
         if (
             self._visualization_processor_task
@@ -973,6 +1379,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Cancelling visualization processor task...", self.log_identifier
             )
             self._visualization_processor_task.cancel()
+
+        if self._task_logger_processor_task and not self._task_logger_processor_task.done():
+            log.info("%s Cancelling task logger processor task...", self.log_identifier)
+            self._task_logger_processor_task.cancel()
 
         if self._visualization_internal_app:
             log.info(
@@ -987,21 +1397,63 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     e,
                 )
 
+        if self._task_logger_internal_app:
+            log.info("%s Cleaning up internal task logger app...", self.log_identifier)
+            try:
+                self._task_logger_internal_app.cleanup()
+            except Exception as e:
+                log.error(
+                    "%s Error cleaning up internal task logger app: %s",
+                    self.log_identifier,
+                    e,
+                )
+
         self._active_visualization_streams.clear()
         self._global_visualization_subscriptions.clear()
         self._cleanup_visualization_locks()
         log.info("%s Visualization resources cleaned up.", self.log_identifier)
 
+        super().cleanup()
+
+        if self.fastapi_thread and self.fastapi_thread.is_alive():
+            log.info(
+                "%s Waiting for FastAPI server thread to exit...", self.log_identifier
+            )
+            self.fastapi_thread.join(timeout=10)
+            if self.fastapi_thread.is_alive():
+                log.warning(
+                    "%s FastAPI server thread did not exit gracefully.",
+                    self.log_identifier,
+                )
+
+        if self.sse_manager:
+            log.info(
+                "%s Closing active SSE connections (best effort)...",
+                self.log_identifier,
+            )
+            try:
+                asyncio.run(self.sse_manager.close_all())
+            except Exception as sse_close_err:
+                log.error(
+                    "%s Error closing SSE connections during cleanup: %s",
+                    self.log_identifier,
+                    sse_close_err,
+                )
+
+        log.info("%s Web UI Backend Component cleanup finished.", self.log_identifier)
+
     def _infer_visualization_event_details(
-        self, topic: str, payload: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, topic: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Infers details for the visualization SSE payload from the Solace topic and A2A message.
+        This version is updated to parse the official A2A SDK message formats.
         """
         details = {
             "direction": "unknown",
             "source_entity": "unknown",
             "target_entity": "unknown",
+            "debug_type": "unknown",
             "message_id": payload.get("id"),
             "task_id": None,
             "payload_summary": {
@@ -1010,135 +1462,151 @@ class WebUIBackendComponent(BaseGatewayComponent):
             },
         }
 
-        topic_parts = topic.split("/")
-
+        # --- Phase 1: Parse the payload to extract core info ---
         try:
-            a2a_base_index = topic_parts.index("a2a")
-            domain_index = a2a_base_index + 2
-            action_type_index = a2a_base_index + 3
-            entity_name_index = a2a_base_index + 4
-            task_id_from_topic_index = a2a_base_index + 5
+            # Handle SAM Events (system events)
+            event_type = payload.get("event_type")
+            if event_type:
+                details["direction"] = "system_event"
+                details["debug_type"] = "sam_event"
+                details["payload_summary"]["method"] = event_type
+                details["source_entity"] = payload.get("source_component", "unknown")
+                details["target_entity"] = "system"
+                return details
 
-            domain = (
-                topic_parts[domain_index] if len(topic_parts) > domain_index else None
-            )
-            action_type = (
-                topic_parts[action_type_index]
-                if len(topic_parts) > action_type_index
-                else None
-            )
-            entity_name = (
-                topic_parts[entity_name_index]
-                if len(topic_parts) > entity_name_index
-                else None
-            )
+            # Try to parse as a JSON-RPC response first
+            if "result" in payload or "error" in payload:
+                rpc_response = JSONRPCResponse.model_validate(payload)
+                result = a2a.get_response_result(rpc_response)
+                error = a2a.get_response_error(rpc_response)
+                details["message_id"] = a2a.get_response_id(rpc_response)
 
-            if domain == "agent":
-                if action_type == "request":
-                    details["direction"] = "request"
-                    details["target_entity"] = entity_name
-                    user_props = (
-                        payload.get("params", {})
-                        .get("metadata", {})
-                        .get("solaceUserProperties", {})
+                if result:
+                    kind = getattr(result, "kind", None)
+                    details["direction"] = kind or "response"
+                    details["task_id"] = getattr(result, "task_id", None) or getattr(
+                        result, "id", None
                     )
-                    details["source_entity"] = (
-                        user_props.get("clientId")
-                        or user_props.get("delegating_agent_name")
-                        or self.gateway_id
+
+                    if isinstance(result, TaskStatusUpdateEvent):
+                        details["source_entity"] = (
+                            result.metadata.get("agent_name")
+                            if result.metadata
+                            else None
+                        )
+                        message = a2a.get_message_from_status_update(result)
+                        if message:
+                            if not details["source_entity"]:
+                                details["source_entity"] = (
+                                    message.metadata.get("agent_name")
+                                    if message.metadata
+                                    else None
+                                )
+                            data_parts = a2a.get_data_parts_from_message(message)
+                            if data_parts:
+                                details["debug_type"] = data_parts[0].data.get(
+                                    "type", "unknown"
+                                )
+                            elif a2a.get_text_from_message(message):
+                                details["debug_type"] = "streaming_text"
+                    elif isinstance(result, Task):
+                        details["source_entity"] = (
+                            result.metadata.get("agent_name")
+                            if result.metadata
+                            else None
+                        )
+                    elif isinstance(result, TaskArtifactUpdateEvent):
+                        artifact = a2a.get_artifact_from_artifact_update(result)
+                        if artifact:
+                            details["source_entity"] = (
+                                artifact.metadata.get("agent_name")
+                                if artifact.metadata
+                                else None
+                            )
+                elif error:
+                    details["direction"] = "error_response"
+                    details["task_id"] = (
+                        error.data.get("taskId")
+                        if isinstance(error.data, dict)
+                        else None
                     )
-                elif action_type == "response":
-                    details["direction"] = "response"
-                    details["source_entity"] = entity_name
-                    details["target_entity"] = (
-                        payload.get("result", {}).get("metadata", {}).get("clientId")
+                    details["debug_type"] = "error"
+
+            # Try to parse as a JSON-RPC request
+            elif "method" in payload:
+                rpc_request = A2ARequest.model_validate(payload)
+                method = a2a.get_request_method(rpc_request)
+                details["direction"] = "request"
+                details["payload_summary"]["method"] = method
+                details["message_id"] = a2a.get_request_id(rpc_request)
+
+                if method in ["message/send", "message/stream"]:
+                    details["debug_type"] = method
+                    message = a2a.get_message_from_send_request(rpc_request)
+                    details["task_id"] = a2a.get_request_id(rpc_request)
+                    if message:
+                        details["target_entity"] = (
+                            message.metadata.get("agent_name")
+                            if message.metadata
+                            else None
+                        )
+                elif method == "tasks/cancel":
+                    details["task_id"] = a2a.get_task_id_from_cancel_request(
+                        rpc_request
                     )
-                elif action_type == "status":
-                    details["direction"] = "status_update"
-                    details["source_entity"] = entity_name
-                    details["target_entity"] = (
-                        payload.get("result", {}).get("metadata", {}).get("clientId")
-                    )
-            elif domain == "gateway":
-                if action_type == "response":
-                    details["direction"] = "response"
-                    details["source_entity"] = (
-                        payload.get("result", {})
-                        .get("status", {})
-                        .get("message", {})
-                        .get("metadata", {})
-                        .get("agent_name", "unknown_agent")
-                    )
-                    details["target_entity"] = entity_name
-                elif action_type == "status":
-                    details["direction"] = "status_update"
-                    details["source_entity"] = (
-                        payload.get("result", {})
-                        .get("status", {})
-                        .get("message", {})
-                        .get("metadata", {})
-                        .get("agent_name", "unknown_agent")
-                    )
-                    details["target_entity"] = entity_name
-            elif domain == "discovery" and action_type == "agentcards":
+
+            # Handle Discovery messages (which are not JSON-RPC)
+            elif "/a2a/v1/discovery/" in topic:
+                agent_card = AgentCard.model_validate(payload)
                 details["direction"] = "discovery"
-                details["source_entity"] = payload.get("name", "unknown_agent")
+                details["source_entity"] = agent_card.name
                 details["target_entity"] = "broadcast"
+                details["message_id"] = None  # Discovery has no ID
 
-            if payload.get("method") in [
-                "tasks/send",
-                "tasks/sendSubscribe",
-                "tasks/cancel",
-            ]:
-                details["task_id"] = payload.get("params", {}).get("id")
-            elif "result" in payload and isinstance(payload["result"], dict):
-                details["task_id"] = payload["result"].get("id")
-            elif len(topic_parts) > task_id_from_topic_index and (
-                action_type == "status" or action_type == "response"
-            ):
-                details["task_id"] = topic_parts[task_id_from_topic_index]
-
-        except (ValueError, IndexError):
-            log.debug(
-                "%s Could not parse A2A structure from topic: %s",
+        except Exception as e:
+            log.warning(
+                "[%s] Failed to parse A2A payload for visualization details: %s",
                 self.log_identifier,
-                topic,
+                e,
             )
+
+        # --- Phase 2: Refine details using topic information as a fallback ---
+        if details["direction"] == "unknown":
             if "request" in topic:
                 details["direction"] = "request"
             elif "response" in topic:
                 details["direction"] = "response"
             elif "status" in topic:
                 details["direction"] = "status_update"
-            elif "discovery" in topic:
-                details["direction"] = "discovery"
+                # TEMP - add debug_type based on the type in the data
+                details["debug_type"] = "unknown"
 
-        if "params" in payload:
-            params_str = json.dumps(payload["params"])
-            details["payload_summary"]["params_preview"] = (
-                (params_str[:100] + "...") if len(params_str) > 100 else params_str
+        # --- Phase 3: Create a payload summary ---
+        try:
+            summary_source = (
+                payload.get("result")
+                or payload.get("params")
+                or payload.get("error")
+                or payload
             )
-        elif "result" in payload:
-            result_str = json.dumps(payload["result"])
+            summary_str = json.dumps(summary_source)
             details["payload_summary"]["params_preview"] = (
-                (result_str[:100] + "...") if len(result_str) > 100 else result_str
+                (summary_str[:100] + "...") if len(summary_str) > 100 else summary_str
             )
-        elif "error" in payload:
-            details["payload_summary"]["method"] = "JSONRPCError"
-            error_str = json.dumps(payload["error"])
-            details["payload_summary"]["params_preview"] = (
-                (error_str[:100] + "...") if len(error_str) > 100 else error_str
-            )
+        except Exception:
+            details["payload_summary"][
+                "params_preview"
+            ] = "[Could not serialize payload]"
 
         return details
 
     def _extract_involved_agents_for_viz(
-        self, topic: str, payload_dict: Dict[str, Any]
-    ) -> Set[str]:
+        self, topic: str, payload_dict: dict[str, Any]
+    ) -> set[str]:
         """
         Extracts agent names involved in a message from its topic and payload.
         """
-        agents: Set[str] = set()
+        agents: set[str] = set()
         log_id_prefix = f"{self.log_identifier}[ExtractAgentsViz]"
 
         topic_agent_match = re.match(
@@ -1220,35 +1688,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
         return agents
 
-        super().cleanup()
-
-        if self.fastapi_thread and self.fastapi_thread.is_alive():
-            log.info(
-                "%s Waiting for FastAPI server thread to exit...", self.log_identifier
-            )
-            self.fastapi_thread.join(timeout=10)
-            if self.fastapi_thread.is_alive():
-                log.warning(
-                    "%s FastAPI server thread did not exit gracefully.",
-                    self.log_identifier,
-                )
-
-        if self.sse_manager:
-            log.info(
-                "%s Closing active SSE connections (best effort)...",
-                self.log_identifier,
-            )
-            try:
-                asyncio.run(self.sse_manager.close_all())
-            except Exception as sse_close_err:
-                log.error(
-                    "%s Error closing SSE connections during cleanup: %s",
-                    self.log_identifier,
-                    sse_close_err,
-                )
-
-        log.info("%s Web UI Backend Component cleanup finished.", self.log_identifier)
-
     def get_agent_registry(self) -> AgentRegistry:
         return self.agent_registry
 
@@ -1258,6 +1697,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def get_session_manager(self) -> SessionManager:
         return self.session_manager
 
+    def get_task_logger_service(self) -> TaskLoggerService | None:
+        """Returns the shared TaskLoggerService instance."""
+        return self.task_logger_service
+
     def get_namespace(self) -> str:
         return self.namespace
 
@@ -1265,13 +1708,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """Returns the unique identifier for this gateway instance."""
         return self.gateway_id
 
-    def get_cors_origins(self) -> List[str]:
+    def get_cors_origins(self) -> list[str]:
         return self.cors_allowed_origins
 
-    def get_shared_artifact_service(self) -> Optional[BaseArtifactService]:
+    def get_shared_artifact_service(self) -> BaseArtifactService | None:
         return self.shared_artifact_service
 
-    def get_embed_config(self) -> Dict[str, Any]:
+    def get_embed_config(self) -> dict[str, Any]:
         """Returns embed-related configuration needed by dependencies."""
         return {
             "enable_embed_resolution": self.enable_embed_resolution,
@@ -1286,6 +1729,52 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def get_config_resolver(self) -> ConfigResolver:
         """Returns the instance of the ConfigResolver."""
         return self._config_resolver
+
+    async def _resolve_embeds_for_persistence(
+        self, message_content: str, session_id: str, user_id: str, log_identifier: str
+    ) -> str:
+        """
+        Resolves embeds in a message for database storage.
+        Returns the resolved text.
+
+        Args:
+            message_content: The message text that may contain embeds
+            session_id: The A2A session ID
+            user_id: The user ID
+            log_identifier: Logging identifier
+
+        Returns:
+            The message with embeds resolved (or original if resolution fails)
+        """
+        try:
+            embed_context = {
+                "artifact_service": self.shared_artifact_service,
+                "session_context": {
+                    "app_name": self.gateway_id,
+                    "user_id": user_id,
+                    "session_id": session_id,
+                },
+                "config": self.get_embed_config(),
+            }
+
+            resolved_text, _, _ = await resolve_embeds_in_string(
+                text=message_content,
+                context=embed_context,
+                resolver_func=evaluate_embed,
+                types_to_resolve=EARLY_EMBED_TYPES,
+                log_identifier=log_identifier,
+                config=embed_context["config"],
+            )
+
+            return resolved_text
+
+        except Exception as e:
+            log.warning(
+                "%s Error resolving embeds for storage: %s. Using original message.",
+                log_identifier,
+                e,
+            )
+            return message_content
 
     def _start_listener(self) -> None:
         """
@@ -1308,8 +1797,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
         pass
 
     async def _translate_external_input(
-        self, external_event_data: Dict[str, Any]
-    ) -> Tuple[str, List[A2APart], Dict[str, Any]]:
+        self, external_event_data: dict[str, Any]
+    ) -> tuple[str, list[ContentPart], dict[str, Any]]:
         """
         Translates raw HTTP request data (from FastAPI form) into A2A task parameters.
 
@@ -1321,7 +1810,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         Returns:
             A tuple containing:
             - target_agent_name (str): The name of the A2A agent to target.
-            - a2a_parts (List[A2APart]): A list of A2A Part objects for the message.
+            - a2a_parts (List[ContentPart]): A list of unwrapped A2A Part objects.
             - external_request_context (Dict[str, Any]): Context for TaskContextManager.
         """
         log_id_prefix = f"{self.log_identifier}[TranslateInput]"
@@ -1333,10 +1822,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         target_agent_name: str = external_event_data.get("agent_name")
         user_message: str = external_event_data.get("message", "")
-        files: Optional[List[UploadFile]] = external_event_data.get("files")
+        files: list[UploadFile] | None = external_event_data.get("files")
         client_id: str = external_event_data.get("client_id")
         a2a_session_id: str = external_event_data.get("a2a_session_id")
-
         if not target_agent_name:
             raise ValueError("Target agent name is missing in external_event_data.")
         if not client_id or not a2a_session_id:
@@ -1344,10 +1832,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "Client ID or A2A Session ID is missing in external_event_data."
             )
 
-        a2a_parts: List[A2APart] = []
+        a2a_parts: list[ContentPart] = []
 
-        if files and self.shared_artifact_service:
-            file_metadata_summary_parts = []
+        if files:
             for upload_file in files:
                 try:
                     content_bytes = await upload_file.read()
@@ -1358,52 +1845,21 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             upload_file.filename,
                         )
                         continue
-                    save_result = await save_artifact_with_metadata(
-                        artifact_service=self.shared_artifact_service,
-                        app_name=self.gateway_id,
-                        user_id=client_id,
-                        session_id=a2a_session_id,
-                        filename=upload_file.filename,
-                        content_bytes=content_bytes,
-                        mime_type=upload_file.content_type
-                        or "application/octet-stream",
-                        metadata_dict={
-                            "source": "webui_gateway_upload",
-                            "original_filename": upload_file.filename,
-                            "upload_timestamp_utc": datetime.now(
-                                timezone.utc
-                            ).isoformat(),
-                            "gateway_id": self.gateway_id,
-                            "web_client_id": client_id,
-                            "a2a_session_id": a2a_session_id,
-                        },
-                        timestamp=datetime.now(timezone.utc),
-                    )
 
-                    if save_result["status"] in ["success", "partial_success"]:
-                        data_version = save_result.get("data_version", 0)
-                        artifact_uri = f"artifact://{self.gateway_id}/{client_id}/{a2a_session_id}/{upload_file.filename}?version={data_version}"
-                        file_content = FileContent(
-                            name=upload_file.filename,
-                            mimeType=upload_file.content_type,
-                            uri=artifact_uri,
-                        )
-                        a2a_parts.append(FilePart(file=file_content))
-                        file_metadata_summary_parts.append(
-                            f"- {upload_file.filename} ({upload_file.content_type}, {len(content_bytes)} bytes, URI: {artifact_uri})"
-                        )
-                        log.info(
-                            "%s Processed and created URI for uploaded file: %s",
-                            log_id_prefix,
-                            artifact_uri,
-                        )
-                    else:
-                        log.error(
-                            "%s Failed to save artifact %s: %s",
-                            log_id_prefix,
-                            upload_file.filename,
-                            save_result.get("message"),
-                        )
+                    # The BaseGatewayComponent will handle normalization based on policy.
+                    # Here, we just create the FilePart with inline bytes.
+                    file_part = a2a.create_file_part_from_bytes(
+                        content_bytes=content_bytes,
+                        name=upload_file.filename,
+                        mime_type=upload_file.content_type,
+                    )
+                    a2a_parts.append(file_part)
+                    log.info(
+                        "%s Created inline FilePart for uploaded file: %s (%d bytes)",
+                        log_id_prefix,
+                        upload_file.filename,
+                        len(content_bytes),
+                    )
 
                 except Exception as e:
                     log.exception(
@@ -1415,15 +1871,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 finally:
                     await upload_file.close()
 
-            if file_metadata_summary_parts:
-                user_message = (
-                    "The user uploaded the following file(s):\n"
-                    + "\n".join(file_metadata_summary_parts)
-                    + f"\n\nUser message: {user_message}"
-                )
-
         if user_message:
-            a2a_parts.append(TextPart(text=user_message))
+            a2a_parts.append(a2a.create_text_part(text=user_message))
 
         external_request_context = {
             "app_name_for_artifacts": self.gateway_id,
@@ -1443,17 +1892,23 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     async def _send_update_to_external(
         self,
-        external_request_context: Dict[str, Any],
-        event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent],
+        external_request_context: dict[str, Any],
+        event_data: TaskStatusUpdateEvent | TaskArtifactUpdateEvent,
         is_final_chunk_of_update: bool,
     ) -> None:
         """
         Sends an intermediate update (TaskStatusUpdateEvent or TaskArtifactUpdateEvent)
-        to the external platform (Web UI via SSE).
+        to the external platform (Web UI via SSE) and stores agent messages in the database.
         """
         log_id_prefix = f"{self.log_identifier}[SendUpdate]"
         sse_task_id = external_request_context.get("a2a_task_id_for_event")
-        a2a_task_id = event_data.id
+        a2a_task_id = event_data.task_id
+
+        log.debug(
+            "%s _send_update_to_external called with event_type: %s",
+            log_id_prefix,
+            type(event_data).__name__,
+        )
 
         if not sse_task_id:
             log.error(
@@ -1474,9 +1929,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
         if isinstance(event_data, TaskArtifactUpdateEvent):
             sse_event_type = "artifact_update"
 
-        sse_payload = JSONRPCResponse(id=a2a_task_id, result=event_data).model_dump(
-            exclude_none=True
+        sse_payload_model = a2a.create_success_response(
+            result=event_data, request_id=a2a_task_id
         )
+        sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 
         try:
             await self.sse_manager.send_event(
@@ -1488,6 +1944,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 sse_event_type,
                 a2a_task_id,
             )
+
+            # Note: Agent message storage is handled in _send_final_response_to_external
+            # to avoid duplicate storage of intermediate status updates
+
         except Exception as e:
             log.exception(
                 "%s Failed to send %s via SSE for A2A Task ID %s: %s",
@@ -1498,7 +1958,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
 
     async def _send_final_response_to_external(
-        self, external_request_context: Dict[str, Any], task_data: Task
+        self, external_request_context: dict[str, Any], task_data: Task
     ) -> None:
         """
         Sends the final A2A Task result to the external platform (Web UI via SSE).
@@ -1506,6 +1966,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log_id_prefix = f"{self.log_identifier}[SendFinalResponse]"
         sse_task_id = external_request_context.get("a2a_task_id_for_event")
         a2a_task_id = task_data.id
+
+        log.debug("%s _send_final_response_to_external called", log_id_prefix)
 
         if not sse_task_id:
             log.error(
@@ -1521,9 +1983,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
             sse_task_id,
         )
 
-        sse_payload = JSONRPCResponse(id=a2a_task_id, result=task_data).model_dump(
-            exclude_none=True
+        sse_payload_model = a2a.create_success_response(
+            result=task_data, request_id=a2a_task_id
         )
+        sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 
         try:
             await self.sse_manager.send_event(
@@ -1534,6 +1997,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log_id_prefix,
                 a2a_task_id,
             )
+
         except Exception as e:
             log.exception(
                 "%s Failed to send final_response via SSE for A2A Task ID %s: %s",
@@ -1550,7 +2014,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
 
     async def _send_error_to_external(
-        self, external_request_context: Dict[str, Any], error_data: JSONRPCError
+        self, external_request_context: dict[str, Any], error_data: JSONRPCError
     ) -> None:
         """
         Sends an error notification to the external platform (Web UI via SSE).
@@ -1572,10 +2036,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
             error_data,
         )
 
-        sse_payload = JSONRPCResponse(
-            id=external_request_context.get("original_rpc_id", sse_task_id),
+        sse_payload_model = a2a.create_error_response(
             error=error_data,
-        ).model_dump(exclude_none=True)
+            request_id=external_request_context.get("original_rpc_id", sse_task_id),
+        )
+        sse_payload = sse_payload_model.model_dump(by_alias=True, exclude_none=True)
 
         try:
             await self.sse_manager.send_event(

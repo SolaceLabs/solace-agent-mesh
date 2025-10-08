@@ -1,21 +1,255 @@
-import pytest
+import inspect
+import os
+import socket
+import subprocess
+import sys
+import tempfile
 import time
+from collections.abc import Generator
+from pathlib import Path
+from typing import Any
 
-
-from src.solace_agent_mesh.agent.sac.app import SamAgentApp
-from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
-from src.solace_agent_mesh.agent.tools.registry import tool_registry
-from tests.integration.infrastructure.gateway_interface.app import TestGatewayApp
-from tests.integration.infrastructure.gateway_interface.component import (
-    TestGatewayComponent,
+import httpx
+import pytest
+import sqlalchemy as sa
+from a2a.types import (
+    AgentCard,
+    AgentSkill,
+    PushNotificationConfig,
+    Task,
+    TaskPushNotificationConfig,
+    TaskState,
+    TaskStatusUpdateEvent,
 )
-from tests.integration.infrastructure.llm_server.server import TestLLMServer
-from tests.integration.infrastructure.artifact_service.service import (
-    TestInMemoryArtifactService,
-)
-
-from tests.integration.infrastructure.a2a_validator.validator import A2AMessageValidator
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
+from fastapi.testclient import TestClient
+from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
+from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
+from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
+from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
+from sam_test_infrastructure.llm_server.server import TestLLMServer
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+from sqlalchemy import create_engine, text
+
+from solace_agent_mesh.agent.sac.app import SamAgentApp
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.tools.registry import tool_registry
+from solace_agent_mesh.common import a2a
+from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+
+
+@pytest.fixture(scope="session")
+def test_db_engine():
+    """
+    Creates a temporary SQLite database for the test session, runs migrations,
+    and yields the SQLAlchemy engine.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "test_integration.db"
+        database_url = f"sqlite:///{db_path}"
+        print(f"\n[SessionFixture] Creating test database at: {database_url}")
+
+        engine = create_engine(database_url)
+        
+        # Enable foreign keys for SQLite (database-agnostic approach)
+        from sqlalchemy import event
+        
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_conn, connection_record):
+            if database_url.startswith('sqlite'):
+                cursor = dbapi_conn.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+
+        # Run Alembic migrations
+        alembic_cfg = AlembicConfig()
+        # The script location is relative to the project root
+        script_location = "src/solace_agent_mesh/gateway/http_sse/alembic"
+        alembic_cfg.set_main_option("script_location", script_location)
+        alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+
+        alembic_command.upgrade(alembic_cfg, "head")
+        print("[SessionFixture] Database migrations applied.")
+
+        yield engine
+
+        engine.dispose()
+        print("[SessionFixture] Test database engine disposed.")
+
+
+@pytest.fixture(autouse=True)
+def clean_db_fixture(test_db_engine):
+    """
+    Cleans all data from the test database before each test run.
+    """
+    with test_db_engine.connect() as connection:
+        with connection.begin():
+            inspector = sa.inspect(test_db_engine)
+            existing_tables = inspector.get_table_names()
+
+            # Delete in correct order to handle foreign key constraints
+            tables_to_clean = [
+                "feedback",
+                "task_events",
+                "chat_messages",
+                "tasks",
+                "sessions",
+                "users",
+            ]
+            for table_name in tables_to_clean:
+                if table_name in existing_tables:
+                    connection.execute(text(f"DELETE FROM {table_name}"))
+    yield
+
+
+def find_free_port() -> int:
+    """Finds and returns an available TCP port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
+
+@pytest.fixture(scope="session")
+def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
+    """
+    Pytest fixture to manage the lifecycle of the TestMCPServer.
+
+    It starts the server in a separate process for HTTP and provides connection details
+    for both 'stdio' and 'http' transports.
+
+    Yields:
+        A dictionary containing the `connection_params` for both stdio and http.
+    """
+    # Import moved inside the fixture to prevent module-level side effects (e.g., middleware patching)
+    # from affecting other apps in the unified test harness.
+    from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
+
+    process = None
+    port = 0
+    SERVER_PATH = inspect.getfile(server_module)
+
+    try:
+        # Prepare stdio config
+        stdio_params = {
+            "type": "stdio",
+            "command": sys.executable,
+            "args": [SERVER_PATH, "--transport", "stdio"],
+        }
+        print("\nConfigured TestMCPServer for stdio mode (ADK will start process).")
+
+        # Start SSE HTTP server
+        port = find_free_port()
+        base_url = f"http://127.0.0.1:{port}"
+        sse_url = f"{base_url}/sse"  # The default path for fastmcp sse transport
+        command = [
+            sys.executable,
+            SERVER_PATH,
+            "--transport",
+            "sse",
+            "--port",
+            str(port),
+        ]
+        process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        print(f"\nStarted TestMCPServer in sse mode (PID: {process.pid})...")
+
+        # Start Streamable-http server
+        port = find_free_port()
+        base_url = f"http://127.0.0.1:{port}"
+        http_url = f"{base_url}/mcp"
+        health_url = f"{base_url}/health"
+
+        command = [
+            sys.executable,
+            SERVER_PATH,
+            "--transport",
+            "http",
+            "--port",
+            str(port),
+        ]
+        process2 = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        print(f"\nStarted TestMCPServer in streamable-http mode (PID: {process2.pid})...")
+
+        # Readiness check by polling the /health endpoint
+        max_wait_seconds = 10
+        start_time = time.time()
+        is_ready = False
+        while time.time() - start_time < max_wait_seconds:
+            try:
+                response = httpx.get(health_url, timeout=1)
+                if response.status_code == 200:
+                    print(f"TestMCPServer is ready on {base_url}.")
+                    is_ready = True
+                    break
+            except httpx.RequestError:
+                time.sleep(0.1)
+
+        if not is_ready:
+            pytest.fail(
+                f"Test MCP Server (http) failed to start on port {port} within {max_wait_seconds} seconds."
+            )
+
+        http_params = {
+            "type": "sse",  # 'sse' is the type used by the ADK's MCPToolset for http
+            "url": sse_url,
+        }
+
+        streamable_params = {
+            "type": "streamable-http",
+            "url": http_url,
+        }
+
+        connection_params = {"stdio": stdio_params, "http": http_params, "streamable_http": streamable_params}
+
+        yield connection_params
+
+    finally:
+        if process:
+            print(f"\nTerminating http TestMCPServer (PID: {process.pid})...")
+            process.terminate()
+            try:
+                stdout, stderr = process.communicate(timeout=5)
+                if stdout:
+                    print(
+                        f"\n--- TestMCPServer STDOUT ---\n{stdout.decode('utf-8', 'ignore')}"
+                    )
+                if stderr:
+                    print(
+                        f"\n--- TestMCPServer STDERR ---\n{stderr.decode('utf-8', 'ignore')}"
+                    )
+            except subprocess.TimeoutExpired:
+                process.kill()
+                print(
+                    "\nHttp TestMCPServer process did not terminate gracefully, had to be killed."
+                )
+            print("TestMCPServer (http) terminated.")
+        if process2:
+            print(f"\nTerminating streamable-http TestMCPServer (PID: {process2.pid})...")
+            process2.terminate()
+            try:
+                stdout, stderr = process2.communicate(timeout=5)
+                if stdout:
+                    print(
+                        f"\n--- TestMCPServer STDOUT ---\n{stdout.decode('utf-8', 'ignore')}"
+                    )
+                if stderr:
+                    print(
+                        f"\n--- TestMCPServer STDERR ---\n{stderr.decode('utf-8', 'ignore')}"
+                    )
+            except subprocess.TimeoutExpired:
+                process2.kill()
+                print(
+                    "\nStreamable-http TestMCPServer process did not terminate gracefully, had to be killed."
+                )
+            print("TestMCPServer (streamable-http) terminated.")
+
+        print(
+            "\nNo external TestMCPServer process to terminate for stdio mode (ADK manages process)."
+        )
 
 
 @pytest.fixture
@@ -112,13 +346,13 @@ def test_llm_server():
         time.sleep(retry_delay)
         try:
             if server.started:
-                print(f"TestLLMServer confirmed started after {i+1} attempts.")
+                print(f"TestLLMServer confirmed started after {i + 1} attempts.")
                 ready = True
                 break
-            print(f"TestLLMServer not ready yet (attempt {i+1}/{max_retries})...")
+            print(f"TestLLMServer not ready yet (attempt {i + 1}/{max_retries})...")
         except Exception as e:
             print(
-                f"TestLLMServer readiness check (attempt {i+1}/{max_retries}) encountered an error: {e}"
+                f"TestLLMServer readiness check (attempt {i + 1}/{max_retries}) encountered an error: {e}"
             )
 
     if not ready:
@@ -197,6 +431,8 @@ def shared_solace_connector(
     test_artifact_service_instance: TestInMemoryArtifactService,
     session_monkeypatch,
     request,
+    mcp_server_harness,
+    test_db_engine,
 ) -> SolaceAiConnector:
     """
     Creates and manages a single SolaceAiConnector instance with multiple agents
@@ -248,12 +484,6 @@ def shared_solace_connector(
     test_agent_tools = [
         {
             "tool_type": "python",
-            "component_module": "src.solace_agent_mesh.agent.tools.test_tools",
-            "function_name": "time_delay",
-            "component_base_path": ".",
-        },
-        {
-            "tool_type": "python",
             "component_module": "tests.integration.test_support.tools",
             "function_name": "get_weather_tool",
             "component_base_path": ".",
@@ -277,7 +507,7 @@ def shared_solace_connector(
             "tool_type": "builtin",
             "tool_name": "describe_image",
             "tool_config": {
-                "model": "gpt-4-vision-preview",
+                "model": f"openai/test-model-sam-vision-{time.time_ns()}",
                 "api_key": "fake-api-key",
                 "api_base": f"{test_llm_server.url}",
             },
@@ -299,6 +529,21 @@ def shared_solace_connector(
                 "gemini_api_key": "fake-gemini-api-key",
             },
         },
+        {
+            "tool_type": "mcp",
+            "tool_name": "get_data_stdio",
+            "connection_params": mcp_server_harness["stdio"],
+        },
+        {
+            "tool_type": "mcp",
+            "tool_name": "get_data_http",
+            "connection_params": mcp_server_harness["http"],
+        },
+        {
+            "tool_type": "mcp",
+            "tool_name": "get_data_streamable_http",
+            "connection_params": mcp_server_harness["streamable_http"],
+        }
     ]
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",
@@ -342,36 +587,138 @@ def shared_solace_connector(
         model_suffix="peerD",
     )
 
+    combined_dynamic_agent_config = create_agent_config(
+        agent_name="CombinedDynamicAgent",
+        description="Agent for testing all dynamic tool features.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.single_tool",
+                "tool_config": {"greeting_prefix": "Hi there"},
+            },
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.provider_tool",
+            },
+        ],
+        model_suffix="dynamic-combined",
+    )
+
+    empty_provider_agent_config = create_agent_config(
+        agent_name="EmptyProviderAgent",
+        description="Agent with an empty tool provider.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.error_cases",
+                "class_name": "EmptyToolProvider",
+            }
+        ],
+        model_suffix="empty-provider",
+    )
+
+    docstringless_agent_config = create_agent_config(
+        agent_name="DocstringlessAgent",
+        description="Agent with a tool that has no docstring.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.error_cases",
+                "class_name": "ProviderWithDocstringlessTool",
+            }
+        ],
+        model_suffix="docstringless",
+    )
+
+    mixed_discovery_agent_config = create_agent_config(
+        agent_name="MixedDiscoveryAgent",
+        description="Agent with a module containing both provider and standalone tool.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.mixed_discovery",
+            }
+        ],
+        model_suffix="mixed-discovery",
+    )
+
+    complex_signatures_agent_config = create_agent_config(
+        agent_name="ComplexSignaturesAgent",
+        description="Agent for testing complex tool signatures.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.complex_signatures",
+            }
+        ],
+        model_suffix="complex-signatures",
+    )
+
+    config_context_agent_config = create_agent_config(
+        agent_name="ConfigContextAgent",
+        description="Agent for testing tool config and context features.",
+        allow_list=[],
+        tools=[
+            {
+                "tool_type": "python",
+                "component_module": "tests.integration.test_support.dynamic_tools.config_and_context",
+                "tool_config": {"provider_level": "value1", "tool_specific": "value2"},
+            }
+        ],
+        model_suffix="config-context",
+    )
+
     app_infos = [
+        {
+            "name": "WebUIBackendApp",
+            "app_module": "solace_agent_mesh.gateway.http_sse.app",
+            "broker": {"dev_mode": True},
+            "app_config": {
+                "namespace": "test_namespace",
+                "gateway_id": "TestWebUIGateway_01",
+                "session_secret_key": "a_secure_test_secret_key",
+                "session_service": {
+                    "type": "sql",
+                    "database_url": str(test_db_engine.url),
+                },
+                "task_logging": {"enabled": True},
+                "artifact_service": {"type": "test_in_memory"},
+            },
+        },
         {
             "name": "TestSamAgentApp",
             "app_config": sam_agent_app_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.solace_agent_mesh.agent.sac.app",
+            "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentA_App",
             "app_config": peer_a_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.solace_agent_mesh.agent.sac.app",
+            "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentB_App",
             "app_config": peer_b_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.solace_agent_mesh.agent.sac.app",
+            "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentC_App",
             "app_config": peer_c_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.solace_agent_mesh.agent.sac.app",
+            "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestPeerAgentD_App",
             "app_config": peer_d_config,
             "broker": {"dev_mode": True},
-            "app_module": "src.solace_agent_mesh.agent.sac.app",
+            "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
             "name": "TestHarnessGatewayApp",
@@ -381,12 +728,48 @@ def shared_solace_connector(
                 "artifact_service": {"type": "test_in_memory"},
             },
             "broker": {"dev_mode": True},
-            "app_module": "tests.integration.infrastructure.gateway_interface.app",
+            "app_module": "sam_test_infrastructure.gateway_interface.app",
+        },
+        {
+            "name": "CombinedDynamicAgent_App",
+            "app_config": combined_dynamic_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "EmptyProviderAgent_App",
+            "app_config": empty_provider_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "DocstringlessAgent_App",
+            "app_config": docstringless_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "MixedDiscoveryAgent_App",
+            "app_config": mixed_discovery_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "ComplexSignaturesAgent_App",
+            "app_config": complex_signatures_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "ConfigContextAgent_App",
+            "app_config": config_context_agent_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
         },
     ]
 
     session_monkeypatch.setattr(
-        "src.solace_agent_mesh.agent.adk.services.TestInMemoryArtifactService",
+        "solace_agent_mesh.agent.adk.services.TestInMemoryArtifactService",
         lambda: test_artifact_service_instance,
     )
 
@@ -411,15 +794,15 @@ def shared_solace_connector(
 
     # Allow time for agent card discovery messages to be exchanged before any test runs
     print("shared_solace_connector fixture: Waiting for agent discovery...")
-    time.sleep(2)
+    time.sleep(5)
     print("shared_solace_connector fixture: Agent discovery wait complete.")
 
     yield connector
 
-    print(f"shared_solace_connector fixture: Cleaning up SolaceAiConnector...")
+    print("shared_solace_connector fixture: Cleaning up SolaceAiConnector...")
     connector.stop()
     connector.cleanup()
-    print(f"shared_solace_connector fixture: SolaceAiConnector cleaned up.")
+    print("shared_solace_connector fixture: SolaceAiConnector cleaned up.")
 
 
 @pytest.fixture(scope="session")
@@ -485,6 +868,78 @@ def peer_agent_d_app_under_test(
     yield app_instance
 
 
+@pytest.fixture(scope="session")
+def combined_dynamic_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the CombinedDynamicAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("CombinedDynamicAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve CombinedDynamicAgent_App."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def empty_provider_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the EmptyProviderAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("EmptyProviderAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve EmptyProviderAgent_App."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def docstringless_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the DocstringlessAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("DocstringlessAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve DocstringlessAgent_App."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def mixed_discovery_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the MixedDiscoveryAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("MixedDiscoveryAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve MixedDiscoveryAgent_App."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def complex_signatures_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the ComplexSignaturesAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("ComplexSignaturesAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve ComplexSignaturesAgent_App."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def config_context_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the ConfigContextAgent_App instance."""
+    app_instance = shared_solace_connector.get_app("ConfigContextAgent_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve ConfigContextAgent_App."
+    yield app_instance
+
+
 def get_component_from_app(app: SamAgentApp) -> SamAgentComponent:
     """Helper to get the component from an app."""
     if app.flows and app.flows[0].component_groups:
@@ -528,6 +983,80 @@ def peer_c_component(peer_agent_c_app_under_test: SamAgentApp) -> SamAgentCompon
 def peer_d_component(peer_agent_d_app_under_test: SamAgentApp) -> SamAgentComponent:
     """Retrieves the TestPeerAgentD component instance."""
     return get_component_from_app(peer_agent_d_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def combined_dynamic_agent_component(
+    combined_dynamic_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the CombinedDynamicAgent component instance."""
+    return get_component_from_app(combined_dynamic_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def empty_provider_agent_component(
+    empty_provider_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the EmptyProviderAgent component instance."""
+    return get_component_from_app(empty_provider_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def docstringless_agent_component(
+    docstringless_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the DocstringlessAgent component instance."""
+    return get_component_from_app(docstringless_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def mixed_discovery_agent_component(
+    mixed_discovery_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the MixedDiscoveryAgent component instance."""
+    return get_component_from_app(mixed_discovery_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def complex_signatures_agent_component(
+    complex_signatures_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the ComplexSignaturesAgent component instance."""
+    return get_component_from_app(complex_signatures_agent_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def config_context_agent_component(
+    config_context_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the ConfigContextAgent component instance."""
+    return get_component_from_app(config_context_agent_app_under_test)
+
+
+@pytest.fixture(scope="function")
+def webui_api_client(
+    shared_solace_connector: SolaceAiConnector,
+) -> Generator[TestClient, None, None]:
+    """
+    Provides a FastAPI TestClient for the running WebUIBackendApp.
+    """
+    app_instance = shared_solace_connector.get_app("WebUIBackendApp")
+    assert isinstance(
+        app_instance, WebUIBackendApp
+    ), "Failed to retrieve WebUIBackendApp from shared connector."
+
+    component_instance = app_instance.get_component()
+    assert isinstance(
+        component_instance, WebUIBackendComponent
+    ), "Failed to retrieve WebUIBackendComponent from WebUIBackendApp."
+
+    fastapi_app_instance = component_instance.fastapi_app
+    if not fastapi_app_instance:
+        pytest.fail("WebUIBackendComponent's FastAPI app is not initialized.")
+
+    with TestClient(fastapi_app_instance) as client:
+        print("[Fixture] TestClient for WebUIBackendApp created.")
+        yield client
 
 
 @pytest.fixture(scope="session")
@@ -605,12 +1134,6 @@ def _clear_agent_component_state(agent_app: SamAgentApp):
         with component.active_tasks_lock:
             component.active_tasks.clear()
 
-        # The following state is still managed at the component level and needs
-        # to be cleared for test isolation.
-        if hasattr(component, "_agent_registry") and component._agent_registry:
-            component._agent_registry.clear()
-        if hasattr(component, "peer_agents") and component.peer_agents:
-            component.peer_agents.clear()
         if (
             hasattr(component, "invocation_monitor")
             and component.invocation_monitor
@@ -626,6 +1149,12 @@ def clear_all_agent_states_between_tests(
     peer_agent_b_app_under_test: SamAgentApp,
     peer_agent_c_app_under_test: SamAgentApp,
     peer_agent_d_app_under_test: SamAgentApp,
+    combined_dynamic_agent_app_under_test: SamAgentApp,
+    empty_provider_agent_app_under_test: SamAgentApp,
+    docstringless_agent_app_under_test: SamAgentApp,
+    mixed_discovery_agent_app_under_test: SamAgentApp,
+    complex_signatures_agent_app_under_test: SamAgentApp,
+    config_context_agent_app_under_test: SamAgentApp,
 ):
     """Clears state from all agent components after each test."""
     yield
@@ -634,6 +1163,12 @@ def clear_all_agent_states_between_tests(
     _clear_agent_component_state(peer_agent_b_app_under_test)
     _clear_agent_component_state(peer_agent_c_app_under_test)
     _clear_agent_component_state(peer_agent_d_app_under_test)
+    _clear_agent_component_state(combined_dynamic_agent_app_under_test)
+    _clear_agent_component_state(empty_provider_agent_app_under_test)
+    _clear_agent_component_state(docstringless_agent_app_under_test)
+    _clear_agent_component_state(mixed_discovery_agent_app_under_test)
+    _clear_agent_component_state(complex_signatures_agent_app_under_test)
+    _clear_agent_component_state(config_context_agent_app_under_test)
 
 
 @pytest.fixture(scope="function")
@@ -643,6 +1178,7 @@ def a2a_message_validator(
     peer_agent_b_app_under_test: SamAgentApp,
     peer_agent_c_app_under_test: SamAgentApp,
     peer_agent_d_app_under_test: SamAgentApp,
+    combined_dynamic_agent_app_under_test: SamAgentApp,
     test_gateway_app_instance: TestGatewayComponent,
 ) -> A2AMessageValidator:
     """
@@ -682,6 +1218,7 @@ def a2a_message_validator(
         peer_agent_b_app_under_test,
         peer_agent_c_app_under_test,
         peer_agent_d_app_under_test,
+        combined_dynamic_agent_app_under_test,
     ]
 
     components_to_patch = [get_component_from_app(app) for app in all_apps]
@@ -698,3 +1235,123 @@ def a2a_message_validator(
     validator.activate(final_components_to_patch)
     yield validator
     validator.deactivate()
+
+
+@pytest.fixture(scope="function")
+def mock_agent_skills() -> AgentSkill:
+    return AgentSkill(
+        id="skill-1",
+        name="Skill 1",
+        description="Description for Skill 1",
+        tags=["tag1", "tag2"],
+        examples=["Example 1", "Example 2"],
+        input_modes=["text/plain"],
+        output_modes=["text/plain"],
+    )
+
+
+@pytest.fixture(scope="function")
+def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
+    from a2a.types import AgentCapabilities
+
+    return AgentCard(
+        name="test_agent",
+        description="Test Agent Description",
+        url="http://test.com/test_path/agent.json",
+        version="1.0.0",
+        protocol_version="0.3.0",
+        capabilities=AgentCapabilities(
+            streaming=True,
+            push_notifications=False,
+            state_transition_history=True,
+        ),
+        skills=[mock_agent_skills],
+        default_input_modes=["text/plain"],
+        default_output_modes=["text/plain"],
+    )
+
+
+@pytest.fixture(scope="function")
+def mock_task_response() -> Task:
+    """
+    Provides a mock A2A Task object, using the new helper layer.
+    Represents a final, completed task.
+    """
+    final_status = a2a.create_task_status(
+        state=TaskState.completed,
+        message=a2a.create_agent_text_message(
+            text="Task completed successfully", message_id="msg-agent-complete-1"
+        ),
+    )
+    final_status.timestamp = "2024-01-01T00:00:00Z"  # for deterministic testing
+
+    return a2a.create_final_task(
+        task_id="task-123",
+        context_id="session-456",
+        final_status=final_status,
+    )
+
+
+@pytest.fixture(scope="function")
+def mock_task_response_cancel() -> Task:
+    """
+    Provides a mock A2A Task object, using the new helper layer.
+    Represents a final, canceled task.
+    """
+    final_status = a2a.create_task_status(
+        state=TaskState.canceled,
+        message=a2a.create_agent_text_message(
+            text="Task canceled successfully", message_id="msg-agent-cancel-1"
+        ),
+    )
+    final_status.timestamp = "2023-01-01T00:00:00Z"  # for deterministic testing
+
+    return a2a.create_final_task(
+        task_id="task-123",
+        context_id="session-456",
+        final_status=final_status,
+    )
+
+
+@pytest.fixture(scope="function")
+def mock_sse_task_response() -> TaskStatusUpdateEvent:
+    """
+    Provides a mock A2A TaskStatusUpdateEvent, using the new helper layer.
+    Represents an intermediate status update during a streaming response.
+    """
+    status_message = a2a.create_agent_text_message(
+        text="Processing...", message_id="msg-agent-stream-1"
+    )
+    status_update = a2a.create_status_update(
+        task_id="task-123",
+        context_id="session-456",
+        message=status_message,
+        is_final=False,
+    )
+    status_update.status.timestamp = "2024-01-01T00:00:00Z"  # for deterministic testing
+    return status_update
+
+
+@pytest.fixture(scope="function")
+def mock_task_callback_response() -> TaskPushNotificationConfig:
+    """
+    Provides a mock A2A TaskPushNotificationConfig object.
+    """
+    return TaskPushNotificationConfig(
+        task_id="task-123",
+        push_notification_config=PushNotificationConfig(
+            id="config-1",
+            url="http://test.com/notify",
+            token="test-token",
+        ),
+    )
+
+
+def test_a2a_sdk_import():
+    """Verifies that the a2a-sdk can be imported."""
+    try:
+        from a2a.types import Task
+
+        assert Task is not None
+    except ImportError as e:
+        pytest.fail(f"Failed to import from a2a-sdk: {e}")

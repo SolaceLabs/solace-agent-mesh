@@ -1,0 +1,73 @@
+test_case_id: "mcp_http_transport_001"
+description: "Tests that an MCP tool call over the HTTP transport is successful and
+  saves a .txt artifact."
+tags: ["all", "agent", "mcp"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    mcp_tool_response_save_threshold_bytes: 10 # Force saving for small responses
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "mcp_http_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Get text data from the test server via HTTP."
+  external_context:
+    a2a_session_id: "session_mcp_http_transport_001"
+
+llm_interactions:
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_mcp_tool_http"
+                type: "function"
+                function:
+                  name: "get_data_http"
+                  arguments: '{"response_to_return": {"content": [{"type": "text",
+                    "text": "This is a simple text response via HTTP."}]}}'
+  - expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "get_data_http"
+          response_json_matches:
+            status: "processed_and_saved"
+            message_to_llm_matches_regex: "The full response has been saved as artifact
+              'get_data_http_text_0_.*\\.txt' \\(version 0\\)\\."
+            saved_mcp_response_artifact_details:
+              status: "success"
+              artifacts_saved:
+                - data_filename_matches_regex: "get_data_http_text_0_.*\\.txt"
+                  status: "success"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have retrieved the text data via HTTP and saved it as an artifact."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "session_mcp_http_transport_001"
+    status:
+      state: completed
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_exact: "I have retrieved the text data via HTTP and saved it as an
+              artifact."
+    assert_artifact_state:
+      - filename_matches_regex: "get_data_http_text_0_.*\\.txt$"
+        version: 0
+        expected_content_text: "This is a simple text response via HTTP."
+        expected_metadata_contains:
+          source_tool_name: "get_data_http"
+          content_type: "text"
+          detected_format: "plain"
+          mime_type: "text/plain"

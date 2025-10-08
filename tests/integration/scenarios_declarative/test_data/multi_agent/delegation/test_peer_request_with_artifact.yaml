@@ -1,0 +1,83 @@
+# Test Case 1: Verify that an artifact referenced in a peer call enriches the peer's LLM prompt.
+test_case_id: "peer_request_with_artifact_001"
+description: "Verify peer agent's LLM prompt is enriched with artifact metadata."
+tags: ["all", "agent", "tools", "delegation"]
+skip_intermediate_events: true
+
+test_runner_config_overrides:
+  agent_config:
+    artifact_scope: "namespace"
+
+setup_artifacts:
+  - filename: "sales_data.csv"
+    content: "Date,Product,Amount\n2024-01-15,Widget A,100"
+    mime_type: "text/csv"
+    metadata:
+      source: "CRM"
+      region: "NA"
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "artifact_tester@example.com"
+  external_context:
+    a2a_session_id: "request_with_artifact_session"
+  prompt:
+    parts:
+      - text: "Please ask TestPeerAgentA to analyze the provided sales data."
+  invoked_with_artifacts:
+    - filename: "sales_data.csv"
+      version: 0
+
+llm_interactions:
+  # 1. TestAgent receives the request and delegates to TestPeerAgentA
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Okay, I will ask TestPeerAgentA to analyze the sales data."
+            tool_calls:
+              - id: "call_peer_a_to_analyze"
+                type: "function"
+                function:
+                  name: "peer_TestPeerAgentA"
+                  arguments: '{"task_description": "Analyze the sales data.", "artifacts": [{"filename": "sales_data.csv", "version": 0}]}'
+    expected_request:
+      tools_present: ["peer_TestPeerAgentA"]
+
+  # 2. TestPeerAgentA receives the delegated task. Its prompt should be enriched.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "The sales data shows one sale for Widget A."
+    expected_request:
+      prompt_contains_artifact_summary_for:
+        - filename: "sales_data.csv"
+          version: 0
+
+  # 3. TestAgent receives the response from TestPeerAgentA and formulates a final answer.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "TestPeerAgentA reports: The sales data shows one sale for Widget A."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_contains: "The sales data shows one sale for Widget A."
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "request_with_artifact_session"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "TestPeerAgentA reports: The sales data shows one sale for Widget A."

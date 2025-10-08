@@ -1,0 +1,16 @@
+[
+      {
+        "id": "jdoe",
+        "email": "jane.doe@example.com",
+        "name": "Jane Doe",
+        "title": "Senior Engineer",
+        "manager_id": "ssmith"
+      },
+      {
+        "id": "asmith",
+        "email": "alice.smith@example.com",
+        "name": "Alice Smith",
+        "title": "Project Manager",
+        "manager_id": "cool_guy"
+      }
+    ]
