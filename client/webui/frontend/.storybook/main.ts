@@ -11,7 +11,7 @@ const config: StorybookConfig = {
     core: {
         disableTelemetry: true,
     },
-    staticDirs: ["../public"],
+    staticDirs: ["../src/assets/"],
     viteFinal: async config => {
         // Add path aliases to match the project configuration
         if (config.resolve) {
