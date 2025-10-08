@@ -256,7 +256,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isUser: bubble.type === "user",
             isComplete: true,
             files: bubble.files,
-            uploadedFiles: bubble.uploadedFiles,
+            // uploadedFiles in storage is Array<{name, type}>, but MessageFE expects File[]
+            // We can't reconstruct File objects from stored metadata, so omit this field
+            uploadedFiles: undefined,
             artifactNotification: bubble.artifactNotification,
             isError: bubble.isError,
             metadata: {
@@ -269,7 +271,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Helper function to apply migrations to a task
     const migrateTask = useCallback((task: TaskDataAnyVersion): TaskDataCurrent => {
-        const version = task.taskMetadata?.schema_version || 0;
+        const version: number = (task.taskMetadata?.schema_version as number) || 0;
 
         if (version >= CURRENT_SCHEMA_VERSION) {
             // Already at current version
