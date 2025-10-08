@@ -220,7 +220,7 @@ class TestResourceLimits:
         user_sessions = simple_database_inspector.get_gateway_sessions(user_id)
         assert len(user_sessions) == session_count
 
-        # Test session retrieval performance
+        # Test session retrieval
         session_list = simple_gateway_adapter.list_sessions(user_id)
         assert len(session_list) == session_count
 
@@ -280,7 +280,8 @@ class TestDataIntegrity:
         assert len(messages) == 2
 
         # Verify message consistency
-        user_msg, agent_msg = messages
+        user_msg = messages[0]
+        agent_msg = messages[1]
         assert user_msg.role == "user"
         assert agent_msg.role == "assistant"
         assert user_msg.content == "Transaction test message"

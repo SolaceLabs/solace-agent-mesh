@@ -1,15 +1,22 @@
 import React, { useState } from "react";
 import type { ReactNode } from "react";
 
-import { AlertCircle, FileText } from "lucide-react";
+import { AlertCircle, FileText, ThumbsDown, ThumbsUp } from "lucide-react";
 
-import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
+import {
+    ChatBubble,
+    ChatBubbleMessage,
+    MarkdownHTMLConverter,
+    MessageBanner,
+} from "@/lib/components";
+import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
 import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 
 import { FileAttachmentMessage, FileMessage } from "./file/FileMessage";
+import { FeedbackModal } from "./FeedbackModal";
 import { ContentRenderer } from "./preview/ContentRenderer";
 import { extractEmbeddedContent } from "./preview/contentUtils";
 import { decodeBase64Content } from "./preview/previewUtils";
@@ -17,6 +24,92 @@ import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
+
+const MessageActions: React.FC<{
+    message: MessageFE;
+    showWorkflowButton: boolean;
+    showFeedbackActions: boolean;
+    handleViewWorkflowClick: () => void;
+}> = ({ message, showWorkflowButton, showFeedbackActions, handleViewWorkflowClick }) => {
+    const { configCollectFeedback, submittedFeedback, handleFeedbackSubmit, addNotification } = useChatContext();
+    const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+    const [feedbackType, setFeedbackType] = useState<"up" | "down" | null>(null);
+
+    const taskId = message.taskId;
+    const submittedFeedbackType = taskId ? submittedFeedback[taskId]?.type : undefined;
+
+    const handleThumbClick = (type: "up" | "down") => {
+        setFeedbackType(type);
+        setIsFeedbackModalOpen(true);
+    };
+
+    const handleModalClose = () => {
+        setIsFeedbackModalOpen(false);
+        setFeedbackType(null);
+    };
+
+    const handleModalSubmit = async (feedbackText: string) => {
+        if (!feedbackType || !taskId) return;
+
+        try {
+            await handleFeedbackSubmit(taskId, feedbackType, feedbackText);
+            addNotification("Feedback submitted successfully", "success");
+        } catch (error) {
+            addNotification("Failed to submit feedback. Please try again.", "error");
+            throw error; // Re-throw to prevent modal from closing
+        }
+    };
+
+    const shouldShowFeedback = showFeedbackActions && configCollectFeedback;
+
+    if (!showWorkflowButton && !shouldShowFeedback) {
+        return null;
+    }
+
+    return (
+        <>
+            <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-start gap-2">
+                    {showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}
+                    {shouldShowFeedback && (
+                        <div className="flex items-center gap-1">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`}
+                                onClick={() => handleThumbClick("up")}
+                                disabled={!!submittedFeedbackType}
+                            >
+                                <ThumbsUp
+                                    className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] !opacity-100" : ""}`}
+                                />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`}
+                                onClick={() => handleThumbClick("down")}
+                                disabled={!!submittedFeedbackType}
+                            >
+                                <ThumbsDown
+                                    className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] opacity-100" : ""}`}
+                                />
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            </div>
+            {feedbackType && (
+                <FeedbackModal
+                    isOpen={isFeedbackModalOpen}
+                    onClose={handleModalClose}
+                    feedbackType={feedbackType}
+                    onSubmit={handleModalSubmit}
+                />
+            )}
+        </>
+    );
+};
 
 const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
@@ -132,7 +225,9 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     }
 
     const variant = message.isUser ? "sent" : "received";
-    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
+    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
+    const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
+
     const handleViewWorkflowClick = () => {
         if (message.taskId) {
             setTaskIdInSidePanel(message.taskId);
@@ -153,11 +248,12 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                         </span>
                     </div>
                 )}
-                {showWorkflowButton && (
-                    <div className="mt-3">
-                        <ViewWorkflowButton onClick={handleViewWorkflowClick} />
-                    </div>
-                )}
+                <MessageActions
+                    message={message}
+                    showWorkflowButton={!!showWorkflowButton}
+                    showFeedbackActions={!!showFeedbackActions}
+                    handleViewWorkflowClick={handleViewWorkflowClick}
+                />
             </ChatBubbleMessage>
         </ChatBubble>
     );

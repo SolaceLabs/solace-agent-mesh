@@ -1,0 +1,54 @@
+name: Generate Github Release Notes Changelog
+run-name: "Generate Github Release Notes Changelog from ${{ inputs.from_ref }} to ${{ inputs.to_ref }}"
+
+on:
+    workflow_dispatch:
+        inputs:
+            from_ref:
+                description: "Tag or github reference (e.g., 1.3.3)"
+                type: string
+                required: true
+            to_ref:
+                description: "Tag or github reference (e.g., 1.4.11)"
+                type: string
+                required: true
+            output_file:
+                description: "Output file path for release notes"
+                type: string
+                required: false
+                default: "RELEASE_NOTES.md"
+
+permissions:
+    contents: read
+    pull-requests: read
+
+jobs:
+    generate-changelog:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v5
+              with:
+                  fetch-depth: 0
+            - name: Generate Changelog
+              id: generate_changelog
+              uses: SolaceDev/solace-public-workflows/generate-github-release-notes@main
+              with:
+                  from-ref: ${{ inputs.from_ref }}
+                  to-ref: ${{ inputs.to_ref }}
+                  output-file: ${{ inputs.output_file }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Print Outputs
+              run: |
+                  echo "RELEASE_NOTES_PATH: ${{ steps.generate_changelog.outputs.release-notes-path }}"
+                  echo "TOTAL_COMMITS: ${{ steps.generate_changelog.outputs.total-commits }}"
+
+            - name: Output Changelog
+              run: |
+                  if [ -f RELEASE_NOTES.md ]; then
+                      echo "RELEASE_NOTES.md exists."
+                  else
+                      echo "RELEASE_NOTES.md does not exist."
+                  fi
+                  cat RELEASE_NOTES.md >> $GITHUB_STEP_SUMMARY

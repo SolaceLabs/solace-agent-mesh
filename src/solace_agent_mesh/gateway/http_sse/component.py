@@ -26,6 +26,10 @@ from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .sse_event_buffer import SSEEventBuffer
 from .components import VisualizationForwarderComponent
+from .components.task_logger_forwarder import TaskLoggerForwarderComponent
+from .services.feedback_service import FeedbackService
+from .services.task_logger_service import TaskLoggerService
+from . import dependencies
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -153,6 +157,23 @@ class WebUIBackendComponent(BaseGatewayComponent):
         else:
             # Memory storage or no explicit configuration - no persistence service needed
             self.database_url = None
+            
+            # Validate that features requiring database persistence are not enabled
+            task_logging_config = self.get_config("task_logging", {})
+            if task_logging_config.get("enabled", False):
+                raise ValueError(
+                    f"{self.log_identifier} Task logging requires SQL session storage. "
+                    "Either set session_service.type='sql' with a valid database_url, "
+                    "or disable task_logging.enabled."
+                )
+            
+            feedback_config = self.get_config("feedback_publishing", {})
+            if feedback_config.get("enabled", False):
+                log.warning(
+                    "%s Feedback publishing is enabled but database persistence is not configured. "
+                    "Feedback will only be published to the broker, not stored locally.",
+                    self.log_identifier
+                )
 
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
@@ -170,11 +191,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._visualization_internal_app: SACApp | None = None
         self._visualization_broker_input: BrokerInput | None = None
         self._visualization_message_queue: queue.Queue = queue.Queue(maxsize=200)
+        self._task_logger_queue: queue.Queue = queue.Queue(maxsize=200)
         self._active_visualization_streams: dict[str, dict[str, Any]] = {}
         self._visualization_locks: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
         self._visualization_locks_lock = threading.Lock()
         self._global_visualization_subscriptions: dict[str, int] = {}
         self._visualization_processor_task: asyncio.Task | None = None
+
+        self._task_logger_internal_app: SACApp | None = None
+        self._task_logger_broker_input: BrokerInput | None = None
+        self._task_logger_processor_task: asyncio.Task | None = None
+        self.task_logger_service: TaskLoggerService | None = None
 
         # Initialize SAM Events service for system events
         from ...common.sam_events import SamEventService
@@ -185,13 +212,74 @@ class WebUIBackendComponent(BaseGatewayComponent):
             publish_func=self.publish_a2a,
         )
 
+        # Initialize data retention service and timer
+        self.data_retention_service = None
+        self._data_retention_timer_id = None
+        data_retention_config = self.get_config("data_retention", {})
+        if data_retention_config.get("enabled", True):
+            log.info("%s Data retention is enabled. Initializing service and timer...", self.log_identifier)
+            
+            # Import and initialize the DataRetentionService
+            from .services.data_retention_service import DataRetentionService
+            
+            session_factory = None
+            if self.database_url:
+                # SessionLocal will be initialized later in setup_dependencies
+                # We'll pass a lambda that returns SessionLocal when called
+                session_factory = lambda: dependencies.SessionLocal() if dependencies.SessionLocal else None
+            
+            self.data_retention_service = DataRetentionService(
+                session_factory=session_factory,
+                config=data_retention_config
+            )
+            
+            # Create and start the cleanup timer
+            cleanup_interval_hours = data_retention_config.get("cleanup_interval_hours", 24)
+            cleanup_interval_ms = cleanup_interval_hours * 60 * 60 * 1000
+            self._data_retention_timer_id = f"data_retention_cleanup_{self.gateway_id}"
+            
+            self.add_timer(
+                delay_ms=cleanup_interval_ms,
+                timer_id=self._data_retention_timer_id,
+                interval_ms=cleanup_interval_ms,
+            )
+            log.info(
+                "%s Data retention timer created with ID '%s' and interval %d hours.",
+                self.log_identifier,
+                self._data_retention_timer_id,
+                cleanup_interval_hours,
+            )
+        else:
+            log.info("%s Data retention is disabled via configuration.", self.log_identifier)
+
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
-            if event.data.get("timer_id") == self._sse_cleanup_timer_id:
+            timer_id = event.data.get("timer_id")
+            
+            if timer_id == self._sse_cleanup_timer_id:
                 log.debug("%s SSE buffer cleanup timer triggered.", self.log_identifier)
                 self.sse_event_buffer.cleanup_stale_buffers()
+                return
+            
+            if timer_id == self._data_retention_timer_id:
+                log.debug("%s Data retention cleanup timer triggered.", self.log_identifier)
+                if self.data_retention_service:
+                    try:
+                        self.data_retention_service.cleanup_old_data()
+                    except Exception as e:
+                        log.error(
+                            "%s Error during data retention cleanup: %s",
+                            self.log_identifier,
+                            e,
+                            exc_info=True,
+                        )
+                else:
+                    log.warning(
+                        "%s Data retention timer fired but service is not initialized.",
+                        self.log_identifier,
+                    )
                 return
 
         super().process_event(event)
@@ -270,9 +358,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             forwarder_cfg = {
                 "component_class": VisualizationForwarderComponent,
                 "component_name": f"{self.gateway_id}_viz_forwarder",
-                "component_config": {
-                    "target_queue_ref": self._visualization_message_queue
-                },
+                "component_config": {"target_queue_ref": self._visualization_message_queue},
             }
 
             flow_config = {
@@ -355,6 +441,121 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self._visualization_broker_input = None
             raise
 
+    def _ensure_task_logger_flow_is_running(self) -> None:
+        """
+        Ensures the internal SAC flow for A2A task logging is created and running.
+        """
+        log_id_prefix = f"{self.log_identifier}[EnsureTaskLogFlow]"
+        if self._task_logger_internal_app is not None:
+            log.debug("%s Task logger flow already running.", log_id_prefix)
+            return
+
+        log.info("%s Initializing internal A2A task logger flow...", log_id_prefix)
+        try:
+            main_app = self.get_app()
+            if not main_app or not main_app.connector:
+                raise RuntimeError(
+                    "Main app or connector not available for internal flow creation."
+                )
+
+            main_broker_config = main_app.app_info.get("broker", {})
+            if not main_broker_config:
+                raise ValueError("Main app broker configuration is missing.")
+
+            # The task logger needs to see ALL messages.
+            subscriptions = [{"topic": f"{self.namespace.rstrip('/')}/a2a/>"}]
+
+            broker_input_cfg = {
+                "component_module": "broker_input",
+                "component_name": f"{self.gateway_id}_task_log_broker_input",
+                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/task_log/{self.gateway_id}/{uuid.uuid4().hex}",
+                "create_queue_on_start": True,
+                "component_config": {
+                    "broker_url": main_broker_config.get("broker_url"),
+                    "broker_username": main_broker_config.get("broker_username"),
+                    "broker_password": main_broker_config.get("broker_password"),
+                    "broker_vpn": main_broker_config.get("broker_vpn"),
+                    "trust_store_path": main_broker_config.get("trust_store_path"),
+                    "dev_mode": main_broker_config.get("dev_mode"),
+                    "broker_subscriptions": subscriptions,
+                    "reconnection_strategy": main_broker_config.get(
+                        "reconnection_strategy"
+                    ),
+                    "retry_interval": main_broker_config.get("retry_interval"),
+                    "retry_count": main_broker_config.get("retry_count"),
+                    "temporary_queue": True,
+                },
+            }
+
+            forwarder_cfg = {
+                "component_class": TaskLoggerForwarderComponent,
+                "component_name": f"{self.gateway_id}_task_log_forwarder",
+                "component_config": {"target_queue_ref": self._task_logger_queue},
+            }
+
+            flow_config = {
+                "name": f"{self.gateway_id}_task_log_flow",
+                "components": [broker_input_cfg, forwarder_cfg],
+            }
+
+            internal_app_broker_config = main_broker_config.copy()
+            internal_app_broker_config["input_enabled"] = True
+            internal_app_broker_config["output_enabled"] = False
+
+            app_config_for_internal_flow = {
+                "name": f"{self.gateway_id}_task_log_internal_app",
+                "flows": [flow_config],
+                "broker": internal_app_broker_config,
+                "app_config": {},
+            }
+
+            self._task_logger_internal_app = main_app.connector.create_internal_app(
+                app_name=app_config_for_internal_flow["name"],
+                flows=app_config_for_internal_flow["flows"],
+            )
+
+            if (
+                not self._task_logger_internal_app
+                or not self._task_logger_internal_app.flows
+            ):
+                raise RuntimeError("Internal task logger app/flow creation failed.")
+
+            self._task_logger_internal_app.run()
+            log.info("%s Internal task logger app started.", log_id_prefix)
+
+            flow_instance = self._task_logger_internal_app.flows[0]
+            if flow_instance.component_groups and flow_instance.component_groups[0]:
+                self._task_logger_broker_input = flow_instance.component_groups[0][0]
+                if not isinstance(self._task_logger_broker_input, BrokerInput):
+                    raise RuntimeError(
+                        "Task logger flow setup error: BrokerInput not found."
+                    )
+                log.info(
+                    "%s Obtained reference to internal task logger BrokerInput component.",
+                    log_id_prefix,
+                )
+            else:
+                raise RuntimeError(
+                    "Task logger flow setup error: BrokerInput instance not accessible."
+                )
+
+        except Exception as e:
+            log.exception(
+                "%s Failed to ensure task logger flow is running: %s", log_id_prefix, e
+            )
+            if self._task_logger_internal_app:
+                try:
+                    self._task_logger_internal_app.cleanup()
+                except Exception as cleanup_err:
+                    log.error(
+                        "%s Error during cleanup after task logger flow init failure: %s",
+                        log_id_prefix,
+                        cleanup_err,
+                    )
+            self._task_logger_internal_app = None
+            self._task_logger_broker_input = None
+            raise
+
     def _resolve_session_config(self) -> dict:
         """
         Resolve session service configuration with backward compatibility.
@@ -390,7 +591,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """
         Asynchronously consumes messages from the _visualization_message_queue,
         filters them, and forwards them to relevant SSE connections.
-        Placeholder for Phase 2: Just logs messages.
         """
         log_id_prefix = f"{self.log_identifier}[VizMsgProcessor]"
         log.info("%s Starting visualization message processor loop...", log_id_prefix)
@@ -417,7 +617,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 max_size = self._visualization_message_queue.maxsize
                 if max_size > 0 and (current_size / max_size) > 0.90:
                     log.warning(
-                        "%s Visualization queue is over 90%% full. Current size: %d/%d",
+                        "%s Visualization message queue is over 90%% full. Current size: %d/%d",
                         log_id_prefix,
                         current_size,
                         max_size,
@@ -593,6 +793,59 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 await asyncio.sleep(1)
 
         log.info("%s Visualization message processor loop finished.", log_id_prefix)
+
+    async def _task_logger_loop(self) -> None:
+        """
+        Asynchronously consumes messages from the _task_logger_queue and
+        passes them to the TaskLoggerService for persistence.
+        """
+        log_id_prefix = f"{self.log_identifier}[TaskLoggerLoop]"
+        log.info("%s Starting task logger loop...", log_id_prefix)
+        loop = asyncio.get_running_loop()
+
+        while not self.stop_signal.is_set():
+            msg_data = None
+            try:
+                msg_data = await loop.run_in_executor(
+                    None,
+                    self._task_logger_queue.get,
+                    True,
+                    1.0,
+                )
+
+                if msg_data is None:
+                    log.info(
+                        "%s Received shutdown signal for task logger loop.",
+                        log_id_prefix,
+                    )
+                    break
+
+                if self.task_logger_service:
+                    self.task_logger_service.log_event(msg_data)
+                else:
+                    log.warning(
+                        "%s Task logger service not available. Cannot log event.",
+                        log_id_prefix,
+                    )
+
+                self._task_logger_queue.task_done()
+
+            except queue.Empty:
+                continue
+            except asyncio.CancelledError:
+                log.info("%s Task logger loop cancelled.", log_id_prefix)
+                break
+            except Exception as e:
+                log.exception(
+                    "%s Error in task logger loop: %s",
+                    log_id_prefix,
+                    e,
+                )
+                if msg_data and self._task_logger_queue:
+                    self._task_logger_queue.task_done()
+                await asyncio.sleep(1)
+
+        log.info("%s Task logger loop finished.", log_id_prefix)
 
     async def _add_visualization_subscription(
         self, topic_str: str, stream_id: str
@@ -919,6 +1172,18 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             setup_dependencies(self, self.database_url)
 
+            # Instantiate services that depend on the database session factory.
+            # This must be done *after* setup_dependencies has run.
+            session_factory = dependencies.SessionLocal if self.database_url else None
+            task_logging_config = self.get_config("task_logging", {})
+            self.task_logger_service = TaskLoggerService(
+                session_factory=session_factory, config=task_logging_config
+            )
+            log.info(
+                "%s Services dependent on database session factory have been initialized.",
+                self.log_identifier,
+            )
+
             port = (
                 self.fastapi_https_port
                 if self.ssl_keyfile and self.ssl_certfile
@@ -976,6 +1241,35 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 "%s Visualization message processor task already running.",
                                 self.log_identifier,
                             )
+
+                        task_logging_config = self.get_config("task_logging", {})
+                        if task_logging_config.get("enabled", False):
+                            log.info(
+                                "%s Task logging is enabled. Ensuring flow is running...",
+                                self.log_identifier,
+                            )
+                            self._ensure_task_logger_flow_is_running()
+
+                            if (
+                                self._task_logger_processor_task is None
+                                or self._task_logger_processor_task.done()
+                            ):
+                                log.info(
+                                    "%s Starting task logger processor task.",
+                                    self.log_identifier,
+                                )
+                                self._task_logger_processor_task = (
+                                    self.fastapi_event_loop.create_task(
+                                        self._task_logger_loop()
+                                    )
+                                )
+                            else:
+                                log.info(
+                                    "%s Task logger processor task already running.",
+                                    self.log_identifier,
+                                )
+                        else:
+                            log.info("%s Task logging is disabled.", self.log_identifier)
                     else:
                         log.error(
                             "%s FastAPI event loop not captured. Cannot start visualization processor.",
@@ -1059,10 +1353,23 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def cleanup(self):
         """Gracefully shuts down the component and the FastAPI server."""
         log.info("%s Cleaning up Web UI Backend Component...", self.log_identifier)
+        
+        # Cancel timers
         self.cancel_timer(self._sse_cleanup_timer_id)
+        if self._data_retention_timer_id:
+            self.cancel_timer(self._data_retention_timer_id)
+            log.info("%s Cancelled data retention cleanup timer.", self.log_identifier)
+        
+        # Clean up data retention service
+        if self.data_retention_service:
+            self.data_retention_service = None
+            log.info("%s Data retention service cleaned up.", self.log_identifier)
+        
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
         if self._visualization_message_queue:
             self._visualization_message_queue.put(None)
+        if self._task_logger_queue:
+            self._task_logger_queue.put(None)
 
         if (
             self._visualization_processor_task
@@ -1073,6 +1380,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             self._visualization_processor_task.cancel()
 
+        if self._task_logger_processor_task and not self._task_logger_processor_task.done():
+            log.info("%s Cancelling task logger processor task...", self.log_identifier)
+            self._task_logger_processor_task.cancel()
+
         if self._visualization_internal_app:
             log.info(
                 "%s Cleaning up internal visualization app...", self.log_identifier
@@ -1082,6 +1393,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
             except Exception as e:
                 log.error(
                     "%s Error cleaning up internal visualization app: %s",
+                    self.log_identifier,
+                    e,
+                )
+
+        if self._task_logger_internal_app:
+            log.info("%s Cleaning up internal task logger app...", self.log_identifier)
+            try:
+                self._task_logger_internal_app.cleanup()
+            except Exception as e:
+                log.error(
+                    "%s Error cleaning up internal task logger app: %s",
                     self.log_identifier,
                     e,
                 )
@@ -1374,6 +1696,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
     def get_session_manager(self) -> SessionManager:
         return self.session_manager
+
+    def get_task_logger_service(self) -> TaskLoggerService | None:
+        """Returns the shared TaskLoggerService instance."""
+        return self.task_logger_service
 
     def get_namespace(self) -> str:
         return self.namespace
@@ -1678,60 +2004,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log_id_prefix,
                 a2a_task_id,
             )
-
-            # Store final agent response in persistence layer if available
-            if hasattr(self, "database_url") and self.database_url:
-                try:
-                    session_id = external_request_context.get("a2a_session_id")
-                    user_id = external_request_context.get("user_id_for_a2a")
-                    agent_name = external_request_context.get(
-                        "target_agent_name", "agent"
-                    )
-
-                    message_text = ""
-                    if task_data.status and task_data.status.message:
-                        parts = a2a.get_parts_from_message(task_data.status.message)
-                        for part in parts:
-                            if hasattr(part, "text") and part.text:
-                                if message_text:
-                                    message_text += "\n"
-                                message_text += part.text
-
-                    if message_text and session_id and user_id:
-                        from .dependencies import SessionLocal, get_session_business_service
-                        from ...gateway.http_sse.shared.enums import SenderType
-
-                        # For background processing, create simple session wrapper
-                        if SessionLocal:
-                            db = SessionLocal()
-                            try:
-                                session_service = get_session_business_service()
-                                session_service.add_message_to_session(
-                                    db=db,
-                                    session_id=session_id,
-                                    user_id=user_id,
-                                    message=message_text,
-                                    sender_type=SenderType.AGENT,
-                                    sender_name=agent_name,
-                                    agent_id=agent_name,
-                                )
-                                db.commit()
-                            except Exception:
-                                db.rollback()
-                                raise
-                            finally:
-                                db.close()
-                        log.info(
-                            "%s Final agent response stored in session %s",
-                            log_id_prefix,
-                            session_id,
-                        )
-                except Exception as storage_error:
-                    log.warning(
-                        "%s Failed to store final agent response: %s",
-                        log_id_prefix,
-                        storage_error,
-                    )
 
         except Exception as e:
             log.exception(

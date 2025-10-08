@@ -3,6 +3,7 @@ import React, { createContext, type FormEvent } from "react";
 import type { AgentCardInfo, ArtifactInfo, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
 
 export interface ChatState {
+    configCollectFeedback: boolean;
     sessionId: string;
     sessionName: string | null;
     messages: MessageFE[];
@@ -39,6 +40,7 @@ export interface ChatState {
     previewedArtifactAvailableVersions: number[] | null;
     currentPreviewedVersionNumber: number | null;
     previewFileContent: FileAttachment | null;
+    submittedFeedback: Record<string, { type: "up" | "down"; text: string }>;
 }
 
 export interface ChatActions {
@@ -80,6 +82,7 @@ export interface ChatActions {
     /* Session Management Actions */
     updateSessionName: (sessionId: string, newName: string, showNotification?: boolean) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
+    handleFeedbackSubmit: (taskId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
 }
 
 export type ChatContextValue = ChatState & ChatActions;

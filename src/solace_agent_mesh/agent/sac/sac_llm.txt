@@ -141,6 +141,8 @@ patch_adk()
   - `get_and_clear_artifact_signals() -> List[Dict[str, Any]]` - Retrieves and clears artifact signals
   - `set_event_loop(loop: asyncio.AbstractEventLoop) -> None` - Stores event loop reference
   - `get_event_loop() -> Optional[asyncio.AbstractEventLoop]` - Retrieves stored event loop
+  - `record_token_usage(input_tokens: int, output_tokens: int, model: str, source: str = "agent", tool_name: Optional[str] = None, cached_input_tokens: int = 0) -> None` - Records token usage for LLM calls
+  - `get_token_usage_summary() -> Dict[str, Any]` - Returns summary of all token usage for the task
 
 **Usage Examples:**
 ```python
@@ -170,6 +172,18 @@ task_context.register_peer_sub_task("sub-task-456", correlation_data)
 completed_data = task_context.claim_sub_task_completion("sub-task-456")
 if completed_data:
     print(f"Sub-task completed: {completed_data}")
+
+# Track token usage
+task_context.record_token_usage(
+    input_tokens=100,
+    output_tokens=50,
+    model="gemini-1.5-pro",
+    source="agent"
+)
+
+# Get usage summary
+usage = task_context.get_token_usage_summary()
+print(f"Total tokens used: {usage['total_tokens']}")
 ```
 
-# content_hash: 79c043cb89eecb2b6a6f05113ff223c5064861f1a537d8e832ebb2738f5801e8
+# content_hash: 27b0000d250131d578d28ab8c4d06c2e2084d888b47102e9b3b133adbc61a169

@@ -277,28 +277,43 @@ def initialize_artifact_service(component) -> BaseArtifactService:
         try:
             from .artifacts.s3_artifact_service import S3ArtifactService
 
+            # Whitelist of valid parameters for the boto3 S3 client.
             valid_boto3_params = [
                 "aws_access_key_id",
                 "aws_secret_access_key",
                 "aws_session_token",
                 "region_name",
-                "config"
+                "endpoint_url",
+                "config",
             ]
 
-            s3_config = {k: v for k, v in config.items() if k in valid_boto3_params}
+            s3_config = {}
 
-            endpoint_url = config.get("endpoint_url") or os.environ.get("S3_ENDPOINT_URL") or "https://s3.amazonaws.com"
-            s3_config["endpoint_url"] = endpoint_url
+            # Explicitly map the 'region' from our config to 'region_name' for boto3.
+            if config.get("region"):
+                s3_config["region_name"] = config.get("region")
 
-            aws_access_key_id = config.get("aws_access_key_id") or os.environ.get("AWS_ACCESS_KEY_ID")
-            aws_secret_access_key = config.get("aws_secret_access_key") or os.environ.get("AWS_SECRET_ACCESS_KEY")
+            # Copy any other valid parameters from the config.
+            for key in valid_boto3_params:
+                if key in config and config[key] is not None:
+                    s3_config[key] = config[key]
 
-            if aws_access_key_id:
-                s3_config["aws_access_key_id"] = aws_access_key_id
-            if aws_secret_access_key:
-                s3_config["aws_secret_access_key"] = aws_secret_access_key
+            # Set credentials from environment variables as a fallback.
+            if "endpoint_url" not in s3_config:
+                s3_config["endpoint_url"] = os.environ.get("S3_ENDPOINT_URL")
+            if "aws_access_key_id" not in s3_config:
+                env_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+                if env_access_key is not None:
+                    s3_config["aws_access_key_id"] = env_access_key
+            if "aws_secret_access_key" not in s3_config:
+                env_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+                if env_secret_key is not None:
+                    s3_config["aws_secret_access_key"] = env_secret_key
 
-            concrete_service = S3ArtifactService(bucket_name=bucket_name, **s3_config)
+            # Filter out any keys that ended up with a None value.
+            s3_config_cleaned = {k: v for k, v in s3_config.items() if v is not None}
+
+            concrete_service = S3ArtifactService(bucket_name=bucket_name, **s3_config_cleaned)
         except ImportError as e:
             log.error(
                 "%s S3 dependencies not available: %s",
