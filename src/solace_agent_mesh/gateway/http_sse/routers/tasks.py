@@ -147,7 +147,7 @@ async def _inject_project_context(
 
                     if artifact_descriptions:
                         artifacts_context = (
-                            "this project context contains the following artifacts\n"
+                            "This project workspace contains the following artifacts.User questions and references will typically relate to these project materials. Provide context-aware responses and ask for clarification when artifact references are unclear. These are the project artifacts in this session that you HAVE ACCESS TO and can use your tools on them directly! \n"
                             + "\n".join(artifact_descriptions)
                         )
                         context_parts.append(artifacts_context)
@@ -184,7 +184,14 @@ async def _submit_task(
     is_streaming: bool,
     session_service: SessionService | None = None,
 ):
-    """Helper to submit a task, handling both streaming and non-streaming cases."""
+    """
+    Helper to submit a task, handling both streaming and non-streaming cases.
+    
+    This function handles project context injection for both streaming and non-streaming
+    requests. When a project_id is provided and this is the first message in a new session,
+    the project context (system prompt, description, and artifacts) is injected into the
+    message parts that are sent to the agent, ensuring the agent receives the full context.
+    """
     log_prefix = f"[POST /api/v1/message:{'stream' if is_streaming else 'send'}] "
 
     agent_name = None
@@ -269,31 +276,58 @@ async def _submit_task(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
 
+        # Extract message text and apply project context injection for both streaming and non-streaming
+        message_text = ""
+        if payload.params and payload.params.message:
+            parts = a2a.get_parts_from_message(payload.params.message)
+            for part in parts:
+                if hasattr(part, "text"):
+                    message_text = part.text
+                    break
+        
+        # Project context injection for the first message (when session was just created)
+        modified_message = payload.params.message
+        if project_id and message_text and not frontend_session_id:
+            modified_message_text = await _inject_project_context(
+                project_id=project_id,
+                message_text=message_text,
+                user_id=user_id,
+                session_id=session_id,
+                project_service=project_service,
+                component=component,
+                log_prefix=log_prefix,
+            )
+            
+            # Update the message with project context if it was modified
+            if modified_message_text != message_text:
+                # Create new text part with project context
+                new_text_part = a2a.create_text_part(modified_message_text)
+                
+                # Get existing parts and replace the first text part with the modified one
+                existing_parts = a2a.get_parts_from_message(payload.params.message)
+                new_parts = []
+                text_part_replaced = False
+                
+                for part in existing_parts:
+                    if hasattr(part, "text") and not text_part_replaced:
+                        new_parts.append(new_text_part)
+                        text_part_replaced = True
+                    else:
+                        new_parts.append(part)
+                
+                # If no text part was found, add the new text part at the beginning
+                if not text_part_replaced:
+                    new_parts.insert(0, new_text_part)
+                
+                # Update the message with the new parts
+                modified_message = a2a.update_message_parts(payload.params.message, new_parts)
+                message_text = modified_message_text  # Update for persistence storage
+
         # Store message in persistence layer if available
         if is_streaming and SessionLocal is not None and session_service is not None:
             db = SessionLocal()
             try:
                 from ....gateway.http_sse.shared.enums import SenderType
-
-                message_text = ""
-                if payload.params and payload.params.message:
-                    parts = a2a.get_parts_from_message(payload.params.message)
-                    for part in parts:
-                        if hasattr(part, "text"):
-                            message_text = part.text
-                            break
-                    
-                # Project context injection only for the first message (when session was just created)
-                if project_id and message_text and not frontend_session_id:
-                    message_text = await _inject_project_context(
-                        project_id=project_id,
-                        message_text=message_text,
-                        user_id=user_id,
-                        session_id=session_id,
-                        project_service=project_service,
-                        component=component,
-                        log_prefix=log_prefix,
-                    )
 
                 session_service.add_message_to_session(
                     db=db,
@@ -318,8 +352,8 @@ async def _submit_task(
                 log_prefix,
             )
 
-        # Use the helper to get the unwrapped parts from the incoming message.
-        a2a_parts = a2a.get_parts_from_message(payload.params.message)
+        # Use the helper to get the unwrapped parts from the modified message (with project context if applied).
+        a2a_parts = a2a.get_parts_from_message(modified_message)
 
         external_req_ctx = {
             "app_name_for_artifacts": component.gateway_id,
