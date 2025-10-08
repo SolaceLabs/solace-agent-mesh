@@ -608,6 +608,42 @@ class SamAgentComponent(SamComponentBase):
             log.warning("%s Failed to claim; it was already completed.", log_id)
             return None
 
+    async def reset_peer_timeout(self, sub_task_id: str):
+        """
+        Resets the timeout for a given peer sub-task.
+        """
+        log_id = f"{self.log_identifier}[ResetTimeout:{sub_task_id}]"
+        log.debug("%s Resetting timeout for peer sub-task.", log_id)
+
+        # Get the original logical task ID from the cache without removing it
+        logical_task_id = self.cache_service.get_data(sub_task_id)
+        if not logical_task_id:
+            log.warning(
+                "%s No active task found for sub-task %s. Cannot reset timeout.",
+                log_id,
+                sub_task_id,
+            )
+            return
+
+        # Get the configured timeout
+        timeout_sec = self.inter_agent_communication_config.get(
+            "request_timeout_seconds", DEFAULT_COMMUNICATION_TIMEOUT
+        )
+
+        # Update the cache with a new expiry
+        self.cache_service.add_data(
+            key=sub_task_id,
+            value=logical_task_id,
+            expiry=timeout_sec,
+            component=self,
+        )
+        log.info(
+            "%s Timeout for sub-task %s has been reset to %d seconds.",
+            log_id,
+            sub_task_id,
+            timeout_sec,
+        )
+
     async def _retrigger_agent_with_peer_responses(
         self,
         results_to_inject: list,

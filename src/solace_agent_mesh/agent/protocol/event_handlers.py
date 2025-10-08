@@ -1227,6 +1227,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                 component.log_identifier,
                 sub_task_id,
             )
+            # Reset the timeout since we received a status update
+            await component.reset_peer_timeout(sub_task_id)
             message.call_acknowledgements()
             return
 
