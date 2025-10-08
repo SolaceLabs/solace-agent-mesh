@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Plus } from "lucide-react";
 
 import { CreateProjectWizard } from "./CreateProjectWizard";
 import { ProjectListSidebar } from "./ProjectListSidebar";
@@ -6,6 +7,8 @@ import { ProjectDetailPanel } from "./ProjectDetailPanel";
 import { useProjectContext } from "@/lib/providers";
 import type { Project, ProjectFormData } from "@/lib/types/projects";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
+import { Header } from "@/lib/components/header";
+import { Button } from "@/lib/components/ui";
 
 interface ProjectsPageProps {
     onProjectActivated: () => void;
@@ -74,46 +77,61 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     }
 
     return (
-        <div className="flex h-full w-full">
-            <ResizablePanelGroup direction="horizontal" className="h-full">
-                {/* Left Sidebar - Project List */}
-                <ResizablePanel
-                    defaultSize={25}
-                    minSize={20}
-                    maxSize={40}
-                    className="min-w-[250px]"
-                >
-                    <ProjectListSidebar
-                        projects={projects}
-                        selectedProject={selectedProject}
-                        isLoading={isLoading}
-                        error={error}
-                        onProjectSelect={handleProjectSelect}
-                        onCreateNew={handleCreateNew}
-                    />
-                </ResizablePanel>
+        <div className="flex h-full w-full flex-col">
+            <Header
+                title={selectedProject ? selectedProject.name : "Projects"}
+                breadcrumbs={selectedProject ? [
+                    { label: "Projects", onClick: () => setSelectedProject(null) },
+                    { label: selectedProject.name }
+                ] : undefined}
+                buttons={[
+                    <Button key="create-project" onClick={handleCreateNew} className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Create Project
+                    </Button>
+                ]}
+            />
+            <div className="flex-1 min-h-0">
+                <ResizablePanelGroup direction="horizontal" className="h-full">
+                    {/* Left Sidebar - Project List */}
+                    <ResizablePanel
+                        defaultSize={20}
+                        minSize={15}
+                        maxSize={30}
+                        className="min-w-[200px]"
+                    >
+                        <ProjectListSidebar
+                            projects={projects}
+                            selectedProject={selectedProject}
+                            isLoading={isLoading}
+                            error={error}
+                            onProjectSelect={handleProjectSelect}
+                            onCreateNew={handleCreateNew}
+                        />
+                    </ResizablePanel>
 
-                <ResizableHandle />
+                    <ResizableHandle />
 
-                {/* Center Panel - Project Details */}
-                <ResizablePanel defaultSize={50} minSize={30}>
-                    <ProjectDetailPanel
-                        selectedProject={selectedProject}
-                        onCreateNew={handleCreateNew}
-                    />
-                </ResizablePanel>
+                    {/* Center Panel - Project Details */}
+                    <ResizablePanel defaultSize={55} minSize={40}>
+                        <ProjectDetailPanel
+                            selectedProject={selectedProject}
+                            onCreateNew={handleCreateNew}
+                        />
+                    </ResizablePanel>
 
-                <ResizableHandle />
+                    <ResizableHandle />
 
-                {/* Right Sidebar - Metadata (Placeholder for Phase 2) */}
-                <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-                    <div className="flex h-full items-center justify-center bg-background border-l">
-                        <p className="text-sm text-muted-foreground">
-                            Metadata sidebar (Phase 2)
-                        </p>
-                    </div>
-                </ResizablePanel>
-            </ResizablePanelGroup>
+                    {/* Right Sidebar - Metadata (Placeholder for Phase 2) */}
+                    <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+                        <div className="flex h-full items-center justify-center bg-background border-l">
+                            <p className="text-sm text-muted-foreground">
+                                Metadata sidebar (Phase 2)
+                            </p>
+                        </div>
+                    </ResizablePanel>
+                </ResizablePanelGroup>
+            </div>
         </div>
     );
 };
