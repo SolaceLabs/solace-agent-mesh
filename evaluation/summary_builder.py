@@ -6,11 +6,12 @@ This module processes test run messages and generates comprehensive summaries.
 import json
 import os
 import re
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Set, Tuple
+
 import yaml
 
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple, Set
-from dataclasses import dataclass, field
 from .test_case_loader import load_test_case
 
 

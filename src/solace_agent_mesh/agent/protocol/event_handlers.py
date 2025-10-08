@@ -2,20 +2,15 @@
 Contains event handling logic for the A2A_ADK_HostComponent.
 """
 
-import json
 import asyncio
-from typing import TYPE_CHECKING, Dict, Any
 import fnmatch
-from solace_ai_connector.common.log import log
-from solace_ai_connector.common.message import Message as SolaceMessage
-from ...agent.adk.callbacks import _publish_data_part_status_update
-from ...common.data_parts import ToolResultData
-from ...common.a2a.types import ToolsExtensionParams
-from solace_ai_connector.common.event import Event, EventType
+import json
+from typing import TYPE_CHECKING, Any, Dict
+
 from a2a.types import (
     A2ARequest,
-    AgentCard,
     AgentCapabilities,
+    AgentCard,
     AgentExtension,
     DataPart,
     JSONRPCResponse,
@@ -24,24 +19,31 @@ from a2a.types import (
     TaskStatusUpdateEvent,
     TextPart,
 )
-from ...common import a2a
-from ...common.a2a import (
-    get_agent_request_topic,
-    get_discovery_topic,
-    translate_a2a_to_adk_content,
-    get_client_response_topic,
-    get_agent_response_subscription_topic,
-    get_agent_status_subscription_topic,
-    get_sam_events_subscription_topic,
-    get_text_from_message,
-    topic_matches_subscription,
-)
+from google.adk.agents import RunConfig
+from solace_ai_connector.common.event import Event, EventType
+from solace_ai_connector.common.log import log
+from solace_ai_connector.common.message import Message as SolaceMessage
+
+from ...agent.adk.callbacks import _publish_data_part_status_update
+from ...agent.adk.runner import run_adk_async_task_thread_wrapper
 from ...agent.utils.artifact_helpers import (
     generate_artifact_metadata_summary,
 )
-from ...agent.adk.runner import run_adk_async_task_thread_wrapper
+from ...common import a2a
+from ...common.a2a import (
+    get_agent_request_topic,
+    get_agent_response_subscription_topic,
+    get_agent_status_subscription_topic,
+    get_client_response_topic,
+    get_discovery_topic,
+    get_sam_events_subscription_topic,
+    get_text_from_message,
+    topic_matches_subscription,
+    translate_a2a_to_adk_content,
+)
+from ...common.a2a.types import ToolsExtensionParams
+from ...common.data_parts import ToolResultData
 from ..sac.task_execution_context import TaskExecutionContext
-from google.adk.agents import RunConfig
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent

@@ -5,10 +5,10 @@ with the AgentRegistry.
 
 from typing import List, Optional
 
+from a2a.types import AgentCard
 from solace_ai_connector.common.log import log
 
 from ....common.agent_registry import AgentRegistry
-from a2a.types import AgentCard
 
 
 class AgentCardService:

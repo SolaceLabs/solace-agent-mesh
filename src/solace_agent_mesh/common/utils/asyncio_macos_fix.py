@@ -9,6 +9,7 @@ get_child_watcher(), which is required for subprocess creation.
 """
 
 import sys
+
 from solace_ai_connector.common.log import log
 
 

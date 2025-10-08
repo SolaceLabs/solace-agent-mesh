@@ -3,8 +3,8 @@ Built-in ADK Tools for Data Analysis (SQL, JQ, Plotly).
 """
 
 import json
-from typing import Any, Dict, Tuple, Optional, Literal
 from datetime import datetime, timezone
+from typing import Any, Dict, Literal, Optional, Tuple
 
 try:
     import yaml
@@ -14,8 +14,8 @@ except ImportError:
     PYYAML_AVAILABLE = False
 
 try:
-    import plotly.io as pio
     import plotly.graph_objects as go
+    import plotly.io as pio
 
     PLOTLY_AVAILABLE = True
     try:
@@ -34,15 +34,13 @@ from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
 
 from ...agent.utils.artifact_helpers import (
+    DEFAULT_SCHEMA_MAX_KEYS,
     ensure_correct_extension,
     save_artifact_with_metadata,
-    DEFAULT_SCHEMA_MAX_KEYS,
 )
-
 from ...agent.utils.context_helpers import get_original_session_id
-
-from .tool_definition import BuiltinTool
 from .registry import tool_registry
+from .tool_definition import BuiltinTool
 
 CATEGORY_NAME = "Data Analysis"
 CATEGORY_DESCRIPTION = "Create static chart images from data in JSON or YAML format."

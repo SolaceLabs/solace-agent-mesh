@@ -6,19 +6,21 @@
 # PATCH 1: Event Content Processing
 # Purpose: Fix event filtering and function response handling in LLM flows
 # =============================================================================
-import google.adk.flows.llm_flows.contents
-from google.adk.flows.llm_flows.contents import _is_event_belongs_to_branch
-from google.adk.flows.llm_flows.contents import _is_auth_event
-from google.adk.flows.llm_flows.contents import _convert_foreign_event
-from google.adk.flows.llm_flows.contents import _is_other_agent_reply
-from google.adk.flows.llm_flows.contents import _rearrange_events_for_async_function_responses_in_history
-from google.adk.flows.llm_flows.contents import remove_client_function_call_id
-from google.adk.events.event import Event
-
 import copy
 from typing import Optional
 
+import google.adk.flows.llm_flows.contents
+from google.adk.events.event import Event
+from google.adk.flows.llm_flows.contents import (
+  _convert_foreign_event,
+  _is_auth_event,
+  _is_event_belongs_to_branch,
+  _is_other_agent_reply,
+  _rearrange_events_for_async_function_responses_in_history,
+  remove_client_function_call_id,
+)
 from google.genai import types
+
 
 def _patch_get_contents(
     current_branch: Optional[str], events: list[Event], agent_name: str = ''
@@ -80,9 +82,11 @@ def _patch_get_contents(
 # PATCH 2: Long-Running Tool Support
 # Purpose: Modify BaseLlmFlow.run_async to properly handle long-running tools
 # =============================================================================
-from google.adk.flows.llm_flows.base_llm_flow import BaseLlmFlow
-from google.adk.agents.invocation_context import InvocationContext
 from typing import AsyncGenerator
+
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.flows.llm_flows.base_llm_flow import BaseLlmFlow
+
 
 async def patch_run_async(
     self, invocation_context: InvocationContext

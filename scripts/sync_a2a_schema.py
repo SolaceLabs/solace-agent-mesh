@@ -13,7 +13,6 @@ from typing import Optional
 
 import httpx
 
-
 # Assuming this script is run from the project root
 PROJECT_ROOT = Path(__file__).parent.parent
 SCHEMA_DIR = PROJECT_ROOT / "src" / "solace_agent_mesh" / "common" / "a2a_spec"

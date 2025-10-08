@@ -5,10 +5,10 @@ This module generates HTML reports from evaluation results with a clean, modular
 
 import json
 import logging
-from datetime import datetime
 from dataclasses import dataclass, field
-from typing import Dict, Any
+from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

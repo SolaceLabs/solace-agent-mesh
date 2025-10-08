@@ -14,17 +14,16 @@ from typing import Any, Dict, Optional
 
 import httpx
 from google.adk.tools import ToolContext
+from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
 
 from ..utils.artifact_helpers import (
-    save_artifact_with_metadata,
     DEFAULT_SCHEMA_MAX_KEYS,
+    save_artifact_with_metadata,
 )
 from ..utils.context_helpers import get_original_session_id
-
-from google.genai import types as adk_types
-from .tool_definition import BuiltinTool
 from .registry import tool_registry
+from .tool_definition import BuiltinTool
 
 
 async def create_image_from_description(
@@ -800,10 +799,11 @@ async def edit_image_with_gemini(
 
     try:
         try:
+            from io import BytesIO
+
             from google import genai
             from google.genai import types
             from PIL import Image as PILImage
-            from io import BytesIO
         except ImportError as ie:
             log.error(f"{log_identifier} Required dependencies not available: {ie}")
             return {

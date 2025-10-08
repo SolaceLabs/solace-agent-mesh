@@ -5,38 +5,40 @@ use state_delta for signaling artifact return requests to the host component.
 Metadata handling is integrated via artifact_helpers.
 """
 
-import uuid
+import fnmatch
 import json
 import re
-import fnmatch
-from typing import Any, Dict, Optional, Union, TYPE_CHECKING
+import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+
 from google.adk.tools import ToolContext
 
 if TYPE_CHECKING:
     from google.adk.agents.invocation_context import InvocationContext
-from google.genai import types as adk_types
-from solace_ai_connector.common.log import log
-from .tool_definition import BuiltinTool
-from .registry import tool_registry
-from ...agent.utils.artifact_helpers import (
-    save_artifact_with_metadata,
-    decode_and_get_bytes,
-    load_artifact_content_or_metadata,
-    is_filename_safe,
-    METADATA_SUFFIX,
-    DEFAULT_SCHEMA_MAX_KEYS,
-)
-from ...common.utils.embeds import (
-    evaluate_embed,
-    EMBED_REGEX,
-    EMBED_CHAIN_DELIMITER,
-)
-from ...agent.utils.context_helpers import get_original_session_id
-from ...agent.adk.models.lite_llm import LiteLlm
 from google.adk.models import LlmRequest
 from google.adk.models.registry import LLMRegistry
+from google.genai import types as adk_types
+from solace_ai_connector.common.log import log
+
+from ...agent.adk.models.lite_llm import LiteLlm
+from ...agent.utils.artifact_helpers import (
+    DEFAULT_SCHEMA_MAX_KEYS,
+    METADATA_SUFFIX,
+    decode_and_get_bytes,
+    is_filename_safe,
+    load_artifact_content_or_metadata,
+    save_artifact_with_metadata,
+)
+from ...agent.utils.context_helpers import get_original_session_id
+from ...common.utils.embeds import (
+    EMBED_CHAIN_DELIMITER,
+    EMBED_REGEX,
+    evaluate_embed,
+)
 from ...common.utils.mime_helpers import is_text_based_file
+from .registry import tool_registry
+from .tool_definition import BuiltinTool
 
 CATEGORY_NAME = "Artifact Management"
 CATEGORY_DESCRIPTION = "List, read, create, update, and delete artifacts."

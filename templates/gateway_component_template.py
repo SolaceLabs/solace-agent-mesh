@@ -4,17 +4,19 @@ Solace Agent Mesh Component class for the __GATEWAY_NAME_PASCAL_CASE__ Gateway.
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from solace_ai_connector.common.log import log
-from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 from a2a.types import (
-    TextPart,
-    FilePart,  # If handling files
     DataPart,  # If handling structured data
-    Task,
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
+    FilePart,  # If handling files
     JSONRPCError,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
+    TextPart,
 )
+from solace_ai_connector.common.log import log
+
+from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
+
 from ...common import a2a
 from ...common.a2a import ContentPart
 

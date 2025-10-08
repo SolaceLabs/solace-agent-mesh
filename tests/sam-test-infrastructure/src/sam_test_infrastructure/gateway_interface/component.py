@@ -8,19 +8,19 @@ import asyncio
 import base64
 import threading
 from collections import defaultdict
-from typing import Any, Dict, List, Union, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+from a2a.types import (
+    JSONRPCError,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
+)
 from solace_ai_connector.common.log import log
 
-from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
-from solace_agent_mesh.common.a2a.types import ContentPart
 from solace_agent_mesh.common import a2a
-from a2a.types import (
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
-    Task,
-    JSONRPCError,
-)
+from solace_agent_mesh.common.a2a.types import ContentPart
+from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 
 info = {
     "class_name": "TestGatewayComponent",

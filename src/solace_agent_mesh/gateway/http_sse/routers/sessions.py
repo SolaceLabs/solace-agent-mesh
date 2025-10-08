@@ -2,7 +2,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session
 
-from ..dependencies import get_session_business_service, get_db
+from ..dependencies import get_db, get_session_business_service
 from ..services.session_service import SessionService
 from ..shared.auth_utils import get_current_user
 from ..shared.pagination import DataResponse, PaginatedResponse, PaginationParams
@@ -13,7 +13,7 @@ from .dto.requests.session_requests import (
 )
 from .dto.requests.task_requests import SaveTaskRequest
 from .dto.responses.session_responses import SessionResponse
-from .dto.responses.task_responses import TaskResponse, TaskListResponse
+from .dto.responses.task_responses import TaskListResponse, TaskResponse
 
 router = APIRouter()
 

@@ -7,22 +7,22 @@ can be used by any FastAPI application for uniform error handling.
 """
 
 from fastapi import HTTPException, Request, status
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError as PydanticValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .error_dto import EventErrorDTO
 from .exceptions import (
-    WebUIBackendException,
-    ValidationError,
-    EntityNotFoundError,
-    EntityAlreadyExistsError,
     BusinessRuleViolationError,
     ConfigurationError,
     DataIntegrityError,
+    EntityAlreadyExistsError,
+    EntityNotFoundError,
     ExternalServiceError,
+    ValidationError,
+    WebUIBackendException,
 )
-from .error_dto import EventErrorDTO
 
 
 def create_error_response(

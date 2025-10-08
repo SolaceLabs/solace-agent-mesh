@@ -1,8 +1,8 @@
-import logging
 import json
+import logging
 import os
-from datetime import datetime, timezone
 import traceback
+from datetime import datetime, timezone
 
 
 class DatadogJsonFormatter(logging.Formatter):

@@ -222,8 +222,8 @@ def test_multi_agent_consultation_workflow(api_client: TestClient):
 def test_document_processing_workflow(api_client: TestClient):
     """Test workflow involving file upload and processing"""
 
-    import uuid
     import base64
+    import uuid
 
     # 1. Upload documents for processing
     print("1. Uploading documents for processing...")

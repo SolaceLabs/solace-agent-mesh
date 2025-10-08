@@ -10,8 +10,8 @@ from ..shared.types import PaginationInfo, SessionId, UserId
 from .entities import Session
 from .interfaces import ISessionRepository
 from .models import (
-    SessionModel,
     CreateSessionModel,
+    SessionModel,
     UpdateSessionModel,
 )
 

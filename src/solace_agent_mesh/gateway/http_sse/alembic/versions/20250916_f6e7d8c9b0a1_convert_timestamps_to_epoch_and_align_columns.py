@@ -20,8 +20,9 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Convert datetime columns to epoch milliseconds and rename columns."""
-    from sqlalchemy import inspect
     import time
+
+    from sqlalchemy import inspect
 
     bind = op.get_bind()
     inspector = inspect(bind)

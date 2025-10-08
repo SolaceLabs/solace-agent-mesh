@@ -2,9 +2,10 @@
 Defines the Pydantic model for a self-contained BuiltinTool definition.
 """
 
-from typing import Callable, List, Dict, Any, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Callable, Dict, List, Optional
+
 from google.genai import types as adk_types
+from pydantic import BaseModel, Field
 
 
 class BuiltinTool(BaseModel):

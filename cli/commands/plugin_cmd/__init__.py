@@ -1,10 +1,10 @@
 import click
 
-from .create_cmd import create_plugin_cmd
-from .install_cmd import install_plugin_cmd
 from .add_cmd import add_plugin_component_cmd
 from .build_cmd import build_plugin_cmd
 from .catalog_cmd import catalog
+from .create_cmd import create_plugin_cmd
+from .install_cmd import install_plugin_cmd
 
 
 @click.group("plugin")

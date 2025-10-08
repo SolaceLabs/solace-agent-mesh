@@ -15,23 +15,20 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import httpx
-
 from google import genai
-from google.genai import types as adk_types
 from google.adk.tools import ToolContext
+from google.genai import types as adk_types
 from pydub import AudioSegment
 from solace_ai_connector.common.log import log
 
 from ...agent.utils.artifact_helpers import (
+    DEFAULT_SCHEMA_MAX_KEYS,
     load_artifact_content_or_metadata,
     save_artifact_with_metadata,
-    DEFAULT_SCHEMA_MAX_KEYS,
 )
 from ...agent.utils.context_helpers import get_original_session_id
-
-from .tool_definition import BuiltinTool
 from .registry import tool_registry
-
+from .tool_definition import BuiltinTool
 
 VOICE_TONE_MAPPING = {
     "bright": ["Zephyr", "Autonoe"],

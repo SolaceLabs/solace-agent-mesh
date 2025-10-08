@@ -1,9 +1,12 @@
-import click
 import http.server
+import os
 import socketserver
 import webbrowser
-import os
-from cli.utils import get_cli_root_dir, error_exit
+
+import click
+
+from cli.utils import error_exit, get_cli_root_dir
+
 
 class DocsHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):

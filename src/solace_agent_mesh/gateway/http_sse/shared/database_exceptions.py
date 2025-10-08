@@ -6,9 +6,16 @@ This handler translates low-level database errors into meaningful business excep
 that can be properly handled by the API layer.
 """
 
-from typing import Optional, Dict, List
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError, OperationalError, DatabaseError
-from .exceptions import ValidationError, DataIntegrityError, EntityAlreadyExistsError
+from typing import Dict, List, Optional
+
+from sqlalchemy.exc import (
+    DatabaseError,
+    IntegrityError,
+    OperationalError,
+    SQLAlchemyError,
+)
+
+from .exceptions import DataIntegrityError, EntityAlreadyExistsError, ValidationError
 
 
 class DatabaseExceptionHandler:

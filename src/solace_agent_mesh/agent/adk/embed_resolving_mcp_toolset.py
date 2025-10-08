@@ -3,9 +3,9 @@ Custom MCPToolset that resolves embeds in tool parameters before calling MCP too
 """
 
 import asyncio
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
-from google.adk.tools.mcp_tool import MCPToolset, MCPTool
+from google.adk.tools.mcp_tool import MCPTool, MCPToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import (
     SseConnectionParams,
     StdioConnectionParams,
@@ -14,14 +14,14 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
 from google.adk.tools.tool_context import ToolContext
 from solace_ai_connector.common.log import log
 
-from ..utils.context_helpers import get_original_session_id
 from ...common.utils.embeds import (
-    resolve_embeds_in_string,
-    evaluate_embed,
     EARLY_EMBED_TYPES,
-    LATE_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
+    LATE_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
 )
+from ..utils.context_helpers import get_original_session_id
 
 
 class EmbedResolvingMCPTool(MCPTool):

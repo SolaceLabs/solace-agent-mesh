@@ -5,10 +5,10 @@ This script analyzes git diff to determine which files have changed and maps
 them to appropriate pytest markers for targeted test execution.
 """
 
+import fnmatch
 import subprocess
 import sys
 from typing import List, Set
-import fnmatch
 
 
 class TestSelector:

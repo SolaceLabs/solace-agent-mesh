@@ -1,8 +1,10 @@
-import click
 import pathlib
+
+import click
 import toml
 
-from cli.utils import get_formatted_names, error_exit
+from cli.utils import error_exit, get_formatted_names
+
 from .install_cmd import install_plugin
 
 

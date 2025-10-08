@@ -731,7 +731,9 @@ def test_data_retention_handles_database_errors(api_client, test_database_engine
     
     # Act: Mock the repository to raise an exception
     from solace_agent_mesh.gateway.http_sse import dependencies
-    from solace_agent_mesh.gateway.http_sse.repository.task_repository import TaskRepository
+    from solace_agent_mesh.gateway.http_sse.repository.task_repository import (
+        TaskRepository,
+    )
     
     original_delete = TaskRepository.delete_tasks_older_than
     

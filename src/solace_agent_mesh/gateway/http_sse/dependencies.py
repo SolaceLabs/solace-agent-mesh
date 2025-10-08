@@ -18,11 +18,11 @@ from ...common.services.identity_service import BaseIdentityService
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.task_context import TaskContextManager
 from ...gateway.http_sse.services.agent_card_service import AgentCardService
-from ...gateway.http_sse.services.people_service import PeopleService
-from ...gateway.http_sse.services.task_service import TaskService
-from ...gateway.http_sse.services.feedback_service import FeedbackService
-from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
 from ...gateway.http_sse.services.data_retention_service import DataRetentionService
+from ...gateway.http_sse.services.feedback_service import FeedbackService
+from ...gateway.http_sse.services.people_service import PeopleService
+from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
+from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .repository import SessionRepository

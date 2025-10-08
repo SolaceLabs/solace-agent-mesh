@@ -14,22 +14,22 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, UploadFile
 from fastapi import Request as FastAPIRequest
+from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.common.log import log
 from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
-from solace_ai_connector.common.event import Event, EventType
 
 from ...common.agent_registry import AgentRegistry
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.component import BaseGatewayComponent
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
-from .sse_event_buffer import SSEEventBuffer
+from . import dependencies
 from .components import VisualizationForwarderComponent
 from .components.task_logger_forwarder import TaskLoggerForwarderComponent
 from .services.feedback_service import FeedbackService
 from .services.task_logger_service import TaskLoggerService
-from . import dependencies
+from .sse_event_buffer import SSEEventBuffer
 
 try:
     from google.adk.artifacts import BaseArtifactService

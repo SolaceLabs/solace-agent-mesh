@@ -1,9 +1,10 @@
-import click
 from importlib import metadata
 from pathlib import Path
 
-from evaluation.run import main as run_evaluation_main
+import click
+
 from cli.utils import error_exit, load_template
+from evaluation.run import main as run_evaluation_main
 
 
 def _ensure_sam_rest_gateway_installed():

@@ -8,9 +8,8 @@ from a2a.types import InternalError, JSONRPCError
 from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
 from alembic import command
 from alembic.config import Config
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status
 from fastapi import Request as FastAPIRequest
-from fastapi import status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -25,11 +24,11 @@ from ...gateway.http_sse.routers import (
     artifacts,
     auth,
     config,
+    feedback,
     people,
     sse,
     tasks,
     visualization,
-    feedback,
 )
 from .routers.sessions import router as session_router
 from .routers.tasks import router as task_router

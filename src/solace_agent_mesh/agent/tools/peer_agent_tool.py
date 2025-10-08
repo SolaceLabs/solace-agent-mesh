@@ -2,19 +2,19 @@
 ADK Tool implementation for delegating tasks to peer A2A agents over Solace.
 """
 
-from typing import Any, Dict, Optional, List, Union
 import uuid
+from typing import Any, Dict, List, Optional, Union
 
+from a2a.types import (
+    AgentCard,
+)
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types as adk_types
 from pydantic import BaseModel, Field
 from solace_ai_connector.common.log import log
 
-from ...common.a2a.types import ContentPart
-from a2a.types import (
-    AgentCard,
-)
 from ...common import a2a
+from ...common.a2a.types import ContentPart
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...common.exceptions import MessageSizeExceededError
 

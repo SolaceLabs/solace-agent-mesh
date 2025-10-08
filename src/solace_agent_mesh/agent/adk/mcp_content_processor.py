@@ -17,17 +17,17 @@ import csv
 import json
 import re
 import uuid
-import yaml
 from datetime import datetime, timezone
 from io import StringIO
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
+import yaml
 from solace_ai_connector.common.log import log
 
 from ...common.utils.mime_helpers import (
-    is_text_based_mime_type,
     get_extension_for_mime_type,
+    is_text_based_mime_type,
 )
 
 

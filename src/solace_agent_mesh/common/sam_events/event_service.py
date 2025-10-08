@@ -6,11 +6,12 @@ agent health, configuration changes, etc.
 """
 
 import uuid
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from dataclasses import dataclass, asdict
-from typing import Any, Dict, Optional, Callable, List
+from typing import Any, Callable, Dict, List, Optional
 
 from solace_ai_connector.common.log import log
+
 from ..a2a.protocol import get_sam_events_topic
 
 

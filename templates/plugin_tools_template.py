@@ -5,9 +5,10 @@ from typing import Any, Dict, Optional
 
 from google.adk.tools import ToolContext
 from solace_ai_connector.common.log import log
+
 from solace_agent_mesh.agent.utils.artifact_helpers import (
-    save_artifact_with_metadata,
     DEFAULT_SCHEMA_MAX_KEYS,
+    save_artifact_with_metadata,
 )
 from solace_agent_mesh.agent.utils.context_helpers import get_original_session_id
 

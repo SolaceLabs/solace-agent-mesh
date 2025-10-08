@@ -2,19 +2,21 @@
 Programmatic integration tests for agent card discovery and peer tool creation.
 """
 
-import pytest
 import asyncio
 
-from solace_agent_mesh.agent.sac.component import SamAgentComponent
-from sam_test_infrastructure.llm_server.server import TestLLMServer
+import pytest
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
+from sam_test_infrastructure.llm_server.server import TestLLMServer
+
+from solace_agent_mesh.agent.sac.component import SamAgentComponent
+
 from .test_helpers import (
-    prime_llm_server,
     create_gateway_input_data,
-    submit_test_input,
     get_all_task_events,
+    prime_llm_server,
+    submit_test_input,
 )
 
 pytestmark = [

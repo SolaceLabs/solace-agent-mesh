@@ -1,12 +1,13 @@
-import pytest
 import time
 from pathlib import Path
-from typing import Dict, Any, Generator
+from typing import Any, Dict, Generator
 
+import pytest
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+
 from tests.integration.test_support.lifecycle_tracker import (
-    get_tracked_lines,
     cleanup_tracker,
+    get_tracked_lines,
 )
 
 

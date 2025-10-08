@@ -2,51 +2,47 @@
 API Router for submitting and managing tasks to agents.
 """
 
-import yaml
 from datetime import datetime
+from typing import TYPE_CHECKING, List, Optional, Union
+
+import yaml
+from a2a.types import (
+    CancelTaskRequest,
+    SendMessageRequest,
+    SendMessageSuccessResponse,
+    SendStreamingMessageRequest,
+    SendStreamingMessageSuccessResponse,
+)
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
-    Request as FastAPIRequest,
     Response,
     status,
 )
+from fastapi import (
+    Request as FastAPIRequest,
+)
 from fastapi.exceptions import RequestValidationError
-from typing import List, Optional, Union
-
 from solace_ai_connector.common.log import log
 
-from ....gateway.http_sse.session_manager import SessionManager
-from ....gateway.http_sse.services.task_service import TaskService
-from ....gateway.http_sse.services.session_service import SessionService
-from ....gateway.http_sse.repository.interfaces import ITaskRepository
+from ....common import a2a
+from ....gateway.http_sse.dependencies import (
+    get_sac_component,
+    get_session_business_service,
+    get_session_manager,
+    get_task_repository,
+    get_task_service,
+    get_user_config,
+    get_user_id,
+)
 from ....gateway.http_sse.repository.entities import Task
+from ....gateway.http_sse.repository.interfaces import ITaskRepository
+from ....gateway.http_sse.services.session_service import SessionService
+from ....gateway.http_sse.services.task_service import TaskService
+from ....gateway.http_sse.session_manager import SessionManager
 from ....gateway.http_sse.shared.types import PaginationParams, UserId
 from ..utils.stim_utils import create_stim_from_task_data
-
-from a2a.types import (
-    CancelTaskRequest,
-    SendMessageRequest,
-    SendStreamingMessageRequest,
-    SendMessageSuccessResponse,
-    SendStreamingMessageSuccessResponse,
-)
-from ....common import a2a
-
-from ....gateway.http_sse.dependencies import (
-    get_session_manager,
-    get_sac_component,
-    get_task_service,
-    get_session_business_service,
-    get_task_repository,
-    get_user_id,
-    get_user_config,
-    get_session_business_service,
-)
-from ....gateway.http_sse.services.session_service import SessionService
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent

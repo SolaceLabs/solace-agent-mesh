@@ -2,13 +2,13 @@
 API Router for agent discovery.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 
+from a2a.types import AgentCard
+from fastapi import APIRouter, Depends, HTTPException, status
 from solace_ai_connector.common.log import log
 
 from ....common.agent_registry import AgentRegistry
-from a2a.types import AgentCard
 from ..dependencies import get_agent_registry
 
 router = APIRouter()

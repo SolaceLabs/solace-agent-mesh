@@ -17,9 +17,9 @@ from ..utils.stim_utils import create_stim_from_task_data
 # The FeedbackPayload is defined in the router, this creates a forward reference
 # which is resolved at runtime.
 if TYPE_CHECKING:
-    from ..routers.feedback import FeedbackPayload
     from ..component import WebUIBackendComponent
     from ..repository.interfaces import ITaskRepository
+    from ..routers.feedback import FeedbackPayload
 
 
 class FeedbackService:

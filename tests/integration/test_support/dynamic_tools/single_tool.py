@@ -1,7 +1,10 @@
 from typing import Optional
-from google.genai import types as adk_types
+
 from google.adk.tools import ToolContext
+from google.genai import types as adk_types
+
 from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool
+
 
 class MySimpleDynamicTool(DynamicTool):
     """A simple, class-based dynamic tool for integration testing."""

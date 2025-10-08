@@ -15,15 +15,15 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 from solace_agent_mesh.gateway.http_sse.repository.models.base import Base
-
-# Import all models here to ensure they are registered with the Base
-from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
-from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import (
-    TaskEventModel,
-)
 from solace_agent_mesh.gateway.http_sse.repository.models.feedback_model import (
     FeedbackModel,
 )
+from solace_agent_mesh.gateway.http_sse.repository.models.task_event_model import (
+    TaskEventModel,
+)
+
+# Import all models here to ensure they are registered with the Base
+from solace_agent_mesh.gateway.http_sse.repository.models.task_model import TaskModel
 
 target_metadata = Base.metadata
 

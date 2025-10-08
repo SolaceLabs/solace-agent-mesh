@@ -4,15 +4,13 @@ Patches message publishing methods to intercept and validate A2A messages.
 """
 
 import functools
-import json
 import importlib.resources
+import json
 from typing import Any, Dict, List
 from unittest.mock import patch
 
 import pytest
 from jsonschema import Draft7Validator, RefResolver, ValidationError
-
-
 
 METHOD_TO_SCHEMA_MAP = {
     "message/send": "SendMessageRequest",
@@ -75,10 +73,11 @@ class A2AMessageValidator:
         """
         if self.active:
             self.deactivate()
-        from solace_agent_mesh.agent.sac.component import SamAgentComponent
         from sam_test_infrastructure.gateway_interface.component import (
             TestGatewayComponent,
         )
+
+        from solace_agent_mesh.agent.sac.component import SamAgentComponent
 
         for component_instance in components_to_patch:
             method_name_to_patch = None

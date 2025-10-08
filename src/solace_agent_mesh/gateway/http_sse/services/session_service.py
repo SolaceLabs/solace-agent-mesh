@@ -1,5 +1,5 @@
 import uuid
-from typing import TYPE_CHECKING, Optional, List, Dict, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DbSession
@@ -10,10 +10,14 @@ from ..repository import (
 )
 from ..repository.chat_task_repository import ChatTaskRepository
 from ..repository.entities import ChatTask
-from ..shared.enums import SenderType
-from ..shared.types import SessionId, UserId
 from ..shared import now_epoch_ms
-from ..shared.pagination import PaginationParams, PaginatedResponse, get_pagination_or_default
+from ..shared.enums import SenderType
+from ..shared.pagination import (
+    PaginatedResponse,
+    PaginationParams,
+    get_pagination_or_default,
+)
+from ..shared.types import SessionId, UserId
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent

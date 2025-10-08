@@ -4,9 +4,9 @@ from an LLM's text stream.
 """
 
 import re
-from enum import Enum, auto
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from enum import Enum, auto
+from typing import Any, Dict, List
 
 # --- Constants ---
 # These are duplicated from callbacks for now to keep the parser self-contained.

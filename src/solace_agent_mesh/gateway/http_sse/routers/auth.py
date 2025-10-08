@@ -2,20 +2,23 @@
 Router for handling authentication-related endpoints.
 """
 
+import secrets
+from urllib.parse import urlencode
+
+import httpx
 from fastapi import (
     APIRouter,
-    Request as FastAPIRequest,
     Depends,
     HTTPException,
     Response,
 )
+from fastapi import (
+    Request as FastAPIRequest,
+)
 from fastapi.responses import RedirectResponse
-import httpx
-import secrets
-from urllib.parse import urlencode
-
-from ...http_sse.dependencies import get_sac_component, get_api_config
 from solace_ai_connector.common.log import log
+
+from ...http_sse.dependencies import get_api_config, get_sac_component
 
 router = APIRouter()
 

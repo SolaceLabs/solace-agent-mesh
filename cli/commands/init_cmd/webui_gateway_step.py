@@ -1,8 +1,8 @@
-import click
 from pathlib import Path
 
-from ...utils import ask_if_not_provided, ask_yes_no_question, load_template
+import click
 
+from ...utils import ask_if_not_provided, ask_yes_no_question, load_template
 
 WEBUI_GATEWAY_DEFAULTS = {
     "webui_frontend_welcome_message": "",

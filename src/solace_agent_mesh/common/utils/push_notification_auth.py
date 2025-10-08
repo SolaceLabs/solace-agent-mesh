@@ -1,18 +1,16 @@
-from jwcrypto import jwk
+import hashlib
+import json
+import time
 import uuid
-from starlette.responses import JSONResponse
-from starlette.requests import Request
 from typing import Any
 
-import jwt
-import time
-import json
-import hashlib
 import httpx
-
-from solace_ai_connector.common.log import log
-
+import jwt
+from jwcrypto import jwk
 from jwt import PyJWK, PyJWKClient
+from solace_ai_connector.common.log import log
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 AUTH_HEADER_PREFIX = "Bearer "
 

@@ -719,6 +719,7 @@ class TestIntegrationWithExistingFeatures:
         
         # Step 7: Verify tasks are actually deleted from database (not just hidden)
         from sqlalchemy.orm import sessionmaker
+
         from solace_agent_mesh.gateway.http_sse.repository.models import ChatTaskModel
         
         Session = sessionmaker(bind=test_database_engine)

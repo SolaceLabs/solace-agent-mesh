@@ -1,5 +1,6 @@
-import click
 from pathlib import Path
+
+import click
 
 
 def create_project_directories(project_root: Path) -> bool:

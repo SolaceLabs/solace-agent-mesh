@@ -1,17 +1,18 @@
-import click
 import os
 import sys
+
+import click
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from cli import __version__
-from cli.commands.init_cmd import init
-from cli.commands.run_cmd import run
 from cli.commands.add_cmd import add
-from cli.commands.plugin_cmd import plugin
-from cli.commands.eval_cmd import eval_cmd
 from cli.commands.docs_cmd import docs
+from cli.commands.eval_cmd import eval_cmd
+from cli.commands.init_cmd import init
+from cli.commands.plugin_cmd import plugin
+from cli.commands.run_cmd import run
 
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))

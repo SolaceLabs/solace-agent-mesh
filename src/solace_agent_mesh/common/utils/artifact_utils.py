@@ -3,6 +3,7 @@ Common utility functions for working with ADK artifacts.
 """
 
 from typing import Optional
+
 from google.adk.artifacts import BaseArtifactService
 from solace_ai_connector.common.log import log
 

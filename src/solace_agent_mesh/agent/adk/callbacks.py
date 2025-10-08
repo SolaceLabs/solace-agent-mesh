@@ -4,47 +4,32 @@ Includes dynamic instruction injection, artifact metadata injection,
 embed resolution, and logging.
 """
 
-import json
 import asyncio
+import json
 import uuid
-from typing import Any, Dict, Optional, TYPE_CHECKING, List
 from collections import defaultdict
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from google.adk.tools import BaseTool, ToolContext
-from google.adk.artifacts import BaseArtifactService
 from google.adk.agents.callback_context import CallbackContext
+from google.adk.artifacts import BaseArtifactService
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from google.genai import types as adk_types
+from google.adk.tools import BaseTool, ToolContext
 from google.adk.tools.mcp_tool import MCPTool
+from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
-from .intelligent_mcp_callbacks import (
-    save_mcp_response_as_artifact_intelligent,
-    McpSaveStatus,
-)
 
 from ...agent.utils.artifact_helpers import (
+    DEFAULT_SCHEMA_MAX_KEYS,
     METADATA_SUFFIX,
     format_metadata_for_llm,
+    save_artifact_with_metadata,
 )
 from ...agent.utils.context_helpers import (
     get_original_session_id,
     get_session_from_callback_context,
 )
-from ..tools.tool_definition import BuiltinTool
-
-from ...common.utils.embeds import (
-    EMBED_DELIMITER_OPEN,
-    EMBED_DELIMITER_CLOSE,
-)
-
-from ...common.utils.embeds import (
-    EMBED_CHAIN_DELIMITER,
-)
-
-from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
-
 from ...common import a2a
 from ...common.a2a.types import ContentPart
 from ...common.data_parts import (
@@ -54,27 +39,33 @@ from ...common.data_parts import (
     ToolInvocationStartData,
     ToolResultData,
 )
-
-from ...agent.utils.artifact_helpers import (
-    save_artifact_with_metadata,
-    DEFAULT_SCHEMA_MAX_KEYS,
+from ...common.utils.embeds import (
+    EMBED_CHAIN_DELIMITER,
+    EMBED_DELIMITER_CLOSE,
+    EMBED_DELIMITER_OPEN,
+)
+from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
+from ..tools.tool_definition import BuiltinTool
+from .intelligent_mcp_callbacks import (
+    McpSaveStatus,
+    save_mcp_response_as_artifact_intelligent,
 )
 
 METADATA_RESPONSE_KEY = "appended_artifact_metadata"
-from ..tools.builtin_artifact_tools import _internal_create_artifact
-from ...agent.adk.tool_wrapper import ADKToolWrapper
-
 # Import the new parser and its events
 from pydantic import BaseModel
+
 from ...agent.adk.stream_parser import (
-    FencedBlockStreamParser,
-    BlockStartedEvent,
-    BlockProgressedEvent,
+    ARTIFACT_BLOCK_DELIMITER_CLOSE,
+    ARTIFACT_BLOCK_DELIMITER_OPEN,
     BlockCompletedEvent,
     BlockInvalidatedEvent,
-    ARTIFACT_BLOCK_DELIMITER_OPEN,
-    ARTIFACT_BLOCK_DELIMITER_CLOSE,
+    BlockProgressedEvent,
+    BlockStartedEvent,
+    FencedBlockStreamParser,
 )
+from ...agent.adk.tool_wrapper import ADKToolWrapper
+from ..tools.builtin_artifact_tools import _internal_create_artifact
 
 A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 

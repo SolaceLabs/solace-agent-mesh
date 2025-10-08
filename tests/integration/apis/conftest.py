@@ -14,28 +14,28 @@ import sqlalchemy as sa
 # FastAPI and database imports
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
+from solace_agent_mesh.core_a2a.service import CoreA2AService
+from solace_agent_mesh.gateway.http_sse import dependencies
+
+# Imports for feedback test fixture
+from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 
 # Import FastAPI components
 from solace_agent_mesh.gateway.http_sse.main import app as fastapi_app
 from solace_agent_mesh.gateway.http_sse.main import setup_dependencies
+from solace_agent_mesh.gateway.http_sse.services.task_logger_service import (
+    TaskLoggerService,
+)
+from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
 
 from .infrastructure.simple_database_inspector import SimpleDatabaseInspector
 
 # Import test infrastructure components
 from .infrastructure.simple_database_manager import SimpleDatabaseManager
 from .infrastructure.simple_gateway_adapter import SimpleGatewayAdapter
-
-
-# Imports for feedback test fixture
-from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
-from solace_agent_mesh.gateway.http_sse import dependencies
-from solace_agent_mesh.gateway.http_sse.services.task_logger_service import (
-    TaskLoggerService,
-)
-from solace_agent_mesh.core_a2a.service import CoreA2AService
-from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
-from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture(scope="session")

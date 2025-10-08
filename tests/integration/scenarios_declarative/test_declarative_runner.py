@@ -2,54 +2,55 @@
 Pytest test runner for declarative (YAML/JSON) test scenarios.
 """
 
+import asyncio
 import base64
+import builtins
+import json
+import math
+import os
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import pytest
 import yaml
-import os
-import asyncio
-from pathlib import Path
-from typing import Dict, Any, List, Union, Optional, Tuple
+from a2a.types import (
+    DataPart,
+    JSONRPCError,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
+    TextPart,
+)
+from a2a.utils.message import get_data_parts, get_message_text
+from asteval import Interpreter
 from fastapi.testclient import TestClient
-
-from sam_test_infrastructure.llm_server.server import (
-    TestLLMServer,
-    ChatCompletionRequest,
-)
-
-from sam_test_infrastructure.gateway_interface.component import (
-    TestGatewayComponent,
-)
+from google.genai import types as adk_types  # Add this import
+from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
-from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
-from a2a.types import (
-    TextPart,
-    DataPart,
-    Task,
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
-    JSONRPCError,
+from sam_test_infrastructure.gateway_interface.component import (
+    TestGatewayComponent,
 )
-from a2a.utils.message import get_data_parts, get_message_text
+from sam_test_infrastructure.llm_server.server import (
+    ChatCompletionRequest,
+    TestLLMServer,
+)
+
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
-from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
-from google.genai import types as adk_types  # Add this import
-import re
-import json
-import builtins
-from asteval import Interpreter
-import math
-from ..scenarios_programmatic.test_helpers import (
-    get_all_task_events,
-    extract_outputs_from_event_list,
-)
+from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
 from solace_agent_mesh.agent.utils.artifact_helpers import (
     generate_artifact_metadata_summary,
     load_artifact_content_or_metadata,
 )
-from solace_agent_mesh.agent.testing.debug_utils import pretty_print_event_history
+from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+
+from ..scenarios_programmatic.test_helpers import (
+    extract_outputs_from_event_list,
+    get_all_task_events,
+)
 
 MODEL_SUFFIX_REGEX = r"test-model-([^-]+)-"
 
@@ -176,10 +177,12 @@ async def _setup_scenario_environment(
 
     setup_tasks_spec = declarative_scenario.get("setup_tasks", [])
     if setup_tasks_spec:
-        from sqlalchemy.orm import sessionmaker
-        from solace_agent_mesh.gateway.http_sse.repository.models import TaskModel
-        from datetime import datetime, timezone
         import uuid
+        from datetime import datetime, timezone
+
+        from sqlalchemy.orm import sessionmaker
+
+        from solace_agent_mesh.gateway.http_sse.repository.models import TaskModel
 
         Session = sessionmaker(bind=test_db_engine)
         db_session = Session()

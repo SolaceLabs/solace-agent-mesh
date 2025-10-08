@@ -4,28 +4,28 @@ API Router for managing A2A message visualization streams.
 
 import asyncio
 import uuid
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
-    Request as FastAPIRequest,
     Response,
     status,
 )
+from fastapi import (
+    Request as FastAPIRequest,
+)
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, Set
-
 from solace_ai_connector.common.log import log
 
+from ....common.middleware.registry import MiddlewareRegistry
 from ....gateway.http_sse.dependencies import (
     get_sac_component,
-    get_user_id,
     get_sse_manager,
+    get_user_id,
 )
 from ....gateway.http_sse.sse_manager import SSEManager
-from ....common.middleware.registry import MiddlewareRegistry
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent

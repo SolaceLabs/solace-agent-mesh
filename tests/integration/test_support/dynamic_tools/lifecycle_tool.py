@@ -2,8 +2,8 @@
 A DynamicTool for testing lifecycle hooks.
 It uses the lifecycle_tracker to record when its init and cleanup methods are called.
 """
-from typing import Optional, Any
 from pathlib import Path
+from typing import Any, Optional
 
 from google.adk.tools import ToolContext
 from google.genai import types as adk_types
@@ -90,8 +90,8 @@ class LifecycleTestTool(DynamicTool):
 
 # Import hooks to make them available in this module's namespace for the framework
 from .lifecycle_yaml_hooks import (
-    mixed_yaml_init,
-    mixed_yaml_cleanup,
-    succeeding_cleanup_hook,
     arg_inspector_init_hook,
+    mixed_yaml_cleanup,
+    mixed_yaml_init,
+    succeeding_cleanup_hook,
 )

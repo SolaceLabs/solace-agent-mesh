@@ -4,7 +4,8 @@ Authentication utilities for the FastAPI application.
 This module provides common authentication functions used across controllers.
 """
 
-from fastapi import Depends, Request as FastAPIRequest
+from fastapi import Depends
+from fastapi import Request as FastAPIRequest
 
 
 async def get_current_user(request: FastAPIRequest) -> dict:

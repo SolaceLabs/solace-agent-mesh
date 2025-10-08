@@ -1,13 +1,15 @@
-import tempfile
 import os
-import re
-import subprocess
 import pathlib
-import click
+import re
 import shutil
+import subprocess
+import tempfile
+
+import click
 import toml
 
-from cli.utils import get_module_path, error_exit
+from cli.utils import error_exit, get_module_path
+
 from .official_registry import get_official_plugin_url
 
 

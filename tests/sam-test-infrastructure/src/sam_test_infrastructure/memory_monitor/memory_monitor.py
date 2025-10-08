@@ -3,10 +3,10 @@ Generic Memory Monitoring utility for integration and longevity tests.
 """
 
 import gc
-import os
 import io
+import os
 from datetime import datetime
-from typing import List, Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     import psutil
@@ -19,15 +19,17 @@ except ImportError:
     objgraph = None
 
 try:
-    from pympler import muppy, summary, asizeof
+    from pympler import asizeof, muppy, summary
 except ImportError:
     muppy = None
     summary = None
     asizeof = None
 
+from a2a.types import Task, TaskStatusUpdateEvent
+
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.tools.peer_agent_tool import PeerAgentTool
-from a2a.types import Task, TaskStatusUpdateEvent
+
 from .depth_based_profiler import DepthBasedProfiler, DepthProfilerConfig, MemoryNode
 from .diff_generator import MemoryDiffGenerator, MemoryDiffReportGenerator
 

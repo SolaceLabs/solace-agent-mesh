@@ -10,25 +10,23 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
-from playwright.async_api import async_playwright
 
 from google.adk.tools import ToolContext
-from solace_ai_connector.common.log import log
-
+from google.genai import types as adk_types
 from markitdown import MarkItDown, UnsupportedFormatException
 from mermaid_cli import render_mermaid
+from playwright.async_api import async_playwright
+from solace_ai_connector.common.log import log
 
 from ...agent.utils.artifact_helpers import (
+    DEFAULT_SCHEMA_MAX_KEYS,
+    METADATA_SUFFIX,
     ensure_correct_extension,
     save_artifact_with_metadata,
-    METADATA_SUFFIX,
-    DEFAULT_SCHEMA_MAX_KEYS,
 )
 from ...agent.utils.context_helpers import get_original_session_id
-
-from google.genai import types as adk_types
-from .tool_definition import BuiltinTool
 from .registry import tool_registry
+from .tool_definition import BuiltinTool
 
 
 def _simple_truncate_text(text: str, max_bytes: int = 2048) -> Tuple[str, bool]:

@@ -6,7 +6,8 @@ to be bound at runtime, enabling pluggable behavior for configuration resolution
 and other middleware functions.
 """
 
-from typing import Optional, Type, Dict, Any, List
+from typing import Any, Dict, List, Optional, Type
+
 from solace_ai_connector.common.log import log
 
 LOG_IDENTIFIER = "[MiddlewareRegistry]"

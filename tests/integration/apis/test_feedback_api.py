@@ -10,14 +10,17 @@ import csv
 import logging
 import uuid
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 from solace_ai_connector.common.log import log
 from sqlalchemy.orm import sessionmaker
-from unittest.mock import MagicMock
 
-from solace_agent_mesh.gateway.http_sse.repository.models import FeedbackModel, TaskModel
+from solace_agent_mesh.gateway.http_sse.repository.models import (
+    FeedbackModel,
+    TaskModel,
+)
 from solace_agent_mesh.gateway.http_sse.shared import now_epoch_ms
 
 

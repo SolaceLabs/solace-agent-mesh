@@ -3,19 +3,20 @@ Basic Test LLM Server mimicking an OpenAI-compatible API endpoint.
 Provides configurable static responses and captures incoming requests for verification.
 """
 
-from fastapi import FastAPI, Request, HTTPException
-from starlette.responses import StreamingResponse
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional, Union, Literal, AsyncGenerator
-import uvicorn
-import json
-import threading
-import time
 import asyncio
+import base64
+import json
 import logging
 import os
 import re
-import base64
+import threading
+import time
+from typing import Any, AsyncGenerator, Dict, List, Literal, Optional, Union
+
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, Field
+from starlette.responses import StreamingResponse
 
 
 class ToolCallFunction(BaseModel):

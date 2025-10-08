@@ -3,8 +3,9 @@
 Unit tests for the SamAgentComponent class
 """
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 from src.solace_agent_mesh.agent.sac.component import SamAgentComponent
 

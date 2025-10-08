@@ -1,7 +1,8 @@
 import json
-import pytest
 import os
 from unittest.mock import Mock
+
+import pytest
 
 pytestmark = [
     pytest.mark.all,
@@ -53,10 +54,11 @@ def test_local_file_identity_service_initialization_with_component():
     """
     Tests that the LocalFileIdentityService initializes correctly with a component parameter.
     """
+    from unittest.mock import Mock
+
     from src.solace_agent_mesh.common.services.providers.local_file_identity_service import (
         LocalFileIdentityService,
     )
-    from unittest.mock import Mock
 
     try:
         # Create a mock component
@@ -186,10 +188,11 @@ def test_identity_service_factory_with_component():
     """
     Tests the identity service factory function with a component parameter.
     """
+    from unittest.mock import Mock
+
     from src.solace_agent_mesh.common.services.identity_service import (
         create_identity_service,
     )
-    from unittest.mock import Mock
 
     # Create a mock component
     mock_component = Mock()

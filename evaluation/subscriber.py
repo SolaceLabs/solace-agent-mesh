@@ -3,24 +3,24 @@ Refactored message subscriber with improved structure and readability.
 This module handles Solace message subscription and processing for evaluation.
 """
 
-import os
 import json
+import logging
+import os
 import threading
 import time
-from typing import Dict, List, Optional, Any, Set, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-import logging
-from dotenv import load_dotenv
+from typing import Any, Callable, Dict, List, Optional, Set
 
-from solace.messaging.messaging_service import MessagingService
-from solace.messaging.resources.topic_subscription import TopicSubscription
+from dotenv import load_dotenv
 from solace.messaging.config.solace_properties import (
-    transport_layer_properties,
-    service_properties,
     authentication_properties,
+    service_properties,
+    transport_layer_properties,
     transport_layer_security_properties,
 )
+from solace.messaging.messaging_service import MessagingService
+from solace.messaging.resources.topic_subscription import TopicSubscription
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

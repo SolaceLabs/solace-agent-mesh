@@ -14,10 +14,12 @@ from fastapi import (
     Path,
     UploadFile,
     status,
+)
+from fastapi import (
     Request as FastAPIRequest,
 )
-from pydantic import BaseModel, Field
 from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel, Field
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -43,21 +45,19 @@ from ....common.utils.embeds import (
 from ....common.utils.mime_helpers import is_text_based_mime_type
 from ..dependencies import (
     ValidatedUserConfig,
+    get_db_optional,
     get_sac_component,
+    get_session_business_service_optional,
+    get_session_manager,
     get_session_validator,
     get_shared_artifact_service,
     get_user_config,
     get_user_id,
-    get_session_manager,
-    get_session_business_service_optional,
-    get_db_optional,
 )
 
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
 
-from ..session_manager import SessionManager
-from ..services.session_service import SessionService
 from sqlalchemy.orm import Session
 
 from ....agent.utils.artifact_helpers import (
@@ -67,6 +67,8 @@ from ....agent.utils.artifact_helpers import (
     load_artifact_content_or_metadata,
     save_artifact_with_metadata,
 )
+from ..services.session_service import SessionService
+from ..session_manager import SessionManager
 
 
 class ArtifactUploadResponse(BaseModel):

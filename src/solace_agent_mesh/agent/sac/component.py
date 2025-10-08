@@ -2,78 +2,83 @@
 Custom Solace AI Connector Component to Host Google ADK Agents via A2A Protocol.
 """
 
-from typing import Any, Dict, Optional, Union, Callable, List, Tuple, TYPE_CHECKING
 import asyncio
-import functools
-import threading
-import concurrent.futures
-import uuid
-import fnmatch
 import base64
-from datetime import datetime, timezone
-import json
-from solace_ai_connector.common.message import (
-    Message as SolaceMessage,
-)
-from solace_ai_connector.common.log import log
-from solace_ai_connector.common.event import Event, EventType
-from solace_ai_connector.common.utils import import_module
+import concurrent.futures
+import fnmatch
+import functools
 import inspect
-from pydantic import BaseModel, ValidationError
-from google.adk.agents.invocation_context import (
-    LlmCallsLimitExceededError,
-)
-from google.adk.agents import RunConfig
-from google.adk.agents.run_config import StreamingMode
-from google.adk.sessions import BaseSessionService
-from google.adk.artifacts import BaseArtifactService
-from google.adk.memory import BaseMemoryService
-from google.adk.agents import LlmAgent
-from google.adk.runners import Runner
-from google.adk.models import LlmResponse
-from google.adk.agents.readonly_context import ReadonlyContext
-from google.adk.events import Event as ADKEvent
-from google.adk.agents.callback_context import CallbackContext
-from google.adk.models.llm_request import LlmRequest
-from google.genai import types as adk_types
-from google.adk.tools.mcp_tool import MCPToolset
+import json
+import threading
+import uuid
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+
 from a2a.types import (
     AgentCard,
-    Artifact as A2AArtifact,
-    Message as A2AMessage,
     MessageSendParams,
     SendMessageRequest,
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
 )
-from ...common import a2a
-from ...common.data_parts import AgentProgressUpdateData
-from ...common.a2a.translation import format_and_route_adk_event
-from ...agent.utils.config_parser import resolve_instruction_provider
+from a2a.types import (
+    Artifact as A2AArtifact,
+)
+from a2a.types import (
+    Message as A2AMessage,
+)
+from google.adk.agents import LlmAgent, RunConfig
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.agents.invocation_context import (
+    LlmCallsLimitExceededError,
+)
+from google.adk.agents.readonly_context import ReadonlyContext
+from google.adk.agents.run_config import StreamingMode
+from google.adk.artifacts import BaseArtifactService
+from google.adk.events import Event as ADKEvent
+from google.adk.memory import BaseMemoryService
+from google.adk.models import LlmResponse
+from google.adk.models.llm_request import LlmRequest
+from google.adk.runners import Runner
+from google.adk.sessions import BaseSessionService
+from google.adk.tools.mcp_tool import MCPToolset
+from google.genai import types as adk_types
+from pydantic import BaseModel, ValidationError
+from solace_ai_connector.common.event import Event, EventType
+from solace_ai_connector.common.log import log
+from solace_ai_connector.common.message import (
+    Message as SolaceMessage,
+)
+from solace_ai_connector.common.utils import import_module
+
+from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.adk.services import (
-    initialize_session_service,
     initialize_artifact_service,
     initialize_memory_service,
+    initialize_session_service,
 )
 from ...agent.adk.setup import (
-    load_adk_tools,
     initialize_adk_agent,
     initialize_adk_runner,
+    load_adk_tools,
 )
 from ...agent.protocol.event_handlers import (
     process_event,
     publish_agent_card,
 )
-from ...agent.adk.runner import run_adk_async_task_thread_wrapper, TaskCancelledError
 from ...agent.tools.peer_agent_tool import (
     CORRELATION_DATA_PREFIX,
-    PeerAgentTool,
     PEER_TOOL_PREFIX,
+    PeerAgentTool,
 )
-from ...common.middleware.registry import MiddlewareRegistry
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.tools.registry import tool_registry
+from ...agent.utils.config_parser import resolve_instruction_provider
+from ...common import a2a
+from ...common.a2a.translation import format_and_route_adk_event
+from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
+from ...common.data_parts import AgentProgressUpdateData
+from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 
 if TYPE_CHECKING:
@@ -273,7 +278,9 @@ class SamAgentComponent(SamComponentBase):
                     f"Failed to initialize synchronous ADK services: {service_err}"
                 ) from service_err
 
-            from .app import AgentInitCleanupConfig # delayed import to avoid circular dependency
+            from .app import (
+                AgentInitCleanupConfig,  # delayed import to avoid circular dependency
+            )
             if init_func_details and isinstance(init_func_details, AgentInitCleanupConfig):
                 module_name = init_func_details.get("module")
                 func_name = init_func_details.get("name")
@@ -2955,7 +2962,7 @@ class SamAgentComponent(SamComponentBase):
 
         cleanup_func_details = self.get_config("agent_cleanup_function")
 
-        from .app import AgentInitCleanupConfig # Avoid circular import
+        from .app import AgentInitCleanupConfig  # Avoid circular import
         if cleanup_func_details and isinstance(cleanup_func_details, AgentInitCleanupConfig):
             module_name = cleanup_func_details.get("module")
             func_name = cleanup_func_details.get("name")
@@ -3165,11 +3172,11 @@ class SamAgentComponent(SamComponentBase):
         resolver_config = context_for_embeds["config"]
 
         try:
-            from ...common.utils.embeds.resolver import (
-                resolve_embeds_in_string,
-                evaluate_embed,
-            )
             from ...common.utils.embeds.constants import EARLY_EMBED_TYPES
+            from ...common.utils.embeds.resolver import (
+                evaluate_embed,
+                resolve_embeds_in_string,
+            )
 
             resolved_text, processed_until_index, signals_found = (
                 await resolve_embeds_in_string(

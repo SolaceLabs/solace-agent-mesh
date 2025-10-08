@@ -2,9 +2,9 @@
 Configuration management for the development Solace broker simulator.
 """
 
-from typing import Dict, Any, Optional
-from dataclasses import dataclass, field
 import socket
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
 
 
 def find_free_port() -> int:
