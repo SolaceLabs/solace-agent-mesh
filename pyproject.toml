@@ -132,6 +132,7 @@ quote-style = "double"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "--tb=short --strict-markers --disable-warnings -p pytest_asyncio"
+testpaths = ["tests"]
 pythonpath = [".", "src", "tests/sam-test-infrastructure/src"]
 python_files = ["test_*.py", "*_test.py", "tests.py"]
 python_classes = ["Test*"]
