@@ -1,11 +1,11 @@
 ---
-title: Enterprise
+title: Agent Mesh Enterprise
 sidebar_position: 700
 ---
 
-# Solace Agent Mesh Enterprise
+# Agent Mesh Enterprise
 
-Solace Agent Mesh Enterprise extends the open-source framework with production-ready features that enterprise environments require. This version provides enhanced security through single sign-on integration, granular access control through role-based permissions, intelligent data management for cost optimization, and comprehensive observability tools for monitoring agent workflows and system performance.
+Agent Mesh Enterprise extends the open-source framework with production-ready features that enterprise environments require. This version provides enhanced security through single sign-on integration, granular access control through role-based permissions, intelligent data management for cost optimization, and comprehensive observability tools for monitoring agent workflows and system performance.
 
 Enterprise is available as a self-managed container image that you can deploy in your own infrastructure. You can obtain access by joining the pilot program at [solace.com/solace-agent-mesh-pilot-registration](https://solace.com/solace-agent-mesh-pilot-registration/).
 
@@ -21,7 +21,7 @@ Observability tools provide complete visibility into your agent ecosystem. The b
 
 ## Getting Started with Enterprise
 
-Setting up Solace Agent Mesh Enterprise involves three main areas: installation, security configuration, and authentication setup.
+Setting up Agent Mesh Enterprise involves three main areas: installation, security configuration, and authentication setup.
 
 ### Installation
 
@@ -33,7 +33,7 @@ Role-based access control lets you define who can access which agents and featur
 
 ### Single Sign-On
 
-SSO integration connects Solace Agent Mesh Enterprise with your organization's identity provider, whether you use Azure, Google, Auth0, Okta, Keycloak, or another OAuth2-compliant system. The configuration process involves creating YAML files that define the authentication service and provider settings, then launching the container with the appropriate environment variables. For step-by-step configuration instructions, see [Enabling SSO](single-sign-on.md).
+SSO integration connects Agent Mesh Enterprise with your organization's identity provider, whether you use Azure, Google, Auth0, Okta, Keycloak, or another OAuth2-compliant system. The configuration process involves creating YAML files that define the authentication service and provider settings, then launching the container with the appropriate environment variables. For step-by-step configuration instructions, see [Enabling SSO](single-sign-on.md).
 
 ## What's Next
 

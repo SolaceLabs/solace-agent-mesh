@@ -3,7 +3,7 @@ title: Installing Agent Mesh Enterprise
 sidebar_position: 5
 ---
 
-This guide walks you through installing and running Solace Agent Mesh Enterprise using Docker. You will download the enterprise image, load it into Docker, and launch a container configured for either development or production use.
+This guide walks you through installing and running Agent Mesh Enterprise using Docker. You will download the enterprise image, load it into Docker, and launch a container configured for either development or production use.
 
 :::tip
 All the `docker` commands can also be run using any Docker-compatible tool, such as [Podman](https://podman.io/).
@@ -20,11 +20,11 @@ Before you begin, ensure you have the following:
 
 ## Understanding the Installation Process
 
-The installation process consists of three main steps. First, you download and load the Docker image into your local Docker environment. This makes the Solace Agent Mesh Enterprise software available on your system. Second, you identify the exact image name and tag that Docker assigned during the load process. You need this information to reference the correct image when starting your container. Finally, you run the container with the appropriate configuration for your use case—either development mode with an embedded broker or production mode connected to an external Solace broker.
+The installation process consists of three main steps. First, you download and load the Docker image into your local Docker environment. This makes the Agent Mesh Enterprise software available on your system. Second, you identify the exact image name and tag that Docker assigned during the load process. You need this information to reference the correct image when starting your container. Finally, you run the container with the appropriate configuration for your use case—either development mode with an embedded broker or production mode connected to an external Solace broker.
 
 ## Step 1: Download and Load the Enterprise Image
 
-You need to obtain the Solace Agent Mesh Enterprise Docker image from the Solace Product Portal and load it into your Docker environment.
+You need to obtain the Agent Mesh Enterprise Docker image from the Solace Product Portal and load it into your Docker environment.
 
 Download the latest enterprise docker image tarball from the [Solace Product Portal](https://products.solace.com/prods/Agent_Mesh/Enterprise/).
 
@@ -46,7 +46,7 @@ Run the following command to list all Docker images on your system:
 docker images
 ```
 
-The output displays all available images with their repository names, tags, image IDs, creation dates, and sizes. Look for the Solace Agent Mesh Enterprise image in the list.
+The output displays all available images with their repository names, tags, image IDs, creation dates, and sizes. Look for the Agent Mesh Enterprise image in the list.
 
 Example output:
 ```bash
@@ -60,7 +60,7 @@ The numeric hashes at the beginning and end of the repository name (such as `868
 
 ## Step 3: Run the Container
 
-You can run Solace Agent Mesh Enterprise in two different modes depending on your needs. Development mode uses an embedded Solace broker for quick testing and experimentation, while production mode connects to an external Solace broker for enterprise deployments.
+You can run Agent Mesh Enterprise in two different modes depending on your needs. Development mode uses an embedded Solace broker for quick testing and experimentation, while production mode connects to an external Solace broker for enterprise deployments.
 
 :::tip
 You may need to include `--platform linux/amd64` depending on the host machine you're using.
@@ -68,7 +68,7 @@ You may need to include `--platform linux/amd64` depending on the host machine y
 
 ### Running in Development Mode
 
-Development mode simplifies getting started by using an embedded Solace broker. This configuration requires fewer parameters and allows you to test Solace Agent Mesh Enterprise without setting up external infrastructure. Use this mode for local development, testing, and evaluation.
+Development mode simplifies getting started by using an embedded Solace broker. This configuration requires fewer parameters and allows you to test Agent Mesh Enterprise without setting up external infrastructure. Use this mode for local development, testing, and evaluation.
 
 The following command starts a container in development mode. The `-itd` flags run the container in interactive mode with a pseudo-TTY, detached in the background. The `-p 8001:8000` flag maps port 8000 inside the container to port 8001 on your host machine, making the web UI accessible at `http://localhost:8001`.
 
@@ -112,7 +112,7 @@ The `SOLACE_DEV_MODE="true"` environment variable tells the container to use the
 
 ### Running in Production Mode
 
-Production mode connects to an external Solace broker, which provides enterprise-grade messaging capabilities including high availability, disaster recovery, and scalability. Use this mode when deploying Solace Agent Mesh Enterprise in production environments.
+Production mode connects to an external Solace broker, which provides enterprise-grade messaging capabilities including high availability, disaster recovery, and scalability. Use this mode when deploying Agent Mesh Enterprise in production environments.
 
 The production configuration requires additional environment variables to specify the Solace broker connection details. These credentials allow the container to connect to your Solace Cloud service or on-premises broker.
 
@@ -166,12 +166,12 @@ The `SOLACE_DEV_MODE="false"` environment variable tells the container to connec
 
 ## Accessing the Web UI
 
-After starting the container in either development or production mode, you can access the Solace Agent Mesh Enterprise web interface through your browser. The UI provides a graphical interface for managing agents, monitoring activity, and configuring your deployment.
+After starting the container in either development or production mode, you can access the Agent Mesh Enterprise web interface through your browser. The UI provides a graphical interface for managing agents, monitoring activity, and configuring your deployment.
 
 Navigate to `http://localhost:8001` in your web browser. The port number corresponds to the host port you specified in the `-p 8001:8000` flag when running the container.
 
 ## Troubleshooting and Debugging
 
-If you encounter issues or need to investigate the behavior of your Solace Agent Mesh Enterprise deployment, you can examine the log files generated by the container. These logs provide detailed information about system operations, errors, and debugging information.
+If you encounter issues or need to investigate the behavior of your Agent Mesh Enterprise deployment, you can examine the log files generated by the container. These logs provide detailed information about system operations, errors, and debugging information.
 
 To view logs, check the `.log` files in your container. For information about changing debug levels and advanced debugging techniques, see the debugging documentation at https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deployment/debugging/.

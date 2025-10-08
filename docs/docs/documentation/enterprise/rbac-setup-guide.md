@@ -3,11 +3,11 @@ title: Setting Up RBAC
 sidebar_position: 10
 ---
 
-This guide walks you through configuring Role-Based Access Control (RBAC) in a Solace Agent Mesh (SAM) Enterprise Docker installation. You will learn how to control access to SAM Enterprise features and resources based on user roles and permissions.
+This guide walks you through configuring Role-Based Access Control (RBAC) in a Docker installation for Agent Mesh. You will learn how to control access to Agent Mesh Enterprise features and resources based on user roles and permissions.
 
 ## Table of Contents
 
-- [Understanding RBAC in SAM Enterprise](#understanding-rbac-in-sam-enterprise)
+- [Understanding RBAC in Agent Mesh Enterprise](#understanding-rbac-in-agent-mesh-enterprise)
 - [Planning Your RBAC Configuration](#planning-your-rbac-configuration)
 - [Setting Up RBAC in Docker](#setting-up-rbac-in-docker)
 - [Understanding Configuration Files](#understanding-configuration-files)
@@ -15,15 +15,15 @@ This guide walks you through configuring Role-Based Access Control (RBAC) in a S
 - [Best Practices](#best-practices)
 - [Troubleshooting](#troubleshooting)
 
-## Understanding RBAC in SAM Enterprise
+## Understanding RBAC in Agent Mesh Enterprise
 
-Before you configure RBAC, you need to understand how the system works. SAM Enterprise uses a three-tier authorization model that separates identity, roles, and permissions.
+Before you configure RBAC, you need to understand how the system works. Agent Mesh Enterprise uses a three-tier authorization model that separates identity, roles, and permissions.
 
 ### The Three Components
 
-RBAC in SAM Enterprise consists of three interconnected components:
+RBAC in Agent Mesh Enterprise consists of three interconnected components:
 
-**Users** represent identities in your system. Each user has a unique identifier, typically an email address. When a user attempts to access a feature or resource, SAM Enterprise checks their assigned roles to determine what they can do.
+**Users** represent identities in your system. Each user has a unique identifier, typically an email address. When a user attempts to access a feature or resource, Agent Mesh Enterprise checks their assigned roles to determine what they can do.
 
 **Roles** are collections of permissions that you assign to users. Instead of granting permissions directly to individual users, you create roles that represent job functions or responsibilities. For example, you might create a "data_analyst" role for users who need to work with data tools and artifacts. This approach simplifies administration because you can modify a role's permissions once and affect all users assigned to that role.
 
@@ -31,7 +31,7 @@ RBAC in SAM Enterprise consists of three interconnected components:
 
 ### How Authorization Works
 
-When a user attempts an action in SAM Enterprise, the system follows this authorization flow:
+When a user attempts an action in Agent Mesh Enterprise, the system follows this authorization flow:
 
 1. The system identifies the user based on their authentication credentials
 2. It retrieves all roles assigned to that user
@@ -47,7 +47,7 @@ Before you create configuration files, you should plan your RBAC structure. This
 
 ### Identifying User Types
 
-Start by identifying the different types of users in your organization. Consider their job functions and what they need to accomplish with SAM Enterprise. Common user types include:
+Start by identifying the different types of users in your organization. Consider their job functions and what they need to accomplish with Agent Mesh Enterprise. Common user types include:
 
 Administrators need full access to all features and resources. They manage the system, configure settings, and troubleshoot issues. You typically assign these users a role with wildcard permissions.
 
@@ -65,7 +65,7 @@ Consider creating a role hierarchy where some roles inherit permissions from oth
 
 ### Mapping Scopes to Features
 
-Understanding available scopes helps you design effective roles. SAM Enterprise uses a hierarchical scope naming convention:
+Understanding available scopes helps you design effective roles. Agent Mesh Enterprise uses a hierarchical scope naming convention:
 
 Tool scopes control access to tools and follow the pattern `tool:<category>:<action>`. For example, `tool:basic:read` grants permission to read basic tools, while `tool:data:*` grants all permissions for data tools.
 
@@ -84,7 +84,7 @@ Now that you understand RBAC concepts and have planned your configuration, you c
 Before you begin, ensure you have:
 
 - Docker installed and running on your system
-- The SAM Enterprise Docker image (`solace-agent-mesh-enterprise`)
+- The Agent Mesh Enterprise Docker image (`solace-agent-mesh-enterprise`)
 - A text editor for creating configuration files
 - Basic familiarity with YAML file format
 
@@ -132,7 +132,7 @@ roles:
 
 This configuration creates three distinct roles:
 
-The `enterprise_admin` role receives the wildcard scope `*`, which grants all permissions in the system. You should assign this role only to trusted administrators who need complete control over SAM Enterprise.
+The `enterprise_admin` role receives the wildcard scope `*`, which grants all permissions in the system. You should assign this role only to trusted administrators who need complete control over Agent Mesh Enterprise.
 
 The `data_analyst` role receives permissions tailored for data analysis work. The scope `tool:data:*` grants all permissions for data-related tools (read, write, execute). The `artifact:read` and `artifact:create` scopes allow analysts to view existing artifacts and create new ones. The monitoring scope `monitor/namespace/*:a2a_messages:subscribe` enables analysts to observe message traffic across all namespaces, which helps them understand data flows.
 
@@ -168,7 +168,7 @@ The `description` field is optional but recommended. It helps you document the p
 
 ### Creating the Enterprise Configuration
 
-Create a file named `enterprise_config.yaml` in the `sam-enterprise/configs` directory (not in the `auth` subdirectory). This file tells SAM Enterprise where to find your RBAC configuration files and how to use them.
+Create a file named `enterprise_config.yaml` in the `sam-enterprise/configs` directory (not in the `auth` subdirectory). This file tells Agent Mesh Enterprise where to find your RBAC configuration files and how to use them.
 
 ```yaml
 # enterprise_config.yaml
@@ -181,13 +181,13 @@ namespace: "enterprise_prod"
 gateway_id: "enterprise_gateway"
 ```
 
-The `authorization_service` section configures the RBAC system. The `type` field specifies `default_rbac`, which tells SAM Enterprise to use the file-based RBAC system. The two path fields point to your RBAC configuration files—these paths are relative to the container's working directory, not your host system.
+The `authorization_service` section configures the RBAC system. The `type` field specifies `default_rbac`, which tells Agent Mesh Enterprise to use the file-based RBAC system. The two path fields point to your RBAC configuration files—these paths are relative to the container's working directory, not your host system.
 
-The `namespace` and `gateway_id` fields configure the SAM Enterprise instance. The namespace isolates this instance from others, while the gateway ID identifies the web interface gateway.
+The `namespace` and `gateway_id` fields configure the Agent Mesh Enterprise instance. The namespace isolates this instance from others, while the gateway ID identifies the web interface gateway.
 
 ### Running the Docker Container
 
-Now you can start the SAM Enterprise Docker container with your RBAC configuration. Navigate to your `sam-enterprise` directory and run:
+Now you can start the Docker container with your RBAC configuration. Navigate to your `sam-enterprise` directory and run:
 
 ```bash
 cd sam-enterprise
@@ -212,7 +212,7 @@ The `-p` flags map container ports to host ports. Port 8000 is the API port, and
 
 The `-v` flag mounts your local `configs` directory to `/app/configs` inside the container. This mount allows the container to read your RBAC configuration files. The `$(pwd)` command expands to your current directory path, ensuring the mount works regardless of where you run the command.
 
-The `-e` flags set environment variables inside the container. The `SAM_AUTHORIZATION_CONFIG` variable tells SAM Enterprise where to find the main configuration file. The `NAMESPACE` and `WEBUI_GATEWAY_ID` variables must match the values in your `enterprise_config.yaml` file.
+The `-e` flags set environment variables inside the container. The `SAM_AUTHORIZATION_CONFIG` variable tells Agent Mesh Enterprise where to find the main configuration file. The `NAMESPACE` and `WEBUI_GATEWAY_ID` variables must match the values in your `enterprise_config.yaml` file.
 
 ### Verifying Your Configuration
 
@@ -225,7 +225,7 @@ After starting the container, you should verify that RBAC is working correctly. 
 
 If RBAC is configured correctly, the user can access permitted features and receives authorization errors when attempting to access restricted features.
 
-You can also check the container logs to verify that SAM Enterprise loaded your configuration files:
+You can also check the container logs to verify that Agent Mesh Enterprise loaded your configuration files:
 
 ```bash
 docker logs sam-enterprise
@@ -240,7 +240,7 @@ DEBUG:solace_ai_connector:[ConfigurableRbacAuthSvc] Role 'data_analyst' loaded w
 DEBUG:solace_ai_connector:[ConfigurableRbacAuthSvc] Role 'standard_user' loaded with 3 direct scopes, 3 resolved scopes.
 ```
 
-These messages confirm that SAM Enterprise found and parsed your configuration files correctly.
+These messages confirm that Agent Mesh Enterprise found and parsed your configuration files correctly.
 
 ## Understanding Configuration Files
 
@@ -373,7 +373,7 @@ This configuration creates a clear hierarchy of access levels. The admin role ha
 
 ### Integrating with Microsoft Graph
 
-For enterprise environments that use Microsoft Entra ID (formerly Azure AD) for user management, you can integrate SAM Enterprise with Microsoft Graph. This integration allows you to manage user role assignments through Microsoft Graph instead of maintaining a separate YAML file.
+For enterprise environments that use Microsoft Entra ID (formerly Azure AD) for user management, you can integrate Agent Mesh Enterprise with Microsoft Graph. This integration allows you to manage user role assignments through Microsoft Graph instead of maintaining a separate YAML file.
 
 To configure Microsoft Graph integration, modify your `enterprise_config.yaml`:
 
@@ -390,7 +390,7 @@ authorization_service:
     ms_graph_client_secret: ${MS_GRAPH_CLIENT_SECRET}
 ```
 
-This configuration tells SAM Enterprise to retrieve user role assignments from Microsoft Graph instead of reading them from a YAML file. The `${...}` syntax indicates that these values come from environment variables, which keeps sensitive credentials out of your configuration files.
+This configuration tells Agent Mesh Enterprise to retrieve user role assignments from Microsoft Graph instead of reading them from a YAML file. The `${...}` syntax indicates that these values come from environment variables, which keeps sensitive credentials out of your configuration files.
 
 When you use Microsoft Graph integration, you still define roles in the `role-to-scope-definitions.yaml` file, but you manage user-to-role assignments through Microsoft Graph groups or attributes.
 
@@ -418,13 +418,13 @@ Following best practices helps you create a secure, maintainable RBAC configurat
 
 ### Security Recommendations
 
-You should implement these security practices to protect your SAM Enterprise deployment:
+You should implement these security practices to protect your Agent Mesh Enterprise deployment:
 
 Apply the principle of least privilege by assigning users only the minimum permissions necessary for their tasks. Start with restrictive permissions and add more as needed, rather than starting with broad permissions and removing them later. This approach reduces the risk of unauthorized access.
 
 Conduct regular audits of your role assignments and permissions. Review who has access to what features and verify that access levels remain appropriate as job responsibilities change. Remove access for users who no longer need it.
 
-Protect your RBAC configuration files with appropriate file permissions on your host system. These files control access to your entire SAM Enterprise deployment, so you should restrict read and write access to authorized administrators only.
+Protect your RBAC configuration files with appropriate file permissions on your host system. These files control access to your entire Agent Mesh Enterprise deployment, so you should restrict read and write access to authorized administrators only.
 
 Store sensitive information like Microsoft Graph credentials as environment variables rather than hardcoding them in configuration files. Environment variables provide better security because they do not appear in version control systems or configuration backups.
 
@@ -446,7 +446,7 @@ Minimize wildcard usage in scope definitions. While wildcards like `*` or `tool:
 
 ### Docker-Specific Recommendations
 
-When running SAM Enterprise in Docker, follow these recommendations:
+When you run Agent Mesh Enterprise in Docker, follow these recommendations:
 
 Use Docker volumes for persistent configuration storage. The volume mount approach shown in this guide ensures that your configuration persists even if you remove and recreate the container.
 
@@ -454,7 +454,7 @@ Create separate configuration files for different environments (development, sta
 
 Implement health checks to verify that RBAC is functioning correctly. You can add a health check to your Docker run command that periodically tests whether the container is responding correctly.
 
-Regularly backup your RBAC configuration files. Store backups in a secure location separate from your Docker host. If you lose your configuration files, you lose control over who can access your SAM Enterprise deployment.
+Regularly backup your RBAC configuration files. Store backups in a secure location separate from your Docker host. If you lose your configuration files, you lose control over who can access your Agent Mesh Enterprise deployment.
 
 Follow Docker security best practices such as running containers as non-root users and using read-only filesystems where possible. These practices reduce the impact of potential security vulnerabilities.
 
@@ -466,7 +466,7 @@ When you encounter issues with your RBAC configuration, systematic troubleshooti
 
 If a user cannot access features they should have permission to use, you might see authorization denied messages in the logs or user interface.
 
-To resolve this issue, first verify that the user identity matches exactly what appears in your `user-to-role-assignments.yaml` file. SAM Enterprise performs case-sensitive matching, so `user@example.com` and `User@example.com` are different identities.
+To resolve this issue, first verify that the user identity matches exactly what appears in your `user-to-role-assignments.yaml` file. Agent Mesh Enterprise performs case-sensitive matching, so `user@example.com` and `User@example.com` are different identities.
 
 Next, check that the role assigned to the user has the necessary scopes. Review the `role-to-scope-definitions.yaml` file and verify that the role includes scopes for the features the user is trying to access.
 
@@ -484,7 +484,7 @@ Check the container logs for authorization service errors:
 docker logs sam-enterprise
 ```
 
-Look for messages with the `[ConfigurableRbacAuthSvc]` prefix. These messages indicate whether SAM Enterprise successfully loaded your configuration files and how it resolved roles and scopes. You should see messages like:
+Look for messages with the `[ConfigurableRbacAuthSvc]` prefix. These messages indicate whether Agent Mesh Enterprise successfully loaded your configuration files and how it resolved roles and scopes. You should see messages like:
 
 ```
 INFO:solace_ai_connector:[ConfigurableRbacAuthSvc] Successfully loaded role-to-scope definitions from: /app/configs/auth/role-to-scope-definitions.yaml
@@ -507,7 +507,7 @@ Ensure that file permissions allow the container user to read the files. On Linu
 chmod 644 sam-enterprise/configs/auth/*.yaml
 ```
 
-Check for typos in file names or paths. The file names are case-sensitive, and even small typos prevent SAM Enterprise from finding your configuration files.
+Check for typos in file names or paths. The file names are case-sensitive, and even small typos prevent Agent Mesh Enterprise from finding your configuration files.
 
 ### Microsoft Graph Integration Not Working
 
@@ -544,7 +544,7 @@ Check the container logs for detailed information:
 docker logs sam-enterprise
 ```
 
-Look for log messages with the `[EnterpriseConfigResolverImpl]` or `[ConfigurableRbacAuthSvc]` prefixes. These messages show how SAM Enterprise loaded and processed your configuration.
+Look for log messages with the `[EnterpriseConfigResolverImpl]` or `[ConfigurableRbacAuthSvc]` prefixes. These messages show how Agent Mesh Enterprise loaded and processed your configuration.
 
 Temporarily assign the user to an administrator role to verify whether the issue is permission-related. If the user can access features when assigned to an admin role, the problem is with the scopes assigned to their original role.
 
@@ -561,7 +561,7 @@ This verification ensures that the files inside the container match your host fi
 
 If you continue to experience issues after following these troubleshooting steps, you can get additional help:
 
-Check the SAM Enterprise documentation for updates or additional information about RBAC configuration.
+Check the Agent Mesh Enterprise documentation for updates or additional information about RBAC configuration.
 
 Review the container logs for specific error messages. Error messages often include details about what went wrong and how to fix it.
 
@@ -569,6 +569,6 @@ Contact Solace support with details of your configuration and the issues you are
 
 ## Conclusion
 
-Setting up Role-Based Access Control in your SAM Enterprise Docker installation provides enhanced security and granular access control. This guide has walked you through understanding RBAC concepts, planning your configuration, creating configuration files, and troubleshooting common issues.
+Setting up Role-Based Access Control in your Agent Mesh Enterprise Docker installation provides enhanced security and granular access control. This guide has walked you through understanding RBAC concepts, planning your configuration, creating configuration files, and troubleshooting common issues.
 
 You now have the knowledge to configure RBAC to meet your organization's specific requirements while maintaining a secure and manageable environment. Remember to regularly review and update your RBAC configuration as your organization's needs evolve, and always follow security best practices when managing access control.

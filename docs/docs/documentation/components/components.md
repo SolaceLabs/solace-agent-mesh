@@ -3,13 +3,13 @@ title: Components
 sidebar_position: 200
 ---
 
-Solace Agent Mesh provides a comprehensive set of components that work together to create a distributed AI agent ecosystem. Each component serves a specific purpose, from managing the command-line interface to orchestrating complex multi-agent workflows.
+Agent Mesh provides a comprehensive set of components that work together to create a distributed AI agent ecosystem. Each component serves a specific purpose, from managing the command-line interface to orchestrating complex multi-agent workflows.
 
 This section introduces you to the key components and tools that make up the system. You'll find detailed documentation for each component, along with configuration examples and best practices for implementation.
 
 ## Command Line Interface
 
-The CLI provides the primary interface for managing your Solace Agent Mesh deployment. You can use it to start agents, configure gateways, monitor system health, and perform administrative tasks. The CLI simplifies complex operations and provides helpful feedback during development and deployment. For complete CLI documentation and command reference, see [CLI](./cli.md).
+The CLI provides the primary interface for managing your Agent Mesh deployment. You can use it to start agents, configure gateways, monitor system health, and perform administrative tasks. The CLI simplifies complex operations and provides helpful feedback during development and deployment. For complete CLI documentation and command reference, see [CLI](./cli.md).
 
 ## Solace AI Connector
 
@@ -29,8 +29,8 @@ The orchestrator is a specialized agent that manages complex workflows by breaki
 
 ## Plugins
 
-Plugins extend the capabilities of Solace Agent Mesh by providing custom tools, integrations, and functionality. You can develop plugins to connect with proprietary systems, add domain-specific tools, or integrate with external services that aren't covered by the built-in toolset. The plugin system provides a standardized way to package and distribute custom functionality across your organization. For plugin development guidelines and examples, see [Plugins](./plugins.md).
+Plugins extend the capabilities of Agent Mesh by providing custom tools, integrations, and functionality. You can develop plugins to connect with proprietary systems, add domain-specific tools, or integrate with external services that aren't covered by the built-in toolset. The plugin system provides a standardized way to package and distribute custom functionality across your organization. For plugin development guidelines and examples, see [Plugins](./plugins.md).
 
 ## Built-in Tools
 
-Solace Agent Mesh includes a comprehensive set of built-in tools that provide essential capabilities for most AI agent scenarios. These tools handle common tasks like artifact management, data analysis, web interactions, and inter-agent communication. The built-in tools are designed to work seamlessly with the A2A protocol and provide consistent behavior across all agents in your mesh. For detailed documentation of available tools and their usage, see [Built-in Tools](./builtin-tools/builtin-tools.md).
+Agent Mesh includes a comprehensive set of built-in tools that provide essential capabilities for most AI agent scenarios. These tools handle common tasks like artifact management, data analysis, web interactions, and inter-agent communication. The built-in tools are designed to work seamlessly with the A2A protocol and provide consistent behavior across all agents in your mesh. For detailed documentation of available tools and their usage, see [Built-in Tools](./builtin-tools/builtin-tools.md).

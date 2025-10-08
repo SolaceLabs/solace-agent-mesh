@@ -5,18 +5,18 @@ sidebar_position: 420
 
 :::tip
 For a more comprehensive tutorial example, see the [Build Your Own Agent](tutorials/custom-agent.md) guide.
-This page walks through the fundamental concepts for creating agents in Solace Agent Mesh.
+This page walks through the fundamental concepts for creating agents in Agent Mesh.
 :::
 
-Solace Agent Mesh is a powerful platform that enables you to create intelligent agents that can communicate with each other and perform complex tasks. At its core, Solace Agent Mesh uses a tool-based architecture where LLM-powered agents are equipped with specific capabilities (tools) that they can use to accomplish user requests.
+Agent Mesh is a powerful platform that enables you to create intelligent agents that can communicate with each other and perform complex tasks. At its core, Agent Mesh uses a tool-based architecture where LLM-powered agents are equipped with specific capabilities (tools) that they can use to accomplish user requests.
 
 Before continuing with this tutorial, make sure you are familiar with the basic [agent concept](../components/agents.md).
 
-This tutorial guides you through creating your first Solace Agent Mesh agent from scratch. You will learn how to define tools as Python functions, configure an agent using YAML, and set up agent lifecycle functions. By the end of this tutorial, you should have a working "Hello World" agent that demonstrates the fundamental concepts of Solace Agent Mesh agent development.
+This tutorial guides you through creating your first Agent Mesh agent from scratch. You will learn how to define tools as Python functions, configure an agent using YAML, and set up agent lifecycle functions. By the end of this tutorial, you should have a working "Hello World" agent that demonstrates the fundamental concepts of Agent Mesh agent development.
 
 ## Understanding the Architecture
 
-Before diving into implementation, you need to understand how the different components of a Solace Agent Mesh agent work together. This architectural overview will help you see the big picture before you start building.
+Before diving into implementation, you need to understand how the different components of a Agent Mesh agent work together. This architectural overview will help you see the big picture before you start building.
 
 ```mermaid
 graph TD
@@ -28,7 +28,7 @@ graph TD
 
     subgraph Agent Host
         direction TB
-        D[SAM Host] -->|Loads| A;
+        D[Agent Mesh Host] -->|Loads| A;
         D -->|Instantiates| E[Agent];
         E -->|Initializes with| F[Lifecycle Functions];
     end
@@ -63,12 +63,12 @@ Understanding these fundamental concepts will help you build effective agents.
 
 ### Tools: The Building Blocks
 
-Tools are the fundamental building blocks of Solace Agent Mesh agents. Each tool is implemented as a Python function that performs a specific task. The LLM orchestrating your agent decides which tools to use based on the user's request and the tool descriptions you provide.
+Tools are the fundamental building blocks of Agent Mesh agents. Each tool is implemented as a Python function that performs a specific task. The LLM orchestrating your agent decides which tools to use based on the user's request and the tool descriptions you provide.
 
 Tools can process text and data, interact with external APIs, create and manipulate files, communicate with other agents, and access databases and services. You write tools as standard Python functions, and the framework handles the integration with the LLM.
 
 :::tip
-Solace Agent Mesh provides a set of [built-in tools](../components/builtin-tools/builtin-tools.md) plus support for [model context protocol (MCP)](tutorials/mcp-integration.md) servers, which can be configured in the tools list of your agent configuration.
+Agent Mesh provides a set of [built-in tools](../components/builtin-tools/builtin-tools.md) plus support for [model context protocol (MCP)](tutorials/mcp-integration.md) servers, which can be configured in the tools list of your agent configuration.
 :::
 
 ### Configuration File: The Blueprint
@@ -91,7 +91,7 @@ This is useful when using a generic tool function for multiple purposes, allowin
 
 ### ToolContext: Accessing Framework Services
 
-The `ToolContext` object (passed as one of the arguments to your tool function) provides your tools with access to Solace Agent Mesh core services. Through this context object, your tools can access structured logging for debugging and monitoring, the artifact service for file storage and retrieval, session information about the current user and session context, and agent state for sharing data between tool calls.
+The `ToolContext` object (passed as one of the arguments to your tool function) provides your tools with access to Agent Mesh core services. Through this context object, your tools can access structured logging for debugging and monitoring, the artifact service for file storage and retrieval, session information about the current user and session context, and agent state for sharing data between tool calls.
 
 The framework automatically provides this context to your tool functions. You don't need to create or manage it yourself.
 
@@ -460,7 +460,7 @@ In this example, you retrieve the greeting count from the agent state and log it
 
 ## Running Your Agent
 
-Now that you have created all the necessary components, you can run your agent. The process involves building your plugin and adding it to your Solace Agent Mesh project.
+Now that you have created all the necessary components, you can run your agent. The process involves building your plugin and adding it to your Agent Mesh project.
 
 ### Building and Installing the Plugin
 
@@ -472,7 +472,7 @@ sam plugin build
 
 This command packages your agent code, configuration, and dependencies into a distributable wheel file. The wheel file is a standard Python package format that can be installed into any Python environment.
 
-Check into [your Solace Agent Mesh project directory](../getting-started/try-sam.md#create-a-project), and add the plugin wheel with a given name:
+Check into [your Agent Mesh project directory](../getting-started/try-sam.md#create-a-project), and add the plugin wheel with a given name:
 
 ```bash
 sam plugin add my-first-weather-agent --plugin PATH/TO/weather-agent/dist/weather-agent.whl
@@ -485,7 +485,7 @@ This also means changing the source code without reinstalling the plugin will no
 
 The `sam plugin add` command does several things. It installs your plugin package into your Python environment, making your tool functions and lifecycle functions importable. It also creates a configuration file in your project's `configs/agents/` directory that references your plugin. This configuration file is what the framework loads when you run your agent.
 
-Now, you can run the complete Solace Agent Mesh application along with your newly added agent:
+Now, you can run the complete Agent Mesh application along with your newly added agent:
 
 ```bash
 sam run
@@ -497,14 +497,14 @@ Alternatively, only run the newly added agent using `sam run configs/agents/my-f
 
 :::tip[Quick Debug]
 
-For debugging or isolated development testing, you can run your agent from the `src` directory directly using the Solace Agent Mesh CLI.
+For debugging or isolated development testing, you can run your agent from the `src` directory directly using the Agent Mesh CLI.
 
 ```bash
 cd src
 sam run ../config.yaml
 ```
 
-Changing to the src directory allows the module path to be set correctly so that Solace Agent Mesh can find your functions without your having to install them in your python environment as a plugin package.
+Changing to the src directory allows the module path to be set correctly so that Agent Mesh can find your functions without your having to install them in your python environment as a plugin package.
 :::
 
 This quick debug mode is useful during development because you can make changes to your code and immediately test them without rebuilding and reinstalling the plugin. However, you should always test with the full plugin installation process before deploying to production.
@@ -515,7 +515,7 @@ Once you understand the basics, you can explore more advanced patterns for build
 
 ### Working with Artifacts
 
-The artifact service allows your tools to create, store, and retrieve files. You can enhance your hello tool to save greetings to a file using Solace Agent Mesh's artifact service:
+The artifact service allows your tools to create, store, and retrieve files. You can enhance your hello tool to save greetings to a file using the artifact service:
 
 ```python
 
@@ -623,7 +623,7 @@ Each tool configuration should have a unique `tool_name` and should be listed in
 
 ## Quick Start: Using the CLI
 
-If you want to get started quickly without manually creating all the files, you can use the Solace Agent Mesh CLI to generate the basic structure:
+If you want to get started quickly without manually creating all the files, you can use the Agent Mesh CLI to generate the basic structure:
 
 ```bash
 sam add agent my-first-agent
@@ -669,6 +669,6 @@ Comment your configuration files thoroughly. YAML files can become complex, and 
 
 Write unit tests for your tool functions independently. Test them with various inputs, including edge cases and error conditions. Mock the `tool_context` and `tool_config` parameters to isolate your tool logic from the framework.
 
-Write integration tests that test your agent with real Solace Agent Mesh infrastructure. These tests verify that your configuration is correct and that your tools work properly when called by the LLM.
+Write integration tests that test your agent with real Agent Mesh infrastructure. These tests verify that your configuration is correct and that your tools work properly when called by the LLM.
 
 Mock external dependencies for reliable testing. If your tools call external APIs or databases, create mock versions for testing. This makes your tests faster and more reliable because they don't depend on external services being available.

@@ -5,11 +5,11 @@ sidebar_position: 450
 
 # Creating Service Providers
 
-This guide details the process for developers to create service provider plugins for integrating backend systems (for example, HR platforms, CRMs) with Solace Agent Mesh.
+This guide details the process for developers to create service provider plugins for integrating backend systems (for example, HR platforms, CRMs) with Agent Mesh.
 
 ## Understanding Service Providers
 
-Service Providers function as the abstraction layer between Solace Agent Mesh and enterprise data sources. They are implemented as Python classes that adhere to a specific abstract base class, enabling standardized interaction between Solace Agent Mesh components (Gateways and Agents) and the underlying data.
+Service Providers function as the abstraction layer between Agent Mesh and enterprise data sources. They are implemented as Python classes that adhere to a specific abstract base class, enabling standardized interaction between Agent Mesh components (Gateways and Agents) and the underlying data.
 
 There are two primary service provider interfaces:
 
@@ -18,7 +18,7 @@ There are two primary service provider interfaces:
 
 ## The "Dual-Role Provider" Pattern
 
-In many enterprise systems, particularly HR platforms, the data source for identity enrichment and general employee queries is identical. To optimize development, Solace Agent Mesh promotes a "Dual-Role Provider" pattern.
+In many enterprise systems, particularly HR platforms, the data source for identity enrichment and general employee queries is identical. To optimize development, Agent Mesh promotes a "Dual-Role Provider" pattern.
 
 This pattern involves creating a single class that inherits from both `BaseIdentityService` and `BaseEmployeeService`. This consolidated class can then be configured to fulfill either or both roles, thereby reducing code duplication.
 
@@ -106,7 +106,7 @@ class CorpHRProvider(BaseIdentityService, BaseEmployeeService):
 
 ### Step 3: Map to the Canonical Employee Schema
 
-When implementing the service methods, it is **mandatory** to map the data from the source system to Solace Agent Mesh's **canonical employee schema**. This ensures data consistency and interoperability with all tools and components across the mesh.
+When implementing the service methods, it is **mandatory** to map the data from the source system to the **canonical employee schema** of Agent Mesh. This ensures data consistency and interoperability with all tools and components across the mesh.
 
 | Field Name     | Data Type | Description                                                         |
 | -------------- | --------- | ------------------------------------------------------------------- |
@@ -126,7 +126,7 @@ If a field is not available in the source system, return `None` or omit the key 
 
 ### Step 4: Register the Plugin
 
-To make the provider discoverable by Solace Agent Mesh, it must be registered as a plugin via entry points.
+To make the provider discoverable by Agent Mesh, it must be registered as a plugin via entry points.
 
 **1. Add an entry point in `pyproject.toml`:**
 The key assigned here (`corphr`) is used as the `type` identifier in YAML configurations.

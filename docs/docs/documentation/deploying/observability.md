@@ -5,7 +5,7 @@ sidebar_position: 20
 
 # Monitoring Your Agent Mesh
 
-Understanding how your Solace Agent Mesh system operates in real-time is crucial for maintaining optimal performance and quickly identifying issues. The platform provides a comprehensive observability suite that gives you deep insights into system behavior, message flows, and agent interactions.
+Understanding how your Agent Mesh system operates in real-time is crucial for maintaining optimal performance and quickly identifying issues. The platform provides a comprehensive observability suite that gives you deep insights into system behavior, message flows, and agent interactions.
 
 These observability tools work together to create a complete picture of your system's health and performance. Whether you're troubleshooting a specific issue, optimizing performance, or simply monitoring day-to-day operations, these tools provide the visibility you need to maintain a robust agent mesh.
 
@@ -13,7 +13,7 @@ These observability tools work together to create a complete picture of your sys
 
 The workflow viewer serves as your primary window into how individual requests flow through your agent mesh. This interactive visualization tool transforms complex multi-agent interactions into clear, understandable diagrams that show exactly how your system processes each user query.
 
-Understanding request flow is essential because Solace Agent Mesh operates as a distributed system where multiple agents collaborate to fulfill user requests. The workflow viewer makes these interactions transparent by providing an interactive web-based interface for each user query and its corresponding response.
+Understanding request flow is essential because Agent Mesh operates as a distributed system where multiple agents collaborate to fulfill user requests. The workflow viewer makes these interactions transparent by providing an interactive web-based interface for each user query and its corresponding response.
 
 The workflow viewer enables you to:
 
@@ -80,11 +80,11 @@ This filter removes routine registration messages while preserving visibility in
 
 ## Examining Stimulus Logs
 
-Stimulus logs provide the most detailed level of observability in your Solace Agent Mesh system. While the workflow viewer gives you visual representations and the Solace event broker tools show real-time message flows, stimulus logs create permanent, comprehensive records of every request that flows through your system.
+Stimulus logs provide the most detailed level of observability in your Agent Mesh system. While the workflow viewer gives you visual representations and the Solace event broker tools show real-time message flows, stimulus logs create permanent, comprehensive records of every request that flows through your system.
 
 These logs serve as your system's memory, capturing complete traces that you can analyze long after events occur. This persistent record becomes invaluable for performance analysis, debugging complex issues, and understanding usage patterns over time.
 
-Solace Agent Mesh includes a default monitor that automatically records each request (stimulus) lifecycle without requiring additional configuration. These detailed traces are stored as `.stim` files, creating a comprehensive audit trail of system activity.
+Agent Mesh includes a default monitor that automatically records each request (stimulus) lifecycle without requiring additional configuration. These detailed traces are stored as `.stim` files, creating a comprehensive audit trail of system activity.
 
 ### Understanding Stimulus Log Content
 

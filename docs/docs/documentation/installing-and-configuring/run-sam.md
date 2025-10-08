@@ -1,9 +1,9 @@
 ---
-title: Creating and Running a SAM Project
+title: Creating and Running an Agent Mesh Project
 sidebar_position: 320
 ---
 
-This guide walks you through creating and running a complete Solace Agent Mesh project. This approach provides full control over your configuration and is suitable for development, testing, and production environments.
+This guide walks you through creating and running a complete Agent Mesh project. This approach provides full control over your configuration and is suitable for development, testing, and production environments.
 
 :::note[Plugins]
 Looking to get started with plugins? For more information, see [Plugins](../components/plugins.md).
@@ -13,7 +13,7 @@ Looking to get started with plugins? For more information, see [Plugins](../comp
 
 Before you begin, ensure you have the following:
 
-1. **Solace Agent Mesh CLI installed** - If not installed, see the [installation guide](installation.md)
+1. **Agent Mesh CLI installed** - If not installed, see the [installation guide](installation.md)
 2. **Virtual environment activated** - You must have activated the virtual environment you created during installation (not required for containerized deployments)
 3. **AI provider and API key** - For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 Pro, or OpenAI GPT-4
 
@@ -83,7 +83,7 @@ This format applies to all model types, including LLMs, image generators, and em
 
 ### Docker Alternative for Initialization
 
-You can also initialize your Solace Agent Mesh project using the official Docker image. This approach is helpful if you want to avoid local Python/Solace Agent Mesh CLI installation or prefer a containerized workflow.
+You can also initialize your Agent Mesh project using the official Docker image. This approach is helpful if you want to avoid local Python/Agent Mesh CLI installation or prefer a containerized workflow.
 
 ```sh
 docker run --rm -it -v "$(pwd):/app" --platform linux/amd64 -p 5002:5002 solace/solace-agent-mesh:latest init --gui
@@ -111,7 +111,7 @@ This command starts all configured agents and gateways, creating a complete agen
 
 ### Docker Execution
 
-You can also run your Solace Agent Mesh project using the official Docker image:
+You can also run your Agent Mesh project using the official Docker image:
 
 ```sh
 docker run --rm -it -v "$(pwd):/app" --platform linux/amd64 -p 8000:8000 solace/solace-agent-mesh:latest run
@@ -127,7 +127,7 @@ For deployments that use the official Docker image, ensure the following:
 
 #### Using Custom Dependencies with Docker
 
-If you are using third-party Python packages or Solace Agent Mesh plugins, you need to build a custom Docker image based on the official image:
+If you are using third-party Python packages or Agent Mesh plugins, you need to build a custom Docker image based on the official image:
 
 ```Dockerfile
 FROM solace/solace-agent-mesh:latest
@@ -149,7 +149,7 @@ docker run --rm -it -v "$(pwd):/app" --platform linux/amd64 -p 8000:8000 my-cust
 
 ## Interacting with Your Agent Mesh
 
-Solace Agent Mesh supports multiple gateway interfaces for communication, including REST, Web UI, Slack, MS Teams, and more. The web interface provides the most straightforward way to get started.
+Agent Mesh supports multiple gateway interfaces for communication, including REST, Web UI, Slack, MS Teams, and more. The web interface provides the most straightforward way to get started.
 
 ### Accessing the Web Interface
 
@@ -166,7 +166,7 @@ Try some example commands to verify your agent mesh is working correctly:
 
 ## Understanding Your System
 
-Your Solace Agent Mesh project consists of two main types of components:
+Your Agent Mesh project consists of two main types of components:
 
 ### Agents
 AI-powered components that perform specific tasks and can communicate with each other. Your system includes:
@@ -180,7 +180,7 @@ Interface components that allow external systems and users to interact with the 
 
 ## Next Steps
 
-Now that you have a working Solace Agent Mesh project, you can:
+Now that you have a working Agent Mesh project, you can:
 
 ### Extend Your System
 - **Add new agents**: Learn about [creating your own agents](../developing/create-agents.md) for specific domains

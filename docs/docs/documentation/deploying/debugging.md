@@ -5,9 +5,9 @@ sidebar_position: 30
 
 # Diagnosing and Resolving Problems
 
-Effective debugging in Solace Agent Mesh requires a systematic approach that leverages the platform's distributed architecture. Because your system consists of multiple agents communicating through a Solace event broker, issues can arise at various levels—from individual agent logic to inter-component communication patterns.
+Effective debugging in Agent Mesh requires a systematic approach that leverages the platform's distributed architecture. Because your system consists of multiple agents communicating through a Solace event broker, issues can arise at various levels—from individual agent logic to inter-component communication patterns.
 
-The key to successful debugging lies in understanding where problems might occur and having the right tools to investigate each layer of your system. Solace Agent Mesh provides comprehensive observability features that serve as your foundation for debugging activities. For detailed information about these monitoring capabilities, see [Observability](./observability.md).
+The key to successful debugging lies in understanding where problems might occur and having the right tools to investigate each layer of your system. Agent Mesh provides comprehensive observability features that serve as your foundation for debugging activities. For detailed information about these monitoring capabilities, see [Observability](./observability.md).
 
 This guide presents proven debugging strategies arranged from simple isolation techniques to advanced diagnostic methods. Each approach targets different types of issues, allowing you to choose the most effective method based on your specific situation.
 
@@ -17,7 +17,7 @@ When facing complex issues in a multi-agent system, isolation becomes your most 
 
 Component isolation works because it reduces system complexity to manageable levels. Instead of trying to understand interactions across dozens of agents, you can focus on a small subset and verify their behavior in controlled conditions.
 
-The Solace Agent Mesh CLI provides precise control over which components run in your debugging session. You can specify exactly which configuration files to load, creating a minimal environment that includes only the agents you need to investigate.
+The Agent Mesh CLI provides precise control over which components run in your debugging session. You can specify exactly which configuration files to load, creating a minimal environment that includes only the agents you need to investigate.
 
 For example, if you're debugging an issue with a specific tool integration, you might run only the orchestrator and the problematic tool agent:
 
@@ -54,13 +54,13 @@ For comprehensive guidance on Solace event broker monitoring techniques and tool
 
 ## Using Debug Mode
 
-Interactive debugging provides the deepest level of investigation capability by allowing you to pause execution and examine system state in real-time. Because Solace Agent Mesh is built on Python, you can leverage standard Python debugging tools and IDE features to step through code execution and inspect variables.
+Interactive debugging provides the deepest level of investigation capability by allowing you to pause execution and examine system state in real-time. Because Agent Mesh is built on Python, you can leverage standard Python debugging tools and IDE features to step through code execution and inspect variables.
 
 This approach is most effective when you've already isolated the problem to specific components and need to understand exactly what's happening within agent logic or framework code.
 
 ### Setting Up VSCode Debugging
 
-VSCode provides an excellent debugging environment for Solace Agent Mesh development. The integrated debugger allows you to set breakpoints, step through code execution, and inspect variables in real-time, making it easier to understand complex agent interactions and identify logic errors.
+VSCode provides an excellent debugging environment for Agent Mesh development. The integrated debugger allows you to set breakpoints, step through code execution, and inspect variables in real-time, making it easier to understand complex agent interactions and identify logic errors.
 
 Configure debugging by creating or updating your `.vscode/launch.json` file:
 
@@ -87,7 +87,7 @@ Configure debugging by creating or updating your `.vscode/launch.json` file:
 }
 ```
 
-The `"justMyCode": false` setting is particularly important because it allows you to step into Solace Agent Mesh framework code, not just your custom agent logic. This capability is valuable when debugging issues that might involve framework behavior or when you need to understand how your agents interact with the underlying platform.
+The `"justMyCode": false` setting is particularly important because it allows you to step into Agent Mesh framework code, not just your custom agent logic. This capability is valuable when debugging issues that might involve framework behavior or when you need to understand how your agents interact with the underlying platform.
 
 To start a debugging session:
 
@@ -115,7 +115,7 @@ Several tools facilitate direct message testing, each suited to different debugg
 
 ### Formatting Messages for Direct Invocation
 
-Understanding the exact message format is crucial for successful direct agent testing. The following structure represents how the Solace Agent Mesh framework expects messages to be formatted:
+Understanding the exact message format is crucial for successful direct agent testing. The following structure represents how the Agent Mesh framework expects messages to be formatted:
 
 **Topic Structure**:
 ```
@@ -178,7 +178,7 @@ System logs serve as your comprehensive record of application behavior, capturin
 
 Understanding system logs becomes crucial when debugging issues related to agent initialization, configuration problems, or internal framework errors that might not be visible through other observability tools.
 
-The logging system in Solace Agent Mesh uses a dual-output approach designed to balance immediate visibility with detailed historical records. This configuration ensures you have both real-time feedback during development and comprehensive logs for post-incident analysis.
+The logging system in Agent Mesh uses a dual-output approach designed to balance immediate visibility with detailed historical records. This configuration ensures you have both real-time feedback during development and comprehensive logs for post-incident analysis.
 
 ### Understanding Default Logging Configuration
 

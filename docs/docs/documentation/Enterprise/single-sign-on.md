@@ -5,9 +5,9 @@ sidebar_position: 10
 
 ## Overview
 
-Single Sign-On (SSO) enables users to authenticate with Solace Agent Mesh Enterprise using their existing organizational credentials through OAuth2 providers such as Azure, Google, Auth0, Okta, or Keycloak. This integration eliminates the need for separate login credentials and leverages your organization's existing identity management infrastructure.
+Single Sign-On (SSO) enables users to authenticate with Agent Mesh Enterprise using their existing organizational credentials through OAuth2 providers such as Azure, Google, Auth0, Okta, or Keycloak. This integration eliminates the need for separate login credentials and leverages your organization's existing identity management infrastructure.
 
-This guide walks you through configuring and enabling SSO for Solace Agent Mesh Enterprise running in Docker. You will create configuration files, set up your OAuth2 provider, and launch the container with the appropriate environment variables.
+This guide walks you through configuring and enabling SSO for Agent Mesh Enterprise running in Docker. You will create configuration files, set up your OAuth2 provider, and launch the container with the appropriate environment variables.
 
 ## Prerequisites
 
@@ -16,11 +16,11 @@ Before you begin, ensure you have:
 - A running instance of your chosen OAuth2 provider (Azure, Google, Auth0, Okta, Keycloak, or another OIDC-compliant provider)
 - Client credentials (client ID and client secret) from your OAuth2 provider
 - A Named Docker Volume for storing configuration files
-- Access to the Solace Agent Mesh Enterprise Docker image
+- Access to the Agent Mesh Enterprise Docker image
 
 ## Understanding the SSO Architecture
 
-Solace Agent Mesh Enterprise uses a two-component architecture for SSO:
+Agent Mesh Enterprise uses a two-component architecture for SSO:
 
 1. The main UI server (default port 8000) handles user interactions and serves the web interface
 2. The OAuth2 authentication service (default port 9000) manages the authentication flow with your identity provider
@@ -33,7 +33,7 @@ You need to create two YAML configuration files in your Named Docker Volume. The
 
 ### Creating oauth2_server.yaml
 
-The oauth2_server.yaml file configures the OAuth2 authentication service as a component within Solace Agent Mesh Enterprise. This file tells the system to start the OAuth2 service and specifies where to find its detailed configuration.
+The oauth2_server.yaml file configures the OAuth2 authentication service as a component within Agent Mesh Enterprise. This file tells the system to start the OAuth2 service and specifies where to find its detailed configuration.
 
 Create a file named `oauth2_server.yaml` in the root directory of your Named Docker Volume with the following content:
 
@@ -306,11 +306,11 @@ Before running the Docker container, you need to register an application with yo
 
 ### For Other Providers
 
-Consult your provider's documentation for application registration procedures. You will need to obtain a client ID, client secret, and configure the redirect URI to point to your Solace Agent Mesh Enterprise callback endpoint.
+Consult your provider's documentation for application registration procedures. You will need to obtain a client ID, client secret, and configure the redirect URI to point to your Agent Mesh Enterprise callback endpoint.
 
 ## Step 3: Launch the Docker Container
 
-With your configuration files in place and provider credentials obtained, you can now launch the Solace Agent Mesh Enterprise container with SSO enabled.
+With your configuration files in place and provider credentials obtained, you can now launch the Agent Mesh Enterprise container with SSO enabled.
 
 The following example demonstrates a production deployment using Azure as the OAuth2 provider:
 
@@ -353,7 +353,7 @@ solace-agent-mesh-enterprise:<tag> run config/sso_vol/oauth2_server.yaml config/
 
 This command starts the container in detached mode with interactive terminal support. The `-p` flags expose both the main UI port (8000) and the OAuth2 service port (9000) to the host machine. The volume mount makes your configuration files available inside the container at the expected location.
 
-After the container starts successfully, you can access the Solace Agent Mesh Enterprise UI at http://localhost:8000. When you navigate to this URL, the system will redirect you to your OAuth2 provider's login page for authentication.
+After the container starts successfully, you can access the Agent Mesh Enterprise UI at http://localhost:8000. When you navigate to this URL, the system will redirect you to your OAuth2 provider's login page for authentication.
 
 ## Understanding the Environment Variables
 
@@ -361,7 +361,7 @@ The Docker run command includes numerous environment variables that control diff
 
 ### Core Application Settings
 
-These variables configure the main Solace Agent Mesh Enterprise application:
+These variables configure the main Agent Mesh Enterprise application:
 
 ```bash
 -e FASTAPI_HOST="0.0.0.0" \
@@ -474,7 +474,7 @@ After starting the container, you can verify that SSO is working correctly:
 
 1. Navigate to http://localhost:8000 in your web browser
 2. You should be automatically redirected to your OAuth2 provider's login page
-3. After entering your credentials, you should be redirected back to the Solace Agent Mesh Enterprise UI
+3. After entering your credentials, you should be redirected back to the Agent Mesh Enterprise UI
 4. Check the container logs for any authentication errors: `docker logs sam-ent-prod-sso`
 
 If you encounter issues, check that:

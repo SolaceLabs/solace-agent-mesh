@@ -1,11 +1,11 @@
 ---
-title: Developing with Solace Agent Mesh
+title: Developing with Agent Mesh
 sidebar_position: 400
 ---
 
-# Developing with Solace Agent Mesh
+# Developing with Agent Mesh
 
-Solace Agent Mesh provides a framework for creating distributed AI applications using an event-driven architecture. You can build agents that communicate through the A2A (Agent-to-Agent) protocol, extend them with custom tools, integrate external systems through gateways, and create reusable components as plugins.
+Agent Mesh provides a framework for creating distributed AI applications using an event-driven architecture. You can build agents that communicate through the A2A (Agent-to-Agent) protocol, extend them with custom tools, integrate external systems through gateways, and create reusable components as plugins.
 
 ## Understanding the Project Structure
 

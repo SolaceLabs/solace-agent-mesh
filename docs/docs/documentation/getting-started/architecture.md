@@ -12,7 +12,7 @@ The framework integrates three primary technologies:
 
 ## Architectural Principles
 
-The design of Solace Agent Mesh is founded on several key architectural principles:
+The design of Agent Mesh is founded on several key architectural principles:
 
 - **Event-Driven Architecture (EDA)**: All interactions between major components are asynchronous and mediated by the Solace event broker. This eliminates direct dependencies, allowing components to be developed, deployed, and scaled independently.
 - **Component Decoupling**: Gateways, Agent Hosts, and other services communicate through standardized A2A protocol messages over the event mesh. They do not require knowledge of each other's network location, implementation language, or internal logic.
@@ -30,7 +30,7 @@ graph TB
         APIs("External Systems & APIs")
     end
 
-    subgraph SolaceAgentMesh ["Solace Agent Mesh"]
+    subgraph SolaceAgentMesh ["Agent Mesh"]
         direction TB
         subgraph Gateways
             WebUIGateway("Web UI Gateway")

@@ -5,9 +5,9 @@ sidebar_position: 410
 
 # Project Structure
 
-Solace Agent Mesh is built on the A2A (Agent-to-Agent) protocol architecture, powered by [Solace AI Event Connector](../components/solace-ai-connector.md) and uses the Solace event broker as the communication backbone. The framework is controlled by YAML configuration files that define agents, gateways, and plugins, enabling distributed AI agent communication through event-driven messaging.
+Agent Mesh is built on the A2A (Agent-to-Agent) protocol architecture, powered by [Solace AI Event Connector](../components/solace-ai-connector.md) and uses the Solace event broker as the communication backbone. The framework is controlled by YAML configuration files that define agents, gateways, and plugins, enabling distributed AI agent communication through event-driven messaging.
 
-A fresh Solace Agent Mesh project follows this structure:
+A fresh Agent Mesh project follows this structure:
 
 ```
 my-sam-project/
@@ -53,7 +53,7 @@ Further values can be added to the shared configuration file as needed, and they
 
 Each configuration file defines one (recommended) or more applications that can be run independently. The framework supports:
 
-- **Agent Applications**: A2A-enabled agents that use Google ADK runtime and Solace Agent Mesh framework
+- **Agent Applications**: A2A-enabled agents that use Google ADK runtime and Agent Mesh framework
 - **Gateway Applications**: Protocol translators that bridge external interfaces to adopted A2A protocol
 - **Plugin Applications**: Specialized components that extend framework capabilities
 

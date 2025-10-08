@@ -1,14 +1,14 @@
 ---
-title: Configuring SAM
+title: Configuring Agent Mesh
 sidebar_position: 330
 toc_max_heading_level: 4
 ---
 
-The [`shared_config.yaml`](shared_config.yaml) file serves as the central configuration hub for Solace Agent Mesh, allowing you to define settings that multiple agents and components can share. This centralized approach simplifies management of common configurations such as Solace event broker connections, language model settings, and service definitions.
+The [`shared_config.yaml`](shared_config.yaml) file serves as the central configuration hub for Agent Mesh, allowing you to define settings that multiple agents and components can share. This centralized approach simplifies management of common configurations such as Solace event broker connections, language model settings, and service definitions.
 
 ## Understanding Shared Configuration
 
-Every agent and gateway in Solace Agent Mesh requires access to a `shared_config` object. This requirement ensures consistent behavior across your entire mesh deployment. You have two primary approaches for providing this configuration, each suited to different development scenarios and organizational needs.
+Every agent and gateway in Agent Mesh requires access to a `shared_config` object. This requirement ensures consistent behavior across your entire mesh deployment. You have two primary approaches for providing this configuration, each suited to different development scenarios and organizational needs.
 
 The first approach involves hard-coding configuration values directly within your agent or gateway YAML files. Although this method works for simple setups or quick prototyping, it becomes unwieldy as your deployment grows. The second approach uses the `!include` directive to reference a centralized configuration file, which promotes consistency and simplifies maintenance across your entire project.
 
@@ -16,7 +16,7 @@ When you install a plugin, it often comes with hard-coded default values embedde
 
 ## Managing Multiple Configuration Files
 
-Complex deployments often require different configuration sets for various environments or cloud providers. Solace Agent Mesh supports this requirement through multiple shared configuration files, although you must follow specific naming and organizational conventions.
+Complex deployments often require different configuration sets for various environments or cloud providers. Agent Mesh supports this requirement through multiple shared configuration files, although you must follow specific naming and organizational conventions.
 
 The filename must always begin with `shared_config`, followed by any descriptive suffix that helps identify the configuration's purpose. Examples include `shared_config_aws.yaml` for Amazon Web Services deployments or `shared_config_production.yaml` for production environments. This naming convention ensures the system can locate and process these files correctly.
 
@@ -196,6 +196,6 @@ Result preview settings control how much data agents display when showing query 
 
 ## System Logging
 
-System logging configuration controls how Solace Agent Mesh records operational information, errors, and debugging details. Proper logging configuration helps with troubleshooting, monitoring, and maintaining your agent deployments.
+System logging configuration controls how Agent Mesh records operational information, errors, and debugging details. Proper logging configuration helps with troubleshooting, monitoring, and maintaining your agent deployments.
 
 For comprehensive information about configuring log rotation, verbosity levels, and log formatting options, see the [System Logs section](../deploying/debugging.md#system-logs) in the debugging documentation.

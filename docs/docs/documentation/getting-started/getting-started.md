@@ -3,29 +3,29 @@ title: Getting Started
 sidebar_position: 12
 ---
 
-# Get Started with Solace Agent Mesh
+# Get Started with Agent Mesh
 
-Solace Agent Mesh is an open-source framework for building event-driven multi-agent AI systems that solve complex problems through intelligent collaboration. You can use it to create teams of specialized AI agents that work together seamlessly, each bringing unique capabilities while communicating through Solace's proven event-driven architecture.
+Agent Mesh is an open-source framework for building event-driven multi-agent AI systems that solve complex problems through intelligent collaboration. You can use it to create teams of specialized AI agents that work together seamlessly, each bringing unique capabilities while communicating through Solace's proven event-driven architecture.
 
-Whether you're building intelligent automation systems, creating sophisticated AI workflows, or integrating AI capabilities across your enterprise, Solace Agent Mesh provides the foundation you need. The framework handles agent communication automatically, so you can focus on building powerful AI experiences that scale with your needs.
+Whether you're building intelligent automation systems, creating sophisticated AI workflows, or integrating AI capabilities across your enterprise, Agent Mesh provides the foundation you need. The framework handles agent communication automatically, so you can focus on building powerful AI experiences that scale with your needs.
 
-## Understanding Solace Agent Mesh
+## Understanding Agent Mesh
 
-Before diving into implementation, it's helpful to understand what makes Solace Agent Mesh unique. The framework combines the power of Google's Agent Development Kit with Solace's event-driven messaging platform, creating a robust foundation for multi-agent AI systems. To learn about the core concepts and architectural principles that drive the framework's design, see [What is Solace Agent Mesh?](./introduction.md)
+Before diving into implementation, it's helpful to understand what makes Agent Mesh unique. The framework combines the power of Google's Agent Development Kit with Solace's event-driven messaging platform, creating a robust foundation for multi-agent AI systems. To learn about the core concepts and architectural principles that drive the framework's design, see [What is Solace Agent Mesh?](./introduction.md)
 
 The system's event-driven architecture enables true scalability and reliability, allowing agents to communicate asynchronously while maintaining loose coupling between components. For detailed insights into how these components work together to create a cohesive AI ecosystem, see [Architecture Overview](./architecture.md)
 
-To see how all the pieces fit together, you can explore the key building blocks that make up every Solace Agent Mesh deployment. For more information, see [Components Overview](../components/components.md)
+To see how all the pieces fit together, you can explore the key building blocks that make up every Agent Mesh deployment. For more information, see [Components Overview](../components/components.md)
 
 ## Getting Started Quickly
 
-The fastest way to experience Solace Agent Mesh is through our pre-configured Docker setup that gets you up and running with a working system in minutes. This approach lets you explore the framework's capabilities immediately without any installation or complex configuration. To get started right away, see [Try Solace Agent Mesh](./try-sam.md)
+The fastest way to experience Agent Mesh is through our pre-configured Docker setup that gets you up and running with a working system in minutes. This approach lets you explore the framework's capabilities immediately without any installation or complex configuration. To get started right away, see [Try Solace Agent Mesh](./try-sam.md)
 
 Once you've explored the basic functionality and want to set up your own development environment, you'll need to install the CLI and framework tools. The installation process supports multiple approaches including pip, uv, and Docker, making it easy to integrate with your existing workflow. For complete setup instructions, see [Installation](../installing-and-configuring/installation.md)
 
-For those ready to build their own projects from scratch, comprehensive guidance is available for creating and configuring custom deployments with full control over your agent mesh. This approach provides the flexibility needed for serious development work and production environments. To learn about project creation and configuration, see [Run SAM](../installing-and-configuring/run-sam.md)
+For those ready to build their own projects from scratch, comprehensive guidance is available for creating and configuring custom deployments with full control over your agent mesh. This approach provides the flexibility needed for serious development work and production environments. To learn about project creation and configuration, see [Creating and Running an Agent Mesh Project](../installing-and-configuring/run-sam.md)
 
-## Building with Solace Agent Mesh
+## Building with Agent Mesh
 
 Creating effective AI systems requires understanding how to design and implement the right components for your use case. The framework provides several key building blocks that you can combine and customize to meet your specific needs.
 
@@ -37,7 +37,7 @@ Custom tools extend functionality beyond the built-in capabilities, allowing age
 
 ## Core Components
 
-Solace Agent Mesh is built around several fundamental components that work together to create intelligent, collaborative systems. Understanding these components helps you design effective solutions and troubleshoot issues when they arise.
+Agent Mesh is built around several fundamental components that work together to create intelligent, collaborative systems. Understanding these components helps you design effective solutions and troubleshoot issues when they arise.
 
 The intelligent workers of your system are powered by AI models and equipped with specialized tools, capable of analyzing data, generating content, making decisions, and delegating tasks to other agents when needed. For more information, see [Agents](../components/agents.md)
 
@@ -51,9 +51,9 @@ Comprehensive command-line tools manage your projects from initial setup through
 
 ## Advanced Capabilities
 
-As your AI systems grow in complexity and scale, Solace Agent Mesh provides advanced features to support enterprise deployments and sophisticated use cases.
+As your AI systems grow in complexity and scale, Agent Mesh provides advanced features to support enterprise deployments and sophisticated use cases.
 
-Various approaches for running Solace Agent Mesh in production range from single-machine setups to distributed enterprise deployments across multiple environments. To explore your deployment options, see [Deployment Options](../deploying/deployment-options.md)
+Various approaches for running Agent Mesh in production range from single-machine setups to distributed enterprise deployments across multiple environments. To explore your deployment options, see [Deployment Options](../deploying/deployment-options.md)
 
 Real-time monitoring capabilities help you track performance metrics and debug issues when they occur, with the framework's event-driven architecture providing natural visibility into all system interactions. For guidance on system monitoring, see [Observability](../deploying/observability.md)
 
@@ -61,7 +61,7 @@ Organizations with specific security and governance requirements can leverage ad
 
 ## Learning Through Examples
 
-Practical tutorials help you understand how to apply Solace Agent Mesh to real-world scenarios. These hands-on guides walk you through building complete solutions that demonstrate the framework's capabilities.
+Practical tutorials help you understand how to apply Agent Mesh to real-world scenarios. These hands-on guides walk you through building complete solutions that demonstrate the framework's capabilities.
 
 Creating agents that can query databases and provide intelligent responses based on your organization's data demonstrates how to integrate with existing data sources. For a complete walkthrough, see [SQL Database Integration](../developing/tutorials/sql-database.md)
 
@@ -73,7 +73,7 @@ Incorporating Model Context Protocol servers into your agent mesh extends capabi
 
 ## Additional Resources
 
-Beyond the core documentation, several resources can help you get the most out of Solace Agent Mesh. The latest source code, example configurations, and community discussions are available in the [GitHub repository](https://github.com/SolaceLabs/solace-agent-mesh)
+Beyond the core documentation, several resources can help you get the most out of Agent Mesh. The latest source code, example configurations, and community discussions are available in the [GitHub repository](https://github.com/SolaceLabs/solace-agent-mesh)
 
 Pre-built functionality for common use cases provides tested integrations that you can incorporate into your own projects. You can find these extensions in the [official plugins repository](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins)
 

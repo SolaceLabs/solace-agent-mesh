@@ -3,13 +3,13 @@ title: Configuration Settings for LLMs
 sidebar_position: 340
 ---
 
-Large Language Models serve as the intelligence foundation for Solace Agent Mesh, powering everything from natural language understanding to complex reasoning and decision-making. The system provides flexible configuration options that allow you to connect with various LLM providers through a unified interface, making it easy to switch between providers or use multiple models for different purposes.
+Large Language Models serve as the intelligence foundation for Agent Mesh, powering everything from natural language understanding to complex reasoning and decision-making. The system provides flexible configuration options that allow you to connect with various LLM providers through a unified interface, making it easy to switch between providers or use multiple models for different purposes.
 
-You can configure LLM settings in two locations within your Solace Agent Mesh deployment. The `apps.app_config.model` field allows you to specify model settings for individual agents or gateways, providing fine-grained control over which models specific components use. Alternatively, you can define models globally in the `shared_config.yaml` file under the `models` section, creating reusable configurations that multiple components can reference. For detailed information about the overall configuration structure and shared configuration management, see the [Configuring SAM guide](./configurations.md).
+You can configure LLM settings in two locations within your Agent Mesh deployment. The `apps.app_config.model` field allows you to specify model settings for individual agents or gateways, providing fine-grained control over which models specific components use. Alternatively, you can define models globally in the `shared_config.yaml` file under the `models` section, creating reusable configurations that multiple components can reference. For detailed information about the overall configuration structure and shared configuration management, see the [Configuring Agent Mesh](./configurations.md).
 
 ## Understanding LiteLLM Integration
 
-Solace Agent Mesh leverages [LiteLLM](https://docs.litellm.ai/docs/providers) to provide seamless integration with numerous LLM providers. This integration layer abstracts the differences between various provider APIs, allowing you to use a consistent configuration format regardless of whether you're connecting to OpenAI, Anthropic, Google, Amazon, or other supported providers.
+Agent Mesh leverages [LiteLLM](https://docs.litellm.ai/docs/providers) to provide seamless integration with numerous LLM providers. This integration layer abstracts the differences between various provider APIs, allowing you to use a consistent configuration format regardless of whether you're connecting to OpenAI, Anthropic, Google, Amazon, or other supported providers.
 
 The configuration system passes all fields from the `models` section directly to LiteLLM, giving you access to the full range of provider-specific options and features. This approach ensures that you can take advantage of advanced capabilities offered by different providers although maintaining a consistent configuration experience across your deployment.
 
@@ -102,7 +102,7 @@ For a complete list of supported providers and their specific configuration requ
 
 ## Security and SSL/TLS Configuration
 
-Solace Agent Mesh provides comprehensive security controls for connections to LLM endpoints, allowing you to fine-tune SSL/TLS behavior to meet your organization's security requirements. These settings help ensure secure communication with LLM providers although providing flexibility for various network environments and security policies.
+Agent Mesh provides comprehensive security controls for connections to LLM endpoints, allowing you to fine-tune SSL/TLS behavior to meet your organization's security requirements. These settings help ensure secure communication with LLM providers although providing flexibility for various network environments and security policies.
 
 The SSL verification setting controls whether the system validates SSL certificates when connecting to LLM endpoints. Although disabling verification can resolve connectivity issues in development environments, production deployments should always use proper SSL verification to maintain security.
 

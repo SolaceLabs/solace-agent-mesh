@@ -1,5 +1,5 @@
 ---
-title: Installing Solace Agent Mesh
+title: Installing Agent Mesh
 sidebar_position: 310
 ---
 
@@ -15,10 +15,10 @@ Before you begin, ensure you have the following:
 # Installation
 
 The [Solace Agent Mesh Module](https://pypi.org/project/solace-agent-mesh) includes two components:
-1. **Solace Agent Mesh CLI**: Create, build, run, and extend Solace Agent Mesh
-2. **Solace Agent Mesh framework**: A Python-based framework for customizing and extending SAM's capabilities
+1. **Agent Mesh CLI**: Create, build, run, and extend Agent Mesh
+2. **Agent Mesh framework**: A Python-based framework for customizing and extending SAM's capabilities
 
-Installing the PyPI package provides both the Solace Agent Mesh CLI and the framework (which is built on the Python SDK).
+Installing the PyPI package provides both the Agent Mesh CLI and the framework (which is built on the Python SDK).
 
 :::tip
 We recommend installing the package in a virtual environment to avoid conflicts with other Python packages.
@@ -87,9 +87,9 @@ uv venv .venv
 
 </details>
 
-## Install Solace Agent Mesh
+## Install Agent Mesh
 
-The following command installs Solace Agent Mesh CLI in your environment:
+The following command installs Agent Mesh CLI in your environment:
 
 <details>
     <summary>Using pip</summary>
@@ -108,7 +108,7 @@ uv pip install solace-agent-mesh
 </details>
 
 :::info Docker Alternative
-Alternatively, you can use our pre-built Docker image to run Solace Agent Mesh CLI commands without a local Python installation. This approach is useful for quick tasks or CI/CD environments. The pre-built Docker image is configured with group `solaceai` and non-root user `solaceai`.
+Alternatively, you can use our pre-built Docker image to run Agent Mesh CLI commands without a local Python installation. This approach is useful for quick tasks or CI/CD environments. The pre-built Docker image is configured with group `solaceai` and non-root user `solaceai`.
 
 To verify the installation using Docker, run:
 ```sh
@@ -133,14 +133,14 @@ playwright install
 
 ## Verify Installation
 
-Run the following Solace Agent Mesh CLI command to verify your installation:
+Run the following Agent Mesh CLI command to verify your installation:
 
 ```sh
 solace-agent-mesh --version
 ```
 
 :::tip
-For easier access to the Solace Agent Mesh CLI, you can also use the `sam` alias:
+For easier access to the Agent Mesh CLI, you can also use the `sam` alias:
 
 ```sh
 sam --version

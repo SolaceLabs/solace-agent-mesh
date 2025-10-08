@@ -1,11 +1,11 @@
 ---
-title: Deploying Solace Agent Mesh
+title: Deploying Agent Mesh
 sidebar_position: 500
 ---
 
-# Deploying Solace Agent Mesh
+# Deploying Agent Mesh
 
-Moving your Solace Agent Mesh from development to production requires careful consideration of deployment strategies, monitoring capabilities, and troubleshooting approaches. Understanding your options and having robust observability tools ensures your agent mesh operates reliably at scale.
+Moving your Agent Mesh from development to production requires careful consideration of deployment strategies, monitoring capabilities, and troubleshooting approaches. Understanding your options and having robust observability tools ensures your agent mesh operates reliably at scale.
 
 ## Selecting Your Deployment Strategy
 

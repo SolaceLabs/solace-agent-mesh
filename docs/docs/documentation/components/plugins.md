@@ -3,10 +3,10 @@ title: Plugins
 sidebar_position: 270
 ---
 
-Plugins provide a mechanism to extend the functionality of Solace Agent Mesh in a modular, shareable, and reusable way. The current plugin ecosystem includes agents, gateways, and specialized integrations.
+Plugins provide a mechanism to extend the functionality of Agent Mesh in a modular, shareable, and reusable way. The current plugin ecosystem includes agents, gateways, and specialized integrations.
 
 :::tip[In one sentence]
-Plugins are modular Python packages that extend Solace Agent Mesh's capabilities through agents, gateways, and specialized integrations.
+Plugins are modular Python packages that extend Solace the capabilities of Agent Mesh through agents, gateways, and specialized integrations.
 :::
 
 Plugins are packaged as Python modules that can be installed using various package managers (`pip`, `uv`, `poetry`, `conda`). They integrate seamlessly with the A2A protocol and can provide:
