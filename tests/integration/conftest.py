@@ -1,58 +1,107 @@
 import inspect
+import os
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Generator
+from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
+import sqlalchemy as sa
+from a2a.types import (
+    AgentCard,
+    AgentSkill,
+    PushNotificationConfig,
+    Task,
+    TaskPushNotificationConfig,
+    TaskState,
+    TaskStatusUpdateEvent,
+)
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
+from fastapi.testclient import TestClient
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
 from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
 from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
 from sam_test_infrastructure.llm_server.server import TestLLMServer
-from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+from sqlalchemy import create_engine, text
 
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.tools.registry import tool_registry
-from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
-from sam_test_infrastructure.gateway_interface.component import (
-    TestGatewayComponent,
-)
-from sam_test_infrastructure.llm_server.server import TestLLMServer
-from sam_test_infrastructure.artifact_service.service import (
-    TestInMemoryArtifactService,
-)
-from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
-from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
-from solace_agent_mesh.agent.sac.app import SamAgentApp
-from solace_agent_mesh.agent.sac.component import SamAgentComponent
-from solace_agent_mesh.agent.tools.registry import tool_registry
-from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
-from sam_test_infrastructure.gateway_interface.component import (
-    TestGatewayComponent,
-)
-from sam_test_infrastructure.llm_server.server import TestLLMServer
-from sam_test_infrastructure.artifact_service.service import (
-    TestInMemoryArtifactService,
-)
-from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
-from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from solace_agent_mesh.common import a2a
-from a2a.types import (
-    AgentCard,
-    AgentSkill,
-    Task,
-    TaskState,
-    TaskStatusUpdateEvent,
-    TaskPushNotificationConfig,
-    PushNotificationConfig,
-)
-from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
+from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+
+
+@pytest.fixture(scope="session")
+def test_db_engine():
+    """
+    Creates a temporary SQLite database for the test session, runs migrations,
+    and yields the SQLAlchemy engine.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        db_path = Path(temp_dir) / "test_integration.db"
+        database_url = f"sqlite:///{db_path}"
+        print(f"\n[SessionFixture] Creating test database at: {database_url}")
+
+        engine = create_engine(database_url)
+        
+        # Enable foreign keys for SQLite (database-agnostic approach)
+        from sqlalchemy import event
+        
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_conn, connection_record):
+            if database_url.startswith('sqlite'):
+                cursor = dbapi_conn.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+
+        # Run Alembic migrations
+        alembic_cfg = AlembicConfig()
+        # The script location is relative to the project root
+        script_location = "src/solace_agent_mesh/gateway/http_sse/alembic"
+        alembic_cfg.set_main_option("script_location", script_location)
+        alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+
+        alembic_command.upgrade(alembic_cfg, "head")
+        print("[SessionFixture] Database migrations applied.")
+
+        yield engine
+
+        engine.dispose()
+        print("[SessionFixture] Test database engine disposed.")
+
+
+@pytest.fixture(autouse=True)
+def clean_db_fixture(test_db_engine):
+    """
+    Cleans all data from the test database before each test run.
+    """
+    with test_db_engine.connect() as connection:
+        with connection.begin():
+            inspector = sa.inspect(test_db_engine)
+            existing_tables = inspector.get_table_names()
+
+            # Delete in correct order to handle foreign key constraints
+            tables_to_clean = [
+                "feedback",
+                "task_events",
+                "chat_messages",
+                "tasks",
+                "sessions",
+                "users",
+            ]
+            for table_name in tables_to_clean:
+                if table_name in existing_tables:
+                    connection.execute(text(f"DELETE FROM {table_name}"))
+    yield
 
 
 def find_free_port() -> int:
@@ -72,6 +121,10 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
     Yields:
         A dictionary containing the `connection_params` for both stdio and http.
     """
+    # Import moved inside the fixture to prevent module-level side effects (e.g., middleware patching)
+    # from affecting other apps in the unified test harness.
+    from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
+
     process = None
     port = 0
     SERVER_PATH = inspect.getfile(server_module)
@@ -379,6 +432,7 @@ def shared_solace_connector(
     session_monkeypatch,
     request,
     mcp_server_harness,
+    test_db_engine,
 ) -> SolaceAiConnector:
     """
     Creates and manages a single SolaceAiConnector instance with multiple agents
@@ -620,6 +674,22 @@ def shared_solace_connector(
     )
 
     app_infos = [
+        {
+            "name": "WebUIBackendApp",
+            "app_module": "solace_agent_mesh.gateway.http_sse.app",
+            "broker": {"dev_mode": True},
+            "app_config": {
+                "namespace": "test_namespace",
+                "gateway_id": "TestWebUIGateway_01",
+                "session_secret_key": "a_secure_test_secret_key",
+                "session_service": {
+                    "type": "sql",
+                    "database_url": str(test_db_engine.url),
+                },
+                "task_logging": {"enabled": True},
+                "artifact_service": {"type": "test_in_memory"},
+            },
+        },
         {
             "name": "TestSamAgentApp",
             "app_config": sam_agent_app_config,
@@ -961,6 +1031,32 @@ def config_context_agent_component(
 ) -> SamAgentComponent:
     """Retrieves the ConfigContextAgent component instance."""
     return get_component_from_app(config_context_agent_app_under_test)
+
+
+@pytest.fixture(scope="function")
+def webui_api_client(
+    shared_solace_connector: SolaceAiConnector,
+) -> Generator[TestClient, None, None]:
+    """
+    Provides a FastAPI TestClient for the running WebUIBackendApp.
+    """
+    app_instance = shared_solace_connector.get_app("WebUIBackendApp")
+    assert isinstance(
+        app_instance, WebUIBackendApp
+    ), "Failed to retrieve WebUIBackendApp from shared connector."
+
+    component_instance = app_instance.get_component()
+    assert isinstance(
+        component_instance, WebUIBackendComponent
+    ), "Failed to retrieve WebUIBackendComponent from WebUIBackendApp."
+
+    fastapi_app_instance = component_instance.fastapi_app
+    if not fastapi_app_instance:
+        pytest.fail("WebUIBackendComponent's FastAPI app is not initialized.")
+
+    with TestClient(fastapi_app_instance) as client:
+        print("[Fixture] TestClient for WebUIBackendApp created.")
+        yield client
 
 
 @pytest.fixture(scope="session")

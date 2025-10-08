@@ -71,7 +71,6 @@ from ...agent.tools.peer_agent_tool import (
     PeerAgentTool,
     PEER_TOOL_PREFIX,
 )
-from ...agent.adk.invocation_monitor import InvocationMonitor
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.tools.registry import tool_registry
@@ -248,7 +247,6 @@ class SamAgentComponent(SamComponentBase):
         self._agent_system_instruction_callback: Optional[
             Callable[[CallbackContext, LlmRequest], Optional[str]]
         ] = None
-        self.invocation_monitor: Optional[InvocationMonitor] = None
         self._active_background_tasks = set()
         try:
             self.agent_specific_state: Dict[str, Any] = {}
@@ -389,15 +387,6 @@ class SamAgentComponent(SamComponentBase):
                         raise RuntimeError(
                             f"Agent custom initialization failed: {e}"
                         ) from e
-            try:
-                self.invocation_monitor = InvocationMonitor()
-            except Exception as im_e:
-                log.error(
-                    "%s Failed to initialize InvocationMonitor: %s",
-                    self.log_identifier,
-                    im_e,
-                )
-                self.invocation_monitor = None
 
             # Async init is now handled by the base class `run` method.
             # We still need a future to signal completion from the async thread.
@@ -2050,6 +2039,21 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     len(task_context.produced_artifacts),
                 )
+            
+            # Add token usage summary
+            if task_context:
+                token_summary = task_context.get_token_usage_summary()
+                if token_summary["total_tokens"] > 0:
+                    final_task_metadata["token_usage"] = token_summary
+                    log.info(
+                        "%s Task %s used %d total tokens (input: %d, output: %d, cached: %d)",
+                        self.log_identifier,
+                        logical_task_id,
+                        token_summary["total_tokens"],
+                        token_summary["total_input_tokens"],
+                        token_summary["total_output_tokens"],
+                        token_summary["total_cached_input_tokens"],
+                    )
 
             final_task = a2a.create_final_task(
                 task_id=logical_task_id,
@@ -2991,16 +2995,6 @@ class SamAgentComponent(SamComponentBase):
                         func_name,
                         e,
                     )
-        if self.invocation_monitor:
-            try:
-                self.invocation_monitor.cleanup()
-            except Exception as im_clean_e:
-                log.error(
-                    "%s Error during InvocationMonitor cleanup: %s",
-                    self.log_identifier,
-                    im_clean_e,
-                )
-
         if self._tool_cleanup_hooks:
             log.info(
                 "%s Executing %d tool cleanup hooks...",
