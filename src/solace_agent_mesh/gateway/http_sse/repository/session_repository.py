@@ -29,10 +29,14 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         return "session"
 
     def find_by_user(
-        self, user_id: UserId, pagination: PaginationInfo | None = None
+        self, user_id: UserId, pagination: PaginationInfo | None = None, project_id: str | None = None
     ) -> list[Session]:
-        """Find all sessions for a specific user."""
+        """Find all sessions for a specific user, optionally filtered by project."""
         query = self.db.query(SessionModel).filter(SessionModel.user_id == user_id)
+        
+        if project_id:
+            query = query.filter(SessionModel.project_id == project_id)
+            
         query = query.order_by(SessionModel.updated_time.desc())
 
         if pagination:
@@ -42,9 +46,14 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         models = query.all()
         return [Session.model_validate(model) for model in models]
 
-    def count_by_user(self, user_id: UserId) -> int:
-        """Count total sessions for a specific user."""
-        return self.db.query(SessionModel).filter(SessionModel.user_id == user_id).count()
+    def count_by_user(self, user_id: UserId, project_id: str | None = None) -> int:
+        """Count total sessions for a specific user, optionally filtered by project."""
+        query = self.db.query(SessionModel).filter(SessionModel.user_id == user_id)
+        
+        if project_id:
+            query = query.filter(SessionModel.project_id == project_id)
+            
+        return query.count()
 
     def find_user_session(
         self, session_id: SessionId, user_id: UserId

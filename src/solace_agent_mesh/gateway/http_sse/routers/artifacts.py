@@ -43,13 +43,11 @@ from ....common.utils.embeds import (
 )
 from ....common.utils.mime_helpers import is_text_based_mime_type
 from ..dependencies import (
-    get_config_resolver,
     get_project_service,
     ValidatedUserConfig,
     get_sac_component,
     get_session_validator,
     get_shared_artifact_service,
-    get_user_config,
     get_user_id,
     get_session_manager,
     get_session_business_service_optional,

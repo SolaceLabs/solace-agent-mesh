@@ -255,6 +255,7 @@ async def _submit_task(
                         user_id=user_id,
                         agent_id=agent_name,
                         session_id=session_id,
+                        project_id=project_id,
                     )
                     db.commit()
                     log.info("%sCreated session in database: %s", log_prefix, session_id)
