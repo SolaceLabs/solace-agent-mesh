@@ -42,6 +42,7 @@ jobs:
   # ----------------------------------------------------
   prepare-metadata:
     name: Prepare Build Metadata
+    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_version.outputs.version }}
