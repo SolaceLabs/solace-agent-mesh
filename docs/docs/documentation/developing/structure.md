@@ -66,4 +66,4 @@ Each configuration file defines one (recommended) or more applications that can 
 
 ## Python Components
 
-While most functionality is configured through YAML, custom Python components can be added to the `src/` directory when needed. The framework provides base classes for extending functionality such as custom agent tools, gateway protocol handlers, and service providers.
+Although most functionality is configured through YAML, custom Python components can be added to the `src/` directory when needed. The framework provides base classes for extending functionality such as custom agent tools, gateway protocol handlers, and service providers.
