@@ -515,3 +515,96 @@ def test_feedback_publishing_stim_fallback_to_summary_on_size_limit(
     assert "truncation_details" in published_payload
     assert published_payload["truncation_details"]["strategy"] == "fallback_to_summary"
     assert published_payload["truncation_details"]["reason"] == "payload_too_large"
+
+
+def test_feedback_publishing_disabled_skips_event_but_saves_to_db(
+    api_client: TestClient, monkeypatch, test_database_engine
+):
+    """
+    Tests that when feedback_publishing.enabled = False, no event is published
+    but feedback is still saved to the database.
+    """
+    # Arrange
+    mock_publish_func = MagicMock()
+    from solace_agent_mesh.gateway.http_sse import dependencies
+    component = dependencies.sac_component_instance
+
+    # Disable feedback publishing
+    monkeypatch.setattr(
+        component,
+        "get_config",
+        lambda key, default=None: {
+            "enabled": False,  # Publishing disabled
+            "topic": "sam/feedback/test/v1",
+            "include_task_info": "summary",
+        }
+        if key == "feedback_publishing"
+        else default,
+    )
+    monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
+
+    # Create task
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Task for disabled publishing test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
+    assert task_response.status_code == 200
+    task_id = task_response.json()["result"]["id"]
+    session_id = task_response.json()["result"]["contextId"]
+
+    # Create task in DB
+    Session = sessionmaker(bind=test_database_engine)
+    db_session = Session()
+    try:
+        new_task = TaskModel(
+            id=task_id,
+            user_id="sam_dev_user",
+            start_time=now_epoch_ms(),
+            initial_request_text="Task for disabled publishing test",
+        )
+        db_session.add(new_task)
+        db_session.commit()
+    finally:
+        db_session.close()
+
+    feedback_payload = {
+        "taskId": task_id,
+        "sessionId": session_id,
+        "feedbackType": "down",
+        "feedbackText": "This needs improvement"
+    }
+
+    # Act
+    response = api_client.post("/api/v1/feedback", json=feedback_payload)
+
+    # Assert
+    assert response.status_code == 202
+    
+    # Verify publish was NOT called
+    mock_publish_func.assert_not_called()
+    
+    # But feedback should still be saved to database
+    db_session = Session()
+    try:
+        feedback_record = (
+            db_session.query(FeedbackModel).filter_by(task_id=task_id).one_or_none()
+        )
+        assert feedback_record is not None
+        assert feedback_record.task_id == task_id
+        assert feedback_record.session_id == session_id
+        assert feedback_record.rating == "down"
+        assert feedback_record.comment == "This needs improvement"
+        assert feedback_record.user_id == "sam_dev_user"
+    finally:
+        db_session.close()
