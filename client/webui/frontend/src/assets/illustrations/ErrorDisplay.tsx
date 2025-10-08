@@ -1,9 +1,9 @@
-interface ErrorDisplayProps {
+interface ErrorIllustrationProps {
     width?: number;
     height?: number;
 }
 
-function ErrorDisplay({ width = 24, height = 24 }: ErrorDisplayProps) {
+export default function ErrorIllustration({ width = 24, height = 24 }: ErrorIllustrationProps) {
     return (
         <svg width={width} height={height} focusable="false" aria-hidden="true" viewBox="0 0 131 131" fill="none">
             <path d="M119.681 63.9952C119.681 94.0948 95.2807 118.495 65.1812 118.495C35.0816 118.495 10.6812 94.0948 10.6812 63.9952C10.6812 33.8957 35.0816 9.49524 65.1812 9.49524C95.2807 9.49524 119.681 33.8957 119.681 63.9952Z" fill="#FDEDED" />
@@ -59,4 +59,3 @@ function ErrorDisplay({ width = 24, height = 24 }: ErrorDisplayProps) {
         </svg>
     );
 }
-export { ErrorDisplay };

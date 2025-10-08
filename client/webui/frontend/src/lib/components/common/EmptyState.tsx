@@ -1,9 +1,9 @@
 import type { VariantProps } from "class-variance-authority";
 import { Button } from "@/lib/components/ui/button";
 import type { buttonVariants } from "@/lib/components/ui/button";
-import { ErrorDisplay } from "@/assets/illustrations/ErrorDisplay";
 import type { ReactElement } from "react";
 import NotFoundIllustration from "@/assets/illustrations/NotFoundIllustration";
+import ErrorIllustration from "@/assets/illustrations/ErrorDisplay";
 
 type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
 
@@ -24,7 +24,7 @@ interface EmptyStateProps {
 function EmptyState({ title, subtitle, image, variant = "error", buttons }: EmptyStateProps) {
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-            {image ? image : variant === "error" ? <ErrorDisplay width={150} height={150} /> : <NotFoundIllustration width={150} height={150} />}
+            {image ? image : variant === "error" ? <ErrorIllustration width={150} height={150} /> : <NotFoundIllustration width={150} height={150} />}
 
             <p className="text-2xl">{title}</p>
             {subtitle ? <p className="text-base">{subtitle}</p> : null}
