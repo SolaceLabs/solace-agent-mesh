@@ -788,3 +788,176 @@ def test_feedback_publishing_failure_does_not_break_saving(
         assert feedback_record.user_id == "sam_dev_user"
     finally:
         db_session.close()
+
+
+def test_feedback_publishing_payload_structure_with_summary(
+    api_client: TestClient, monkeypatch, test_database_engine
+):
+    """
+    Test 5: Payload Structure Validation
+    Tests that the published payload has the correct structure with task_summary.
+    """
+    # Arrange
+    mock_publish_func = MagicMock()
+    from solace_agent_mesh.gateway.http_sse import dependencies
+    component = dependencies.sac_component_instance
+
+    monkeypatch.setattr(
+        component,
+        "get_config",
+        lambda key, default=None: {
+            "enabled": True,
+            "topic": "sam/feedback/test/v1",
+            "include_task_info": "summary",
+        }
+        if key == "feedback_publishing"
+        else default,
+    )
+    monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
+
+    # Create task
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Task for payload structure test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
+    assert task_response.status_code == 200
+    task_id = task_response.json()["result"]["id"]
+    session_id = task_response.json()["result"]["contextId"]
+
+    # Create task in DB with specific data
+    Session = sessionmaker(bind=test_database_engine)
+    db_session = Session()
+    try:
+        new_task = TaskModel(
+            id=task_id,
+            user_id="sam_dev_user",
+            start_time=now_epoch_ms(),
+            end_time=now_epoch_ms() + 5000,
+            status="completed",
+            initial_request_text="Task for payload structure test",
+        )
+        db_session.add(new_task)
+        db_session.commit()
+    finally:
+        db_session.close()
+
+    feedback_payload = {
+        "taskId": task_id,
+        "sessionId": session_id,
+        "feedbackType": "up",
+        "feedbackText": "Great response!"
+    }
+
+    # Act
+    response = api_client.post("/api/v1/feedback", json=feedback_payload)
+
+    # Assert
+    assert response.status_code == 202
+    mock_publish_func.assert_called_once()
+    
+    published_payload = mock_publish_func.call_args[0][1]
+    
+    # Verify feedback object structure
+    assert "feedback" in published_payload
+    feedback_obj = published_payload["feedback"]
+    assert feedback_obj["task_id"] == task_id
+    assert feedback_obj["session_id"] == session_id
+    assert feedback_obj["feedback_type"] == "up"
+    assert feedback_obj["feedback_text"] == "Great response!"
+    assert feedback_obj["user_id"] == "sam_dev_user"
+    
+    # Verify task_summary structure
+    assert "task_summary" in published_payload
+    task_summary = published_payload["task_summary"]
+    assert task_summary["id"] == task_id
+    assert task_summary["user_id"] == "sam_dev_user"
+    assert task_summary["status"] == "completed"
+    assert task_summary["initial_request_text"] == "Task for payload structure test"
+    assert "start_time" in task_summary
+    assert "end_time" in task_summary
+
+
+def test_feedback_publishing_with_missing_task(
+    api_client: TestClient, monkeypatch, test_database_engine
+):
+    """
+    Test 6: Task Not Found Handling
+    Tests behavior when include_task_info is set but the task doesn't exist in the database.
+    """
+    # Arrange
+    mock_publish_func = MagicMock()
+    from solace_agent_mesh.gateway.http_sse import dependencies
+    component = dependencies.sac_component_instance
+
+    monkeypatch.setattr(
+        component,
+        "get_config",
+        lambda key, default=None: {
+            "enabled": True,
+            "topic": "sam/feedback/test/v1",
+            "include_task_info": "summary",
+        }
+        if key == "feedback_publishing"
+        else default,
+    )
+    monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
+
+    # Create task via API but DON'T create it in the database
+    task_payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": "Task for missing task test"}],
+                "metadata": {"agent_name": "TestAgent"},
+            }
+        },
+    }
+    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
+    assert task_response.status_code == 200
+    task_id = task_response.json()["result"]["id"]
+    session_id = task_response.json()["result"]["contextId"]
+
+    # Note: We intentionally do NOT create the task in the database
+
+    feedback_payload = {
+        "taskId": task_id,
+        "sessionId": session_id,
+        "feedbackType": "down",
+        "feedbackText": "Task not found test"
+    }
+
+    # Act
+    response = api_client.post("/api/v1/feedback", json=feedback_payload)
+
+    # Assert
+    assert response.status_code == 202
+    mock_publish_func.assert_called_once()
+    
+    published_payload = mock_publish_func.call_args[0][1]
+    
+    # Should have feedback object
+    assert "feedback" in published_payload
+    assert published_payload["feedback"]["task_id"] == task_id
+    assert published_payload["feedback"]["feedback_type"] == "down"
+    
+    # Should NOT have task_summary since task doesn't exist
+    assert "task_summary" not in published_payload
+    
+    # Should NOT have task_stim_data
+    assert "task_stim_data" not in published_payload
