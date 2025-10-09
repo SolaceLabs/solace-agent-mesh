@@ -113,43 +113,185 @@ class A2AProxyComponent(BaseProxyComponent):
     ):
         """
         Forwards an A2A request to a downstream A2A-over-HTTPS agent.
+        
+        Implements automatic retry logic for OAuth 2.0 authentication failures.
+        If a 401 Unauthorized response is received and the agent uses OAuth 2.0,
+        the cached token is invalidated and the request is retried once with a
+        fresh token.
         """
         log_identifier = (
             f"{self.log_identifier}[ForwardRequest:{task_context.task_id}:{agent_name}]"
         )
 
-        try:
-            # Get or create A2AClient
-            client = await self._get_or_create_a2a_client(agent_name, task_context)
-            if not client:
-                raise ValueError(
-                    f"Could not create A2A client for agent '{agent_name}'"
-                )
+        # Step 1: Initialize retry counter
+        # Why only retry once: Prevents infinite loops on persistent auth failures.
+        # First 401 may be due to token expiration; second 401 indicates a config issue.
+        max_auth_retries = 1
+        auth_retry_count = 0
 
-            # Forward the request
-            if isinstance(request, SendStreamingMessageRequest):
-                response_generator = client.send_message_streaming(request)
-                async for response in response_generator:
+        # Step 2: Create while loop for retry logic
+        while auth_retry_count <= max_auth_retries:
+            try:
+                # Get or create A2AClient
+                client = await self._get_or_create_a2a_client(agent_name, task_context)
+                if not client:
+                    raise ValueError(
+                        f"Could not create A2A client for agent '{agent_name}'"
+                    )
+
+                # Forward the request
+                if isinstance(request, SendStreamingMessageRequest):
+                    response_generator = client.send_message_streaming(request)
+                    async for response in response_generator:
+                        await self._process_downstream_response(
+                            response, task_context, client, agent_name
+                        )
+                elif isinstance(request, SendMessageRequest):
+                    response = await client.send_message(request)
                     await self._process_downstream_response(
                         response, task_context, client, agent_name
                     )
-            elif isinstance(request, SendMessageRequest):
-                response = await client.send_message(request)
-                await self._process_downstream_response(
-                    response, task_context, client, agent_name
-                )
-            else:
-                log.warning(
-                    "%s Unhandled request type for forwarding: %s",
-                    log_identifier,
-                    type(request),
-                )
+                else:
+                    log.warning(
+                        "%s Unhandled request type for forwarding: %s",
+                        log_identifier,
+                        type(request),
+                    )
 
-        except Exception as e:
-            log.exception("%s Error forwarding request: %s", log_identifier, e)
-            # The base class exception handler in _handle_a2a_request will catch this
-            # and publish an error response.
-            raise
+                # Step 5: Success - break out of retry loop
+                break
+
+            except A2AClientHTTPError as e:
+                # Step 4: Add specific handling for 401 errors
+                if e.status_code == 401 and auth_retry_count < max_auth_retries:
+                    log.warning(
+                        "%s Received 401 Unauthorized from agent '%s'. Attempting token refresh (retry %d/%d).",
+                        log_identifier,
+                        agent_name,
+                        auth_retry_count + 1,
+                        max_auth_retries,
+                    )
+                    
+                    should_retry = await self._handle_auth_error(agent_name, task_context)
+                    if should_retry:
+                        auth_retry_count += 1
+                        continue  # Retry with fresh token
+                
+                # Not a retryable auth error, or max retries exceeded
+                log.exception(
+                    "%s HTTP error forwarding request (status %d): %s",
+                    log_identifier,
+                    e.status_code,
+                    e,
+                )
+                raise
+                
+            except Exception as e:
+                log.exception("%s Error forwarding request: %s", log_identifier, e)
+                # The base class exception handler in _handle_a2a_request will catch this
+                # and publish an error response.
+                raise
+
+    async def _handle_auth_error(
+        self, 
+        agent_name: str, 
+        task_context: "ProxyTaskContext"
+    ) -> bool:
+        """
+        Handles authentication errors by invalidating cached tokens.
+        
+        This method is called when a 401 Unauthorized response is received from
+        a downstream agent. It checks if the agent uses OAuth 2.0 authentication,
+        and if so, invalidates the cached token and removes the cached A2AClient
+        to force a fresh token fetch on the next request.
+        
+        Args:
+            agent_name: The name of the agent that returned 401.
+            task_context: The current task context.
+        
+        Returns:
+            True if token was invalidated and retry should be attempted.
+            False if no retry should be attempted (e.g., static token).
+        """
+        log_identifier = f"{self.log_identifier}[AuthError:{agent_name}]"
+        
+        # Step 1: Retrieve agent configuration
+        agent_config = next(
+            (
+                agent
+                for agent in self.proxied_agents_config
+                if agent.get("name") == agent_name
+            ),
+            None,
+        )
+        
+        if not agent_config:
+            log.warning(
+                "%s Agent configuration not found. Cannot handle auth error.",
+                log_identifier,
+            )
+            return False
+        
+        # Step 2: Check authentication type
+        auth_config = agent_config.get("authentication")
+        if not auth_config:
+            log.debug(
+                "%s No authentication configured for agent. No retry needed.",
+                log_identifier,
+            )
+            return False
+        
+        auth_type = auth_config.get("type")
+        if not auth_type:
+            # Legacy config - infer from scheme
+            scheme = auth_config.get("scheme", "bearer")
+            auth_type = "static_bearer" if scheme == "bearer" else "static_apikey"
+        
+        if auth_type != "oauth2_client_credentials":
+            log.debug(
+                "%s Agent uses '%s' authentication (not OAuth 2.0). No retry for static tokens.",
+                log_identifier,
+                auth_type,
+            )
+            return False
+        
+        # Step 3: Invalidate cached token
+        log.info(
+            "%s Invalidating cached OAuth 2.0 token for agent '%s'.",
+            log_identifier,
+            agent_name,
+        )
+        await self._oauth_token_cache.invalidate(agent_name)
+        
+        # Step 4: Remove cached A2AClient
+        # The cached client holds a reference to the old token via the AuthInterceptor.
+        # We must remove it to force creation of a new client with a fresh token.
+        if agent_name in self._a2a_clients:
+            old_client = self._a2a_clients.pop(agent_name)
+            
+            # Close the httpx client if not already closed
+            if old_client._client and not old_client._client.is_closed:
+                try:
+                    await old_client._client.aclose()
+                    log.info(
+                        "%s Closed httpx client for agent '%s'.",
+                        log_identifier,
+                        agent_name,
+                    )
+                except Exception as e:
+                    log.warning(
+                        "%s Error closing httpx client for agent '%s': %s",
+                        log_identifier,
+                        agent_name,
+                        e,
+                    )
+        
+        # Step 5: Return True to signal retry should be attempted
+        log.info(
+            "%s Auth error handling complete. Retry will be attempted with fresh token.",
+            log_identifier,
+        )
+        return True
 
     async def _fetch_oauth2_token(
         self, agent_name: str, auth_config: dict

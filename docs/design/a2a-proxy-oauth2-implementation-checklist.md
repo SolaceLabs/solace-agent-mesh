@@ -65,26 +65,26 @@
 
 ## Phase 5: Token Refresh on Authentication Failure
 
-- [ ] **Step 6**: Implement `_handle_auth_error()` method
-  - [ ] Add method signature
-  - [ ] Retrieve agent configuration
-  - [ ] Check authentication type
-  - [ ] Invalidate cached token
-  - [ ] Remove cached A2AClient
-  - [ ] Return True/False appropriately
-  - [ ] Add comprehensive docstring
-  - [ ] Add logging at each step
+- [x] **Step 6**: Implement `_handle_auth_error()` method
+  - [x] Add method signature
+  - [x] Retrieve agent configuration
+  - [x] Check authentication type
+  - [x] Invalidate cached token
+  - [x] Remove cached A2AClient
+  - [x] Return True/False appropriately
+  - [x] Add comprehensive docstring
+  - [x] Add logging at each step
 
-- [ ] **Step 7**: Add retry logic to `_forward_request()`
-  - [ ] Initialize retry counter
-  - [ ] Create while loop
-  - [ ] Move existing try/except inside loop
-  - [ ] Add specific handling for `A2AClientHTTPError` with status 401
-  - [ ] Call `_handle_auth_error()` on 401
-  - [ ] Increment counter and continue if should retry
-  - [ ] Add break after successful forwarding
-  - [ ] Update method docstring
-  - [ ] Add logging for retry attempts
+- [x] **Step 7**: Add retry logic to `_forward_request()`
+  - [x] Initialize retry counter
+  - [x] Create while loop
+  - [x] Move existing try/except inside loop
+  - [x] Add specific handling for `A2AClientHTTPError` with status 401
+  - [x] Call `_handle_auth_error()` on 401
+  - [x] Increment counter and continue if should retry
+  - [x] Add break after successful forwarding
+  - [x] Update method docstring
+  - [x] Add logging for retry attempts
 
 ---
 
