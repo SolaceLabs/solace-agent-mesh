@@ -52,14 +52,14 @@
 
 ## Phase 4: Client Creation Integration
 
-- [ ] **Step 5**: Update `_get_or_create_a2a_client()` for auth routing
-  - [ ] Extract `auth_type` from config
-  - [ ] Implement backward compatibility logic
-  - [ ] Add routing for `static_bearer`
-  - [ ] Add routing for `static_apikey`
-  - [ ] Add routing for `oauth2_client_credentials` (NEW)
-  - [ ] Add logging for each auth type
-  - [ ] Update method docstring
+- [x] **Step 5**: Update `_get_or_create_a2a_client()` for auth routing
+  - [x] Extract `auth_type` from config
+  - [x] Implement backward compatibility logic
+  - [x] Add routing for `static_bearer`
+  - [x] Add routing for `static_apikey`
+  - [x] Add routing for `oauth2_client_credentials` (NEW)
+  - [x] Add logging for each auth type
+  - [x] Update method docstring
 
 ---
 

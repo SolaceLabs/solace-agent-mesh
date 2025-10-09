@@ -282,6 +282,14 @@ class A2AProxyComponent(BaseProxyComponent):
     ) -> Optional[A2AClient]:
         """
         Gets a cached A2AClient or creates a new one for the given agent.
+        
+        Supports multiple authentication types:
+        - static_bearer: Static bearer token authentication
+        - static_apikey: Static API key authentication
+        - oauth2_client_credentials: OAuth 2.0 Client Credentials flow with automatic token refresh
+        
+        For backward compatibility, legacy configurations without a 'type' field
+        will have their type inferred from the 'scheme' field.
         """
         if agent_name in self._a2a_clients:
             return self._a2a_clients[agent_name]
@@ -315,9 +323,72 @@ class A2AProxyComponent(BaseProxyComponent):
         auth_config = agent_config.get("authentication")
         if auth_config:
             session_id = task_context.a2a_context.get("session_id", "default_session")
-            await self._credential_store.set_credentials(
-                session_id, auth_config["scheme"], auth_config["token"]
+            auth_type = auth_config.get("type")
+            
+            # Determine auth type (with backward compatibility)
+            if not auth_type:
+                # Legacy config: infer type from 'scheme' field
+                scheme = auth_config.get("scheme", "bearer")
+                if scheme == "bearer":
+                    auth_type = "static_bearer"
+                elif scheme == "apikey":
+                    auth_type = "static_apikey"
+                else:
+                    raise ValueError(
+                        f"Unknown legacy authentication scheme '{scheme}' for agent '{agent_name}'. "
+                        f"Supported schemes: 'bearer', 'apikey'."
+                    )
+                
+                log.warning(
+                    "%s Using legacy authentication config for agent '%s'. "
+                    "Consider migrating to 'type' field.",
+                    self.log_identifier,
+                    agent_name,
+                )
+            
+            log.info(
+                "%s Configuring authentication type '%s' for agent '%s'",
+                self.log_identifier,
+                auth_type,
+                agent_name,
             )
+            
+            # Route to appropriate handler
+            if auth_type == "static_bearer":
+                token = auth_config.get("token")
+                if not token:
+                    raise ValueError(
+                        f"Authentication type 'static_bearer' requires 'token' for agent '{agent_name}'"
+                    )
+                await self._credential_store.set_credentials(session_id, "bearer", token)
+            
+            elif auth_type == "static_apikey":
+                token = auth_config.get("token")
+                if not token:
+                    raise ValueError(
+                        f"Authentication type 'static_apikey' requires 'token' for agent '{agent_name}'"
+                    )
+                await self._credential_store.set_credentials(session_id, "apikey", token)
+            
+            elif auth_type == "oauth2_client_credentials":
+                # NEW: OAuth 2.0 Client Credentials Flow
+                try:
+                    access_token = await self._fetch_oauth2_token(agent_name, auth_config)
+                    await self._credential_store.set_credentials(session_id, "bearer", access_token)
+                except Exception as e:
+                    log.error(
+                        "%s Failed to obtain OAuth 2.0 token for agent '%s': %s",
+                        self.log_identifier,
+                        agent_name,
+                        e,
+                    )
+                    raise
+            
+            else:
+                raise ValueError(
+                    f"Unsupported authentication type '{auth_type}' for agent '{agent_name}'. "
+                    f"Supported types: static_bearer, static_apikey, oauth2_client_credentials."
+                )
 
         client = A2AClient(
             httpx_client=httpx_client_for_agent,
