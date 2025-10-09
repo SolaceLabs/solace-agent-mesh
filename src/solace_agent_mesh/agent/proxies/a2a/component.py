@@ -17,6 +17,7 @@ from a2a.client import (
     AuthInterceptor,
     InMemoryContextCredentialStore,
 )
+from .oauth_token_cache import OAuth2TokenCache
 from a2a.types import (
     A2ARequest,
     AgentCard,
@@ -69,6 +70,8 @@ class A2AProxyComponent(BaseProxyComponent):
         self._a2a_clients: Dict[str, A2AClient] = {}
         self._credential_store = InMemoryContextCredentialStore()
         self._auth_interceptor = AuthInterceptor(self._credential_store)
+        # OAuth 2.0 token cache for client credentials flow
+        self._oauth_token_cache = OAuth2TokenCache()
 
     async def _fetch_agent_card(self, agent_config: dict) -> Optional[AgentCard]:
         """
@@ -146,6 +149,132 @@ class A2AProxyComponent(BaseProxyComponent):
             log.exception("%s Error forwarding request: %s", log_identifier, e)
             # The base class exception handler in _handle_a2a_request will catch this
             # and publish an error response.
+            raise
+
+    async def _fetch_oauth2_token(
+        self, agent_name: str, auth_config: dict
+    ) -> str:
+        """
+        Fetches an OAuth 2.0 access token using the client credentials flow.
+        
+        This method implements token caching to avoid unnecessary token requests.
+        Tokens are cached per agent and automatically expire based on the configured
+        cache duration (default: 55 minutes).
+        
+        Args:
+            agent_name: The name of the agent (used as cache key).
+            auth_config: Authentication configuration dictionary containing:
+                - token_url: OAuth 2.0 token endpoint (required)
+                - client_id: OAuth 2.0 client identifier (required)
+                - client_secret: OAuth 2.0 client secret (required)
+                - scope: (optional) Space-separated scope string
+                - token_cache_duration_seconds: (optional) Cache duration in seconds
+        
+        Returns:
+            A valid OAuth 2.0 access token (string).
+        
+        Raises:
+            ValueError: If required OAuth parameters are missing or invalid.
+            httpx.HTTPStatusError: If token request returns non-2xx status.
+            httpx.RequestError: If network error occurs.
+        """
+        log_identifier = f"{self.log_identifier}[OAuth2:{agent_name}]"
+        
+        # Step 1: Check cache first
+        cached_token = await self._oauth_token_cache.get(agent_name)
+        if cached_token:
+            log.debug("%s Using cached OAuth token.", log_identifier)
+            return cached_token
+        
+        # Step 2: Validate required parameters
+        token_url = auth_config.get("token_url")
+        client_id = auth_config.get("client_id")
+        client_secret = auth_config.get("client_secret")
+        
+        if not all([token_url, client_id, client_secret]):
+            raise ValueError(
+                f"{log_identifier} OAuth 2.0 client credentials flow requires "
+                "'token_url', 'client_id', and 'client_secret'."
+            )
+        
+        # Step 3: Extract optional parameters
+        scope = auth_config.get("scope", "")
+        cache_duration = auth_config.get("token_cache_duration_seconds", 3300)
+        
+        # Step 4: Log token acquisition attempt
+        log.info(
+            "%s Fetching new OAuth 2.0 token from %s (scope: %s)",
+            log_identifier,
+            token_url,
+            scope or "default",
+        )
+        
+        try:
+            # Step 5: Create temporary httpx client with 30-second timeout
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Step 6: Execute POST request
+                # SECURITY: Never log client_secret or access_token
+                response = await client.post(
+                    token_url,
+                    data={
+                        "grant_type": "client_credentials",
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "scope": scope,
+                    },
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "Accept": "application/json",
+                    },
+                )
+                response.raise_for_status()
+                
+                # Step 7: Parse response
+                token_response = response.json()
+                access_token = token_response.get("access_token")
+                
+                if not access_token:
+                    raise ValueError(
+                        f"{log_identifier} Token response missing 'access_token' field. "
+                        f"Response keys: {list(token_response.keys())}"
+                    )
+                
+                # Step 8: Cache the token
+                await self._oauth_token_cache.set(
+                    agent_name, access_token, cache_duration
+                )
+                
+                # Step 9: Log success
+                log.info(
+                    "%s Successfully obtained OAuth 2.0 token (cached for %ds)",
+                    log_identifier,
+                    cache_duration,
+                )
+                
+                # Step 10: Return access token
+                return access_token
+                
+        except httpx.HTTPStatusError as e:
+            log.error(
+                "%s OAuth 2.0 token request failed with status %d: %s",
+                log_identifier,
+                e.response.status_code,
+                e.response.text,
+            )
+            raise
+        except httpx.RequestError as e:
+            log.error(
+                "%s OAuth 2.0 token request failed: %s",
+                log_identifier,
+                e,
+            )
+            raise
+        except Exception as e:
+            log.exception(
+                "%s Unexpected error fetching OAuth 2.0 token: %s",
+                log_identifier,
+                e,
+            )
             raise
 
     async def _get_or_create_a2a_client(
