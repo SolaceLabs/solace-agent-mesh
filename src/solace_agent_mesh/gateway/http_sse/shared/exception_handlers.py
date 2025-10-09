@@ -70,9 +70,9 @@ async def entity_already_exists_handler(
 async def business_rule_violation_handler(
     request: Request, exc: BusinessRuleViolationError
 ) -> JSONResponse:
-    """Handle business rule violations - 400 Bad Request."""
+    """Handle business rule violations - 422 Unprocessable Entity."""
     error_dto = EventErrorDTO.create(exc.message)
-    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=error_dto.model_dump())
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=error_dto.model_dump())
 
 
 async def configuration_error_handler(
@@ -86,11 +86,11 @@ async def configuration_error_handler(
 async def data_integrity_error_handler(
     request: Request, exc: DataIntegrityError
 ) -> JSONResponse:
-    """Handle data integrity errors - 400 Bad Request."""
+    """Handle data integrity errors - 422 Unprocessable Entity."""
     # Format: "An entity of type applicationDomain was passed in an invalid format"
     message = f"An entity of type {exc.entity_type} was passed in an invalid format" if hasattr(exc, 'entity_type') else "bad request"
     error_dto = EventErrorDTO.create(message)
-    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=error_dto.model_dump())
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=error_dto.model_dump())
 
 
 async def external_service_error_handler(
