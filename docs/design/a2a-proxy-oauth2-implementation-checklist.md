@@ -109,16 +109,16 @@
 
 ## Phase 7: Security Hardening
 
-- [ ] **Step 10**: Ensure secrets not logged & add HTTPS enforcement
-  - [ ] Review all log statements in OAuth 2.0 code
-  - [ ] Verify `client_secret` never logged
-  - [ ] Verify `access_token` never logged
-  - [ ] Verify full `auth_config` never logged
-  - [ ] Add security warning comments
-  - [ ] Add HTTPS enforcement in `_fetch_oauth2_token()`
-  - [ ] Parse `token_url` with `urlparse()`
-  - [ ] Check scheme is `https`
-  - [ ] Raise `ValueError` if not HTTPS
+- [x] **Step 10**: Ensure secrets not logged & add HTTPS enforcement
+  - [x] Review all log statements in OAuth 2.0 code
+  - [x] Verify `client_secret` never logged
+  - [x] Verify `access_token` never logged
+  - [x] Verify full `auth_config` never logged
+  - [x] Add security warning comments
+  - [x] Add HTTPS enforcement in `_fetch_oauth2_token()`
+  - [x] Parse `token_url` with `urlparse()`
+  - [x] Check scheme is `https`
+  - [x] Raise `ValueError` if not HTTPS
 
 ---
 

@@ -475,6 +475,19 @@ class A2AProxyComponent(BaseProxyComponent):
                 "'token_url', 'client_id', and 'client_secret'."
             )
         
+        # SECURITY: Enforce HTTPS for token URL
+        parsed_url = urlparse(token_url)
+        if parsed_url.scheme != "https":
+            log.error(
+                "%s OAuth 2.0 token_url must use HTTPS for security. Got scheme: '%s'",
+                log_identifier,
+                parsed_url.scheme,
+            )
+            raise ValueError(
+                f"{log_identifier} OAuth 2.0 token_url must use HTTPS for security. "
+                f"Got: {parsed_url.scheme}://"
+            )
+        
         # Step 3: Extract optional parameters
         scope = auth_config.get("scope", "")
         # Why 3300 seconds (55 minutes): Provides a 5-minute safety margin before
@@ -482,6 +495,7 @@ class A2AProxyComponent(BaseProxyComponent):
         cache_duration = auth_config.get("token_cache_duration_seconds", 3300)
         
         # Step 4: Log token acquisition attempt
+        # SECURITY: Never log client_secret or access_token to prevent credential leakage
         log.info(
             "%s Fetching new OAuth 2.0 token from %s (scope: %s)",
             log_identifier,
@@ -493,7 +507,7 @@ class A2AProxyComponent(BaseProxyComponent):
             # Step 5: Create temporary httpx client with 30-second timeout
             async with httpx.AsyncClient(timeout=30.0) as client:
                 # Step 6: Execute POST request
-                # SECURITY: Never log client_secret or access_token to prevent credential leakage
+                # SECURITY: client_secret is sent in POST body (not logged or in URL)
                 response = await client.post(
                     token_url,
                     data={
