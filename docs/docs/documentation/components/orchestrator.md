@@ -1,6 +1,6 @@
 ---
 title: Orchestrator
-sidebar_position: 260
+sidebar_position: 240
 ---
 
 # Orchestrator Agent

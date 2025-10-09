@@ -27,7 +27,7 @@ RBAC in Agent Mesh Enterprise consists of three interconnected components:
 
 **Roles** are collections of permissions that you assign to users. Instead of granting permissions directly to individual users, you create roles that represent job functions or responsibilities. For example, you might create a "data_analyst" role for users who need to work with data tools and artifacts. This approach simplifies administration because you can modify a role's permissions once and affect all users assigned to that role.
 
-**Scopes** are the actual permissions that grant access to specific features or resources. Each scope follows a pattern that identifies what it controls. For example, the scope `tool:data:read` grants permission to read data tools, while `artifact:create` allows creating artifacts. Scopes use wildcards to grant broader permissions—the scope `tool:data:*` grants all permissions for data tools.
+**Scopes** are the actual permissions that grant access to specific features or resources. Each scope follows a pattern that identifies what it controls. For example, the scope `tool:data:read` grants permission to read data tools, while `artifact:create` allows creating artifacts. Scopes use wildcards to grant broader permissions. For example, the scope `tool:data:*` grants all permissions for data tools.
 
 ### How Authorization Works
 
@@ -39,7 +39,7 @@ When a user attempts an action in Agent Mesh Enterprise, the system follows this
 4. It checks if any of the user's scopes match the permission required for the requested action
 5. If a matching scope exists, the system allows the action; otherwise, it denies access
 
-This model implements the principle of least privilege—users receive only the permissions they need to perform their job functions.
+This model implements the principle of least privilege: users receive only the permissions they need to perform their job functions.
 
 ## Planning Your RBAC Configuration
 
@@ -160,7 +160,7 @@ users:
     description: "Standard Enterprise User"
 ```
 
-Each entry in this file maps a user identity (typically an email address) to one or more roles. The user identity must match exactly what your authentication system provides—SAM Enterprise performs case-sensitive matching.
+Each entry in this file maps a user identity (typically an email address) to one or more roles. The user identity must match exactly what your authentication system provides because Agent Mesh Enterprise performs case-sensitive matching.
 
 You can assign multiple roles to a single user by listing them in the `roles` array. When a user has multiple roles, they receive the combined permissions from all assigned roles. For example, if you assign both `data_analyst` and `standard_user` roles to a user, they receive all scopes from both roles.
 
@@ -283,7 +283,7 @@ roles:
       - "artifact:create"
 ```
 
-In this example, the "operator" role receives all scopes from "viewer" (`tool:basic:read` and `artifact:read`) plus its own scopes (`tool:basic:*` and `artifact:create`). Note that `tool:basic:*` includes `tool:basic:read`, so there is some overlap—SAM Enterprise handles this correctly by deduplicating scopes.
+In this example, the "operator" role receives all scopes from "viewer" (`tool:basic:read` and `artifact:read`) plus its own scopes (`tool:basic:*` and `artifact:create`). Note that `tool:basic:*` includes `tool:basic:read`, so there is some overlap. Agent Mesh Enterprise handles this correctly by deduplicating scopes.
 
 ### User-to-Role Assignments Structure
 

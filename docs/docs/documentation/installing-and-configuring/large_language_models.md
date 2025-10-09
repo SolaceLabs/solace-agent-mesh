@@ -1,9 +1,9 @@
 ---
-title: Configuration Settings for LLMs
+title: Configuring LLMs
 sidebar_position: 340
 ---
 
-Large Language Models serve as the intelligence foundation for Agent Mesh, powering everything from natural language understanding to complex reasoning and decision-making. The system provides flexible configuration options that allow you to connect with various LLM providers through a unified interface, making it easy to switch between providers or use multiple models for different purposes.
+Large Language Models (LLMs) serve as the intelligence foundation for Agent Mesh, powering everything from natural language understanding to complex reasoning and decision-making. The system provides flexible configuration options that allow you to connect with various LLM providers through a unified interface, making it easy to switch between providers or use multiple models for different purposes.
 
 You can configure LLM settings in two locations within your Agent Mesh deployment. The `apps.app_config.model` field allows you to specify model settings for individual agents or gateways, providing fine-grained control over which models specific components use. Alternatively, you can define models globally in the `shared_config.yaml` file under the `models` section, creating reusable configurations that multiple components can reference. For detailed information about the overall configuration structure and shared configuration management, see the [Configuring Agent Mesh](./configurations.md).
 
@@ -11,9 +11,9 @@ You can configure LLM settings in two locations within your Agent Mesh deploymen
 
 Agent Mesh leverages [LiteLLM](https://docs.litellm.ai/docs/providers) to provide seamless integration with numerous LLM providers. This integration layer abstracts the differences between various provider APIs, allowing you to use a consistent configuration format regardless of whether you're connecting to OpenAI, Anthropic, Google, Amazon, or other supported providers.
 
-The configuration system passes all fields from the `models` section directly to LiteLLM, giving you access to the full range of provider-specific options and features. This approach ensures that you can take advantage of advanced capabilities offered by different providers although maintaining a consistent configuration experience across your deployment.
+The configuration system passes all fields from the `models` section directly to LiteLLM, giving you access to the full range of provider-specific options and features. This approach ensures that you can take advantage of advanced capabilities offered by different providers while maintaining a consistent configuration experience across your deployment.
 
-Environment variables provide a secure and flexible way to manage sensitive information such as API keys and endpoint URLs. The configuration system supports environment variable substitution using the format `${ENV_VAR_NAME, default_value}`, allowing you to keep secrets out of your configuration files although providing sensible defaults for development environments.
+Environment variables provide a secure and flexible way to manage sensitive information such as API keys and endpoint URLs. The configuration system supports environment variable substitution using the format `${ENV_VAR_NAME, default_value}`, allowing you to keep secrets out of your configuration files while providing sensible defaults for development environments.
 
 ## Provider-Specific Configurations
 
@@ -96,17 +96,17 @@ For comprehensive details about Anthropic-specific configuration options and mod
 
 ### Additional Providers
 
-LiteLLM supports numerous other providers including Cohere, Hugging Face, Together AI, and many more. Each provider may have specific configuration requirements and capabilities, although the general pattern of specifying model names, endpoints, and authentication credentials remains consistent.
+LiteLLM supports numerous other providers including Cohere, Hugging Face, Together AI, and many more. Each provider may have specific configuration requirements and capabilities, but the general pattern of specifying model names, endpoints, and authentication credentials remains consistent.
 
 For a complete list of supported providers and their specific configuration requirements, see the [LiteLLM providers documentation](https://docs.litellm.ai/docs/providers).
 
 ## Security and SSL/TLS Configuration
 
-Agent Mesh provides comprehensive security controls for connections to LLM endpoints, allowing you to fine-tune SSL/TLS behavior to meet your organization's security requirements. These settings help ensure secure communication with LLM providers although providing flexibility for various network environments and security policies.
+Agent Mesh provides comprehensive security controls for connections to LLM endpoints, allowing you to fine-tune SSL/TLS behavior to meet your organization's security requirements. These settings help ensure secure communication with LLM providers while providing flexibility for various network environments and security policies.
 
 The SSL verification setting controls whether the system validates SSL certificates when connecting to LLM endpoints. Although disabling verification can resolve connectivity issues in development environments, production deployments should always use proper SSL verification to maintain security.
 
-SSL security levels determine the cryptographic standards required for connections. Higher security levels enforce stricter requirements although may cause compatibility issues with older endpoints. The default level provides a good balance between security and compatibility for most deployments.
+SSL security levels determine the cryptographic standards required for connections. Higher security levels enforce stricter requirements but may cause compatibility issues with older endpoints. The default level provides a good balance between security and compatibility for most deployments.
 
 Custom SSL certificates allow you to specify additional trusted certificate authorities or use self-signed certificates in controlled environments. You can provide certificates either as file paths or as direct certificate content in PEM format.
 
@@ -139,4 +139,4 @@ DISABLE_AIOHTTP_TRANSPORT=false
 AIOHTTP_TRUST_ENV=false
 ```
 
-This example demonstrates how to configure SSL settings through environment variables, providing a secure foundation for LLM communications although maintaining flexibility for different deployment scenarios. The certificate content should be replaced with your actual certificate data, and file paths should point to your specific certificate locations.
+This example demonstrates how to configure SSL settings through environment variables, providing a secure foundation for LLM communications while maintaining flexibility for different deployment scenarios. The certificate content should be replaced with your actual certificate data, and file paths should point to your specific certificate locations.

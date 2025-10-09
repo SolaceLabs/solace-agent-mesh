@@ -228,7 +228,7 @@ This approach is incredibly scalable, as one configuration entry can bootstrap a
 
 ## Managing Tool Lifecycles with `init` and `cleanup`
 
-For tools that need to manage resources—such as database connections, API clients, or temporary files—Solace Agent Mesh provides optional `init` and `cleanup` lifecycle hooks. These allow you to run code when the agent starts up and shuts down, ensuring that resources are acquired and released gracefully.
+For tools that need to manage resources—such as database connections, API clients, or temporary files—Agent Mesh provides optional `init` and `cleanup` lifecycle hooks. These allow you to run code when the agent starts up and shuts down, ensuring that resources are acquired and released gracefully.
 
 There are two ways to define these hooks:
 - **YAML-based (`init_function`, `cleanup_function`):** A flexible method that works for *any* Python tool, including simple function-based ones.

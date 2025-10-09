@@ -7,14 +7,6 @@ Agent Mesh provides a comprehensive set of components that work together to crea
 
 This section introduces you to the key components and tools that make up the system. You'll find detailed documentation for each component, along with configuration examples and best practices for implementation.
 
-## Command Line Interface
-
-The CLI provides the primary interface for managing your Agent Mesh deployment. You can use it to start agents, configure gateways, monitor system health, and perform administrative tasks. The CLI simplifies complex operations and provides helpful feedback during development and deployment. For complete CLI documentation and command reference, see [CLI](./cli.md).
-
-## Solace AI Connector
-
-The Solace AI Connector (SAC) serves as the runtime foundation for all components in the mesh. It provides the infrastructure for hosting agents and gateways, managing their lifecycles, and facilitating communication through the event broker. SAC handles the low-level details of message routing, connection management, and service initialization, allowing you to focus on building agent logic. For detailed information about SAC architecture and configuration, see [Solace AI Connector](./solace-ai-connector.md).
-
 ## Agents
 
 Agents are the intelligent processing units that perform tasks within the mesh. Each agent combines the Google Agent Development Kit (ADK) with specialized instructions, LLM configurations, and toolsets to create focused AI capabilities. Agents can work independently or collaborate with other agents to solve complex problems. You can configure agents with different personalities, expertise areas, and access permissions to match your specific use cases. For comprehensive agent configuration and development guidance, see [Agents](./agents.md).
@@ -34,3 +26,7 @@ Plugins extend the capabilities of Agent Mesh by providing custom tools, integra
 ## Built-in Tools
 
 Agent Mesh includes a comprehensive set of built-in tools that provide essential capabilities for most AI agent scenarios. These tools handle common tasks like artifact management, data analysis, web interactions, and inter-agent communication. The built-in tools are designed to work seamlessly with the A2A protocol and provide consistent behavior across all agents in your mesh. For detailed documentation of available tools and their usage, see [Built-in Tools](./builtin-tools/builtin-tools.md).
+
+## Command Line Interface
+
+The CLI provides the primary interface for managing your Agent Mesh deployment. You can use it to start agents, configure gateways, monitor system health, and perform administrative tasks. The CLI simplifies complex operations and provides helpful feedback during development and deployment. For complete CLI documentation and command reference, see [CLI](./cli.md).

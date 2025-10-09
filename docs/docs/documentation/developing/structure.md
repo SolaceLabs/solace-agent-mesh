@@ -5,7 +5,7 @@ sidebar_position: 410
 
 # Project Structure
 
-Agent Mesh is built on the A2A (Agent-to-Agent) protocol architecture, powered by [Solace AI Event Connector](../components/solace-ai-connector.md) and uses the Solace event broker as the communication backbone. The framework is controlled by YAML configuration files that define agents, gateways, and plugins, enabling distributed AI agent communication through event-driven messaging.
+Agent Mesh is built on the A2A (Agent-to-Agent) protocol architecture, powered by [Solace AI Connector](https://github.com/SolaceLabs/solace-ai-connector), and uses the Solace event broker as the communication backbone. The framework is controlled by YAML configuration files that define agents, gateways, and plugins, enabling distributed AI agent communication through event-driven messaging.
 
 A fresh Agent Mesh project follows this structure:
 
@@ -24,9 +24,9 @@ my-sam-project/
 
 The `configs/` directory uses a logical organization:
 
-- `agents/`—Contains agent configuration files
-- `gateways/`—Contains gateway configuration files
-- `plugins/`—Contains plugin configuration files (created when plugins are added)
+- the `agents/` directory contains agent configuration files
+- the `gateways/` directory contains gateway configuration files
+- the `plugins/` directory contains plugin configuration files (created when plugins are added)
 
 Further subdirectories can be created within `agents/`, `gateways/`, and `plugins/` to organize configurations by functionality or purpose. 
 
