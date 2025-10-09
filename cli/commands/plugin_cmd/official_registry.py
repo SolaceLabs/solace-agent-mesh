@@ -1,8 +1,10 @@
-import httpx
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 from typing import Dict, Optional
+
 import click
+import httpx
+
 from config_portal.backend.plugin_catalog.constants import (
     DEFAULT_OFFICIAL_REGISTRY_URL,
     OFFICIAL_REGISTRY_GIT_BRANCH,

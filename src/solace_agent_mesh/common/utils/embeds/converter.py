@@ -2,15 +2,16 @@
 Contains the Central Data Converter and Serializer functions.
 """
 
-import json
+import base64
 import csv
 import io
-import base64
-from typing import Any, Tuple, Optional, List, Dict
+import json
+from typing import Any, Dict, List, Optional, Tuple
+
 from solace_ai_connector.common.log import log
 
-from .types import DataFormat
 from ..mime_helpers import is_text_based_mime_type
+from .types import DataFormat
 
 try:
     import yaml

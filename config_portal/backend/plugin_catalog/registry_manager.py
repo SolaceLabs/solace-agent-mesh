@@ -1,16 +1,17 @@
+import hashlib
 import json
 import os
-import hashlib
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from pydantic import ValidationError
 
-from .models import Registry
 from .constants import (
     DEFAULT_OFFICIAL_REGISTRY_URL,
-    USER_REGISTRIES_PATH,
     OFFICIAL_REGISTRY_GIT_BRANCH,
+    USER_REGISTRIES_PATH,
 )
+from .models import Registry
 
 
 class RegistryManager:

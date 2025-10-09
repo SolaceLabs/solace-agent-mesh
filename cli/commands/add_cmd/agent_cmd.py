@@ -5,7 +5,11 @@ from pathlib import Path
 import click
 import yaml
 
-from config_portal.backend.common import AGENT_DEFAULTS, USE_DEFAULT_SHARED_ARTIFACT, USE_DEFAULT_SHARED_SESSION
+from config_portal.backend.common import (
+    AGENT_DEFAULTS,
+    USE_DEFAULT_SHARED_ARTIFACT,
+    USE_DEFAULT_SHARED_SESSION,
+)
 
 from ...utils import (
     ask_if_not_provided,

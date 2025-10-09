@@ -1,6 +1,7 @@
 """Provides a Pydantic BaseModel for SAM configuration with dict-like access."""
+from typing import Any, Type, TypeVar
+
 from pydantic import BaseModel
-from typing import Any, Dict, Type, TypeVar
 
 T = TypeVar("T", bound="SamConfigBase")
 

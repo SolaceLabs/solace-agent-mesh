@@ -9,8 +9,8 @@ from typing import Callable, Dict, Optional
 from solace_ai_connector.common.log import log
 
 from ....common import a2a
-from ....gateway.http_sse.sse_manager import SSEManager
 from ....core_a2a.service import CoreA2AService
+from ....gateway.http_sse.sse_manager import SSEManager
 
 PublishFunc = Callable[[str, Dict, Optional[Dict]], None]
 

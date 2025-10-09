@@ -2,31 +2,28 @@
 Collection of Python tools for web-related tasks, such as making HTTP requests.
 """
 
+import ipaddress
 import json
+import socket
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
-import ipaddress
 from urllib.parse import urlparse
-import socket
 
 import httpx
-from markdownify import markdownify as md
 from bs4 import BeautifulSoup
-
 from google.adk.tools import ToolContext
+from google.genai import types as adk_types
+from markdownify import markdownify as md
 from solace_ai_connector.common.log import log
 
 from ...agent.utils.artifact_helpers import (
-    save_artifact_with_metadata,
     DEFAULT_SCHEMA_MAX_KEYS,
+    save_artifact_with_metadata,
 )
 from ...agent.utils.context_helpers import get_original_session_id
-
-from google.genai import types as adk_types
-from .tool_definition import BuiltinTool
 from .registry import tool_registry
-
+from .tool_definition import BuiltinTool
 
 CATEGORY_NAME = "Web Access"
 CATEGORY_DESCRIPTION = "Access the web to find information to complete user requests."

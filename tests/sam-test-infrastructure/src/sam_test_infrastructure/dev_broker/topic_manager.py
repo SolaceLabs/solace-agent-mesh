@@ -3,12 +3,12 @@ Topic management for the development Solace broker simulator.
 Handles topic subscriptions, wildcard matching, and message routing.
 """
 
+import logging
 import re
 import threading
-from typing import Dict, List, Set, Callable, Optional, Any
-from dataclasses import dataclass
 from collections import defaultdict
-import logging
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional, Set
 
 
 @dataclass

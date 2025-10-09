@@ -1,7 +1,8 @@
 import os
 import shutil
 import subprocess
-from sys import stdout, exit as sys_exit
+from sys import exit as sys_exit
+from sys import stdout
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 

@@ -1,13 +1,15 @@
-import click
 from pathlib import Path
 
+import click
+
 from config_portal.backend.common import GATEWAY_DEFAULTS, USE_DEFAULT_SHARED_ARTIFACT
+
 from ...utils import (
-    get_formatted_names,
-    load_template,
-    error_exit,
     ask_if_not_provided,
+    error_exit,
+    get_formatted_names,
     indent_multiline_string,
+    load_template,
 )
 from .web_add_gateway_step import launch_add_gateway_web_portal
 

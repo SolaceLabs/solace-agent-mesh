@@ -1,7 +1,8 @@
-from google.adk.tools import ToolContext
-from google.genai import types as adk_types
 import base64
 import binascii
+
+from google.adk.tools import ToolContext
+from google.genai import types as adk_types
 
 
 def calculate_square(number: float) -> float:

@@ -9,7 +9,6 @@ from typing import Any
 from solace_ai_connector.common.log import log
 from starlette.requests import Request
 
-
 SESSION_KEY_CLIENT_ID = "a2a_client_id"
 SESSION_KEY_SESSION_ID = "a2a_session_id"
 SESSION_KEY_ACCESS_TOKEN = "access_token"

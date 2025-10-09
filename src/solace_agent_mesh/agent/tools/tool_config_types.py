@@ -2,7 +2,9 @@
 Pydantic models for agent tool configurations defined in YAML.
 """
 from typing import Any, Dict, List, Literal, Optional, Union
+
 from pydantic import Field
+
 from ...common.utils.pydantic_utils import SamConfigBase
 
 

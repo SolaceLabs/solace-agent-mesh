@@ -1,10 +1,10 @@
-import click
 import multiprocessing
 import webbrowser
 from pathlib import Path
+
+import click
+
 from cli.utils import wait_for_server
-
-
 from config_portal.backend.server import run_flask
 
 

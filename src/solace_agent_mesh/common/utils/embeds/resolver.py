@@ -4,28 +4,30 @@ Contains the main embed resolution functions, including the chain executor.
 
 import asyncio
 import json
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+
 from solace_ai_connector.common.log import log
-from typing import Any, Callable, Dict, Optional, Set, Tuple, List, Union
+
+from ..mime_helpers import is_text_based_mime_type
 from .constants import (
-    EMBED_REGEX,
-    EMBED_DELIMITER_OPEN,
-    EMBED_DELIMITER_CLOSE,
     EARLY_EMBED_TYPES,
+    EMBED_DELIMITER_CLOSE,
+    EMBED_DELIMITER_OPEN,
+    EMBED_REGEX,
     LATE_EMBED_TYPES,
+)
+from .converter import (
+    _parse_string_to_list_of_dicts,
+    convert_data,
+    serialize_data,
 )
 from .evaluators import EMBED_EVALUATORS, _evaluate_artifact_content_embed
 from .modifiers import MODIFIER_DEFINITIONS, _parse_modifier_chain
-from .converter import (
-    convert_data,
-    serialize_data,
-    _parse_string_to_list_of_dicts,
-)
 from .types import DataFormat
-from ..mime_helpers import is_text_based_mime_type
-
 
 try:
     import yaml
+
     from .converter import PYYAML_AVAILABLE
 except ImportError:
     PYYAML_AVAILABLE = False

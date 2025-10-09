@@ -5,7 +5,6 @@ at runtime by directives passed from the test case.
 """
 
 import argparse
-import base64
 import logging
 from typing import Any, Dict
 

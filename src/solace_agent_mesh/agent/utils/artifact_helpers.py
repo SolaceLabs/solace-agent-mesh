@@ -4,26 +4,32 @@ Helper functions for artifact management, including metadata handling and schema
 
 import base64
 import binascii
-import json
 import csv
-import io
 import inspect
+import io
+import json
 import os
-import yaml
 import traceback
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
-from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+import yaml
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
 from solace_ai_connector.common.log import log
-from ...common.a2a.types import ArtifactInfo
-from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file
-from ...common.constants import TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
+
 from ...agent.utils.context_helpers import get_original_session_id
+from ...common.a2a.types import ArtifactInfo
+from ...common.constants import (
+    TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH,
+    TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY,
+)
+from ...common.utils.mime_helpers import is_text_based_file, is_text_based_mime_type
 
 if TYPE_CHECKING:
     from google.adk.tools import ToolContext
+
     from ...agent.sac.component import SamAgentComponent
 
 METADATA_SUFFIX = ".metadata.json"

@@ -3,14 +3,14 @@ Main development Solace broker simulator for Event Mesh Gateway testing.
 """
 
 import asyncio
+import logging
 import threading
 import time
-from typing import Dict, List, Any, Optional, Callable
-import logging
+from typing import Any, Callable, Dict, List, Optional
 
 from .config import BrokerConfig
+from .message_handler import BrokerMessage, MessageHandler
 from .topic_manager import TopicManager
-from .message_handler import MessageHandler, BrokerMessage
 
 
 class DevBroker:

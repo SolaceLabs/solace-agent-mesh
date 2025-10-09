@@ -4,13 +4,14 @@ These tests are designed to be run manually or in a dedicated CI job,
 as they are long-running and resource-intensive.
 """
 
-import pytest
 import asyncio
-import json
 import base64
-import uuid
+import json
 import time
-from typing import List, Dict, Any
+import uuid
+from typing import Any, Dict, List
+
+import pytest
 
 try:
     import psutil
@@ -27,19 +28,21 @@ try:
 except ImportError:
     objgraph = None
 
-from sam_test_infrastructure.llm_server.server import TestLLMServer
+from a2a.types import JSONRPCError, Task
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from a2a.types import Task, JSONRPCError
+from sam_test_infrastructure.llm_server.server import TestLLMServer
+from sam_test_infrastructure.memory_monitor import MemoryMonitor
+from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
-from solace_ai_connector.solace_ai_connector import SolaceAiConnector
-from sam_test_infrastructure.memory_monitor import MemoryMonitor
+
 from .test_helpers import (
     create_gateway_input_data,
-    submit_test_input,
     get_all_task_events,
+    submit_test_input,
 )
 
 pytestmark = [

@@ -3,7 +3,7 @@ Defines modifier implementation functions and their contracts.
 """
 
 import re
-from typing import Any, Callable, Dict, Optional, Tuple, List
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from solace_ai_connector.common.log import log
 
@@ -454,7 +454,7 @@ async def _apply_template(
         Tuple: (result_data, original_mime_type, error_string)
                result_data is the rendered and resolved string.
     """
-    from .resolver import resolve_embeds_recursively_in_string, evaluate_embed
+    from .resolver import evaluate_embed, resolve_embeds_recursively_in_string
 
     if not PYSTACHE_AVAILABLE:
         return (

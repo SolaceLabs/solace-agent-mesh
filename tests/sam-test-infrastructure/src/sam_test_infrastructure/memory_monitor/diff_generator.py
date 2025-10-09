@@ -3,9 +3,9 @@ Contains classes for generating a diff between two memory snapshots (MemoryNode 
 This is used to pinpoint memory growth in specific parts of an object graph.
 """
 
-from dataclasses import dataclass, field
-from typing import List, Optional, Dict
 import re
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 from .depth_based_profiler import MemoryNode
 

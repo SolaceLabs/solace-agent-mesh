@@ -2,9 +2,9 @@
 A simple file-based tracker for verifying lifecycle hook execution in tests.
 """
 import os
+import threading
 from pathlib import Path
 from typing import List
-import threading
 
 _lock = threading.Lock()
 

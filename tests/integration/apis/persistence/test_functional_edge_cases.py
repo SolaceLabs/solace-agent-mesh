@@ -5,9 +5,9 @@ Tests missing functional scenarios including concurrent operations,
 file upload edge cases, and error recovery scenarios.
 """
 
-import uuid
 import threading
 import time
+import uuid
 
 from fastapi.testclient import TestClient
 

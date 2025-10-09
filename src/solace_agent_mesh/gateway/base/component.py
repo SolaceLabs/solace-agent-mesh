@@ -3,55 +3,58 @@ Base Component class for Gateway implementations in the Solace AI Connector.
 """
 
 import asyncio
-import queue
 import base64
+import queue
 import uuid
+from abc import abstractmethod
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from solace_ai_connector.common.log import log
+from a2a.types import (
+    AgentCard,
+    FilePart,
+    FileWithBytes,
+    JSONRPCError,
+    JSONRPCResponse,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
+    TextPart,
+)
+from a2a.types import (
+    Artifact as A2AArtifact,
+)
+from a2a.types import (
+    Message as A2AMessage,
+)
 from google.adk.artifacts import BaseArtifactService
+from solace_ai_connector.common.event import Event, EventType
+from solace_ai_connector.common.log import log
+from solace_ai_connector.common.message import (
+    Message as SolaceMessage,
+)
 
-from ...common.agent_registry import AgentRegistry
-from ...common.sac.sam_component_base import SamComponentBase
-from ...core_a2a.service import CoreA2AService
 from ...agent.adk.services import initialize_artifact_service
+from ...common import a2a
+from ...common.a2a.types import ContentPart
+from ...common.agent_registry import AgentRegistry
+from ...common.middleware.registry import MiddlewareRegistry
+from ...common.sac.sam_component_base import SamComponentBase
 from ...common.services.identity_service import (
     BaseIdentityService,
     create_identity_service,
 )
-from .task_context import TaskContextManager
-from ...common.a2a.types import ContentPart
-from a2a.types import (
-    Message as A2AMessage,
-    AgentCard,
-    JSONRPCResponse,
-    Task,
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
-    JSONRPCError,
-    TextPart,
-    FilePart,
-    FileWithBytes,
-    Artifact as A2AArtifact,
-)
-from ...common import a2a
 from ...common.utils import is_text_based_mime_type
 from ...common.utils.embeds import (
-    resolve_embeds_in_string,
-    resolve_embeds_recursively_in_string,
-    evaluate_embed,
-    LATE_EMBED_TYPES,
     EARLY_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
+    LATE_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
+    resolve_embeds_recursively_in_string,
 )
-from solace_ai_connector.common.message import (
-    Message as SolaceMessage,
-)
-from solace_ai_connector.common.event import Event, EventType
-from abc import abstractmethod
-
-from ...common.middleware.registry import MiddlewareRegistry
+from ...core_a2a.service import CoreA2AService
+from .task_context import TaskContextManager
 
 info = {
     "class_name": "BaseGatewayComponent",

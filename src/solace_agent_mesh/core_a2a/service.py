@@ -4,14 +4,16 @@ cancellation, and agent discovery processing.
 """
 
 import uuid
-from typing import Dict, Optional, Any, List, Tuple
-
-from solace_ai_connector.common.log import log
+from typing import Any, Dict, List, Optional, Tuple
 
 from a2a.types import (
-    Message as A2AMessage,
     AgentCard,
 )
+from a2a.types import (
+    Message as A2AMessage,
+)
+from solace_ai_connector.common.log import log
+
 from ..common import a2a
 from ..common.agent_registry import AgentRegistry
 

@@ -1,12 +1,14 @@
-import click
 import pathlib
+
+import click
+
 from cli.utils import (
-    get_formatted_names,
     ask_if_not_provided,
-    load_template,
     error_exit,
+    get_formatted_names,
+    load_template,
 )
-from cli import __version__ as cli_version
+
 from .official_registry import is_official_plugin
 
 PLUGIN_TYPES = ["agent", "gateway", "custom"]

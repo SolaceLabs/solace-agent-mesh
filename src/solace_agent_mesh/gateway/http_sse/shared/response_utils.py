@@ -5,10 +5,10 @@ Provides consistent response formatting across all API endpoints.
 Ensures uniform {data: ...} and {data: [...], meta: ...} response structure.
 """
 
-from typing import TypeVar, Generic, Any, Dict, List
-from pydantic import BaseModel
-from .pagination import PaginationParams, PaginatedResponse, DataResponse
+from typing import Dict, List, TypeVar
 
+
+from .pagination import DataResponse, PaginatedResponse, PaginationParams
 
 T = TypeVar('T')
 

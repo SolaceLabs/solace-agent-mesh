@@ -4,9 +4,11 @@ Contains a provider and a standalone tool to test discovery preference.
 """
 
 from typing import List, Optional
-from google.genai import types as adk_types
-from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool, DynamicToolProvider
+
 from google.adk.tools import ToolContext
+from google.genai import types as adk_types
+
+from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool, DynamicToolProvider
 
 
 class MixedDiscoveryTool(DynamicTool):

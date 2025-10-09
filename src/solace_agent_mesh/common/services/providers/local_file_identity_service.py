@@ -7,9 +7,9 @@ import json
 from typing import Any, Dict, List, Optional
 
 from solace_ai_connector.common.log import log
-from ..identity_service import BaseIdentityService
-from ...sac.sam_component_base import SamComponentBase
 
+from ...sac.sam_component_base import SamComponentBase
+from ..identity_service import BaseIdentityService
 
 
 class LocalFileIdentityService(BaseIdentityService):

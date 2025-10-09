@@ -1,11 +1,10 @@
-import shutil
-import click
 import os
+import shutil
 import sys
 
-from config_portal.backend.common import (
-    CONTAINER_RUN_COMMAND
-)
+import click
+
+from config_portal.backend.common import CONTAINER_RUN_COMMAND
 
 from ...utils import ask_if_not_provided
 

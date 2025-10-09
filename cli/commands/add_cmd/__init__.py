@@ -1,4 +1,5 @@
 import click
+
 from .agent_cmd import add_agent
 from .gateway_cmd import add_gateway
 

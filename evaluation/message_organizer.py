@@ -4,10 +4,10 @@ This module categorizes evaluation messages into appropriate run directories.
 """
 
 import json
+import logging
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any
-import logging
+from typing import Any, Dict, List, Optional, Tuple
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

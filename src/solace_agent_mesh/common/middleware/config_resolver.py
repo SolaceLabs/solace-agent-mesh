@@ -7,6 +7,7 @@ behavior that allows all operations.
 """
 
 from typing import Any, Dict, List
+
 from solace_ai_connector.common.log import log
 
 LOG_IDENTIFIER = "[ConfigResolver]"

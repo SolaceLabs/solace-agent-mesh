@@ -2,13 +2,12 @@
 API Router for providing frontend configuration.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict, Any
+from typing import TYPE_CHECKING, Any, Dict
 
+from fastapi import APIRouter, Depends, HTTPException, status
 from solace_ai_connector.common.log import log
 
-from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
-from typing import TYPE_CHECKING
+from ....gateway.http_sse.dependencies import get_api_config, get_sac_component
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent

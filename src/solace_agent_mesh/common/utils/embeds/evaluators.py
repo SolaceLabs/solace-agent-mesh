@@ -4,16 +4,17 @@ and the mapping dictionary.
 """
 
 import json
-from datetime import datetime
+import math
+import random
 import uuid
+from datetime import datetime
 from typing import Any, Callable, Dict, Optional, Tuple
-from solace_ai_connector.common.log import log
+
 from asteval import Interpreter
-import math, random
+from solace_ai_connector.common.log import log
 
 from ....agent.utils.artifact_helpers import format_metadata_for_llm
 from .constants import EMBED_CHAIN_DELIMITER
-
 
 MATH_SAFE_SYMBOLS = {
     # Basic math operations

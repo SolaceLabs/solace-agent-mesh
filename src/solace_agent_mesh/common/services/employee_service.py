@@ -3,13 +3,14 @@ Defines the abstract base class and factory for creating Employee Service provid
 """
 
 import importlib
+import importlib.metadata as metadata
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-import importlib.metadata as metadata
 
-from solace_ai_connector.common.log import log
-from ..utils.in_memory_cache import InMemoryCache
 import pandas as pd
+from solace_ai_connector.common.log import log
+
+from ..utils.in_memory_cache import InMemoryCache
 
 
 class BaseEmployeeService(ABC):

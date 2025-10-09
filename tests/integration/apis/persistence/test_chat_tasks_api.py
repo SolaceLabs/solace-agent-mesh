@@ -8,7 +8,6 @@ interactions with message_bubbles and task_metadata as opaque JSON strings.
 import json
 import uuid
 
-import pytest
 from fastapi.testclient import TestClient
 
 
@@ -719,6 +718,7 @@ class TestIntegrationWithExistingFeatures:
         
         # Step 7: Verify tasks are actually deleted from database (not just hidden)
         from sqlalchemy.orm import sessionmaker
+
         from solace_agent_mesh.gateway.http_sse.repository.models import ChatTaskModel
         
         Session = sessionmaker(bind=test_database_engine)

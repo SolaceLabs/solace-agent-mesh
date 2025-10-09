@@ -8,20 +8,19 @@ content processing to save MCP tool responses as appropriately typed artifacts.
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, TYPE_CHECKING, List, Optional
 from enum import Enum
-from pydantic import BaseModel
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from google.adk.tools import ToolContext, BaseTool
+from google.adk.tools import BaseTool, ToolContext
+from pydantic import BaseModel
 from solace_ai_connector.common.log import log
 
-from .mcp_content_processor import MCPContentProcessor, MCPContentProcessorConfig
 from ...agent.utils.artifact_helpers import (
-    save_artifact_with_metadata,
     DEFAULT_SCHEMA_MAX_KEYS,
+    save_artifact_with_metadata,
 )
 from ...agent.utils.context_helpers import get_original_session_id
-
+from .mcp_content_processor import MCPContentProcessor, MCPContentProcessorConfig
 
 if TYPE_CHECKING:
     from ...agent.sac.component import SamAgentComponent

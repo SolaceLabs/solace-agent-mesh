@@ -4,7 +4,6 @@ End-to-end user workflow tests using FastAPI HTTP endpoints.
 Tests complete user journeys that span multiple API endpoints and operations.
 """
 
-import io
 
 from fastapi.testclient import TestClient
 
@@ -222,8 +221,8 @@ def test_multi_agent_consultation_workflow(api_client: TestClient):
 def test_document_processing_workflow(api_client: TestClient):
     """Test workflow involving file upload and processing"""
 
-    import uuid
     import base64
+    import uuid
 
     # 1. Upload documents for processing
     print("1. Uploading documents for processing...")

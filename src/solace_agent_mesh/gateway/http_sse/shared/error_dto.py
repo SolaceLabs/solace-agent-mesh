@@ -6,6 +6,7 @@ across any web application for uniform error handling.
 """
 
 from typing import Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 

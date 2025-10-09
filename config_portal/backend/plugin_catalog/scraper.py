@@ -1,24 +1,25 @@
-import git
-import toml
-import yaml
+import logging
 import os
 import shutil
 from pathlib import Path
 from typing import List, Optional, Tuple
-import logging
 
+import git
+import toml
+import yaml
+
+from .constants import (
+    DEFAULT_OFFICIAL_REGISTRY_URL,
+    IGNORE_OFFICIAL_FLAG_REPOS,
+    PLUGIN_CATALOG_TEMP_DIR,
+)
 from .models import (
-    PluginScrapedInfo,
-    PyProjectDetails,
-    PyProjectAuthor,
     AgentCard,
     AgentCardSkill,
+    PluginScrapedInfo,
+    PyProjectAuthor,
+    PyProjectDetails,
     Registry,
-)
-from .constants import (
-    PLUGIN_CATALOG_TEMP_DIR,
-    IGNORE_OFFICIAL_FLAG_REPOS,
-    DEFAULT_OFFICIAL_REGISTRY_URL,
 )
 
 logger = logging.getLogger(__name__)

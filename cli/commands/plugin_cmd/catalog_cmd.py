@@ -1,22 +1,23 @@
-import click
 import multiprocessing
-import webbrowser
 import os
 import time
+import webbrowser
 from pathlib import Path
-from cli.utils import error_exit, wait_for_server
 
+import click
+
+from cli.utils import error_exit, wait_for_server
 
 config_portal_host = "CONFIG_PORTAL_HOST"
 
 
 def run_flask_plugin_catalog(host, port, shared_data):
     try:
-        from config_portal.backend.plugin_catalog_server import (
-            create_plugin_catalog_app,
-        )
         from config_portal.backend.plugin_catalog.constants import (
             PLUGIN_CATALOG_TEMP_DIR,
+        )
+        from config_portal.backend.plugin_catalog_server import (
+            create_plugin_catalog_app,
         )
     except ImportError:
         click.echo(

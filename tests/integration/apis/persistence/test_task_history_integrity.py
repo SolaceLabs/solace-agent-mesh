@@ -2,11 +2,9 @@
 Database integrity tests for the task history feature.
 """
 
-import time
 import uuid
 
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import sessionmaker
 
 from solace_agent_mesh.gateway.http_sse import dependencies
 from solace_agent_mesh.gateway.http_sse.repository.models import (

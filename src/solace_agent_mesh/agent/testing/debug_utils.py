@@ -4,8 +4,7 @@ including a pretty-printer for A2A event history.
 """
 
 import json
-from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 
 def _truncate(s: str, max_len: int) -> str:

@@ -4,7 +4,7 @@ Task repository implementation using SQLAlchemy.
 
 from sqlalchemy.orm import Session as DBSession
 
-from ..shared.types import PaginationInfo, PaginationParams, UserId
+from ..shared.types import PaginationParams, UserId
 from .entities import Task, TaskEvent
 from .interfaces import ITaskRepository
 from .models import TaskEventModel, TaskModel

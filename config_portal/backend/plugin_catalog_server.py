@@ -1,12 +1,13 @@
-from flask import Flask, jsonify, request, send_from_directory
+import logging
 import os
 import shutil
-import logging
 from pathlib import Path
 
-from .plugin_catalog.scraper import PluginScraper
-from .plugin_catalog.registry_manager import RegistryManager
+from flask import Flask, jsonify, request, send_from_directory
+
 from .plugin_catalog.constants import PLUGIN_CATALOG_TEMP_DIR
+from .plugin_catalog.registry_manager import RegistryManager
+from .plugin_catalog.scraper import PluginScraper
 
 logger = logging.getLogger(__name__)
 if not logger.hasHandlers():

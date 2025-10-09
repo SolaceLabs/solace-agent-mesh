@@ -5,8 +5,8 @@ This module provides a comprehensive set of generic exception classes
 that can be used by any web application for consistent error handling.
 """
 
-from typing import Any, Dict, List, Optional
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class EntityOperation(Enum):

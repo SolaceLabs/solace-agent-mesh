@@ -5,12 +5,12 @@ This module extracts and processes evaluation data for HTML report generation.
 
 import json
 import logging
-from datetime import datetime
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set, Tuple
-from pathlib import Path
-from collections import defaultdict, Counter
 import random
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Import test case loader
 from .test_case_loader import load_test_case

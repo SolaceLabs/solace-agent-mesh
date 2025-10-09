@@ -1,5 +1,7 @@
-import click
 from pathlib import Path
+
+import click
+
 from cli import __version__ as cli_version
 
 

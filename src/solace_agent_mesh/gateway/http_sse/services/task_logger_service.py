@@ -10,9 +10,11 @@ from a2a.types import (
     A2ARequest,
     JSONRPCError,
     JSONRPCResponse,
-    Task as A2ATask,
     TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
+)
+from a2a.types import (
+    Task as A2ATask,
 )
 from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DBSession

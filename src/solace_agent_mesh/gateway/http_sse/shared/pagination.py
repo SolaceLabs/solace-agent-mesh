@@ -9,8 +9,9 @@ Default pagination settings:
 - Max page size: 100
 """
 
+from typing import Generic, TypeVar
+
 from pydantic import BaseModel, Field
-from typing import TypeVar, Generic
 
 T = TypeVar("T")
 

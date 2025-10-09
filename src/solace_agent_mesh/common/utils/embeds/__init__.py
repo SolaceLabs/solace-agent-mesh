@@ -3,13 +3,13 @@ Exports key functions and constants for embed processing.
 """
 
 from .constants import (
-    EMBED_DELIMITER_OPEN,
-    EMBED_DELIMITER_CLOSE,
-    EMBED_TYPE_SEPARATOR,
-    EMBED_FORMAT_SEPARATOR,
-    EMBED_CHAIN_DELIMITER,
-    EMBED_REGEX,
     EARLY_EMBED_TYPES,
+    EMBED_CHAIN_DELIMITER,
+    EMBED_DELIMITER_CLOSE,
+    EMBED_DELIMITER_OPEN,
+    EMBED_FORMAT_SEPARATOR,
+    EMBED_REGEX,
+    EMBED_TYPE_SEPARATOR,
     LATE_EMBED_TYPES,
 )
 from .resolver import (
