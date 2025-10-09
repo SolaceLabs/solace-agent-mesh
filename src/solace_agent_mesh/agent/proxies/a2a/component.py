@@ -953,6 +953,11 @@ class A2AProxyComponent(BaseProxyComponent):
         """Cleans up resources on component shutdown."""
         log.info("%s Cleaning up A2A proxy component resources...", self.log_identifier)
 
+        # Token cache cleanup:
+        # - OAuth2TokenCache is automatically garbage collected
+        # - No persistent state to clean up
+        # - Tokens are lost on component restart (by design)
+
         async def _async_cleanup():
             # Close all created httpx clients
             for agent_name, client in self._a2a_clients.items():
