@@ -68,10 +68,12 @@ class A2AProxyComponent(BaseProxyComponent):
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
         self._a2a_clients: Dict[str, A2AClient] = {}
-        self._credential_store = InMemoryContextCredentialStore()
-        self._auth_interceptor = AuthInterceptor(self._credential_store)
+        self._credential_store: InMemoryContextCredentialStore = InMemoryContextCredentialStore()
+        self._auth_interceptor: AuthInterceptor = AuthInterceptor(self._credential_store)
         # OAuth 2.0 token cache for client credentials flow
-        self._oauth_token_cache = OAuth2TokenCache()
+        # Why use asyncio.Lock: Ensures thread-safe access to the token cache
+        # when multiple concurrent requests target the same agent
+        self._oauth_token_cache: OAuth2TokenCache = OAuth2TokenCache()
         
         # Validate OAuth 2.0 configuration at startup
         self._validate_oauth_config()
@@ -205,7 +207,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 agent_name,
             )
 
-    async def _fetch_agent_card(self, agent_config: dict) -> Optional[AgentCard]:
+    async def _fetch_agent_card(self, agent_config: Dict[str, Any]) -> Optional[AgentCard]:
         """
         Fetches the AgentCard from a downstream A2A agent via HTTPS.
         """
@@ -241,8 +243,8 @@ class A2AProxyComponent(BaseProxyComponent):
         return None
 
     async def _forward_request(
-        self, task_context: "ProxyTaskContext", request: A2ARequest, agent_name: str
-    ):
+        self, task_context: ProxyTaskContext, request: A2ARequest, agent_name: str
+    ) -> None:
         """
         Forwards an A2A request to a downstream A2A-over-HTTPS agent.
         
@@ -257,9 +259,10 @@ class A2AProxyComponent(BaseProxyComponent):
 
         # Step 1: Initialize retry counter
         # Why only retry once: Prevents infinite loops on persistent auth failures.
-        # First 401 may be due to token expiration; second 401 indicates a config issue.
-        max_auth_retries = 1
-        auth_retry_count = 0
+        # First 401 may be due to token expiration between cache check and request;
+        # second 401 indicates a configuration or authorization issue (not transient).
+        max_auth_retries: int = 1
+        auth_retry_count: int = 0
 
         # Step 2: Create while loop for retry logic
         while auth_retry_count <= max_auth_retries:
@@ -294,7 +297,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 break
 
             except A2AClientHTTPError as e:
-                # Step 4: Add specific handling for 401 errors
+                # Step 4: Add specific handling for 401 Unauthorized errors
                 if e.status_code == 401 and auth_retry_count < max_auth_retries:
                     log.warning(
                         "%s Received 401 Unauthorized from agent '%s'. Attempting token refresh (retry %d/%d).",
@@ -327,7 +330,7 @@ class A2AProxyComponent(BaseProxyComponent):
     async def _handle_auth_error(
         self, 
         agent_name: str, 
-        task_context: "ProxyTaskContext"
+        task_context: ProxyTaskContext
     ) -> bool:
         """
         Handles authentication errors by invalidating cached tokens.
@@ -396,8 +399,9 @@ class A2AProxyComponent(BaseProxyComponent):
         await self._oauth_token_cache.invalidate(agent_name)
         
         # Step 4: Remove cached A2AClient
-        # The cached client holds a reference to the old token via the AuthInterceptor.
-        # We must remove it to force creation of a new client with a fresh token.
+        # Why remove the A2AClient: The cached client holds a reference to the old token
+        # via the AuthInterceptor and CredentialStore. Removing it forces creation of a
+        # new client with a fresh token on the next request.
         if agent_name in self._a2a_clients:
             old_client = self._a2a_clients.pop(agent_name)
             
@@ -426,7 +430,7 @@ class A2AProxyComponent(BaseProxyComponent):
         return True
 
     async def _fetch_oauth2_token(
-        self, agent_name: str, auth_config: dict
+        self, agent_name: str, auth_config: Dict[str, Any]
     ) -> str:
         """
         Fetches an OAuth 2.0 access token using the client credentials flow.
@@ -473,6 +477,8 @@ class A2AProxyComponent(BaseProxyComponent):
         
         # Step 3: Extract optional parameters
         scope = auth_config.get("scope", "")
+        # Why 3300 seconds (55 minutes): Provides a 5-minute safety margin before
+        # typical 60-minute token expiration, preventing token expiration mid-request
         cache_duration = auth_config.get("token_cache_duration_seconds", 3300)
         
         # Step 4: Log token acquisition attempt
@@ -487,7 +493,7 @@ class A2AProxyComponent(BaseProxyComponent):
             # Step 5: Create temporary httpx client with 30-second timeout
             async with httpx.AsyncClient(timeout=30.0) as client:
                 # Step 6: Execute POST request
-                # SECURITY: Never log client_secret or access_token
+                # SECURITY: Never log client_secret or access_token to prevent credential leakage
                 response = await client.post(
                     token_url,
                     data={
@@ -552,7 +558,7 @@ class A2AProxyComponent(BaseProxyComponent):
             raise
 
     async def _get_or_create_a2a_client(
-        self, agent_name: str, task_context: "ProxyTaskContext"
+        self, agent_name: str, task_context: ProxyTaskContext
     ) -> Optional[A2AClient]:
         """
         Gets a cached A2AClient or creates a new one for the given agent.
@@ -675,7 +681,7 @@ class A2AProxyComponent(BaseProxyComponent):
     async def _handle_outbound_artifacts(
         self,
         response: Any,
-        task_context: "ProxyTaskContext",
+        task_context: ProxyTaskContext,
         agent_name: str,
     ) -> List[Dict[str, Any]]:
         """
@@ -806,10 +812,10 @@ class A2AProxyComponent(BaseProxyComponent):
             Task,
             TaskStatusUpdateEvent,
         ],
-        task_context: "ProxyTaskContext",
+        task_context: ProxyTaskContext,
         client: A2AClient,
         agent_name: str,
-    ):
+    ) -> None:
         """
         Processes a single response from the downstream agent.
         """

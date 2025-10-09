@@ -22,7 +22,7 @@ class CachedToken:
     """Represents a cached OAuth token with expiration."""
 
     access_token: str
-    expires_at: float  # Unix timestamp (time.time() + cache_duration)
+    expires_at: float  # Unix timestamp when token expires (time.time() + cache_duration)
 
 
 class OAuth2TokenCache:
