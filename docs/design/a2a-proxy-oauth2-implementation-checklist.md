@@ -19,11 +19,11 @@
 
 ## Phase 2: Configuration Schema Updates
 
-- [ ] **Step 2**: Update `app.py` configuration schema
-  - [ ] Add `type` field with enum values
-  - [ ] Add OAuth 2.0 properties (token_url, client_id, client_secret, scope, token_cache_duration_seconds)
-  - [ ] Update descriptions
-  - [ ] Ensure backward compatibility
+- [x] **Step 2**: Update `app.py` configuration schema
+  - [x] Add `type` field with enum values
+  - [x] Add OAuth 2.0 properties (token_url, client_id, client_secret, scope, token_cache_duration_seconds)
+  - [x] Update descriptions
+  - [x] Ensure backward compatibility
 
 ---
 
