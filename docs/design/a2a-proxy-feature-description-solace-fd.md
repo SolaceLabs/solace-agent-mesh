@@ -330,7 +330,6 @@ The proxy is delivered as part of the Solace Agent Mesh framework:
 ### Product Knowledge Acquisition Questions/Considerations
 
 **Integration Architecture**:
-- How do we enable external A2A agents to participate in the mesh without requiring them to understand Solace-specific concepts?
 - What is the optimal deployment model for the proxy (single instance, multi-instance, sidecar)?
 - How do we ensure protocol fidelity (A2A in → A2A out) while handling mesh-specific concerns like artifact URIs?
 
@@ -349,10 +348,6 @@ The proxy is delivered as part of the Solace Agent Mesh framework:
 - How do we handle failures gracefully (network errors, authentication failures, external agent errors)?
 - How do we ensure the proxy doesn't become a single point of failure for the mesh?
 
-**Extensibility**:
-- How do we design the proxy architecture to facilitate future support for other agent protocols (gRPC, AMQP)?
-- How do we separate protocol-agnostic concerns (discovery, routing, artifact handling) from protocol-specific translation logic?
-
 ### Knowledge Acquisition Outcomes
 
 The following design documents provide detailed technical specifications for the A2A proxy implementation:
@@ -362,10 +357,6 @@ The following design documents provide detailed technical specifications for the
 - **[OAuth 2.0 Client Credentials Design Document]**: Detailed design for OAuth 2.0 authentication including token acquisition, caching strategy, refresh logic, and security considerations.
 
 - **[Artifact Resolution Design Document]**: Specification for inbound and outbound artifact resolution, including URI parsing, byte conversion, metadata preservation, and storage scoping.
-
-- **[Security Model Documentation]**: Security architecture covering authentication schemes, credential management, HTTPS enforcement, and audit logging.
-
-- **[Test Strategy Document]**: Comprehensive test plan including declarative test scenarios, integration test harness, and validation framework.
 
 **Key Architectural Decisions**:
 
