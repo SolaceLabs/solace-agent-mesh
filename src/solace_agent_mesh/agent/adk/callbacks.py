@@ -1405,6 +1405,12 @@ def solace_llm_invocation_callback(
         logical_task_id = a2a_context.get("logical_task_id")
         context_id = a2a_context.get("contextId")
 
+        # Store model name in callback state for later use in response callback
+        model_name = host_component.model_config
+        if isinstance(model_name, dict):
+            model_name = model_name.get("model", "unknown")
+        callback_context.state["model_name"] = model_name
+
         llm_data = LlmInvocationData(request=llm_request.model_dump(exclude_none=True))
         status_update_event = a2a.create_data_signal_event(
             task_id=logical_task_id,
@@ -1447,8 +1453,8 @@ def solace_llm_response_callback(
     host_component: "SamAgentComponent",
 ) -> Optional[LlmResponse]:
     """
-    ADK after_model_callback to send a Solace message with the LLM's response,
-    using the host_component's process_and_publish_adk_event method.
+    ADK after_model_callback to send a Solace message with the LLM's response
+    and token usage information.
     """
     log_identifier = "[Callback:SolaceLLMResponse]"
     if llm_response.partial:  # Don't send partial responses for this notification
@@ -1478,6 +1484,49 @@ def solace_llm_response_callback(
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
         }
+        
+        # Extract and record token usage
+        if llm_response.usage_metadata:
+            usage = llm_response.usage_metadata
+            model_name = callback_context.state.get("model_name", "unknown")
+            
+            usage_dict = {
+                "input_tokens": usage.prompt_token_count,
+                "output_tokens": usage.candidates_token_count,
+                "model": model_name,
+            }
+            
+            # Check for cached tokens (provider-specific)
+            cached_tokens = 0
+            if hasattr(usage, 'prompt_tokens_details') and usage.prompt_tokens_details:
+                cached_tokens = getattr(usage.prompt_tokens_details, 'cached_tokens', 0)
+                if cached_tokens > 0:
+                    usage_dict["cached_input_tokens"] = cached_tokens
+            
+            # Add to response data
+            llm_response_data["usage"] = usage_dict
+            
+            # Record in task context for aggregation
+            with host_component.active_tasks_lock:
+                task_context = host_component.active_tasks.get(logical_task_id)
+            
+            if task_context:
+                task_context.record_token_usage(
+                    input_tokens=usage.prompt_token_count,
+                    output_tokens=usage.candidates_token_count,
+                    model=model_name,
+                    source="agent",
+                    cached_input_tokens=cached_tokens,
+                )
+                log.debug(
+                    "%s Recorded token usage: input=%d, output=%d, cached=%d, model=%s",
+                    log_identifier,
+                    usage.prompt_token_count,
+                    usage.candidates_token_count,
+                    cached_tokens,
+                    model_name,
+                )
+        
         # This signal doesn't have a dedicated Pydantic model, so we create the
         # DataPart directly and use the lower-level helpers.
         data_part = a2a.create_data_part(data=llm_response_data)

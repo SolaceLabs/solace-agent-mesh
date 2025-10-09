@@ -136,6 +136,7 @@ async def request_validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Handle FastAPI request validation errors - 422 Unprocessable Entity."""
+    # Convert Pydantic validation errors to our format
     validation_details = {}
     for error in exc.errors():
         field_path = ".".join(str(x) for x in error["loc"] if x != "body")

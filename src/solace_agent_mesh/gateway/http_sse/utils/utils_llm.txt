@@ -1,0 +1,47 @@
+## Quick Summary
+The `utils` directory provides utility functions for the HTTP SSE Gateway, specifically for creating .stim file structures from task and event data.
+
+## Files Overview
+- `__init__.py` - Package initialization file for HTTP SSE Gateway utilities
+- `stim_utils.py` - Utility functions for formatting task data into .stim file structures
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Package initialization for HTTP SSE Gateway utilities
+**Import:** `from solace_agent_mesh.gateway.http_sse.utils import *`
+
+This file serves as the package entry point and contains no public interfaces.
+
+### stim_utils.py
+**Purpose:** Provides utility functions for creating .stim file structures from task and event data
+**Import:** `from solace_agent_mesh.gateway.http_sse.utils.stim_utils import create_stim_from_task_data`
+
+**Functions:**
+- `create_stim_from_task_data(task: Task, events: List[TaskEvent]) -> dict` - Formats a task and its events into the .stim file structure with version 2.0 format for gateway-generated logs
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.utils.stim_utils import create_stim_from_task_data
+from solace_agent_mesh.gateway.http_sse.repository.entities import Task, TaskEvent
+
+# Create a .stim file structure from task and events
+task = Task(
+    id="task_123",
+    user_id="user_456", 
+    start_time="2024-01-01T10:00:00Z",
+    end_time="2024-01-01T10:05:00Z",
+    status="completed",
+    initial_request_text="Process this data"
+)
+
+events = [
+    TaskEvent(event_type="start", timestamp="2024-01-01T10:00:00Z"),
+    TaskEvent(event_type="complete", timestamp="2024-01-01T10:05:00Z")
+]
+
+stim_data = create_stim_from_task_data(task, events)
+# Returns a dictionary with 'invocation_details' and 'invocation_flow' keys
+```
+
+# content_hash: 7fdc4ad8bbcefb07ee40f84c438f988cda4fdfb812dab55c6a064d1b38b0c83f

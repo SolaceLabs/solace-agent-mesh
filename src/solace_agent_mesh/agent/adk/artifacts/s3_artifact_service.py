@@ -299,6 +299,7 @@ class S3ArtifactService(BaseArtifactService):
     ) -> list[str]:
         log_prefix = "[S3Artifact:ListKeys] "
         filenames = set()
+        app_name = app_name.strip('/')
 
         session_prefix = f"{app_name}/{user_id}/{session_id}/"
         try:

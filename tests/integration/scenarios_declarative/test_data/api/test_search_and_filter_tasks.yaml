@@ -1,0 +1,216 @@
+test_case_id: "api_search_and_filter_tasks_001"
+description: "Tests search and date filtering for the /api/v1/tasks endpoint."
+tags: ["api", "tasks"]
+
+setup_tasks:
+  - task_id: "search-task-1"
+    message: "This task is about the financial crisis of 2008."
+    user_id: "sam_dev_user"
+    status: "completed"
+    start_time_iso: "2025-01-15T10:00:00+00:00"
+    end_time_iso: "2025-01-15T10:05:00+00:00"
+
+  - task_id: "search-task-2"
+    message: "A second task regarding financial market stability."
+    user_id: "sam_dev_user"
+    status: "completed"
+    start_time_iso: "2025-02-20T12:00:00+00:00"
+    end_time_iso: "2025-02-20T12:05:00+00:00"
+
+  - task_id: "search-task-3"
+    message: "A third task about cloud infrastructure deployment."
+    user_id: "sam_dev_user"
+    status: "completed"
+    start_time_iso: "2025-02-20T14:00:00+00:00"
+    end_time_iso: "2025-02-20T14:05:00+00:00"
+
+# No input, just assertions on the setup data.
+
+expected_http_responses:
+  - description: "Search for a unique keyword 'crisis'"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        search: "crisis"
+    expected_status_code: 200
+    expected_list_length: 1
+    expected_json_body_matches:
+      - id: "search-task-1"
+        initial_request_text_contains: "financial crisis"
+
+  - description: "Search for a common keyword 'financial'"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        search: "financial"
+    expected_status_code: 200
+    expected_list_length: 2
+    expected_json_body_matches: # Order is descending by start_time
+      - id: "search-task-2"
+      - id: "search-task-1"
+
+  - description: "Search for a non-existent keyword"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        search: "nonexistentkeyword"
+    expected_status_code: 200
+    expected_body_is_empty_list: true
+
+  - description: "Filter by start_date to get tasks on or after Feb 20"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        start_date: "2025-02-20T00:00:00+00:00"
+    expected_status_code: 200
+    expected_list_length: 2
+    expected_json_body_matches: # descending order
+      - id: "search-task-3"
+      - id: "search-task-2"
+
+  - description: "Filter by end_date to get tasks before Feb 1"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        end_date: "2025-02-01T00:00:00+00:00"
+    expected_status_code: 200
+    expected_list_length: 1
+    expected_json_body_matches:
+      - id: "search-task-1"
+
+  - description: "Filter by date range to get only one task on Feb 20"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        start_date: "2025-02-20T13:00:00+00:00"
+        end_date: "2025-02-20T15:00:00+00:00"
+    expected_status_code: 200
+    expected_list_length: 1
+    expected_json_body_matches:
+      - id: "search-task-3"
+
+  - description: "Filter by date and search term"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        start_date: "2025-02-01T00:00:00+00:00"
+        search: "financial"
+    expected_status_code: 200
+    expected_list_length: 1
+    expected_json_body_matches:
+      - id: "search-task-2"
+test_case_id: "api_search_and_filter_tasks_001"
+description: "Tests search and date filtering for the /api/v1/tasks endpoint."
+tags: ["api", "tasks"]
+
+setup_tasks:
+  - task_id: "search-task-1"
+    message: "This task is about the financial crisis of 2008."
+    user_id: "sam_dev_user"
+    status: "completed"
+    start_time_iso: "2025-01-15T10:00:00+00:00"
+    end_time_iso: "2025-01-15T10:05:00+00:00"
+
+  - task_id: "search-task-2"
+    message: "A second task regarding financial market stability."
+    user_id: "sam_dev_user"
+    status: "completed"
+    start_time_iso: "2025-02-20T12:00:00+00:00"
+    end_time_iso: "2025-02-20T12:05:00+00:00"
+
+  - task_id: "search-task-3"
+    message: "A third task about cloud infrastructure deployment."
+    user_id: "sam_dev_user"
+    status: "completed"
+    start_time_iso: "2025-02-20T14:00:00+00:00"
+    end_time_iso: "2025-02-20T14:05:00+00:00"
+
+# No input, just assertions on the setup data.
+
+expected_http_responses:
+  - description: "Search for a unique keyword 'crisis'"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        search: "crisis"
+    expected_status_code: 200
+    expected_list_length: 1
+    expected_json_body_matches:
+      - id: "search-task-1"
+        initial_request_text_contains: "financial crisis"
+
+  - description: "Search for a common keyword 'financial'"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        search: "financial"
+    expected_status_code: 200
+    expected_list_length: 2
+    expected_json_body_matches: # Order is descending by start_time
+      - id: "search-task-2"
+      - id: "search-task-1"
+
+  - description: "Search for a non-existent keyword"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        search: "nonexistentkeyword"
+    expected_status_code: 200
+    expected_body_is_empty_list: true
+
+  - description: "Filter by start_date to get tasks on or after Feb 20"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        start_date: "2025-02-20T00:00:00+00:00"
+    expected_status_code: 200
+    expected_list_length: 2
+    expected_json_body_matches: # descending order
+      - id: "search-task-3"
+      - id: "search-task-2"
+
+  - description: "Filter by end_date to get tasks before Feb 1"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        end_date: "2025-02-01T00:00:00+00:00"
+    expected_status_code: 200
+    expected_list_length: 1
+    expected_json_body_matches:
+      - id: "search-task-1"
+
+  - description: "Filter by date range to get only one task on Feb 20"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        start_date: "2025-02-20T13:00:00+00:00"
+        end_date: "2025-02-20T15:00:00+00:00"
+    expected_status_code: 200
+    expected_list_length: 1
+    expected_json_body_matches:
+      - id: "search-task-3"
+
+  - description: "Filter by date and search term"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+      query_params:
+        start_date: "2025-02-01T00:00:00+00:00"
+        search: "financial"
+    expected_status_code: 200
+    expected_list_length: 1
+    expected_json_body_matches:
+      - id: "search-task-2"
