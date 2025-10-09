@@ -168,11 +168,6 @@ async def process_artifact_blocks_callback(
                         )
                         filename = event.params.get("filename", "unknown_artifact")
                         if a2a_context:
-                            status_text = f"Receiving artifact `{filename}`..."
-                            if description:
-                                status_text = (
-                                    f"Receiving artifact `{filename}`: {description}"
-                                )
                             progress_data = AgentProgressUpdateData(
                                 status_text=f"Receiving artifact `{filename}`..."
                             )
@@ -790,7 +785,7 @@ It can span multiple lines.
   - All parameter values **MUST** be enclosed in double quotes.
   - You **MUST NOT** use double quotes `"` inside the parameter values (e.g., within the description string). Use single quotes or rephrase instead.
   - Do not surround a save_artifact block with '```' (triple backticks). This will create rendering issues.
-  
+
 The system will automatically save the content and give you a confirmation in the next turn."""
 
 
