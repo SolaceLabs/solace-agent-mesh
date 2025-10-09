@@ -90,20 +90,20 @@
 
 ## Phase 6: Cleanup and Documentation
 
-- [ ] **Step 8**: Document token cache lifecycle
-  - [ ] Locate `cleanup()` method
-  - [ ] Add docstring note about automatic garbage collection
-  - [ ] Document no explicit cleanup needed
+- [x] **Step 8**: Document token cache lifecycle
+  - [x] Locate `cleanup()` method
+  - [x] Add docstring note about automatic garbage collection
+  - [x] Document no explicit cleanup needed
 
-- [ ] **Step 9**: Add configuration validation
-  - [ ] Add validation in `__init__()` after token cache init
-  - [ ] Iterate through `proxied_agents_config`
-  - [ ] Validate `token_url` is HTTPS
-  - [ ] Validate `client_id` is non-empty
-  - [ ] Validate `client_secret` is non-empty
-  - [ ] Validate `token_cache_duration_seconds` > 0
-  - [ ] Log errors for validation failures
-  - [ ] Raise exception to fail fast
+- [x] **Step 9**: Add configuration validation
+  - [x] Add validation in `__init__()` after token cache init
+  - [x] Iterate through `proxied_agents_config`
+  - [x] Validate `token_url` is HTTPS
+  - [x] Validate `client_id` is non-empty
+  - [x] Validate `client_secret` is non-empty
+  - [x] Validate `token_cache_duration_seconds` > 0
+  - [x] Log errors for validation failures
+  - [x] Raise exception to fail fast
 
 ---
 
