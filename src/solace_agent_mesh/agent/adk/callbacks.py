@@ -790,6 +790,7 @@ It can span multiple lines.
   - All parameter values **MUST** be enclosed in double quotes.
   - You **MUST NOT** use double quotes `"` inside the parameter values (e.g., within the description string). Use single quotes or rephrase instead.
   - Do not surround a save_artifact block with '```' (triple backticks). This will create rendering issues.
+  
 The system will automatically save the content and give you a confirmation in the next turn."""
 
 
