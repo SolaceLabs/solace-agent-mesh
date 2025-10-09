@@ -258,30 +258,35 @@ This document provides a step-by-step implementation plan for adding OAuth 2.0 C
 
 ### Phase 6: Cleanup and Documentation
 
-#### Step 8: Update Component Cleanup
+#### Step 8: Document Token Cache Lifecycle
 
 **File:** `src/solace_agent_mesh/agent/proxies/a2a/component.py`
 
-**Objective:** Ensure token cache is properly cleaned up on shutdown.
+**Objective:** Document token cache cleanup behavior.
 
 **Tasks:**
 1. Locate the `cleanup()` method
-2. Add a comment noting that the token cache is automatically garbage collected
-3. No explicit cleanup needed (cache is in-memory only)
+2. Add a docstring note about token cache lifecycle:
+   ```python
+   # Token cache cleanup:
+   # - OAuth2TokenCache is automatically garbage collected
+   # - No persistent state to clean up
+   # - Tokens are lost on component restart (by design)
+   ```
+3. No explicit cleanup code needed
 
 **Key Implementation Details:**
 - Token cache cleanup is automatic via Python garbage collection
 - No persistent state to clean up
-- Document this behavior in a comment
+- Document this behavior clearly for future maintainers
 
 ---
-
 
 #### Step 9: Add Configuration Validation
 
 **File:** `src/solace_agent_mesh/agent/proxies/a2a/component.py`
 
-**Objective:** Validate OAuth 2.0 configuration at startup.
+**Objective:** Validate OAuth 2.0 configuration at startup (fail-fast).
 
 **Tasks:**
 1. In `__init__()`, after initializing the token cache, add validation:
@@ -291,8 +296,8 @@ This document provides a step-by-step implementation plan for adding OAuth 2.0 C
      - Validate `client_id` is non-empty
      - Validate `client_secret` is non-empty
      - Validate `token_cache_duration_seconds` is > 0 if specified
-   - Log warnings for any validation failures
-   - Optionally raise exception to fail fast
+   - Log errors for validation failures
+   - Raise exception to fail fast on invalid config
 
 **Key Implementation Details:**
 - Use `urlparse()` to validate URL format
@@ -302,14 +307,13 @@ This document provides a step-by-step implementation plan for adding OAuth 2.0 C
 
 ---
 
-
 ### Phase 7: Security Hardening
 
-#### Step 10: Ensure Secrets Are Not Logged
+#### Step 10: Ensure Secrets Are Not Logged and Add HTTPS Enforcement
 
 **File:** `src/solace_agent_mesh/agent/proxies/a2a/component.py`
 
-**Objective:** Verify that sensitive data is never logged.
+**Objective:** Verify that sensitive data is never logged and enforce HTTPS for token URLs.
 
 **Tasks:**
 1. Review all log statements in OAuth 2.0 code
@@ -328,30 +332,51 @@ This document provides a step-by-step implementation plan for adding OAuth 2.0 C
    # SECURITY: Never log client_secret or access_token
    log.info("%s Fetching OAuth token from %s", log_identifier, token_url)
    ```
-
----
-
-#### Step 11: Add HTTPS Enforcement
-
-**File:** `src/solace_agent_mesh/agent/proxies/a2a/component.py`
-
-**Objective:** Ensure OAuth 2.0 token URLs use HTTPS.
-
-**Tasks:**
-1. In `_fetch_oauth2_token()`, before making the request:
+5. In `_fetch_oauth2_token()`, before making the request:
    - Parse `token_url` with `urlparse()`
    - Check if scheme is `https`
    - Raise `ValueError` if not HTTPS
    - Log at ERROR level
-2. Example:
-   ```python
-   from urllib.parse import urlparse
-   
-   parsed_url = urlparse(token_url)
-   if parsed_url.scheme != 'https':
-       raise ValueError(
-           f"OAuth 2.0 token_url must use HTTPS for security. "
-           f"Got: {parsed_url.scheme}://"
-       )
-   ```
+
+**Key Implementation Details:**
+- Use `from urllib.parse import urlparse` for URL validation
+- HTTPS enforcement is a security requirement from the design document
+- All security checks should fail fast with clear error messages
+
+---
+
+### Phase 8: Code Quality
+
+#### Step 11: Add Type Hints and Inline Comments
+
+**Files:** All modified files
+
+**Objective:** Ensure code quality, maintainability, and consistent logging.
+
+**Tasks:**
+1. Review all new methods and add type hints for:
+   - All parameters
+   - Return types
+   - Instance variables (e.g., `self._oauth_token_cache: OAuth2TokenCache`)
+2. Add inline comments explaining key design decisions:
+   - Why we use 55-minute cache duration (5-minute safety margin before typical 60-min expiration)
+   - Why we only retry once (prevent infinite loops on persistent auth failures)
+   - Why we remove the A2AClient on 401 (force fresh token fetch with new credentials)
+   - Why we use asyncio.Lock (thread safety for concurrent requests)
+3. Ensure all log messages follow the standard format:
+   - Use `log_identifier` prefix for all messages
+   - Include agent name in context-specific identifiers
+   - Use appropriate log levels (DEBUG, INFO, WARNING, ERROR)
+   - Follow the format: `"%s <message>", log_identifier, <args>`
+4. Add docstrings to all new methods with:
+   - Brief description
+   - Args section
+   - Returns section
+   - Raises section (if applicable)
+
+**Key Implementation Details:**
+- Type hints improve IDE support and catch errors early
+- Inline comments explain "why" not "what"
+- Consistent logging format aids debugging and monitoring
+- Good documentation reduces onboarding time for new developers
 
