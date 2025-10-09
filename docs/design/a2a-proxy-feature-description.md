@@ -84,19 +84,26 @@ While this feature focuses on A2A-over-HTTPS agents, the architecture and implem
 
 ### 3.1 Primary Use Cases
 
-#### UC1: Integrating Third-Party A2A Agents
+#### UC1: Integrating Third-Party SaaS A2A Agents
 
 **Actor**: Platform Administrator 
 
-**Scenario**: A company purchases or subscribes to a third-party AI agent service (e.g., a specialized legal document analyzer, a financial forecasting agent, or a customer sentiment analysis service) that exposes an A2A-compliant API. The administrator wants to make this agent discoverable and usable by other agents in the company's Solace mesh without requiring the third-party vendor to modify their implementation or understand Solace-specific concepts.
+**Scenario**: A company uses a SaaS platform (e.g., Salesforce, ServiceNow, Zendesk, or a specialized industry solution) that has recently added A2A agent capabilities to their service. The SaaS vendor has exposed an A2A-compliant agent endpoint (e.g., `https://api.vendor.com/a2a`) that provides domain-specific functionality such as:
+- CRM data analysis and customer insights
+- Automated ticket routing and resolution
+- Industry-specific compliance checking
+- Specialized data processing workflows
+
+The administrator wants to make this SaaS vendor's agent available to their SAM-native agents without requiring the vendor to understand Solace concepts or modify their A2A implementation. This enables the organization to leverage their existing SaaS investments as part of their AI agent ecosystem.
 
 **Steps**:
-1. Administrator adds the external agent's URL and authentication credentials to the proxy's configuration file
-2. Proxy fetches the agent's `AgentCard` and publishes it to the mesh discovery topic
-3. Mesh-native agents discover the external agent and can invoke it like any other agent
-4. The proxy handles all protocol translation, authentication, and artifact resolution transparently
+1. Administrator obtains the SaaS vendor's A2A endpoint URL and OAuth 2.0 credentials (typically provided in the vendor's admin console or API documentation)
+2. Administrator adds the external agent's URL and authentication credentials to the proxy's configuration file
+3. Proxy fetches the agent's `AgentCard` from the vendor's endpoint and publishes it to the mesh discovery topic
+4. Mesh-native agents discover the SaaS agent and can invoke it like any other agent
+5. The proxy handles all protocol translation, authentication, and artifact resolution transparently
 
-**Outcome**: The external agent appears as a native mesh participant, with full discovery, security, and artifact support. The third-party vendor requires no changes to their implementation.
+**Outcome**: The SaaS vendor's agent appears as a native mesh participant, with full discovery, security, and artifact support. The vendor requires no changes to their A2A implementation, and the organization can now build workflows that combine their internal agents with the vendor's specialized capabilities. For example, a SAM agent could automatically create and route support tickets in ServiceNow, analyze CRM data in Salesforce, or perform industry-specific compliance checks using the vendor's domain expertise.
 
 #### UC2: Federated Agent Access Across Organizational Boundaries
 

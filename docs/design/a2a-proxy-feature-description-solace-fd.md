@@ -50,6 +50,8 @@ Enable Solace Agent Mesh (SAM) to integrate external A2A-compliant agents into t
 
 **Federated Agent Access**: Organizations can integrate agents built by different teams, divisions, or third-party vendors into a unified mesh without requiring those agents to understand Solace-specific concepts or protocols.
 
+**SaaS Ecosystem Integration**: Organizations can leverage A2A-enabled capabilities from their existing SaaS vendors (CRM, ERP, ticketing systems, industry-specific platforms) by adding them to the mesh through simple configuration, creating a unified AI agent ecosystem that spans both internal and external services.
+
 **Centralized Security Governance**: A single point of control for authentication, authorization, and credential management across all external agent interactions, supporting OAuth 2.0 (Client Credentials flow), bearer tokens, and API keys.
 
 **Standards-Based Integration**: Full compliance with the A2A protocol specification enables seamless integration with the broader A2A ecosystem while maintaining protocol fidelity (A2A in → A2A out).
