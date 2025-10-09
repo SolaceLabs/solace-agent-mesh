@@ -56,9 +56,7 @@ Without the proxy, each external agent would require custom integration code, an
 
 2. **Centralized Security**: Provide a single point for authentication, authorization, and credential management for all external agent interactions.
 
-3. **Extend Data Management**: Bring SAM's artifact handling capabilities to external agents, enabling transparent artifact exchange between mesh-native and external agents.
-
-4. **Maintain Protocol Fidelity**: Preserve A2A protocol semantics end-to-end (A2A in → A2A out), ensuring external agents remain fully compliant and mesh agents interact with them identically to native agents.
+3. **Maintain Protocol Fidelity**: Preserve A2A protocol semantics end-to-end (A2A in → A2A out), ensuring external agents remain fully compliant and mesh agents interact with them identically to native agents.
 
 ### 2.2 Secondary Goals
 
@@ -66,17 +64,15 @@ Without the proxy, each external agent would require custom integration code, an
 
 2. **Support Full A2A Feature Set**: Handle all A2A interaction patterns including request/response, streaming, task cancellation, and artifact exchange.
 
-3. **Enable Observability**: Provide comprehensive logging and integration with SAM's monitoring infrastructure to facilitate debugging and performance analysis.
+3. **Enable Observability**: Provide comprehensive logging and integration with SAM's monitoring infrastructure to facilitate debugging and performance analysis. Remote agents are visible in agent views and requests/responses are shown in workflow diagrams.
 
 ### 2.3 Non-Goals
 
 1. **General-Purpose API Gateway**: The proxy is specifically designed for A2A protocol translation, not as a generic HTTP proxy or API gateway.
 
-2. **Protocol Extension**: The proxy does not modify or extend the A2A protocol itself; it implements the standard as defined.
+2. **Visibilty of remote agent LLM and tool calling**: The proxy does not provide a way for users to see or manage the LLMs or tools used by remote agents. Remote agents are treated as black boxes.
 
-3. **Agent Orchestration**: The proxy does not provide workflow logic or agent orchestration capabilities—that remains the responsibility of the mesh and its agents.
-
-4. **Non-A2A Protocol Support**: This initial implementation focuses exclusively on A2A-over-HTTPS agents. Support for other protocols is not in scope.
+3. **Non-A2A Protocol Support**: This initial implementation focuses exclusively on A2A-over-HTTPS agents. Support for other protocols is not in scope.
 
 ### 2.4 Extensibility Consideration
 
@@ -90,7 +86,7 @@ While this feature focuses on A2A-over-HTTPS agents, the architecture and implem
 
 #### UC1: Integrating Third-Party A2A Agents
 
-**Actor**: Platform Administrator
+**Actor**: Platform Administrator 
 
 **Scenario**: A company purchases or subscribes to a third-party AI agent service (e.g., a specialized legal document analyzer, a financial forecasting agent, or a customer sentiment analysis service) that exposes an A2A-compliant API. The administrator wants to make this agent discoverable and usable by other agents in the company's Solace mesh without requiring the third-party vendor to modify their implementation or understand Solace-specific concepts.
 
@@ -104,7 +100,7 @@ While this feature focuses on A2A-over-HTTPS agents, the architecture and implem
 
 #### UC2: Federated Agent Access Across Organizational Boundaries
 
-**Actor**: Enterprise Architect / Security Administrator
+**Actor**: Enterprise Architect / Security Administrator (Morgan)
 
 **Scenario**: A large enterprise has multiple divisions (e.g., Finance, HR, Legal, Operations) that have independently developed their own AI agents using different frameworks (LangChain, CrewAI, custom implementations) and hosting them on separate infrastructure (different cloud providers, on-premises servers). The enterprise needs:
 
@@ -121,16 +117,6 @@ While this feature focuses on A2A-over-HTTPS agents, the architecture and implem
 5. All requests flow through the proxy, which enforces authentication and logs all interactions
 
 **Outcome**: The proxy acts as a secure, centralized gateway that federates access to agents across organizational silos. It enforces enterprise-wide security policies while allowing teams to maintain autonomy over their agent implementations. Security administrators have a single point of control for access policies, credential rotation, and audit logging.
-
-### 3.2 User Personas
-
-- **Platform Administrator**: Configures and manages the proxy, adds new external agents to the mesh, monitors proxy health and performance.
-
-- **Agent Developer**: Builds mesh-native agents that interact with proxied external agents. Benefits from transparent artifact handling and uniform discovery mechanisms.
-
-- **Security Administrator**: Defines authentication and authorization policies for external agents, manages OAuth 2.0 credentials, reviews audit logs for compliance.
-
-- **End User**: Indirectly benefits from access to a richer ecosystem of agents, enabling more sophisticated workflows and better outcomes.
 
 ---
 

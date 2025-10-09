@@ -50,7 +50,7 @@ Enable Solace Agent Mesh (SAM) to integrate external A2A-compliant agents into t
 
 **Federated Agent Access**: Organizations can integrate agents built by different teams, divisions, or third-party vendors into a unified mesh without requiring those agents to understand Solace-specific concepts or protocols.
 
-**Centralized Security Governance**: A single point of control for authentication, authorization, and credential management across all external agent interactions, supporting OAuth 2.0, bearer tokens, and API keys.
+**Centralized Security Governance**: A single point of control for authentication, authorization, and credential management across all external agent interactions, supporting OAuth 2.0 (Client Credentials flow), bearer tokens, and API keys.
 
 **Standards-Based Integration**: Full compliance with the A2A protocol specification enables seamless integration with the broader A2A ecosystem while maintaining protocol fidelity (A2A in → A2A out).
 
@@ -58,15 +58,12 @@ Enable Solace Agent Mesh (SAM) to integrate external A2A-compliant agents into t
 
 **Operational Efficiency**: Declarative YAML configuration and automatic discovery minimize the operational overhead of adding new external agents to the mesh.
 
-## Confluence Feature Description
-
-[Link to detailed architecture and design documentation]
 
 ## Customer Context
 
 Modern enterprises are rapidly adopting AI agents to automate workflows, enhance decision-making, and improve operational efficiency. However, these agents are being built across organizational silos using diverse frameworks and platforms—LangChain in one division, CrewAI in another, custom implementations by third-party vendors. This fragmentation creates a critical challenge: **how can organizations enable these independently-developed agents to discover, communicate with, and leverage each other's capabilities while maintaining enterprise-grade security and governance?**
 
-Consider Morgan, an Enterprise Architect at a large financial services company. Her organization has:
+Consider Morgan, a Middleware Integrations Specialist at a large financial services company. His organization has:
 - A legal compliance agent built by the Legal department using a third-party SaaS service
 - A financial forecasting agent developed by the Finance team using LangChain
 - A customer sentiment analysis agent created by Marketing using a vendor's A2A-compliant API
@@ -256,23 +253,16 @@ Not Applicable - The proxy does not expose external REST APIs. It consumes A2A-o
 
 ### Platforms
 
-The proxy is compatible with all platforms that support:
+The proxy is compatible with:
 - Python 3.10 or higher
+- A2A-compliant agents supporting version 0.3.0+ written in any language/framework
 - Solace PubSub+ broker (cloud, software, appliance)
-- Solace AI Connector (SAC) framework
-
-Deployment models:
-- Solace Cloud (containerized deployment)
-- On-premises (bare metal, VM, container)
-- Hybrid cloud environments
 
 ### Packaging & Distribution
 
-The proxy is delivered as part of the Solace Agent Mesh framework:
-- Packaged as a Python module within the `solace-agent-mesh` package
-- Distributed via PyPI and internal package repositories
-- Deployed as a SAC application using standard SAC deployment mechanisms
-- Configuration managed through YAML files in the SAC application directory
+The proxy is delivered as part of the Solace Agent Mesh framework - community edition:
+- Packaged as a SAM component within the Solace AI Connector (SAC) framework
+- Configuration managed through YAML files in the normal SAM configs directory
 
 ### User Roles & Responsibilities
 
