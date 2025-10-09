@@ -8,12 +8,12 @@
 
 ## Phase 1: Token Cache Infrastructure
 
-- [ ] **Step 1**: Create `oauth_token_cache.py` module
-  - [ ] Create file with imports
-  - [ ] Define `CachedToken` dataclass
-  - [ ] Implement `OAuth2TokenCache` class
-  - [ ] Add `__init__()`, `get()`, `set()`, `invalidate()` methods
-  - [ ] Add docstrings and logging
+- [x] **Step 1**: Create `oauth_token_cache.py` module
+  - [x] Create file with imports
+  - [x] Define `CachedToken` dataclass
+  - [x] Implement `OAuth2TokenCache` class
+  - [x] Add `__init__()`, `get()`, `set()`, `invalidate()` methods
+  - [x] Add docstrings and logging
 
 ---
 
