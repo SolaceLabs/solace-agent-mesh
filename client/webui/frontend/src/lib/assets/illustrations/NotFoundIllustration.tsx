@@ -3,7 +3,7 @@ interface NotFoundIllustrationProps {
     height?: number;
 }
 
-export default function NotFoundIllustration({ width = 24, height = 24 }: NotFoundIllustrationProps) {
+export function NotFoundIllustration({ width = 24, height = 24 }: NotFoundIllustrationProps) {
     return (
         <svg width={width} height={height} viewBox="0 0 130 130" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g clipPath="url(#clip0_483_284)">

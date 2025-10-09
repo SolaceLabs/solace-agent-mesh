@@ -3,7 +3,7 @@ interface ErrorIllustrationProps {
     height?: number;
 }
 
-export default function ErrorIllustration({ width = 24, height = 24 }: ErrorIllustrationProps) {
+export function ErrorIllustration({ width = 24, height = 24 }: ErrorIllustrationProps) {
     return (
         <svg width={width} height={height} focusable="false" aria-hidden="true" viewBox="0 0 131 131" fill="none">
             <path
