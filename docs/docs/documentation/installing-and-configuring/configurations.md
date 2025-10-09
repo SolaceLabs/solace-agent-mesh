@@ -4,29 +4,30 @@ sidebar_position: 330
 toc_max_heading_level: 4
 ---
 
-The [`shared_config.yaml`](shared_config.yaml) file serves as the central configuration hub for Agent Mesh, allowing you to define settings that multiple agents and components can share. This centralized approach simplifies management of common configurations such as Solace event broker connections, language model settings, and service definitions.
+The `shared_config.yaml` file is used to define configurations that can be shared across multiple agents or components in Solace Agent Mesh. This centralized approach simplifies management of common configurations such as Solace event broker connections, language model settings, and service definitions.
 
 ## Understanding Shared Configuration
 
-Every agent and gateway in Agent Mesh requires access to a `shared_config` object. This requirement ensures consistent behavior across your entire mesh deployment. You have two primary approaches for providing this configuration, each suited to different development scenarios and organizational needs.
+All agents and gateways require access to a `shared_config` object. You can provide configuration in the following ways:
 
-The first approach involves hard-coding configuration values directly within your agent or gateway YAML files. This method works for simple setups or quick prototyping, but it becomes unwieldy as your deployment grows. The second approach uses the `!include` directive to reference a centralized configuration file, which promotes consistency and simplifies maintenance across your entire project.
+ * hard-coding configuration values directly within your agent or gateway YAML files. This method works for simple setups or quick prototyping, but it becomes unwieldy as your deployment grows. 
+ * using the `!include` directive to reference a centralized configuration file. This approach promotes consistency and simplifies maintenance across your entire project.
 
-When you install a plugin, it often comes with hard-coded default values embedded in its configuration. Although these defaults allow the plugin to function immediately, best practice dictates removing this embedded section and replacing it with an `!include` directive that points to your centralized `shared_config` file. This practice ensures all components operate with identical base configurations, reducing configuration drift and potential inconsistencies.
+When a plugin is installed, it may come with hard-coded default values. It is a best practice to remove this section and use `!include` to point to the centralized `shared_config` file. This ensures that all components are using the same base configuration.
 
-## Managing Multiple Configuration Files
+### Managing Multiple Shared Configuration Files
 
-Complex deployments often require different configuration sets for various environments or cloud providers. Agent Mesh supports this requirement through multiple shared configuration files, but you must follow specific naming and organizational conventions.
+You can use multiple shared configuration files to manage different environments or setups (e.g., for different cloud providers), as follows: 
 
-The filename must always begin with `shared_config`, followed by any descriptive suffix that helps identify the configuration's purpose. Examples include `shared_config_aws.yaml` for Amazon Web Services deployments or `shared_config_production.yaml` for production environments. This naming convention ensures the system can locate and process these files correctly.
+ * The filename must always begin with `shared_config`, followed by any descriptive suffix that helps identify the configuration's purpose. Examples include `shared_config_aws.yaml` for Amazon Web Services deployments or `shared_config_production.yaml` for production environments. This naming convention ensures the system can locate and process these files correctly.
 
-You can organize configuration files into subdirectories to further improve project structure. For instance, you might place files in `configs/agents/shared_config.yaml` or `environments/dev/shared_config_dev.yaml`. When using subdirectories, you must update the `!include` path in your agent or gateway configurations to reflect the correct file location.
+ * You can organize configuration files into subdirectories to further improve project structure. For instance, you might place files in `configs/agents/shared_config.yaml` or `environments/dev/shared_config_dev.yaml`. When you use subdirectories, you must update the `!include` path in your agent or gateway configurations to reflect the correct file location.
 
-The configuration system uses YAML anchors (`&anchor_name`) to create reusable configuration blocks. These anchors allow you to define a configuration once and reference it multiple times throughout your agent configurations, promoting consistency and reducing duplication.
+The configuration file uses YAML anchors (`&anchor_name`) to create reusable configuration blocks, which can then be referenced in agent configuration files.
 
 ## Configuration Structure
 
-The following example shows the structure of the configuration file:
+The following example shows the structure of the `shared_config.yaml` configuration file:
 
 ```yaml
 shared_config:
@@ -84,13 +85,11 @@ shared_config:
       max_result_preview_bytes: 4096
 ```
 
-## Configuring the Event Broker Connection
+## Event Broker Connection
 
-The Solace event broker connection section establishes how your agents and gateways communicate with the Solace event broker. This configuration determines the reliability, security, and performance characteristics of your mesh communication.
+The `broker_connection` section configures the connection to the Solace event broker. The connection parameters are described in the following table:
 
-The development mode setting (`dev_mode`) provides a convenient way to switch between production Solace event broker connections and an in-memory event broker for testing. When enabled, this setting bypasses external event broker requirements, allowing you to develop and test your agents without a full Solace infrastructure.
 
-Connection parameters include the event broker URL, which specifies the endpoint for your Solace event broker, and authentication credentials consisting of username, password, and Message VPN. The temporary queue setting controls whether agents use ephemeral queues that disappear when the agent disconnects or durable queues that persist messages even during agent downtime.
 
 | Parameter | Environment Variable | Description | Default |
 | :--- | :--- | :--- | :--- |
@@ -102,9 +101,11 @@ Connection parameters include the event broker URL, which specifies the endpoint
 | `temporary_queue` | `USE_TEMPORARY_QUEUES` | Whether to use temporary queues for communication. If `false`, a durable queue will be created. | `true` |
 | `max_connection_retries` | `MAX_CONNECTION_RETRIES` | The maximum number of times to retry connecting to the event broker if the connection fails. A value of `-1` means retry forever. | `-1` |
 
-For deployments requiring multiple Solace event broker connections, you can define additional event broker configurations with unique names. For example, create `broker_connection_eu: &broker_connection_eu` for European deployments or `broker_connection_us: &broker_connection_us` for United States deployments. Reference these configurations in your agent files using the appropriate anchor, such as `<<: *broker_connection_eu`.
+:::tip
+If you need to configure multiple brokers, you can do so by adding additional entries under `shared_config` with a unique name (For example,  `broker_connection_eu: &broker_connection_eu` or `broker_connection_us: &broker_connection_us`). Reference these configurations in your agent files using the appropriate anchor, such as `<<: *broker_connection_eu`.
+:::
 
-## Language Model Configuration
+## LLM Configuration
 
 The models section configures the various Large Language Models and other generative models that power your agents' intelligence. This configuration leverages the [LiteLLM](https://litellm.ai/) library, which provides a standardized interface for interacting with [different model providers](https://docs.litellm.ai/docs/providers), simplifying the process of switching between or combining multiple AI services.
 
@@ -133,44 +134,45 @@ For detailed information about configuring Gemini models and setting up the requ
 
 ### Predefined Model Types
 
-The shared configuration supports predefined model types that serve as aliases for specific use cases. These aliases allow you to reference models by their intended purpose rather than their technical specifications, making your agent configurations more readable and maintainable.
+The `shared_config.yaml` configuration file defines predefined model types that serve as aliases for specific use cases. These aliases allow you to reference models by their intended purpose rather than their technical specifications, making your agent configurations more readable and maintainable. The model types are as follows:
 
-The planning model handles agent decision-making and task planning. This model typically uses lower temperature settings for more deterministic outputs and supports parallel tool calls to improve efficiency. The general model serves as a multipurpose option for various tasks that don't require specialized capabilities.
+- `planning`: Used by agents for planning and decision-making. It's configured for deterministic outputs (`temperature: 0.1`) and can use tools in parallel.
+- `general`: A general-purpose model for various tasks.
+- `image_gen`: A model for generating images.
+- `image_describe`: A model for describing the content of images.
+- `audio_transcription`: A model for transcribing audio files.
+- `report_gen`: A model specialized for generating reports.
+- `multimodal`: A simple string reference to a multimodal model (e.g., `"gemini-1.5-flash-latest"`).
 
-Specialized models include image generation for creating visual content, image description for analyzing visual inputs, audio transcription for converting speech to text, and report generation for creating structured documents. The multimodal model handles tasks requiring multiple input types, such as processing both text and images simultaneously.
+You can define any number of models in this section and reference them in your agent configurations. The system uses only the `planning` and `general` models by default; you don't need to configure the specialized models unless your agents specifically require those capabilities. 
 
-The system uses only the planning and general models by default, so you need not configure the specialized models unless your agents specifically require those capabilities. This approach keeps your configuration simple while providing flexibility for advanced use cases.
-
-For comprehensive information about configuring different LLM providers and SSL/TLS security settings, see [Configuring LLMs](./large_language_models.md).
+For information about configuring different LLM providers and SSL/TLS security settings, see [Configuring LLMs](./large_language_models.md).
 
 ## Service Configuration
 
-The services section defines various supporting services that enhance agent capabilities and manage system resources. These services handle concerns such as session persistence, artifact storage, and data processing optimization.
+The `services` section in `shared_config.yaml` is used to configure various services that are available to agents. These services handle concerns such as session persistence, artifact storage, and data processing optimization.
 
 ### Session Service
 
 The session service manages conversation history and context persistence across agent interactions. This service determines whether agents remember previous conversations and how long that memory persists.
 
-The memory type provides fast, in-memory storage that doesn't persist across agent restarts. This option works well for development and testing, but it loses all session data when the agent stops. The SQL type offers persistent storage that survives agent restarts and system reboots, making it suitable for production deployments where conversation continuity matters.
 
-The default behavior setting controls how sessions handle persistence. Persistent behavior maintains session history indefinitely, allowing agents to reference previous conversations across multiple interactions. Run-based behavior clears session history at the end of each interaction, providing a fresh start for each conversation.
 
 | Parameter | Options | Description | Default |
 | :--- | :--- | :--- | :--- |
 | `type` | `memory`, `sql`, `vertex_rag` | Configuration for ADK Session Service | `memory` |
 | `default_behavior` | `PERSISTENT`, `RUN_BASED` | The default behavior of keeping the session history | `PERSISTENT` |
 
-Although the default session service uses memory storage, both the Orchestrator Agent and Web UI gateway use SQL storage to enable persistent sessions that survive system restarts and provide better user experiences.
+:::tip
+Although the default session service type is `memory`, both Orchestrator Agent and Web UI gateway use `sql` as their session service to allow for persistent sessions.
+:::
 
 ### Artifact Service
 
-The artifact service manages files and data that agents generate during their operations. This service handles storage, retrieval, and sharing of artifacts such as generated documents, processed data files, and intermediate results.
+The `artifact_service` is responsible for managing artifacts, which are files or data generated by agents, such as generated documents, processed data files, and intermediate results.
 
-The memory storage type keeps artifacts in system memory, providing fast access although losing all data when the agent stops. This option suits development and testing scenarios where artifact persistence isn't critical. The filesystem type stores artifacts on local disk storage, providing persistence across agent restarts although limiting sharing to the local system.
 
-Google Cloud Storage integration allows multiple agents across different systems to share artifacts through a centralized cloud repository. This option requires additional configuration including bucket names and authentication credentials.
 
-The artifact scope determines how agents share artifacts with each other. Namespace scope allows all components within the same namespace to access shared artifacts, promoting collaboration between related agents. App scope isolates artifacts by individual agent or gateway name, providing security through isolation, but limiting collaboration opportunities.
 
 | Parameter | Options | Description | Default |
 | :--- | :--- | :--- | :--- |
@@ -186,7 +188,7 @@ The data tools configuration optimizes how agents handle data analysis and proce
 
 The SQLite memory threshold determines when the system switches from disk-based to memory-based database operations. Lower thresholds favor memory usage for better performance although consume more system RAM. Higher thresholds reduce memory pressure although may slow database operations.
 
-Result preview settings control how much data agents display when showing query results or data samples. These limits prevent overwhelming users with massive datasets although ensuring they see enough information to understand the results.
+Result preview settings control how much data agents display when showing query results or data samples. These limits prevent overwhelming users with massive datasets while ensuring they see enough information to understand the results.
 
 | Parameter | Type | Description | Default |
 | :--- | :--- | :--- | :--- |
@@ -198,4 +200,4 @@ Result preview settings control how much data agents display when showing query 
 
 System logging configuration controls how Agent Mesh records operational information, errors, and debugging details. Proper logging configuration helps with troubleshooting, monitoring, and maintaining your agent deployments.
 
-For comprehensive information about configuring log rotation, verbosity levels, and log formatting options, see the [System Logs section](../deploying/debugging.md#system-logs) in the debugging documentation.
+For information about configuring log rotation, verbosity levels, and log formatting options, see [System Logs](../deploying/debugging.md#system-logs).
