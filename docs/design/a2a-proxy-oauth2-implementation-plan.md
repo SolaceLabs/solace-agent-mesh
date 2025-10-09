@@ -276,75 +276,8 @@ This document provides a step-by-step implementation plan for adding OAuth 2.0 C
 
 ---
 
-#### Step 9: Add Module-Level Documentation
 
-**File:** `src/solace_agent_mesh/agent/proxies/a2a/oauth_token_cache.py`
-
-**Objective:** Add comprehensive module docstring.
-
-**Tasks:**
-1. Add module-level docstring at the top of the file:
-   ```python
-   """
-   OAuth 2.0 token caching for A2A proxy authentication.
-   
-   This module provides an in-memory cache for OAuth 2.0 access tokens
-   with automatic expiration. Tokens are cached per agent to minimize
-   token acquisition overhead and reduce load on authorization servers.
-   
-   The cache is thread-safe using asyncio.Lock and implements lazy
-   expiration (tokens are checked for expiration on retrieval).
-   """
-   ```
-
----
-
-#### Step 10: Update A2AProxyComponent Docstring
-
-**File:** `src/solace_agent_mesh/agent/proxies/a2a/component.py`
-
-**Objective:** Document OAuth 2.0 support in the class docstring.
-
-**Tasks:**
-1. Locate the class docstring for `A2AProxyComponent`
-2. Add a section documenting authentication support:
-   ```python
-   """
-   Concrete proxy component for standard A2A-over-HTTPS agents.
-   
-   Supports multiple authentication methods:
-   - Static bearer tokens
-   - Static API keys
-   - OAuth 2.0 Client Credentials flow (with automatic token refresh)
-   
-   OAuth 2.0 tokens are cached in memory with configurable expiration
-   and automatically refreshed on 401 errors.
-   """
-   ```
-
----
-
-### Phase 7: Error Handling Enhancements
-
-#### Step 11: Add Detailed Error Messages
-
-**File:** `src/solace_agent_mesh/agent/proxies/a2a/component.py`
-
-**Objective:** Ensure all error messages are clear and actionable.
-
-**Tasks:**
-1. Review all error messages in the new methods
-2. Ensure each error includes:
-   - The agent name
-   - The specific parameter that's missing/invalid
-   - Suggested action to fix the issue
-3. Examples:
-   - `ValueError(f"OAuth 2.0 client credentials flow requires 'token_url', 'client_id', and 'client_secret' for agent '{agent_name}'. Please check your configuration.")`
-   - `ValueError(f"Authentication type '{auth_type}' is not supported for agent '{agent_name}'. Supported types: static_bearer, static_apikey, oauth2_client_credentials.")`
-
----
-
-#### Step 12: Add Configuration Validation
+#### Step 9: Add Configuration Validation
 
 **File:** `src/solace_agent_mesh/agent/proxies/a2a/component.py`
 
@@ -369,31 +302,10 @@ This document provides a step-by-step implementation plan for adding OAuth 2.0 C
 
 ---
 
-### Phase 8: Logging Standardization
 
-#### Step 13: Standardize Log Messages
+### Phase 7: Security Hardening
 
-**File:** `src/solace_agent_mesh/agent/proxies/a2a/component.py`
-
-**Objective:** Ensure consistent logging format across all OAuth 2.0 code.
-
-**Tasks:**
-1. Review all log statements in new methods
-2. Ensure consistent format:
-   - Use `log_identifier` prefix for all messages
-   - Include agent name in context-specific identifiers
-   - Use appropriate log levels (DEBUG, INFO, WARNING, ERROR)
-3. Standard formats:
-   - DEBUG: `"%s Using cached OAuth token for '%s'", log_identifier, agent_name`
-   - INFO: `"%s Successfully obtained OAuth 2.0 token (cached for %ds)", log_identifier, cache_duration`
-   - WARNING: `"%s Received 401 Unauthorized. Attempting token refresh (retry %d/%d)", log_identifier, retry_count, max_retries`
-   - ERROR: `"%s OAuth 2.0 token request failed with status %d: %s", log_identifier, status_code, response_text`
-
----
-
-### Phase 9: Security Hardening
-
-#### Step 14: Ensure Secrets Are Not Logged
+#### Step 10: Ensure Secrets Are Not Logged
 
 **File:** `src/solace_agent_mesh/agent/proxies/a2a/component.py`
 
@@ -419,7 +331,7 @@ This document provides a step-by-step implementation plan for adding OAuth 2.0 C
 
 ---
 
-#### Step 15: Add HTTPS Enforcement
+#### Step 11: Add HTTPS Enforcement
 
 **File:** `src/solace_agent_mesh/agent/proxies/a2a/component.py`
 
@@ -443,147 +355,3 @@ This document provides a step-by-step implementation plan for adding OAuth 2.0 C
        )
    ```
 
----
-
-### Phase 10: Final Integration
-
-#### Step 16: Update __init__.py Exports
-
-**File:** `src/solace_agent_mesh/agent/proxies/a2a/__init__.py`
-
-**Objective:** Ensure new module is properly exported.
-
-**Tasks:**
-1. Add import for `OAuth2TokenCache` (if needed for external access)
-2. Update `__all__` list if present
-3. Add module docstring if not present
-
-**Note:** This may not be necessary if the cache is only used internally by the component.
-
----
-
-#### Step 17: Add Type Hints
-
-**Files:** All modified files
-
-**Objective:** Ensure all new code has proper type hints.
-
-**Tasks:**
-1. Review all new methods and functions
-2. Add type hints for:
-   - All parameters
-   - Return types
-   - Instance variables
-3. Import necessary types from `typing` module
-4. Use `Optional[T]` for nullable types
-5. Use `Dict[str, Any]` for config dictionaries
-
----
-
-#### Step 18: Add Inline Comments
-
-**Files:** All modified files
-
-**Objective:** Add explanatory comments for complex logic.
-
-**Tasks:**
-1. Add comments explaining:
-   - Why we use 55-minute cache duration (5-minute safety margin)
-   - Why we only retry once (prevent infinite loops)
-   - Why we remove the A2AClient on 401 (force fresh token fetch)
-   - Why we use asyncio.Lock (thread safety)
-2. Keep comments concise and focused on "why" not "what"
-
----
-
-## Implementation Order Summary
-
-**Recommended implementation order:**
-
-1. **Steps 1-2:** Token cache and configuration schema (foundation)
-2. **Steps 3-4:** Token acquisition logic (core functionality)
-3. **Steps 5:** Client creation integration (connect to existing code)
-4. **Steps 6-7:** Token refresh logic (error handling)
-5. **Steps 8-10:** Documentation and cleanup
-6. **Steps 11-15:** Error handling and security hardening
-7. **Steps 16-18:** Final polish and type hints
-
-**Estimated Implementation Time:**
-- Phase 1-2: 1-2 hours
-- Phase 3-4: 2-3 hours
-- Phase 5: 1-2 hours
-- Phase 6-10: 2-3 hours
-- **Total: 6-10 hours**
-
----
-
-## Pre-Implementation Checklist
-
-Before starting implementation, ensure:
-
-- [ ] Design document has been reviewed and approved
-- [ ] All team members understand the OAuth 2.0 Client Credentials flow
-- [ ] Development environment is set up with Python 3.10+
-- [ ] All dependencies are installed (`httpx`, `a2a-sdk`, etc.)
-- [ ] Git branch created for this feature
-- [ ] Test environment available for manual testing
-
----
-
-## Post-Implementation Checklist
-
-After completing implementation:
-
-- [ ] All code has been written and tested locally
-- [ ] All type hints are present and correct
-- [ ] All docstrings are complete and accurate
-- [ ] All log messages follow the standard format
-- [ ] No secrets are logged
-- [ ] HTTPS enforcement is in place
-- [ ] Backward compatibility is maintained
-- [ ] Code has been reviewed by at least one other developer
-- [ ] Manual testing completed with real OAuth 2.0 provider
-- [ ] Ready for unit test implementation (separate phase)
-
----
-
-## Notes for Implementer
-
-### Common Pitfalls to Avoid
-
-1. **Don't log secrets:** Never log `client_secret` or `access_token`
-2. **Don't cache errors:** Only cache successful tokens
-3. **Don't retry indefinitely:** Limit to one retry to prevent loops
-4. **Don't forget cleanup:** Ensure httpx clients are closed
-5. **Don't break backward compatibility:** Support legacy config format
-
-### Testing During Implementation
-
-While formal tests are in a separate phase, during implementation you should:
-
-1. Test with a real OAuth 2.0 provider (e.g., Auth0, Okta)
-2. Test token caching (verify cache hits in logs)
-3. Test token expiration (use short cache duration)
-4. Test 401 retry (revoke token manually)
-5. Test backward compatibility (use old config format)
-6. Test error cases (invalid credentials, network errors)
-
-### Debugging Tips
-
-1. Set log level to DEBUG to see cache operations
-2. Use short cache durations (e.g., 60 seconds) for testing
-3. Monitor token acquisition in OAuth provider's dashboard
-4. Use `httpx` logging to see actual HTTP requests
-5. Test with `curl` to verify token endpoint works
-
----
-
-## Document History
-
-| Version | Date | Author | Changes |
-|---------|------|--------|---------|
-| 1.0 | 2025-01-09 | AI Assistant | Initial implementation plan |
-
----
-
-**End of Document**
