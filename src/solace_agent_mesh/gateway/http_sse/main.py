@@ -223,15 +223,16 @@ def _create_auth_middleware(component):
             if use_auth:
                 await self._handle_authenticated_request(request, scope, receive, send)
             else:
+                default_creds = dependencies.get_default_user_credentials()
                 request.state.user = {
-                    "id": "sam_dev_user",
-                    "name": "Sam Dev User",
-                    "email": "sam@dev.local",
+                    "id": default_creds["id"],
+                    "name": default_creds["name"],
+                    "email": default_creds["email"],
                     "authenticated": True,
                     "auth_method": "development",
                 }
                 log.debug(
-                    "AuthMiddleware: Set development user state with id: sam_dev_user"
+                    f"AuthMiddleware: Set development user state with id: {default_creds['id']}"
                 )
 
             await self.app(scope, receive, send)

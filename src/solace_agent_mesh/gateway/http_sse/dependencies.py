@@ -46,6 +46,24 @@ SessionLocal: sessionmaker = None
 
 api_config: dict[str, Any] | None = None
 
+# Global state for default user credentials (development mode only)
+default_user_credentials: dict[str, str] = {
+    "id": "sam_dev_user",
+    "name": "Sam Dev User",
+    "email": "sam@dev.local",
+}
+
+
+def get_default_user_credentials() -> dict[str, str]:
+    """Get current default user credentials for development mode."""
+    return default_user_credentials.copy()
+
+
+def update_default_user_credentials(credentials: dict[str, str]) -> None:
+    """Update default user credentials for development mode."""
+    global default_user_credentials
+    default_user_credentials.update(credentials)
+
 
 def set_component_instance(component: "WebUIBackendComponent"):
     """Called by the component during its startup to provide its instance."""
