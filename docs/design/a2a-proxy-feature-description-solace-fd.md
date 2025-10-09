@@ -123,11 +123,6 @@ This feature is primarily a backend integration capability with minimal direct U
    - Publishes the agent's card to the mesh discovery topic
    - Begins accepting requests for the agent
 
-3. **Verify Integration**: Administrator checks logs to confirm:
-   - Agent card was successfully fetched and published
-   - OAuth token was acquired (if applicable)
-   - Agent is discoverable on the mesh
-
 **Developer/Agent Usage Flow:**
 
 1. **Discovery**: A SAM-native agent (or gateway) discovers the external agent through the standard mesh discovery mechanism. The external agent appears identical to native agents.
@@ -179,7 +174,7 @@ The **Artifact Resolver** is perhaps the most sophisticated component, providing
 
 Finally, the **Response Handler** ensures protocol fidelity by translating responses from external agents back into properly formatted Solace messages, publishing them to the appropriate reply and status topics as specified by the A2A protocol.
 
-**Deployment Model**: The proxy is deployed as a Solace AI Connector (SAC) application, configured via YAML, and runs as a single instance per mesh namespace.
+**Deployment Model**: The proxy is deployed as a Solace AI Connector (SAC) application, configured via YAML, and runs as a single instance per agent mesh namespace.
 
 ### Feature/Functional Requirements
 
@@ -263,7 +258,7 @@ The proxy is compatible with:
 ### Packaging & Distribution
 
 The proxy is delivered as part of the Solace Agent Mesh framework - community edition:
-- Packaged as a SAM component within the Solace AI Connector (SAC) framework
+- Packaged as a SAM component, running on the Solace AI Connector (SAC) framework
 - Configuration managed through YAML files in the normal SAM configs directory
 
 ### User Roles & Responsibilities
@@ -338,30 +333,11 @@ The proxy is delivered as part of the Solace Agent Mesh framework - community ed
 
 The design and architecture of the A2A proxy is documented across several specialized documents, each addressing a critical aspect of the implementation. These documents provide the technical depth necessary for implementation while this feature description maintains focus on business requirements and customer value.
 
-The **A2A Proxy Architecture Document** provides the comprehensive blueprint for the component's design, covering protocol translation strategies, artifact resolution patterns, and deployment models. This document serves as the primary reference for understanding how the proxy maintains protocol fidelity while bridging two fundamentally different communication paradigms—Solace's topic-based event mesh and external agents' HTTP-based request/response model.
-
-For authentication, the **OAuth 2.0 Client Credentials Design Document** details the implementation of automatic token acquisition, intelligent caching strategy, and refresh logic. This design ensures that the proxy can securely authenticate with external agents while minimizing overhead through smart token caching that achieves greater than 99% cache hit rates under normal operating conditions. The document also covers critical security considerations like HTTPS enforcement and credential protection.
-
-The **Artifact Resolution Design Document** specifies the bidirectional artifact translation mechanism that extends SAM's data management capabilities to external agents. It covers URI parsing, byte conversion, metadata preservation, and storage scoping strategies, ensuring that artifacts flow seamlessly between the mesh and external agents without data loss or corruption.
-
 **Reference Documents**:
 - [A2A Proxy Architecture Document]
 - [OAuth 2.0 Client Credentials Design Document]
 - [Artifact Resolution Design Document]
 
-**Key Architectural Decisions**:
-
-1. **Proxy Architecture**: Implement as a dedicated SAC component rather than embedding into mesh core, enabling separation of concerns and independent scaling.
-
-2. **Protocol Fidelity**: Maintain A2A protocol semantics end-to-end (A2A in → A2A out) to ensure external agents remain fully compliant.
-
-3. **Artifact Resolution**: Proxy actively resolves URIs (inbound) and generates URIs (outbound) rather than passing URIs through, enabling seamless data exchange.
-
-4. **Authentication Delegation**: For OAuth 2.0, the proxy handles token acquisition and caching but delegates HTTP authentication to the underlying HTTP client library (httpx).
-
-5. **In-Memory Token Caching**: OAuth tokens cached per proxy instance (not distributed) for simplicity, with configurable expiration (default: 55 minutes).
-
-6. **Namespace-Scoped Artifacts**: By default, artifacts scoped to mesh namespace (not individual agents) to align with SAM's federated collaboration model.
 
 ## High-Level UI Mocks
 
@@ -369,15 +345,7 @@ Not Applicable - The A2A proxy is a backend integration component with no user i
 
 ## Story Map
 
-The implementation is tracked through the following work items:
 
-- **[Implementation Plan Document]**: Step-by-step implementation plan covering token cache infrastructure, configuration schema updates, token acquisition logic, client creation integration, and token refresh handling.
-
-- **[Implementation Checklist Document]**: Detailed checklist tracking completion of each implementation phase, from token cache creation through security hardening and code quality improvements.
-
-- **[Test Plan Document]**: Comprehensive test plan covering test fixture creation, test harness integration, declarative test runner enhancements, and test scenario implementation.
-
-- **[Test Scenarios Document]**: Detailed test scenarios including happy path tests, artifact handling tests, error handling tests, and advanced feature tests.
 
 ## Quality Plan
 
@@ -403,7 +371,9 @@ The test suite is organized into four major categories that collectively validat
 
 3. **Error Handling**: Confirm that the proxy behaves predictably when things go wrong, including scenarios where downstream agents are unavailable, return HTTP errors, or send malformed A2A responses.
 
-4. **Advanced Features**: Test sophisticated interactions like request cancellation, authentication passthrough, and timeout handling.
+4. **Authentication**: Test all supported authentication schemes, including static bearer tokens, API keys, and OAuth 2.0 Client Credentials flow with token caching and refresh.
+
+5. **Advanced Features**: Test sophisticated interactions like request cancellation, authentication passthrough, and timeout handling.
 
 **Validation Approach**:
 
@@ -421,11 +391,6 @@ Every test scenario includes multiple layers of validation to ensure correctness
 
 ## Performance and Scalability Considerations
 
-**Performance Targets**:
-- Proxy overhead: < 50ms for non-artifact requests (excluding network time to external agent)
-- OAuth token cache hit rate: > 99% under normal operating conditions
-- Artifact resolution overhead: < 100ms for small artifacts (< 1MB)
-
 **Scalability Targets**:
 - Support at least 10 proxied agents per proxy instance
 - Handle at least 100 concurrent requests across all proxied agents
@@ -437,9 +402,9 @@ Every test scenario includes multiple layers of validation to ensure correctness
 - Artifact resolution optimized for small artifacts; large artifacts may require streaming support (future enhancement)
 
 **Scalability Considerations**:
-- Single proxy instance per namespace in initial release; multi-instance support is a future enhancement
+- The proxy may have multiple instances deployed in the same namespace
 - Proxy designed to be stateless (except for in-memory token cache) to facilitate future horizontal scaling
-- No artificial limits on message size, artifact size, or response length (limited only by transport and external agents)
+- No artificial limits on message size, artifact size, or response length (limited only by transport, such as Solace broker event limits, and external agents)
 
 ## Security Considerations
 
@@ -463,37 +428,11 @@ Every test scenario includes multiple layers of validation to ensure correctness
 - Artifact resolution maintains SAM's artifact scoping and access control model
 
 **Audit & Compliance**:
-- All significant events logged with correlation IDs (task IDs) for end-to-end tracing
+- All significant events are available to be stored within the persistent 'task_events' logger so that they are available for .stim files as needed
 - Authentication failures logged with sufficient detail for troubleshooting (without exposing credentials)
 - Integration with SAM's existing observability infrastructure for centralized log collection
 
 **Security Review Required**: OAuth token handling and credential management require DevSecOps team review before production deployment.
-
-## Other Considerations
-
-**Deployment Considerations**:
-- Proxy requires network connectivity to Solace broker, all configured external agents, and OAuth token endpoints
-- Proxy must be restarted to pick up configuration changes (dynamic reconfiguration is a future enhancement)
-- OAuth callback URLs not required (Client Credentials flow is server-to-server)
-
-**Integration Provider Dependencies**:
-- Reliance on external OAuth providers maintaining their authorization endpoints and token services
-- Coordination with external agent providers to ensure A2A protocol compliance
-- Documentation and onboarding for enterprises wanting to expose their own A2A agents
-
-**Operational Considerations**:
-- Monitoring and alerting for OAuth flow failures and token refresh issues
-- Administrative tools for diagnosing integration connectivity problems
-- Support team training on OAuth troubleshooting and proxy log analysis
-
-**Backward Compatibility**:
-- Legacy authentication configuration (using `scheme` field instead of `type`) supported with deprecation warning
-- Existing SAM agents and gateways unaffected by proxy deployment
-
-**Cross-Functional Dependencies**:
-- Requires Solace AI Connector (SAC) framework for deployment
-- Requires A2A Python SDK (`a2a-sdk`) for client-side communication
-- Integrates with SAM's artifact service for artifact resolution
 
 ## Observability
 
@@ -510,150 +449,20 @@ Every test scenario includes multiple layers of validation to ensure correctness
 - Errors: Configuration errors, network errors, external agent errors
 
 **Monitoring Recommendations**:
-- Alert on repeated token acquisition failures (> 3 in 5 minutes)
 - Alert on repeated 401 errors after retry (indicates configuration issue)
-- Monitor request latency and error rates per external agent
-- Track OAuth token cache hit rate (should be > 99%)
 
 **Integration with Observability Tools**:
 - Compatible with standard log aggregation tools (Splunk, ELK, CloudWatch)
 - Structured logging format enables automated parsing and analysis
 - Correlation IDs enable distributed tracing across mesh components
 
-## Product Metrics
-
-**Core Success Metrics**:
-- Number of external agents successfully integrated via proxy
-- Request success rate per external agent (target: > 99%)
-- OAuth token cache hit rate (target: > 99%)
-- Average request latency (proxy overhead target: < 50ms)
-
-**Operational Metrics**:
-- Authentication failure rate (OAuth vs. static tokens)
-- Network error rate (connectivity to external agents)
-- Configuration error rate (invalid YAML, missing credentials)
-- Artifact resolution success rate
-
-**Business Metrics**:
-- Time-to-integrate new external agent (target: < 1 hour)
-- Number of organizations using proxy for federated agent access
-- Reduction in custom integration code (lines of code eliminated)
-
 ## Customer Documentation
-
-**Essential Documentation**:
-
-1. **Proxy Configuration Guide**: How to configure the proxy YAML file, including agent definitions, authentication settings, and artifact service configuration.
-
-2. **OAuth 2.0 Setup Guide**: Step-by-step instructions for configuring OAuth 2.0 Client Credentials authentication, including obtaining client credentials from identity providers.
-
-3. **Troubleshooting Guide**: Common issues and their resolutions, including authentication failures, network connectivity problems, and configuration errors.
-
-4. **Security Best Practices**: Guidelines for secure credential management, HTTPS enforcement, and audit logging.
-
-**Documentation Deliverables**:
-
-| Item | Requirement | Author | Notes |
-|------|-------------|--------|-------|
-| Proxy Configuration Guide | Create | Engineering | YAML configuration reference |
-| OAuth 2.0 Setup Guide | Create | Engineering | Step-by-step with examples |
-| Troubleshooting Guide | Create | Engineering | Common issues and solutions |
-| Security Best Practices | Create | Security/Engineering | Credential management, HTTPS |
-| API Documentation | Update | Engineering | Add proxy to SAM API docs |
-| Migration Guide | Not Required | N/A | New feature, no migration |
-
-## Support Considerations
-
-**Support Team Training**:
-- OAuth 2.0 troubleshooting procedures (token acquisition failures, 401 errors)
-- Proxy log analysis and correlation ID tracing
-- Common configuration errors and their resolutions
-- Network connectivity diagnostics
-
-**Common Support Scenarios**:
-- OAuth authentication failures due to invalid credentials or expired tokens
-- External agent unreachable (network connectivity, DNS resolution)
-- Configuration errors (invalid YAML, missing required fields)
-- Artifact resolution failures (artifact service unavailable, invalid URIs)
-
-**Escalation Procedures**:
-- Level 1: Basic troubleshooting using proxy logs and configuration validation
-- Level 2: Advanced troubleshooting including network diagnostics and OAuth token inspection
-- Level 3: Engineering escalation for proxy bugs or protocol compliance issues
-
-**Support Tools**:
-- Log analysis scripts for extracting proxy-related events
-- Configuration validation tool for checking YAML syntax and required fields
-- Network connectivity test tool for verifying external agent reachability
-
-## Rollout Considerations
-
-**Release Approach**:
-- Initial release as part of SAM framework update
-- Feature available immediately upon installation (no feature flag required)
-- Backward compatible with existing SAM deployments (proxy is optional)
-
-**Phased Rollout**:
-1. **Phase 1 - Internal Testing**: Deploy to internal development and staging environments
-2. **Phase 2 - Early Adopter Customers**: Deploy to select customers with external agent integration needs
-3. **Phase 3 - General Availability**: Include in standard SAM releases
-
-**Release Communications**:
-- Release notes documenting new proxy capability and configuration requirements
-- Blog post or technical article explaining federated agent access use cases
-- Sample configuration files and integration examples
-
-**Expected Impact**:
-- No impact on existing SAM deployments (proxy is opt-in)
-- Support teams prepared for OAuth-related questions and troubleshooting
-- Documentation available before general availability release
-
-**Rollback Plan**:
-- Proxy can be disabled by removing it from SAC application configuration
-- No database migrations or persistent state changes (tokens are in-memory only)
-- Rollback to previous SAM version removes proxy capability but does not affect existing agents
-
-## Product Marketing Summary and Enablement
-
-**Sales Enablement Updates**:
-- Add federated agent access to SAM value proposition materials
-- Update competitive positioning to highlight A2A protocol compliance and ecosystem interoperability
-- Include external agent integration in SAM feature comparison sheets
-
-**Product Marketing Additions**:
-- **Value Proposition**: "Integrate third-party AI agents and agents built by different teams without custom code or vendor lock-in"
-- **Technical Differentiation**: "Standards-compliant A2A protocol support with OAuth 2.0 authentication and transparent artifact management"
-- **Enterprise Positioning**: "Centralized security governance and audit logging for federated agent access across organizational boundaries"
-
-**Customer-Facing Updates**:
-- Add proxy capability to SAM product documentation
-- Update enterprise security and compliance materials to include federated agent access
-- Include A2A ecosystem compatibility in technical specification sheets
+- Update SAM product documentation to include A2A proxy configuration and usage
 
 **Target Messaging**:
 - **For IT Leaders**: "Reduce integration costs and accelerate AI adoption by enabling seamless integration of third-party agents"
 - **For Security Teams**: "Maintain centralized control over authentication, authorization, and audit logging for all external agent interactions"
 - **For Developers**: "Use standard A2A messaging to interact with external agents—no custom integration code required"
-
-## Customer Training Impact
-
-This epic impacts customers and training updates are recommended to cover:
-
-**Training Topics**:
-1. **Proxy Configuration**: How to configure the proxy YAML file with external agent definitions and authentication settings
-2. **OAuth 2.0 Setup**: How to obtain and configure OAuth 2.0 client credentials for external agents
-3. **Troubleshooting**: How to diagnose and resolve common integration issues using proxy logs
-
-**Training Audience**:
-- Platform administrators and DevOps engineers responsible for SAM deployment and configuration
-- Security administrators responsible for credential management and access control
-
-**Training Format**:
-- Documentation and written guides (primary)
-- Video tutorials for OAuth 2.0 setup (optional)
-- Hands-on labs for proxy configuration (optional)
-
-**Training Effort**: Low - The proxy is configured through standard YAML files using familiar SAM configuration patterns. Training focuses on OAuth 2.0 concepts and troubleshooting rather than new UI or complex workflows.
 
 ## Package Pricing Consideration
 
