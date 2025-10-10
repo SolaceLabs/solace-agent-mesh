@@ -878,6 +878,18 @@ class A2AProxyComponent(BaseProxyComponent):
                 type(event_payload).__name__,
             )
 
+        # Add agent_name to metadata for all response types
+        if isinstance(event_payload, (Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
+            if not event_payload.metadata:
+                event_payload.metadata = {}
+            event_payload.metadata["agent_name"] = agent_name
+            log.debug(
+                "%s Added agent_name '%s' to %s metadata.",
+                log_identifier,
+                agent_name,
+                type(event_payload).__name__,
+            )
+
         original_task_id = task_context.task_id
         if hasattr(event_payload, "task_id") and event_payload.task_id:
             event_payload.task_id = original_task_id
