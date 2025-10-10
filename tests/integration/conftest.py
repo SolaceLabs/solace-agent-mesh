@@ -282,9 +282,15 @@ def mock_oauth_server():
             # Pass through all localhost/127.0.0.1 requests to allow real test servers to work
             self.mock.route(host="127.0.0.1").pass_through()
             self.mock.route(host="localhost").pass_through()
+            
+            print(f"\n[MockOAuthServer] Initializing respx mock")
+            print(f"[MockOAuthServer] Pass-through configured for: 127.0.0.1, localhost")
+            
             self.mock.start()
             self._routes = {}
             self._call_log = []
+            
+            print(f"[MockOAuthServer] Mock started. Active: {self.mock._started}")
         
         def configure_token_endpoint(
             self,
@@ -295,8 +301,11 @@ def mock_oauth_server():
             status_code: int = 200
         ):
             """Configure a token endpoint to return specific responses."""
+            print(f"\n[MockOAuthServer] Configuring token endpoint: {token_url}")
+            
             if error:
                 response = httpx.Response(status_code=status_code, json=error)
+                print(f"[MockOAuthServer] Will return error with status {status_code}")
             else:
                 response = httpx.Response(
                     status_code=200,
@@ -306,9 +315,11 @@ def mock_oauth_server():
                         "expires_in": expires_in,
                     }
                 )
+                print(f"[MockOAuthServer] Will return access_token: {access_token[:20]}...")
             
             route = self.mock.post(token_url).mock(return_value=response)
             self._routes[token_url] = route
+            print(f"[MockOAuthServer] Route configured and stored")
             return route
         
         def configure_token_endpoint_sequence(
@@ -363,7 +374,9 @@ def mock_oauth_server():
         
         def stop(self):
             """Stop the mock."""
+            print(f"\n[MockOAuthServer] Stopping respx mock")
             self.mock.stop()
+            print(f"[MockOAuthServer] Mock stopped")
     
     server = MockOAuthServer()
     yield server
@@ -497,6 +510,7 @@ def test_a2a_agent_server_harness(
     Yields the TestA2AAgentServer instance.
     """
     port = find_free_port()
+    print(f"\n[TestA2AAgentServer] Starting on port {port}")
     executor = DeclarativeAgentExecutor()
     server = TestA2AAgentServer(
         host="127.0.0.1",
@@ -505,6 +519,7 @@ def test_a2a_agent_server_harness(
         agent_executor=executor,
     )
     executor.server = server
+    print(f"[TestA2AAgentServer] Server URL will be: {server.url}")
     server.start()
 
     max_retries = 20
@@ -530,12 +545,13 @@ def test_a2a_agent_server_harness(
             pass
         pytest.fail(f"TestA2AAgentServer did not become ready in time on port {port}.")
 
-    print(f"TestA2AAgentServer fixture: Server ready at {server.url}")
+    print(f"[TestA2AAgentServer] Server ready at {server.url}")
+    print(f"[TestA2AAgentServer] Agent card endpoint: {server.url}/.well-known/agent.json")
     yield server
 
-    print("TestA2AAgentServer fixture: Stopping server...")
+    print("\n[TestA2AAgentServer] Stopping server...")
     server.stop()
-    print("TestA2AAgentServer fixture: Server stopped.")
+    print("[TestA2AAgentServer] Server stopped.")
 
 
 @pytest.fixture(autouse=True)
