@@ -15,7 +15,6 @@ from a2a.types import (
     TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
 )
-from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DBSession
 
 from ....common import a2a
