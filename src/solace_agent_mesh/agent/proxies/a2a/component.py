@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
 
 import httpx
 
@@ -67,7 +67,9 @@ class A2AProxyComponent(BaseProxyComponent):
 
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
-        self._a2a_clients: Dict[str, A2AClient] = {}
+        # Cache A2AClient instances per (agent_name, session_id) to ensure
+        # each session gets its own client with session-specific credentials
+        self._a2a_clients: Dict[Tuple[str, str], A2AClient] = {}
         self._credential_store: InMemoryContextCredentialStore = InMemoryContextCredentialStore()
         self._auth_interceptor: AuthInterceptor = AuthInterceptor(self._credential_store)
         # OAuth 2.0 token cache for client credentials flow
@@ -398,27 +400,32 @@ class A2AProxyComponent(BaseProxyComponent):
         )
         await self._oauth_token_cache.invalidate(agent_name)
         
-        # Step 4: Remove cached A2AClient
+        # Step 4: Remove cached A2AClient for this session
         # Why remove the A2AClient: The cached client holds a reference to the old token
         # via the AuthInterceptor and CredentialStore. Removing it forces creation of a
         # new client with a fresh token on the next request.
-        if agent_name in self._a2a_clients:
-            old_client = self._a2a_clients.pop(agent_name)
+        session_id = task_context.a2a_context.get("session_id", "default_session")
+        cache_key = (agent_name, session_id)
+        
+        if cache_key in self._a2a_clients:
+            old_client = self._a2a_clients.pop(cache_key)
             
             # Close the httpx client if not already closed
             if old_client._client and not old_client._client.is_closed:
                 try:
                     await old_client._client.aclose()
                     log.info(
-                        "%s Closed httpx client for agent '%s'.",
+                        "%s Closed httpx client for agent '%s' session '%s'.",
                         log_identifier,
                         agent_name,
+                        session_id,
                     )
                 except Exception as e:
                     log.warning(
-                        "%s Error closing httpx client for agent '%s': %s",
+                        "%s Error closing httpx client for agent '%s' session '%s': %s",
                         log_identifier,
                         agent_name,
+                        session_id,
                         e,
                     )
         
@@ -575,7 +582,11 @@ class A2AProxyComponent(BaseProxyComponent):
         self, agent_name: str, task_context: ProxyTaskContext
     ) -> Optional[A2AClient]:
         """
-        Gets a cached A2AClient or creates a new one for the given agent.
+        Gets a cached A2AClient or creates a new one for the given agent and session.
+        
+        Caches clients per (agent_name, session_id) to ensure each session gets its
+        own client with session-specific credentials. This is necessary because the
+        A2A SDK's AuthInterceptor uses session-based credential lookup.
         
         Supports multiple authentication types:
         - static_bearer: Static bearer token authentication
@@ -585,8 +596,11 @@ class A2AProxyComponent(BaseProxyComponent):
         For backward compatibility, legacy configurations without a 'type' field
         will have their type inferred from the 'scheme' field.
         """
-        if agent_name in self._a2a_clients:
-            return self._a2a_clients[agent_name]
+        session_id = task_context.a2a_context.get("session_id", "default_session")
+        cache_key = (agent_name, session_id)
+        
+        if cache_key in self._a2a_clients:
+            return self._a2a_clients[cache_key]
 
         agent_config = next(
             (
@@ -616,7 +630,6 @@ class A2AProxyComponent(BaseProxyComponent):
         # Setup authentication if configured
         auth_config = agent_config.get("authentication")
         if auth_config:
-            session_id = task_context.a2a_context.get("session_id", "default_session")
             auth_type = auth_config.get("type")
             
             # Determine auth type (with backward compatibility)
@@ -689,7 +702,7 @@ class A2AProxyComponent(BaseProxyComponent):
             agent_card=agent_card,
             interceptors=[self._auth_interceptor],
         )
-        self._a2a_clients[agent_name] = client
+        self._a2a_clients[cache_key] = client
         return client
 
     async def _handle_outbound_artifacts(
@@ -992,12 +1005,14 @@ class A2AProxyComponent(BaseProxyComponent):
 
         async def _async_cleanup():
             # Close all created httpx clients
-            for agent_name, client in self._a2a_clients.items():
+            for cache_key, client in self._a2a_clients.items():
+                agent_name, session_id = cache_key
                 if client._client and not client._client.is_closed:
                     log.info(
-                        "%s Closing httpx client for agent '%s'",
+                        "%s Closing httpx client for agent '%s' session '%s'",
                         self.log_identifier,
                         agent_name,
+                        session_id,
                     )
                     await client._client.aclose()
             self._a2a_clients.clear()
