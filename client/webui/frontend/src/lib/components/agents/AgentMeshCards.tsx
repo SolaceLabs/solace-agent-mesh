@@ -28,7 +28,7 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
                     <input type="text" data-testid="agent-search-input" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-background mb-4 rounded-md border px-3 py-2" />
 
                     {filteredAgents.length === 0 && searchQuery ? (
-                        <EmptyState title="No agents match your search" variant="noImage" buttons={[{ text: "Clear Search", variant: "outline", onClick: () => setSearchQuery("") }]} />
+                        <EmptyState title="No agents match your search" variant="noImage" buttons={[{ text: "Clear Search", variant: "default", onClick: () => setSearchQuery("") }]} />
                     ) : (
                         <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
                             <div className="flex flex-wrap gap-10">
