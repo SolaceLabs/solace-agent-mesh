@@ -71,7 +71,6 @@ from ....agent.utils.artifact_helpers import (
 
 class ArtifactUploadResponse(BaseModel):
     """Response model for artifact upload with camelCase fields."""
-
     uri: str
     session_id: str = Field(..., alias="sessionId")
     filename: str
@@ -96,11 +95,7 @@ router = APIRouter()
 async def upload_artifact_with_session(
     request: FastAPIRequest,
     upload_file: UploadFile = File(..., description="The file content to upload"),
-    sessionId: str | None = Form(
-        None,
-        description="Session ID (null/empty to create new session)",
-        alias="sessionId",
-    ),
+    sessionId: str | None = Form(None, description="Session ID (null/empty to create new session)", alias="sessionId"),
     filename: str = Form(..., description="The name of the artifact to create/update"),
     metadata_json: str | None = Form(
         None, description="JSON string of artifact metadata (e.g., description, source)"
@@ -111,9 +106,7 @@ async def upload_artifact_with_session(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:create"])),
     session_manager: SessionManager = Depends(get_session_manager),
-    session_service: SessionService | None = Depends(
-        get_session_business_service_optional
-    ),
+    session_service: SessionService | None = Depends(get_session_business_service_optional),
     db: Session | None = Depends(get_db_optional),
 ):
     """
@@ -136,11 +129,7 @@ async def upload_artifact_with_session(
     else:
         # Create new session when no sessionId provided (like chat does for new conversations)
         effective_session_id = session_manager.create_new_session_id(request)
-        log.info(
-            "%sCreated new session for file upload: %s",
-            log_prefix,
-            effective_session_id,
-        )
+        log.info("%sCreated new session for file upload: %s", log_prefix, effective_session_id)
 
         # Persist session in database if persistence is available (matching chat pattern)
         if session_service and db:
@@ -150,27 +139,17 @@ async def upload_artifact_with_session(
                     user_id=user_id,
                     session_id=effective_session_id,
                     agent_id=None,  # Will be determined when first message is sent
-                    name=None,  # Will be set when first message is sent
+                    name=None,      # Will be set when first message is sent
                 )
                 db.commit()
-                log.info(
-                    "%sSession created and committed to database: %s",
-                    log_prefix,
-                    effective_session_id,
-                )
+                log.info("%sSession created and committed to database: %s", log_prefix, effective_session_id)
             except Exception as session_error:
                 db.rollback()
-                log.warning(
-                    "%sSession persistence failed, continuing with in-memory session: %s",
-                    log_prefix,
-                    session_error,
-                )
+                log.warning("%sSession persistence failed, continuing with in-memory session: %s",
+                           log_prefix, session_error)
         else:
-            log.debug(
-                "%sNo persistence available - using in-memory session: %s",
-                log_prefix,
-                effective_session_id,
-            )
+            log.debug("%sNo persistence available - using in-memory session: %s",
+                     log_prefix, effective_session_id)
 
     # Validate inputs
     if not filename or not filename.strip():
@@ -195,22 +174,13 @@ async def upload_artifact_with_session(
 
     # Validate session (now that we have an effective_session_id)
     if not validate_session(effective_session_id, user_id):
-        log.warning(
-            "%sSession validation failed for session: %s",
-            log_prefix,
-            effective_session_id,
-        )
+        log.warning("%sSession validation failed for session: %s", log_prefix, effective_session_id)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid session or insufficient permissions.",
         )
 
-    log.info(
-        "%sUploading file '%s' to session '%s'",
-        log_prefix,
-        filename.strip(),
-        effective_session_id,
-    )
+    log.info("%sUploading file '%s' to session '%s'", log_prefix, filename.strip(), effective_session_id)
 
     try:
         # Read and validate file content
@@ -224,13 +194,7 @@ async def upload_artifact_with_session(
         mime_type = upload_file.content_type or "application/octet-stream"
         filename_clean = filename.strip()
 
-        log.debug(
-            "%sProcessing file: %s (%d bytes, %s)",
-            log_prefix,
-            filename_clean,
-            len(content_bytes),
-            mime_type,
-        )
+        log.debug("%sProcessing file: %s (%d bytes, %s)", log_prefix, filename_clean, len(content_bytes), mime_type)
 
         # Parse and validate metadata
         metadata = {}
@@ -259,12 +223,7 @@ async def upload_artifact_with_session(
             metadata=metadata,
         )
 
-        log.info(
-            "%sArtifact stored successfully: %s (%d bytes)",
-            log_prefix,
-            artifact_uri,
-            len(content_bytes),
-        )
+        log.info("%sArtifact stored successfully: %s (%d bytes)", log_prefix, artifact_uri, len(content_bytes))
 
         # Return standardized response using Pydantic model (ensures camelCase conversion)
         return ArtifactUploadResponse(
@@ -274,9 +233,7 @@ async def upload_artifact_with_session(
             size=len(content_bytes),
             mime_type=mime_type,  # Will be returned as "mimeType" due to alias
             metadata=metadata,
-            created_at=datetime.now(
-                timezone.utc
-            ).isoformat(),  # Will be returned as "createdAt" due to alias
+            created_at=datetime.now(timezone.utc).isoformat(),  # Will be returned as "createdAt" due to alias
         )
 
     except HTTPException:
@@ -827,6 +784,7 @@ async def get_artifact_by_uri(
             filename,
             version,
         )
+
 
         log.info(
             "%s User '%s' authorized to access artifact URI.",
