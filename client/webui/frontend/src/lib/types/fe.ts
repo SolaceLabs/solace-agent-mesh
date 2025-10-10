@@ -42,54 +42,6 @@ export interface ToolEvent {
     data: unknown; // The result data from the tool
 }
 
-
-/**
- * A UI-specific interface that extends the official A2A AgentCard with additional
- * properties needed for rendering, like a display_name.
- */
-export interface AgentInfo extends AgentCard {
-    display_name?: string;
-    last_seen?: string;
-    peer_agents?: string[];
-    tools?: AgentSkill[];
-}
-
-// This is a UI-specific type for managing artifacts in the side panel.
-// It is distinct from the A2A `Artifact` type.
-export interface ArtifactInfo {
-    filename: string;
-    mime_type: string;
-    size: number; // in bytes
-    last_modified: string; // ISO 8601 timestamp
-    uri?: string; // Optional but recommended artifact URI
-    version?: number; // Optional: Represents the latest version number when listing
-    versionCount?: number; // Optional: Total number of available versions
-    description?: string | null; // Optional: Description of the artifact
-    schema?: string | null | object; // Optional: Schema for the structure artifact
-}
-
-/**
- * Represents a file attached to a message, primarily for UI rendering.
- * This is distinct from the A2A `FilePart` but can be derived from it.
- */
-export interface FileAttachment {
-    name: string;
-    content?: string; // Base64 encoded content
-    mime_type?: string;
-    last_modified?: string; // ISO 8601 timestamp
-    size?: number;
-    uri?: string;
-}
-
-/**
- * Represents a UI notification (toast).
- */
-export interface Notification {
-    id: string;
-    message: string;
-    type?: "success" | "info" | "error";
-}
-
 /**
  * @deprecated use AgentCardInfo
  */

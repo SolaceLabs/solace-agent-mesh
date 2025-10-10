@@ -705,7 +705,6 @@ export const processTaskForVisualization = (
                 }
             }
         }
-
     });
 
     // Final flush for any remaining aggregated text
