@@ -276,15 +276,21 @@ class A2AProxyComponent(BaseProxyComponent):
                         f"Could not create A2A client for agent '{agent_name}'"
                     )
 
-                # Forward the request
+                # Create context with sessionId (camelCase!) so AuthInterceptor can look up credentials
+                from a2a.client.middleware import ClientCallContext
+                
+                session_id = task_context.a2a_context.get("session_id", "default_session")
+                call_context = ClientCallContext(state={"sessionId": session_id})
+
+                # Forward the request with context
                 if isinstance(request, SendStreamingMessageRequest):
-                    response_generator = client.send_message_streaming(request)
+                    response_generator = client.send_message_streaming(request, context=call_context)
                     async for response in response_generator:
                         await self._process_downstream_response(
                             response, task_context, client, agent_name
                         )
                 elif isinstance(request, SendMessageRequest):
-                    response = await client.send_message(request)
+                    response = await client.send_message(request, context=call_context)
                     await self._process_downstream_response(
                         response, task_context, client, agent_name
                     )
