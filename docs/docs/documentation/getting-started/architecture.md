@@ -3,7 +3,7 @@ title: Architecture Overview
 sidebar_position: 18
 ---
 
-Solace Agent Mesh is an event-driven framework that creates a distributed ecosystem of collaborative AI agents. The architecture decouples agent logic from communication and orchestration, enabling you to build scalable, resilient, and modular AI systems.
+Agent Mesh is an event-driven framework that creates a distributed ecosystem of collaborative AI agents. The architecture decouples agent logic from communication and orchestration, enabling you to build scalable, resilient, and modular AI systems.
 
 The framework integrates three primary technologies:
 - **Solace Event Broker**: Provides the messaging fabric for all asynchronous communication, utilizing topic-based routing for the Agent-to-Agent (A2A) protocol

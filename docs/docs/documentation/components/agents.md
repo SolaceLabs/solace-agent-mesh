@@ -3,7 +3,7 @@ title: Agents
 sidebar_position: 220
 ---
 
-Agents are specialized processing units within the Solace Agent Mesh framework that are built around the Google Agent Development Kit (ADK) and provide the core intelligence layer. They:
+Agents are specialized processing units within the Agent Mesh framework that are built around the Google Agent Development Kit (ADK) and provide the core intelligence layer. They:
 
 * perform specific tasks or provide domain-specific knowledge or capabilities
 * integrate with the ADK runtime for advanced AI capabilities including tool usage, memory management, and session handling
@@ -29,7 +29,7 @@ Agents are intelligence units that communicate through the A2A protocol to provi
 
 ## Agent Design
 
-Agents in Solace Agent Mesh are built around the Solace AI Connector (SAC) component with ADK. Agent Mesh agents are complete self-contained units that can carry out specific tasks or provide domain-specific knowledge or capabilities. Each agent is defined by a YAML configuration file.
+Agents in Agent Mesh are built around the Solace AI Connector (SAC) component with ADK. Agent Mesh agents are complete self-contained units that can carry out specific tasks or provide domain-specific knowledge or capabilities. Each agent is defined by a YAML configuration file.
 
 Each agent integrates with:
 - **ADK Runtime**: For AI model access, tool execution, and session management
@@ -42,7 +42,7 @@ For example, an agent configured with SQL database tools can execute queries, pe
 
 ### The Agent Lifecycle
 
-Agents in Solace Agent Mesh follow the A2A protocol lifecycle and interact with the agent registry:
+Agents in Agent Mesh follow the A2A protocol lifecycle and interact with the agent registry:
 
 - **Discovery**: Agents start broadcasting discovery messages on startup to announce their availability and capabilities to the agent mesh.
 
@@ -66,13 +66,13 @@ Agents in Solace Agent Mesh follow the A2A protocol lifecycle and interact with 
 
 ## Tool Ecosystem
 
-Agents perform tasks by using **tools**. A tool is a specific capability, like querying a database, calling an external API, or generating an image. The Solace Agent Mesh framework provides a flexible and powerful tool ecosystem, allowing you to equip your agents with the right capabilities for any job.
+Agents perform tasks by using **tools**. A tool is a specific capability, like querying a database, calling an external API, or generating an image. The Agent Mesh framework provides a flexible and powerful tool ecosystem, allowing you to equip your agents with the right capabilities for any job.
 
 There are three primary ways to add tools to an agent:
 
 ### 1. Built-in Tools
 
-Solace Agent Mesh includes a rich library of pre-packaged tools for common tasks like data analysis, file management, and web requests. These are the easiest to use and can be enabled with just a few lines of configuration.
+Agent Mesh includes a rich library of pre-packaged tools for common tasks like data analysis, file management, and web requests. These are the easiest to use and can be enabled with just a few lines of configuration.
 
 -   **Use Case**: For standard, out-of-the-box functionality.
 -   **Learn More**: See the [Built-in Tools Reference](./builtin-tools/builtin-tools.md) for a complete list and configuration details.
@@ -93,7 +93,7 @@ For integrating with external, standalone tool servers that conform to the Model
 
 ## Agent Card
 
-The Agent Card is a public-facing profile that describes an agent's identity, capabilities, and how to interact with it. It functions like a digital business card, allowing other agents and clients within Solace Agent Mesh to discover what an agent can do. This information is published by the agent and is crucial for dynamic discovery and interoperability.
+The Agent Card is a public-facing profile that describes an agent's identity, capabilities, and how to interact with it. It functions like a digital business card, allowing other agents and clients within Agent Mesh to discover what an agent can do. This information is published by the agent and is crucial for dynamic discovery and interoperability.
 
 The Agent Card is defined in the agent's YAML configuration file under the `agent_card` section.
 
@@ -136,7 +136,7 @@ This card clearly communicates that the agent can take text (the Mermaid syntax)
 
 ## User-Defined Agents
 
-Using Solace Agent Mesh and the Solace Agent Mesh CLI, you can create your own agents. Agents are configured through YAML files that specify:
+Using the Agent Mesh CLI, you can create your own agents. Agents are configured through YAML files that specify:
 
 - Agent name and instructions
 - LLM model configuration
@@ -144,7 +144,7 @@ Using Solace Agent Mesh and the Solace Agent Mesh CLI, you can create your own a
 - Artifact and session management settings
 - Discovery settings
 
-The following Solace Agent Mesh CLI command creates an agent configuration:
+The following Agent Mesh CLI command creates an agent configuration:
 
 ```sh
 sam add agent my-agent [--gui]

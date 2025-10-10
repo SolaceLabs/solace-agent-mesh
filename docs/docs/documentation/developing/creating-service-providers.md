@@ -41,7 +41,7 @@ Create a `provider.py` module and define the provider class, ensuring it inherit
 ```python
 # my_corp_hr_provider/provider.py
 
-# Import base classes from the Solace Agent Mesh framework
+# Import base classes from the Agent Mesh framework
 try:
     from solace_agent_mesh.common.services.identity_service import BaseIdentityService
     from solace_agent_mesh.common.services.employee_service import BaseEmployeeService

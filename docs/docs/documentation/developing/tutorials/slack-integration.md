@@ -13,7 +13,7 @@ Read about [Gateways](../../components/gateways.md) before you start this tutori
 
 ## Setting Up the Environment
 
-First, you need to [install Agent Mesh and Solace Mesh Agent CLI](../../installing-and-configuring/installation.md), and then [create a new Agent Mesh project](../../installing-and-configuring/run-project.md) or [create a new gateway plugin](../../components/plugins.md#create-a-plugin).
+First, you need to [install Agent Mesh and the CLI](../../installing-and-configuring/installation.md), and then [create a new Agent Mesh project](../../installing-and-configuring/run-project.md) or [create a new gateway plugin](../../components/plugins.md#create-a-plugin).
 
 ## Creating the Slack App
 
@@ -27,14 +27,14 @@ Next, create a [Slack Application](https://api.slack.com/apps) in your workspace
 ```yaml
 display_information:
   name: solace-agent-mesh-bot
-  description: An app to integrate with Solace Agent Mesh
+  description: An app to integrate with Agent Mesh
 features:
   app_home:
     home_tab_enabled: false
     messages_tab_enabled: true
     messages_tab_read_only_enabled: false
   bot_user:
-    display_name: Solace Agent Mesh
+    display_name: Agent Mesh
     always_online: false
 oauth_config:
   scopes:
@@ -110,7 +110,7 @@ After installation, the bot token (beginning with `xoxb-`) is visible. Make note
 
 After configuring your Slack App, the next step is to add the Slack gateway to Agent Mesh.
 
-1. Add the gateway plugin using Agent Mesh CLI:
+1. Add the gateway plugin using the Agent Mesh CLI:
 
    ```sh
    sam plugin add slack-bot --plugin sam-slack
@@ -141,14 +141,14 @@ Launch the Slack gateway with:
 sam run configs/gateways/slack-bot.yaml
 ```
 
-For detailed information about available Agent Mesh CLI commands, see [the Agent Mesh CLI](../../components/cli.md).
+For detailed information about available Agent Mesh CLI commands, see [Agent Mesh CLI](../../components/cli.md).
 
 ## Testing the Installation
 
 To test your installation:
 
 1. Open your Slack workspace in the desktop app or browser.
-2. Find and click on the **Solace Agent Mesh** app under the **Apps** section.
+2. Find and click on the **Agent Mesh** app under the **Apps** section.
 3. Send a test message by typing `hello` and click **Enter**.
 4. You should see:
    - A "Chatbot is thinking..." status message

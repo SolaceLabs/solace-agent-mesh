@@ -11,7 +11,7 @@ Whether you're building intelligent automation systems, creating sophisticated A
 
 ## Understanding Agent Mesh
 
-Before diving into implementation, it's helpful to understand what makes Agent Mesh unique. The framework combines the power of Google's Agent Development Kit with Solace's event-driven messaging platform, creating a robust foundation for multi-agent AI systems. To learn about the core concepts and architectural principles that drive the framework's design, see [What is Solace Agent Mesh?](./introduction.md)
+Before diving into implementation, it's helpful to understand what makes Agent Mesh unique. The framework combines the power of Google's Agent Development Kit with Solace's event-driven messaging platform, creating a robust foundation for multi-agent AI systems. To learn about the core concepts and architectural principles that drive the framework's design, see [What is Agent Mesh?](./introduction.md)
 
 The system's event-driven architecture enables true scalability and reliability, allowing agents to communicate asynchronously while maintaining loose coupling between components. For detailed insights into how these components work together to create a cohesive AI ecosystem, see [Architecture Overview](./architecture.md)
 
@@ -19,7 +19,7 @@ To see how all the pieces fit together, you can explore the key building blocks 
 
 ## Getting Started Quickly
 
-The fastest way to experience Agent Mesh is through our pre-configured Docker setup that gets you up and running with a working system in minutes. This approach lets you explore the framework's capabilities immediately without any installation or complex configuration. To get started right away, see [Try Solace Agent Mesh](./try-agent-mesh.md)
+The fastest way to experience Agent Mesh is through our pre-configured Docker setup that gets you up and running with a working system in minutes. This approach lets you explore the framework's capabilities immediately without any installation or complex configuration. To get started right away, see [Try Agent Mesh](./try-agent-mesh.md)
 
 Once you've explored the basic functionality and want to set up your own development environment, you'll need to install the CLI and framework tools. The installation process supports multiple approaches including pip, uv, and Docker, making it easy to integrate with your existing workflow. For complete setup instructions, see [Installation](../installing-and-configuring/installation.md)
 

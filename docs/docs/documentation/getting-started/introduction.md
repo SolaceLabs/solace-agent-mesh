@@ -1,5 +1,5 @@
 ---
-title: What is Solace Agent Mesh?
+title: What is Agent Mesh?
 sidebar_position: 14
 ---
 
@@ -7,7 +7,7 @@ Modern AI development faces a fundamental challenge: powerful AI models are read
 
 Agent Mesh is an open-source framework that tackles this challenge head-on by focusing on being an excellent integration layer. Built on Solace's proven event-driven architecture and integrated with Google Agent Development Kit (ADK), Agent Mesh brings together specialized agents—whether they're using local databases, accessing cloud APIs, or interfacing with enterprise systems—and helps them collaborate using standardized A2A communication to solve complex problems.
 
-![Solace Agent Mesh Overview](../../../static/img/Solace_AI_Framework_With_Broker.png)
+![Agent Mesh Overview](../../../static/img/Solace_AI_Framework_With_Broker.png)
 
 Agent Mesh is built on:
 

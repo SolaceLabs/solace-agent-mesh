@@ -267,8 +267,8 @@ This method uses the configured `scanner` component. The agent automatically ing
 First, create a simple text file named `sam_features.txt` and add some content to it. For example:
 
 ```text
-Solace Agent Mesh is a powerful framework for building AI agents.
-Key features of Solace Agent Mesh include:
+Agent Mesh is a powerful framework for building AI agents.
+Key features of Agent Mesh include:
 - A flexible plugin architecture.
 - Integration with various LLMs and vector databases.
 - Scalable gateways for different communication protocols.

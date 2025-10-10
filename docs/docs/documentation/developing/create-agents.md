@@ -200,7 +200,7 @@ async def hello_tool(
         greeting_prefix = tool_config.get("greeting_prefix", "Hello")
     
     # Create the greeting message
-    greeting_message = f"{greeting_prefix}, {name}! Welcome to Solace Agent Mesh!"
+    greeting_message = f"{greeting_prefix}, {name}! Welcome to Agent Mesh!"
     
     log.info(f"{log_identifier} Generated greeting: {greeting_message}")
     
@@ -234,7 +234,7 @@ async def farewell_tool(
         farewell_prefix = tool_config.get("farewell_prefix", "Goodbye")
     
     # Create the farewell message
-    farewell_message = f"{farewell_prefix}, {name}! Thanks for using Solace Agent Mesh!"
+    farewell_message = f"{farewell_prefix}, {name}! Thanks for using Agent Mesh!"
     
     log.info(f"{log_identifier} Generated farewell: {farewell_message}")
     
@@ -284,7 +284,7 @@ apps:
       # Agent instructions (system prompt)
       instruction: |
         You are a friendly Hello World agent. Your purpose is to greet users and 
-        demonstrate the capabilities of Solace Agent Mesh. You can:
+        demonstrate the capabilities of Agent Mesh. You can:
         
         1. Greet users with personalized messages using the hello_tool
         2. Say goodbye to users using the farewell_tool
@@ -332,7 +332,7 @@ apps:
       
       # Agent card (describes the agent's capabilities)
       agent_card:
-        description: "A friendly Hello World agent that demonstrates Solace Agent Mesh capabilities"
+        description: "A friendly Hello World agent that demonstrates Agent Mesh capabilities"
         defaultInputModes: ["text"]
         defaultOutputModes: ["text"]
         skills:
@@ -535,7 +535,7 @@ async def hello_tool_with_artifact(
     
     # Generate greeting (same as before)
     greeting_prefix = tool_config.get("greeting_prefix", "Hello") if tool_config else "Hello"
-    greeting_message = f"{greeting_prefix}, {name}! Welcome to Solace Agent Mesh!"
+    greeting_message = f"{greeting_prefix}, {name}! Welcome to Agent Mesh!"
     
     result = {
         "status": "success",

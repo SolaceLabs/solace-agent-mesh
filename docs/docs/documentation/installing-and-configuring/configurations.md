@@ -4,7 +4,7 @@ sidebar_position: 330
 toc_max_heading_level: 4
 ---
 
-The `shared_config.yaml` file is used to define configurations that can be shared across multiple agents or components in Solace Agent Mesh. This centralized approach simplifies management of common configurations such as Solace event broker connections, language model settings, and service definitions.
+The `shared_config.yaml` file is used to define configurations that can be shared across multiple agents or components in Agent Mesh. This centralized approach simplifies management of common configurations such as Solace event broker connections, language model settings, and service definitions.
 
 ## Understanding Shared Configuration
 

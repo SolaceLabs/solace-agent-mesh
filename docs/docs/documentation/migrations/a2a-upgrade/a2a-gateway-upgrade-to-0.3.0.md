@@ -3,7 +3,7 @@ title: "Migration Guide: Upgrading to the A2A SDK"
 sidebar_position: 10
 ---
 
-This guide is for developers who have built or are maintaining a custom Solace Agent Mesh gateway. A recent architectural update has aligned Solace Agent Mesh with the official Agent-to-Agent (A2A) protocol specification by adopting the `a2a-sdk`. This migration requires some changes to your gateway code to ensure compatibility.
+This guide is for developers who have built or are maintaining a custom Agent Mesh gateway. A recent architectural update has aligned Agent Mesh with the official Agent-to-Agent (A2A) protocol specification by adopting the `a2a-sdk`. This migration requires some changes to your gateway code to ensure compatibility.
 
 This document provides a high-level overview of the conceptual changes and a practical checklist to guide you through the upgrade process.
 

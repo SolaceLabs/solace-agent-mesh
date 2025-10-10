@@ -54,7 +54,7 @@ async def greet_user(
     if tool_config:
         greeting_prefix = tool_config.get("greeting_prefix", "Hello")
 
-    greeting_message = f"{greeting_prefix}, {name}! Welcome to Solace Agent Mesh!"
+    greeting_message = f"{greeting_prefix}, {name}! Welcome to Agent Mesh!"
 
     return {
         "status": "success",

@@ -30,7 +30,7 @@ The simplest way to try Agent Mesh is to run the pre-configured agents that come
 docker run --rm -it -p 8000:8000 --platform linux/amd64 --env-file <your-env-file-path> solace/solace-agent-mesh:latest
 ```
 
-You can provide the required environment variables using an environment file as shown above, or pass them directly as command-line arguments using the `-e` flag, as shown in the section that follows. The preset configuration includes several ready-to-use agents that demonstrate the capabilities of Agent Mesh. You can find a complete list of all available preset agents in the [Solace Agent Mesh GitHub repository](https://github.com/SolaceLabs/solace-agent-mesh/tree/main/preset/agents).
+You can provide the required environment variables using an environment file as shown above, or pass them directly as command-line arguments using the `-e` flag, as shown in the section that follows. The preset configuration includes several ready-to-use agents that demonstrate the capabilities of Agent Mesh. You can find a complete list of all available preset agents in the [Agent Mesh GitHub repository](https://github.com/SolaceLabs/solace-agent-mesh/tree/main/preset/agents).
 
 If your host system architecture is not `linux/amd64`, you must add the `--platform linux/amd64` flag when you run the container.
 
