@@ -765,8 +765,8 @@ class A2AProxyComponent(BaseProxyComponent):
                         )
 
                     metadata_to_save["proxied_from_artifact_id"] = artifact.artifact_id
-                    user_id = task_context.a2a_context.get("userId", "default_user")
-                    session_id = task_context.a2a_context.get("sessionId")
+                    user_id = task_context.a2a_context.get("user_id", "default_user")
+                    session_id = task_context.a2a_context.get("session_id")
 
                     save_result = await save_artifact_with_metadata(
                         artifact_service=self.artifact_service,

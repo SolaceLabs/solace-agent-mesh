@@ -191,12 +191,12 @@ class BaseProxyComponent(ComponentBase, ABC):
                 a2a_context = {
                     "jsonrpc_request_id": jsonrpc_request_id,
                     "logical_task_id": logical_task_id,
-                    "sessionId": a2a.get_context_id(resolved_message),
-                    "userId": message.get_user_properties().get(
+                    "session_id": a2a.get_context_id(resolved_message),
+                    "user_id": message.get_user_properties().get(
                         "userId", "default_user"
                     ),
-                    "statusTopic": message.get_user_properties().get("a2aStatusTopic"),
-                    "replyToTopic": message.get_user_properties().get("replyTo"),
+                    "status_topic": message.get_user_properties().get("a2aStatusTopic"),
+                    "reply_to_topic": message.get_user_properties().get("replyTo"),
                 }
                 task_context = ProxyTaskContext(
                     task_id=logical_task_id, a2a_context=a2a_context
@@ -375,7 +375,7 @@ class BaseProxyComponent(ComponentBase, ABC):
         self, event: TaskStatusUpdateEvent, a2a_context: Dict
     ):
         """Publishes a TaskStatusUpdateEvent to the appropriate Solace topic."""
-        target_topic = a2a_context.get("statusTopic")
+        target_topic = a2a_context.get("status_topic")
         if not target_topic:
             log.warning(
                 "%s No statusTopic in context for task %s. Cannot publish status update.",
@@ -391,7 +391,7 @@ class BaseProxyComponent(ComponentBase, ABC):
 
     async def _publish_final_response(self, task: Task, a2a_context: Dict):
         """Publishes the final Task object to the appropriate Solace topic."""
-        target_topic = a2a_context.get("replyToTopic")
+        target_topic = a2a_context.get("reply_to_topic")
         if not target_topic:
             log.warning(
                 "%s No replyToTopic in context for task %s. Cannot publish final response.",
@@ -409,7 +409,7 @@ class BaseProxyComponent(ComponentBase, ABC):
         self, event: TaskArtifactUpdateEvent, a2a_context: Dict
     ):
         """Publishes a TaskArtifactUpdateEvent to the appropriate Solace topic."""
-        target_topic = a2a_context.get("statusTopic")
+        target_topic = a2a_context.get("status_topic")
         if not target_topic:
             log.warning(
                 "%s No statusTopic in context for task %s. Cannot publish artifact update.",
