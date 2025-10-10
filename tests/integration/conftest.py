@@ -283,8 +283,14 @@ def mock_oauth_server():
             self.mock.route(host="127.0.0.1").pass_through()
             self.mock.route(host="localhost").pass_through()
             
+            # Explicitly pass through both agent card endpoint paths (old and new A2A spec)
+            # This ensures the A2A SDK's fallback logic works correctly
+            self.mock.route(path="/.well-known/agent-card.json").pass_through()
+            self.mock.route(path="/.well-known/agent.json").pass_through()
+            
             print(f"\n[MockOAuthServer] Initializing respx mock")
             print(f"[MockOAuthServer] Pass-through configured for: 127.0.0.1, localhost")
+            print(f"[MockOAuthServer] Pass-through configured for agent card paths: /.well-known/agent-card.json, /.well-known/agent.json")
             
             self.mock.start()
             self._routes = {}
