@@ -31,7 +31,7 @@ function EmptyState({ title, subtitle, image, variant = "error", buttons }: Empt
         <div className="flex h-full w-full flex-col items-center justify-center gap-3">
             {image || illustrations[variant] || null}
 
-            <p className="text-lg">{title}</p>
+            <p className="mt-4 text-lg">{title}</p>
             {subtitle ? <p className="text-sm">{subtitle}</p> : null}
 
             <div className="flex gap-2">
