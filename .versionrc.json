@@ -1,0 +1,23 @@
+{
+  "types": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "ci", "section": "Continuous Integration" },
+    { "type": "deps", "section": "Dependencies" },
+    { "type": "chore", "section": "Chores" },
+    { "type": "build", "section": "Build" },
+    { "type": "docs", "section": "Documentation" },
+    { "type": "style", "section": "Style" },
+    { "type": "refactor", "section": "Refactoring" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "test", "section": "Tests" }
+  ],
+  "customSections": {
+    "UI Changes": {
+      "enabled": true,
+      "tagPrefix": "ui-v",
+      "pathPatterns": ["client/webui/frontend/**"],
+      "bumpCommitPattern": ".*bump version to ui-v.*\\[skip ci\\]"
+    }
+  }
+}

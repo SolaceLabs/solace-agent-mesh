@@ -172,6 +172,137 @@ class WebUIBackendApp(BaseGatewayApp):
             "default": "",
             "description": "The passphrase for the SSL private key.",
         },
+        {
+            "name": "session_service",
+            "required": False,
+            "type": "dict",
+            "default": {"type": "memory"},
+            "description": "Configuration for the Session Service.",
+            "dict_schema": {
+                "type": {
+                    "type": "string",
+                    "required": True,
+                    "default": "memory",
+                    "allowed": ["memory", "sql"],
+                    "description": "The type of session service to use ('memory' or 'sql').",
+                },
+                "database_url": {
+                    "type": "string",
+                    "required": False,
+                    "default": None,
+                    "description": "Database URL for SQL session service. Required if type is 'sql'.",
+                },
+            },
+        },
+        {
+            "name": "task_logging",
+            "required": False,
+            "type": "dict",
+            "description": "Configuration for the A2A task logging service.",
+            "dict_schema": {
+                "enabled": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": False,
+                    "description": "Enable/disable the task logging service.",
+                },
+                "log_status_updates": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": True,
+                    "description": "Log intermediate TaskStatusUpdate events.",
+                },
+                "log_artifact_events": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": True,
+                    "description": "Log TaskArtifactUpdate events.",
+                },
+                "log_file_parts": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": True,
+                    "description": "Log FilePart content within events.",
+                },
+                "max_file_part_size_bytes": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 102400,  # 100KB
+                    "description": "Maximum size of a FilePart's content to store in the database. Larger files will have their content stripped.",
+                },
+            },
+        },
+        {
+            "name": "feedback_publishing",
+            "required": False,
+            "type": "dict",
+            "description": "Configuration for publishing user feedback to the message broker.",
+            "dict_schema": {
+                "enabled": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": False,
+                    "description": "Enable/disable feedback publishing.",
+                },
+                "topic": {
+                    "type": "string",
+                    "required": False,
+                    "default": "sam/feedback/v1",
+                    "description": "The Solace topic to publish feedback events to.",
+                },
+                "include_task_info": {
+                    "type": "string",
+                    "required": False,
+                    "default": "none",
+                    "enum": ["none", "summary", "stim"],
+                    "description": "Level of task detail to include in the feedback event.",
+                },
+                "max_payload_size_bytes": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 9000000,
+                    "description": "Max payload size in bytes before 'stim' falls back to 'summary'.",
+                },
+            },
+        },
+        {
+            "name": "data_retention",
+            "required": False,
+            "type": "dict",
+            "description": "Configuration for automatic cleanup of old data.",
+            "dict_schema": {
+                "enabled": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": True,
+                    "description": "Enable/disable automatic data cleanup.",
+                },
+                "task_retention_days": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 90,
+                    "description": "Number of days to retain task and task_event records. Minimum: 1 day.",
+                },
+                "feedback_retention_days": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 90,
+                    "description": "Number of days to retain feedback records. Minimum: 1 day.",
+                },
+                "cleanup_interval_hours": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 24,
+                    "description": "How often to run the cleanup job (in hours). Minimum: 1 hour.",
+                },
+                "batch_size": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 1000,
+                    "description": "Number of records to delete per batch to avoid long-running transactions. Range: 1-10000.",
+                },
+            },
+        },
     ]
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):
@@ -185,8 +316,23 @@ class WebUIBackendApp(BaseGatewayApp):
         )
         super().__init__(app_info, **kwargs)
 
-
         log.debug("%s WebUIBackendApp initialization complete.", self.name)
 
     def _get_gateway_component_class(self) -> type[BaseGatewayComponent]:
         return WebUIBackendComponent
+
+    def get_component(self) -> WebUIBackendComponent | None:
+        """
+        Retrieves the running WebUIBackendComponent instance from the app's flow.
+        """
+        if self.flows and self.flows[0].component_groups:
+            for group in self.flows[0].component_groups:
+                for component_wrapper in group:
+                    component = (
+                        component_wrapper.component
+                        if hasattr(component_wrapper, "component")
+                        else component_wrapper
+                    )
+                    if isinstance(component, WebUIBackendComponent):
+                        return component
+        return None

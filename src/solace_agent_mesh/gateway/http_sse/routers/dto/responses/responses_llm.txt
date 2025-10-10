@@ -1,0 +1,107 @@
+# DEVELOPER GUIDE: responses
+
+## Quick Summary
+The `responses` directory contains Pydantic response DTOs (Data Transfer Objects) for API endpoints. It provides structured response models with automatic timestamp conversion from epoch milliseconds to ISO 8601 strings for JSON serialization.
+
+## Files Overview
+- `__init__.py` - Exports all response DTOs for easy importing
+- `base_responses.py` - Base response class with automatic timestamp serialization
+- `session_responses.py` - Session and message-related response DTOs
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Central import point for all response DTOs
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.responses import MessageResponse, SessionResponse, SessionListResponse`
+
+### base_responses.py
+**Purpose:** Provides base response class with automatic timestamp field conversion
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.responses.base_responses import BaseTimestampResponse`
+
+**Classes:**
+- `BaseTimestampResponse(BaseModel)` - Base class for responses with timestamp fields that auto-converts epoch ms to ISO strings
+  - `model_dump(**kwargs) -> dict[str, Any]` - Converts timestamp fields to ISO strings in output
+  - `model_dump_json(**kwargs) -> str` - Serializes to JSON with timestamp conversion
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses.base_responses import BaseTimestampResponse
+
+class MyResponse(BaseTimestampResponse):
+    name: str
+    created_time: int  # Will be auto-converted to ISO string in JSON output
+    updated_time: int | None = None
+
+# Usage
+response = MyResponse(name="test", created_time=1640995200000)
+json_data = response.model_dump()  # created_time becomes ISO string
+```
+
+### session_responses.py
+**Purpose:** Session and message response DTOs with field aliasing for API consistency
+**Import:** `from solace_agent_mesh.gateway.http_sse.routers.dto.responses import MessageResponse, SessionResponse, SessionListResponse`
+
+**Classes:**
+- `MessageResponse(BaseTimestampResponse)` - Response DTO for chat messages
+  - `id: MessageId` - Unique message identifier
+  - `session_id: SessionId` - Session this message belongs to (aliased as "sessionId")
+  - `message: str` - Message content
+  - `sender_type: SenderType` - Type of sender (aliased as "senderType")
+  - `sender_name: str` - Name of sender (aliased as "senderName")
+  - `message_type: MessageType` - Type of message (aliased as "messageType")
+  - `created_time: int` - Creation timestamp in epoch ms (aliased as "createdTime")
+  - `updated_time: int | None` - Update timestamp in epoch ms (aliased as "updatedTime")
+
+- `SessionResponse(BaseTimestampResponse)` - Response DTO for chat sessions
+  - `id: SessionId` - Unique session identifier
+  - `user_id: UserId` - User who owns the session (aliased as "userId")
+  - `name: str | None` - Optional session name
+  - `agent_id: str | None` - Optional agent identifier (aliased as "agentId")
+  - `created_time: int` - Creation timestamp in epoch ms (aliased as "createdTime")
+  - `updated_time: int | None` - Update timestamp in epoch ms (aliased as "updatedTime")
+
+- `SessionListResponse(BaseModel)` - Response DTO for paginated session lists
+  - `sessions: list[SessionResponse]` - List of session objects
+  - `pagination: PaginationInfo | None` - Pagination metadata
+  - `total_count: int` - Total number of sessions (aliased as "totalCount")
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import (
+    MessageResponse, 
+    SessionResponse, 
+    SessionListResponse
+)
+from solace_agent_mesh.gateway.http_sse.shared.enums import MessageType, SenderType
+
+# Create a message response
+message = MessageResponse(
+    id="msg_123",
+    session_id="sess_456", 
+    message="Hello world",
+    sender_type=SenderType.USER,
+    sender_name="John Doe",
+    message_type=MessageType.TEXT,
+    created_time=1640995200000
+)
+
+# Create a session response
+session = SessionResponse(
+    id="sess_456",
+    user_id="user_789",
+    name="My Chat Session",
+    agent_id="agent_001",
+    created_time=1640995200000
+)
+
+# Create a session list response
+session_list = SessionListResponse(
+    sessions=[session],
+    total_count=1
+)
+
+# Serialize to JSON (timestamps auto-converted to ISO strings)
+json_output = message.model_dump_json()
+```
+
+# content_hash: ed7205266a0eb2b2cb548d0c84fd44758cf1030524ffb144d08e9c82545fc4eb

@@ -11,6 +11,13 @@ from ..shared.types import PaginationInfo, SessionId, UserId
 from .entities import Message, Session
 from .entities.project import Project
 from ..routers.dto.requests.project_requests import ProjectFilter
+from typing import TYPE_CHECKING, Optional
+
+from ..shared.types import PaginationInfo, PaginationParams, SessionId, UserId
+from .entities import Feedback, Session, Task, TaskEvent
+
+if TYPE_CHECKING:
+    from .entities import ChatTask
 
 
 class ISessionRepository(ABC):
@@ -18,7 +25,7 @@ class ISessionRepository(ABC):
     
     @abstractmethod
     def find_by_user(
-        self, user_id: UserId, pagination: PaginationInfo | None = None
+        self, user_id: UserId, pagination: PaginationParams | None = None
     ) -> list[Session]:
         """Find all sessions for a specific user."""
         pass
@@ -45,27 +52,78 @@ class ISessionRepository(ABC):
         """Delete a session belonging to a user."""
         pass
 
-    @abstractmethod
-    def find_user_session_with_messages(
-        self, session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None
-    ) -> tuple[Session, list[Message]] | None:
-        """Find a session with its messages."""
-        pass
 
+class ITaskRepository(ABC):
+    """Interface for task data access operations."""
 
-class IMessageRepository(ABC):
-    """Interface for message data access operations."""
-    
     @abstractmethod
-    def find_by_session(
-        self, session_id: SessionId, pagination: PaginationInfo | None = None
-    ) -> list[Message]:
-        """Find all messages in a session."""
+    def save_task(self, task: Task) -> Task:
+        """Create or update a task."""
         pass
 
     @abstractmethod
-    def save(self, message: Message) -> Message:
-        """Save or update a message."""
+    def save_event(self, event: TaskEvent) -> TaskEvent:
+        """Save a task event."""
+        pass
+
+    @abstractmethod
+    def find_by_id(self, task_id: str) -> Task | None:
+        """Find a task by its ID."""
+        pass
+
+    @abstractmethod
+    def find_by_id_with_events(self, task_id: str) -> tuple[Task, list[TaskEvent]] | None:
+        """Find a task with all its events."""
+        pass
+
+    @abstractmethod
+    def search(
+        self,
+        user_id: UserId,
+        start_date: int | None = None,
+        end_date: int | None = None,
+        search_query: str | None = None,
+        pagination: PaginationParams | None = None,
+    ) -> list[Task]:
+        """Search for tasks with filters."""
+        pass
+
+    @abstractmethod
+    def delete_tasks_older_than(self, cutoff_time_ms: int, batch_size: int) -> int:
+        """Delete tasks older than cutoff time using batch deletion."""
+        pass
+
+
+class IFeedbackRepository(ABC):
+    """Interface for feedback data access operations."""
+
+    @abstractmethod
+    def save(self, feedback: Feedback) -> Feedback:
+        """Save feedback."""
+        pass
+
+    @abstractmethod
+    def delete_feedback_older_than(self, cutoff_time_ms: int, batch_size: int) -> int:
+        """Delete feedback older than cutoff time using batch deletion."""
+        pass
+
+
+class IChatTaskRepository(ABC):
+    """Interface for chat task data access operations."""
+
+    @abstractmethod
+    def save(self, task: "ChatTask") -> "ChatTask":
+        """Save or update a chat task (upsert)."""
+        pass
+
+    @abstractmethod
+    def find_by_session(self, session_id: SessionId, user_id: UserId) -> list["ChatTask"]:
+        """Find all tasks for a session."""
+        pass
+
+    @abstractmethod
+    def find_by_id(self, task_id: str, user_id: UserId) -> Optional["ChatTask"]:
+        """Find a specific task."""
         pass
 
     @abstractmethod

@@ -43,7 +43,7 @@ interface ChatPageProps {
 export function ChatPage({ onExitProject }: ChatPageProps) {
 
     const { activeProject, setActiveProject } = useProjectContext();
-    const { agents, sessionId, sessionName, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete } = useChatContext();
+    const { agents, sessionId, sessionName, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, handleNewSession } = useChatContext();
 
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -96,6 +96,7 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
 
     const handleExitProject = () => {
         setActiveProject(null);
+        handleNewSession();
     };
 
     const handleEditProject = () => {
@@ -137,7 +138,7 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
             setSelectedAgentName(agentName);
 
             const selectedAgent = agents.find(agent => agent.name === agentName);
-            const displayedText = selectedAgent?.displayName ? `Hi! I'm the ${selectedAgent?.displayName} Agent. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
+            const displayedText = selectedAgent?.displayName ? `Hi! I'm the ${selectedAgent?.displayName}. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
 
             setMessages(prev => {
                 const filteredMessages = prev.filter(msg => !msg.isStatusBubble);

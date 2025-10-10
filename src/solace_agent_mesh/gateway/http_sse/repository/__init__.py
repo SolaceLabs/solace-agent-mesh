@@ -3,40 +3,44 @@ Repository layer containing all data access logic organized by entity type.
 """
 
 # Interfaces
-from .interfaces import IMessageRepository, IProjectRepository, ISessionRepository
+from .interfaces import (
+    IChatTaskRepository,
+    IFeedbackRepository,
+    IProjectRepository,
+    ISessionRepository,
+    ITaskRepository,
+)
 
 # Implementations
-from .message_repository import MessageRepository
+from .chat_task_repository import ChatTaskRepository
+from .feedback_repository import FeedbackRepository
 from .project_repository import ProjectRepository
 from .session_repository import SessionRepository
+from .task_repository import TaskRepository
 
 # Entities (re-exported for convenience)
 from .entities.session import Session
-from .entities.message import Message
-from .entities.session_history import SessionHistory
 
 # Models (re-exported for convenience)
 from .models.base import Base
-from .models.message_model import MessageModel
-from .models.project_model import ProjectModel
 from .models.session_model import SessionModel
 
 __all__ = [
     # Interfaces
-    "IMessageRepository",
+    "IChatTaskRepository",
+    "IFeedbackRepository",
     "IProjectRepository",
     "ISessionRepository",
+    "ITaskRepository",
     # Implementations
-    "MessageRepository",
+    "ChatTaskRepository",
+    "FeedbackRepository",
     "ProjectRepository",
     "SessionRepository",
+    "TaskRepository",
     # Entities
-    "Message",
     "Session",
-    "SessionHistory",
     # Models
     "Base",
-    "MessageModel",
-    "ProjectModel",
     "SessionModel",
 ]

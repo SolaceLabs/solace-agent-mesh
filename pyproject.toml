@@ -131,6 +131,7 @@ quote-style = "double"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "--tb=short --strict-markers --disable-warnings -p pytest_asyncio"
+testpaths = ["tests"]
 pythonpath = [".", "src", "tests/sam-test-infrastructure/src"]
 python_files = ["test_*.py", "*_test.py", "tests.py"]
 python_classes = ["Test*"]
@@ -164,6 +165,8 @@ markers = [
     "mcp: marks tests related to mcp",
     "notification: marks tests related to notifications",
     "task_cancellation: marks tests related to task cancellation",
+    "api: marks tests related to the API",
+    "tasks: marks tests related to task management",
 
     # Agent Tools
     # Markers for the built-in agent tools.
