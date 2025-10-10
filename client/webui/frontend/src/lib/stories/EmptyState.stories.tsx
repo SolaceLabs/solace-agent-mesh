@@ -33,6 +33,15 @@ export const ErrorMessage: Story = {
     },
 };
 
+export const NotFoundMessage: Story = {
+    args: {
+        title: "No results",
+        variant: "notFound",
+        subtitle: "We couldn't find what you were looking for",
+        buttons: [{ text: "Go Back", variant: "default", onClick: () => alert("Button will go back") }],
+    },
+};
+
 export const NoImageMessage: Story = {
     args: {
         title: "No Image",
