@@ -4,6 +4,7 @@ import type { buttonVariants } from "@/lib/components/ui/button";
 import type { ReactElement } from "react";
 import { ErrorIllustration, NotFoundIllustration } from "@/lib/assets";
 import { cn } from "@/lib/utils";
+import { Spinner } from "../ui/spinner";
 
 type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
 
@@ -16,7 +17,7 @@ export interface ButtonWithCallback {
 interface EmptyStateProps {
     title: string;
     subtitle?: string;
-    variant?: "error" | "notFound" | "noImage";
+    variant?: "error" | "notFound" | "loading" | "noImage";
     image?: ReactElement;
     buttons?: ButtonWithCallback[];
     className?: string;
@@ -26,6 +27,7 @@ function EmptyState({ title, subtitle, image, variant = "error", buttons, classN
     const illustrations = {
         error: <ErrorIllustration width={150} height={150} />,
         notFound: <NotFoundIllustration width={150} height={150} />,
+        loading: <Spinner size="large" />,
         noImage: null,
     };
 
