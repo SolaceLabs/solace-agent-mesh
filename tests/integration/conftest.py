@@ -276,7 +276,9 @@ def mock_oauth_server():
     
     class MockOAuthServer:
         def __init__(self):
-            self.mock = respx.mock(assert_all_called=False)
+            # Allow unmocked requests to pass through to support real HTTP calls
+            # to TestA2AAgentServer while mocking OAuth token endpoints
+            self.mock = respx.mock(assert_all_called=False, assert_all_mocked=False)
             self.mock.start()
             self._routes = {}
             self._call_log = []
