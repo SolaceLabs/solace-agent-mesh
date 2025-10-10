@@ -1,4 +1,4 @@
-from typing import Any, Generator, TYPE_CHECKING
+from typing import Any, Dict, Generator, List, Optional, TYPE_CHECKING
 import inspect
 import socket
 import pytest
@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 import httpx
+import respx
 import sqlalchemy as sa
 from a2a.types import (
     AgentCard,
@@ -264,6 +265,104 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
         print(
             "\nNo external TestMCPServer process to terminate for stdio mode (ADK manages process)."
         )
+
+
+@pytest.fixture
+def mock_oauth_server():
+    """
+    Provides a mock OAuth 2.0 token endpoint using respx.
+    Returns a helper object for configuring responses.
+    """
+    
+    class MockOAuthServer:
+        def __init__(self):
+            self.mock = respx.mock(assert_all_called=False)
+            self.mock.start()
+            self._routes = {}
+            self._call_log = []
+        
+        def configure_token_endpoint(
+            self,
+            token_url: str,
+            access_token: str = "test_token_12345",
+            expires_in: int = 3600,
+            error: Optional[Dict[str, Any]] = None,
+            status_code: int = 200
+        ):
+            """Configure a token endpoint to return specific responses."""
+            if error:
+                response = httpx.Response(status_code=status_code, json=error)
+            else:
+                response = httpx.Response(
+                    status_code=200,
+                    json={
+                        "access_token": access_token,
+                        "token_type": "Bearer",
+                        "expires_in": expires_in,
+                    }
+                )
+            
+            route = self.mock.post(token_url).mock(return_value=response)
+            self._routes[token_url] = route
+            return route
+        
+        def configure_token_endpoint_sequence(
+            self,
+            token_url: str,
+            responses: List[Dict[str, Any]]
+        ):
+            """Configure a token endpoint to return a sequence of responses."""
+            http_responses = []
+            for resp_config in responses:
+                if "error" in resp_config:
+                    http_responses.append(
+                        httpx.Response(
+                            status_code=resp_config.get("status_code", 400),
+                            json=resp_config["error"]
+                        )
+                    )
+                else:
+                    http_responses.append(
+                        httpx.Response(
+                            status_code=200,
+                            json={
+                                "access_token": resp_config.get("access_token", "test_token"),
+                                "token_type": "Bearer",
+                                "expires_in": resp_config.get("expires_in", 3600),
+                            }
+                        )
+                    )
+            
+            route = self.mock.post(token_url).mock(side_effect=http_responses)
+            self._routes[token_url] = route
+            return route
+        
+        def get_route(self, token_url: str):
+            """Get the respx route for a token URL."""
+            return self._routes.get(token_url)
+        
+        def assert_token_requested(self, token_url: str, times: int = 1):
+            """Assert that a token endpoint was called a specific number of times."""
+            route = self._routes.get(token_url)
+            assert route is not None, f"No route configured for {token_url}"
+            assert route.call_count == times, (
+                f"Expected {times} calls to {token_url}, got {route.call_count}"
+            )
+        
+        def get_last_token_request(self, token_url: str) -> Optional[Any]:
+            """Get the last request made to a token endpoint."""
+            route = self._routes.get(token_url)
+            if route and route.calls:
+                return route.calls.last.request
+            return None
+        
+        def stop(self):
+            """Stop the mock."""
+            self.mock.stop()
+    
+    server = MockOAuthServer()
+    yield server
+    server.stop()
 
 
 @pytest.fixture
