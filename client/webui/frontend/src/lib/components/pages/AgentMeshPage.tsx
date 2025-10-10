@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Button, Header, LayoutSelector, MessageBanner } from "@/lib/components";
+import { Button, EmptyState, Header, LayoutSelector } from "@/lib/components";
 import { AgentMeshCards } from "@/lib/components/agents";
 import { useChatContext } from "@/lib/hooks";
 import { pluginRegistry } from "@/lib/plugins";
@@ -22,13 +22,7 @@ export function AgentMeshPage() {
     }
 
     if (agentsError) {
-        return (
-            <div className="space-y-6">
-                <div className="flex h-96 items-center justify-center">
-                    <MessageBanner variant="error" message={`Error loading agents. ${agentsError}`} />
-                </div>
-            </div>
-        );
+        return <EmptyState variant="error" title="Error loading agents" subtitle={agentsError} />;
     }
 
     const renderLayoutContent = () => {
