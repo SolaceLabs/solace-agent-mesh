@@ -51,7 +51,7 @@ const config: Config = {
       logo: {
         alt: "Solace Agent Mesh Logo",
         src: "img/logo.png",
-        href: "/docs/documentation/getting-started/introduction",
+        href: "/docs/documentation/getting-started",
       },
       items: [
         {
@@ -81,7 +81,7 @@ const config: Config = {
           items: [
             {
               label: "Documentation",
-              to: "/docs/documentation/getting-started/introduction",
+              to: "/docs/documentation/getting-started",
             },
             {
               label: "GitHub",
