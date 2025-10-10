@@ -42,6 +42,14 @@ export const NotFoundMessage: Story = {
     },
 };
 
+export const LoadingMessage: Story = {
+    args: {
+        title: "Loading Data...",
+        variant: "loading",
+        subtitle: "Hang tight",
+    },
+};
+
 export const NoImageMessage: Story = {
     args: {
         title: "No Image",
