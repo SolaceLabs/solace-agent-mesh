@@ -3,6 +3,7 @@ Manages the asynchronous execution of the ADK Runner.
 """
 
 import asyncio
+
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
 from litellm.exceptions import BadRequestError
 
@@ -195,7 +196,7 @@ async def run_adk_async_task_thread_wrapper(
             "%s Bad Request for task %s: %s.",
             component.log_identifier,
             logical_task_id,
-            e.message,
+            e.message
         )
         raise
     except Exception as e:
@@ -342,7 +343,7 @@ async def run_adk_async_task(
             "%s Bad Request for task %s: %s.",
             component.log_identifier,
             logical_task_id,
-            e.message,
+            e.message
         )
         raise
     except Exception as e:

@@ -167,9 +167,9 @@ def initialize_session_service(component) -> BaseSessionService:
     config = component.get_config("session_service", {})
 
     # Handle both dict and SessionServiceConfig object
-    if hasattr(config, "type"):
+    if hasattr(config, 'type'):
         service_type = config.type.lower()
-        db_url = getattr(config, "database_url", None)
+        db_url = getattr(config, 'database_url', None)
     else:
         service_type = config.get("type", "memory").lower()
         db_url = config.get("database_url")
@@ -307,9 +307,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             # Filter out any keys that ended up with a None value.
             s3_config_cleaned = {k: v for k, v in s3_config.items() if v is not None}
 
-            concrete_service = S3ArtifactService(
-                bucket_name=bucket_name, **s3_config_cleaned
-            )
+            concrete_service = S3ArtifactService(bucket_name=bucket_name, **s3_config_cleaned)
         except ImportError as e:
             log.error(
                 "%s S3 dependencies not available: %s",
