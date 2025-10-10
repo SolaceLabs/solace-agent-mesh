@@ -38,6 +38,14 @@ class TestA2AAgentServer:
         self._stateful_cache_lock = threading.Lock()
         self._primed_responses: List[Dict[str, Any]] = []
         self._primed_responses_lock = threading.Lock()
+        
+        # Auth testing state
+        self._auth_validation_enabled = False
+        self._expected_auth_type: Optional[str] = None  # "bearer", "apikey", None
+        self._expected_auth_value: Optional[str] = None
+        self._auth_should_fail_once = False  # For testing retry logic
+        self._auth_failure_count = 0
+        self._captured_auth_headers: List[Dict[str, str]] = []
 
         # 2.3: A2A Application Setup
         # 2.3.2: Instantiate InMemoryTaskStore
@@ -76,6 +84,77 @@ class TestA2AAgentServer:
                     )
             response = await call_next(request)
             return response
+        
+        # 2.3.8: Add auth validation middleware
+        @self.app.middleware("http")
+        async def auth_validation_middleware(request: Request, call_next):
+            # Skip validation for non-A2A endpoints
+            if request.url.path != "/a2a":
+                return await call_next(request)
+            
+            # Capture auth headers for test assertions
+            auth_header = request.headers.get("Authorization", "")
+            apikey_header = request.headers.get("X-API-Key", "")
+            
+            self._captured_auth_headers.append({
+                "authorization": auth_header,
+                "x_api_key": apikey_header,
+                "path": request.url.path,
+                "timestamp": time.time(),
+            })
+            
+            # If auth validation is disabled, just pass through
+            if not self._auth_validation_enabled:
+                return await call_next(request)
+            
+            # Test retry logic: fail once, then succeed
+            if self._auth_should_fail_once and self._auth_failure_count == 0:
+                self._auth_failure_count += 1
+                log.info("[TestA2AAgentServer] Simulating 401 for retry test (first attempt)")
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "unauthorized", "message": "Invalid or expired token"}
+                )
+            
+            # Validate bearer token
+            if self._expected_auth_type == "bearer":
+                if not auth_header.startswith("Bearer "):
+                    log.warning("[TestA2AAgentServer] Missing or malformed Bearer token")
+                    return JSONResponse(
+                        status_code=401,
+                        content={"error": "unauthorized", "message": "Bearer token required"}
+                    )
+                
+                token = auth_header.replace("Bearer ", "")
+                if self._expected_auth_value and token != self._expected_auth_value:
+                    log.warning(
+                        "[TestA2AAgentServer] Invalid token. Expected '%s', got '%s'",
+                        self._expected_auth_value,
+                        token
+                    )
+                    return JSONResponse(
+                        status_code=401,
+                        content={"error": "unauthorized", "message": "Invalid token"}
+                    )
+            
+            # Validate API key
+            elif self._expected_auth_type == "apikey":
+                if not apikey_header:
+                    log.warning("[TestA2AAgentServer] Missing API key")
+                    return JSONResponse(
+                        status_code=401,
+                        content={"error": "unauthorized", "message": "API key required"}
+                    )
+                
+                if self._expected_auth_value and apikey_header != self._expected_auth_value:
+                    log.warning("[TestA2AAgentServer] Invalid API key")
+                    return JSONResponse(
+                        status_code=401,
+                        content={"error": "unauthorized", "message": "Invalid API key"}
+                    )
+            
+            # Auth validation passed
+            return await call_next(request)
 
     @property
     def url(self) -> str:
@@ -160,6 +239,7 @@ class TestA2AAgentServer:
         self._server_thread = None
         self._uvicorn_server = None
         self.clear_primed_responses()
+        self.clear_auth_state()
         log.info("[TestA2AAgentServer] Stopped.")
 
     def clear_captured_requests(self):
@@ -198,8 +278,56 @@ class TestA2AAgentServer:
         with self._primed_responses_lock:
             self._primed_responses.clear()
             log.debug("[TestA2AAgentServer] Cleared primed responses.")
+    
+    def configure_auth_validation(
+        self,
+        enabled: bool = True,
+        auth_type: Optional[str] = None,
+        expected_value: Optional[str] = None,
+        should_fail_once: bool = False
+    ):
+        """
+        Configures authentication validation for testing.
+        
+        Args:
+            enabled: Whether to validate auth headers
+            auth_type: "bearer" or "apikey"
+            expected_value: The expected token/key value
+            should_fail_once: If True, first request returns 401, subsequent succeed
+        """
+        self._auth_validation_enabled = enabled
+        self._expected_auth_type = auth_type
+        self._expected_auth_value = expected_value
+        self._auth_should_fail_once = should_fail_once
+        self._auth_failure_count = 0
+        log.info(
+            "[TestA2AAgentServer] Auth validation configured: "
+            "enabled=%s, type=%s, fail_once=%s",
+            enabled,
+            auth_type,
+            should_fail_once
+        )
+    
+    def get_captured_auth_headers(self) -> List[Dict[str, str]]:
+        """Returns all captured authentication headers for test assertions."""
+        return self._captured_auth_headers.copy()
+    
+    def clear_auth_state(self):
+        """Clears all auth-related test state."""
+        self._auth_validation_enabled = False
+        self._expected_auth_type = None
+        self._expected_auth_value = None
+        self._auth_should_fail_once = False
+        self._auth_failure_count = 0
+        self._captured_auth_headers.clear()
+        log.debug("[TestA2AAgentServer] Auth state cleared")
 
     def clear_stateful_cache(self):
         """Clears the stateful response cache."""
         with self._stateful_cache_lock:
             self._stateful_responses_cache.clear()
+    
+    def clear_captured_auth_headers(self):
+        """Clears the captured authentication headers list."""
+        self._captured_auth_headers.clear()
+        log.debug("[TestA2AAgentServer] Cleared captured auth headers.")
