@@ -94,7 +94,7 @@ graph TB
 
 ### Solace Event Broker
 
-The Solace Event Broker serves as the central messaging fabric that enables all communication within the agent mesh. It routes A2A protocol messages between components using a hierarchical topic structure, supporting patterns like request/reply, streaming updates, and publish/subscribe for agent discovery. Components connect to the broker through the Solace AI Connector framework. For more information about how components connect to the broker, see [Solace AI Connector](../components/solace-ai-connector.md).
+The Solace Event Broker serves as the central messaging fabric that enables all communication within the agent mesh. It routes A2A protocol messages between components using a hierarchical topic structure, supporting patterns like request/reply, streaming updates, and publish/subscribe for agent discovery. For more information about the event broker, see (solace.com)[https://solace.com/products/event-broker/]
 
 ### Gateways
 
