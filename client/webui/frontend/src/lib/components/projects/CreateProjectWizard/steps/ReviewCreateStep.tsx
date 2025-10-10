@@ -1,7 +1,7 @@
 import React from "react";
 import { Edit, FileText, MessageSquare, User } from "lucide-react";
 
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/components/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle } from "@/lib/components/ui";
 import type { ProjectFormData } from "@/lib/types/projects";
 
 interface ReviewCreateStepProps {

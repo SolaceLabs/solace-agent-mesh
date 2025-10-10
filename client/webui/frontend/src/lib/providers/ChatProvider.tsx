@@ -960,7 +960,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         // Refresh artifacts (should be empty for new session)
         console.log(`${log_prefix} Refreshing artifacts for new session...`);
-        await artifactsRefetch();
+        // Note: artifactsRefetch will be triggered automatically by useArtifacts hook
+        // when sessionId state update takes effect
 
         // Success notification
         addNotification("New session started successfully.");

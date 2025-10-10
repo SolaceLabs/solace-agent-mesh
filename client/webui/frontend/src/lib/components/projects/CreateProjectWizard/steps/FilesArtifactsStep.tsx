@@ -19,8 +19,6 @@ export const FilesArtifactsStep: React.FC<FilesArtifactsStepProps> = ({
     onDataChange,
     onNext,
     onPrevious,
-    onCancel,
-    isValid,
     isSubmitting,
 }) => {
     const [isDragOver, setIsDragOver] = useState(false);
