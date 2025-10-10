@@ -31,7 +31,7 @@ export function AgentMeshPage() {
             <Header
                 title="Agents"
                 buttons={[
-                    <Button variant="ghost" title="Refresh Agents" onClick={() => agentsRefetch()}>
+                    <Button disabled={agentsLoading} variant="ghost" title="Refresh Agents" onClick={() => agentsRefetch()}>
                         <RefreshCcw className="size-4" />
                         Refresh Agents
                     </Button>,
