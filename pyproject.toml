@@ -176,6 +176,7 @@ markers = [
     # Markers for the built-in agent tools.
     "tools: marks tests related to the agent tools",
     "audio_tools: marks tests related to the audio_tools",
+    "peer_tool: marks tests for calling peer agents",
     "builtin_artifact_tools: marks tests related to the builtin_artifact_tools",
     "builtin_data_analysis_tools: marks tests related to the builtin_data_analysis_tools",
     "general_agent_tools: marks tests related to the general_agent_tools",
@@ -183,6 +184,8 @@ markers = [
     "peer_agent_tool: marks tests related to the peer_agent_tool",
     "web_tools: marks tests related to the web_tools",
     "dynamic_tools: marks tests related to the dynamic_tools",
+    "auth: marks tests associated with authentication and authorization",
+    "oauth: OAuth specific tests",
 ]
 
 [tool.hatch.metadata]
