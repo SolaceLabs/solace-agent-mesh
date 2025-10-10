@@ -43,6 +43,7 @@ from ....gateway.http_sse.dependencies import (
     get_user_id,
     get_user_config,
     get_session_business_service,
+    get_api_config,
 )
 from ....gateway.http_sse.services.session_service import SessionService
 
@@ -61,6 +62,7 @@ async def _submit_task(
     component: "WebUIBackendComponent",
     is_streaming: bool,
     session_service: SessionService | None = None,
+    api_config: dict = None,
 ):
     """Helper to submit a task, handling both streaming and non-streaming cases."""
     log_prefix = f"[POST /api/v1/message:{'stream' if is_streaming else 'send'}] "
@@ -77,8 +79,43 @@ async def _submit_task(
 
     log.info("%sReceived request for agent: %s", log_prefix, agent_name)
 
+    # Check for development mode user override via X-Dev-User-Id header
+    dev_user_id = None
+    if api_config:
+        frontend_use_authorization = api_config.get("frontend_use_authorization", True)
+        log.debug(
+            "%sDevelopment mode check: frontend_use_authorization=%s",
+            log_prefix,
+            frontend_use_authorization,
+        )
+
+        if not frontend_use_authorization:
+            # Development mode - check for X-Dev-User-Id header
+            dev_user_id = request.headers.get("X-Dev-User-Id")
+            if dev_user_id:
+                log.info(
+                    "%sDevelopment mode: Using override user_id from header: %s",
+                    log_prefix,
+                    dev_user_id,
+                )
+
     try:
         user_identity = await component.authenticate_and_enrich_user(request)
+
+        # Override user_identity if dev header was provided in development mode
+        if dev_user_id:
+            user_identity = {
+                "id": dev_user_id,
+                "name": dev_user_id,
+                "email": f"{dev_user_id}@dev.local",
+                "authenticated": True,
+                "auth_method": "dev_override",
+            }
+            log.info(
+                "%sOverrode user_identity with dev header: %s",
+                log_prefix,
+                dev_user_id,
+            )
         if user_identity is None:
             log.warning("%sUser authentication failed. Denying request.", log_prefix)
             raise HTTPException(
@@ -348,6 +385,7 @@ async def send_task_to_agent(
     payload: SendMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    api_config: dict = Depends(get_api_config),
 ):
     """
     Submits a non-streaming task request to the specified agent.
@@ -360,6 +398,7 @@ async def send_task_to_agent(
         component=component,
         is_streaming=False,
         session_service=None,
+        api_config=api_config,
     )
 
 
@@ -370,6 +409,7 @@ async def subscribe_task_from_agent(
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     session_service: SessionService = Depends(get_session_business_service),
+    api_config: dict = Depends(get_api_config),
 ):
     """
     Submits a streaming task request to the specified agent.
@@ -383,6 +423,7 @@ async def subscribe_task_from_agent(
         component=component,
         is_streaming=True,
         session_service=session_service,
+        api_config=api_config,
     )
 
 

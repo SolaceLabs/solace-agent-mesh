@@ -1,3 +1,5 @@
+import { getDevUserId } from "./devMode";
+
 export const getAccessToken = () => {
     return localStorage.getItem("access_token");
 };
@@ -44,17 +46,35 @@ const refreshToken = async () => {
 
 export const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     const accessToken = getAccessToken();
+    const devUserId = getDevUserId();
+
+    // Build headers with optional dev user ID
+    const buildHeaders = (token?: string) => {
+        const headers: Record<string, string> = {
+            ...options.headers as Record<string, string>,
+        };
+        
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
+        }
+        
+        if (devUserId) {
+            headers["X-Dev-User-Id"] = devUserId;
+        }
+        
+        return headers;
+    };
 
     if (!accessToken) {
-        return fetch(url, options);
+        return fetch(url, {
+            ...options,
+            headers: buildHeaders(),
+        });
     }
 
     const response = await fetch(url, {
         ...options,
-        headers: {
-            ...options.headers,
-            Authorization: `Bearer ${accessToken}`,
-        },
+        headers: buildHeaders(accessToken),
     });
 
     if (response.status === 401) {
@@ -62,10 +82,7 @@ export const authenticatedFetch = async (url: string, options: RequestInit = {})
         if (newAccessToken) {
             return fetch(url, {
                 ...options,
-                headers: {
-                    ...options.headers,
-                    Authorization: `Bearer ${newAccessToken}`,
-                },
+                headers: buildHeaders(newAccessToken),
             });
         }
     }

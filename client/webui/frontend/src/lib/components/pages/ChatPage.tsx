@@ -4,6 +4,7 @@ import { PanelLeftIcon, Edit } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
+import { DevUserIdControl } from "@/lib/components/header/DevUserIdControl";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
 import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
@@ -225,6 +226,7 @@ export function ChatPage() {
                             </div>
                         ) : null
                     }
+                    buttons={[<DevUserIdControl key="dev-user-id" />]}
                 />
             </div>
             <div className="flex min-h-0 flex-1">
