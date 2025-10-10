@@ -34,15 +34,8 @@
                     "description": "Model identifier used for this call."
                 }
             },
-            "required": [
-                "input_tokens",
-                "output_tokens",
-                "model"
-            ]
+            "required": ["input_tokens", "output_tokens", "model"]
         }
     },
-    "required": [
-        "type",
-        "request"
-    ]
+    "required": ["type", "request"]
 }

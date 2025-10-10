@@ -2,7 +2,6 @@
 Helpers for A2A protocol-level concerns, such as topic construction and
 parsing of JSON-RPC requests and responses.
 """
-
 import re
 import uuid
 from typing import Any, Dict, Optional, Union
@@ -109,7 +108,9 @@ def get_peer_agent_status_topic(
     """
     if not delegating_agent_name:
         raise ValueError("delegating_agent_name is required for peer status topic")
-    return f"{get_a2a_base_topic(namespace)}/agent/status/{delegating_agent_name}/{sub_task_id}"
+    return (
+        f"{get_a2a_base_topic(namespace)}/agent/status/{delegating_agent_name}/{sub_task_id}"
+    )
 
 
 def get_agent_response_topic(
