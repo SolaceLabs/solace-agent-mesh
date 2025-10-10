@@ -78,3 +78,7 @@ export const MultiActionMessage: Story = {
         ],
     },
 };
+
+export const TitleOnlyMessage: Story = {
+    args: { title: "Something went wrong" },
+};
