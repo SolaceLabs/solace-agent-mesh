@@ -31,11 +31,13 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
     def find_by_user(
         self, user_id: UserId, pagination: PaginationParams | None = None, project_id: str | None = None
     ) -> list[Session]:
-        """Find all sessions for a specific user, optionally filtered by project."""
+        """Find all sessions for a specific user, filtered by project."""
         query = self.db.query(SessionModel).filter(SessionModel.user_id == user_id)
         
-        if project_id is not None:
-            query = query.filter(SessionModel.project_id == project_id)
+        # Always filter by project_id to ensure proper segregation:
+        # - When project_id is None, only return sessions with no project_id (general chat)
+        # - When project_id is specified, only return sessions with that specific project_id
+        query = query.filter(SessionModel.project_id == project_id)
             
         query = query.order_by(SessionModel.updated_time.desc())
 
@@ -47,11 +49,11 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         return [Session.model_validate(model) for model in models]
 
     def count_by_user(self, user_id: UserId, project_id: str | None = None) -> int:
-        """Count total sessions for a specific user, optionally filtered by project."""
+        """Count total sessions for a specific user, filtered by project."""
         query = self.db.query(SessionModel).filter(SessionModel.user_id == user_id)
         
-        if project_id is not None:
-            query = query.filter(SessionModel.project_id == project_id)
+        # Always filter by project_id to ensure proper segregation
+        query = query.filter(SessionModel.project_id == project_id)
             
         return query.count()
 

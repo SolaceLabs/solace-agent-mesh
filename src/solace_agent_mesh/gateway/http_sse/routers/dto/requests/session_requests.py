@@ -2,6 +2,7 @@
 Session-related request DTOs.
 """
 
+from typing import Optional
 from pydantic import BaseModel, Field
 
 from ....shared.types import SessionId, UserId

@@ -3,18 +3,14 @@ Repository interfaces defining contracts for data access.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 import uuid
 from datetime import datetime
 
-from ..shared.types import PaginationInfo, SessionId, UserId
-from .entities import Message, Session
+from ..shared.types import PaginationParams, SessionId, UserId
+from .entities import Feedback, Session, Task, TaskEvent
 from .entities.project import Project
 from ..routers.dto.requests.project_requests import ProjectFilter
-from typing import TYPE_CHECKING, Optional
-
-from ..shared.types import PaginationInfo, PaginationParams, SessionId, UserId
-from .entities import Feedback, Session, Task, TaskEvent
 
 if TYPE_CHECKING:
     from .entities import ChatTask
@@ -25,14 +21,14 @@ class ISessionRepository(ABC):
     
     @abstractmethod
     def find_by_user(
-        self, user_id: UserId, pagination: PaginationParams | None = None
+        self, user_id: UserId, pagination: PaginationParams | None = None, project_id: str | None = None
     ) -> list[Session]:
-        """Find all sessions for a specific user."""
+        """Find all sessions for a specific user, optionally filtered by project."""
         pass
 
     @abstractmethod
-    def count_by_user(self, user_id: UserId) -> int:
-        """Count total sessions for a specific user."""
+    def count_by_user(self, user_id: UserId, project_id: str | None = None) -> int:
+        """Count total sessions for a specific user, optionally filtered by project."""
         pass
 
     @abstractmethod

@@ -12,7 +12,7 @@ from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision: str = 'safe_projects_001'
-down_revision: Union[str, Sequence[str], None] = 'f6e7d8c9b0a1'
+down_revision: Union[str, Sequence[str], None] = '98882922fa59'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -75,31 +75,29 @@ def upgrade() -> None:
 def _handle_indexes_safely(inspector):
     """Safely handle index operations."""
     try:
-        # Get existing indexes
-        sessions_indexes = [idx['name'] for idx in inspector.get_indexes('sessions')]
-        chat_messages_indexes = [idx['name'] for idx in inspector.get_indexes('chat_messages')]
+        # Get existing indexes for sessions table only (chat_messages was dropped by tasks migration)
+        existing_tables = inspector.get_table_names()
         
-        # Drop indexes that might conflict (only if they exist)
-        indexes_to_drop = [
-            ('ix_chat_messages_created_time', 'chat_messages'),
-            ('ix_chat_messages_session_id', 'chat_messages'),
-            ('ix_chat_messages_session_id_created_time', 'chat_messages'),
-            ('ix_sessions_agent_id', 'sessions'),
-            ('ix_sessions_updated_time', 'sessions'),
-            ('ix_sessions_user_id', 'sessions'),
-            ('ix_sessions_user_id_updated_time', 'sessions')
-        ]
+        if 'sessions' in existing_tables:
+            sessions_indexes = [idx['name'] for idx in inspector.get_indexes('sessions')]
+            
+            # Only handle sessions indexes since chat_messages table was already dropped
+            sessions_indexes_to_check = [
+                'ix_sessions_agent_id',
+                'ix_sessions_updated_time',
+                'ix_sessions_user_id',
+                'ix_sessions_user_id_updated_time'
+            ]
+            
+            for index_name in sessions_indexes_to_check:
+                if index_name in sessions_indexes:
+                    try:
+                        op.drop_index(index_name, table_name='sessions')
+                        print(f"Dropped index {index_name}")
+                    except Exception as e:
+                        print(f"Warning: Could not drop index {index_name}: {e}")
         
-        for index_name, table_name in indexes_to_drop:
-            relevant_indexes = sessions_indexes if table_name == 'sessions' else chat_messages_indexes
-            if index_name in relevant_indexes:
-                try:
-                    op.drop_index(index_name, table_name=table_name)
-                    print(f"Dropped index {index_name}")
-                except Exception as e:
-                    print(f"Warning: Could not drop index {index_name}: {e}")
-        
-        # Recreate essential indexes
+        # Recreate essential sessions indexes
         _create_indexes_safe()
         
     except Exception as e:
@@ -108,14 +106,12 @@ def _handle_indexes_safely(inspector):
 
 def _create_indexes_safe():
     """Create indexes safely, ignoring errors if they already exist."""
+    # Only create sessions indexes since chat_messages table was dropped by tasks migration
     indexes_to_create = [
         ('ix_sessions_user_id', 'sessions', ['user_id']),
         ('ix_sessions_agent_id', 'sessions', ['agent_id']),
         ('ix_sessions_updated_time', 'sessions', ['updated_time']),
-        ('ix_sessions_user_id_updated_time', 'sessions', ['user_id', 'updated_time']),
-        ('ix_chat_messages_session_id', 'chat_messages', ['session_id']),
-        ('ix_chat_messages_created_time', 'chat_messages', ['created_time']),
-        ('ix_chat_messages_session_id_created_time', 'chat_messages', ['session_id', 'created_time'])
+        ('ix_sessions_user_id_updated_time', 'sessions', ['user_id', 'updated_time'])
     ]
     
     for index_name, table_name, columns in indexes_to_create:
@@ -156,14 +152,12 @@ def downgrade() -> None:
 def _recreate_original_indexes():
     """Recreate the original indexes from before the projects migration."""
     try:
+        # Only recreate sessions indexes since chat_messages table doesn't exist after tasks migration
         original_indexes = [
             ('ix_sessions_user_id_updated_time', 'sessions', ['user_id', 'updated_time']),
             ('ix_sessions_user_id', 'sessions', ['user_id']),
             ('ix_sessions_updated_time', 'sessions', ['updated_time']),
-            ('ix_sessions_agent_id', 'sessions', ['agent_id']),
-            ('ix_chat_messages_session_id_created_time', 'chat_messages', ['session_id', 'created_time']),
-            ('ix_chat_messages_session_id', 'chat_messages', ['session_id']),
-            ('ix_chat_messages_created_time', 'chat_messages', ['created_time'])
+            ('ix_sessions_agent_id', 'sessions', ['agent_id'])
         ]
         
         for index_name, table_name, columns in original_indexes:

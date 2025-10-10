@@ -362,39 +362,3 @@ class SessionService:
                 agent_id,
                 e,
             )
-
-                "Publishing session deletion event for session %s (agent %s, user %s)",
-                session_id,
-                agent_id,
-                user_id,
-            )
-
-            if hasattr(self.component, "sam_events"):
-                success = self.component.sam_events.publish_session_deleted(
-                    session_id=session_id,
-                    user_id=user_id,
-                    agent_id=agent_id,
-                    gateway_id=self.component.gateway_id,
-                )
-
-                if success:
-                    log.info(
-                        "Successfully published session deletion event for session %s",
-                        session_id,
-                    )
-                else:
-                    log.warning(
-                        "Failed to publish session deletion event for session %s",
-                        session_id,
-                    )
-            else:
-                log.warning(
-                    "SAM Events not available for session deletion notification"
-                )
-
-        except Exception as e:
-            log.warning(
-                "Failed to publish session deletion event to agent %s: %s",
-                agent_id,
-                e,
-            )

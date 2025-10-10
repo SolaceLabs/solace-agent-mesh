@@ -1,0 +1,17 @@
+/drop
+/add       client/webui/frontend/src/App.tsx
+/add       client/webui/frontend/src/lib/components/chat/ChatSessionDialog.tsx
+/add       client/webui/frontend/src/lib/components/chat/SessionList.tsx
+/add       client/webui/frontend/src/lib/components/projects/CreateProjectDialog.tsx
+/add       client/webui/frontend/src/lib/components/projects/CreateProjectWizard/CreateProjectWizard.tsx
+/add       client/webui/frontend/src/lib/components/projects/CreateProjectWizard/StepIndicator.tsx
+/add       client/webui/frontend/src/lib/components/projects/CreateProjectWizard/hooks/useCreateProjectWizard.ts
+/add       client/webui/frontend/src/lib/components/projects/CreateProjectWizard/index.ts
+/add       client/webui/frontend/src/lib/components/projects/CreateProjectWizard/steps/FilesArtifactsStep.tsx
+/add       client/webui/frontend/src/lib/components/projects/CreateProjectWizard/steps/ProjectDetailsStep.tsx
+/add       client/webui/frontend/src/lib/components/projects/CreateProjectWizard/steps/ReviewCreateStep.tsx
+/add       client/webui/frontend/src/lib/components/projects/ProjectDetailView.tsx
+/add       client/webui/frontend/src/lib/components/projects/ProjectsPage.tsx
+/add       client/webui/frontend/src/lib/components/projects/index.ts
+/add       client/webui/frontend/src/lib/contexts/ChatContext.ts
+/add       client/webui/frontend/src/lib/providers/ChatProvider.tsx
