@@ -1676,6 +1676,24 @@ async def test_declarative_scenario(
         mock_oauth_server=mock_oauth_server,
     )
 
+    # Configure proxy authentication if specified
+    if "proxy_auth_config" in declarative_scenario:
+        proxy_auth_config = declarative_scenario["proxy_auth_config"]
+        agent_name = proxy_auth_config.get("agent_name", "TestAgent_Proxied")
+        auth_config = proxy_auth_config.get("authentication")
+        
+        if auth_config:
+            # Find the agent config in the proxy's configuration
+            for agent_cfg in a2a_proxy_component.proxied_agents_config:
+                if agent_cfg.get("name") == agent_name:
+                    agent_cfg["authentication"] = auth_config
+                    print(f"Scenario {scenario_id}: Configured proxy auth for {agent_name}: {auth_config.get('type')}")
+                    break
+            else:
+                pytest.fail(
+                    f"Scenario {scenario_id}: Agent '{agent_name}' not found in proxy configuration"
+                )
+
     # Apply config overrides after environment setup
     if "test_runner_config_overrides" in declarative_scenario:
         if agent_config_overrides:
