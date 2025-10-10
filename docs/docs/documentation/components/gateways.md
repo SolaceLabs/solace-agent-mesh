@@ -38,7 +38,7 @@ sequenceDiagram
     participant Gateway
     participant Mesh as Agent Mesh
 
-    rect rgba(128, 128, 128, 0.2)
+    rect rgba(234, 234, 234, 1)
         Note over External,Gateway: Authentication Phase [Optional]
         External->>Gateway: Send Request
         Gateway->> Gateway: Authenticate Request
@@ -47,11 +47,11 @@ sequenceDiagram
         end
     end
 
-    rect rgba(128, 128, 128, 0.2)
+    rect rgba(234, 234, 234, 1)
         Note over Gateway: Authorization Phase [Optional]
     end
 
-    rect rgba(128, 128, 128, 0.2)
+    rect rgba(234, 234, 234, 1)
         Note over Gateway,Mesh: Processing Phase
         Gateway->>Gateway: Apply System Purpose
         Gateway->>Gateway: Attach Format Rules
