@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 
-import { Button } from "@/lib/components/ui";
 import type { AgentCardInfo } from "@/lib/types";
 
 import { AgentDisplayCard } from "./AgentDisplayCard";
+import { EmptyState } from "../common";
 
 interface AgentMeshCardsProps {
     agents: AgentCardInfo[];
@@ -20,21 +20,15 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
     const filteredAgents = agents.filter(agent => (agent.displayName || agent.name)?.toLowerCase().includes(searchQuery.toLowerCase()));
 
     return (
-        <div>
+        <>
             {agents.length === 0 ? (
-                <div className="flex h-[calc(100vh-250px)] items-center justify-center">No agents discovered in the current namespace.</div>
+                <EmptyState variant="noImage" title="No agents found" subtitle="No agents discovered in the current namespace." />
             ) : (
-                <div className="mx-auto mt-[50px] ml-[50px]">
-                    <div className="my-4">
-                        <input type="text" data-testid="agent-search-input" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-background rounded-md border px-3 py-2" />
-                    </div>
+                <div className="h-full w-full p-12">
+                    <input type="text" data-testid="agent-search-input" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-background mb-4 rounded-md border px-3 py-2" />
+
                     {filteredAgents.length === 0 && searchQuery ? (
-                        <div className="flex h-[calc(100vh-250px)] flex-col items-center justify-center gap-6">
-                            No agents match your search.
-                            <Button variant="outline" title="Clear Search" onClick={() => setSearchQuery("")}>
-                                Clear Search
-                            </Button>
-                        </div>
+                        <EmptyState title="No agents match your search" variant="noImage" buttons={[{ text: "Clear Search", variant: "outline", onClick: () => setSearchQuery("") }]} />
                     ) : (
                         <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
                             <div className="flex flex-wrap gap-10">
@@ -46,6 +40,6 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
                     )}
                 </div>
             )}
-        </div>
+        </>
     );
 };
