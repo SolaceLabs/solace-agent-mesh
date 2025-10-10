@@ -31,11 +31,8 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
   - `a2a_spec/`: Complete JSON Schema specification for the A2A protocol.
   - `client/`: Provides a high-level client for discovering and communicating with remote A2A agents.
   - `middleware/`: A pluggable framework for configuration resolution and system extensibility.
-<<<<<<< HEAD
-=======
   - `sac/`: Base component framework for Solace Agent Mesh implementations in the Solace AI Connector.
   - `sam_events/`: System-level event messaging for session lifecycle, agent health, and configuration changes.
->>>>>>> main
   - `server/`: A complete A2A server implementation with JSON-RPC support and task management.
   - `services/`: Provides shared services like identity management using a factory pattern.
   - `utils/`: Contains common utility functions and an embedded expression processing system.
@@ -82,11 +79,8 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
 
 **Classes/Functions/Constants:**
 - `DEFAULT_COMMUNICATION_TIMEOUT: int`: Default timeout for communication operations (600 seconds / 10 minutes).
-<<<<<<< HEAD
-=======
 - `TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY: int`: Maximum number of characters that can be loaded from a text artifact (200,000).
 - `TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH: int`: Default number of characters to load from a text artifact (100,000).
->>>>>>> main
 
 #### data_parts.py
 **Purpose:** Defines Pydantic models for structured data payloads used in A2A DataPart objects, corresponding to JSON schemas for agent communication signals.
@@ -101,10 +95,7 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
 - **`LlmInvocationData`**: Data model for LLM invocation signals.
   - `type: Literal["llm_invocation"]`: The constant type identifier.
   - `request: Dict[str, Any]`: A sanitized representation of the LlmRequest object.
-<<<<<<< HEAD
-=======
   - `usage: Optional[Dict[str, Any]]`: Token usage information for this LLM call.
->>>>>>> main
 - **`AgentProgressUpdateData`**: Data model for agent progress update signals.
   - `type: Literal["agent_progress_update"]`: The constant type identifier.
   - `status_text: str`: A human-readable progress message.
@@ -118,10 +109,7 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
   - `tool_name: str`: The name of the tool that was called.
   - `result_data: Any`: The data returned by the tool.
   - `function_call_id: str`: The ID from the LLM's function call.
-<<<<<<< HEAD
-=======
   - `llm_usage: Optional[Dict[str, Any]]`: Token usage if this tool made LLM calls.
->>>>>>> main
 
 #### exceptions.py
 **Purpose:** Defines custom exceptions specific to the Solace Agent Mesh system.
@@ -193,8 +181,6 @@ from solace_agent_mesh.common.client import A2AClient, A2ACardResolver
 **Import Examples:**
 ```python
 from solace_agent_mesh.common.middleware import ConfigResolver, MiddlewareRegistry
-<<<<<<< HEAD
-=======
 ```
 
 #### sac/
@@ -211,7 +197,6 @@ from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 **Import Examples:**
 ```python
 from solace_agent_mesh.common.sam_events import SamEventService, SamEvent, SessionDeletedEvent
->>>>>>> main
 ```
 
 #### server/
@@ -261,49 +246,6 @@ from solace_agent_mesh.common.types import (
     TaskState,
     AgentCard
 )
-<<<<<<< HEAD
-from solace_agent_mesh.common.agent_registry import AgentRegistry
-
-# Create a message
-message = Message(
-    role="user",
-    parts=[TextPart(text="Hello, can you help me analyze this document?")]
-)
-
-# Translate to ADK format for processing
-adk_content = translate_a2a_to_adk_content(message, "[Example]")
-print(f"ADK Content: {adk_content}")
-
-# Generate topic names for communication
-namespace = "my-company/ai-agents"
-agent_name = "document-analyzer"
-gateway_id = "gateway-001"
-task_id = str(uuid.uuid4())
-
-request_topic = get_agent_request_topic(namespace, agent_name)
-status_topic = get_gateway_status_topic(namespace, gateway_id, task_id)
-
-print(f"Request Topic: {request_topic}")
-print(f"Status Topic: {status_topic}")
-
-# Use agent registry to track discovered agents
-registry = AgentRegistry()
-agent_card = AgentCard(
-    name="document-analyzer",
-    display_name="Document Analyzer",
-    description="Analyzes and extracts information from documents",
-    url="https://agents.company.com/document-analyzer",
-    version="1.0.0",
-    capabilities={"streaming": True, "pushNotifications": False},
-    skills=[],
-    peer_agents={}
-)
-
-registry.add_or_update_agent(agent_
-
-# content_hash: 1e02a8692a4f781b66ebf5b56ec8adedbbcfec3a02cc8f1cd02a22b95e057b14
-=======
 from solace_
 
 # content_hash: 4cbf98260b5f5bef314fae44cf680520f4581948d2bfd8b08e7c6455bbcac1bc
->>>>>>> main

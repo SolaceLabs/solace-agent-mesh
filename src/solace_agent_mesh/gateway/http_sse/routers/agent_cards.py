@@ -9,11 +9,7 @@ from solace_ai_connector.common.log import log
 
 from ....common.agent_registry import AgentRegistry
 from a2a.types import AgentCard
-<<<<<<< HEAD:src/solace_agent_mesh/gateway/http_sse/routers/agents.py
-from ....gateway.http_sse.dependencies import get_agent_registry
-=======
 from ..dependencies import get_agent_registry
->>>>>>> main:src/solace_agent_mesh/gateway/http_sse/routers/agent_cards.py
 
 router = APIRouter()
 

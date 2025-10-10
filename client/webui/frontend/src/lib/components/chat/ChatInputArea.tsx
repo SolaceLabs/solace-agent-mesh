@@ -5,19 +5,11 @@ import { Ban, Paperclip, Send } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { useChatContext, useDragAndDrop, useDebounce } from "@/lib/hooks";
-<<<<<<< HEAD
-import type { AgentInfo } from "@/lib/types";
-
-import { FileBadge } from "./file/FileBadge";
-
-export const ChatInputArea: React.FC<{ agents: AgentInfo[], scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
-=======
 import type { AgentCardInfo } from "@/lib/types";
 
 import { FileBadge } from "./file/FileBadge";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
->>>>>>> main
     const { isResponding, isCancelling, userInput, selectedAgentName, setSelectedAgentName, setUserInput, handleSubmit, handleCancel } = useChatContext();
 
     // File selection support

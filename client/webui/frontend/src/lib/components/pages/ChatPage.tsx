@@ -36,9 +36,6 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-<<<<<<< HEAD
-    const { agents, sessionId, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText } = useChatContext();
-=======
     const {
         agents,
         sessionId,
@@ -57,7 +54,6 @@ export function ChatPage() {
         confirmSessionDelete,
         sessionName,
     } = useChatContext();
->>>>>>> main
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);

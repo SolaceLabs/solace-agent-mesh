@@ -1,13 +1,6 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from solace_ai_connector.common.log import log
-<<<<<<< HEAD
-from ....gateway.http_sse.session_manager import SessionManager
-from ....gateway.http_sse.dependencies import get_session_manager
-from a2a.types import JSONRPCSuccessResponse
-from ....common import a2a
-=======
 from sqlalchemy.orm import Session
->>>>>>> main
 
 from ..dependencies import get_session_business_service, get_db
 from ..services.session_service import SessionService
@@ -26,12 +19,6 @@ router = APIRouter()
 
 SESSION_NOT_FOUND_MSG = "Session not found."
 
-<<<<<<< HEAD
-@router.post("/new", response_model=JSONRPCSuccessResponse)
-async def create_new_session(
-    request: FastAPIRequest,
-    session_manager: SessionManager = Depends(get_session_manager),
-=======
 
 @router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
 async def get_all_sessions(
@@ -40,7 +27,6 @@ async def get_all_sessions(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
->>>>>>> main
 ):
     user_id = user.get("id")
 
@@ -60,44 +46,22 @@ async def get_all_sessions(
             )
             session_responses.append(session_response)
 
-<<<<<<< HEAD
-        return a2a.create_generic_success_response(
-            result={
-                "sessionId": new_session_id,
-                "message": "New A2A session created successfully",
-            }
-        )
-
-    except Exception as e:
-        log.exception("%sError creating new session: %s", log_prefix, e)
-        error_resp = a2a.create_internal_error(
-            message=f"Failed to create new session: {e}"
-        )
-=======
         return PaginatedResponse(data=session_responses, meta=paginated_response.meta)
 
     except Exception as e:
         log.error("Error fetching sessions for user %s: %s", user_id, e)
->>>>>>> main
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve sessions",
         ) from e
 
 
-<<<<<<< HEAD
-@router.get("/current", response_model=JSONRPCSuccessResponse)
-async def get_current_session(
-    request: FastAPIRequest,
-    session_manager: SessionManager = Depends(get_session_manager),
-=======
 @router.get("/sessions/{session_id}", response_model=DataResponse[SessionResponse])
 async def get_session(
     session_id: str,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
->>>>>>> main
 ):
     user_id = user.get("id")
 
@@ -111,19 +75,10 @@ async def get_session(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
-<<<<<<< HEAD
-        return a2a.create_generic_success_response(
-            result={
-                "clientId": client_id,
-                "sessionId": session_id,
-                "hasActiveSession": session_id is not None,
-            }
-=======
         request_dto = GetSessionRequest(session_id=session_id, user_id=user_id)
 
         session_domain = session_service.get_session_details(
             db=db, session_id=request_dto.session_id, user_id=request_dto.user_id
->>>>>>> main
         )
 
         if not session_domain:
@@ -147,17 +102,11 @@ async def get_session(
     except HTTPException:
         raise
     except Exception as e:
-<<<<<<< HEAD
-        log.exception("%sError getting current session info: %s", log_prefix, e)
-        error_resp = a2a.create_internal_error(
-            message=f"Failed to get session info: {e}"
-=======
         log.error(
             "Error fetching session %s for user %s: %s",
             session_id,
             user_id,
             e,
->>>>>>> main
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

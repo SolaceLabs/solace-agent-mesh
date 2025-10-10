@@ -404,8 +404,4 @@ validator.validate_definition(error_response, 'JSONRPCErrorResponse')
 
 This comprehensive guide shows how to use both the main A2A specification and the specialized signal schemas together to build compliant agent-to-agent communication systems in the Solace Agent Mesh, including progress tracking, tool invocation monitoring, LLM call tracking, and artifact creation progress.
 
-<<<<<<< HEAD
-# content_hash: f9b143dcd949464f8cf51960be146ae5a87bdd25fd2af5cd93c400925212bb24
-=======
 # content_hash: 70d5dd9030447ae14b684049b5e111c72606e637df99d917420a25ac1f718bae
->>>>>>> main

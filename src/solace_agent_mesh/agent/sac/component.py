@@ -12,10 +12,6 @@ import fnmatch
 import base64
 from datetime import datetime, timezone
 import json
-<<<<<<< HEAD
-import json
-=======
->>>>>>> main
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,
 )
@@ -277,8 +273,13 @@ class SamAgentComponent(SamComponentBase):
                     f"Failed to initialize synchronous ADK services: {service_err}"
                 ) from service_err
 
-            from .app import AgentInitCleanupConfig # delayed import to avoid circular dependency
-            if init_func_details and isinstance(init_func_details, AgentInitCleanupConfig):
+            from .app import (
+                AgentInitCleanupConfig,
+            )  # delayed import to avoid circular dependency
+
+            if init_func_details and isinstance(
+                init_func_details, AgentInitCleanupConfig
+            ):
                 module_name = init_func_details.get("module")
                 func_name = init_func_details.get("name")
                 base_path = init_func_details.get("base_path")
@@ -392,22 +393,6 @@ class SamAgentComponent(SamComponentBase):
                             f"Agent custom initialization failed: {e}"
                         ) from e
 
-<<<<<<< HEAD
-                log.info(
-                    "%s Synchronous ADK services initialized.", self.log_identifier
-                )
-            except Exception as service_err:
-                log.exception(
-                    "%s Failed to initialize synchronous ADK services: %s",
-                    self.log_identifier,
-                    service_err,
-                )
-                raise RuntimeError(
-                    f"Failed to initialize synchronous ADK services: {service_err}"
-                ) from service_err
-
-=======
->>>>>>> main
             # Async init is now handled by the base class `run` method.
             # We still need a future to signal completion from the async thread.
             self._async_init_future = concurrent.futures.Future()
@@ -1157,7 +1142,11 @@ class SamAgentComponent(SamComponentBase):
         """
         if hasattr(tool, "origin") and tool.origin is not None:
             return tool.origin
-        elif hasattr(tool, "func") and hasattr(tool.func, "origin") and tool.func.origin is not None:
+        elif (
+            hasattr(tool, "func")
+            and hasattr(tool.func, "origin")
+            and tool.func.origin is not None
+        ):
             return tool.func.origin
         else:
             return getattr(tool, "origin", "unknown")
@@ -2095,7 +2084,7 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     len(task_context.produced_artifacts),
                 )
-            
+
             # Add token usage summary
             if task_context:
                 token_summary = task_context.get_token_usage_summary()
@@ -3011,8 +3000,11 @@ class SamAgentComponent(SamComponentBase):
 
         cleanup_func_details = self.get_config("agent_cleanup_function")
 
-        from .app import AgentInitCleanupConfig # Avoid circular import
-        if cleanup_func_details and isinstance(cleanup_func_details, AgentInitCleanupConfig):
+        from .app import AgentInitCleanupConfig  # Avoid circular import
+
+        if cleanup_func_details and isinstance(
+            cleanup_func_details, AgentInitCleanupConfig
+        ):
             module_name = cleanup_func_details.get("module")
             func_name = cleanup_func_details.get("name")
             base_path = cleanup_func_details.get("base_path")

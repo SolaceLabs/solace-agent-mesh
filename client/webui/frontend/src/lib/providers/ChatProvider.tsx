@@ -26,9 +26,6 @@ const MIGRATIONS: Record<number, (task: TaskDataAnyVersion) => TaskDataAnyVersio
 
 import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-<<<<<<< HEAD
-import type { ArtifactInfo, CancelTaskRequest, FileAttachment, FilePart, JSONRPCErrorResponse, Message, MessageFE, Notification, Part, SendStreamingMessageRequest, SendStreamingMessageSuccessResponse, Task, TaskArtifactUpdateEvent, TaskStatusUpdateEvent, TextPart } from "@/lib/types";
-=======
 import type {
     ArtifactInfo,
     CancelTaskRequest,
@@ -48,7 +45,6 @@ import type {
     TextPart,
 } from "@/lib/types";
 import type { MessageBubble, TaskMetadata, StoredTaskData } from "@/lib/types/storage";
->>>>>>> main
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -126,15 +122,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
-<<<<<<< HEAD
-    const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
-    const isCancellingRef = useRef(isCancelling);
-    useEffect(() => {
-        isCancellingRef.current = isCancelling;
-    }, [isCancelling]);
-=======
     const [isCancelling, setIsCancelling] = useState<boolean>(false);
->>>>>>> main
     const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
 
     // Refs
@@ -153,16 +141,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { agents, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
 
     // Chat Side Panel State
-<<<<<<< HEAD
-    const {
-        artifacts,
-        isLoading: artifactsLoading,
-        refetch: artifactsRefetch,
-        error: artifactsError,
-    } = useArtifacts();
-=======
     const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch } = useArtifacts(sessionId);
->>>>>>> main
 
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
@@ -210,13 +189,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         });
     }, []);
 
-<<<<<<< HEAD
-    // Chat Side Panel Functions
-    const uploadArtifactFile = useCallback(
-        async (file: File): Promise<string | null> => {
-            const formData = new FormData();
-            formData.append("upload_file", file, file.name);
-=======
     // Helper function to serialize a MessageFE to MessageBubble format for backend
     const serializeMessageBubble = useCallback((message: MessageFE): MessageBubble => {
         const textParts = message.parts?.filter(p => p.kind === "text") as TextPart[] | undefined;
@@ -255,7 +227,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Mark as saving
             savingTasksRef.current.add(taskData.task_id);
 
->>>>>>> main
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/chat-tasks`, {
                     method: "POST",
@@ -421,16 +392,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
-<<<<<<< HEAD
-                addNotification(`Artifact "${file.name}" uploaded successfully.`);
-                await artifactsRefetch();
-                return result.uri || null;
-=======
                 const artifactData = result.data || result;
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
                 await artifactsRefetch();
                 return { uri: artifactData.uri, sessionId: artifactData.sessionId };
->>>>>>> main
             } catch (error) {
                 addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
                 return null;
@@ -627,10 +592,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             let rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
 
             try {
-<<<<<<< HEAD
-                console.log("TEST-SSE ChatProvider Raw Message:", event.data);
-=======
->>>>>>> main
                 rpcResponse = JSON.parse(event.data) as SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
             } catch (error: unknown) {
                 console.error("Failed to parse SSE message:", error);
@@ -652,11 +613,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isError: true,
                         isComplete: true,
                         metadata: {
-<<<<<<< HEAD
-                            messageId: `msg-${crypto.randomUUID()}`,
-=======
                             messageId: `msg-${v4()}`,
->>>>>>> main
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -767,17 +724,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const otherContentParts = newContentParts.filter(p => p.kind !== "text");
 
                 // Check if we can append to the last message
-<<<<<<< HEAD
-                if (
-                    lastMessage &&
-                    !lastMessage.isUser &&
-                    !lastMessage.isComplete &&
-                    lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId &&
-                    (textPartFromStream || newFileAttachments.length > 0)
-                ) {
-=======
                 if (lastMessage && !lastMessage.isUser && !lastMessage.isComplete && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && (textPartFromStream || newFileAttachments.length > 0)) {
->>>>>>> main
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
                         parts: [...lastMessage.parts],
@@ -819,11 +766,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isUser: false,
                             isComplete: isFinalEvent || newFileAttachments.length > 0,
                             metadata: {
-<<<<<<< HEAD
-                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
-=======
                                 messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
->>>>>>> main
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
                                 lastProcessedEventSequence: currentEventSequence,
                             },
@@ -845,11 +788,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isStatusBubble: true,
                         isComplete: false,
                         metadata: {
-<<<<<<< HEAD
-                            messageId: `status-${crypto.randomUUID()}`,
-=======
                             messageId: `status-${v4()}`,
->>>>>>> main
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -877,8 +816,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
                     setIsCancelling(false);
                 }
-<<<<<<< HEAD
-=======
 
                 // Save complete task when agent response is done (Step 10.5-10.9)
                 if (currentTaskIdFromResult && sessionId) {
@@ -920,7 +857,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     });
                 }
 
->>>>>>> main
                 setIsResponding(false);
                 closeCurrentEventSource();
                 setCurrentTaskId(null);
@@ -931,11 +867,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
-<<<<<<< HEAD
-        [addNotification, closeCurrentEventSource, artifactsRefetch]
-=======
         [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble]
->>>>>>> main
     );
 
     const handleNewSession = useCallback(async () => {
@@ -1063,23 +995,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     setSessionName(sessionData.name);
                 }
 
-<<<<<<< HEAD
-            // 5. Reset UI state with new session ID
-            const welcomeMessages: MessageFE[] = configWelcomeMessage
-                ? [
-                    {
-                        parts: [{ kind: "text", text: configWelcomeMessage }],
-                        isUser: false,
-                        isComplete: true,
-                        role: "agent",
-                        metadata: {
-                            sessionId: backendSessionId,
-                            lastProcessedEventSequence: 0,
-                        },
-                    },
-                ]
-                : [];
-=======
                 // Update session state
                 setSessionId(newSessionId);
                 setUserInput("");
@@ -1097,7 +1012,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks]
     );
->>>>>>> main
 
     const updateSessionName = useCallback(
         async (sessionId: string, newName: string, showNotification: boolean = true) => {
@@ -1129,22 +1043,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix, persistenceEnabled, addNotification]
     );
 
-<<<<<<< HEAD
-            const fallbackMessages: MessageFE[] = configWelcomeMessage
-                ? [
-                    {
-                        parts: [{ kind: "text", text: configWelcomeMessage }],
-                        isUser: false,
-                        isComplete: true,
-                        role: "agent",
-                        metadata: {
-                            sessionId: fallbackSessionId,
-                            lastProcessedEventSequence: 0,
-                        },
-                    },
-                ]
-                : [];
-=======
     const deleteSession = useCallback(
         async (sessionIdToDelete: string) => {
             try {
@@ -1169,7 +1067,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [apiPrefix, addNotification, handleNewSession, sessionId]
     );
->>>>>>> main
 
     const openSessionDeleteModal = useCallback((session: Session) => {
         setSessionToDelete(session);
@@ -1202,11 +1099,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         try {
             const cancelRequest: CancelTaskRequest = {
                 jsonrpc: "2.0",
-<<<<<<< HEAD
-                id: `req-${crypto.randomUUID()}`,
-=======
                 id: `req-${v4()}`,
->>>>>>> main
                 method: "tasks/cancel",
                 params: {
                     id: currentTaskId,
@@ -1241,8 +1134,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsCancelling(false);
         }
     }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, closeCurrentEventSource]);
-<<<<<<< HEAD
-=======
 
     const handleFeedbackSubmit = useCallback(
         async (taskId: string, feedbackType: "up" | "down", feedbackText: string) => {
@@ -1270,7 +1161,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [sessionId, addNotification]
     );
->>>>>>> main
 
     const handleSseOpen = useCallback(() => {
         /* console.log for SSE open */
@@ -1309,59 +1199,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setCurrentTaskId(null);
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
-<<<<<<< HEAD
-
-            const userMsg: MessageFE = {
-                role: "user",
-                parts: [{ kind: "text", text: currentInput }],
-                isUser: true,
-                uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
-                metadata: {
-                    messageId: `msg-${crypto.randomUUID()}`,
-                    sessionId: sessionId,
-                    lastProcessedEventSequence: 0,
-                },
-            };
-            latestStatusText.current = "Thinking";
-            setMessages(prev => [...prev, userMsg]);
-            setUserInput("");
-            try {
-                // 1. Process files using hybrid approach
-                const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
-                    if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
-                        // Small file: send inline as base64
-                        const base64Content = await fileToBase64(file);
-                        return {
-                            kind: "file",
-                            file: {
-                                bytes: base64Content,
-                                name: file.name,
-                                mimeType: file.type,
-                            },
-                        };
-                    } else {
-                        // Large file: upload and get URI
-                        const uri = await uploadArtifactFile(file);
-                        if (uri) {
-                            return {
-                                kind: "file",
-                                file: {
-                                    uri: uri,
-                                    name: file.name,
-                                    mimeType: file.type,
-                                },
-                            };
-                        } else {
-                            addNotification(`Failed to upload large file: ${file.name}`, "error");
-                            return null;
-                        }
-                    }
-                });
-
-                const uploadedFileParts = (await Promise.all(filePartsPromises)).filter(
-                    (p): p is FilePart => p !== null
-                );
-=======
 
             const isNewSession = !sessionId;
             let effectiveSessionId = sessionId || undefined;
@@ -1433,7 +1270,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     setSessionId(effectiveSessionId);
                     console.log(`Session created via artifact upload: ${effectiveSessionId}`);
                 }
->>>>>>> main
 
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
@@ -1450,42 +1286,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
-<<<<<<< HEAD
-                    messageId: `msg-${crypto.randomUUID()}`,
-                    kind: "message",
-                    contextId: sessionId,
-                    metadata: {
-                        agent_name: selectedAgentName, // For gateway routing
-                    },
-=======
                     messageId: `msg-${v4()}`,
                     kind: "message",
                     contextId: effectiveSessionId,
                     metadata: { agent_name: selectedAgentName },
->>>>>>> main
                 };
 
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
-<<<<<<< HEAD
-                    id: `req-${crypto.randomUUID()}`,
-                    method: "message/stream",
-                    params: {
-                        message: a2aMessage,
-                    },
-                };
-
-                // 5. Send the request
-                console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
-=======
                     id: `req-${v4()}`,
                     method: "message/stream",
                     params: { message: a2aMessage },
                 };
 
                 // 5. Send the request
->>>>>>> main
                 const response = await authenticatedFetch(`${apiPrefix}/message:stream`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -1494,22 +1309,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));
-<<<<<<< HEAD
-                    console.error("ChatProvider handleSubmit: Error from /message:stream", response.status, errorData);
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
-                }
-                const result = await response.json();
-
-                const task = result?.result as Task | undefined;
-                const taskId = task?.id;
-=======
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;
                 const responseSessionId = (task as Task & { contextId?: string })?.contextId;
->>>>>>> main
 
                 if (!taskId) {
                     throw new Error("Backend did not return a valid taskId.");
@@ -1558,8 +1363,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 setCurrentTaskId(taskId);
                 setTaskIdInSidePanel(taskId);
-<<<<<<< HEAD
-=======
 
                 // Update user message with taskId so it's included in final save
                 setMessages(prev => prev.map(msg =>
@@ -1567,7 +1370,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         ? { ...msg, taskId: taskId }
                         : msg
                 ));
->>>>>>> main
             } catch (error) {
                 addNotification(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
                 setIsResponding(false);
@@ -1577,11 +1379,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-<<<<<<< HEAD
-        [userInput, isResponding, isCancelling, sessionId, selectedAgentName, apiPrefix, addNotification, closeCurrentEventSource, uploadArtifactFile]
-=======
         [sessionId, userInput, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble]
->>>>>>> main
     );
 
     useEffect(() => {

@@ -48,11 +48,6 @@ The core architecture revolves around factory functions (`create_identity_servic
 **Key Exports:** `LocalFileIdentityService`
 **Import Examples:**
 ```python
-<<<<<<< HEAD
-# Typically, you would use the factory function.
-# But for direct instantiation (e.g., in tests), you can do this:
-=======
->>>>>>> main
 from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService
 ```
 
@@ -310,11 +305,6 @@ async def main():
 asyncio.run(main())
 ```
 
-<<<<<<< HEAD
-This comprehensive guide shows how the services framework provides a clean, extensible way to integrate various data sources while maintaining consistent interfaces and supporting both built-in providers and external plugins.
-
-# content_hash: 63457e2c72256810f713e62325c1601a675951fe47c1121a647c404690179206
-=======
 ### 5. Using the Built-in LocalFileIdentityService
 The `providers/` subdirectory includes a ready-to-use file-based identity service that's perfect for development and testing.
 
@@ -371,4 +361,3 @@ asyncio.run(setup_file_based_identity())
 This comprehensive guide shows how the services framework provides a clean, extensible way to integrate various data sources while maintaining consistent interfaces and supporting both built-in providers and external plugins through the factory pattern and plugin system.
 
 # content_hash: 879562926a7d3b7c6782ae395159d6c1f8a55663ce052a93eea8966e69b04444
->>>>>>> main

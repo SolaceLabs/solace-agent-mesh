@@ -4,15 +4,10 @@
 This directory contains SAC (Solace AI Connector) components for the HTTP SSE (Server-Sent Events) gateway. These components forward messages from Solace broker inputs to internal Python queues, enabling real-time visualization and task logging in web-based user interfaces.
 
 ## Files Overview
-<<<<<<< HEAD
-- `__init__.py` - Makes the `VisualizationForwarderComponent` class directly importable from the `components` package
-- `visualization_forwarder_component.py` - Defines a SAC component that forwards messages from a broker input to a Python `queue.Queue` for visualization
-=======
 - `__init__.py` - Makes the `VisualizationForwarderComponent` class directly importable from the components package
 - `components_llm.txt` - Developer guide documentation for this directory
 - `task_logger_forwarder.py` - SAC component that forwards messages to a task logging queue
 - `visualization_forwarder_component.py` - SAC component that forwards messages to a visualization queue
->>>>>>> main
 
 ## Developer API Reference
 
@@ -23,21 +18,12 @@ This directory contains SAC (Solace AI Connector) components for the HTTP SSE (S
 **Exports:**
 - `VisualizationForwarderComponent` - The main component class for forwarding messages to a visualization queue
 
-<<<<<<< HEAD
-### visualization_forwarder_component.py
-**Purpose:** A Solace AI Connector (SAC) component that listens for messages from a `BrokerInput` and forwards them to a specified Python `queue.Queue` for real-time visualization
-**Import:** `from solace_agent_mesh.gateway.http_sse.components.visualization_forwarder_component import VisualizationForwarderComponent`
-
-**Classes:**
-- `VisualizationForwarderComponent(**kwargs: Any)` - A component that forwards messages to a target queue, initialized with configuration parameters including `target_queue_ref`
-=======
 ### task_logger_forwarder.py
 **Purpose:** A SAC component that forwards messages from a BrokerInput to a target queue for task logging
 **Import:** `from solace_agent_mesh.gateway.http_sse.components.task_logger_forwarder import TaskLoggerForwarderComponent`
 
 **Classes:**
 - `TaskLoggerForwarderComponent(**kwargs: Any)` - A component that forwards messages to a task logging queue, initialized with configuration parameters including `target_queue_ref`
->>>>>>> main
   - `invoke(message: SolaceMessage, data: Dict[str, Any]) -> None` - Core method called by SAC framework for each incoming message; formats data and places it onto the target queue
   - `target_queue: queue.Queue` - The queue instance where messages are forwarded
 
@@ -47,11 +33,6 @@ This directory contains SAC (Solace AI Connector) components for the HTTP SSE (S
 **Usage Examples:**
 ```python
 import queue
-<<<<<<< HEAD
-from solace_agent_mesh.gateway.http_sse.components import VisualizationForwarderComponent
-from solace_ai_connector.common.message import Message as SolaceMessage
-
-=======
 from solace_agent_mesh.gateway.http_sse.components.task_logger_forwarder import TaskLoggerForwarderComponent
 from solace_ai_connector.common.message import Message as SolaceMessage
 
@@ -93,7 +74,6 @@ import queue
 from solace_agent_mesh.gateway.http_sse.components import VisualizationForwarderComponent
 from solace_ai_connector.common.message import Message as SolaceMessage
 
->>>>>>> main
 # 1. Create a target queue that will receive the forwarded messages
 visualization_queue = queue.Queue()
 
@@ -122,8 +102,4 @@ if not visualization_queue.empty():
 # }
 ```
 
-<<<<<<< HEAD
-# content_hash: cee7f7b4ea7e87ab3f94f7e24d463f22fa045e50d54991c61b84fe95e8a7f77d
-=======
 # content_hash: 6add2167cb9fdee9ed3e46635d6b4e9391cf062dde9e14dba250a3f33c6c4f73
->>>>>>> main

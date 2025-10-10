@@ -10,10 +10,7 @@ Once initialized, the `AppLlmAgent` (a custom agent class) is managed by the `ru
 ## Files and Subdirectories Overview
 - **Direct files:**
   - `__init__.py`: Standard Python package initializer
-<<<<<<< HEAD
-=======
   - `adk_llm.txt`: Documentation file containing developer guide content
->>>>>>> main
   - `app_llm_agent.py`: Defines a custom `LlmAgent` subclass that holds a reference to its host component
   - `callbacks.py`: Provides a rich set of ADK callback functions for dynamic instructions, metadata injection, and Solace integration
   - `embed_resolving_mcp_toolset.py`: Custom MCPToolset that resolves embeds in tool parameters before calling MCP tools
@@ -182,11 +179,7 @@ artifact_service = initialize_artifact_service(component)
 memory_service = initialize_memory_service(component)
 
 # Load tools
-<<<<<<< HEAD
-loaded_tools, builtin_tools = await load_adk_tools(component)
-=======
 loaded_tools, builtin_tools, cleanup_hooks = await load_adk_tools(component)
->>>>>>> main
 
 # Initialize agent
 agent = initialize_adk_agent(component, loaded_tools, builtin_tools)
@@ -235,12 +228,5 @@ artifact_service = FilesystemArtifactService(base_path="/tmp/artifacts")
 artifact_service = S3ArtifactService(bucket_name="my-artifacts-bucket")
 
 # Save an artifact
-<<<<<<< HEAD
-content = "Hello, world!"
-artifact = adk_types.Part.from_text(content
-
-# content_hash: bdaeea265906dddb9e33e2ae4476cd77b2db58d735ff6afbc222b7815736f601
-=======
 
 # content_hash: def8e8563d73ee6354aa959a4073a5474c225a2159f7c8fd37cf396040adeb5d
->>>>>>> main

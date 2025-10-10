@@ -1,15 +1,6 @@
 # DEVELOPER GUIDE: services
 
 ## Quick Summary
-<<<<<<< HEAD
-The `services` directory contains the business logic layer for the HTTP SSE Gateway. It provides high-level services for agent management (discovering and retrieving A2A agents), user identity operations (searching for users), and task management (cancelling A2A tasks). These services abstract the complexities of interacting with agent registries, identity providers, and A2A messaging protocols.
-
-## Files Overview
-- `__init__.py` - Package initialization file marking the directory as a Python package
-- `agent_service.py` - Service for retrieving information about discovered A2A agents from the registry
-- `people_service.py` - Service for searching users via configured identity services
-- `task_service.py` - Service for handling A2A task cancellation operations
-=======
 The `services` directory contains the business logic layer for the HTTP SSE Gateway. It provides high-level services for agent management (discovering and retrieving A2A agents), user feedback processing with database persistence and event publishing, user search via identity services, session management with database persistence, task logging to database, data retention/cleanup, and A2A task operations like cancellation.
 
 ## Files Overview
@@ -21,7 +12,6 @@ The `services` directory contains the business logic layer for the HTTP SSE Gate
 - `session_service.py` - Service for managing chat sessions and messages with database persistence
 - `task_logger_service.py` - Service for logging A2A tasks and events to the database
 - `task_service.py` - Service for handling A2A task operations like cancellation
->>>>>>> main
 
 ## Developer API Reference
 
@@ -29,20 +19,6 @@ The `services` directory contains the business logic layer for the HTTP SSE Gate
 **Purpose:** Marks the services directory as a Python package
 **Import:** N/A - No public interfaces
 
-<<<<<<< HEAD
-### agent_service.py
-**Purpose:** Provides methods for accessing information about discovered A2A agents from the shared AgentRegistry
-**Import:** `from solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService`
-
-**Classes:**
-- `AgentService(agent_registry: AgentRegistry)` - Service for accessing discovered A2A agent information
-  - `get_all_agents() -> List[AgentCard]` - Retrieves all currently discovered and registered agent cards
-  - `get_agent_by_name(agent_name: str) -> Optional[AgentCard]` - Retrieves a specific agent card by name, returns None if not found
-
-**Usage Examples:**
-```python
-from solace_agent_mesh.gateway.http_sse.services.agent_service import AgentService
-=======
 ### agent_card_service.py
 **Purpose:** Provides methods for accessing information about discovered A2A agents from the shared AgentRegistry
 **Import:** `from solace_agent_mesh.gateway.http_sse.services.agent_card_service import AgentCardService`
@@ -55,21 +31,10 @@ from solace_agent_mesh.gateway.http_sse.services.agent_service import AgentServi
 **Usage Examples:**
 ```python
 from solace_agent_mesh.gateway.http_sse.services.agent_card_service import AgentCardService
->>>>>>> main
 from solace_agent_mesh.common.agent_registry import AgentRegistry
 
 # Initialize with shared agent registry
 agent_registry = AgentRegistry()  # Usually injected as shared instance
-<<<<<<< HEAD
-agent_service = AgentService(agent_registry=agent_registry)
-
-# Get all available agents
-all_agents = agent_service.get_all_agents()
-print(f"Found {len(all_agents)} agents")
-
-# Get specific agent by name
-agent = agent_service.get_agent_by_name("data-processor")
-=======
 agent_service = AgentCardService(agent_registry=agent_registry)
 
 # Get all available agents
@@ -78,22 +43,12 @@ print(f"Found {len(all_agents)} agents")
 
 # Get specific agent by name
 agent = agent_service.get_agent_card_by_name("data-processor")
->>>>>>> main
 if agent:
     print(f"Found agent: {agent.name}")
 else:
     print("Agent not found")
 ```
 
-<<<<<<< HEAD
-### people_service.py
-**Purpose:** Provides user search functionality via configured identity services
-**Import:** `from solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService`
-
-**Classes:**
-- `PeopleService(identity_service: Optional[BaseIdentityService])` - Service for searching and retrieving user information
-  - `search_for_users(query: str, limit: int = 10) -> List[Dict[str, Any]]` - Asynchronously searches for users, returns empty list if no identity service configured or query too short
-=======
 ### data_retention_service.py
 **Purpose:** Service for automatically cleaning up old tasks, task events, and feedback based on configurable retention policies
 **Import:** `from solace_agent_mesh.gateway.http_sse.services.data_retention_service import DataRetentionService`
@@ -139,33 +94,10 @@ retention_service.cleanup_old_data()
 **Classes:**
 - `FeedbackService(session_factory: Callable[[], DBSession] | None, component: WebUIBackendComponent, task_repo: ITaskRepository)` - Service for processing user feedback with database persistence and event publishing
   - `process_feedback(payload: FeedbackPayload, user_id: str) -> None` - Asynchronously processes and stores feedback, publishes events if configured
->>>>>>> main
 
 **Usage Examples:**
 ```python
 import asyncio
-<<<<<<< HEAD
-from solace_agent_mesh.gateway.http_sse.services.people_service import PeopleService
-from solace_agent_mesh.common.services.identity_service import BaseIdentityService
-
-# Initialize with identity service
-identity_service = SomeIdentityService()  # Your identity service implementation
-people_service = PeopleService(identity_service=identity_service)
-
-async def search_users():
-    # Search for users
-    users = await people_service.search_for_users("john", limit=5)
-    for user in users:
-        print(f"User: {user.get('name')} - {user.get('email')}")
-
-# Initialize without identity service (graceful degradation)
-people_service_no_id = PeopleService(identity_service=None)
-# search_for_users will return empty list
-
-asyncio.run(search_users())
-```
-
-=======
 from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService
 from sqlalchemy.orm import sessionmaker
 
@@ -308,7 +240,6 @@ event_data = {
 task_logger.log_event(event_data)
 ```
 
->>>>>>> main
 ### task_service.py
 **Purpose:** Handles A2A task operations, specifically task cancellation using CoreA2AService and message publishing
 **Import:** `from solace_agent_mesh.gateway.http_sse.services.task_service import TaskService, PublishFunc`
@@ -363,8 +294,4 @@ async def cancel_task_example():
 asyncio.run(cancel_task_example())
 ```
 
-<<<<<<< HEAD
-# content_hash: 83ddf6b403dc50598ed550e4b3a5445f832b3956dad75f7a3fbbb7e6e5c6c115
-=======
 # content_hash: 12385f5117d2f5c30f0e44a0913ea91d62722aa82eb55268ae6bd317311ec5eb
->>>>>>> main

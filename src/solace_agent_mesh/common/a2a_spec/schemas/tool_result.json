@@ -19,8 +19,6 @@
         "function_call_id": {
             "type": "string",
             "description": "The ID from the LLM's function call that this result corresponds to."
-<<<<<<< HEAD
-=======
         },
         "llm_usage": {
             "type": "object",
@@ -43,9 +41,17 @@
                     "description": "Model identifier(s) used by the tool."
                 }
             },
-            "required": ["input_tokens", "output_tokens", "model"]
->>>>>>> main
+            "required": [
+                "input_tokens",
+                "output_tokens",
+                "model"
+            ]
         }
     },
-    "required": ["type", "tool_name", "result_data", "function_call_id"]
+    "required": [
+        "type",
+        "tool_name",
+        "result_data",
+        "function_call_id"
+    ]
 }

@@ -31,9 +31,6 @@ from .services.feedback_service import FeedbackService
 from .services.task_logger_service import TaskLoggerService
 from . import dependencies
 
-<<<<<<< HEAD
-from ...common.a2a.types import ContentPart
-=======
 try:
     from google.adk.artifacts import BaseArtifactService
 except ImportError:
@@ -42,7 +39,6 @@ except ImportError:
         pass
 
 
->>>>>>> main
 from a2a.types import (
     A2ARequest,
     AgentCard,
@@ -52,14 +48,9 @@ from a2a.types import (
     TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
 )
-<<<<<<< HEAD
-from ...common import a2a
-from ...agent.utils.artifact_helpers import save_artifact_with_metadata
-=======
 
 from ...common import a2a
 from ...common.a2a.types import ContentPart
->>>>>>> main
 from ...common.middleware.config_resolver import ConfigResolver
 from ...common.utils.embeds import (
     EARLY_EMBED_TYPES,
@@ -166,7 +157,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         else:
             # Memory storage or no explicit configuration - no persistence service needed
             self.database_url = None
-            
+
             # Validate that features requiring database persistence are not enabled
             task_logging_config = self.get_config("task_logging", {})
             if task_logging_config.get("enabled", False):
@@ -175,13 +166,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     "Either set session_service.type='sql' with a valid database_url, "
                     "or disable task_logging.enabled."
                 )
-            
+
             feedback_config = self.get_config("feedback_publishing", {})
             if feedback_config.get("enabled", False):
                 log.warning(
                     "%s Feedback publishing is enabled but database persistence is not configured. "
                     "Feedback will only be published to the broker, not stored locally.",
-                    self.log_identifier
+                    self.log_identifier,
                 )
 
         component_config = self.get_config("component_config", {})
@@ -226,27 +217,33 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._data_retention_timer_id = None
         data_retention_config = self.get_config("data_retention", {})
         if data_retention_config.get("enabled", True):
-            log.info("%s Data retention is enabled. Initializing service and timer...", self.log_identifier)
-            
+            log.info(
+                "%s Data retention is enabled. Initializing service and timer...",
+                self.log_identifier,
+            )
+
             # Import and initialize the DataRetentionService
             from .services.data_retention_service import DataRetentionService
-            
+
             session_factory = None
             if self.database_url:
                 # SessionLocal will be initialized later in setup_dependencies
                 # We'll pass a lambda that returns SessionLocal when called
-                session_factory = lambda: dependencies.SessionLocal() if dependencies.SessionLocal else None
-            
+                session_factory = lambda: (
+                    dependencies.SessionLocal() if dependencies.SessionLocal else None
+                )
+
             self.data_retention_service = DataRetentionService(
-                session_factory=session_factory,
-                config=data_retention_config
+                session_factory=session_factory, config=data_retention_config
             )
-            
+
             # Create and start the cleanup timer
-            cleanup_interval_hours = data_retention_config.get("cleanup_interval_hours", 24)
+            cleanup_interval_hours = data_retention_config.get(
+                "cleanup_interval_hours", 24
+            )
             cleanup_interval_ms = cleanup_interval_hours * 60 * 60 * 1000
             self._data_retention_timer_id = f"data_retention_cleanup_{self.gateway_id}"
-            
+
             self.add_timer(
                 delay_ms=cleanup_interval_ms,
                 timer_id=self._data_retention_timer_id,
@@ -259,21 +256,25 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 cleanup_interval_hours,
             )
         else:
-            log.info("%s Data retention is disabled via configuration.", self.log_identifier)
+            log.info(
+                "%s Data retention is disabled via configuration.", self.log_identifier
+            )
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
             timer_id = event.data.get("timer_id")
-            
+
             if timer_id == self._sse_cleanup_timer_id:
                 log.debug("%s SSE buffer cleanup timer triggered.", self.log_identifier)
                 self.sse_event_buffer.cleanup_stale_buffers()
                 return
-            
+
             if timer_id == self._data_retention_timer_id:
-                log.debug("%s Data retention cleanup timer triggered.", self.log_identifier)
+                log.debug(
+                    "%s Data retention cleanup timer triggered.", self.log_identifier
+                )
                 if self.data_retention_service:
                     try:
                         self.data_retention_service.cleanup_old_data()
@@ -367,7 +368,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
             forwarder_cfg = {
                 "component_class": VisualizationForwarderComponent,
                 "component_name": f"{self.gateway_id}_viz_forwarder",
-                "component_config": {"target_queue_ref": self._visualization_message_queue},
+                "component_config": {
+                    "target_queue_ref": self._visualization_message_queue
+                },
             }
 
             flow_config = {
@@ -1145,7 +1148,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         log_id_prefix,
                         username,
                     )
-                    return {"id": username, "name": username, "email": username, "user_info": user_info}
+                    return {
+                        "id": username,
+                        "name": username,
+                        "email": username,
+                        "user_info": user_info,
+                    }
 
             log.debug(
                 "%s No authenticated user in request.state, falling back to SessionManager.",
@@ -1181,8 +1189,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             setup_dependencies(self, self.database_url)
 
-<<<<<<< HEAD
-=======
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.
             session_factory = dependencies.SessionLocal if self.database_url else None
@@ -1195,7 +1201,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 self.log_identifier,
             )
 
->>>>>>> main
             port = (
                 self.fastapi_https_port
                 if self.ssl_keyfile and self.ssl_certfile
@@ -1281,7 +1286,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                     self.log_identifier,
                                 )
                         else:
-                            log.info("%s Task logging is disabled.", self.log_identifier)
+                            log.info(
+                                "%s Task logging is disabled.", self.log_identifier
+                            )
                     else:
                         log.error(
                             "%s FastAPI event loop not captured. Cannot start visualization processor.",
@@ -1297,24 +1304,36 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     self.stop_signal.set()
 
                 try:
-                    from solace_agent_mesh_enterprise.init_enterprise import start_enterprise_background_tasks
-                    log.info("%s Starting enterprise background tasks...", self.log_identifier)
+                    from solace_agent_mesh_enterprise.init_enterprise import (
+                        start_enterprise_background_tasks,
+                    )
+
+                    log.info(
+                        "%s Starting enterprise background tasks...",
+                        self.log_identifier,
+                    )
                     await start_enterprise_background_tasks(self)
-                    log.info("%s Enterprise background tasks started successfully", self.log_identifier)
+                    log.info(
+                        "%s Enterprise background tasks started successfully",
+                        self.log_identifier,
+                    )
                 except ImportError:
-                    log.debug("%s Enterprise package not available - skipping background tasks", self.log_identifier)
+                    log.debug(
+                        "%s Enterprise package not available - skipping background tasks",
+                        self.log_identifier,
+                    )
                 except RuntimeError as enterprise_err:
                     log.warning(
                         "%s Enterprise background tasks disabled: %s - Community features will continue normally",
                         self.log_identifier,
-                        enterprise_err
+                        enterprise_err,
                     )
                 except Exception as enterprise_err:
                     log.error(
                         "%s Failed to start enterprise background tasks: %s - Community features will continue normally",
                         self.log_identifier,
                         enterprise_err,
-                        exc_info=True
+                        exc_info=True,
                     )
 
             @self.fastapi_app.on_event("shutdown")
@@ -1325,18 +1344,29 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 )
 
                 try:
-                    from solace_agent_mesh_enterprise.init_enterprise import stop_enterprise_background_tasks
-                    log.info("%s Stopping enterprise background tasks...", self.log_identifier)
+                    from solace_agent_mesh_enterprise.init_enterprise import (
+                        stop_enterprise_background_tasks,
+                    )
+
+                    log.info(
+                        "%s Stopping enterprise background tasks...",
+                        self.log_identifier,
+                    )
                     await stop_enterprise_background_tasks()
-                    log.info("%s Enterprise background tasks stopped", self.log_identifier)
+                    log.info(
+                        "%s Enterprise background tasks stopped", self.log_identifier
+                    )
                 except ImportError:
-                    log.debug("%s Enterprise package not available - no background tasks to stop", self.log_identifier)
+                    log.debug(
+                        "%s Enterprise package not available - no background tasks to stop",
+                        self.log_identifier,
+                    )
                 except Exception as enterprise_err:
                     log.error(
                         "%s Failed to stop enterprise background tasks: %s",
                         self.log_identifier,
                         enterprise_err,
-                        exc_info=True
+                        exc_info=True,
                     )
 
             self.fastapi_thread = threading.Thread(
@@ -1401,18 +1431,18 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def cleanup(self):
         """Gracefully shuts down the component and the FastAPI server."""
         log.info("%s Cleaning up Web UI Backend Component...", self.log_identifier)
-        
+
         # Cancel timers
         self.cancel_timer(self._sse_cleanup_timer_id)
         if self._data_retention_timer_id:
             self.cancel_timer(self._data_retention_timer_id)
             log.info("%s Cancelled data retention cleanup timer.", self.log_identifier)
-        
+
         # Clean up data retention service
         if self.data_retention_service:
             self.data_retention_service = None
             log.info("%s Data retention service cleaned up.", self.log_identifier)
-        
+
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
         if self._visualization_message_queue:
             self._visualization_message_queue.put(None)
@@ -1428,7 +1458,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             self._visualization_processor_task.cancel()
 
-        if self._task_logger_processor_task and not self._task_logger_processor_task.done():
+        if (
+            self._task_logger_processor_task
+            and not self._task_logger_processor_task.done()
+        ):
             log.info("%s Cancelling task logger processor task...", self.log_identifier)
             self._task_logger_processor_task.cancel()
 
@@ -1512,88 +1545,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         # --- Phase 1: Parse the payload to extract core info ---
         try:
-<<<<<<< HEAD
-            # Try to parse as a JSON-RPC response first
-            if "result" in payload or "error" in payload:
-                rpc_response = JSONRPCResponse.model_validate(payload)
-                result = a2a.get_response_result(rpc_response)
-                error = a2a.get_response_error(rpc_response)
-                details["message_id"] = a2a.get_response_id(rpc_response)
-
-                if result:
-                    kind = getattr(result, "kind", None)
-                    details["direction"] = kind or "response"
-                    details["task_id"] = getattr(result, "task_id", None) or getattr(
-                        result, "id", None
-                    )
-
-                    if isinstance(result, TaskStatusUpdateEvent):
-                        details["source_entity"] = (
-                            result.metadata.get("agent_name")
-                            if result.metadata
-                            else None
-                        )
-                        message = a2a.get_message_from_status_update(result)
-                        if message:
-                            if not details["source_entity"]:
-                                details["source_entity"] = (
-                                    message.metadata.get("agent_name")
-                                    if message.metadata
-                                    else None
-                                )
-                            data_parts = a2a.get_data_parts_from_message(message)
-                            if data_parts:
-                                details["debug_type"] = data_parts[0].data.get(
-                                    "type", "unknown"
-                                )
-                            elif a2a.get_text_from_message(message):
-                                details["debug_type"] = "streaming_text"
-                    elif isinstance(result, Task):
-                        details["source_entity"] = (
-                            result.metadata.get("agent_name")
-                            if result.metadata
-                            else None
-                        )
-                    elif isinstance(result, TaskArtifactUpdateEvent):
-                        artifact = a2a.get_artifact_from_artifact_update(result)
-                        if artifact:
-                            details["source_entity"] = (
-                                artifact.metadata.get("agent_name")
-                                if artifact.metadata
-                                else None
-                            )
-                elif error:
-                    details["direction"] = "error_response"
-                    details["task_id"] = (
-                        error.data.get("taskId")
-                        if isinstance(error.data, dict)
-                        else None
-                    )
-                    details["debug_type"] = "error"
-
-            # Try to parse as a JSON-RPC request
-            elif "method" in payload:
-                rpc_request = A2ARequest.model_validate(payload)
-                method = a2a.get_request_method(rpc_request)
-                details["direction"] = "request"
-                details["payload_summary"]["method"] = method
-                details["message_id"] = a2a.get_request_id(rpc_request)
-
-                if method in ["message/send", "message/stream"]:
-                    details["debug_type"] = method
-                    message = a2a.get_message_from_send_request(rpc_request)
-                    details["task_id"] = a2a.get_request_id(rpc_request)
-                    if message:
-                        details["target_entity"] = (
-                            message.metadata.get("agent_name")
-                            if message.metadata
-                            else None
-                        )
-                elif method == "tasks/cancel":
-                    details["task_id"] = a2a.get_task_id_from_cancel_request(
-                        rpc_request
-                    )
-=======
             # Handle SAM Events (system events)
             event_type = payload.get("event_type")
             if event_type:
@@ -1684,7 +1635,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     details["task_id"] = a2a.get_task_id_from_cancel_request(
                         rpc_request
                     )
->>>>>>> main
 
             # Handle Discovery messages (which are not JSON-RPC)
             elif "/a2a/v1/discovery/" in topic:
@@ -1928,13 +1878,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
         pass
 
     async def _translate_external_input(
-<<<<<<< HEAD
-        self, external_event_data: Dict[str, Any]
-    ) -> Tuple[str, List[ContentPart], Dict[str, Any]]:
-=======
         self, external_event_data: dict[str, Any]
     ) -> tuple[str, list[ContentPart], dict[str, Any]]:
->>>>>>> main
         """
         Translates raw HTTP request data (from FastAPI form) into A2A task parameters.
 
@@ -1968,11 +1913,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "Client ID or A2A Session ID is missing in external_event_data."
             )
 
-<<<<<<< HEAD
-        a2a_parts: List[ContentPart] = []
-=======
         a2a_parts: list[ContentPart] = []
->>>>>>> main
 
         if files:
             for upload_file in files:
@@ -2043,15 +1984,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
         log_id_prefix = f"{self.log_identifier}[SendUpdate]"
         sse_task_id = external_request_context.get("a2a_task_id_for_event")
         a2a_task_id = event_data.task_id
-<<<<<<< HEAD
-=======
 
         log.debug(
             "%s _send_update_to_external called with event_type: %s",
             log_id_prefix,
             type(event_data).__name__,
         )
->>>>>>> main
 
         if not sse_task_id:
             log.error(

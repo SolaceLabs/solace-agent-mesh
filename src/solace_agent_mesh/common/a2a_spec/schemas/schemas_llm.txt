@@ -6,15 +6,9 @@ This directory contains JSON Schema definitions for various agent-to-agent (A2A)
 ## Files Overview
 - `agent_progress_update.json` - Schema for general agent progress status messages
 - `artifact_creation_progress.json` - Schema for tracking file/artifact creation progress with chunked data
-<<<<<<< HEAD
-- `llm_invocation.json` - Schema for LLM model invocation signals
-- `tool_invocation_start.json` - Schema for tool execution start notifications
-- `tool_result.json` - Schema for tool execution completion results
-=======
 - `llm_invocation.json` - Schema for LLM model invocation signals with usage tracking
 - `tool_invocation_start.json` - Schema for tool execution start notifications
 - `tool_result.json` - Schema for tool execution completion results with optional LLM usage
->>>>>>> main
 - `schemas_llm.txt` - Previous developer guide (legacy documentation)
 
 ## Developer API Reference
@@ -22,15 +16,12 @@ This directory contains JSON Schema definitions for various agent-to-agent (A2A)
 ### agent_progress_update.json
 **Purpose:** Defines the schema for agent progress update signals that communicate human-readable status messages between agents.
 
-<<<<<<< HEAD
-=======
 **Import:** Load as JSON schema for validation
 ```python
 import json
 from jsonschema import validate
 ```
 
->>>>>>> main
 **Schema Structure:**
 ```json
 {
@@ -63,15 +54,12 @@ validate(instance=data, schema=schema)
 ### artifact_creation_progress.json
 **Purpose:** Defines the schema for tracking progress during file or artifact creation operations with chunked data transfer.
 
-<<<<<<< HEAD
-=======
 **Import:** Load as JSON schema for validation
 ```python
 import json
 from jsonschema import validate
 ```
 
->>>>>>> main
 **Schema Structure:**
 ```json
 {
@@ -108,9 +96,6 @@ validate(instance=data, schema=schema)
 ```
 
 ### llm_invocation.json
-<<<<<<< HEAD
-**Purpose:** Defines the schema for LLM invocation signals that communicate when an agent is calling a language model.
-=======
 **Purpose:** Defines the schema for LLM invocation signals that communicate when an agent is calling a language model, including token usage tracking.
 
 **Import:** Load as JSON schema for validation
@@ -118,15 +103,11 @@ validate(instance=data, schema=schema)
 import json
 from jsonschema import validate
 ```
->>>>>>> main
 
 **Schema Structure:**
 ```json
 {
   "type": "llm_invocation",
-<<<<<<< HEAD
-  "request": "object"
-=======
   "request": "object",
   "usage": {
     "input_tokens": "integer",
@@ -134,21 +115,17 @@ from jsonschema import validate
     "cached_input_tokens": "integer",
     "model": "string"
   }
->>>>>>> main
 }
 ```
 
 **Properties:**
 - `type: "llm_invocation"` - Constant identifier for this signal type (required)
 - `request: object` - Sanitized representation of the LlmRequest object sent to the model (required)
-<<<<<<< HEAD
-=======
 - `usage: object` - Token usage information for this LLM call (optional)
   - `input_tokens: integer` - Number of input/prompt tokens (required in usage)
   - `output_tokens: integer` - Number of output/completion tokens (required in usage)
   - `cached_input_tokens: integer` - Number of cached input tokens (optional)
   - `model: string` - Model identifier used for this call (required in usage)
->>>>>>> main
 
 **Usage Examples:**
 ```python
@@ -159,26 +136,19 @@ from jsonschema import validate
 with open('solace_agent_mesh/common/a2a_spec/schemas/llm_invocation.json') as f:
     schema = json.load(f)
 
-<<<<<<< HEAD
-# Valid data example
-=======
 # Valid data example with usage tracking
->>>>>>> main
 data = {
     "type": "llm_invocation",
     "request": {
         "model": "gpt-4",
         "messages": [{"role": "user", "content": "Analyze this data"}],
         "temperature": 0.7
-<<<<<<< HEAD
-=======
     },
     "usage": {
         "input_tokens": 150,
         "output_tokens": 75,
         "cached_input_tokens": 50,
         "model": "gpt-4"
->>>>>>> main
     }
 }
 validate(instance=data, schema=schema)
@@ -187,15 +157,12 @@ validate(instance=data, schema=schema)
 ### tool_invocation_start.json
 **Purpose:** Defines the schema for tool invocation start signals that notify when an agent begins executing a tool.
 
-<<<<<<< HEAD
-=======
 **Import:** Load as JSON schema for validation
 ```python
 import json
 from jsonschema import validate
 ```
 
->>>>>>> main
 **Schema Structure:**
 ```json
 {
@@ -235,9 +202,6 @@ validate(instance=data, schema=schema)
 ```
 
 ### tool_result.json
-<<<<<<< HEAD
-**Purpose:** Defines the schema for tool execution result signals that communicate the completion and results of tool invocations.
-=======
 **Purpose:** Defines the schema for tool execution result signals that communicate the completion and results of tool invocations, with optional LLM usage tracking.
 
 **Import:** Load as JSON schema for validation
@@ -245,7 +209,6 @@ validate(instance=data, schema=schema)
 import json
 from jsonschema import validate
 ```
->>>>>>> main
 
 **Schema Structure:**
 ```json
@@ -253,9 +216,6 @@ from jsonschema import validate
   "type": "tool_result",
   "tool_name": "string",
   "result_data": "any",
-<<<<<<< HEAD
-  "function_call_id": "string"
-=======
   "function_call_id": "string",
   "llm_usage": {
     "input_tokens": "integer",
@@ -263,7 +223,6 @@ from jsonschema import validate
     "cached_input_tokens": "integer",
     "model": "string"
   }
->>>>>>> main
 }
 ```
 
@@ -272,14 +231,11 @@ from jsonschema import validate
 - `tool_name: string` - Name of the tool that was called (required)
 - `result_data: any` - The data returned by the tool (required, can be any type)
 - `function_call_id: string` - ID from the LLM's function call that this result corresponds to (required)
-<<<<<<< HEAD
-=======
 - `llm_usage: object` - Token usage if this tool made LLM calls (optional)
   - `input_tokens: integer` - Total input tokens used by tool's LLM calls (required in llm_usage)
   - `output_tokens: integer` - Total output tokens used by tool's LLM calls (required in llm_usage)
   - `cached_input_tokens: integer` - Number of cached input tokens (optional)
   - `model: string` - Model identifier(s) used by the tool (required in llm_usage)
->>>>>>> main
 
 **Usage Examples:**
 ```python
@@ -290,18 +246,6 @@ from jsonschema import validate
 with open('solace_agent_mesh/common/a2a_spec/schemas/tool_result.json') as f:
     schema = json.load(f)
 
-<<<<<<< HEAD
-# Valid data example
-data = {
-    "type": "tool_result",
-    "tool_name": "file_reader",
-    "result_data": {
-        "content": "File contents here...",
-        "size": 1024,
-        "encoding": "utf-8"
-    },
-    "function_call_id": "call_abc123"
-=======
 # Valid data example with LLM usage
 data = {
     "type": "tool_result",
@@ -316,7 +260,6 @@ data = {
         "output_tokens": 100,
         "model": "gpt-4"
     }
->>>>>>> main
 }
 validate(instance=data, schema=schema)
 ```
@@ -326,14 +269,9 @@ validate(instance=data, schema=schema)
 import json
 from jsonschema import validate
 from pathlib import Path
-<<<<<<< HEAD
-
-def validate_a2a_signal(signal_data: dict, schema_name: str) -> bool:
-=======
 from typing import Dict, Any
 
 def validate_a2a_signal(signal_data: Dict[str, Any], schema_name: str) -> bool:
->>>>>>> main
     """Validate A2A signal data against its schema."""
     schema_path = Path(f"solace_agent_mesh/common/a2a_spec/schemas/{schema_name}.json")
     
@@ -347,15 +285,12 @@ def validate_a2a_signal(signal_data: Dict[str, Any], schema_name: str) -> bool:
         print(f"Validation failed: {e}")
         return False
 
-<<<<<<< HEAD
-=======
 def load_schema(schema_name: str) -> Dict[str, Any]:
     """Load a specific A2A signal schema."""
     schema_path = Path(f"solace_agent_mesh/common/a2a_spec/schemas/{schema_name}.json")
     with open(schema_path) as f:
         return json.load(f)
 
->>>>>>> main
 # Example usage
 progress_data = {
     "type": "agent_progress_update",
@@ -364,11 +299,6 @@ progress_data = {
 
 if validate_a2a_signal(progress_data, "agent_progress_update"):
     print("Signal is valid!")
-<<<<<<< HEAD
-```
-
-# content_hash: 3e5a2f693dc3f4536f9c958168677fe2e3a0e18b3dc319891aceccb5ccfdda8a
-=======
 
 # Load all schemas for batch validation
 schemas = {
@@ -381,4 +311,3 @@ schemas = {
 ```
 
 # content_hash: 8d0325636918fd8bdabc0ba61bed79ae2b2be06778893406197aebfb7c3e3a21
->>>>>>> main

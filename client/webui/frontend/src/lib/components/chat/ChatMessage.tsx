@@ -1,11 +1,6 @@
 import React, { useState } from "react";
 import type { ReactNode } from "react";
 
-<<<<<<< HEAD
-import { AlertCircle, FileText } from "lucide-react";
-
-import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
-=======
 import { AlertCircle, FileText, ThumbsDown, ThumbsUp } from "lucide-react";
 
 import {
@@ -15,7 +10,6 @@ import {
     MessageBanner,
 } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
->>>>>>> main
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
 import type { FileAttachment, MessageFE, TextPart } from "@/lib/types";
@@ -30,8 +24,6 @@ import type { ExtractedContent } from "./preview/contentUtils";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
-<<<<<<< HEAD
-=======
 const MessageActions: React.FC<{
     message: MessageFE;
     showWorkflowButton: boolean;
@@ -118,7 +110,6 @@ const MessageActions: React.FC<{
     );
 };
 
->>>>>>> main
 const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
     if (message.isStatusBubble) {
@@ -157,10 +148,6 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
         modifiedText = modifiedText.replace(item.originalMatch, "");
 
         if (item.type === "file") {
-<<<<<<< HEAD
-            // This is our new case for non-renderable data URIs
-=======
->>>>>>> main
             const fileAttachment: FileAttachment = {
                 name: item.filename || "downloaded_file",
                 content: item.content,
@@ -171,26 +158,6 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
                     <FileAttachmentMessage fileAttachment={fileAttachment} isEmbedded={true} />
                 </div>
             );
-<<<<<<< HEAD
-        } else {
-            // Existing logic for renderable content
-            let finalContent = item.content;
-            if (!RENDER_TYPES_WITH_RAW_CONTENT.includes(item.type)) {
-                try {
-                    finalContent = decodeBase64Content(item.content);
-                } catch (e) {
-                    console.error("Failed to decode base64 content for embedded item:", e);
-                    setRenderError("Failed to decode content for preview.");
-                    // maybe skip this item
-                    return;
-                }
-            }
-            contentElements.push(
-                <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md overflow-hidden">
-                    <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
-                </div>
-            );
-=======
         } else if (!RENDER_TYPES_WITH_RAW_CONTENT.includes(item.type)) {
             const finalContent = decodeBase64Content(item.content);
             if (finalContent) {
@@ -200,7 +167,6 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
                     </div>
                 );
             }
->>>>>>> main
         }
     });
 
@@ -257,13 +223,9 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     }
 
     const variant = message.isUser ? "sent" : "received";
-<<<<<<< HEAD
-    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && isLastWithTaskId;
-=======
     const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
     const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
 
->>>>>>> main
     const handleViewWorkflowClick = () => {
         if (message.taskId) {
             setTaskIdInSidePanel(message.taskId);
@@ -276,11 +238,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
             <ChatBubbleMessage variant={variant}>
                 {textContent && <MessageContent message={message} />}
                 {message.artifactNotification && (
-<<<<<<< HEAD
-                    <div className="flex items-center p-2 my-1 bg-blue-100 dark:bg-blue-900/50 rounded-md">
-=======
                     <div className="my-1 flex items-center rounded-md bg-blue-100 p-2 dark:bg-blue-900/50">
->>>>>>> main
                         <FileText className="mr-2 text-blue-500 dark:text-blue-400" />
                         <span className="text-sm">
                             Artifact created: <strong>{message.artifactNotification.name}</strong>
@@ -288,20 +246,12 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                         </span>
                     </div>
                 )}
-<<<<<<< HEAD
-                {showWorkflowButton && (
-                    <div className="mt-3">
-                        <ViewWorkflowButton onClick={handleViewWorkflowClick} />
-                    </div>
-                )}
-=======
                 <MessageActions
                     message={message}
                     showWorkflowButton={!!showWorkflowButton}
                     showFeedbackActions={!!showFeedbackActions}
                     handleViewWorkflowClick={handleViewWorkflowClick}
                 />
->>>>>>> main
             </ChatBubbleMessage>
         </ChatBubble>
     );

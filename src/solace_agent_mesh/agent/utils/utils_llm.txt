@@ -135,8 +135,4 @@ def my_tool(callback_context):
     # "session123:tool456" -> "session123"
 ```
 
-<<<<<<< HEAD
-# content_hash: b3aa9a05daf2be266a8a43107328da63d05222408df1b57e46af1c75415d5b7d
-=======
 # content_hash: a47bd4722e780a6a8146c6913cb0cbb053515a6f17dac92171ba79aef00d61b0
->>>>>>> main

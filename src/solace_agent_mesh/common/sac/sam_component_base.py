@@ -2,18 +2,6 @@
 Base Component class for SAM implementations in the Solace AI Connector.
 """
 
-<<<<<<< HEAD
-import asyncio
-import threading
-import abc
-from typing import Any, Dict, Optional
-
-from solace_ai_connector.components.component_base import ComponentBase
-from solace_ai_connector.common.log import log
-
-from ..utils.message_utils import validate_message_size
-from ..exceptions import MessageSizeExceededError
-=======
 import abc
 import asyncio
 import threading
@@ -24,7 +12,6 @@ from solace_ai_connector.components.component_base import ComponentBase
 
 from ..exceptions import MessageSizeExceededError
 from ..utils.message_utils import validate_message_size
->>>>>>> main
 
 
 class SamComponentBase(ComponentBase, abc.ABC):
@@ -36,11 +23,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
     - Publishing A2A messages with built-in size validation.
     """
 
-<<<<<<< HEAD
-    def __init__(self, info: Dict[str, Any], **kwargs: Any):
-=======
     def __init__(self, info: dict[str, Any], **kwargs: Any):
->>>>>>> main
         super().__init__(info, **kwargs)
         log.info("%s Initializing SamComponentBase...", self.log_identifier)
 
@@ -68,17 +51,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
             )
             raise ValueError(f"Configuration retrieval error: {e}") from e
 
-<<<<<<< HEAD
-        self._async_loop: Optional[asyncio.AbstractEventLoop] = None
-        self._async_thread: Optional[threading.Thread] = None
-        log.info("%s SamComponentBase initialized successfully.", self.log_identifier)
-
-    def publish_a2a_message(
-        self, payload: Dict, topic: str, user_properties: Optional[Dict] = None
-    ):
-        """Helper to publish A2A messages via the SAC App with size validation."""
-        try:
-=======
         self._async_loop: asyncio.AbstractEventLoop | None = None
         self._async_thread: threading.Thread | None = None
         log.info("%s SamComponentBase initialized successfully.", self.log_identifier)
@@ -92,7 +64,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 f"{self.log_identifier} [publish_a2a_message] Starting - topic: {topic}, payload keys: {list(payload.keys()) if isinstance(payload, dict) else 'not_dict'}"
             )
 
->>>>>>> main
             # Validate message size
             is_valid, actual_size = validate_message_size(
                 payload, self.max_message_size_bytes, self.log_identifier
@@ -118,13 +89,10 @@ class SamComponentBase(ComponentBase, abc.ABC):
 
             app = self.get_app()
             if app:
-<<<<<<< HEAD
-=======
                 log.debug(
                     f"{self.log_identifier} [publish_a2a_message] Got app instance, about to call app.send_message"
                 )
 
->>>>>>> main
                 # Conditionally log to invocation monitor if it exists (i.e., on an agent)
                 if hasattr(self, "invocation_monitor") and self.invocation_monitor:
                     self.invocation_monitor.log_message_event(
@@ -133,11 +101,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
                         payload=payload,
                         component_identifier=self.log_identifier,
                     )
-<<<<<<< HEAD
-                app.send_message(
-                    payload=payload, topic=topic, user_properties=user_properties
-                )
-=======
 
                 log.debug(
                     f"{self.log_identifier} [publish_a2a_message] About to call app.send_message with payload: {payload}"
@@ -153,7 +116,6 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 log.debug(
                     f"{self.log_identifier} [publish_a2a_message] Successfully called app.send_message"
                 )
->>>>>>> main
             else:
                 log.error(
                     "%s Cannot publish message: Not running within a SAC App context.",
@@ -289,11 +251,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
         super().cleanup()
         log.info("%s SamComponentBase cleanup finished.", self.log_identifier)
 
-<<<<<<< HEAD
-    def get_async_loop(self) -> Optional[asyncio.AbstractEventLoop]:
-=======
     def get_async_loop(self) -> asyncio.AbstractEventLoop | None:
->>>>>>> main
         """Returns the dedicated asyncio event loop for this component's async tasks."""
         return self._async_loop
 

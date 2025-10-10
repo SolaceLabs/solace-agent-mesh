@@ -186,17 +186,6 @@ export interface VisualizerStep {
  * including its overall details and a sequence of logical steps.
  */
 export interface VisualizedTask {
-<<<<<<< HEAD
-	taskId: string;
-	initialRequestText: string; // The initial text part of the user's request
-	status: TaskState; // Overall status of the task (e.g., 'working', 'completed', 'failed')
-	currentStatusText?: string; // Optional: The latest status text from the agent
-	startTime: string; // ISO 8601 timestamp of when the task started
-	endTime?: string; // ISO 8601 timestamp of when the task ended (if applicable)
-	durationMs?: number; // Optional: Total duration of the task in milliseconds
-	steps: VisualizerStep[]; // Chronological sequence of logical steps for this task
-	performanceReport?: PerformanceReport | null;
-=======
     taskId: string;
     initialRequestText: string; // The initial text part of the user's request
     status: TaskState; // Overall status of the task (e.g., 'working', 'completed', 'failed')
@@ -206,5 +195,4 @@ export interface VisualizedTask {
     durationMs?: number; // Optional: Total duration of the task in milliseconds
     steps: VisualizerStep[]; // Chronological sequence of logical steps for this task
     performanceReport?: PerformanceReport | null;
->>>>>>> main
 }

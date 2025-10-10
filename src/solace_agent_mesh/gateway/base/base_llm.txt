@@ -221,8 +221,4 @@ if retrieved_context:
 context_manager.remove_context(task_id)
 ```
 
-<<<<<<< HEAD
-# content_hash: 016addd094bc383fc1606b1540887c181ef630740fff8f4d801ff03d91e1cbd4
-=======
 # content_hash: 849930d2f66a87b20823732d8339e50a0a55a0d52958b2467e072de8b3eebea9
->>>>>>> main

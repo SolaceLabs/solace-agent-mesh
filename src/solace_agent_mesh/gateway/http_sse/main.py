@@ -1,31 +1,5 @@
 import os
 from pathlib import Path
-<<<<<<< HEAD
-import httpx
-
-from solace_ai_connector.common.log import log
-from ...gateway.http_sse.routers import (
-    agents,
-    tasks,
-    sse,
-    config,
-    artifacts,
-    visualization,
-    sessions,
-    people,
-    auth,
-    users,
-)
-
-from ...gateway.http_sse import dependencies
-from a2a.types import (
-    JSONRPCError,
-    InternalError,
-)
-from ...common import a2a
-
-=======
->>>>>>> main
 from typing import TYPE_CHECKING
 
 import httpx
@@ -585,11 +559,7 @@ def _setup_routers() -> None:
     app.include_router(session_router, prefix=api_prefix, tags=["Sessions"])
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
-<<<<<<< HEAD
-    app.include_router(agents.router, prefix=api_prefix, tags=["Agents"])
-=======
     app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
->>>>>>> main
     app.include_router(tasks.router, prefix=api_prefix, tags=["Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
     app.include_router(
@@ -715,22 +685,7 @@ async def http_exception_handler(request: FastAPIRequest, exc: HTTPException):
         else:
             error_response = {"detail": str(exc.detail)}
 
-<<<<<<< HEAD
-    elif isinstance(exc.detail, str):
-        if exc.status_code == status.HTTP_400_BAD_REQUEST:
-            error_code = -32600
-        elif exc.status_code == status.HTTP_404_NOT_FOUND:
-            error_code = -32601
-            error_message = "Resource not found"
-
-    error_obj = JSONRPCError(code=error_code, message=error_message, data=error_data)
-    response = a2a.create_error_response(error=error_obj, request_id=None)
-    return JSONResponse(
-        status_code=exc.status_code, content=response.model_dump(exclude_none=True)
-    )
-=======
         return JSONResponse(status_code=exc.status_code, content=error_response)
->>>>>>> main
 
 
 @app.exception_handler(RequestValidationError)
