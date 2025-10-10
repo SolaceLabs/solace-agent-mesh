@@ -778,17 +778,16 @@ def _generate_fenced_artifact_instruction() -> str:
 To create an artifact from content you generate (like code, a report, or a document), you MUST use a special `save_artifact` block. This is the only reliable way to ensure your content is saved correctly.
 
 **Syntax:**
-```
 {open_delim}save_artifact: filename="your_filename.ext" mime_type="text/plain" description="A brief description."
 The full content you want to save goes here.
 It can span multiple lines.
 {close_delim}
-```
 
 - **Rules:**
   - The parameters `filename` and `mime_type` are required. `description` is optional but recommended.
   - All parameter values **MUST** be enclosed in double quotes.
   - You **MUST NOT** use double quotes `"` inside the parameter values (e.g., within the description string). Use single quotes or rephrase instead.
+  - Do not surround a save_artifact block with '```' (triple backticks). This will create rendering issues.
 
 The system will automatically save the content and give you a confirmation in the next turn."""
 
@@ -1487,32 +1486,32 @@ def solace_llm_response_callback(
             "type": "llm_response",
             "data": llm_response.model_dump(exclude_none=True),
         }
-        
+
         # Extract and record token usage
         if llm_response.usage_metadata:
             usage = llm_response.usage_metadata
             model_name = callback_context.state.get("model_name", "unknown")
-            
+
             usage_dict = {
                 "input_tokens": usage.prompt_token_count,
                 "output_tokens": usage.candidates_token_count,
                 "model": model_name,
             }
-            
+
             # Check for cached tokens (provider-specific)
             cached_tokens = 0
-            if hasattr(usage, 'prompt_tokens_details') and usage.prompt_tokens_details:
-                cached_tokens = getattr(usage.prompt_tokens_details, 'cached_tokens', 0)
+            if hasattr(usage, "prompt_tokens_details") and usage.prompt_tokens_details:
+                cached_tokens = getattr(usage.prompt_tokens_details, "cached_tokens", 0)
                 if cached_tokens > 0:
                     usage_dict["cached_input_tokens"] = cached_tokens
-            
+
             # Add to response data
             llm_response_data["usage"] = usage_dict
-            
+
             # Record in task context for aggregation
             with host_component.active_tasks_lock:
                 task_context = host_component.active_tasks.get(logical_task_id)
-            
+
             if task_context:
                 task_context.record_token_usage(
                     input_tokens=usage.prompt_token_count,
@@ -1529,7 +1528,7 @@ def solace_llm_response_callback(
                     cached_tokens,
                     model_name,
                 )
-        
+
         # This signal doesn't have a dedicated Pydantic model, so we create the
         # DataPart directly and use the lower-level helpers.
         data_part = a2a.create_data_part(data=llm_response_data)

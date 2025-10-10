@@ -10,6 +10,7 @@ RUN apt-get update && \
     git \
     curl \
     ffmpeg && \
+    rm -rf /var/lib/apt/lists/* && \
     curl -sL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get purge -y --auto-remove && \
