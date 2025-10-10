@@ -613,7 +613,7 @@ def shared_solace_connector(
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",
         description="The main test agent (orchestrator)",
-        allow_list=["TestPeerAgentA", "TestPeerAgentB"],
+        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied"],
         tools=test_agent_tools,
         model_suffix="sam",
     )
@@ -1347,7 +1347,6 @@ def a2a_message_validator(
     validator.deactivate()
 
 
-@pytest.fixture(scope="function")
 @pytest.fixture(scope="session")
 def mock_agent_skills() -> AgentSkill:
     return AgentSkill(
