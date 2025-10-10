@@ -223,17 +223,34 @@ def _create_auth_middleware(component):
             if use_auth:
                 await self._handle_authenticated_request(request, scope, receive, send)
             else:
+                # Development mode - check for X-Dev-User-Id header override
+                dev_user_id = request.headers.get("X-Dev-User-Id")
                 default_creds = dependencies.get_default_user_credentials()
-                request.state.user = {
-                    "id": default_creds["id"],
-                    "name": default_creds["name"],
-                    "email": default_creds["email"],
-                    "authenticated": True,
-                    "auth_method": "development",
-                }
-                log.debug(
-                    f"AuthMiddleware: Set development user state with id: {default_creds['id']}"
-                )
+                
+                if dev_user_id:
+                    # Use the dev user ID from header
+                    request.state.user = {
+                        "id": dev_user_id,
+                        "name": f"Dev User ({dev_user_id})",
+                        "email": f"{dev_user_id}@dev.local",
+                        "authenticated": True,
+                        "auth_method": "development_override",
+                    }
+                    log.debug(
+                        f"AuthMiddleware: Set development user state from X-Dev-User-Id header: {dev_user_id}"
+                    )
+                else:
+                    # Use default development credentials
+                    request.state.user = {
+                        "id": default_creds["id"],
+                        "name": default_creds["name"],
+                        "email": default_creds["email"],
+                        "authenticated": True,
+                        "auth_method": "development",
+                    }
+                    log.debug(
+                        f"AuthMiddleware: Set development user state with id: {default_creds['id']}"
+                    )
 
             await self.app(scope, receive, send)
 

@@ -4,6 +4,7 @@ import { useConfigContext } from "@/lib/hooks/useConfigContext";
 import type { A2AEventSSEPayload, TaskFE } from "@/lib/types";
 import { TaskContext, type TaskContextValue } from "@/lib/contexts/TaskContext";
 import { authenticatedFetch, getAccessToken } from "@/lib/utils/api";
+import { getDevUserId } from "@/lib/utils/devMode";
 
 interface TaskProviderProps {
     children: ReactNode;
@@ -163,7 +164,18 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
             if (taskMonitorEventSourceRef.current) taskMonitorEventSourceRef.current.close();
             const accessToken = getAccessToken();
-            const finalSseUrl = `${sseUrl}${accessToken ? `?token=${accessToken}` : ""}`;
+            const devUserId = getDevUserId();
+            
+            // Build query parameters
+            const params = new URLSearchParams();
+            if (accessToken) {
+                params.append("token", accessToken);
+            }
+            if (devUserId) {
+                params.append("dev_user_id", devUserId);
+            }
+            
+            const finalSseUrl = params.toString() ? `${sseUrl}?${params.toString()}` : sseUrl;
             const newEventSource = new EventSource(finalSseUrl, { withCredentials: true });
             taskMonitorEventSourceRef.current = newEventSource;
             newEventSource.onopen = handleTaskMonitorSseOpen;

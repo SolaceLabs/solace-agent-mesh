@@ -758,9 +758,26 @@ async def get_visualization_stream_events(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     sse_manager: SSEManager = Depends(get_sse_manager),
     user_id: str = Depends(get_user_id),
+    dev_user_id: str | None = None,
 ):
     """Establishes an SSE connection for receiving filtered A2A messages for a specific stream."""
     log_id_prefix = f"{component.log_identifier}[GET /viz/{stream_id}/events]"
+    
+    # Check for dev_user_id query parameter (for EventSource which doesn't support headers)
+    if dev_user_id is None:
+        dev_user_id = fastapi_request.query_params.get("dev_user_id")
+    
+    # Override user_id if dev_user_id is provided and auth is disabled
+    frontend_use_authorization = component.get_config("frontend_use_authorization", False)
+    if dev_user_id and not frontend_use_authorization:
+        log.info(
+            "%s Development mode: Overriding user_id from '%s' to '%s' via dev_user_id query parameter",
+            log_id_prefix,
+            user_id,
+            dev_user_id,
+        )
+        user_id = dev_user_id
+    
     log.info("%s Client %s requesting SSE connection.", log_id_prefix, user_id)
 
     stream_config: Optional[Dict[str, Any]] = None
