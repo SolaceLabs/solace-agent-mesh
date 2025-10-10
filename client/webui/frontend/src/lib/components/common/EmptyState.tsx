@@ -15,18 +15,24 @@ export interface ButtonWithCallback {
 interface EmptyStateProps {
     title: string;
     subtitle?: string;
-    variant?: "error" | "not-found";
+    variant?: "error" | "notFound" | "noImage";
     image?: ReactElement;
     buttons?: ButtonWithCallback[];
 }
 
 function EmptyState({ title, subtitle, image, variant = "error", buttons }: EmptyStateProps) {
+    const illustrations = {
+        error: <ErrorIllustration width={150} height={150} />,
+        notFound: <NotFoundIllustration width={150} height={150} />,
+        noImage: null,
+    };
+
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-            {image ? image : variant === "error" ? <ErrorIllustration width={150} height={150} /> : <NotFoundIllustration width={150} height={150} />}
+            {image || illustrations[variant] || null}
 
-            <p className="text-2xl">{title}</p>
-            {subtitle ? <p className="text-base">{subtitle}</p> : null}
+            <p className="mt-4 text-lg">{title}</p>
+            {subtitle ? <p className="text-sm">{subtitle}</p> : null}
 
             <div className="flex gap-2">
                 {buttons &&
