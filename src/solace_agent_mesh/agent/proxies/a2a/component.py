@@ -306,11 +306,28 @@ class A2AProxyComponent(BaseProxyComponent):
 
             except A2AClientHTTPError as e:
                 # Step 4: Add specific handling for 401 Unauthorized errors
-                if e.status_code == 401 and auth_retry_count < max_auth_retries:
+                # The error might be wrapped in an SSE parsing error, so we need to check
+                # if the underlying cause is a 401
+                is_401_error = False
+                
+                # Check if this is directly a 401
+                if hasattr(e, 'status_code') and e.status_code == 401:
+                    is_401_error = True
+                # Check if this is an SSE parsing error caused by a 401 response
+                elif "401" in str(e) or "Unauthorized" in str(e):
+                    is_401_error = True
+                # Check if the error message mentions application/json content type
+                # (which is what 401 responses typically return)
+                elif "application/json" in str(e) and "text/event-stream" in str(e):
+                    # This is likely an SSE parsing error caused by a 401 JSON response
+                    is_401_error = True
+                
+                if is_401_error and auth_retry_count < max_auth_retries:
                     log.warning(
-                        "%s Received 401 Unauthorized from agent '%s'. Attempting token refresh (retry %d/%d).",
+                        "%s Received 401 Unauthorized from agent '%s' (detected from error: %s). Attempting token refresh (retry %d/%d).",
                         log_identifier,
                         agent_name,
+                        str(e)[:100],
                         auth_retry_count + 1,
                         max_auth_retries,
                     )
@@ -322,9 +339,8 @@ class A2AProxyComponent(BaseProxyComponent):
                 
                 # Not a retryable auth error, or max retries exceeded
                 log.exception(
-                    "%s HTTP error forwarding request (status %d): %s",
+                    "%s HTTP error forwarding request: %s",
                     log_identifier,
-                    e.status_code,
                     e,
                 )
                 raise
