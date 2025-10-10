@@ -1496,7 +1496,7 @@ def mock_agent_skills() -> AgentSkill:
 
 @pytest.fixture(scope="session")
 def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
-    from a2a.types import AgentCapabilities, HTTPAuthSecurityScheme, SecuritySchemeUnion
+    from a2a.types import AgentCapabilities, HTTPAuthSecurityScheme, SecurityScheme
 
     return AgentCard(
         name="test_agent",
@@ -1514,7 +1514,7 @@ def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
         default_output_modes=["text/plain"],
         security=[{"bearer": []}],
         security_schemes={
-            "bearer": SecuritySchemeUnion(
+            "bearer": SecurityScheme(
                 root=HTTPAuthSecurityScheme(
                     type="http",
                     scheme="bearer"
