@@ -2,6 +2,7 @@
 FastAPI router for managing session-specific artifacts via REST endpoints.
 """
 
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -31,8 +32,6 @@ import io
 import json
 from datetime import datetime, timezone
 from urllib.parse import parse_qs, quote, urlparse
-
-from solace_ai_connector.common.log import log
 
 from ....common.a2a.types import ArtifactInfo
 from ....common.utils.embeds import (
@@ -68,6 +67,7 @@ from ....agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
 )
 
+log = logging.getLogger(__name__)
 
 class ArtifactUploadResponse(BaseModel):
     """Response model for artifact upload with camelCase fields."""

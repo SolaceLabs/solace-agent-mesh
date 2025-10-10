@@ -2,11 +2,12 @@
 A thread-safe buffer for holding early SSE events before a client connects.
 """
 
+import logging
 import datetime
 import threading
 from typing import Any, Dict, List, Optional, Tuple
 
-from solace_ai_connector.common.log import log
+log = logging.getLogger(__name__)
 
 
 class SSEEventBuffer:

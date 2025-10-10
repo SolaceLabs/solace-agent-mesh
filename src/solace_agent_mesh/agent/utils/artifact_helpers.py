@@ -2,6 +2,7 @@
 Helper functions for artifact management, including metadata handling and schema inference.
 """
 
+import logging
 import base64
 import binascii
 import json
@@ -16,7 +17,6 @@ from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
-from solace_ai_connector.common.log import log
 from ...common.a2a.types import ArtifactInfo
 from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file
 from ...common.constants import TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
@@ -25,6 +25,8 @@ from ...agent.utils.context_helpers import get_original_session_id
 if TYPE_CHECKING:
     from google.adk.tools import ToolContext
     from ...agent.sac.component import SamAgentComponent
+
+log = logging.getLogger(__name__)
 
 METADATA_SUFFIX = ".metadata.json"
 DEFAULT_SCHEMA_MAX_KEYS = 20

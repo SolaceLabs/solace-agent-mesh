@@ -2,6 +2,7 @@
 Manages Server-Sent Event (SSE) connections for streaming task updates.
 """
 
+import logging
 import asyncio
 import threading
 from typing import Dict, List, Any
@@ -9,10 +10,9 @@ import json
 import datetime
 import math
 
-from solace_ai_connector.common.log import log
-
 from .sse_event_buffer import SSEEventBuffer
 
+log = logging.getLogger(__name__)
 
 class SSEManager:
     """

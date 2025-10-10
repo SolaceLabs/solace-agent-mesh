@@ -2,16 +2,17 @@
 Service for managing automatic cleanup of old data based on retention policies.
 """
 
+import logging
 import time
 from typing import Any, Callable, Dict
 
-from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DBSession
 
 from ..repository.feedback_repository import FeedbackRepository
 from ..repository.task_repository import TaskRepository
 from ..shared import now_epoch_ms
 
+log = logging.getLogger(__name__)
 
 class DataRetentionService:
     """

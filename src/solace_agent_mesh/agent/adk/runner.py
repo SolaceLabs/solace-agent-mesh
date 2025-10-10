@@ -2,6 +2,7 @@
 Manages the asynchronous execution of the ADK Runner.
 """
 
+import logging
 import asyncio
 
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
@@ -21,9 +22,10 @@ from google.adk.events import Event as ADKEvent
 from google.adk.events.event_actions import EventActions
 from google.adk.sessions import Session as ADKSession
 from google.genai import types as adk_types
-from solace_ai_connector.common.log import log
 
 from ...common import a2a
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent

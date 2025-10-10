@@ -2,13 +2,14 @@
 Manages web user sessions and mapping to A2A Client IDs.
 """
 
+import logging
 import uuid
 from collections.abc import Callable
 from typing import Any
 
-from solace_ai_connector.common.log import log
 from starlette.requests import Request
 
+log = logging.getLogger(__name__)
 
 SESSION_KEY_CLIENT_ID = "a2a_client_id"
 SESSION_KEY_SESSION_ID = "a2a_session_id"
