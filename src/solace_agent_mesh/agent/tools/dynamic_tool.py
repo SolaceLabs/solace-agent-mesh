@@ -35,6 +35,7 @@ from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
 )
 
+from ...common.utils.embeds.types import ResolutionMode
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
@@ -183,6 +184,7 @@ class DynamicTool(BaseTool, ABC):
                     types_to_resolve=types_to_resolve,
                     log_identifier=log_identifier,
                     config=self.tool_config,
+                    resolution_mode=ResolutionMode.TOOL_PARAMETER,
                 )
                 resolved_kwargs[key] = resolved_value
 
@@ -377,7 +379,9 @@ class DynamicToolProvider(ABC):
         return decorated_tools + custom_tools
 
     @abstractmethod
-    def create_tools(self, tool_config: Optional[Union[dict, BaseModel]] = None) -> List[DynamicTool]:
+    def create_tools(
+        self, tool_config: Optional[Union[dict, BaseModel]] = None
+    ) -> List[DynamicTool]:
         """
         Generate and return a list of custom DynamicTool instances.
 
