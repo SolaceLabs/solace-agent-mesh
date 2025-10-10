@@ -279,6 +279,9 @@ def mock_oauth_server():
             # Allow unmocked requests to pass through to support real HTTP calls
             # to TestA2AAgentServer while mocking OAuth token endpoints
             self.mock = respx.mock(assert_all_called=False, assert_all_mocked=False)
+            # Pass through all localhost/127.0.0.1 requests to allow real test servers to work
+            self.mock.route(host="127.0.0.1").pass_through()
+            self.mock.route(host="localhost").pass_through()
             self.mock.start()
             self._routes = {}
             self._call_log = []
