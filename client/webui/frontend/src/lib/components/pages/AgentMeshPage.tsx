@@ -21,10 +21,6 @@ export function AgentMeshPage() {
         );
     }
 
-    if (agentsError) {
-        return <EmptyState variant="error" title="Error loading agents" subtitle={agentsError} />;
-    }
-
     const renderLayoutContent = () => {
         if (currentLayout === LayoutType.CARDS) {
             return <AgentMeshCards agents={agents} />;
@@ -51,12 +47,17 @@ export function AgentMeshPage() {
                     </Button>,
                 ]}
             />
-            <div className={`relative flex-1 p-4 ${currentLayout === LayoutType.CARDS ? "" : "bg-[var(--muted)] dark:bg-[var(--color-bg-wMain)]"}`}>
-                <div className="absolute right-8 z-20 flex items-center space-x-4">
-                    <LayoutSelector currentLayout={currentLayout} onLayoutChange={setCurrentLayout} />
+
+            {agentsError ? (
+                <EmptyState variant="error" title="Error loading agents" subtitle={agentsError} />
+            ) : (
+                <div className={`relative flex-1 p-4 ${currentLayout === LayoutType.CARDS ? "" : "bg-[var(--muted)] dark:bg-[var(--color-bg-wMain)]"}`}>
+                    <div className="absolute right-8 z-20 flex items-center space-x-4">
+                        <LayoutSelector currentLayout={currentLayout} onLayoutChange={setCurrentLayout} />
+                    </div>
+                    {renderLayoutContent()}
                 </div>
-                {renderLayoutContent()}
-            </div>
+            )}
         </div>
     );
 }
