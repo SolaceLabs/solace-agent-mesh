@@ -79,7 +79,6 @@ test = [
     "fastmcp",
     "httpx>=0.25",
     "ruff",
-    "solace-agent-mesh @ {root:uri}",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
 [tool.hatch.envs.hatch-test]
