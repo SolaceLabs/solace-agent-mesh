@@ -82,7 +82,7 @@ class TestGatewayComponent(BaseGatewayComponent):
         Translates a structured test input dictionary into A2A task components.
         The `external_event` is expected to have keys like:
         - 'target_agent_name': str
-        - 'parts': List[Dict] (where each dict defines a ContentPart)
+        - 'a2a_parts': List[Dict] (where each dict defines a ContentPart)
         - 'external_context_override': Optional[Dict] (to be merged into the returned context)
         - '_authenticated_user_identity': Dict (injected by the caller)
         """

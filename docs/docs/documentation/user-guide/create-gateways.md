@@ -5,7 +5,7 @@ sidebar_position: 40
 
 # Create Gateways
 
-Gateways in Solace Agent Mesh (SAM) serve as bridges between external systems and the A2A (Agent-to-Agent) ecosystem. They enable your agents to receive information from and send responses to diverse external platforms like chat systems, web applications, IoT devices, APIs, and file systems.
+Gateways in Solace Agent Mesh serve as bridges between external systems and the A2A (Agent-to-Agent) ecosystem. They enable your agents to receive information from and send responses to diverse external platforms like chat systems, web applications, IoT devices, APIs, and file systems.
 
 This guide walks you through the steps of creating custom gateways, from basic concepts to advanced implementations.
 
@@ -23,7 +23,7 @@ A gateway acts as a translator and coordinator that:
 
 ## Quick Start: Creating Your First Gateway
 
-You can create a gateway directly using the SAM CLI `sam add gateway`:
+You can create a gateway directly using the Solace Agent Mesh CLI `sam add gateway`:
 
 ```bash
 sam add gateway my-custom-gateway
@@ -54,7 +54,7 @@ sam add gateway --help
 ```
 ## Gateway Architecture
 
-Every SAM gateway consists of two main components:
+Every Solace Agent Mesh gateway consists of two main components:
 
 ### Gateway App
 Gateway App (`app.py`):

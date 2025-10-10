@@ -17,7 +17,11 @@ This is an empty package initialization file and has no public interfaces.
 
 ### event_handlers.py
 **Purpose:** Central hub for processing all events related to the A2A protocol. Routes events to appropriate handlers and manages task lifecycle.
+<<<<<<< HEAD
 **Import:** `from solace_agent_mesh.agent.protocol.event_handlers import process_event, handle_a2a_request, handle_agent_card_message, handle_a2a_response, publish_agent_card`
+=======
+**Import:** `from solace_agent_mesh.agent.protocol.event_handlers import process_event, handle_a2a_request, handle_agent_card_message, handle_a2a_response, publish_agent_card, handle_sam_event, cleanup_agent_session`
+>>>>>>> main
 
 **Functions:**
 - `process_event(component, event: Event) -> None` - Main event router that processes incoming events and delegates to specific handlers based on event type and topic
@@ -25,6 +29,11 @@ This is an empty package initialization file and has no public interfaces.
 - `handle_agent_card_message(component, message: SolaceMessage) -> None` - Processes incoming Agent Card discovery messages and updates peer agent registry
 - `handle_a2a_response(component, message: SolaceMessage) -> None` - Handles responses and status updates from peer agents, manages parallel task completion
 - `publish_agent_card(component) -> None` - Publishes the agent's capabilities and information to the discovery topic
+<<<<<<< HEAD
+=======
+- `handle_sam_event(component, message: SolaceMessage, topic: str) -> None` - Handles incoming SAM system events like session deletion
+- `cleanup_agent_session(component, session_id: str, user_id: str) -> None` - Cleans up agent-side session data when sessions are deleted
+>>>>>>> main
 
 **Internal Helper Functions:**
 - `_register_peer_artifacts_in_parent_context(parent_task_context: "TaskExecutionContext", peer_task_object: Task, log_identifier: str) -> None` - Registers artifacts produced by peer agents in the parent task context
@@ -48,6 +57,19 @@ publish_agent_card(component)
 from solace_agent_mesh.agent.protocol.event_handlers import handle_a2a_request
 
 await handle_a2a_request(component, solace_message)
+<<<<<<< HEAD
+=======
+
+# Handle SAM system events
+from solace_agent_mesh.agent.protocol.event_handlers import handle_sam_event
+
+handle_sam_event(component, message, topic)
+
+# Clean up session data
+from solace_agent_mesh.agent.protocol.event_handlers import cleanup_agent_session
+
+await cleanup_agent_session(component, "session_123", "user_456")
+>>>>>>> main
 ```
 
 **Key Event Flow:**
@@ -56,6 +78,10 @@ await handle_a2a_request(component, solace_message)
    - Agent request topics → `handle_a2a_request()`
    - Discovery topics → `handle_agent_card_message()`
    - Response/status topics → `handle_a2a_response()`
+<<<<<<< HEAD
+=======
+   - SAM events topics → `handle_sam_event()`
+>>>>>>> main
 3. For TIMER events, handles periodic agent card publishing
 4. For CACHE_EXPIRY events, delegates to component's cache handling
 
@@ -65,4 +91,8 @@ await handle_a2a_request(component, solace_message)
 - Integrates with Google ADK for task execution
 - Manages task contexts through `TaskExecutionContext`
 
+<<<<<<< HEAD
 # content_hash: 00fc98ca0832801776639518be8b53197c211ac407f79f9a40aa0dc35bf6b447
+=======
+# content_hash: 4b8a426320c6f06c621b469c79087c315f5590ef14497ccf17de02eeb66db91d
+>>>>>>> main

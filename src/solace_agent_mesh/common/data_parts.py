@@ -4,7 +4,11 @@ These models correspond to the JSON schemas defined in a2a_spec/schemas/
 and are used for validating non-visible status update messages.
 """
 
+<<<<<<< HEAD
 from typing import Any, Dict, Literal, Union
+=======
+from typing import Any, Dict, Literal, Optional, Union
+>>>>>>> main
 from pydantic import BaseModel, Field
 
 
@@ -39,6 +43,13 @@ class LlmInvocationData(BaseModel):
         ...,
         description="A sanitized representation of the LlmRequest object sent to the model.",
     )
+<<<<<<< HEAD
+=======
+    usage: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Token usage information for this LLM call (input_tokens, output_tokens, cached_input_tokens, model)",
+    )
+>>>>>>> main
 
 
 class AgentProgressUpdateData(BaseModel):
@@ -88,6 +99,13 @@ class ToolResultData(BaseModel):
     function_call_id: str = Field(
         ..., description="The ID from the LLM's function call."
     )
+<<<<<<< HEAD
+=======
+    llm_usage: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Token usage if this tool made LLM calls (input_tokens, output_tokens, cached_input_tokens, model)",
+    )
+>>>>>>> main
 
 
 SignalData = Union[

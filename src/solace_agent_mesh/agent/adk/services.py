@@ -164,8 +164,16 @@ def _sanitize_for_path(identifier: str) -> str:
 
 def initialize_session_service(component) -> BaseSessionService:
     """Initializes the ADK Session Service based on configuration."""
-    config: Dict = component.get_config("session_service", {})
-    service_type = config.get("type", "memory").lower()
+    config = component.get_config("session_service", {})
+
+    # Handle both dict and SessionServiceConfig object
+    if hasattr(config, "type"):
+        service_type = config.type.lower()
+        db_url = getattr(config, "database_url", None)
+    else:
+        service_type = config.get("type", "memory").lower()
+        db_url = config.get("database_url")
+
     log.info(
         "%s Initializing Session Service of type: %s",
         component.log_identifier,
@@ -174,11 +182,10 @@ def initialize_session_service(component) -> BaseSessionService:
 
     if service_type == "memory":
         return InMemorySessionService()
-    elif service_type == "database":
-        db_url = config.get("db_url")
+    elif service_type == "sql":
         if not db_url:
             raise ValueError(
-                f"{component.log_identifier} 'db_url' is required for database session service."
+                f"{component.log_identifier} 'database_url' is required for sql session service."
             )
         try:
             return DatabaseSessionService(db_url=db_url)
@@ -264,28 +271,45 @@ def initialize_artifact_service(component) -> BaseArtifactService:
         try:
             from .artifacts.s3_artifact_service import S3ArtifactService
 
+            # Whitelist of valid parameters for the boto3 S3 client.
+            valid_boto3_params = [
+                "aws_access_key_id",
+                "aws_secret_access_key",
+                "aws_session_token",
+                "region_name",
+                "endpoint_url",
+                "config",
+            ]
+
             s3_config = {}
 
-            for key, value in config.items():
-                if key not in ["type", "bucket_name", "artifact_scope"]:
-                    s3_config[key] = value
+            # Explicitly map the 'region' from our config to 'region_name' for boto3.
+            if config.get("region"):
+                s3_config["region_name"] = config.get("region")
 
+            # Copy any other valid parameters from the config.
+            for key in valid_boto3_params:
+                if key in config and config[key] is not None:
+                    s3_config[key] = config[key]
+
+            # Set credentials from environment variables as a fallback.
             if "endpoint_url" not in s3_config:
-                s3_config["endpoint_url"] = "https://s3.amazonaws.com"
+                s3_config["endpoint_url"] = os.environ.get("S3_ENDPOINT_URL")
+            if "aws_access_key_id" not in s3_config:
+                env_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+                if env_access_key is not None:
+                    s3_config["aws_access_key_id"] = env_access_key
+            if "aws_secret_access_key" not in s3_config:
+                env_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+                if env_secret_key is not None:
+                    s3_config["aws_secret_access_key"] = env_secret_key
 
-            aws_access_key_id = config.get("aws_access_key_id") or os.environ.get(
-                "AWS_ACCESS_KEY_ID"
+            # Filter out any keys that ended up with a None value.
+            s3_config_cleaned = {k: v for k, v in s3_config.items() if v is not None}
+
+            concrete_service = S3ArtifactService(
+                bucket_name=bucket_name, **s3_config_cleaned
             )
-            aws_secret_access_key = config.get(
-                "aws_secret_access_key"
-            ) or os.environ.get("AWS_SECRET_ACCESS_KEY")
-
-            if aws_access_key_id:
-                s3_config["aws_access_key_id"] = aws_access_key_id
-            if aws_secret_access_key:
-                s3_config["aws_secret_access_key"] = aws_secret_access_key
-
-            concrete_service = S3ArtifactService(bucket_name=bucket_name, **s3_config)
         except ImportError as e:
             log.error(
                 "%s S3 dependencies not available: %s",

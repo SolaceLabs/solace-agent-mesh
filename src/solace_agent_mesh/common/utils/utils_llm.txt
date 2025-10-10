@@ -13,6 +13,11 @@ The `utils` directory provides essential utility functions and tools for the Sol
 - **`message_utils.py`** - Message size calculation and validation utilities
 - **`mime_helpers.py`** - MIME type classification and file extension utilities
 - **`push_notification_auth.py`** - JWT-based authentication for push notifications
+<<<<<<< HEAD
+=======
+- **`pydantic_utils.py`** - Pydantic BaseModel with dict-like access for configuration
+- **`type_utils.py`** - Robust type checking utilities for development environments
+>>>>>>> main
 
 ### Subdirectories:
 - **`embeds/`** - Dynamic expression evaluation system using `«...»` syntax for mathematical calculations, datetime formatting, UUID generation, and artifact content processing
@@ -105,6 +110,29 @@ The `utils` directory provides essential utility functions and tools for the Sol
   - `load_jwks(jwks_url: str) -> None` - Load public keys from JWKS endpoint
   - `verify_push_notification(request: Request) -> bool` - Verify notification authenticity
 
+<<<<<<< HEAD
+=======
+#### pydantic_utils.py
+**Purpose:** Provides a Pydantic BaseModel for SAM configuration with dict-like access
+**Import:** `from solace_agent_mesh.common.utils.pydantic_utils import SamConfigBase`
+
+**Classes:**
+- **`SamConfigBase(BaseModel)`** - Pydantic BaseModel with dict-like access
+  - `model_validate_and_clean(cls: Type[T], obj: Any) -> T` - Validates dict after removing None values
+  - `get(key: str, default: Any = None) -> Any` - Dict-like .get() method
+  - `__getitem__(key: str) -> Any` - Dict-like ['key'] access
+  - `__setitem__(key: str, value: Any)` - Dict-like ['key'] = value assignment
+  - `__contains__(key: str) -> bool` - Dict-like 'in' support
+  - `keys()`, `values()`, `items()`, `__iter__()` - Dict-like iteration methods
+
+#### type_utils.py
+**Purpose:** Utilities for robust type checking, especially in development environments
+**Import:** `from solace_agent_mesh.common.utils.type_utils import is_subclass_by_name`
+
+**Functions:**
+- `is_subclass_by_name(cls_to_check: type, base_class_name: str) -> bool` - Checks if a class is a subclass by looking for the base class name in the MRO
+
+>>>>>>> main
 ### Subdirectory APIs
 
 #### embeds/
@@ -154,7 +182,59 @@ extension = get_extension_for_mime_type("image/png")  # Returns ".png"
 filename = f"image_{uuid.uuid4()}{extension}"
 ```
 
+<<<<<<< HEAD
 ### 2. Platform Compatibility and System Initialization
+=======
+### 2. Configuration and Type Utilities
+
+```python
+from solace_agent_mesh.common.utils.pydantic_utils import SamConfigBase
+from solace_agent_mesh.common.utils.type_utils import is_subclass_by_name
+from pydantic import Field
+from typing import Optional
+
+# Define configuration with Pydantic validation and dict-like access
+class AgentConfig(SamConfigBase):
+    name: str
+    timeout: int = 30
+    debug: bool = False
+    api_key: Optional[str] = None
+
+# Load config from YAML/dict with None value cleaning
+config_dict = {
+    "name": "my_agent",
+    "timeout": None,  # Will use default value of 30
+    "debug": True,
+    "api_key": None   # Will use default value of None
+}
+
+config = AgentConfig.model_validate_and_clean(config_dict)
+
+# Use both Pydantic and dict-style access
+print(config.name)              # Pydantic style: "my_agent"
+print(config["timeout"])        # Dict style: 30 (default applied)
+print(config.get("debug", False))  # Dict .get(): True
+
+# Check if field was explicitly set
+if "api_key" in config:
+    print("API key was provided")
+else:
+    print("API key not provided, using default")
+
+# Robust type checking for development
+class BaseAgent:
+    pass
+
+class MyAgent(BaseAgent):
+    pass
+
+# This works even if BaseAgent is loaded from different paths
+if is_subclass_by_name(MyAgent, "BaseAgent"):
+    print("MyAgent is a BaseAgent subclass")
+```
+
+### 3. Platform Compatibility and System Initialization
+>>>>>>> main
 
 ```python
 # Early in application startup - import for side effects
@@ -184,7 +264,11 @@ async def run_command(cmd: str):
 result = await run_command("echo Hello World")
 ```
 
+<<<<<<< HEAD
 ### 3. Structured Logging Setup
+=======
+### 4. Structured Logging Setup
+>>>>>>> main
 
 ```python
 import logging
@@ -212,7 +296,11 @@ logger.info("User action completed", extra={
 # Output will be JSON with timestamp, level, service, code location, etc.
 ```
 
+<<<<<<< HEAD
 ### 4. Secure Push Notification System
+=======
+### 5. Secure Push Notification System
+>>>>>>> main
 
 ```python
 from solace_agent_mesh.common.utils.push_notification_auth import (
@@ -261,6 +349,7 @@ async def webhook_handler(request: Request):
         else:
             return Response("Unauthorized", status_code=401)
     except Exception as e:
+<<<<<<< HEAD
         print(f"Verification failed: {e}")
         return Response("Bad Request", status_code=400)
 
@@ -346,3 +435,8 @@ async def process_and_notify_report(user_id: str, template: str, context: dict, 
     """Complete workflow integrating
 
 # content_hash: 0f48341a035bc4fbdb720885186fe04075f8fbca7ddeee6a151b00b4c667c47a
+=======
+        print(f"
+
+# content_hash: d80ffe631ca180ea5aacca592313af42838960a949c8664559a957c2492fa86f
+>>>>>>> main

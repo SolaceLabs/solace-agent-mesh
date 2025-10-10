@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 
 import { Button } from "@/lib/components/ui";
-import type { AgentInfo } from "@/lib/types";
+import type { AgentCardInfo } from "@/lib/types";
 
 import { AgentDisplayCard } from "./AgentDisplayCard";
 
 interface AgentMeshCardsProps {
-    agents: AgentInfo[];
+    agents: AgentCardInfo[];
 }
 
 export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
@@ -17,7 +17,7 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
         setExpandedAgentName(prev => (prev === agentName ? null : agentName));
     };
 
-    const filteredAgents = agents.filter(agent => (agent.display_name || agent.name)?.toLowerCase().includes(searchQuery.toLowerCase()));
+    const filteredAgents = agents.filter(agent => (agent.displayName || agent.name)?.toLowerCase().includes(searchQuery.toLowerCase()));
 
     return (
         <div>
@@ -26,14 +26,7 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
             ) : (
                 <div className="mx-auto mt-[50px] ml-[50px]">
                     <div className="my-4">
-                        <input 
-                            type="text"
-                            data-testid="agent-search-input"
-                            placeholder="Search..." 
-                            value={searchQuery} 
-                            onChange={e => setSearchQuery(e.target.value)} 
-                            className="bg-background rounded-md border px-3 py-2" 
-                        />
+                        <input type="text" data-testid="agent-search-input" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-background rounded-md border px-3 py-2" />
                     </div>
                     {filteredAgents.length === 0 && searchQuery ? (
                         <div className="flex h-[calc(100vh-250px)] flex-col items-center justify-center gap-6">

@@ -375,4 +375,8 @@ async def my_business_tool(
     # Process business logic
     result =
 
+<<<<<<< HEAD
 # content_hash: 7e177b117b6361dbdd3eaeaa246c2173ac9cfaada01eb78219f2b8cd8b13d816
+=======
+# content_hash: 596f8253b415eaca3335f7660837dee9a090b3cab0b6e0a4daf92ca9a16d0123
+>>>>>>> main

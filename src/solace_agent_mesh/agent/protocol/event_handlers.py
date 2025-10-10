@@ -32,7 +32,13 @@ from ...common.a2a import (
     get_client_response_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
+<<<<<<< HEAD
     get_text_from_message,
+=======
+    get_sam_events_subscription_topic,
+    get_text_from_message,
+    topic_matches_subscription,
+>>>>>>> main
 )
 from ...agent.utils.artifact_helpers import (
     generate_artifact_metadata_summary,
@@ -95,6 +101,7 @@ async def process_event(component, event: Event):
                     component.log_identifier,
                 )
                 return
+<<<<<<< HEAD
             if component.invocation_monitor:
                 component.invocation_monitor.log_message_event(
                     direction="RECEIVED",
@@ -108,6 +115,8 @@ async def process_event(component, event: Event):
                     component.log_identifier,
                     topic,
                 )
+=======
+>>>>>>> main
             namespace = component.get_config("namespace")
             agent_name = component.get_config("agent_name")
             agent_request_topic = get_agent_request_topic(namespace, agent_name)
@@ -118,6 +127,7 @@ async def process_event(component, event: Event):
             agent_status_sub_prefix = (
                 get_agent_status_subscription_topic(namespace, agent_name)[:-2] + "/"
             )
+            sam_events_topic = get_sam_events_subscription_topic(namespace, "session")
             if topic == agent_request_topic:
                 await handle_a2a_request(component, message)
             elif topic == discovery_topic:
@@ -126,6 +136,8 @@ async def process_event(component, event: Event):
                     handle_agent_card_message(component, message)
                 else:
                     message.call_acknowledgements()
+            elif topic_matches_subscription(topic, sam_events_topic):
+                handle_sam_event(component, message, topic)
             elif topic.startswith(agent_response_sub_prefix) or topic.startswith(
                 agent_status_sub_prefix
             ):
@@ -229,34 +241,31 @@ async def handle_a2a_request(component, message: SolaceMessage):
         component.log_identifier,
         message.get_topic(),
     )
-    a2a_context = {}
-    adk_session = None
-    jsonrpc_request_id = None
-    logical_task_id = None
-    client_id = message.get_user_properties().get("clientId", "default_client")
-    status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
-    reply_topic_from_peer = message.get_user_properties().get("replyTo")
-    namespace = component.get_config("namespace")
-    a2a_user_config = message.get_user_properties().get("a2aUserConfig", {})
-    if not isinstance(a2a_user_config, dict):
-        log.warning(
-            "%s 'a2aUserConfig' user property is not a dictionary, received: %s. Defaulting to empty dict.",
-            component.log_identifier,
-            type(a2a_user_config),
-        )
-        a2a_user_config = {}
-    log.debug(
-        "%s Extracted 'a2aUserConfig': %s",
-        component.log_identifier,
-        a2a_user_config,
-    )
     try:
         payload_dict = message.get_payload()
         if not isinstance(payload_dict, dict):
             raise ValueError("Payload is not a dictionary.")
+<<<<<<< HEAD
         a2a_request: A2ARequest = A2ARequest.model_validate(payload_dict)
         jsonrpc_request_id = a2a.get_request_id(a2a_request)
 
+=======
+            
+            
+        a2a_request: A2ARequest = A2ARequest.model_validate(payload_dict)
+        jsonrpc_request_id = a2a.get_request_id(a2a_request)
+
+        # Extract properties from message user properties  
+        client_id = message.get_user_properties().get("clientId", "default_client")
+        status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
+        reply_topic_from_peer = message.get_user_properties().get("replyTo")
+        namespace = component.get_config("namespace")
+        a2a_user_config = message.get_user_properties().get("a2aUserConfig", {})
+        if not isinstance(a2a_user_config, dict):
+            log.warning("a2aUserConfig is not a dict, using empty dict instead")
+            a2a_user_config = {}
+
+>>>>>>> main
         # The concept of logical_task_id changes. For Cancel, it's in params.id.
         # For Send, we will generate it.
         logical_task_id = None
@@ -411,6 +420,20 @@ async def handle_a2a_request(component, message: SolaceMessage):
             effective_session_id = original_session_id
             is_run_based_session = False
             temporary_run_session_id_for_cleanup = None
+
+            session_id_from_data = None
+            if a2a_message and a2a_message.parts:
+                for part in a2a_message.parts:
+                    if isinstance(part, DataPart) and "session_id" in part.data:
+                        session_id_from_data = part.data["session_id"]
+                        log.info(
+                            f"Extracted session_id '{session_id_from_data}' from DataPart."
+                        )
+                        break
+
+            if session_id_from_data:
+                original_session_id = session_id_from_data
+
             if session_behavior == "RUN_BASED":
                 is_run_based_session = True
                 effective_session_id = f"{original_session_id}:{logical_task_id}:run"
@@ -432,6 +455,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     effective_session_id,
                     logical_task_id,
                 )
+
             adk_session_for_run = await component.session_service.get_session(
                 app_name=agent_name, user_id=user_id, session_id=effective_session_id
             )
@@ -447,6 +471,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     effective_session_id,
                     logical_task_id,
                 )
+
             else:
                 log.info(
                     "%s Reusing existing ADK session '%s' for task '%s'.",
@@ -454,6 +479,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     effective_session_id,
                     logical_task_id,
                 )
+
             if is_run_based_session:
                 try:
                     original_adk_session_data = (
@@ -1227,6 +1253,8 @@ async def handle_a2a_response(component, message: SolaceMessage):
                 component.log_identifier,
                 sub_task_id,
             )
+            # Reset the timeout since we received a status update
+            await component.reset_peer_timeout(sub_task_id)
             message.call_acknowledgements()
             return
 
@@ -1533,3 +1561,87 @@ def publish_agent_card(component):
             "%s Failed to publish Agent Card: %s", component.log_identifier, e
         )
         component.handle_error(e, None)
+
+
+def handle_sam_event(component, message, topic):
+    """Handle incoming SAM system events."""
+    try:
+        payload = message.get_payload()
+        
+        if not isinstance(payload, dict):
+            log.warning("Invalid SAM event payload - not a dict")
+            message.call_acknowledgements()
+            return
+        
+        event_type = payload.get("event_type")
+        if not event_type:
+            log.warning("SAM event missing event_type field")
+            message.call_acknowledgements()
+            return
+            
+        log.info("%s Received SAM event: %s", component.log_identifier, event_type)
+        
+        if event_type == "session.deleted":
+            data = payload.get("data", {})
+            session_id = data.get("session_id")
+            user_id = data.get("user_id")
+            agent_id = data.get("agent_id")
+            
+            if not all([session_id, user_id, agent_id]):
+                log.warning("Missing required fields in session.deleted event")
+                message.call_acknowledgements()
+                return
+                
+            current_agent = component.get_config("agent_name")
+            
+            if agent_id == current_agent:
+                log.info("%s Processing session.deleted event for session %s", 
+                        component.log_identifier, session_id)
+                asyncio.create_task(cleanup_agent_session(component, session_id, user_id))
+            else:
+                log.debug("Session deletion event for different agent: %s != %s", agent_id, current_agent)
+        else:
+            log.debug("Unhandled SAM event type: %s", event_type)
+            
+        message.call_acknowledgements()
+        
+    except Exception as e:
+        log.error("Error handling SAM event %s: %s", topic, e)
+        message.call_acknowledgements()
+
+
+
+async def cleanup_agent_session(component, session_id: str, user_id: str):
+    """Clean up agent-side session data."""
+    try:
+        log.info("Starting cleanup for session %s, user %s", session_id, user_id)
+        
+        if hasattr(component, 'session_service') and component.session_service:
+            agent_name = component.get_config("agent_name")
+            log.info("Deleting session %s from agent %s session service", session_id, agent_name)
+            await component.session_service.delete_session(
+                app_name=agent_name,
+                user_id=user_id,
+                session_id=session_id
+            )
+            log.info("Successfully deleted session %s from session service", session_id)
+        else:
+            log.info("No session service available for cleanup")
+            
+        with component.active_tasks_lock:
+            tasks_to_cancel = []
+            for task_id, context in component.active_tasks.items():
+                if (hasattr(context, 'a2a_context') and 
+                    context.a2a_context.get('session_id') == session_id):
+                    tasks_to_cancel.append(task_id)
+                    
+            for task_id in tasks_to_cancel:
+                context = component.active_tasks.get(task_id)
+                if context:
+                    context.cancel()
+                    log.info("Cancelled task %s for deleted session %s", task_id, session_id)
+        
+        log.info("Session cleanup completed for session %s", session_id)
+                    
+    except Exception as e:
+        log.error("Error cleaning up session %s: %s", session_id, e)

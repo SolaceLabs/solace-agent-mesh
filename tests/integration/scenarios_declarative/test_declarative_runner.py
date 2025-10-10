@@ -6,8 +6,10 @@ import base64
 import pytest
 import yaml
 import os
+import asyncio
 from pathlib import Path
 from typing import Dict, Any, List, Union, Optional, Tuple
+from fastapi.testclient import TestClient
 
 from sam_test_infrastructure.llm_server.server import (
     TestLLMServer,
@@ -33,6 +35,7 @@ from a2a.types import (
 from a2a.utils.message import get_data_parts, get_message_text
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
 from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
 from google.genai import types as adk_types  # Add this import
 import re
@@ -81,6 +84,7 @@ async def _setup_scenario_environment(
     declarative_scenario: Dict[str, Any],
     test_llm_server: TestLLMServer,
     test_artifact_service_instance: TestInMemoryArtifactService,
+    test_db_engine,
     scenario_id: str,
     artifact_scope: str,
 ) -> None:
@@ -176,6 +180,49 @@ async def _setup_scenario_environment(
                 )
             print(f"Scenario {scenario_id}: Setup artifact '{filename}' created.")
 
+    setup_tasks_spec = declarative_scenario.get("setup_tasks", [])
+    if setup_tasks_spec:
+        from sqlalchemy.orm import sessionmaker
+        from solace_agent_mesh.gateway.http_sse.repository.models import TaskModel
+        from datetime import datetime, timezone
+        import uuid
+
+        Session = sessionmaker(bind=test_db_engine)
+        db_session = Session()
+        try:
+            for task_spec in setup_tasks_spec:
+                start_time_iso = task_spec.get("start_time_iso")
+                start_time_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+                if start_time_iso:
+                    start_time_ms = int(
+                        datetime.fromisoformat(start_time_iso).timestamp() * 1000
+                    )
+
+                end_time_ms = None
+                if task_spec.get("end_time_iso"):
+                    end_time_ms = int(
+                        datetime.fromisoformat(
+                            task_spec.get("end_time_iso")
+                        ).timestamp()
+                        * 1000
+                    )
+
+                new_task = TaskModel(
+                    id=task_spec.get("task_id", f"setup-task-{uuid.uuid4().hex}"),
+                    user_id=task_spec.get("user_id", "sam_dev_user"),
+                    start_time=start_time_ms,
+                    end_time=end_time_ms,
+                    status=task_spec.get("status", "completed"),
+                    initial_request_text=task_spec["message"],
+                )
+                db_session.add(new_task)
+            db_session.commit()
+            print(
+                f"Scenario {scenario_id}: Setup {len(setup_tasks_spec)} tasks directly in the database."
+            )
+        finally:
+            db_session.close()
+
 
 async def _execute_gateway_and_collect_events(
     test_gateway_app_instance: TestGatewayComponent,
@@ -218,6 +265,189 @@ async def _execute_gateway_and_collect_events(
         aggregated_stream_text_for_final_assert,
         text_from_terminal_event_for_final_assert,
     )
+
+
+async def _execute_http_and_collect_events(
+    webui_api_client: TestClient,
+    http_request_input: Dict[str, Any],
+    test_gateway_app_instance: TestGatewayComponent,
+    overall_timeout: float,
+    scenario_id: str,
+) -> Tuple[
+    str,
+    str,
+    List[Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]],
+    Optional[str],
+    Optional[str],
+]:
+    """
+    Submits an HTTP request to the WebUI backend, collects all events, and extracts key text outputs.
+    """
+    method = http_request_input.get("method", "POST")
+    path = http_request_input.get("path")
+    json_body = http_request_input.get("json_body")
+    query_params = http_request_input.get("query_params")
+
+    if not path:
+        pytest.fail(f"Scenario {scenario_id}: http_request_input is missing 'path'.")
+
+    response = webui_api_client.request(
+        method, path, params=query_params, json=json_body
+    )
+
+    assert (
+        200 <= response.status_code < 300
+    ), f"Scenario {scenario_id}: Initial HTTP request failed with status {response.status_code}. Response: {response.text}"
+
+    response_data = response.json()
+    task_id = response_data.get("result", {}).get("id")
+    session_id = response_data.get("result", {}).get("contextId")
+
+    assert (
+        task_id
+    ), f"Scenario {scenario_id}: Failed to extract task_id from HTTP response. Response: {response_data}"
+    assert (
+        session_id
+    ), f"Scenario {scenario_id}: Failed to extract session_id (contextId) from HTTP response. Response: {response_data}"
+    print(
+        f"Scenario {scenario_id}: Task {task_id} submitted via HTTP in session {session_id}."
+    )
+
+    all_captured_events = await get_all_task_events(
+        gateway_component=test_gateway_app_instance,
+        task_id=task_id,
+        overall_timeout=overall_timeout,
+    )
+    assert (
+        all_captured_events
+    ), f"Scenario {scenario_id}: No events captured from gateway for task {task_id}."
+
+    (
+        _terminal_event_obj_for_text,
+        aggregated_stream_text_for_final_assert,
+        text_from_terminal_event_for_final_assert,
+    ) = extract_outputs_from_event_list(all_captured_events, scenario_id)
+
+    return (
+        task_id,
+        session_id,
+        all_captured_events,
+        aggregated_stream_text_for_final_assert,
+        text_from_terminal_event_for_final_assert,
+    )
+
+
+async def _assert_http_responses(
+    webui_api_client: TestClient,
+    http_responses_spec: List[Dict[str, Any]],
+    scenario_id: str,
+    task_id: Optional[str] = None,
+):
+    """
+    Executes HTTP requests and asserts the responses against the expected specifications.
+    """
+    if not http_responses_spec:
+        return
+
+    print(f"Scenario {scenario_id}: Performing HTTP response assertions...")
+
+    for i, spec in enumerate(http_responses_spec):
+        context_path = f"expected_http_responses[{i}]"
+        description = spec.get("description", f"Assertion {i+1}")
+        print(f"  - {context_path}: {description}")
+
+        request_spec = spec.get("request")
+        if not request_spec:
+            pytest.fail(
+                f"Scenario {scenario_id}: {context_path} is missing 'request' block."
+            )
+
+        method = request_spec.get("method", "GET")
+        path = request_spec.get("path")
+        if task_id and path and "{task_id}" in path:
+            path = path.format(task_id=task_id)
+        json_body = request_spec.get("json_body")
+        query_params = request_spec.get("query_params")
+
+        if not path:
+            pytest.fail(
+                f"Scenario {scenario_id}: {context_path}.request is missing 'path'."
+            )
+
+        response = webui_api_client.request(
+            method, path, params=query_params, json=json_body
+        )
+
+        if "expected_status_code" in spec:
+            assert response.status_code == spec["expected_status_code"], (
+                f"Scenario {scenario_id}: {context_path} - Status code mismatch. "
+                f"Expected {spec['expected_status_code']}, Got {response.status_code}. Response: {response.text}"
+            )
+
+        if "expected_content_type" in spec:
+            assert (
+                response.headers.get("content-type") == spec["expected_content_type"]
+            ), (
+                f"Scenario {scenario_id}: {context_path} - Content-Type mismatch. "
+                f"Expected '{spec['expected_content_type']}', Got '{response.headers.get('content-type')}'."
+            )
+
+        if "text_contains" in spec:
+            expected_substrings = spec["text_contains"]
+            if not isinstance(expected_substrings, list):
+                expected_substrings = [expected_substrings]
+            for substring in expected_substrings:
+                if task_id and "{task_id}" in substring:
+                    substring = substring.format(task_id=task_id)
+                assert substring in response.text, (
+                    f"Scenario {scenario_id}: {context_path} - Expected text not found. "
+                    f"Substring '{substring}' not in response text:\n---\n{response.text}\n---"
+                )
+
+        if spec.get("expected_body_is_empty_list", False):
+            assert (
+                response.json() == []
+            ), f"Scenario {scenario_id}: {context_path} - Expected an empty list, but got: {response.json()}"
+
+        if spec.get("expected_body_is_empty_dict", False):
+            assert (
+                response.json() == {}
+            ), f"Scenario {scenario_id}: {context_path} - Expected an empty dict, but got: {response.json()}"
+
+        if "expected_json_body_matches" in spec:
+            expected_subset = spec["expected_json_body_matches"]
+            try:
+                actual_json = response.json()
+            except json.JSONDecodeError:
+                pytest.fail(
+                    f"Scenario {scenario_id}: {context_path} - Response body was not valid JSON. Response: {response.text}"
+                )
+
+            if "expected_list_length" in spec:
+                assert (
+                    len(actual_json) == spec["expected_list_length"]
+                ), f"Scenario {scenario_id}: {context_path} - Expected list of length {spec['expected_list_length']}, but got {len(actual_json)}."
+
+            if isinstance(expected_subset, list):
+                _assert_list_subset(
+                    expected_list_subset=expected_subset,
+                    actual_list_superset=actual_json,
+                    scenario_id=scenario_id,
+                    event_index=-1,  # Using -1 as this is not tied to a gateway event
+                    context_path=context_path,
+                )
+            elif isinstance(expected_subset, dict):
+                _assert_dict_subset(
+                    expected_subset=expected_subset,
+                    actual_superset=actual_json,
+                    scenario_id=scenario_id,
+                    event_index=-1,
+                    context_path=context_path,
+                )
+            else:
+                pytest.fail(
+                    f"Scenario {scenario_id}: {context_path} - 'expected_json_body_matches' must be a list or a dict."
+                )
 
 
 async def _assert_summary_in_text(
@@ -285,12 +515,12 @@ async def _assert_summary_in_text(
 
         # Spot-check key fields
         # The agent can produce two different headers depending on the context.
-        header_format_1 = f"--- Metadata for artifact '{filename}' (v{resolved_version}) ---"
+        header_format_1 = (
+            f"--- Metadata for artifact '{filename}' (v{resolved_version}) ---"
+        )
         header_format_2 = f"Artifact: '{filename}' (version: {resolved_version})"
 
-        assert (
-            header_format_1 in text_to_search or header_format_2 in text_to_search
-        ), (
+        assert header_format_1 in text_to_search or header_format_2 in text_to_search, (
             f"Scenario {scenario_id}: {context_str} - Expected artifact header not found for '{filename}' v{resolved_version} in text:\n"
             f"---\n{text_to_search}\n---"
         )
@@ -393,7 +623,9 @@ async def _assert_llm_interactions(
 
                 # The agent code uses two possible headers depending on the input method.
                 # We will check for the presence of the common part.
-                header_for_filepart = "The user has provided the following file as context for your task."
+                header_for_filepart = (
+                    "The user has provided the following file as context for your task."
+                )
                 header_for_invoked = "The user has provided the following artifacts as context for your task."
 
                 # The enriched prompt is the last message in the history.
@@ -455,6 +687,15 @@ async def _assert_llm_interactions(
                 assert expected_tools_subset.issubset(
                     actual_tools_set
                 ), f"Scenario {scenario_id}: LLM call {i+1} tools not present. Expected {expected_tools_subset} to be in {actual_tools_set}"
+
+            if "tools_not_present" in expected_req_details:
+                unexpected_tools = set(expected_req_details["tools_not_present"])
+                actual_tools_set = set(actual_tool_names)
+                intersection = unexpected_tools.intersection(actual_tools_set)
+                assert not intersection, (
+                    f"Scenario {scenario_id}: LLM call {i+1} - Found unexpected tools. "
+                    f"Tools {intersection} should NOT have been present in {actual_tools_set}"
+                )
 
             if "expected_tool_responses_in_llm_messages" in expected_req_details:
                 expected_tool_responses_spec = expected_req_details[
@@ -939,15 +1180,24 @@ async def _assert_artifact_state(
         if spec.get("namespace") == "user":
             filename_for_lookup = f"user:{filename}"
         elif filename_regex:
-            all_keys = await test_artifact_service_instance.list_artifact_keys(
+            # List all keys from the artifact service
+            all_keys_raw = await test_artifact_service_instance.list_artifact_keys(
                 app_name=agent_name_for_artifacts,
                 user_id=user_id,
                 session_id=session_id,
             )
-            matching_filenames = [k for k in all_keys if re.match(filename_regex, k)]
+            # Explicitly filter out metadata files to prevent incorrect matches
+            all_keys_filtered = [
+                k for k in all_keys_raw if not k.endswith(".metadata.json")
+            ]
+
+            matching_filenames = [
+                k for k in all_keys_filtered if re.match(filename_regex, k)
+            ]
+
             assert (
                 len(matching_filenames) == 1
-            ), f"Scenario {scenario_id}: '{context_path}' - Expected exactly one artifact matching regex '{filename_regex}', but found {len(matching_filenames)}: {matching_filenames}"
+            ), f"Scenario {scenario_id}: '{context_path}' - Expected exactly one artifact matching regex '{filename_regex}', but found {len(matching_filenames)}: {matching_filenames}. All non-metadata keys checked: {all_keys_filtered}"
             filename_for_lookup = matching_filenames[0]
         details = await test_artifact_service_instance.get_artifact_details(
             app_name=agent_name_for_artifacts,
@@ -1284,6 +1534,8 @@ async def test_declarative_scenario(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     test_artifact_service_instance: TestInMemoryArtifactService,
+    webui_api_client: TestClient,
+    test_db_engine,
     a2a_message_validator: A2AMessageValidator,
     mock_gemini_client: None,
     sam_app_under_test: SamAgentApp,
@@ -1292,6 +1544,12 @@ async def test_declarative_scenario(
     peer_b_component: SamAgentComponent,
     peer_c_component: SamAgentComponent,
     peer_d_component: SamAgentComponent,
+    combined_dynamic_agent_component: SamAgentComponent,
+    empty_provider_agent_component: SamAgentComponent,
+    docstringless_agent_component: SamAgentComponent,
+    mixed_discovery_agent_component: SamAgentComponent,
+    complex_signatures_agent_component: SamAgentComponent,
+    config_context_agent_component: SamAgentComponent,
     monkeypatch: pytest.MonkeyPatch,
     mcp_server_harness,
     request: pytest.FixtureRequest,
@@ -1356,6 +1614,12 @@ async def test_declarative_scenario(
         peer_b_component.agent_name: peer_b_component,
         peer_c_component.agent_name: peer_c_component,
         peer_d_component.agent_name: peer_d_component,
+        combined_dynamic_agent_component.agent_name: combined_dynamic_agent_component,
+        empty_provider_agent_component.agent_name: empty_provider_agent_component,
+        docstringless_agent_component.agent_name: docstringless_agent_component,
+        mixed_discovery_agent_component.agent_name: mixed_discovery_agent_component,
+        complex_signatures_agent_component.agent_name: complex_signatures_agent_component,
+        config_context_agent_component.agent_name: config_context_agent_component,
         "TestAgent_Proxied": a2a_proxy_component,
     }
 
@@ -1402,33 +1666,144 @@ async def test_declarative_scenario(
         declarative_scenario,
         test_llm_server,
         test_artifact_service_instance,
+        test_db_engine,
         scenario_id,
         artifact_scope,
     )
+
+    gateway_input_data = declarative_scenario.get("gateway_input")
+    http_request_input = declarative_scenario.get("http_request_input")
+
+    if http_request_input:
+        webui_app = request.getfixturevalue("shared_solace_connector").get_app(
+            "WebUIBackendApp"
+        )
+        webui_component = webui_app.get_component()
+
+        original_send_update = webui_component._send_update_to_external
+        original_send_final = webui_component._send_final_response_to_external
+        original_send_error = webui_component._send_error_to_external
+
+        async def patched_send_update(
+            self,
+            external_request_context,
+            event_data,
+            is_final_chunk_of_update,
+        ):
+            # Call original to preserve SSE logic
+            await original_send_update(
+                external_request_context,
+                event_data,
+                is_final_chunk_of_update,
+            )
+            # Forward to test harness capture queue
+            await test_gateway_app_instance._send_update_to_external(
+                external_request_context, event_data, is_final_chunk_of_update
+            )
+
+        async def patched_send_final(self, external_request_context, task_data):
+            # Call original to preserve SSE logic
+            await original_send_final(external_request_context, task_data)
+            # Forward to test harness capture queue
+            await test_gateway_app_instance._send_final_response_to_external(
+                external_request_context, task_data
+            )
+
+        async def patched_send_error(self, external_request_context, error_data):
+            # Call original to preserve SSE logic
+            await original_send_error(external_request_context, error_data)
+            # Forward to test harness capture queue
+            await test_gateway_app_instance._send_error_to_external(
+                external_request_context, error_data
+            )
+
+        monkeypatch.setattr(
+            WebUIBackendComponent, "_send_update_to_external", patched_send_update
+        )
+        monkeypatch.setattr(
+            WebUIBackendComponent,
+            "_send_final_response_to_external",
+            patched_send_final,
+        )
+        monkeypatch.setattr(
+            WebUIBackendComponent, "_send_error_to_external", patched_send_error
+        )
 
     skip_intermediate_events = declarative_scenario.get(
         "skip_intermediate_events", False
     )
 
-    gateway_input_data = declarative_scenario.get("gateway_input")
-    if not gateway_input_data:
-        pytest.fail(f"Scenario {scenario_id}: 'gateway_input' is missing.")
+    has_http_assertions = "expected_http_responses" in declarative_scenario
+
+    # --- Phase 2: Execute Task and Collect Events ---
+    task_id = None
+    all_captured_events = []
+    aggregated_stream_text_for_final_assert = None
+    text_from_terminal_event_for_final_assert = None
+    # This will hold the data needed for assertions, regardless of input method
+    assertion_context_data = {}
 
     overall_timeout = declarative_scenario.get(
         "expected_completion_timeout_seconds", 10.0
     )
 
-    (
-        task_id,
-        all_captured_events,
-        aggregated_stream_text_for_final_assert,
-        text_from_terminal_event_for_final_assert,
-    ) = await _execute_gateway_and_collect_events(
-        test_gateway_app_instance, gateway_input_data, overall_timeout, scenario_id
-    )
-    print(
-        f"Scenario {scenario_id}: Task {task_id} execution and event collection complete."
-    )
+    if gateway_input_data and http_request_input:
+        pytest.fail(
+            f"Scenario {scenario_id}: Cannot have both 'gateway_input' and 'http_request_input'."
+        )
+    elif gateway_input_data:
+        assertion_context_data = gateway_input_data
+        (
+            task_id,
+            all_captured_events,
+            aggregated_stream_text_for_final_assert,
+            text_from_terminal_event_for_final_assert,
+        ) = await _execute_gateway_and_collect_events(
+            test_gateway_app_instance, gateway_input_data, overall_timeout, scenario_id
+        )
+    elif http_request_input:
+        (
+            task_id,
+            session_id,
+            all_captured_events,
+            aggregated_stream_text_for_final_assert,
+            text_from_terminal_event_for_final_assert,
+        ) = await _execute_http_and_collect_events(
+            webui_api_client,
+            http_request_input,
+            test_gateway_app_instance,
+            overall_timeout,
+            scenario_id,
+        )
+        # The WebUI test setup uses a default user. This is how auth is set up for tests.
+        user_id_for_assertions = http_request_input.get("user_identity", "sam_dev_user")
+        agent_name = (
+            http_request_input.get("json_body", {})
+            .get("params", {})
+            .get("message", {})
+            .get("metadata", {})
+            .get("agent_name")
+        )
+        assertion_context_data = {
+            "user_identity": user_id_for_assertions,
+            "external_context": {"a2a_session_id": session_id},
+            "target_agent_name": agent_name,
+        }
+    elif has_http_assertions and not gateway_input_data and not http_request_input:
+        # This is a valid case for tests that only perform HTTP assertions on existing state
+        print(
+            f"Scenario {scenario_id}: No input specified, proceeding to HTTP assertions."
+        )
+        assertion_context_data = {}
+    else:
+        pytest.fail(
+            f"Scenario {scenario_id}: Must have one of 'gateway_input' or 'http_request_input' (or 'expected_http_responses' alone)."
+        )
+
+    if task_id:
+        print(
+            f"Scenario {scenario_id}: Task {task_id} execution and event collection complete."
+        )
 
     if "assert_downstream_request" in declarative_scenario:
         await _assert_downstream_request(
@@ -1438,57 +1813,72 @@ async def test_declarative_scenario(
         )
 
     try:
-        actual_events_list = all_captured_events
-        captured_llm_requests = test_llm_server.get_captured_requests()
-        expected_llm_interactions = declarative_scenario.get("llm_interactions", [])
-        await _assert_llm_interactions(
-            expected_llm_interactions,
-            captured_llm_requests,
-            scenario_id,
-            test_artifact_service_instance,
-            gateway_input_data,
-            agent_components,
-            artifact_scope,
+        # If a task was run, perform assertions on its execution
+        if task_id:
+            actual_events_list = all_captured_events
+            captured_llm_requests = test_llm_server.get_captured_requests()
+            expected_llm_interactions = declarative_scenario.get("llm_interactions", [])
+            await _assert_llm_interactions(
+                expected_llm_interactions,
+                captured_llm_requests,
+                scenario_id,
+                test_artifact_service_instance,
+                assertion_context_data,
+                agent_components,
+                artifact_scope,
+            )
+            expected_gateway_outputs_spec_list = declarative_scenario.get(
+                "expected_gateway_output", []
+            )
+            await _assert_gateway_event_sequence(
+                expected_event_specs_list=expected_gateway_outputs_spec_list,
+                actual_events_list=actual_events_list,
+                scenario_id=scenario_id,
+                skip_intermediate_events=skip_intermediate_events,
+                expected_llm_interactions=expected_llm_interactions,
+                captured_llm_requests=captured_llm_requests,
+                aggregated_stream_text_for_final_assert=aggregated_stream_text_for_final_assert,
+                text_from_terminal_event_for_final_assert=text_from_terminal_event_for_final_assert,
+                test_artifact_service_instance=test_artifact_service_instance,
+                gateway_input_data=assertion_context_data,
+                agent_components=agent_components,
+                artifact_scope=artifact_scope,
+            )
+            expected_artifacts_spec_list = declarative_scenario.get(
+                "expected_artifacts", []
+            )
+            await _assert_generated_artifacts(
+                expected_artifacts_spec_list=expected_artifacts_spec_list,
+                test_artifact_service_instance=test_artifact_service_instance,
+                task_id=task_id,
+                gateway_input_data=assertion_context_data,
+                test_gateway_app_instance=test_gateway_app_instance,
+                scenario_id=scenario_id,
+                artifact_scope=artifact_scope,
+            )
+
+        # --- Phase 3: Final Assertions ---
+        # Perform HTTP assertions if specified
+        expected_http_responses = declarative_scenario.get(
+            "expected_http_responses", []
         )
-        expected_gateway_outputs_spec_list = declarative_scenario.get(
-            "expected_gateway_output", []
-        )
-        await _assert_gateway_event_sequence(
-            expected_event_specs_list=expected_gateway_outputs_spec_list,
-            actual_events_list=actual_events_list,
+        await _assert_http_responses(
+            webui_api_client=webui_api_client,
+            http_responses_spec=expected_http_responses,
             scenario_id=scenario_id,
-            skip_intermediate_events=skip_intermediate_events,
-            expected_llm_interactions=expected_llm_interactions,
-            captured_llm_requests=captured_llm_requests,
-            aggregated_stream_text_for_final_assert=aggregated_stream_text_for_final_assert,
-            text_from_terminal_event_for_final_assert=text_from_terminal_event_for_final_assert,
-            test_artifact_service_instance=test_artifact_service_instance,
-            gateway_input_data=gateway_input_data,
-            agent_components=agent_components,
-            artifact_scope=artifact_scope,
-        )
-        expected_artifacts_spec_list = declarative_scenario.get(
-            "expected_artifacts", []
-        )
-        await _assert_generated_artifacts(
-            expected_artifacts_spec_list=expected_artifacts_spec_list,
-            test_artifact_service_instance=test_artifact_service_instance,
             task_id=task_id,
-            gateway_input_data=gateway_input_data,
-            test_gateway_app_instance=test_gateway_app_instance,
-            scenario_id=scenario_id,
-            artifact_scope=artifact_scope,
         )
 
         print(f"Scenario {scenario_id}: Completed.")
     except Exception as e:
-        print(
-            f"\n--- Test failed for scenario: {scenario_id}. Printing event history: ---"
-        )
-        event_payloads = [
-            event.model_dump(exclude_none=True) for event in all_captured_events
-        ]
-        pretty_print_event_history(event_payloads)
+        if task_id:
+            print(
+                f"\n--- Test failed for scenario: {scenario_id}. Printing event history: ---"
+            )
+            event_payloads = [
+                event.model_dump(exclude_none=True) for event in all_captured_events
+            ]
+            pretty_print_event_history(event_payloads)
         raise e
 
 
@@ -1802,7 +2192,9 @@ async def _assert_event_details(
             ), f"Scenario {scenario_id}: Event {event_index+1} - 'produced_artifacts' mismatch. Expected {expected_set}, Got {actual_set}"
 
         if "metadata_contains" in expected_spec:
-            assert actual_event.metadata, f"Scenario {scenario_id}: Event {event_index+1} - Expected 'metadata' field to exist in final Task, but it was None."
+            assert (
+                actual_event.metadata
+            ), f"Scenario {scenario_id}: Event {event_index+1} - Expected 'metadata' field to exist in final Task, but it was None."
             _assert_dict_subset(
                 expected_subset=expected_spec["metadata_contains"],
                 actual_superset=actual_event.metadata,

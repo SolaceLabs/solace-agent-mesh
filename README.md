@@ -43,7 +43,13 @@ SAM creates a standardized communication layer where AI agents can:
 
 SAM is built on top of the Solace AI Connector (SAC) which allows Solace Platform Event Brokers to connect to AI models and services and Google's Agent Development Kit (ADK) for AI logic and tool integrations.
 
+<p align="center">
+<img src="docs/static/img/Solace_AI_Framework_With_Broker.png" width="640" alt="SAM Architecture Diagram" />
+</p>
+
+
 The result? A fully asynchronous, event-driven and decoupled AI agent architecture ready for production deployment. It is robust, reliable and easy to maintain. 
+
 
 ---
 
@@ -97,7 +103,7 @@ If no previous version exists, install the latest version with:
 ```bash
 pip3 install solace-agent-mesh
 ```
-#### 4. Initialize the new project via a GUI interface
+#### 4. Initialize the new project via a GUI tool
 ```bash
 sam init --gui
 ```
@@ -107,7 +113,7 @@ Note: This initialization UI runs on port 5002
 sam run
 ```
 #### 6. Verify SAM is running
-Open the Web UI at [http://localhost:8000](http://localhost:8000) for the chat inteface and ask a question
+Open the Web UI at [http://localhost:8000](http://localhost:8000) for the chat interface and ask a question
 
 ### 🔧 Customize SAM
 
@@ -154,7 +160,7 @@ Want to go further? Here are some hands-on tutorials to help you get started:
 
 | 🔧 Integration | ⏱️ Est. Time | 📘 Tutorial |
 |----------------|--------------|-------------|
-| 🌤️ **Weather Agent**<br>Learn how to build an agent that gives Solace Agent Mesh  the ability to access real-time weather information.  | **~15 min** | [Weather Agent Plugin](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/custom-agent) |
+| 🌤️ **Weather Agent**<br>Learn how to build an agent that gives Solace Agent Mesh the ability to access real-time weather information.  | **~15 min** | [Weather Agent Plugin](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/custom-agent) |
 | 🗃️ **SQL Database Integration**<br>Enable Solace Agent Mesh to answer company-specific questions using a sample coffee company database.| **~10–15 min** | [SQL Database Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/sql-database) |
 | 🧠 **MCP Integration**<br>Integrating a Model Context Protocol (MCP) Servers into Solace Agent Mesh. | **~10–15 min** | [MCP Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/mcp-integration) |
 | 💬 **Slack Integration**<br>Chat with Solace Agent Mesh directly from Slack. | **~20–30 min** | [Slack Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration) |

@@ -1,0 +1,114 @@
+test_case_id: "dynamic_tool_complex_signatures_001"
+description: |
+  Verifies that dynamic tools with complex function signatures are correctly
+  declared and executed. This includes optional types, complex types (list, dict),
+  default values, kwargs, and unsupported types.
+tags: ["all", "agent", "tools", "dynamic_tools"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "ComplexSignaturesAgent"
+  user_identity: "complex_sig_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Run all complex signature tests."
+
+llm_interactions:
+  - step_id: "llm_calls_all_complex_tools"
+    expected_request:
+      # We don't assert the schema here, but the calls below will fail if it's wrong.
+      tools_present:
+        - "handle_optional_param"
+        - "process_complex_types"
+        - "use_default_values"
+        - "accept_extra_args"
+        - "handle_unsupported_type"
+    static_response:
+      id: "chatcmpl-complex-sig-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              # Test 1: Optional param, provided
+              - id: "call_1"
+                type: "function"
+                function:
+                  name: "handle_optional_param"
+                  arguments: '{"name": "Alice"}'
+              # Test 2: Optional param, not provided
+              - id: "call_2"
+                type: "function"
+                function:
+                  name: "handle_optional_param"
+                  arguments: '{}'
+              # Test 3: Complex types
+              - id: "call_3"
+                type: "function"
+                function:
+                  name: "process_complex_types"
+                  arguments: '{"items": [10, 20, 30], "config": {"mode": "fast", "retries": 3}}'
+              # Test 4: Default values
+              - id: "call_4"
+                type: "function"
+                function:
+                  name: "use_default_values"
+                  arguments: '{}'
+              # Test 5: Kwargs
+              - id: "call_5"
+                type: "function"
+                function:
+                  name: "accept_extra_args"
+                  arguments: '{"required_arg": "req_val", "extra1": "foo", "extra2": 123}'
+              # Test 6: Unsupported type (Any)
+              - id: "call_6"
+                type: "function"
+                function:
+                  name: "handle_unsupported_type"
+                  arguments: '{"data": "some string data"}'
+          finish_reason: "tool_calls"
+
+  - step_id: "llm_final_response"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            result: "Name is Alice."
+        - tool_call_id_matches_prior_request_index: 1
+          response_json_matches:
+            result: "Name was not provided."
+        - tool_call_id_matches_prior_request_index: 2
+          response_json_matches:
+            item_sum: 60
+            config_keys: ["mode", "retries"]
+        - tool_call_id_matches_prior_request_index: 3
+          response_json_matches:
+            count: 10
+            is_enabled: true
+        - tool_call_id_matches_prior_request_index: 4
+          response_json_matches:
+            required: "req_val"
+            extras: ["extra1", "extra2"]
+        - tool_call_id_matches_prior_request_index: 5
+          response_json_matches:
+            data_type: "<class 'str'>"
+            data_value: "some string data"
+    static_response:
+      id: "chatcmpl-complex-sig-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "All complex signature tests passed."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    status:
+      state: "completed"
+      message:
+        parts:
+          - type: "text"
+            text_exact: "All complex signature tests passed."

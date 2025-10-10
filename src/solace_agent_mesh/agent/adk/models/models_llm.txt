@@ -5,7 +5,10 @@ This directory contains concrete implementations of the `BaseLlm` interface, pro
 
 ## Files Overview
 - `lite_llm.py` - LLM client using the `litellm` library to support hundreds of models from different providers
+<<<<<<< HEAD
 - `models_llm.txt` - Documentation file containing developer guide content
+=======
+>>>>>>> main
 
 ## Developer API Reference
 
@@ -140,4 +143,8 @@ if __name__ == "__main__":
     # asyncio.run(function_calling_example())
 ```
 
+<<<<<<< HEAD
 # content_hash: 12789ad2e16cd9ea5a81abdd68258d9ef30520bed5c51ba8d00ea66014191964
+=======
+# content_hash: 97abaea0097e0d6fe18f1d747ed54ced092c0a96829dc5be8448b087ac5f7c20
+>>>>>>> main

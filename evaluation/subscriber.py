@@ -120,9 +120,14 @@ class SubscriptionConfig:
             "/gateway/response/",
         ]
     )
+    blocked_topic_infixes: List[str] = field(
+        default_factory=lambda: [
+            "/discovery/"
+        ]
+    )
     message_timeout: int = 1000
     filter_non_final_status: bool = True
-    remove_config_keys: bool = True
+    remove_config_keys: bool = False
 
     def __post_init__(self):
         """Validate subscription configuration."""
@@ -142,7 +147,10 @@ class SubscriptionConfig:
 
     def is_topic_allowed(self, topic: str) -> bool:
         """Check if a topic is allowed based on configured infixes."""
-        return any(infix in topic for infix in self.allowed_topic_infixes)
+        # return any(infix in topic for infix in self.allowed_topic_infixes)
+        if any(infix in topic for infix in self.blocked_topic_infixes):
+            return False
+        return True
 
 
 @dataclass
@@ -300,18 +308,35 @@ class MessageProcessor:
         if not self.config.filter_non_final_status:
             return False
 
-        if "/gateway/status/" not in topic:
-            return False
-
         try:
-            if isinstance(payload, dict):
-                result = payload.get("result", {})
-                if isinstance(result, dict):
-                    # Filter out non-final status messages
-                    return not result.get("final", True)
+            # Filter only for llm_invocation
+            if self._find_part_type(payload, "llm_invocation"):
+                return True
+
+            # Filter only for llm_response
+            if self._find_part_type(payload, "llm_response"):
+                return True
+
+            # Filter out agent progress update messages
+            if self._find_part_type(payload, "agent_progress_update"):
+                return True
         except Exception:
             pass
 
+        return False
+
+    def _find_part_type(self, data: Any, type_to_find: str) -> bool:
+        """Recursively search for a part with a specific type."""
+        if isinstance(data, dict):
+            if data.get("type") == type_to_find:
+                return True
+            for key, value in data.items():
+                if self._find_part_type(value, type_to_find):
+                    return True
+        elif isinstance(data, list):
+            for item in data:
+                if self._find_part_type(item, type_to_find):
+                    return True
         return False
 
     def _determine_message_type(self, topic: str) -> str:

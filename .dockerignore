@@ -1,28 +1,70 @@
+# Python compiled files
 *.pyc
 *.pyo
 *.pyd
 __pycache__
 .pytest_cache
+
+# Environment files
 .env*
 .env
 .env_template
+
+# Development files
 docker-compose-local.yaml
 Makefile
-Dockerfile
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+
+# Dependencies
 node_modules
 venv
 .venv
 .venv*
+
+# IDE and editor files
 .vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Version control
 .git
+.gitignore
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# Logs and temporary files
 *.log
 *.out
 *.txt
 project_notes.txt
 *.trace
 trace_*
+
+# Build artifacts
 dist
 build
 tmp
 var
+*.egg-info
+
+# Test files and coverage
+tests/
+.coverage
+.tox
+.pytest_cache
+coverage.xml
+htmlcov/
+
+
+# CI/CD files
+.github/actions
+.github/workflows
+wss-unified-agent.config
+
+# Lock file (not needed in container)
+uv.lock

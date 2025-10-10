@@ -13,7 +13,7 @@ interface StructuredDataRendererProps extends BaseRendererProps {
 
 export const StructuredDataRenderer: React.FC<StructuredDataRendererProps> = ({ content, rendererType, setRenderError }) => {
     const [showRawTextView, setShowRawTextView] = useState(false);
-    
+
     useEffect(() => {
         setRenderError(null);
     }, [content, setRenderError]);
@@ -43,7 +43,7 @@ export const StructuredDataRenderer: React.FC<StructuredDataRendererProps> = ({ 
     }, [content, rendererType, setRenderError]);
 
     return (
-        <div className="flex flex-col h-full overflow-hidden bg-background relative">
+        <div className="bg-background relative flex h-full flex-col overflow-hidden">
             <div className="absolute top-4 right-4 z-10">
                 <Button onClick={() => setShowRawTextView(!showRawTextView)} title={showRawTextView ? "Show Structured View" : "Show Raw Text"}>
                     {showRawTextView ? (
@@ -58,9 +58,7 @@ export const StructuredDataRenderer: React.FC<StructuredDataRendererProps> = ({ 
                 </Button>
             </div>
             <div className="flex min-h-0 flex-col">
-                <div className="flex-1 overflow-auto">
-                    {showRawTextView ? <TextRenderer content={rawData} setRenderError={setRenderError} /> : <JSONViewer data={parsedData} maxDepth={4} className="min-h-16 border-none p-2" />}
-                </div>
+                <div className="flex-1 overflow-auto">{showRawTextView ? <TextRenderer content={rawData} setRenderError={setRenderError} /> : <JSONViewer data={parsedData} maxDepth={4} className="min-h-16 border-none p-2" />}</div>
             </div>
         </div>
     );

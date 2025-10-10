@@ -17,7 +17,7 @@ MCP integration allows your agents to connect to external MCP servers and use th
 
 ## Setting Up the Environment
 
-You must [install Solace Agent Mesh and SAM CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
+You must [install Solace Agent Mesh and Solace Agent Mesh CLI](../getting-started/installation.md), and then [create a new Solace Agent Mesh project](../getting-started/quick-start.md).
 
 For this tutorial using the filesystem MCP server, you also need Node.js and NPM installed.
 
@@ -55,7 +55,21 @@ tools:
         Authorization: "Bearer ${MCP_AUTH_TOKEN}"
 ```
 
-### 3. Docker Connection (Containerized MCP Servers)
+### 3. StreamableHTTP Connection (Remote MCP Servers)
+
+For connecting to remote MCP servers using Server-Sent Events:
+
+```yaml
+tools:
+  - tool_type: mcp
+    connection_params:
+      type: streamable-http
+      url: "https://mcp.example.com:<port>/mcp/message"
+      headers:
+        Authorization: "Bearer ${MCP_AUTH_TOKEN}"
+```
+
+### 4. Docker Connection (Containerized MCP Servers)
 
 For running MCP servers in Docker containers:
 
@@ -179,7 +193,7 @@ tools:
 2. **Set required environment variables**:
    ```sh
    export NAMESPACE="myorg/dev"
-   export SOLACE_BROKER_URL="ws://localhost:8080"
+   export SOLACE_BROKER_URL="ws://localhost:8008"
    # ... other Solace broker settings
    ```
 

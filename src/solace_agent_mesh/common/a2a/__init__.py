@@ -81,6 +81,11 @@ from .protocol import (
     get_message_from_send_request,
     get_peer_agent_status_topic,
     get_request_id,
+<<<<<<< HEAD
+=======
+    get_sam_events_topic,
+    get_sam_events_subscription_topic,
+>>>>>>> main
     get_request_method,
     get_response_error,
     get_error_code,
@@ -184,6 +189,11 @@ __all__ = [
     "get_message_from_send_request",
     "get_peer_agent_status_topic",
     "get_request_id",
+<<<<<<< HEAD
+=======
+    "get_sam_events_topic",
+    "get_sam_events_subscription_topic",
+>>>>>>> main
     "get_request_method",
     "get_response_error",
     "get_error_code",

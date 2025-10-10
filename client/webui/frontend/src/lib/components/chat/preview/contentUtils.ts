@@ -141,7 +141,10 @@ export function containsHtmlContent(text: string): boolean {
     return htmlRegex.test(text) && !isInCodeBlock;
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> main
 /**
  * Processes all embedded content in text
  * @param text The text to process

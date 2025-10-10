@@ -1,0 +1,57 @@
+test_case_id: "api_create_and_get_task_001"
+description: "Tests creating a task via HTTP API and then retrieving it from the /tasks list."
+tags: ["api", "tasks"]
+skip_intermediate_events: true
+
+http_request_input:
+  method: "POST"
+  path: "/api/v1/message:stream"
+  user_identity: "sam_dev_user"
+  json_body:
+    jsonrpc: "2.0"
+    id: "http-req-123"
+    method: "message/stream"
+    params:
+      message:
+        role: "user"
+        messageId: "msg-http-123"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "This is a test task created via HTTP."
+        metadata:
+          agent_name: "TestAgent"
+
+llm_interactions:
+  - step_id: "llm_responds_to_http_task"
+    static_response:
+      id: "chatcmpl-http-task-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Okay, I have processed the task that was created via HTTP."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: "task"
+    status:
+      state: "completed"
+      message:
+        parts:
+          - type: "text"
+            text_contains: "processed the task that was created via HTTP"
+
+expected_http_responses:
+  - description: "Verify the new task appears in the task list"
+    request:
+      method: "GET"
+      path: "/api/v1/tasks"
+    expected_status_code: 200
+    expected_json_body_matches:
+      - user_id: "sam_dev_user"
+        initial_request_text_contains: "This is a test task created via HTTP."
+        status: "completed"
+        id_matches_regex: ".+" # Just check that it has an ID

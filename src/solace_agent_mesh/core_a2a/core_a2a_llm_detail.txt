@@ -1,0 +1,101 @@
+# LLM Summary Detail File
+
+This file is a concatenation of all individual *llm.txt files found in the 'core_a2a' directory tree. Each section below corresponds to a specific directory's summary file.
+
+================================================================================
+
+## Section 1: solace_agent_mesh/core_a2a/core_a2a_llm.txt
+
+**Source file:** `solace_agent_mesh/core_a2a/core_a2a_llm.txt`
+
+# DEVELOPER GUIDE: core_a2a
+
+## Quick Summary
+The `core_a2a` directory provides a reusable service layer for core Agent-to-Agent (A2A) interactions. It handles task submission (both regular and streaming), task cancellation, and agent discovery processing while being decoupled from specific gateway implementations and SAC messaging details.
+
+## Files Overview
+- `__init__.py` - Package initialization file for the core A2A service layer
+- `service.py` - Main service class that encapsulates A2A protocol logic and agent registry operations
+
+## Developer API Reference
+
+### __init__.py
+**Purpose:** Package initialization for the core A2A service layer
+**Import:** `import solace_agent_mesh.core_a2a`
+
+No public classes, functions, or constants defined.
+
+### service.py
+**Purpose:** Provides the main CoreA2AService class for handling A2A protocol operations
+**Import:** `from solace_agent_mesh.core_a2a.service import CoreA2AService`
+
+**Classes:**
+- `CoreA2AService(agent_registry: AgentRegistry, namespace: str)` - Main service class for A2A operations
+  - `submit_task(agent_name: str, a2a_message: A2AMessage, session_id: str, client_id: str, reply_to_topic: str, user_id: str = "default_user", a2a_user_config: Optional[Dict[str, Any]] = None, metadata_override: Optional[Dict[str, Any]] = None) -> Tuple[str, Dict, Dict]` - Constructs topic, payload, and user properties for non-streaming task requests
+  - `submit_streaming_task(agent_name: str, a2a_message: A2AMessage, session_id: str, client_id: str, reply_to_topic: str, status_to_topic: str, user_id: str = "default_user", a2a_user_config: Optional[Dict[str, Any]] = None, metadata_override: Optional[Dict[str, Any]] = None) -> Tuple[str, Dict, Dict]` - Constructs topic, payload, and user properties for streaming task requests
+  - `cancel_task(agent_name: str, task_id: str, client_id: str, user_id: str = "default_user") -> Tuple[str, Dict, Dict]` - Constructs topic, payload, and user properties for task cancellation
+  - `get_agent(agent_name: str) -> Optional[AgentCard]` - Retrieves a specific agent card by name from the registry
+  - `get_all_agents() -> List[AgentCard]` - Retrieves all currently discovered agent cards from the registry
+  - `process_discovery_message(agent_card: AgentCard)` - Processes an incoming agent card discovery message
+  - `agent_registry: AgentRegistry` - The shared agent registry instance
+  - `namespace: str` - The namespace string
+  - `log_identifier: str` - Identifier used for logging
+
+**Functions:**
+None (all functionality is encapsulated in the CoreA2AService class)
+
+**Constants/Variables:**
+None
+
+**Usage Examples:**
+```python
+# Import required dependencies
+from solace_agent_mesh.core_a2a.service import CoreA2AService
+from solace_agent_mesh.common.agent_registry import AgentRegistry
+from a2a.types import A2AMessage, AgentCard
+
+# Initialize the service
+agent_registry = AgentRegistry()
+namespace = "my_NAMESPACE"
+service = CoreA2AService(agent_registry, namespace)
+
+# Submit a regular task
+message = A2AMessage(parts=[{"type": "text", "content": "Hello"}])
+topic, payload, user_props = service.submit_task(
+    agent_name="my_agent",
+    a2a_message=message,
+    session_id="session_123",
+    client_id="client_456",
+    reply_to_topic="responses/client_456",
+    user_id="user_789"
+)
+
+# Submit a streaming task
+topic, payload, user_props = service.submit_streaming_task(
+    agent_name="my_agent",
+    a2a_message=message,
+    session_id="session_123",
+    client_id="client_456",
+    reply_to_topic="responses/client_456",
+    status_to_topic="status/client_456",
+    user_id="user_789"
+)
+
+# Cancel a task
+topic, payload, user_props = service.cancel_task(
+    agent_name="my_agent",
+    task_id="task-abc123",
+    client_id="client_456"
+)
+
+# Get agent information
+agent = service.get_agent("my_agent")
+all_agents = service.get_all_agents()
+
+# Process discovery message
+agent_card = AgentCard(name="new_agent", description="A new agent")
+service.process_discovery_message(agent_card)
+```
+
+================================================================================
+

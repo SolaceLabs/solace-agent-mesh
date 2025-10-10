@@ -29,7 +29,10 @@ apps:
           group_name: "artifact_management"
         - tool_type: builtin
           tool_name: "convert_file_to_markdown"
-      session_service: *default_session_service
+      session_service:
+        type: "${PERSISTENCE_TYPE, memory}"
+        database_url: "${AGENT_MARKITDOWN_DATABASE_URL, sqlite:///markitdown-agent.db}"
+        default_behavior: "PERSISTENT"
       artifact_service: *default_artifact_service
       artifact_handling_mode: "reference"
       enable_embed_resolution: true

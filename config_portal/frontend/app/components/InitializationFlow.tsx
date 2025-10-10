@@ -9,16 +9,18 @@ import WebUIGatewaySetup from "./steps/init/WebUIGatewaySetup";
 import CompletionStep from "./steps/init/CompletionStep";
 import SuccessScreen from "./steps/InitSuccessScreen/SuccessScreen";
 
+export interface StepComponentProps {
+  data: Partial<Record<string, unknown>>;
+  updateData: (newData: Partial<Record<string, unknown>>) => void;
+  onNext: () => void;
+  onPrevious: () => void;
+}
+
 export type Step = {
   id: string;
   title: string;
   description: string;
-  component: React.ComponentType<{
-    data: any;
-    updateData: (data: any) => void;
-    onNext: () => void;
-    onPrevious: () => void;
-  }>;
+  component: React.ComponentType<StepComponentProps>;
 };
 
 const pathSelectionStep: Step = {
@@ -84,7 +86,7 @@ export const quickInitSteps: Step[] = [
 
 export default function InitializationFlow() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [formData, setFormData] = useState<Partial<Record<string, unknown>>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [setupPath, setSetupPath] = useState<"quick" | "advanced" | null>(null);
@@ -106,7 +108,6 @@ export default function InitializationFlow() {
         .then((data) => {
           if (data?.default_options) {
             const options = data.default_options;
-            preProcessOptions(options);
             setFormData((prevData) => ({ ...prevData, ...options }));
             setIsLoading(false);
           } else {
@@ -123,15 +124,6 @@ export default function InitializationFlow() {
     }
   }, [setupPath]);
 
-  const preProcessOptions = (options: Record<string, any>) => {
-    if (options.llm_model_name) {
-      delete options.llm_model_name;
-    }
-    if (options.embedding_model_name) {
-      delete options.embedding_model_name;
-    }
-  };
-
   useEffect(() => {
     if (setupPath === "quick") {
       setActiveSteps([pathSelectionStep, ...quickInitSteps]);
@@ -142,15 +134,13 @@ export default function InitializationFlow() {
 
   const currentStep = activeSteps[currentStepIndex];
 
-  const updateFormData = (newData: Record<string, any>) => {
-    if (newData.setupPath && newData.setupPath !== setupPath) {
-      setSetupPath(newData.setupPath);
+  const updateFormData = (newData: Partial<Record<string, unknown>>) => {
+    if (newData.setupPath && typeof newData.setupPath === "string" && newData.setupPath !== setupPath) {
+      setSetupPath(newData.setupPath as "quick" | "advanced");
     }
-
-    if (newData.showSuccess === true) {
+    if (newData.showSuccess) {
       setShowSuccess(true);
     }
-
     setFormData((prevData) => ({ ...prevData, ...newData }));
   };
 

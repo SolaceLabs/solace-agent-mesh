@@ -18,7 +18,12 @@ apps:
 
     app_config:
       namespace: ${NAMESPACE}
-      session_secret_key: ${SESSION_SECRET_KEY}
+      session_secret_key: "${SESSION_SECRET_KEY}"
+
+      session_service:
+        type: "${PERSISTENCE_TYPE, memory}"
+        database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
+        default_behavior: "PERSISTENT"
 
       artifact_service: *default_artifact_service
 
@@ -47,7 +52,6 @@ apps:
             Format responses to the user in Markdown using appropriate formatting.
 
       # --- Frontend Config Passthrough ---
-      frontend_welcome_message: >
-            
+      frontend_welcome_message: Hello, how can I assist you?
       frontend_bot_name: Solace Agent Mesh
       frontend_collect_feedback: false

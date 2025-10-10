@@ -12,7 +12,10 @@ import fnmatch
 import base64
 from datetime import datetime, timezone
 import json
+<<<<<<< HEAD
 import json
+=======
+>>>>>>> main
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,
 )
@@ -72,15 +75,14 @@ from ...agent.tools.peer_agent_tool import (
     PeerAgentTool,
     PEER_TOOL_PREFIX,
 )
-from ...agent.adk.invocation_monitor import InvocationMonitor
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.tools.registry import tool_registry
 from ...common.sac.sam_component_base import SamComponentBase
 
 if TYPE_CHECKING:
+    from .app import AgentInitCleanupConfig
     from .task_execution_context import TaskExecutionContext
-
 
 info = {
     "class_name": "SamAgentComponent",
@@ -244,16 +246,39 @@ class SamAgentComponent(SamComponentBase):
         self.agent_specific_state: Dict[str, Any] = {}
         self.active_tasks: Dict[str, "TaskExecutionContext"] = {}
         self.active_tasks_lock = threading.Lock()
+        self._tool_cleanup_hooks: List[Callable] = []
         self._agent_system_instruction_string: Optional[str] = None
         self._agent_system_instruction_callback: Optional[
             Callable[[CallbackContext, LlmRequest], Optional[str]]
         ] = None
-        self.invocation_monitor: Optional[InvocationMonitor] = None
         self._active_background_tasks = set()
         try:
             self.agent_specific_state: Dict[str, Any] = {}
             init_func_details = self.get_config("agent_init_function")
-            if init_func_details and isinstance(init_func_details, dict):
+
+            try:
+                log.info(
+                    "%s Initializing synchronous ADK services...", self.log_identifier
+                )
+                self.session_service = initialize_session_service(self)
+                self.artifact_service = initialize_artifact_service(self)
+                self.memory_service = initialize_memory_service(self)
+
+                log.info(
+                    "%s Synchronous ADK services initialized.", self.log_identifier
+                )
+            except Exception as service_err:
+                log.exception(
+                    "%s Failed to initialize synchronous ADK services: %s",
+                    self.log_identifier,
+                    service_err,
+                )
+                raise RuntimeError(
+                    f"Failed to initialize synchronous ADK services: {service_err}"
+                ) from service_err
+
+            from .app import AgentInitCleanupConfig # delayed import to avoid circular dependency
+            if init_func_details and isinstance(init_func_details, AgentInitCleanupConfig):
                 module_name = init_func_details.get("module")
                 func_name = init_func_details.get("name")
                 base_path = init_func_details.get("base_path")
@@ -366,23 +391,8 @@ class SamAgentComponent(SamComponentBase):
                         raise RuntimeError(
                             f"Agent custom initialization failed: {e}"
                         ) from e
-            try:
-                self.invocation_monitor = InvocationMonitor()
-            except Exception as im_e:
-                log.error(
-                    "%s Failed to initialize InvocationMonitor: %s",
-                    self.log_identifier,
-                    im_e,
-                )
-                self.invocation_monitor = None
-            try:
-                log.info(
-                    "%s Initializing synchronous ADK services...", self.log_identifier
-                )
-                self.session_service = initialize_session_service(self)
-                self.artifact_service = initialize_artifact_service(self)
-                self.memory_service = initialize_memory_service(self)
 
+<<<<<<< HEAD
                 log.info(
                     "%s Synchronous ADK services initialized.", self.log_identifier
                 )
@@ -396,6 +406,8 @@ class SamAgentComponent(SamComponentBase):
                     f"Failed to initialize synchronous ADK services: {service_err}"
                 ) from service_err
 
+=======
+>>>>>>> main
             # Async init is now handled by the base class `run` method.
             # We still need a future to signal completion from the async thread.
             self._async_init_future = concurrent.futures.Future()
@@ -615,6 +627,42 @@ class SamAgentComponent(SamComponentBase):
             # This means the task was already claimed by a competing event (e.g., timeout vs. response).
             log.warning("%s Failed to claim; it was already completed.", log_id)
             return None
+
+    async def reset_peer_timeout(self, sub_task_id: str):
+        """
+        Resets the timeout for a given peer sub-task.
+        """
+        log_id = f"{self.log_identifier}[ResetTimeout:{sub_task_id}]"
+        log.debug("%s Resetting timeout for peer sub-task.", log_id)
+
+        # Get the original logical task ID from the cache without removing it
+        logical_task_id = self.cache_service.get_data(sub_task_id)
+        if not logical_task_id:
+            log.warning(
+                "%s No active task found for sub-task %s. Cannot reset timeout.",
+                log_id,
+                sub_task_id,
+            )
+            return
+
+        # Get the configured timeout
+        timeout_sec = self.inter_agent_communication_config.get(
+            "request_timeout_seconds", DEFAULT_COMMUNICATION_TIMEOUT
+        )
+
+        # Update the cache with a new expiry
+        self.cache_service.add_data(
+            key=sub_task_id,
+            value=logical_task_id,
+            expiry=timeout_sec,
+            component=self,
+        )
+        log.info(
+            "%s Timeout for sub-task %s has been reset to %d seconds.",
+            log_id,
+            sub_task_id,
+            timeout_sec,
+        )
 
     async def _retrigger_agent_with_peer_responses(
         self,
@@ -994,7 +1042,7 @@ class SamAgentComponent(SamComponentBase):
             for func_decl in original_tool.function_declarations:
                 func_decl_name = func_decl.name
                 tool_object = llm_request.tools_dict.get(func_decl_name)
-                origin = getattr(tool_object, "origin", "unknown")
+                origin = SamAgentComponent._extract_tool_origin(tool_object)
 
                 feature_descriptor = {
                     "feature_type": "tool_function",
@@ -1101,6 +1149,18 @@ class SamAgentComponent(SamComponentBase):
             )
 
         return None
+
+    @staticmethod
+    def _extract_tool_origin(tool) -> str:
+        """
+        Helper method to extract the origin of a tool from various possible attributes.
+        """
+        if hasattr(tool, "origin") and tool.origin is not None:
+            return tool.origin
+        elif hasattr(tool, "func") and hasattr(tool.func, "origin") and tool.func.origin is not None:
+            return tool.func.origin
+        else:
+            return getattr(tool, "origin", "unknown")
 
     def get_agent_context(self) -> Dict[str, Any]:
         """Get agent context for middleware calls."""
@@ -2035,6 +2095,21 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     len(task_context.produced_artifacts),
                 )
+            
+            # Add token usage summary
+            if task_context:
+                token_summary = task_context.get_token_usage_summary()
+                if token_summary["total_tokens"] > 0:
+                    final_task_metadata["token_usage"] = token_summary
+                    log.info(
+                        "%s Task %s used %d total tokens (input: %d, output: %d, cached: %d)",
+                        self.log_identifier,
+                        logical_task_id,
+                        token_summary["total_tokens"],
+                        token_summary["total_input_tokens"],
+                        token_summary["total_output_tokens"],
+                        token_summary["total_cached_input_tokens"],
+                    )
 
             final_task = a2a.create_final_task(
                 task_id=logical_task_id,
@@ -2829,7 +2904,11 @@ class SamAgentComponent(SamComponentBase):
                 "%s Loading tools asynchronously in dedicated thread...",
                 self.log_identifier,
             )
-            loaded_tools, enabled_builtin_tools = await load_adk_tools(self)
+            (
+                loaded_tools,
+                enabled_builtin_tools,
+                self._tool_cleanup_hooks,
+            ) = await load_adk_tools(self)
             log.info(
                 "%s Initializing ADK Agent/Runner asynchronously in dedicated thread...",
                 self.log_identifier,
@@ -2931,7 +3010,9 @@ class SamAgentComponent(SamComponentBase):
         self.cancel_timer(self._card_publish_timer_id)
 
         cleanup_func_details = self.get_config("agent_cleanup_function")
-        if cleanup_func_details and isinstance(cleanup_func_details, dict):
+
+        from .app import AgentInitCleanupConfig # Avoid circular import
+        if cleanup_func_details and isinstance(cleanup_func_details, AgentInitCleanupConfig):
             module_name = cleanup_func_details.get("module")
             func_name = cleanup_func_details.get("name")
             base_path = cleanup_func_details.get("base_path")
@@ -2970,14 +3051,45 @@ class SamAgentComponent(SamComponentBase):
                         func_name,
                         e,
                     )
-        if self.invocation_monitor:
-            try:
-                self.invocation_monitor.cleanup()
-            except Exception as im_clean_e:
-                log.error(
-                    "%s Error during InvocationMonitor cleanup: %s",
+        if self._tool_cleanup_hooks:
+            log.info(
+                "%s Executing %d tool cleanup hooks...",
+                self.log_identifier,
+                len(self._tool_cleanup_hooks),
+            )
+            if self._async_loop and self._async_loop.is_running():
+
+                async def run_tool_cleanup():
+                    results = await asyncio.gather(
+                        *[hook() for hook in self._tool_cleanup_hooks],
+                        return_exceptions=True,
+                    )
+                    for i, result in enumerate(results):
+                        if isinstance(result, Exception):
+                            log.error(
+                                "%s Error during tool cleanup hook #%d: %s",
+                                self.log_identifier,
+                                i,
+                                result,
+                                exc_info=result,
+                            )
+
+                future = asyncio.run_coroutine_threadsafe(
+                    run_tool_cleanup(), self._async_loop
+                )
+                try:
+                    future.result(timeout=15)  # Wait for cleanup to complete
+                    log.info("%s All tool cleanup hooks executed.", self.log_identifier)
+                except Exception as e:
+                    log.error(
+                        "%s Exception while waiting for tool cleanup hooks to finish: %s",
+                        self.log_identifier,
+                        e,
+                    )
+            else:
+                log.warning(
+                    "%s Cannot execute tool cleanup hooks because the async loop is not running.",
                     self.log_identifier,
-                    im_clean_e,
                 )
 
         # The base class cleanup() will handle stopping the async loop and joining the thread.

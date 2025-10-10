@@ -16,20 +16,13 @@ interface ArtifactDetailsProps {
     setIsExpanded?: (expanded: boolean) => void;
 }
 
-export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({
-    artifactInfo,
-    isPreview = false,
-    isExpanded = false,
-    onDelete,
-    onDownload,
-    setIsExpanded,
-}) => {
+export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, isPreview = false, isExpanded = false, onDelete, onDownload, setIsExpanded }) => {
     const { previewedArtifactAvailableVersions, currentPreviewedVersionNumber, navigateArtifactVersion } = useChatContext();
     const versions = useMemo(() => previewedArtifactAvailableVersions ?? [], [previewedArtifactAvailableVersions]);
 
     return (
         <div className="flex flex-row justify-between gap-1">
-            <div className="flex items-center gap-4 min-w-0">
+            <div className="flex min-w-0 items-center gap-4">
                 <div className="min-w-0">
                     <div className="truncate text-sm" title={artifactInfo.filename}>
                         {artifactInfo.filename}

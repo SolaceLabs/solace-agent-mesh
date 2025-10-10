@@ -6,7 +6,7 @@ LLM_SERVICE_GENERAL_MODEL_NAME=
 
 # Defaulted environment variables in the Dockerfile
 NAMESPACE="sam/"
-SOLACE_BROKER_URL="ws://localhost:8080"
+SOLACE_BROKER_URL="ws://localhost:8008"
 SOLACE_BROKER_VPN="default"
 SOLACE_BROKER_USERNAME="default"
 SOLACE_BROKER_PASSWORD="default"

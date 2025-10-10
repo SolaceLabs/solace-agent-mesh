@@ -19,7 +19,11 @@ gateway_input:
     - type: "text"
       text: "What is this file about?"
     - type: "file"
+<<<<<<< HEAD
       uri: "artifact://test_namespace/uri_user@test.com/ref_test_session_001/user:company_profile.txt?version=0"
+=======
+      uri: "artifact://TestAgent/uri_user@test.com/ref_test_session_001/user:company_profile.txt?version=0"
+>>>>>>> main
 
 llm_interactions:
   - expected_request:

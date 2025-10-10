@@ -3,39 +3,48 @@ Defines FastAPI dependency injectors to access shared resources
 managed by the WebUIBackendComponent.
 """
 
-from fastapi import Depends, HTTPException, status, Request
-from typing import (
-    TYPE_CHECKING,
-    Callable,
-    Dict,
-    Optional,
-    Any,
-)
-import os
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any
 
+from fastapi import Depends, HTTPException, Request, status
 from solace_ai_connector.common.log import log
-from ...gateway.http_sse.sse_manager import SSEManager
-from ...gateway.http_sse.session_manager import SessionManager
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+
 from ...common.agent_registry import AgentRegistry
-
-from ...gateway.http_sse.services.agent_service import AgentService
-from ...gateway.http_sse.services.task_service import TaskService
-from ...gateway.http_sse.services.people_service import PeopleService
-from ...gateway.base.task_context import TaskContextManager
-
-from ...core_a2a.service import CoreA2AService
-from ...common.services.identity_service import BaseIdentityService
 from ...common.middleware.config_resolver import ConfigResolver
+from ...common.services.identity_service import BaseIdentityService
+from ...core_a2a.service import CoreA2AService
+from ...gateway.base.task_context import TaskContextManager
+from ...gateway.http_sse.services.agent_card_service import AgentCardService
+from ...gateway.http_sse.services.people_service import PeopleService
+from ...gateway.http_sse.services.task_service import TaskService
+from ...gateway.http_sse.services.feedback_service import FeedbackService
+from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
+from ...gateway.http_sse.services.data_retention_service import DataRetentionService
+from ...gateway.http_sse.session_manager import SessionManager
+from ...gateway.http_sse.sse_manager import SSEManager
+from .repository import SessionRepository
+from .repository.interfaces import ITaskRepository
+from .repository.task_repository import TaskRepository
+from .services.session_service import SessionService
 
-from google.adk.artifacts import BaseArtifactService
+try:
+    from google.adk.artifacts import BaseArtifactService
+except ImportError:
+    # Mock BaseArtifactService for environments without Google ADK
+    class BaseArtifactService:
+        pass
 
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
 
 sac_component_instance: "WebUIBackendComponent" = None
+SessionLocal: sessionmaker = None
 
-api_config: Optional[Dict[str, Any]] = None
+api_config: dict[str, Any] | None = None
 
 
 def set_component_instance(component: "WebUIBackendComponent"):
@@ -48,7 +57,30 @@ def set_component_instance(component: "WebUIBackendComponent"):
         log.warning("[Dependencies] SAC Component instance already set.")
 
 
-def set_api_config(config: Dict[str, Any]):
+def init_database(database_url: str):
+    """Initialize database with direct sessionmaker."""
+    global SessionLocal
+    if SessionLocal is None:
+        engine = create_engine(database_url)
+
+        # Enable foreign keys for SQLite only (database-agnostic)
+        from sqlalchemy import event
+
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_conn, connection_record):
+            # Only apply to SQLite connections
+            if database_url.startswith("sqlite"):
+                cursor = dbapi_conn.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        log.info("[Dependencies] Database initialized with foreign key support.")
+    else:
+        log.warning("[Dependencies] Database already initialized.")
+
+
+def set_api_config(config: dict[str, Any]):
     """Called during startup to provide API configuration."""
     global api_config
     if api_config is None:
@@ -71,7 +103,7 @@ def get_sac_component() -> "WebUIBackendComponent":
     return sac_component_instance
 
 
-def get_api_config() -> Dict[str, Any]:
+def get_api_config() -> dict[str, Any]:
     """FastAPI dependency to get the API configuration."""
     if api_config is None:
         log.critical("[Dependencies] API configuration accessed before it was set!")
@@ -128,26 +160,43 @@ def get_user_id(
 ) -> str:
     """
     FastAPI dependency that returns the user's identity.
-    It prioritizes the authenticated user from `request.state.user` (set by AuthMiddleware)
-    and falls back to the SessionManager for non-authenticated or legacy scenarios.
+    When FRONTEND_USE_AUTHORIZATION is true: Fully relies on OAuth - user must be authenticated by AuthMiddleware.
+    When FRONTEND_USE_AUTHORIZATION is false: Uses development fallback user.
     """
     log.debug("[Dependencies] Resolving user_id string")
 
+    # AuthMiddleware should always set user state for both auth enabled/disabled cases
     if hasattr(request.state, "user") and request.state.user:
         user_id = request.state.user.get("id")
         if user_id:
             log.debug(f"[Dependencies] Using user ID from AuthMiddleware: {user_id}")
             return user_id
         else:
-            log.warning(
-                "[Dependencies] request.state.user exists but has no 'id' field. Falling back."
+            log.error(
+                "[Dependencies] request.state.user exists but has no 'id' field: %s. This indicates a bug in AuthMiddleware.",
+                request.state.user,
             )
 
-    log.debug("[Dependencies] Falling back to SessionManager for user_id")
-    try:
-        return session_manager.get_a2a_client_id(request)
-    except AssertionError:
-        return f"anonymous_user:{os.urandom(8).hex()}"
+    # If we reach here, AuthMiddleware didn't set user state properly
+    use_authorization = session_manager.use_authorization
+
+    if use_authorization:
+        # When OAuth is enabled, we should never reach here - AuthMiddleware should have handled authentication
+        log.error(
+            "[Dependencies] OAuth is enabled but no authenticated user found. This indicates an authentication failure or middleware bug."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required but user not found",
+        )
+    else:
+        # When auth is disabled, use development fallback user
+        fallback_id = "sam_dev_user"
+        log.info(
+            "[Dependencies] Authorization disabled and no user in request state, using fallback user: %s",
+            fallback_id,
+        )
+        return fallback_id
 
 
 def ensure_session_id(
@@ -161,21 +210,105 @@ def ensure_session_id(
 
 def get_identity_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Optional[BaseIdentityService]:
+) -> BaseIdentityService | None:
     """FastAPI dependency to get the configured IdentityService instance."""
     log.debug("[Dependencies] get_identity_service called")
     return component.identity_service
 
 
+def get_db() -> Generator[Session, None, None]:
+    if SessionLocal is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Session management requires database configuration.",
+        )
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def get_people_service(
-    identity_service: Optional[BaseIdentityService] = Depends(get_identity_service),
+    identity_service: BaseIdentityService | None = Depends(get_identity_service),
 ) -> PeopleService:
     """FastAPI dependency to get an instance of PeopleService."""
     log.debug("[Dependencies] get_people_service called")
     return PeopleService(identity_service=identity_service)
 
 
-PublishFunc = Callable[[str, Dict, Optional[Dict]], None]
+def get_task_repository(db: Session = Depends(get_db)) -> ITaskRepository:
+    """FastAPI dependency to get an instance of TaskRepository."""
+    log.debug("[Dependencies] get_task_repository called")
+    return TaskRepository(db)
+
+
+def get_feedback_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    task_repo: ITaskRepository = Depends(get_task_repository),
+) -> FeedbackService:
+    """FastAPI dependency to get an instance of FeedbackService."""
+    log.debug("[Dependencies] get_feedback_service called")
+    # The session factory is needed for the existing DB save logic.
+    session_factory = SessionLocal if component.database_url else None
+    return FeedbackService(
+        session_factory=session_factory, component=component, task_repo=task_repo
+    )
+
+
+def get_data_retention_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> "DataRetentionService | None":
+    """
+    FastAPI dependency to get the DataRetentionService instance.
+
+    Returns:
+        DataRetentionService instance if database is configured and service is initialized,
+        None otherwise.
+
+    Note:
+        This dependency is primarily for future API endpoints that might expose
+        data retention statistics or manual cleanup triggers. The service itself
+        runs automatically via timer in the component.
+    """
+    log.debug("[Dependencies] get_data_retention_service called")
+
+    if not component.database_url:
+        log.debug(
+            "[Dependencies] Database not configured, returning None for data retention service"
+        )
+        return None
+
+    if (
+        not hasattr(component, "data_retention_service")
+        or component.data_retention_service is None
+    ):
+        log.warning("[Dependencies] DataRetentionService not initialized on component")
+        return None
+
+    return component.data_retention_service
+
+
+def get_task_logger_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> TaskLoggerService:
+    """FastAPI dependency to get an instance of TaskLoggerService."""
+    log.debug("[Dependencies] get_task_logger_service called")
+    task_logger_service = component.get_task_logger_service()
+    if task_logger_service is None:
+        log.error("[Dependencies] TaskLoggerService is not available.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Task logging service is not configured or available.",
+        )
+    return task_logger_service
+
+
+PublishFunc = Callable[[str, dict, dict | None], None]
 
 
 def get_publish_a2a_func(
@@ -212,7 +345,7 @@ def get_config_resolver(
 
 def get_app_config(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     FastAPI dependency to safely get the application configuration dictionary.
     """
@@ -225,8 +358,8 @@ async def get_user_config(
     user_id: str = Depends(get_user_id),
     config_resolver: ConfigResolver = Depends(get_config_resolver),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    app_config: Dict[str, Any] = Depends(get_app_config),
-) -> Dict[str, Any]:
+    app_config: dict[str, Any] = Depends(get_app_config),
+) -> dict[str, Any]:
     """
     FastAPI dependency to get the user-specific configuration.
     """
@@ -241,9 +374,61 @@ async def get_user_config(
     )
 
 
+class ValidatedUserConfig:
+    """
+    FastAPI dependency class for validating user scopes and returning user config.
+
+    This class creates a callable dependency that validates a user has the required
+    scopes before allowing access to protected endpoints.
+
+    Args:
+        required_scopes: List of scope strings required for authorization
+
+    Raises:
+        HTTPException: 403 if user lacks required scopes
+
+    Example:
+        @router.get("/artifacts")
+        async def list_artifacts(
+            user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
+        ):
+    """
+
+    def __init__(self, required_scopes: list[str]):
+        self.required_scopes = required_scopes
+
+    async def __call__(
+        self,
+        request: Request,
+        config_resolver: ConfigResolver = Depends(get_config_resolver),
+        user_config: dict[str, Any] = Depends(get_user_config),
+    ) -> dict[str, Any]:
+        user_id = user_config.get("user_profile", {}).get("id")
+
+        log.debug(
+            f"[Dependencies] ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}"
+        )
+
+        # Validate scopes
+        if not config_resolver.is_feature_enabled(
+            user_config,
+            {"tool_metadata": {"required_scopes": self.required_scopes}},
+            {},
+        ):
+            log.warning(
+                f"[Dependencies] Authorization denied for user '{user_id}'. Required scopes: {self.required_scopes}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Not authorized. Required scopes: {self.required_scopes}",
+            )
+
+        return user_config
+
+
 def get_shared_artifact_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Optional[BaseArtifactService]:
+) -> BaseArtifactService | None:
     """FastAPI dependency to get the shared ArtifactService."""
     log.debug("[Dependencies] get_shared_artifact_service called")
     return component.get_shared_artifact_service()
@@ -251,7 +436,7 @@ def get_shared_artifact_service(
 
 def get_embed_config(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """FastAPI dependency to get embed-related configuration."""
     log.debug("[Dependencies] get_embed_config called")
     return component.get_embed_config()
@@ -282,12 +467,12 @@ def get_task_context_manager_from_component(
     return component.task_context_manager
 
 
-def get_agent_service(
+def get_agent_card_service(
     registry: AgentRegistry = Depends(get_agent_registry),
-) -> AgentService:
-    """FastAPI dependency to get an instance of AgentService."""
-    log.debug("[Dependencies] get_agent_service called")
-    return AgentService(agent_registry=registry)
+) -> AgentCardService:
+    """FastAPI dependency to get an instance of AgentCardService."""
+    log.debug("[Dependencies] get_agent_card_service called")
+    return AgentCardService(agent_registry=registry)
 
 
 def get_task_service(
@@ -314,3 +499,76 @@ def get_task_service(
         task_context_lock=task_context_manager._lock,
         app_name=app_name,
     )
+
+
+def get_session_business_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> SessionService:
+    log.debug("[Dependencies] get_session_business_service called")
+
+    # Note: Session and message repositories will be created per request
+    # when the SessionService methods receive the db parameter
+    return SessionService(component=component)
+
+
+def get_session_validator(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> Callable[[str, str], bool]:
+    log.debug("[Dependencies] get_session_validator called")
+
+    if SessionLocal:
+        log.debug("Using database-backed session validation")
+
+        def validate_with_database(session_id: str, user_id: str) -> bool:
+            try:
+                db = SessionLocal()
+                try:
+                    session_repository = SessionRepository(db)
+                    session_domain = session_repository.find_user_session(
+                        session_id, user_id
+                    )
+                    return session_domain is not None
+                finally:
+                    db.close()
+            except:
+                return False
+
+        return validate_with_database
+    else:
+        log.debug("No database configured - using basic session validation")
+
+        def validate_without_database(session_id: str, user_id: str) -> bool:
+            if not session_id or not session_id.startswith("web-session-"):
+                return False
+            return bool(user_id)
+
+        return validate_without_database
+
+
+def get_db_optional() -> Generator[Session | None, None, None]:
+    """Optional database dependency that returns None if database is not configured."""
+    if SessionLocal is None:
+        log.debug("[Dependencies] Database not configured, returning None")
+        yield None
+    else:
+        db = SessionLocal()
+        try:
+            yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+
+def get_session_business_service_optional(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> SessionService | None:
+    """Optional session service dependency that returns None if database is not configured."""
+    if SessionLocal is None:
+        log.debug(
+            "[Dependencies] Database not configured, returning None for session service"
+        )
+        return None
+    return SessionService(component=component)

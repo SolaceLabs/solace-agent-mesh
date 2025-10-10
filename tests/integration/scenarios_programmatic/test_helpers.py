@@ -239,6 +239,40 @@ def assert_event_text_contains(
     ), f"Scenario {scenario_id}: {event_description} text mismatch. Expected to contain '{expected_substring}', Got '{text_content}'"
 
 
+def assert_final_response_text(
+    all_events: List[
+        Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]
+    ],
+    expected_text: str,
+    scenario_id: str,
+) -> None:
+    """
+    Asserts that the final response text from a task matches the expected text exactly.
+    It prioritizes the aggregated stream text if available, otherwise uses the
+    text from the terminal event.
+    """
+    (
+        terminal_event,
+        stream_text,
+        terminal_text,
+    ) = extract_outputs_from_event_list(all_events, scenario_id)
+
+    # Prioritize the full streamed text if it exists, otherwise use the terminal event's text.
+    # This is because the terminal event might be truncated or just a summary.
+    actual_text = stream_text if stream_text is not None else terminal_text
+
+    if actual_text is None:
+        pytest.fail(
+            f"Scenario {scenario_id}: No text content found in the final response to assert."
+        )
+
+    assert actual_text == expected_text, (
+        f"Scenario {scenario_id}: Final response text mismatch.\n"
+        f"Expected: '{expected_text}'\n"
+        f"Got     : '{actual_text}'"
+    )
+
+
 def assert_final_response_text_contains(
     verification_content: Optional[str],
     expected_substring: str,
