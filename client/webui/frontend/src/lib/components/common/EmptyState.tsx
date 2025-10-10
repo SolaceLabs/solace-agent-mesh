@@ -3,6 +3,7 @@ import { Button } from "@/lib/components/ui/button";
 import type { buttonVariants } from "@/lib/components/ui/button";
 import type { ReactElement } from "react";
 import { ErrorIllustration, NotFoundIllustration } from "@/lib/assets";
+import { cn } from "@/lib/utils";
 
 type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
 
@@ -18,9 +19,10 @@ interface EmptyStateProps {
     variant?: "error" | "notFound" | "noImage";
     image?: ReactElement;
     buttons?: ButtonWithCallback[];
+    className?: string;
 }
 
-function EmptyState({ title, subtitle, image, variant = "error", buttons }: EmptyStateProps) {
+function EmptyState({ title, subtitle, image, variant = "error", buttons, className }: EmptyStateProps) {
     const illustrations = {
         error: <ErrorIllustration width={150} height={150} />,
         notFound: <NotFoundIllustration width={150} height={150} />,
@@ -28,7 +30,7 @@ function EmptyState({ title, subtitle, image, variant = "error", buttons }: Empt
     };
 
     return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+        <div className={cn("flex h-full w-full flex-col items-center justify-center gap-3", className)}>
             {image || illustrations[variant] || null}
 
             <p className="mt-4 text-lg">{title}</p>
