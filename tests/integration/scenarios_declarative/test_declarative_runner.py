@@ -2033,10 +2033,18 @@ async def _assert_downstream_auth_headers(
             actual_auth = actual_headers.get("authorization", "")
 
             if "exact" in expected_auth:
-                assert actual_auth == expected_auth["exact"], (
-                    f"Scenario {scenario_id}: {context_path} - Authorization header mismatch. "
-                    f"Expected '{expected_auth['exact']}', Got '{actual_auth}'"
-                )
+                expected_value = expected_auth["exact"]
+                # Handle empty string as "no header should be present"
+                if expected_value == "":
+                    assert actual_auth == "", (
+                        f"Scenario {scenario_id}: {context_path} - Expected no Authorization header, "
+                        f"but got '{actual_auth}'"
+                    )
+                else:
+                    assert actual_auth == expected_value, (
+                        f"Scenario {scenario_id}: {context_path} - Authorization header mismatch. "
+                        f"Expected '{expected_value}', Got '{actual_auth}'"
+                    )
 
             if "starts_with" in expected_auth:
                 assert actual_auth.startswith(expected_auth["starts_with"]), (
