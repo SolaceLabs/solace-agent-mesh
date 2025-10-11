@@ -433,15 +433,18 @@ class A2AProxyComponent(BaseProxyComponent):
             old_client = self._a2a_clients.pop(cache_key)
             
             # Close the httpx client if not already closed
-            if old_client._client and not old_client._client.is_closed:
+            # Note: We check for the attribute first since it's an internal implementation detail
+            # of the A2A SDK that may not exist or may change
+            if hasattr(old_client, '_client') and old_client._client:
                 try:
-                    await old_client._client.aclose()
-                    log.info(
-                        "%s Closed httpx client for agent '%s' session '%s'.",
-                        log_identifier,
-                        agent_name,
-                        session_id,
-                    )
+                    if not old_client._client.is_closed:
+                        await old_client._client.aclose()
+                        log.info(
+                            "%s Closed httpx client for agent '%s' session '%s'.",
+                            log_identifier,
+                            agent_name,
+                            session_id,
+                        )
                 except Exception as e:
                     log.warning(
                         "%s Error closing httpx client for agent '%s' session '%s': %s",
@@ -450,6 +453,13 @@ class A2AProxyComponent(BaseProxyComponent):
                         session_id,
                         e,
                     )
+            else:
+                log.debug(
+                    "%s A2AClient for agent '%s' session '%s' does not expose internal httpx client for cleanup.",
+                    log_identifier,
+                    agent_name,
+                    session_id,
+                )
         
         # Step 5: Return True to signal retry should be attempted
         log.info(
