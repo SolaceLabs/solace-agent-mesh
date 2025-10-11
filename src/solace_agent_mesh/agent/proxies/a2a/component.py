@@ -620,8 +620,12 @@ class A2AProxyComponent(BaseProxyComponent):
         
         For backward compatibility, legacy configurations without a 'type' field
         will have their type inferred from the 'scheme' field.
+        
+        The client's streaming mode is determined by the original request type from
+        the gateway (message/send vs message/stream).
         """
         session_id = task_context.a2a_context.get("session_id", "default_session")
+        is_streaming = task_context.a2a_context.get("is_streaming", True)
         cache_key = (agent_name, session_id)
         
         if cache_key in self._a2a_clients:
@@ -723,8 +727,9 @@ class A2AProxyComponent(BaseProxyComponent):
                 )
 
         # Create ClientConfig for the modern client
+        # Use the streaming mode from the original request
         config = ClientConfig(
-            streaming=True,
+            streaming=is_streaming,
             polling=False,
             httpx_client=httpx_client_for_agent,
             supported_transports=[TransportProtocol.jsonrpc],

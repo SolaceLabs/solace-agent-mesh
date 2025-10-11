@@ -197,6 +197,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                     ),
                     "status_topic": message.get_user_properties().get("a2aStatusTopic"),
                     "reply_to_topic": message.get_user_properties().get("replyTo"),
+                    "is_streaming": isinstance(a2a_request.root, SendStreamingMessageRequest),
                 }
                 task_context = ProxyTaskContext(
                     task_id=logical_task_id, a2a_context=a2a_context
