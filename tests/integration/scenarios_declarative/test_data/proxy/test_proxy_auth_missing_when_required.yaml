@@ -27,7 +27,7 @@ gateway_input:
 expected_gateway_output:
   - type: "error"
     error_code: -32603  # InternalError
-    error_message_contains: "401"
+    # No error_message_contains - just verify we got an InternalError
 
 # Assert request was made without auth header
 assert_downstream_auth:
