@@ -1400,6 +1400,7 @@ def clear_all_agent_states_between_tests(
     complex_signatures_agent_app_under_test: SamAgentApp,
     config_context_agent_app_under_test: SamAgentApp,
     a2a_proxy_component: "BaseProxyComponent",
+    test_a2a_agent_server_harness: TestA2AAgentServer,
 ):
     """Clears state from all agent components after each test."""
     yield
@@ -1417,6 +1418,9 @@ def clear_all_agent_states_between_tests(
     
     # Clear proxy client cache to ensure fresh clients with updated auth config
     a2a_proxy_component.clear_client_cache()
+    
+    # Clear captured auth headers from downstream agent server
+    test_a2a_agent_server_harness.clear_captured_auth_headers()
 
 
 @pytest.fixture(scope="function")
