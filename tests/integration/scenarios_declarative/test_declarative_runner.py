@@ -1683,6 +1683,12 @@ async def test_declarative_scenario(
         auth_config = proxy_auth_config.get("authentication")
         
         if auth_config:
+            # Clear cached authentication state from previous tests
+            # This ensures each test starts with a clean slate for authentication
+            a2a_proxy_component._a2a_clients.clear()
+            await a2a_proxy_component._oauth_token_cache.invalidate(agent_name)
+            print(f"Scenario {scenario_id}: Cleared cached auth state for {agent_name}")
+            
             # Find the agent config in the proxy's configuration
             for agent_cfg in a2a_proxy_component.proxied_agents_config:
                 if agent_cfg.get("name") == agent_name:
