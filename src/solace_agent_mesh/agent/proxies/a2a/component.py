@@ -21,6 +21,7 @@ from .oauth_token_cache import OAuth2TokenCache
 from a2a.types import (
     A2ARequest,
     AgentCard,
+    Artifact,
     Message,
     SendMessageRequest,
     SendMessageResponse,
@@ -31,6 +32,7 @@ from a2a.types import (
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
+    TextPart,
 )
 
 from solace_ai_connector.common.log import log
@@ -732,7 +734,7 @@ class A2AProxyComponent(BaseProxyComponent):
         )
         saved_artifacts_manifest = []
 
-        artifacts_to_process: List[ModernArtifact] = []
+        artifacts_to_process: List[Artifact] = []
         if isinstance(response, Task) and response.artifacts:
             artifacts_to_process = response.artifacts
         elif isinstance(response, TaskArtifactUpdateEvent):
