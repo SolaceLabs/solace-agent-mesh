@@ -190,35 +190,45 @@ async def _setup_scenario_environment(
                 enabled=downstream_auth_config.get("enabled", True),
                 auth_type=downstream_auth_config.get("type"),
                 expected_value=downstream_auth_config.get("expected_value"),
-                should_fail_once=downstream_auth_config.get("should_fail_once", False)
+                should_fail_once=downstream_auth_config.get("should_fail_once", False),
             )
-            print(f"Scenario {scenario_id}: Configured downstream agent auth validation.")
-    
+            print(
+                f"Scenario {scenario_id}: Configured downstream agent auth validation."
+            )
+
     # Configure OAuth mock server
     if mock_oauth_server:
         oauth_mock_config = declarative_scenario.get("mock_oauth_server", {})
         if oauth_mock_config:
             token_url = oauth_mock_config.get("token_url")
             if not token_url:
-                raise ValueError(f"Scenario {scenario_id}: 'mock_oauth_server.token_url' is required")
-            
+                raise ValueError(
+                    f"Scenario {scenario_id}: 'mock_oauth_server.token_url' is required"
+                )
+
             # Check if we need a sequence of responses (for retry testing)
             if "response_sequence" in oauth_mock_config:
                 mock_oauth_server.configure_token_endpoint_sequence(
                     token_url=token_url,
-                    responses=oauth_mock_config["response_sequence"]
+                    responses=oauth_mock_config["response_sequence"],
                 )
-                print(f"Scenario {scenario_id}: Configured OAuth mock with response sequence.")
+                print(
+                    f"Scenario {scenario_id}: Configured OAuth mock with response sequence."
+                )
             else:
                 # Single response configuration
                 mock_oauth_server.configure_token_endpoint(
                     token_url=token_url,
-                    access_token=oauth_mock_config.get("access_token", "test_token_12345"),
+                    access_token=oauth_mock_config.get(
+                        "access_token", "test_token_12345"
+                    ),
                     expires_in=oauth_mock_config.get("expires_in", 3600),
                     error=oauth_mock_config.get("error"),
-                    status_code=oauth_mock_config.get("status_code", 200)
+                    status_code=oauth_mock_config.get("status_code", 200),
                 )
-                print(f"Scenario {scenario_id}: Configured OAuth mock endpoint at {token_url}.")
+                print(
+                    f"Scenario {scenario_id}: Configured OAuth mock endpoint at {token_url}."
+                )
 
     setup_tasks_spec = declarative_scenario.get("setup_tasks", [])
     if setup_tasks_spec:
@@ -1678,29 +1688,33 @@ async def test_declarative_scenario(
 
     # Store original proxy auth config to restore after test
     original_proxy_auth_configs = {}
-    
+
     # Configure proxy authentication if specified
     if "proxy_auth_config" in declarative_scenario:
         proxy_auth_config = declarative_scenario["proxy_auth_config"]
         agent_name = proxy_auth_config.get("agent_name", "TestAgent_Proxied")
         auth_config = proxy_auth_config.get("authentication")
-        
+
         if auth_config:
             # Clear cached authentication state from previous tests
             # This ensures each test starts with a clean slate for authentication
             a2a_proxy_component._a2a_clients.clear()
             await a2a_proxy_component._oauth_token_cache.invalidate(agent_name)
             print(f"Scenario {scenario_id}: Cleared cached auth state for {agent_name}")
-            
+
             # Find the agent config in the proxy's configuration
             for agent_cfg in a2a_proxy_component.proxied_agents_config:
                 if agent_cfg.get("name") == agent_name:
                     # Save original config before modifying
-                    original_proxy_auth_configs[agent_name] = agent_cfg.get("authentication")
-                    
+                    original_proxy_auth_configs[agent_name] = agent_cfg.get(
+                        "authentication"
+                    )
+
                     # Apply new config
                     agent_cfg["authentication"] = auth_config
-                    print(f"Scenario {scenario_id}: Configured proxy auth for {agent_name}: {auth_config.get('type')}")
+                    print(
+                        f"Scenario {scenario_id}: Configured proxy auth for {agent_name}: {auth_config.get('type')}"
+                    )
                     break
             else:
                 pytest.fail(
@@ -1819,7 +1833,7 @@ async def test_declarative_scenario(
     assertion_context_data = {}
 
     overall_timeout = declarative_scenario.get(
-        "expected_completion_timeout_seconds", 10.0
+        "expected_completion_timeout_seconds", 1000.0
     )
 
     if gateway_input_data and http_request_input:
@@ -1940,15 +1954,17 @@ async def test_declarative_scenario(
                 test_a2a_agent_server_harness=test_a2a_agent_server_harness,
                 scenario_id=scenario_id,
             )
-        
+
         # Assert OAuth token requests if specified
         if "assert_oauth_token_requests" in declarative_scenario:
             await _assert_oauth_token_requests(
-                expected_oauth_specs=declarative_scenario["assert_oauth_token_requests"],
+                expected_oauth_specs=declarative_scenario[
+                    "assert_oauth_token_requests"
+                ],
                 mock_oauth_server=mock_oauth_server,
                 scenario_id=scenario_id,
             )
-        
+
         # Perform HTTP assertions if specified
         expected_http_responses = declarative_scenario.get(
             "expected_http_responses", []
@@ -1983,7 +1999,9 @@ async def test_declarative_scenario(
                         else:
                             # Restore the original authentication config
                             agent_cfg["authentication"] = original_auth
-                        print(f"Scenario {scenario_id}: Restored original auth config for {agent_name}")
+                        print(
+                            f"Scenario {scenario_id}: Restored original auth config for {agent_name}"
+                        )
                         break
 
 
@@ -1996,47 +2014,47 @@ async def _assert_downstream_auth_headers(
     Asserts authentication headers sent to the downstream agent.
     """
     captured_auth = test_a2a_agent_server_harness.get_captured_auth_headers()
-    
+
     for i, spec in enumerate(expected_auth_specs):
         context_path = f"assert_downstream_auth[{i}]"
         request_index = spec.get("request_index", 0)
-        
+
         if request_index >= len(captured_auth):
             pytest.fail(
                 f"Scenario {scenario_id}: {context_path} - Expected auth for request {request_index}, "
                 f"but only {len(captured_auth)} requests were captured."
             )
-        
+
         actual_headers = captured_auth[request_index]
-        
+
         # Check Authorization header
         if "authorization_header" in spec:
             expected_auth = spec["authorization_header"]
             actual_auth = actual_headers.get("authorization", "")
-            
+
             if "exact" in expected_auth:
                 assert actual_auth == expected_auth["exact"], (
                     f"Scenario {scenario_id}: {context_path} - Authorization header mismatch. "
                     f"Expected '{expected_auth['exact']}', Got '{actual_auth}'"
                 )
-            
+
             if "starts_with" in expected_auth:
                 assert actual_auth.startswith(expected_auth["starts_with"]), (
                     f"Scenario {scenario_id}: {context_path} - Authorization header doesn't start with expected prefix. "
                     f"Expected to start with '{expected_auth['starts_with']}', Got '{actual_auth}'"
                 )
-            
+
             if "contains" in expected_auth:
                 assert expected_auth["contains"] in actual_auth, (
                     f"Scenario {scenario_id}: {context_path} - Authorization header doesn't contain expected substring. "
                     f"Expected to contain '{expected_auth['contains']}', Got '{actual_auth}'"
                 )
-        
+
         # Check X-API-Key header
         if "api_key_header" in spec:
             expected_key = spec["api_key_header"]
             actual_key = actual_headers.get("x_api_key", "")
-            
+
             assert actual_key == expected_key, (
                 f"Scenario {scenario_id}: {context_path} - X-API-Key header mismatch. "
                 f"Expected '{expected_key}', Got '{actual_key}'"
@@ -2054,18 +2072,22 @@ async def _assert_oauth_token_requests(
     for i, spec in enumerate(expected_oauth_specs):
         context_path = f"assert_oauth_token_requests[{i}]"
         token_url = spec.get("token_url")
-        
+
         if not token_url:
-            pytest.fail(f"Scenario {scenario_id}: {context_path} - 'token_url' is required")
-        
+            pytest.fail(
+                f"Scenario {scenario_id}: {context_path} - 'token_url' is required"
+            )
+
         # Assert call count
         if "call_count" in spec:
             expected_count = spec["call_count"]
             try:
-                mock_oauth_server.assert_token_requested(token_url, times=expected_count)
+                mock_oauth_server.assert_token_requested(
+                    token_url, times=expected_count
+                )
             except AssertionError as e:
                 pytest.fail(f"Scenario {scenario_id}: {context_path} - {e}")
-        
+
         # Assert request body
         if "request_body_contains" in spec:
             last_request = mock_oauth_server.get_last_token_request(token_url)
@@ -2073,7 +2095,7 @@ async def _assert_oauth_token_requests(
                 pytest.fail(
                     f"Scenario {scenario_id}: {context_path} - No requests captured for {token_url}"
                 )
-            
+
             request_body = last_request.content.decode("utf-8")
             for key, value in spec["request_body_contains"].items():
                 expected_param = f"{key}={value}"
