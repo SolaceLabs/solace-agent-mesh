@@ -757,19 +757,18 @@ class A2AProxyComponent(BaseProxyComponent):
         for artifact in artifacts_to_process:
             contextual_description = "\n".join(
                 [
-                    part.root.text
+                    a2a.get_text_from_text_part(part.root)
                     for part in artifact.parts
-                    if isinstance(part.root, TextPart)
+                    if a2a.is_text_part(part)
                 ]
             )
 
             for i, part_container in enumerate(artifact.parts):
                 part = part_container.root
                 if (
-                    isinstance(part, FilePart)
-                    and part.file
-                    and isinstance(part.file, FileWithBytes)
-                    and part.file.bytes
+                    a2a.is_file_part(part_container)
+                    and a2a.is_file_part_bytes(part)
+                    and a2a.get_bytes_from_file_part(part)
                 ):
                     file_part = part
                     file_content = file_part.file
@@ -793,14 +792,19 @@ class A2AProxyComponent(BaseProxyComponent):
                     user_id = task_context.a2a_context.get("user_id", "default_user")
                     session_id = task_context.a2a_context.get("session_id")
 
+                    # Get file content using facade helpers
+                    content_bytes = a2a.get_bytes_from_file_part(file_part)
+                    filename = a2a.get_filename_from_file_part(file_part)
+                    mime_type = a2a.get_mimetype_from_file_part(file_part)
+
                     save_result = await save_artifact_with_metadata(
                         artifact_service=self.artifact_service,
                         app_name=agent_name,
                         user_id=user_id,
                         session_id=session_id,
-                        filename=file_content.name,
-                        content_bytes=file_content.bytes,
-                        mime_type=file_content.mime_type,
+                        filename=filename,
+                        content_bytes=content_bytes,
+                        mime_type=mime_type,
                         metadata_dict=metadata_to_save,
                         timestamp=datetime.now(timezone.utc),
                     )
@@ -811,25 +815,26 @@ class A2AProxyComponent(BaseProxyComponent):
                             app_name=agent_name,
                             user_id=user_id,
                             session_id=session_id,
-                            filename=file_content.name,
+                            filename=filename,
                             version=data_version,
                         )
 
                         new_file_part = a2a.create_file_part_from_uri(
                             uri=saved_uri,
-                            name=file_content.name,
-                            mime_type=file_content.mime_type,
-                            metadata=file_part.metadata,
+                            name=filename,
+                            mime_type=mime_type,
+                            metadata=a2a.get_metadata_from_part(file_part),
                         )
+                        from a2a.types import Part
                         artifact.parts[i] = Part(root=new_file_part)
 
                         saved_artifacts_manifest.append(
-                            {"filename": file_content.name, "version": data_version}
+                            {"filename": filename, "version": data_version}
                         )
                         log.info(
                             "%s Saved artifact '%s' as version %d. URI: %s",
                             log_identifier,
-                            file_content.name,
+                            filename,
                             data_version,
                             saved_uri,
                         )
@@ -837,7 +842,7 @@ class A2AProxyComponent(BaseProxyComponent):
                         log.error(
                             "%s Failed to save artifact '%s': %s",
                             log_identifier,
-                            file_content.name,
+                            filename,
                             save_result.get("message"),
                         )
 
@@ -925,20 +930,10 @@ class A2AProxyComponent(BaseProxyComponent):
             text_only_artifacts_content = []
             remaining_artifacts = []
             for artifact in event_payload.artifacts:
-                is_text_only = True
-                artifact_text_parts = []
-                if not artifact.parts:
-                    is_text_only = False
-
-                for part in artifact.parts:
-                    if isinstance(part.root, TextPart):
-                        artifact_text_parts.append(part.root.text)
-                    elif isinstance(part.root, (FilePart, DataPart)):
-                        is_text_only = False
-                        break
-
-                if is_text_only:
-                    text_only_artifacts_content.extend(artifact_text_parts)
+                if a2a.is_text_only_artifact(artifact):
+                    text_only_artifacts_content.extend(
+                        a2a.get_text_content_from_artifact(artifact)
+                    )
                 else:
                     remaining_artifacts.append(artifact)
 
@@ -961,13 +956,15 @@ class A2AProxyComponent(BaseProxyComponent):
                 )
 
                 if not event_payload.status.message:
+                    from a2a.types import Part
                     event_payload.status.message = Message(
                         message_id=str(uuid.uuid4()),
                         role="agent",
-                        parts=[summary_message_part],
+                        parts=[Part(root=summary_message_part)],
                     )
                 else:
-                    event_payload.status.message.parts.append(summary_message_part)
+                    from a2a.types import Part
+                    event_payload.status.message.parts.append(Part(root=summary_message_part))
 
         if isinstance(event_payload, (Task, TaskStatusUpdateEvent)):
             if isinstance(event_payload, Task):
