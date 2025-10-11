@@ -12,8 +12,11 @@ import httpx
 
 from a2a.client import (
     A2ACardResolver,
-    A2AClient,
+    Client,
+    ClientConfig,
+    ClientFactory,
     A2AClientHTTPError,
+    A2AClientJSONRPCError,
     AuthInterceptor,
     InMemoryContextCredentialStore,
 )
@@ -24,15 +27,14 @@ from a2a.types import (
     Artifact,
     Message,
     SendMessageRequest,
-    SendMessageResponse,
     SendStreamingMessageRequest,
-    SendStreamingMessageResponse,
     Task,
     TaskArtifactUpdateEvent,
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
     TextPart,
+    TransportProtocol,
 )
 
 from solace_ai_connector.common.log import log
@@ -63,9 +65,9 @@ class A2AProxyComponent(BaseProxyComponent):
 
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
-        # Cache A2AClient instances per (agent_name, session_id) to ensure
+        # Cache Client instances per (agent_name, session_id) to ensure
         # each session gets its own client with session-specific credentials
-        self._a2a_clients: Dict[Tuple[str, str], A2AClient] = {}
+        self._a2a_clients: Dict[Tuple[str, str], Client] = {}
         self._credential_store: InMemoryContextCredentialStore = InMemoryContextCredentialStore()
         self._auth_interceptor: AuthInterceptor = AuthInterceptor(self._credential_store)
         # OAuth 2.0 token cache for client credentials flow
@@ -279,17 +281,16 @@ class A2AProxyComponent(BaseProxyComponent):
                 call_context = ClientCallContext(state={"sessionId": session_id})
 
                 # Forward the request with context
-                if isinstance(request, SendStreamingMessageRequest):
-                    response_generator = client.send_message_streaming(request, context=call_context)
-                    async for response in response_generator:
+                # Modern client always returns an async iterator
+                if isinstance(request, (SendStreamingMessageRequest, SendMessageRequest)):
+                    # Extract the Message from the request params
+                    message_to_send = request.params.message
+                    
+                    # Modern client's send_message returns AsyncIterator[ClientEvent | Message]
+                    async for event in client.send_message(message_to_send, context=call_context):
                         await self._process_downstream_response(
-                            response, task_context, client, agent_name
+                            event, task_context, client, agent_name
                         )
-                elif isinstance(request, SendMessageRequest):
-                    response = await client.send_message(request, context=call_context)
-                    await self._process_downstream_response(
-                        response, task_context, client, agent_name
-                    )
                 else:
                     log.warning(
                         "%s Unhandled request type for forwarding: %s",
@@ -300,6 +301,18 @@ class A2AProxyComponent(BaseProxyComponent):
                 # Step 5: Success - break out of retry loop
                 break
 
+            except A2AClientJSONRPCError as e:
+                # Handle JSON-RPC protocol errors
+                log.error(
+                    "%s JSON-RPC error from agent '%s': %s",
+                    log_identifier,
+                    agent_name,
+                    e.error,
+                )
+                # TODO: Publish error response to Solace
+                # Do not retry - this is a protocol-level error
+                raise
+                
             except A2AClientHTTPError as e:
                 # Step 4: Add specific handling for 401 Unauthorized errors
                 # The error might be wrapped in an SSE parsing error, so we need to check
@@ -418,19 +431,19 @@ class A2AProxyComponent(BaseProxyComponent):
         )
         await self._oauth_token_cache.invalidate(agent_name)
         
-        # Step 4: Remove cached A2AClient for this session
-        # Why remove the A2AClient: The cached client holds a reference to the old token
+        # Step 4: Remove cached Client for this session
+        # Why remove the Client: The cached client holds a reference to the old token
         # via the AuthInterceptor and CredentialStore. Removing it forces creation of a
         # new client with a fresh token on the next request.
         # The underlying httpx client will be cleaned up by Python's garbage collector
-        # when the A2AClient is destroyed.
+        # when the Client is destroyed.
         session_id = task_context.a2a_context.get("session_id", "default_session")
         cache_key = (agent_name, session_id)
         
         if cache_key in self._a2a_clients:
             self._a2a_clients.pop(cache_key)
             log.info(
-                "%s Removed cached A2AClient for agent '%s' session '%s'. "
+                "%s Removed cached Client for agent '%s' session '%s'. "
                 "Will create fresh client with new token on retry.",
                 log_identifier,
                 agent_name,
@@ -588,9 +601,9 @@ class A2AProxyComponent(BaseProxyComponent):
 
     async def _get_or_create_a2a_client(
         self, agent_name: str, task_context: ProxyTaskContext
-    ) -> Optional[A2AClient]:
+    ) -> Optional[Client]:
         """
-        Gets a cached A2AClient or creates a new one for the given agent and session.
+        Gets a cached Client or creates a new one for the given agent and session.
         
         Caches clients per (agent_name, session_id) to ensure each session gets its
         own client with session-specific credentials. This is necessary because the
@@ -705,11 +718,23 @@ class A2AProxyComponent(BaseProxyComponent):
                     f"Supported types: static_bearer, static_apikey, oauth2_client_credentials."
                 )
 
-        client = A2AClient(
+        # Create ClientConfig for the modern client
+        config = ClientConfig(
+            streaming=True,
+            polling=False,
             httpx_client=httpx_client_for_agent,
-            agent_card=agent_card,
+            supported_transports=[TransportProtocol.jsonrpc],
+            accepted_output_modes=[],
+        )
+        
+        # Create client using ClientFactory
+        factory = ClientFactory(config)
+        client = factory.create(
+            agent_card,
+            consumers=None,
             interceptors=[self._auth_interceptor],
         )
+        
         self._a2a_clients[cache_key] = client
         return client
 
@@ -846,43 +871,54 @@ class A2AProxyComponent(BaseProxyComponent):
 
     async def _process_downstream_response(
         self,
-        response: Union[
-            SendMessageResponse,
-            SendStreamingMessageResponse,
-            Task,
-            TaskStatusUpdateEvent,
-        ],
+        event: Union[tuple, Message],
         task_context: ProxyTaskContext,
-        client: A2AClient,
+        client: Client,
         agent_name: str,
     ) -> None:
         """
-        Processes a single response from the downstream agent.
+        Processes a single event from the downstream agent.
+        
+        The modern client returns either:
+        - A ClientEvent tuple: (Task, Optional[UpdateEvent])
+        - A Message object (for direct responses)
         """
         log_identifier = (
             f"{self.log_identifier}[ProcessResponse:{task_context.task_id}]"
         )
 
+        # Use facade helpers to determine event type
         event_payload = None
-        if isinstance(response, (SendMessageResponse, SendStreamingMessageResponse)):
-            if hasattr(response.root, "result") and response.root.result:
-                event_payload = response.root.result
-            elif hasattr(response.root, "error") and response.root.error:
-                log.error(
-                    "%s Downstream agent returned an error: %s",
-                    log_identifier,
-                    response.root.error,
-                )
-                # TODO: Translate and forward the error to the original client.
-                return
+        if a2a.is_client_event(event):
+            # Unpack the ClientEvent tuple
+            task, update_event = a2a.unpack_client_event(event)
+            event_payload = task
+            log.debug(
+                "%s Received ClientEvent with task state: %s, update: %s",
+                log_identifier,
+                task.status.state if task.status else "unknown",
+                type(update_event).__name__ if update_event else "None",
+            )
+        elif a2a.is_message_object(event):
+            # Direct Message response
+            event_payload = event
+            log.debug(
+                "%s Received direct Message response",
+                log_identifier,
+            )
         else:
-            event_payload = response
+            log.warning(
+                "%s Received unexpected event type: %s",
+                log_identifier,
+                type(event).__name__,
+            )
+            return
 
         if not event_payload:
             log.warning(
-                "%s Received a response with no processable payload: %s",
+                "%s Received an event with no processable payload: %s",
                 log_identifier,
-                response,
+                event,
             )
             return
 
@@ -1009,17 +1045,16 @@ class A2AProxyComponent(BaseProxyComponent):
         # - Tokens are lost on component restart (by design)
 
         async def _async_cleanup():
-            # Close all created httpx clients
+            # Close all created clients using public API
             for cache_key, client in self._a2a_clients.items():
                 agent_name, session_id = cache_key
-                if client._client and not client._client.is_closed:
-                    log.info(
-                        "%s Closing httpx client for agent '%s' session '%s'",
-                        self.log_identifier,
-                        agent_name,
-                        session_id,
-                    )
-                    await client._client.aclose()
+                log.info(
+                    "%s Closing client for agent '%s' session '%s'",
+                    self.log_identifier,
+                    agent_name,
+                    session_id,
+                )
+                await client.close()
             self._a2a_clients.clear()
 
         if self._async_loop and self._async_loop.is_running():
