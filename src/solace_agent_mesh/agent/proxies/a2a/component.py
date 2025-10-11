@@ -426,40 +426,20 @@ class A2AProxyComponent(BaseProxyComponent):
         # Why remove the A2AClient: The cached client holds a reference to the old token
         # via the AuthInterceptor and CredentialStore. Removing it forces creation of a
         # new client with a fresh token on the next request.
+        # The underlying httpx client will be cleaned up by Python's garbage collector
+        # when the A2AClient is destroyed.
         session_id = task_context.a2a_context.get("session_id", "default_session")
         cache_key = (agent_name, session_id)
         
         if cache_key in self._a2a_clients:
-            old_client = self._a2a_clients.pop(cache_key)
-            
-            # Close the httpx client if not already closed
-            # Note: We check for the attribute first since it's an internal implementation detail
-            # of the A2A SDK that may not exist or may change
-            if hasattr(old_client, '_client') and old_client._client:
-                try:
-                    if not old_client._client.is_closed:
-                        await old_client._client.aclose()
-                        log.info(
-                            "%s Closed httpx client for agent '%s' session '%s'.",
-                            log_identifier,
-                            agent_name,
-                            session_id,
-                        )
-                except Exception as e:
-                    log.warning(
-                        "%s Error closing httpx client for agent '%s' session '%s': %s",
-                        log_identifier,
-                        agent_name,
-                        session_id,
-                        e,
-                    )
-            else:
-                log.debug(
-                    "%s A2AClient for agent '%s' session '%s' does not expose internal httpx client for cleanup.",
-                    log_identifier,
-                    agent_name,
-                    session_id,
-                )
+            self._a2a_clients.pop(cache_key)
+            log.info(
+                "%s Removed cached A2AClient for agent '%s' session '%s'. "
+                "Will create fresh client with new token on retry.",
+                log_identifier,
+                agent_name,
+                session_id,
+            )
         
         # Step 5: Return True to signal retry should be attempted
         log.info(
