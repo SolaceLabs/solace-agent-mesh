@@ -355,8 +355,12 @@ class A2AProxyComponent(BaseProxyComponent):
                 raise
                 
             except Exception as e:
-                log.exception("%s Error forwarding request: %s", log_identifier, e)
-                # The base class exception handler in _handle_a2a_request will catch this
+                log.exception(
+                    "%s Unexpected error forwarding request: %s",
+                    log_identifier,
+                    e,
+                )
+                # Let base class exception handler in _handle_a2a_request catch this
                 # and publish an error response.
                 raise
 
