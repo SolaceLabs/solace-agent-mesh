@@ -21,12 +21,7 @@ from .oauth_token_cache import OAuth2TokenCache
 from a2a.types import (
     A2ARequest,
     AgentCard,
-    Artifact as ModernArtifact,
-    DataPart,
-    FilePart,
-    FileWithBytes,
     Message,
-    Part,
     SendMessageRequest,
     SendMessageResponse,
     SendStreamingMessageRequest,
@@ -36,7 +31,6 @@ from a2a.types import (
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
-    TextPart,
 )
 
 from solace_ai_connector.common.log import log
