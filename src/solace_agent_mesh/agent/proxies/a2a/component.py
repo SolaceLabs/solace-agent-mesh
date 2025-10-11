@@ -896,13 +896,24 @@ class A2AProxyComponent(BaseProxyComponent):
         if a2a.is_client_event(event):
             # Unpack the ClientEvent tuple
             task, update_event = a2a.unpack_client_event(event)
-            event_payload = task
-            log.debug(
-                "%s Received ClientEvent with task state: %s, update: %s",
-                log_identifier,
-                task.status.state if task.status else "unknown",
-                type(update_event).__name__ if update_event else "None",
-            )
+            # If there's an update event, that's what we should process
+            # The task is just context; the update is the actual event
+            if update_event is not None:
+                event_payload = update_event
+                log.debug(
+                    "%s Received ClientEvent with update: %s (task state: %s)",
+                    log_identifier,
+                    type(update_event).__name__,
+                    task.status.state if task.status else "unknown",
+                )
+            else:
+                # No update event means this is the final task state
+                event_payload = task
+                log.debug(
+                    "%s Received ClientEvent with final task state: %s",
+                    log_identifier,
+                    task.status.state if task.status else "unknown",
+                )
         elif a2a.is_message_object(event):
             # Direct Message response
             event_payload = event
