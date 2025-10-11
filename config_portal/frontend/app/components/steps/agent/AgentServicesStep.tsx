@@ -113,7 +113,22 @@ const AgentServicesStep: React.FC<StepProps> = ({
       <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-4">
         Session Service
       </h3>
+
       <FormField
+        label="Agent Database URL"
+        htmlFor="database_url"
+        helpText="Leave blank to create a default SQLite database"
+      >
+        <Input
+          id="database_url"
+          value={data.database_url || ""}
+          onChange={handleChange}
+          placeholder={`e.g., sqlite:///{agent_name}.db`}
+        />
+      </FormField>
+
+
+      { /* <FormField
         label="Session Service Configuration"
         htmlFor="session_service_type"
         required
@@ -121,12 +136,12 @@ const AgentServicesStep: React.FC<StepProps> = ({
         <Select
           id="session_service_type"
           name="session_service_type"
-          value={data.session_service_type || USE_DEFAULT_SHARED_SESSION}
+          value={data.session_service_type || "sql"}
           onChange={handleServiceTypeChange}
           options={sessionServiceTypeOptions}
         />
-      </FormField>
-
+      </FormField> 
+      
       {showSessionSpecificConfig && (
         <FormField
           label="Session Service Behavior"
@@ -140,8 +155,9 @@ const AgentServicesStep: React.FC<StepProps> = ({
             onChange={handleChange}
             options={sessionBehaviorOptions}
           />
-        </FormField>
-      )}
+        </FormField> 
+      )}  */ }
+      
 
       <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-4 mt-8">
         Artifact Service
