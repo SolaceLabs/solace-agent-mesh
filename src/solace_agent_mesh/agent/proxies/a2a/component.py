@@ -65,9 +65,9 @@ class A2AProxyComponent(BaseProxyComponent):
 
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
-        # Cache Client instances per (agent_name, session_id) to ensure
-        # each session gets its own client with session-specific credentials
-        self._a2a_clients: Dict[Tuple[str, str], Client] = {}
+        # Cache Client instances per (agent_name, session_id, is_streaming) to ensure
+        # each session gets its own client with session-specific credentials and streaming mode
+        self._a2a_clients: Dict[Tuple[str, str, bool], Client] = {}
         self._credential_store: InMemoryContextCredentialStore = InMemoryContextCredentialStore()
         self._auth_interceptor: AuthInterceptor = AuthInterceptor(self._credential_store)
         # OAuth 2.0 token cache for client credentials flow
@@ -607,11 +607,12 @@ class A2AProxyComponent(BaseProxyComponent):
         self, agent_name: str, task_context: ProxyTaskContext
     ) -> Optional[Client]:
         """
-        Gets a cached Client or creates a new one for the given agent and session.
+        Gets a cached Client or creates a new one for the given agent, session, and streaming mode.
         
-        Caches clients per (agent_name, session_id) to ensure each session gets its
-        own client with session-specific credentials. This is necessary because the
-        A2A SDK's AuthInterceptor uses session-based credential lookup.
+        Caches clients per (agent_name, session_id, is_streaming) to ensure each session gets its
+        own client with session-specific credentials and the correct streaming mode. This is necessary because:
+        1. The A2A SDK's AuthInterceptor uses session-based credential lookup
+        2. The Client's streaming mode is set at creation time and cannot be changed
         
         Supports multiple authentication types:
         - static_bearer: Static bearer token authentication
@@ -626,7 +627,7 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         session_id = task_context.a2a_context.get("session_id", "default_session")
         is_streaming = task_context.a2a_context.get("is_streaming", True)
-        cache_key = (agent_name, session_id)
+        cache_key = (agent_name, session_id, is_streaming)
         
         if cache_key in self._a2a_clients:
             return self._a2a_clients[cache_key]
