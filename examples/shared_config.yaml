@@ -72,6 +72,42 @@ shared_config:
     multimodal: &multimodal_model  "gemini-2.5-flash-preview-04-17"
     gemini_pro: &gemini_pro_model "gemini-2.5-pro-exp-03-25"
 
+    # OAuth 2.0 Client Credentials authentication example
+    oauth_planning: &oauth_planning_model
+      # This dictionary structure tells ADK to use the LiteLlm wrapper with OAuth authentication.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${OAUTH_LLM_PLANNING_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${OAUTH_LLM_API_BASE} # Use env var for endpoint URL
+
+      # OAuth 2.0 Client Credentials configuration
+      oauth_token_url: ${OAUTH_TOKEN_URL} # OAuth token endpoint URL
+      oauth_client_id: ${OAUTH_CLIENT_ID} # OAuth client identifier
+      oauth_client_secret: ${OAUTH_CLIENT_SECRET} # OAuth client secret
+      oauth_scope: ${OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
+      # oauth_ca_cert: ${OAUTH_CA_CERT_PATH} # Optional: Custom CA certificate path
+      oauth_token_refresh_buffer_seconds: ${OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300} # Refresh buffer
+
+      # Enable parallel tool calls for planning model
+      parallel_tool_calls: true
+      max_tokens: ${MAX_TOKENS, 16000} # Set a reasonable max token limit for planning
+      temperature: 0.1 # Lower temperature for more deterministic planning
+
+    oauth_general: &oauth_general_model
+      # This dictionary structure tells ADK to use the LiteLlm wrapper with OAuth authentication.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${OAUTH_LLM_GENERAL_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${OAUTH_LLM_API_BASE} # Use env var for endpoint URL
+
+      # OAuth 2.0 Client Credentials configuration
+      oauth_token_url: ${OAUTH_TOKEN_URL} # OAuth token endpoint URL
+      oauth_client_id: ${OAUTH_CLIENT_ID} # OAuth client identifier
+      oauth_client_secret: ${OAUTH_CLIENT_SECRET} # OAuth client secret
+      oauth_scope: ${OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
+      # oauth_ca_cert: ${OAUTH_CA_CERT_PATH} # Optional: Custom CA certificate path
+      oauth_token_refresh_buffer_seconds: ${OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300} # Refresh buffer
+
 
   - services:
     # Default session service configuration
