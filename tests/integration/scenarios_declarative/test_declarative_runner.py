@@ -1676,6 +1676,9 @@ async def test_declarative_scenario(
         mock_oauth_server=mock_oauth_server,
     )
 
+    # Store original proxy auth config to restore after test
+    original_proxy_auth_configs = {}
+    
     # Configure proxy authentication if specified
     if "proxy_auth_config" in declarative_scenario:
         proxy_auth_config = declarative_scenario["proxy_auth_config"]
@@ -1692,6 +1695,10 @@ async def test_declarative_scenario(
             # Find the agent config in the proxy's configuration
             for agent_cfg in a2a_proxy_component.proxied_agents_config:
                 if agent_cfg.get("name") == agent_name:
+                    # Save original config before modifying
+                    original_proxy_auth_configs[agent_name] = agent_cfg.get("authentication")
+                    
+                    # Apply new config
                     agent_cfg["authentication"] = auth_config
                     print(f"Scenario {scenario_id}: Configured proxy auth for {agent_name}: {auth_config.get('type')}")
                     break
@@ -1964,6 +1971,20 @@ async def test_declarative_scenario(
             ]
             pretty_print_event_history(event_payloads)
         raise e
+    finally:
+        # Restore original proxy auth configurations
+        if original_proxy_auth_configs:
+            for agent_name, original_auth in original_proxy_auth_configs.items():
+                for agent_cfg in a2a_proxy_component.proxied_agents_config:
+                    if agent_cfg.get("name") == agent_name:
+                        if original_auth is None:
+                            # Remove the authentication key if it wasn't there originally
+                            agent_cfg.pop("authentication", None)
+                        else:
+                            # Restore the original authentication config
+                            agent_cfg["authentication"] = original_auth
+                        print(f"Scenario {scenario_id}: Restored original auth config for {agent_name}")
+                        break
 
 
 async def _assert_downstream_auth_headers(
