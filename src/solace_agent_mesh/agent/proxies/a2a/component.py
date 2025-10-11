@@ -16,10 +16,10 @@ from a2a.client import (
     ClientConfig,
     ClientFactory,
     A2AClientHTTPError,
-    A2AClientJSONRPCError,
     AuthInterceptor,
     InMemoryContextCredentialStore,
 )
+from a2a.client.errors import A2AClientJSONRPCError
 from .oauth_token_cache import OAuth2TokenCache
 from a2a.types import (
     A2ARequest,
