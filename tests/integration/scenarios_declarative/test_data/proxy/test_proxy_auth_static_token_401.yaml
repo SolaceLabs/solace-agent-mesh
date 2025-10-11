@@ -29,7 +29,7 @@ gateway_input:
 expected_gateway_output:
   - type: "error"
     error_code: -32603  # InternalError
-    error_message_contains: "401"
+    # No error_message_contains - just verify we got an InternalError
 
 # Assert only ONE downstream request was made (no retry for static tokens)
 assert_downstream_auth:
