@@ -1055,6 +1055,19 @@ class A2AProxyComponent(BaseProxyComponent):
                 f"Received unhandled response payload type: {type(event_payload)}"
             )
 
+    def clear_client_cache(self):
+        """
+        Clears all cached A2A clients and OAuth tokens.
+        This is useful for testing when authentication configuration changes.
+        """
+        num_clients = len(self._a2a_clients)
+        self._a2a_clients.clear()
+        log.info(
+            "%s Cleared all cached A2A clients (%d clients removed).",
+            self.log_identifier,
+            num_clients,
+        )
+
     def cleanup(self):
         """Cleans up resources on component shutdown."""
         log.info("%s Cleaning up A2A proxy component resources...", self.log_identifier)

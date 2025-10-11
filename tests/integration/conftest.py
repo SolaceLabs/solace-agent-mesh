@@ -1399,6 +1399,7 @@ def clear_all_agent_states_between_tests(
     mixed_discovery_agent_app_under_test: SamAgentApp,
     complex_signatures_agent_app_under_test: SamAgentApp,
     config_context_agent_app_under_test: SamAgentApp,
+    a2a_proxy_component: "BaseProxyComponent",
 ):
     """Clears state from all agent components after each test."""
     yield
@@ -1413,6 +1414,9 @@ def clear_all_agent_states_between_tests(
     _clear_agent_component_state(mixed_discovery_agent_app_under_test)
     _clear_agent_component_state(complex_signatures_agent_app_under_test)
     _clear_agent_component_state(config_context_agent_app_under_test)
+    
+    # Clear proxy client cache to ensure fresh clients with updated auth config
+    a2a_proxy_component.clear_client_cache()
 
 
 @pytest.fixture(scope="function")

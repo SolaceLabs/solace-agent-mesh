@@ -551,6 +551,15 @@ class BaseProxyComponent(ComponentBase, ABC):
 
         super().run()
 
+    def clear_client_cache(self):
+        """
+        Clears all cached clients. Useful for testing when authentication
+        configuration changes between tests.
+        """
+        # This method is intentionally empty in the base class.
+        # Concrete implementations should override it if they cache clients.
+        pass
+
     def cleanup(self):
         """Cleans up resources on component shutdown."""
         log.info("%s Cleaning up proxy component.", self.log_identifier)
