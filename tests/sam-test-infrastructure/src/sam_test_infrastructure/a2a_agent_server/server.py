@@ -333,3 +333,8 @@ class TestA2AAgentServer:
         """Clears the captured authentication headers list."""
         self._captured_auth_headers.clear()
         log.debug("[TestA2AAgentServer] Cleared captured auth headers.")
+    
+    def clear_captured_requests(self):
+        """Clears the captured A2A requests list."""
+        self.captured_requests.clear()
+        log.debug("[TestA2AAgentServer] Cleared captured requests.")
