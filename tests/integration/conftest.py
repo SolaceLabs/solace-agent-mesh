@@ -1424,6 +1424,9 @@ def clear_all_agent_states_between_tests(
     
     # Clear captured A2A requests from downstream agent server
     test_a2a_agent_server_harness.clear_captured_requests()
+    
+    # Clear auth validation state from downstream agent server
+    test_a2a_agent_server_harness.clear_auth_state()
 
 
 @pytest.fixture(scope="function")
