@@ -370,12 +370,12 @@ class A2AProxyComponent(BaseProxyComponent):
         task_context: ProxyTaskContext
     ) -> bool:
         """
-        Handles authentication errors by invalidating cached tokens.
+        Handles authentication errors by invalidating cached tokens and clients.
         
         This method is called when a 401 Unauthorized response is received from
         a downstream agent. It checks if the agent uses OAuth 2.0 authentication,
-        and if so, invalidates the cached token and removes the cached A2AClient
-        to force a fresh token fetch on the next request.
+        and if so, invalidates the cached token and removes ALL cached clients
+        for this agent/session combination (both streaming and non-streaming).
         
         Args:
             agent_name: The name of the agent that returned 401.
@@ -427,7 +427,7 @@ class A2AProxyComponent(BaseProxyComponent):
             )
             return False
         
-        # Step 3: Invalidate cached token
+        # Step 3: Invalidate cached OAuth token
         log.info(
             "%s Invalidating cached OAuth 2.0 token for agent '%s'.",
             log_identifier,
@@ -435,23 +435,40 @@ class A2AProxyComponent(BaseProxyComponent):
         )
         await self._oauth_token_cache.invalidate(agent_name)
         
-        # Step 4: Remove cached Client for this session
-        # Why remove the Client: The cached client holds a reference to the old token
-        # via the AuthInterceptor and CredentialStore. Removing it forces creation of a
-        # new client with a fresh token on the next request.
-        # The underlying httpx client will be cleaned up by Python's garbage collector
-        # when the Client is destroyed.
+        # Step 4: Remove ALL cached Clients for this agent/session combination
+        # We clear both streaming and non-streaming clients because:
+        # 1. Both share the same session_id in the credential store
+        # 2. Both would have been created with the same expired token
+        # 3. We want fresh tokens for any subsequent requests
+        # The cache key is a 3-tuple: (agent_name, session_id, is_streaming)
         session_id = task_context.a2a_context.get("session_id", "default_session")
-        cache_key = (agent_name, session_id)
         
-        if cache_key in self._a2a_clients:
-            self._a2a_clients.pop(cache_key)
-            log.info(
-                "%s Removed cached Client for agent '%s' session '%s'. "
-                "Will create fresh client with new token on retry.",
+        clients_removed = 0
+        for is_streaming in [True, False]:
+            cache_key = (agent_name, session_id, is_streaming)
+            if cache_key in self._a2a_clients:
+                self._a2a_clients.pop(cache_key)
+                clients_removed += 1
+                log.info(
+                    "%s Removed cached Client for agent '%s' session '%s' streaming=%s.",
+                    log_identifier,
+                    agent_name,
+                    session_id,
+                    is_streaming,
+                )
+        
+        if clients_removed == 0:
+            log.warning(
+                "%s No cached Clients found for agent '%s' session '%s'. This is unexpected.",
                 log_identifier,
                 agent_name,
                 session_id,
+            )
+        else:
+            log.info(
+                "%s Removed %d cached Client(s). Will create fresh client(s) with new token on retry.",
+                log_identifier,
+                clients_removed,
             )
         
         # Step 5: Return True to signal retry should be attempted
