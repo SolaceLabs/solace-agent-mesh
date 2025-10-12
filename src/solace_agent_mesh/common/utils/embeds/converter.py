@@ -2,15 +2,17 @@
 Contains the Central Data Converter and Serializer functions.
 """
 
+import logging
 import json
 import csv
 import io
 import base64
 from typing import Any, Tuple, Optional, List, Dict
-from solace_ai_connector.common.log import log
 
 from .types import DataFormat
 from ..mime_helpers import is_text_based_mime_type
+
+log = logging.getLogger(__name__)
 
 try:
     import yaml

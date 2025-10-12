@@ -2,6 +2,7 @@
 Helpers for creating and consuming A2A Artifact objects.
 """
 
+import logging
 import uuid
 import base64
 from datetime import datetime, timezone
@@ -18,12 +19,12 @@ from a2a.types import (
     Part,
     TextPart,
 )
-from solace_ai_connector.common.log import log
 from .. import a2a
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
 
+log = logging.getLogger(__name__)
 
 # --- Creation Helpers ---
 

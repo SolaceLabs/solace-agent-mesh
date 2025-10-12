@@ -2,6 +2,7 @@
 Collection of Python tools for web-related tasks, such as making HTTP requests.
 """
 
+import logging
 import json
 import uuid
 from datetime import datetime, timezone
@@ -15,7 +16,6 @@ from markdownify import markdownify as md
 from bs4 import BeautifulSoup
 
 from google.adk.tools import ToolContext
-from solace_ai_connector.common.log import log
 
 from ...agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
@@ -27,6 +27,7 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+log = logging.getLogger(__name__)
 
 CATEGORY_NAME = "Web Access"
 CATEGORY_DESCRIPTION = "Access the web to find information to complete user requests."

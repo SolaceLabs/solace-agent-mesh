@@ -1,113 +1,56 @@
 ---
-title: Introduction
-sidebar_position: 10
+title: What is Agent Mesh?
+sidebar_position: 14
 ---
 
-## Solace Agent Mesh
+Modern AI development faces a fundamental challenge: powerful AI models are readily available, but it's complicated to connect them to the data and systems where they can provide value. Because the data that drives these AI models often exists in isolated silos (databases, SaaS platforms, APIs, and legacy systems), it can be difficult to build AI applications that work across these boundaries.
 
-Modern AI development faces a fundamental challenge: while powerful AI models are readily available, the real complexity lies in connecting them to the data and systems where they can provide value. Data exists in isolated silos - spread across databases, SaaS platforms, APIs, and legacy systems - making it difficult to build AI applications that can work across these boundaries.
+Agent Mesh is an open-source framework that tackles this challenge head-on by focusing on being an excellent integration layer. Built on Solace's proven event-driven architecture and integrated with Google Agent Development Kit (ADK), Agent Mesh brings together specialized agents—whether they're using local databases, accessing cloud APIs, or interfacing with enterprise systems—and helps them collaborate using standardized A2A communication to solve complex problems.
 
-Solace Agent Mesh is an open-source framework that tackles this challenge head-on by integrating the Google Agent Development Kit (ADK) with the Solace AI Connector (SAC) to provide a "Universal A2A Agent Host" that enables scalable, distributed AI agent communication through the Solace event broker. Whether you're an AI enthusiast experimenting with new models, or an enterprise developer building production systems, Solace Agent Mesh gives you the tools to:
+![Agent Mesh Overview](../../../static/img/Solace_AI_Framework_With_Broker.png)
 
-- connect AI agents to real-world data sources and systems through a standardized A2A (Agent-to-Agent) protocol
-- add gateways to provide event-based integrations or interactive UI connections
-- monitor and debug AI interactions in real-time through comprehensive observability
-- deploy solutions that scale from prototype to production with enterprise-grade reliability
+Agent Mesh is built on:
 
-Rather than trying to be a monolithic AI platform, Solace Agent Mesh focuses on being an excellent integration layer built on proven event-driven architecture. It brings together specialized agents - whether they're using local databases, accessing cloud APIs, or interfacing with enterprise systems - and helps them collaborate through standardized A2A communication to solve complex problems.
+- **Event-Driven Architecture at the Core:**
+  The beating heart of Agent Mesh is its event mesh—a neural network for your AI components that creates a fluid, asynchronous communication layer where messages flow naturally between agents, gateways, and external systems. By decoupling senders from receivers, the mesh dramatically simplifies agent interactions, ensures message delivery even during component failures, and lets you add, remove, or restart components on-the-fly without disrupting workflows.
 
-Built on event-driven architecture technology from Solace with Google ADK integration, Solace Agent Mesh provides the robust foundation needed for both experimental and production deployments.
+- **Unified AI Collaboration:**
+  Agent Mesh breaks down AI silos by enabling specialized agents to operate independently yet collaborate effortlessly. The framework blends diverse AI models, custom tools (such as Python functions and MCP tools), and enterprise data sources into a cohesive ecosystem.
 
-![Solace Agent Mesh Overview](../../../static/img/Solace_AI_Framework_With_Broker.png)
+- **Complex Workflow Orchestration:**
+  Agent Mesh creates sophisticated multi-agent processes where tasks flow naturally between specialists, executing in sequence or parallel based on dynamic needs through standardized A2A communication.
 
-### What Problems Does the Mesh Solve?
+- **Seamless System Integration:**
+  Purpose-built gateways bridge the gap between Agent Mesh and your existing systems—web interfaces, Slack workspaces, APIs, and event streams.
 
-Solace Agent Mesh tackles the hardest challenges in building collaborative AI systems: agent coordination, system integration, and extensibility at scale. This section reveals the key problems it solves and shows how organizations are using it today.
+- **Exponential Capability Growth:**
+  Each new agent enhances all other agents through collaboration, creating exponential rather than additive capability increases. Each new gateway opens entirely new use cases for the system.
 
+- **Enterprise-Grade Reliability:**
+  Built on Solace Event Broker, Agent Mesh delivers high-throughput, fault-tolerant messaging that scales with your needs. Engineered from the ground up for production deployments, Agent Mesh leverages expertise from Solace in building mission-critical distributed systems.
 
-- **Event-Driven Architecture at the Core:**  
-  The beating heart of Solace Agent Mesh is its event mesh—a neural network for your AI components. This architecture creates a fluid, asynchronous communication layer where messages flow naturally between agents, gateways, and external systems. By decoupling senders from receivers, the mesh dramatically simplifies agent interactions, ensures message delivery even during component failures, and lets you add, remove, or restart components on the fly without disrupting workflows.
+- **Developer-Friendly Design:**
+  YAML-based configuration provides precise control without code changes. Modular components can be reused, replaced, or enhanced independently with built-in security and authorization frameworks.
 
-- **Breaking Down AI Silos:**  
-  Specialized agents operate independently yet collaborate effortlessly—like expert teammates rather than isolated tools.
-
-- **Orchestrating Complex Workflows:**  
-  Create sophisticated multi-agent processes where tasks flow naturally between specialists, executing in sequence or parallel based on dynamic needs.
-
-- **Speaking a Common Language:**  
-  The A2A protocol creates a universal communication standard, ensuring all agents and gateways understand each other regardless of their internal implementation.
-
-- **Unifying AI Capabilities:**  
-  Blend diverse AI models, custom tools (Python functions, MCP tools), and enterprise data sources into a cohesive ecosystem.
-
-- **Connecting to Your World:**  
-  Purpose-built gateways bridge the gap between the agent mesh and your existing systems—web interfaces, Slack workspaces, APIs, and event streams.
-
-- **Handling the Unpredictable:**  
-  The event-driven backbone gracefully manages long-running tasks and asynchronous patterns that are inherent in AI agent interactions.
-
-- **Adding Agents to Increase Capabilities**:
-  Each new agent adds more capabilities to the system. Adding a new agent is not additive—it is exponential. With each agent being able to enhance all other agents as they collaborate for more and more complex tasks.
-
-- **Adding Gateways to Increase the Supported Use Cases**:
-  Each new gateway opens up new use cases for the system. A new gateway can provide a new interface to the system, with a different system purpose and response rules.
-
-- **Enterprise-Ready**:
-  Engineered from the ground up for production deployment, this solution leverages expertise from Solace in building mission-critical distributed systems.
-
-### Why Choose Solace Agent Mesh?
-
-- **Enterprise-Grade Performance:**  
-  Built on Solace Event Broker, the mesh delivers high-throughput, fault-tolerant messaging that scales with your needs.
-
-- **Plug-and-Play Extensibility:**  
-  The event-driven architecture makes adding new capabilities remarkably simple. Deploy a new agent, and it instantly publishes its capabilities to the mesh. Other components discover it automatically—no manual configuration, no downtime, no integration headaches.
-
-- **Modular by Design:**  
-  Every component—agents, gateways, tools—is a self-contained module you can reuse, replace, or enhance independently.
-
-- **Configuration-Driven:**  
-  YAML-based configuration gives you precise control over agent behavior, service integrations, and security settings without code changes.
-
-- **Security-First Approach:**  
-  The built-in authorization framework provides fine-grained access control over agents and tools based on user roles and scopes.
-
-- **Resilient by Nature:**  
-  Event-driven design creates responsive, self-healing interactions that recover gracefully from disruptions.
+- **Extensibility:**
+  Agent Mesh grows with your needs. Organizations typically start with basic agents and continuously expand capabilities by adding specialized integrations, multiple interface options, and diverse AI model integrations. Plug-and-play extensibility means new agents automatically publish capabilities with no manual configuration or downtime.
 
 
 ## Real-World Applications
 
-Organizations are using Solace Agent Mesh in diverse scenarios:
+Agent Mesh is already solving real problems across industries:
 
-- **Intelligent Enterprise Automation:**  
-  - Customer service systems that route inquiries to specialized agents based on intent and context.
-  - Data processing pipelines where specialized agents transform, analyze, and enrich information from multiple sources.
+- **Intelligent Enterprise Automation:** Customer service systems that route inquiries to specialized agents and data processing pipelines that transform, analyze, and enrich information from multiple sources.
 
-- **AI Task Specialization:**  
-  - Image analysis workflows where one agent processes visual data and delegates text generation to a language specialist.
-  - Document processing systems that extract text, summarize content, and translate results—each step handled by the perfect specialist.
+- **AI Task Specialization:** Image analysis workflows with visual processing and text generation specialists, and document processing systems that extract, summarize, and translate content through coordinated agents.
 
-- **Human-AI Collaboration:**  
-  Agents that perform complex tasks while keeping humans in the loop for approvals, clarifications, or expert guidance via web or chat interfaces.
+- **Human-AI Collaboration:** Complex task execution that keeps humans in the loop for approvals, clarifications, or expert guidance via web or chat interfaces.
 
-- **Multi-Agent Research:**  
-  A production-ready platform for exploring agent collaboration patterns, delegation strategies, and distributed AI problem-solving.
-
-- **Data-Driven Intelligence:**  
-  Agents that query databases, transform results, and generate visualizations based on natural language requests or system events.
-
-### Evolution Through Usage
-
-Solace Agent Mesh grows with your needs. For example, at Solace we started with basic agents and have continuously expanded the system's capabilities:
-
-- Added specialized agents for JIRA and Confluence integration
-- Implemented multiple interface options including browser-based user interfaces and REST API gateways
-- Integrated with various AI models and data sources
+- **Data-Driven Intelligence:** Agents that query databases, transform results, and generate visualizations based on natural language requests or system events.
 
 ## For Developers
 
-Solace Agent Mesh is an agentic framework that provides several key technical advantages:
+Agent Mesh is an agentic framework that provides several key technical advantages:
 
 - **Complete Observability**: Because all communication flows through the event broker, you can monitor and debug the entire system in real-time
 - **Flexible Integration**: Built-in support for common enterprise systems and AI frameworks
@@ -116,8 +59,9 @@ Solace Agent Mesh is an agentic framework that provides several key technical ad
 
 ## Getting Started
 
-Whether you're building a proof-of-concept or planning a production deployment, Solace Agent Mesh provides the foundation you need. For more information, see:
+Whether you're building a proof-of-concept or planning a production deployment, Agent Mesh provides the foundation you need. For more information, see:
 
-- [Installation](./installation.md): For installing and setting up Solace Agent Mesh.
-- [Quick Start](./quick-start.md): For creating a project, build, and run Solace Agent Mesh.
-- [Components Overview](./component-overview.md): Understand the parts of Solace Agent Mesh.
+- [Getting Started](../getting-started/getting-started.md): For an overview of Agent Mesh and what you can find in this documentation.
+- [Installation](../installing-and-configuring/installation.md): For installing and setting up Agent Mesh.
+- [Quick Start](./try-agent-mesh.md): For creating a project, building, and running Agent Mesh.
+- [Component Overview](../components/components.md): Understanding the parts of Agent Mesh.

@@ -2,11 +2,10 @@
 Helpers for A2A protocol-level concerns, such as topic construction and
 parsing of JSON-RPC requests and responses.
 """
+import logging
 import re
 import uuid
 from typing import Any, Dict, Optional, Tuple, Union
-
-from solace_ai_connector.common.log import log
 
 from a2a.types import (
     A2ARequest,
@@ -28,6 +27,8 @@ from a2a.types import (
     TaskIdParams,
     TaskStatusUpdateEvent,
 )
+
+log = logging.getLogger(__name__)
 
 # --- Topic Construction Helpers ---
 

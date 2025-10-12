@@ -2,13 +2,14 @@
 SAC Component to forward messages from an internal BrokerInput
 to the WebUIBackendComponent's internal queue for task logging.
 """
-
+import logging
 import queue
 from typing import Any, Dict
 
 from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.message import Message as SolaceMessage
-from solace_ai_connector.common.log import log
+
+log = logging.getLogger(__name__)
 
 info = {
     "class_name": "TaskLoggerForwarderComponent",

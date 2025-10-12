@@ -2,12 +2,13 @@
 Defines modifier implementation functions and their contracts.
 """
 
+import logging
 import re
 from typing import Any, Callable, Dict, Optional, Tuple, List
 
-from solace_ai_connector.common.log import log
-
 from .constants import EARLY_EMBED_TYPES, LATE_EMBED_TYPES
+
+log = logging.getLogger(__name__)
 
 try:
     from jsonpath_ng.ext import parse as jsonpath_parse
