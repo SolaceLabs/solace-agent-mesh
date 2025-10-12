@@ -301,6 +301,27 @@ class A2AProxyComponent(BaseProxyComponent):
                 # Step 5: Success - break out of retry loop
                 break
 
+            except RuntimeError as e:
+                # WORKAROUND: The A2A SDK raises StopAsyncIteration for connection failures,
+                # which Python 3.7+ automatically converts to RuntimeError (PEP 479).
+                # We catch this here to provide a more meaningful error message.
+                # This should be fixed upstream in the A2A SDK to raise proper connection exceptions.
+                if "StopAsyncIteration" in str(e):
+                    error_msg = (
+                        f"Failed to connect to agent '{agent_name}': "
+                        "Connection refused or agent unreachable"
+                    )
+                    log.error(
+                        "%s Connection error (SDK raised StopAsyncIteration): %s",
+                        log_identifier,
+                        error_msg,
+                    )
+                    # Raise a more descriptive error that will be caught by the outer handler
+                    raise ConnectionError(error_msg) from e
+                else:
+                    # Some other RuntimeError - re-raise it
+                    raise
+            
             except A2AClientJSONRPCError as e:
                 # Handle JSON-RPC protocol errors
                 log.error(
@@ -311,6 +332,16 @@ class A2AProxyComponent(BaseProxyComponent):
                 )
                 # TODO: Publish error response to Solace
                 # Do not retry - this is a protocol-level error
+                raise
+                
+            except ConnectionError as e:
+                # Connection errors (including those converted from RuntimeError above)
+                log.error(
+                    "%s Connection error forwarding request to agent '%s': %s",
+                    log_identifier,
+                    agent_name,
+                    e,
+                )
                 raise
                 
             except A2AClientHTTPError as e:
