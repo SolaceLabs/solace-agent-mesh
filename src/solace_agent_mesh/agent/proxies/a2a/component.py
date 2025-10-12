@@ -76,8 +76,26 @@ class A2AProxyComponent(BaseProxyComponent):
         # when multiple concurrent requests target the same agent
         self._oauth_token_cache: OAuth2TokenCache = OAuth2TokenCache()
         
+        # Index agent configs by name for O(1) lookup (performance optimization)
+        self._agent_config_by_name: Dict[str, Dict[str, Any]] = {
+            agent["name"]: agent 
+            for agent in self.proxied_agents_config
+        }
+        
         # Validate OAuth 2.0 configuration at startup
         self._validate_oauth_config()
+
+    def _get_agent_config(self, agent_name: str) -> Optional[Dict[str, Any]]:
+        """
+        O(1) lookup of agent configuration by name.
+        
+        Args:
+            agent_name: The name of the agent to look up.
+            
+        Returns:
+            The agent configuration dictionary, or None if not found.
+        """
+        return self._agent_config_by_name.get(agent_name)
 
     def _validate_oauth_config(self):
         """
@@ -432,15 +450,8 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         log_identifier = f"{self.log_identifier}[AuthError:{agent_name}]"
         
-        # Step 1: Retrieve agent configuration
-        agent_config = next(
-            (
-                agent
-                for agent in self.proxied_agents_config
-                if agent.get("name") == agent_name
-            ),
-            None,
-        )
+        # Step 1: Retrieve agent configuration using O(1) lookup
+        agent_config = self._get_agent_config(agent_name)
         
         if not agent_config:
             log.warning(
@@ -694,14 +705,8 @@ class A2AProxyComponent(BaseProxyComponent):
         if cache_key in self._a2a_clients:
             return self._a2a_clients[cache_key]
 
-        agent_config = next(
-            (
-                agent
-                for agent in self.proxied_agents_config
-                if agent.get("name") == agent_name
-            ),
-            None,
-        )
+        # Use O(1) lookup for agent configuration
+        agent_config = self._get_agent_config(agent_name)
         if not agent_config:
             log.error(f"No configuration found for proxied agent '{agent_name}'")
             return None
