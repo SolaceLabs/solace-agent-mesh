@@ -382,3 +382,19 @@ class TestA2AAgentServer:
         """Clears the captured A2A requests list."""
         self.captured_requests.clear()
         log.debug("[TestA2AAgentServer] Cleared captured requests.")
+    
+    def get_cancel_requests(self) -> List[Dict[str, Any]]:
+        """Returns all captured cancel requests."""
+        return [
+            req for req in self.captured_requests
+            if req.get("method") == "tasks/cancel"
+        ]
+    
+    def was_cancel_requested_for_task(self, task_id: str) -> bool:
+        """Checks if a cancel request was received for a specific task ID."""
+        cancel_requests = self.get_cancel_requests()
+        for req in cancel_requests:
+            params = req.get("params", {})
+            if params.get("id") == task_id:
+                return True
+        return False

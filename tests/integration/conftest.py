@@ -1364,6 +1364,7 @@ def clear_test_gateway_state_between_tests(
     """
     yield
     test_gateway_app_instance.clear_captured_outputs()
+    test_gateway_app_instance.clear_all_captured_cancel_calls()
     if test_gateway_app_instance.task_context_manager:
         test_gateway_app_instance.task_context_manager.clear_all_contexts_for_testing()
 
