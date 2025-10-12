@@ -338,6 +338,18 @@ class TestGatewayComponent(BaseGatewayComponent):
             task_id,
         )
 
+    def clear_all_captured_cancel_calls(self) -> None:
+        """Clears the list of captured cancellation calls."""
+        self.captured_cancel_calls = []
+        log.debug(
+            "%s TestGatewayComponent: Cleared all captured cancel calls.",
+            self.log_identifier,
+        )
+
+    def was_cancel_called_for_task(self, task_id: str) -> bool:
+        """Checks if cancel_task was called for a specific task ID."""
+        return task_id in self.captured_cancel_calls
+
     async def get_next_captured_output(
         self, task_id: str, timeout: float = 5.0
     ) -> Optional[

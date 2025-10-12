@@ -293,6 +293,42 @@ async def _setup_scenario_environment(
             db_session.close()
 
 
+async def _execute_gateway_actions(
+    actions: List[Dict[str, Any]],
+    test_gateway_app_instance: TestGatewayComponent,
+    task_id: str,
+    gateway_input_data: Dict[str, Any],
+    scenario_id: str,
+) -> None:
+    """
+    Executes a list of gateway actions after the initial input has been sent.
+    """
+    for i, action in enumerate(actions):
+        action_type = action.get("type")
+        
+        if action_type == "cancel_task":
+            delay_seconds = action.get("delay_seconds", 0.1)
+            await asyncio.sleep(delay_seconds)
+            
+            agent_name = gateway_input_data.get("target_agent_name")
+            user_identity = gateway_input_data.get("user_identity", "test_user")
+            
+            print(
+                f"Scenario {scenario_id}: Executing cancel_task action for task {task_id} "
+                f"(agent: {agent_name}, delay: {delay_seconds}s)"
+            )
+            
+            await test_gateway_app_instance.cancel_task(
+                agent_name=agent_name,
+                task_id=task_id,
+                user_identity=user_identity,
+            )
+        else:
+            raise ValueError(
+                f"Scenario {scenario_id}: Unknown gateway action type: {action_type}"
+            )
+
+
 async def _execute_gateway_and_collect_events(
     test_gateway_app_instance: TestGatewayComponent,
     gateway_input_data: Dict[str, Any],
@@ -404,6 +440,47 @@ async def _execute_http_and_collect_events(
         aggregated_stream_text_for_final_assert,
         text_from_terminal_event_for_final_assert,
     )
+
+
+async def _assert_cancellation_sent(
+    cancellation_spec: Dict[str, Any],
+    test_gateway_app_instance: TestGatewayComponent,
+    test_a2a_agent_server_harness: Optional[TestA2AAgentServer],
+    task_id: str,
+    scenario_id: str,
+) -> None:
+    """
+    Asserts that cancellation was properly sent and received.
+    """
+    if not task_id:
+        pytest.fail(
+            f"Scenario {scenario_id}: Cannot assert cancellation without a task_id."
+        )
+    
+    # Check if gateway sent the cancellation
+    if cancellation_spec.get("gateway_sent", False):
+        assert test_gateway_app_instance.was_cancel_called_for_task(task_id), (
+            f"Scenario {scenario_id}: Expected gateway to send cancellation for task {task_id}, "
+            f"but it was not sent."
+        )
+        print(f"Scenario {scenario_id}: Verified gateway sent cancellation for task {task_id}")
+    
+    # Check if downstream agent received the cancellation
+    if cancellation_spec.get("downstream_received", False):
+        if not test_a2a_agent_server_harness:
+            pytest.fail(
+                f"Scenario {scenario_id}: Cannot verify downstream received cancellation "
+                f"without test_a2a_agent_server_harness."
+            )
+        
+        assert test_a2a_agent_server_harness.was_cancel_requested_for_task(task_id), (
+            f"Scenario {scenario_id}: Expected downstream agent to receive cancellation "
+            f"for task {task_id}, but it was not received."
+        )
+        print(
+            f"Scenario {scenario_id}: Verified downstream agent received cancellation "
+            f"for task {task_id}"
+        )
 
 
 async def _assert_http_responses(
@@ -1922,6 +1999,32 @@ async def test_declarative_scenario(
         ) = await _execute_gateway_and_collect_events(
             test_gateway_app_instance, gateway_input_data, overall_timeout, scenario_id
         )
+        
+        # Execute post-input actions if specified
+        gateway_actions_after_input = declarative_scenario.get(
+            "gateway_actions_after_input", []
+        )
+        if gateway_actions_after_input:
+            await _execute_gateway_actions(
+                gateway_actions_after_input,
+                test_gateway_app_instance,
+                task_id,
+                gateway_input_data,
+                scenario_id,
+            )
+            
+            # Continue collecting events after actions
+            additional_events = await test_gateway_app_instance.get_all_captured_outputs(
+                task_id, drain_timeout=overall_timeout
+            )
+            all_captured_events.extend(additional_events)
+            
+            # Re-extract outputs to include new events
+            (
+                _terminal_event_obj_for_text,
+                aggregated_stream_text_for_final_assert,
+                text_from_terminal_event_for_final_assert,
+            ) = extract_outputs_from_event_list(all_captured_events, scenario_id)
     elif http_request_input:
         (
             task_id,
@@ -2047,6 +2150,16 @@ async def test_declarative_scenario(
             scenario_id=scenario_id,
             task_id=task_id,
         )
+        
+        # Assert cancellation was sent if specified
+        if "assert_cancellation_sent" in declarative_scenario:
+            await _assert_cancellation_sent(
+                cancellation_spec=declarative_scenario["assert_cancellation_sent"],
+                test_gateway_app_instance=test_gateway_app_instance,
+                test_a2a_agent_server_harness=test_a2a_agent_server_harness,
+                task_id=task_id,
+                scenario_id=scenario_id,
+            )
 
         print(f"Scenario {scenario_id}: Completed.")
     except Exception as e:
