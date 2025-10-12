@@ -1826,6 +1826,10 @@ async def test_declarative_scenario(
 
                     # Apply new URL
                     agent_cfg["url"] = override_url
+                    
+                    # Update the indexed cache for O(1) lookups
+                    a2a_proxy_component._agent_config_by_name[agent_name] = agent_cfg
+                    
                     print(
                         f"Scenario {scenario_id}: Configured proxy URL override for {agent_name}: {override_url}"
                     )
@@ -1864,6 +1868,10 @@ async def test_declarative_scenario(
 
                     # Apply new config
                     agent_cfg["authentication"] = auth_config
+                    
+                    # Update the indexed cache for O(1) lookups
+                    a2a_proxy_component._agent_config_by_name[agent_name] = agent_cfg
+                    
                     print(
                         f"Scenario {scenario_id}: Configured proxy auth for {agent_name}: {auth_config.get('type')}"
                     )
@@ -2189,6 +2197,10 @@ async def test_declarative_scenario(
                         else:
                             # Restore the original authentication config
                             agent_cfg["authentication"] = original_auth
+                        
+                        # Update the indexed cache for O(1) lookups
+                        a2a_proxy_component._agent_config_by_name[agent_name] = agent_cfg
+                        
                         print(
                             f"Scenario {scenario_id}: Restored original auth config for {agent_name}"
                         )
@@ -2199,6 +2211,10 @@ async def test_declarative_scenario(
                 for agent_cfg in a2a_proxy_component.proxied_agents_config:
                     if agent_cfg.get("name") == agent_name:
                         agent_cfg["url"] = original_url
+                        
+                        # Update the indexed cache for O(1) lookups
+                        a2a_proxy_component._agent_config_by_name[agent_name] = agent_cfg
+                        
                         print(
                             f"Scenario {scenario_id}: Restored original URL for {agent_name}"
                         )
