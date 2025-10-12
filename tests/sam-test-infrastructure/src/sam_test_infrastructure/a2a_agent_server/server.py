@@ -48,6 +48,9 @@ class TestA2AAgentServer:
         self._auth_should_fail_once = False  # For testing retry logic
         self._auth_failure_count = 0
         self._captured_auth_headers: List[Dict[str, str]] = []
+        
+        # HTTP error simulation state
+        self._http_error_config: Optional[Dict[str, Any]] = None
 
         # 2.3: A2A Application Setup
         # 2.3.2: Instantiate InMemoryTaskStore
@@ -86,6 +89,23 @@ class TestA2AAgentServer:
                     )
             response = await call_next(request)
             return response
+        
+        # 2.3.7b: Add HTTP error simulation middleware (runs before other middleware)
+        @self.app.middleware("http")
+        async def http_error_simulation_middleware(request: Request, call_next):
+            # Only simulate errors for A2A endpoint
+            if request.url.path == "/a2a" and self._http_error_config:
+                config = self._http_error_config
+                self._http_error_config = None  # One-time use
+                log.info(
+                    "[TestA2AAgentServer] Simulating HTTP error: status=%d",
+                    config["status_code"]
+                )
+                return JSONResponse(
+                    status_code=config["status_code"],
+                    content=config.get("error_body", {"error": f"HTTP {config['status_code']}"}),
+                )
+            return await call_next(request)
         
         # 2.3.8: Add auth validation middleware
         @self.app.middleware("http")
@@ -328,6 +348,30 @@ class TestA2AAgentServer:
         """Clears the stateful response cache."""
         with self._stateful_cache_lock:
             self._stateful_responses_cache.clear()
+    
+    def configure_http_error_response(
+        self, 
+        status_code: int, 
+        error_body: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Configures the server to return an HTTP error for the next request.
+        
+        This is a one-time configuration - after returning the error once,
+        the server returns to normal operation.
+        
+        Args:
+            status_code: HTTP status code to return (e.g., 500, 503)
+            error_body: Optional JSON body to return with the error
+        """
+        self._http_error_config = {
+            "status_code": status_code,
+            "error_body": error_body or {"error": f"HTTP {status_code}"}
+        }
+        log.info(
+            "[TestA2AAgentServer] Configured to return HTTP %d on next request",
+            status_code
+        )
     
     def clear_captured_auth_headers(self):
         """Clears the captured authentication headers list."""

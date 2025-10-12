@@ -195,6 +195,25 @@ async def _setup_scenario_environment(
             print(
                 f"Scenario {scenario_id}: Configured downstream agent auth validation."
             )
+        
+        # Configure HTTP error simulation if specified
+        downstream_http_error = declarative_scenario.get("downstream_http_error")
+        if downstream_http_error:
+            status_code = downstream_http_error.get("status_code")
+            error_body = downstream_http_error.get("error_body")
+            
+            if not status_code:
+                raise ValueError(
+                    f"Scenario {scenario_id}: 'downstream_http_error.status_code' is required"
+                )
+            
+            test_a2a_agent_server_harness.configure_http_error_response(
+                status_code=status_code,
+                error_body=error_body
+            )
+            print(
+                f"Scenario {scenario_id}: Configured downstream agent to return HTTP {status_code}."
+            )
 
     # Configure OAuth mock server
     if mock_oauth_server:
@@ -1686,8 +1705,37 @@ async def test_declarative_scenario(
         mock_oauth_server=mock_oauth_server,
     )
 
-    # Store original proxy auth config to restore after test
+    # Store original proxy configs to restore after test
     original_proxy_auth_configs = {}
+    original_proxy_url_configs = {}
+
+    # Configure proxy URL override if specified (for testing unreachable agents)
+    if "proxy_config_override" in declarative_scenario:
+        proxy_override = declarative_scenario["proxy_config_override"]
+        agent_name = proxy_override.get("agent_name", "TestAgent_Proxied")
+        override_url = proxy_override.get("url")
+        
+        if override_url:
+            # Find the agent config in the proxy's configuration
+            for agent_cfg in a2a_proxy_component.proxied_agents_config:
+                if agent_cfg.get("name") == agent_name:
+                    # Save original URL before modifying
+                    original_proxy_url_configs[agent_name] = agent_cfg.get("url")
+                    
+                    # Apply new URL
+                    agent_cfg["url"] = override_url
+                    print(
+                        f"Scenario {scenario_id}: Configured proxy URL override for {agent_name}: {override_url}"
+                    )
+                    break
+            else:
+                pytest.fail(
+                    f"Scenario {scenario_id}: Agent '{agent_name}' not found in proxy configuration for URL override"
+                )
+            
+            # Clear cached clients to force reconnection with new URL
+            a2a_proxy_component.clear_client_cache()
+            print(f"Scenario {scenario_id}: Cleared proxy client cache after URL override")
 
     # Configure proxy authentication if specified
     if "proxy_auth_config" in declarative_scenario:
@@ -1988,7 +2036,7 @@ async def test_declarative_scenario(
             pretty_print_event_history(event_payloads)
         raise e
     finally:
-        # Restore original proxy auth configurations
+        # Restore original proxy configurations
         if original_proxy_auth_configs:
             for agent_name, original_auth in original_proxy_auth_configs.items():
                 for agent_cfg in a2a_proxy_component.proxied_agents_config:
@@ -2003,6 +2051,18 @@ async def test_declarative_scenario(
                             f"Scenario {scenario_id}: Restored original auth config for {agent_name}"
                         )
                         break
+        
+        if original_proxy_url_configs:
+            for agent_name, original_url in original_proxy_url_configs.items():
+                for agent_cfg in a2a_proxy_component.proxied_agents_config:
+                    if agent_cfg.get("name") == agent_name:
+                        agent_cfg["url"] = original_url
+                        print(
+                            f"Scenario {scenario_id}: Restored original URL for {agent_name}"
+                        )
+                        break
+            # Clear cache again after restoring URLs
+            a2a_proxy_component.clear_client_cache()
 
 
 async def _assert_downstream_auth_headers(
@@ -2469,10 +2529,36 @@ async def _assert_event_details(
             assert (
                 actual_event.code == expected_spec["error_code"]
             ), f"Scenario {scenario_id}: Event {event_index+1} - Error code mismatch. Expected {expected_spec['error_code']}, Got {actual_event.code}"
+        
         if "error_message_contains" in expected_spec:
             assert (
                 expected_spec["error_message_contains"] in actual_event.message
             ), f"Scenario {scenario_id}: Event {event_index+1} - Error message content mismatch. Expected to contain '{expected_spec['error_message_contains']}', Got '{actual_event.message}'"
+        
+        if "error_message_matches_regex" in expected_spec:
+            regex_pattern = expected_spec["error_message_matches_regex"]
+            assert re.search(
+                regex_pattern, actual_event.message, re.IGNORECASE
+            ), f"Scenario {scenario_id}: Event {event_index+1} - Error message regex mismatch. Pattern '{regex_pattern}' not found in '{actual_event.message}'"
+        
+        if "error_data_contains" in expected_spec:
+            assert (
+                actual_event.data is not None
+            ), f"Scenario {scenario_id}: Event {event_index+1} - Expected error.data to exist, but it was None"
+            
+            expected_data_subset = expected_spec["error_data_contains"]
+            if isinstance(actual_event.data, dict):
+                _assert_dict_subset(
+                    expected_subset=expected_data_subset,
+                    actual_superset=actual_event.data,
+                    scenario_id=scenario_id,
+                    event_index=event_index,
+                    context_path="error.data",
+                )
+            else:
+                pytest.fail(
+                    f"Scenario {scenario_id}: Event {event_index+1} - error.data is not a dict. Got type: {type(actual_event.data)}"
+                )
 
     if "assert_artifact_state" in expected_spec:
         assert (

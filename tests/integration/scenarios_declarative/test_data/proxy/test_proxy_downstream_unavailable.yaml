@@ -1,0 +1,25 @@
+test_case_id: "proxy_downstream_unavailable_001"
+description: "Tests that the proxy returns a meaningful error when the downstream agent is unreachable"
+tags: ["all", "proxy", "error_handling"]
+skip_intermediate_events: true
+
+# Override the proxy's URL to point to a non-existent port
+proxy_config_override:
+  agent_name: "TestAgent_Proxied"
+  url: "http://127.0.0.1:9999"  # Non-existent port
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "unavailable_tester@example.com"
+  parts:
+    - type: "text"
+      text: "This request should fail because the agent is unreachable"
+  external_context:
+    a2a_session_id: "session_unavailable_001"
+
+# No downstream responses - the connection will fail before any response
+
+expected_gateway_output:
+  - type: "error"
+    error_code: -32603  # InternalError
+    error_message_matches_regex: ".*(connection|refused|unreachable|failed|cannot connect).*"
