@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
+from urllib.parse import urlparse
 
 import httpx
 
