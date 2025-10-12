@@ -41,7 +41,6 @@ from a2a.types import (
 from solace_ai_connector.common.log import log
 
 from datetime import datetime, timezone
-from urllib.parse import urlparse
 
 from ....common import a2a
 from ....agent.utils.artifact_helpers import format_artifact_uri
@@ -82,8 +81,8 @@ class A2AProxyComponent(BaseProxyComponent):
             for agent in self.proxied_agents_config
         }
         
-        # Validate OAuth 2.0 configuration at startup
-        self._validate_oauth_config()
+        # OAuth 2.0 configuration is now validated by Pydantic models at app initialization
+        # No need for separate _validate_oauth_config() method
 
     def _get_agent_config(self, agent_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -96,135 +95,6 @@ class A2AProxyComponent(BaseProxyComponent):
             The agent configuration dictionary, or None if not found.
         """
         return self._agent_config_by_name.get(agent_name)
-
-    def _validate_oauth_config(self):
-        """
-        Validates OAuth 2.0 configuration for all proxied agents at startup.
-        
-        This method performs fail-fast validation to catch configuration errors
-        early, before any requests are processed. It checks:
-        - token_url is a valid HTTPS URL
-        - client_id is non-empty
-        - client_secret is non-empty
-        - token_cache_duration_seconds is positive (if specified)
-        
-        Raises:
-            ValueError: If any OAuth 2.0 configuration is invalid.
-        """
-        log_identifier = f"{self.log_identifier}[ValidateOAuth]"
-        
-        for agent_config in self.proxied_agents_config:
-            agent_name = agent_config.get("name", "unknown")
-            auth_config = agent_config.get("authentication")
-            
-            if not auth_config:
-                continue
-            
-            auth_type = auth_config.get("type")
-            
-            # Infer type from legacy scheme if not specified
-            if not auth_type:
-                scheme = auth_config.get("scheme", "bearer")
-                if scheme == "bearer":
-                    auth_type = "static_bearer"
-                elif scheme == "apikey":
-                    auth_type = "static_apikey"
-            
-            # Only validate OAuth 2.0 configurations
-            if auth_type != "oauth2_client_credentials":
-                continue
-            
-            log.info(
-                "%s Validating OAuth 2.0 configuration for agent '%s'",
-                log_identifier,
-                agent_name,
-            )
-            
-            # Validate token_url
-            token_url = auth_config.get("token_url")
-            if not token_url or not isinstance(token_url, str) or not token_url.strip():
-                log.error(
-                    "%s Agent '%s': 'token_url' is required and must be a non-empty string for OAuth 2.0",
-                    log_identifier,
-                    agent_name,
-                )
-                raise ValueError(
-                    f"OAuth 2.0 configuration for agent '{agent_name}' is invalid: "
-                    "'token_url' is required and must be a non-empty string."
-                )
-            
-            # Validate token_url is HTTPS
-            try:
-                parsed_url = urlparse(token_url)
-                if parsed_url.scheme != "https":
-                    log.error(
-                        "%s Agent '%s': 'token_url' must use HTTPS for security. Got scheme: '%s'",
-                        log_identifier,
-                        agent_name,
-                        parsed_url.scheme,
-                    )
-                    raise ValueError(
-                        f"OAuth 2.0 configuration for agent '{agent_name}' is invalid: "
-                        f"'token_url' must use HTTPS for security. Got: {parsed_url.scheme}://"
-                    )
-            except Exception as e:
-                log.error(
-                    "%s Agent '%s': Failed to parse 'token_url': %s",
-                    log_identifier,
-                    agent_name,
-                    e,
-                )
-                raise ValueError(
-                    f"OAuth 2.0 configuration for agent '{agent_name}' is invalid: "
-                    f"Failed to parse 'token_url': {e}"
-                )
-            
-            # Validate client_id
-            client_id = auth_config.get("client_id")
-            if not client_id or not isinstance(client_id, str) or not client_id.strip():
-                log.error(
-                    "%s Agent '%s': 'client_id' is required and must be a non-empty string for OAuth 2.0",
-                    log_identifier,
-                    agent_name,
-                )
-                raise ValueError(
-                    f"OAuth 2.0 configuration for agent '{agent_name}' is invalid: "
-                    "'client_id' is required and must be a non-empty string."
-                )
-            
-            # Validate client_secret
-            client_secret = auth_config.get("client_secret")
-            if not client_secret or not isinstance(client_secret, str) or not client_secret.strip():
-                log.error(
-                    "%s Agent '%s': 'client_secret' is required and must be a non-empty string for OAuth 2.0",
-                    log_identifier,
-                    agent_name,
-                )
-                raise ValueError(
-                    f"OAuth 2.0 configuration for agent '{agent_name}' is invalid: "
-                    "'client_secret' is required and must be a non-empty string."
-                )
-            
-            # Validate token_cache_duration_seconds if specified
-            cache_duration = auth_config.get("token_cache_duration_seconds")
-            if cache_duration is not None:
-                if not isinstance(cache_duration, int) or cache_duration <= 0:
-                    log.error(
-                        "%s Agent '%s': 'token_cache_duration_seconds' must be a positive integer. Got: %s",
-                        log_identifier,
-                        agent_name,
-                        cache_duration,
-                    )
-                    raise ValueError(
-                        f"OAuth 2.0 configuration for agent '{agent_name}' is invalid: "
-                        f"'token_cache_duration_seconds' must be a positive integer. Got: {cache_duration}"
-                    )
-            
-            log.info(
-                "%s OAuth 2.0 configuration for agent '%s' is valid",
-                log_identifier,
-                agent_name,
-            )
 
     async def _fetch_agent_card(self, agent_config: Dict[str, Any]) -> Optional[AgentCard]:
         """

@@ -7,11 +7,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Type
 
+from pydantic import ValidationError
 from solace_ai_connector.common.log import log
 from solace_ai_connector.flow.app import App
 
 from ....common.a2a import get_agent_request_topic
 from .component import BaseProxyComponent
+from .config import BaseProxyAppConfig
 
 
 info = {
@@ -113,18 +115,19 @@ class BaseProxyApp(App, ABC):
     def __init__(self, app_info: Dict[str, Any], **kwargs):
         log.debug("Initializing BaseProxyApp...")
 
-        app_config = app_info.get("app_config", {})
+        app_config_dict = app_info.get("app_config", {})
+
+        try:
+            # Validate the raw dict, cleaning None values to allow defaults to apply
+            app_config = BaseProxyAppConfig.model_validate_and_clean(app_config_dict)
+            # Overwrite the raw dict with the validated object for downstream use
+            app_info["app_config"] = app_config
+        except ValidationError as e:
+            log.error("Proxy configuration validation failed:\n%s", e)
+            raise ValueError(f"Invalid proxy configuration: {e}") from e
+
         namespace = app_config.get("namespace")
         proxied_agents = app_config.get("proxied_agents", [])
-
-        if not namespace or not isinstance(namespace, str):
-            raise ValueError(
-                "Config Error: 'namespace' is required and must be a string."
-            )
-        if not proxied_agents or not isinstance(proxied_agents, list):
-            raise ValueError(
-                "Config Error: 'proxied_agents' is required and must be a non-empty list."
-            )
 
         # Generate subscriptions for each proxied agent
         required_topics = [
