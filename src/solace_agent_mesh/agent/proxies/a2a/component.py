@@ -300,7 +300,9 @@ class A2AProxyComponent(BaseProxyComponent):
                         request.params.id,
                     )
                     # Use the modern client's cancel_task method
-                    result = await client.cancel_task(request.params.id, context=call_context)
+                    # Note: Pass the entire params object (TaskIdParams) instead of just the id string
+                    # to work around an SDK bug where it doesn't properly handle string inputs
+                    result = await client.cancel_task(request.params, context=call_context)
                     # Publish the canceled task response
                     await self._publish_final_response(result, task_context.a2a_context)
                 else:
