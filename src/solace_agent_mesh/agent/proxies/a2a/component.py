@@ -25,6 +25,7 @@ from a2a.types import (
     A2ARequest,
     AgentCard,
     Artifact,
+    CancelTaskRequest,
     Message,
     SendMessageRequest,
     SendStreamingMessageRequest,
