@@ -217,15 +217,34 @@ class BaseProxyComponent(ComponentBase, ABC):
 
             elif isinstance(a2a_request.root, CancelTaskRequest):
                 logical_task_id = get_task_id_from_cancel_request(a2a_request)
+                
+                # Get the agent name from the topic (same as for send_message)
+                target_agent_name = topic.split("/")[-1]
+                
                 with self.active_tasks_lock:
                     task_context = self.active_tasks.get(logical_task_id)
+                
                 if task_context:
-                    task_context.cancellation_event.set()
                     log.info(
-                        "%s Cancellation signal set for task %s.",
+                        "%s Forwarding cancellation request for task %s to agent %s.",
+                        self.log_identifier,
+                        logical_task_id,
+                        target_agent_name,
+                    )
+                    # Forward the cancel request to the downstream agent
+                    await self._forward_request(
+                        task_context, a2a_request.root, target_agent_name
+                    )
+                else:
+                    # Task not found in active tasks
+                    log.warning(
+                        "%s Received cancel request for unknown task %s.",
                         self.log_identifier,
                         logical_task_id,
                     )
+                    from a2a.types import TaskNotFoundError
+                    error = TaskNotFoundError(data={"taskId": logical_task_id})
+                    await self._publish_error_response(jsonrpc_request_id, error, message)
             else:
                 log.warning(
                     "%s Received unhandled A2A request type: %s",
@@ -565,9 +584,9 @@ class BaseProxyComponent(ComponentBase, ABC):
         log.info("%s Cleaning up proxy component.", self.log_identifier)
         self.cancel_timer(self._discovery_timer_id)
 
+        # Clear active tasks (no need to signal cancellation - downstream agents own their tasks)
         with self.active_tasks_lock:
-            for task_context in self.active_tasks.values():
-                task_context.cancellation_event.set()
+            self.active_tasks.clear()
 
         if self._async_loop and self._async_loop.is_running():
             self._async_loop.call_soon_threadsafe(self._async_loop.stop)

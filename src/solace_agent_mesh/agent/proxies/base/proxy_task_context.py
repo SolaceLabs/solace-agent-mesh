@@ -2,9 +2,8 @@
 Encapsulates the runtime state for a single, in-flight proxied agent task.
 """
 
-import asyncio
 from typing import Any, Dict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -16,4 +15,3 @@ class ProxyTaskContext:
 
     task_id: str
     a2a_context: Dict[str, Any]
-    cancellation_event: asyncio.Event = field(default_factory=asyncio.Event)

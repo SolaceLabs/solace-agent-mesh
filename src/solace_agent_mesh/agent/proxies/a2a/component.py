@@ -291,6 +291,17 @@ class A2AProxyComponent(BaseProxyComponent):
                         await self._process_downstream_response(
                             event, task_context, client, agent_name
                         )
+                elif isinstance(request, CancelTaskRequest):
+                    # Forward cancel request to downstream agent
+                    log.info(
+                        "%s Forwarding cancel request for task %s to downstream agent.",
+                        log_identifier,
+                        request.params.id,
+                    )
+                    # Use the modern client's cancel_task method
+                    result = await client.cancel_task(request.params.id, context=call_context)
+                    # Publish the canceled task response
+                    await self._publish_final_response(result, task_context.a2a_context)
                 else:
                     log.warning(
                         "%s Unhandled request type for forwarding: %s",
