@@ -195,21 +195,20 @@ async def _setup_scenario_environment(
             print(
                 f"Scenario {scenario_id}: Configured downstream agent auth validation."
             )
-        
+
         # Configure HTTP error simulation if specified
         downstream_http_error = declarative_scenario.get("downstream_http_error")
         if downstream_http_error:
             status_code = downstream_http_error.get("status_code")
             error_body = downstream_http_error.get("error_body")
-            
+
             if not status_code:
                 raise ValueError(
                     f"Scenario {scenario_id}: 'downstream_http_error.status_code' is required"
                 )
-            
+
             test_a2a_agent_server_harness.configure_http_error_response(
-                status_code=status_code,
-                error_body=error_body
+                status_code=status_code, error_body=error_body
             )
             print(
                 f"Scenario {scenario_id}: Configured downstream agent to return HTTP {status_code}."
@@ -305,19 +304,19 @@ async def _execute_gateway_actions(
     """
     for i, action in enumerate(actions):
         action_type = action.get("type")
-        
+
         if action_type == "cancel_task":
             delay_seconds = action.get("delay_seconds", 0.1)
             await asyncio.sleep(delay_seconds)
-            
+
             agent_name = gateway_input_data.get("target_agent_name")
             user_identity = gateway_input_data.get("user_identity", "test_user")
-            
+
             print(
                 f"Scenario {scenario_id}: Executing cancel_task action for task {task_id} "
                 f"(agent: {agent_name}, delay: {delay_seconds}s)"
             )
-            
+
             await test_gateway_app_instance.cancel_task(
                 agent_name=agent_name,
                 task_id=task_id,
@@ -456,15 +455,17 @@ async def _assert_cancellation_sent(
         pytest.fail(
             f"Scenario {scenario_id}: Cannot assert cancellation without a task_id."
         )
-    
+
     # Check if gateway sent the cancellation
     if cancellation_spec.get("gateway_sent", False):
         assert test_gateway_app_instance.was_cancel_called_for_task(task_id), (
             f"Scenario {scenario_id}: Expected gateway to send cancellation for task {task_id}, "
             f"but it was not sent."
         )
-        print(f"Scenario {scenario_id}: Verified gateway sent cancellation for task {task_id}")
-    
+        print(
+            f"Scenario {scenario_id}: Verified gateway sent cancellation for task {task_id}"
+        )
+
     # Check if downstream agent received the cancellation
     if cancellation_spec.get("downstream_received", False):
         if not test_a2a_agent_server_harness:
@@ -472,7 +473,7 @@ async def _assert_cancellation_sent(
                 f"Scenario {scenario_id}: Cannot verify downstream received cancellation "
                 f"without test_a2a_agent_server_harness."
             )
-        
+
         assert test_a2a_agent_server_harness.was_cancel_requested_for_task(task_id), (
             f"Scenario {scenario_id}: Expected downstream agent to receive cancellation "
             f"for task {task_id}, but it was not received."
@@ -1677,7 +1678,7 @@ SKIPPED_FAILING_EMBED_TESTS = [
 # surface HTTP errors in streaming mode. When the downstream agent returns an HTTP
 # error (e.g., 500, 503), the SDK attempts to parse the error response as Server-Sent
 # Events and reports an SSE protocol error instead of the actual HTTP status code.
-# 
+#
 # Expected behavior: HTTP 500 should be reported as "HTTP Error 500"
 # Actual behavior: Reported as "HTTP Error 400: Invalid SSE response... got 'application/json'"
 #
@@ -1815,14 +1816,14 @@ async def test_declarative_scenario(
         proxy_override = declarative_scenario["proxy_config_override"]
         agent_name = proxy_override.get("agent_name", "TestAgent_Proxied")
         override_url = proxy_override.get("url")
-        
+
         if override_url:
             # Find the agent config in the proxy's configuration
             for agent_cfg in a2a_proxy_component.proxied_agents_config:
                 if agent_cfg.get("name") == agent_name:
                     # Save original URL before modifying
                     original_proxy_url_configs[agent_name] = agent_cfg.get("url")
-                    
+
                     # Apply new URL
                     agent_cfg["url"] = override_url
                     print(
@@ -1833,10 +1834,12 @@ async def test_declarative_scenario(
                 pytest.fail(
                     f"Scenario {scenario_id}: Agent '{agent_name}' not found in proxy configuration for URL override"
                 )
-            
+
             # Clear cached clients to force reconnection with new URL
             a2a_proxy_component.clear_client_cache()
-            print(f"Scenario {scenario_id}: Cleared proxy client cache after URL override")
+            print(
+                f"Scenario {scenario_id}: Cleared proxy client cache after URL override"
+            )
 
     # Configure proxy authentication if specified
     if "proxy_auth_config" in declarative_scenario:
@@ -1982,7 +1985,7 @@ async def test_declarative_scenario(
     assertion_context_data = {}
 
     overall_timeout = declarative_scenario.get(
-        "expected_completion_timeout_seconds", 1000.0
+        "expected_completion_timeout_seconds", 10.0
     )
 
     if gateway_input_data and http_request_input:
@@ -1999,7 +2002,7 @@ async def test_declarative_scenario(
         ) = await _execute_gateway_and_collect_events(
             test_gateway_app_instance, gateway_input_data, overall_timeout, scenario_id
         )
-        
+
         # Execute post-input actions if specified
         gateway_actions_after_input = declarative_scenario.get(
             "gateway_actions_after_input", []
@@ -2012,13 +2015,15 @@ async def test_declarative_scenario(
                 gateway_input_data,
                 scenario_id,
             )
-            
+
             # Continue collecting events after actions
-            additional_events = await test_gateway_app_instance.get_all_captured_outputs(
-                task_id, drain_timeout=overall_timeout
+            additional_events = (
+                await test_gateway_app_instance.get_all_captured_outputs(
+                    task_id, drain_timeout=overall_timeout
+                )
             )
             all_captured_events.extend(additional_events)
-            
+
             # Re-extract outputs to include new events
             (
                 _terminal_event_obj_for_text,
@@ -2150,7 +2155,7 @@ async def test_declarative_scenario(
             scenario_id=scenario_id,
             task_id=task_id,
         )
-        
+
         # Assert cancellation was sent if specified
         if "assert_cancellation_sent" in declarative_scenario:
             await _assert_cancellation_sent(
@@ -2188,7 +2193,7 @@ async def test_declarative_scenario(
                             f"Scenario {scenario_id}: Restored original auth config for {agent_name}"
                         )
                         break
-        
+
         if original_proxy_url_configs:
             for agent_name, original_url in original_proxy_url_configs.items():
                 for agent_cfg in a2a_proxy_component.proxied_agents_config:
@@ -2666,23 +2671,23 @@ async def _assert_event_details(
             assert (
                 actual_event.code == expected_spec["error_code"]
             ), f"Scenario {scenario_id}: Event {event_index+1} - Error code mismatch. Expected {expected_spec['error_code']}, Got {actual_event.code}"
-        
+
         if "error_message_contains" in expected_spec:
             assert (
                 expected_spec["error_message_contains"] in actual_event.message
             ), f"Scenario {scenario_id}: Event {event_index+1} - Error message content mismatch. Expected to contain '{expected_spec['error_message_contains']}', Got '{actual_event.message}'"
-        
+
         if "error_message_matches_regex" in expected_spec:
             regex_pattern = expected_spec["error_message_matches_regex"]
             assert re.search(
                 regex_pattern, actual_event.message, re.IGNORECASE
             ), f"Scenario {scenario_id}: Event {event_index+1} - Error message regex mismatch. Pattern '{regex_pattern}' not found in '{actual_event.message}'"
-        
+
         if "error_data_contains" in expected_spec:
             assert (
                 actual_event.data is not None
             ), f"Scenario {scenario_id}: Event {event_index+1} - Expected error.data to exist, but it was None"
-            
+
             expected_data_subset = expected_spec["error_data_contains"]
             if isinstance(actual_event.data, dict):
                 _assert_dict_subset(

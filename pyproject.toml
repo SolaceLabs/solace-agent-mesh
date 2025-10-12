@@ -186,6 +186,8 @@ markers = [
     "dynamic_tools: marks tests related to the dynamic_tools",
     "auth: marks tests associated with authentication and authorization",
     "oauth: OAuth specific tests",
+    "error_handling: Tests related to error handling and recovery",
+    "cancellation: Tests related to task cancellation",
 ]
 
 [tool.hatch.metadata]
