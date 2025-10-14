@@ -4,9 +4,8 @@ Cross-database inspector for validation across Gateway and Agent databases.
 Provides utilities to verify database state, session linking, and architecture correctness.
 """
 
+import sqlalchemy as sa
 from typing import NamedTuple
-
-from sqlalchemy import text
 
 from .multi_database_manager import MultiDatabaseManager
 
@@ -18,6 +17,7 @@ class SessionRecord(NamedTuple):
     user_id: str
     agent_name: str
     created_at: str
+    updated_at: str
 
 
 class MessageRecord(NamedTuple):
@@ -46,30 +46,29 @@ class CrossDatabaseInspector:
     def __init__(self, db_manager: MultiDatabaseManager):
         self.db_manager = db_manager
 
-    async def verify_gateway_migration_state(self):
+    async def verify_gateway_migration_state(self) -> str:
         """Verify Gateway database has proper migration state"""
-        gateway_engine = self.db_manager.get_gateway_engine()
+        gateway_conn = await self.db_manager.get_gateway_connection()
+        async with gateway_conn.begin():
+            metadata = sa.MetaData()
+            await gateway_conn.run_sync(metadata.reflect)
+            alembic_table = metadata.tables.get("alembic_version")
+            assert alembic_table is not None, "Alembic version table not found"
 
-        # Check alembic_version table exists (indicates migrations ran)
-        with gateway_engine.connect() as conn:
-            result = conn.execute(text("SELECT version_num FROM alembic_version"))
-            alembic_version = result.fetchone()
+            query = sa.select(alembic_table.c.version_num)
+            result = (await gateway_conn.execute(query)).scalar_one_or_none()
 
-        assert alembic_version is not None, "Gateway database migrations not applied"
-        return alembic_version[0]
+        assert result is not None, "Gateway database migrations not applied"
+        return result
 
-    async def verify_agent_schema_state(self, agent_name: str):
+    async def verify_agent_schema_state(self, agent_name: str) -> list[str]:
         """Verify Agent database has proper schema (no migrations)"""
-        agent_engine = self.db_manager.get_agent_engine(agent_name)
-
-        # Check expected agent tables exist (but no alembic_version table)
-        with agent_engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table'")
+        agent_conn = await self.db_manager.get_agent_connection(agent_name)
+        async with agent_conn.begin():
+            table_names = await agent_conn.run_sync(
+                lambda sync_conn: sa.inspect(sync_conn).get_table_names()
             )
-            tables = result.fetchall()
 
-        table_names = [t[0] for t in tables]
         assert "alembic_version" not in table_names, (
             f"Agent {agent_name} should not have migration table"
         )
@@ -100,15 +99,14 @@ class CrossDatabaseInspector:
 
     async def get_gateway_sessions(self, user_id: str) -> list[SessionRecord]:
         """Get all gateway sessions for a user"""
-        gateway_engine = self.db_manager.get_gateway_engine()
+        gateway_conn = await self.db_manager.get_gateway_connection()
+        async with gateway_conn.begin():
+            metadata = sa.MetaData()
+            await gateway_conn.run_sync(metadata.reflect)
+            sessions_table = metadata.tables["gateway_sessions"]
 
-        with gateway_engine.connect() as conn:
-            result = conn.execute(
-                text(
-                    "SELECT id, user_id, agent_name, created_at FROM gateway_sessions WHERE user_id = :user_id"
-                ),
-                {"user_id": user_id},
-            )
+            query = sa.select(sessions_table).where(sessions_table.c.user_id == user_id)
+            result = await gateway_conn.execute(query)
             rows = result.fetchall()
 
         return [SessionRecord(*row) for row in rows]
@@ -116,13 +114,18 @@ class CrossDatabaseInspector:
     async def get_session_messages(self, session_id: str) -> list[MessageRecord]:
         """Get all messages for a gateway session"""
         gateway_conn = await self.db_manager.get_gateway_connection()
+        async with gateway_conn.begin():
+            metadata = sa.MetaData()
+            await gateway_conn.run_sync(metadata.reflect)
+            messages_table = metadata.tables["gateway_messages"]
 
-        cursor = await gateway_conn.execute(
-            "SELECT id, session_id, role, content, timestamp FROM gateway_messages WHERE session_id = ? ORDER BY timestamp",
-            (session_id,),
-        )
-        rows = await cursor.fetchall()
-        await cursor.close()
+            query = (
+                sa.select(messages_table)
+                .where(messages_table.c.session_id == session_id)
+                .order_by(messages_table.c.timestamp)
+            )
+            result = await gateway_conn.execute(query)
+            rows = result.fetchall()
 
         return [MessageRecord(*row) for row in rows]
 
@@ -131,17 +134,19 @@ class CrossDatabaseInspector:
     ) -> list[AgentSessionRecord]:
         """Get agent sessions, optionally filtered by gateway session ID"""
         agent_conn = await self.db_manager.get_agent_connection(agent_name)
+        async with agent_conn.begin():
+            metadata = sa.MetaData()
+            await agent_conn.run_sync(metadata.reflect)
+            agent_sessions_table = metadata.tables["agent_sessions"]
 
-        if gateway_session_id:
-            query = "SELECT id, gateway_session_id, agent_name, user_id, session_data FROM agent_sessions WHERE gateway_session_id = ?"
-            params = (gateway_session_id,)
-        else:
-            query = "SELECT id, gateway_session_id, agent_name, user_id, session_data FROM agent_sessions"
-            params = ()
+            query = sa.select(agent_sessions_table)
+            if gateway_session_id:
+                query = query.where(
+                    agent_sessions_table.c.gateway_session_id == gateway_session_id
+                )
 
-        cursor = await agent_conn.execute(query, params)
-        rows = await cursor.fetchall()
-        await cursor.close()
+            result = await agent_conn.execute(query)
+            rows = result.fetchall()
 
         return [AgentSessionRecord(*row) for row in rows]
 
@@ -150,13 +155,24 @@ class CrossDatabaseInspector:
     ) -> list[MessageRecord]:
         """Get all messages for an agent session"""
         agent_conn = await self.db_manager.get_agent_connection(agent_name)
+        async with agent_conn.begin():
+            metadata = sa.MetaData()
+            await agent_conn.run_sync(metadata.reflect)
+            agent_messages_table = metadata.tables["agent_messages"]
 
-        cursor = await agent_conn.execute(
-            "SELECT id, gateway_session_id as session_id, role, content, timestamp FROM agent_messages WHERE gateway_session_id = ? ORDER BY timestamp",
-            (gateway_session_id,),
-        )
-        rows = await cursor.fetchall()
-        await cursor.close()
+            query = (
+                sa.select(
+                    agent_messages_table.c.id,
+                    agent_messages_table.c.gateway_session_id.label("session_id"),
+                    agent_messages_table.c.role,
+                    agent_messages_table.c.content,
+                    agent_messages_table.c.timestamp,
+                )
+                .where(agent_messages_table.c.gateway_session_id == gateway_session_id)
+                .order_by(agent_messages_table.c.timestamp)
+            )
+            result = await agent_conn.execute(query)
+            rows = result.fetchall()
 
         return [MessageRecord(*row) for row in rows]
 
@@ -165,21 +181,23 @@ class CrossDatabaseInspector:
 
         # Check Gateway database
         gateway_conn = await self.db_manager.get_gateway_connection()
-        cursor = await gateway_conn.execute(
-            "SELECT id, user_id, agent_name FROM gateway_sessions WHERE id = ?",
-            (gateway_session_id,),
-        )
-        gateway_session = await cursor.fetchone()
-        await cursor.close()
+        async with gateway_conn.begin():
+            metadata = sa.MetaData()
+            await gateway_conn.run_sync(metadata.reflect)
+            gateway_sessions = metadata.tables["gateway_sessions"]
+            
+            query = sa.select(gateway_sessions).where(gateway_sessions.c.id == gateway_session_id)
+            gateway_session = (await gateway_conn.execute(query)).first()
 
         # Check Agent database
         agent_conn = await self.db_manager.get_agent_connection(agent_name)
-        cursor = await agent_conn.execute(
-            "SELECT id, gateway_session_id, agent_name, user_id FROM agent_sessions WHERE gateway_session_id = ?",
-            (gateway_session_id,),
-        )
-        agent_session = await cursor.fetchone()
-        await cursor.close()
+        async with agent_conn.begin():
+            metadata = sa.MetaData()
+            await agent_conn.run_sync(metadata.reflect)
+            agent_sessions = metadata.tables["agent_sessions"]
+
+            query = sa.select(agent_sessions).where(agent_sessions.c.gateway_session_id == gateway_session_id)
+            agent_session = (await agent_conn.execute(query)).first()
 
         assert gateway_session is not None, (
             f"Gateway session {gateway_session_id} not found"
@@ -187,46 +205,50 @@ class CrossDatabaseInspector:
         assert agent_session is not None, (
             f"Agent session for {gateway_session_id} not found in {agent_name}"
         )
-        assert agent_session[1] == gateway_session_id, (
+        assert agent_session.gateway_session_id == gateway_session_id, (
             "Session ID mismatch in agent database"
         )
-        assert agent_session[2] == agent_name, "Agent name mismatch in agent database"
-        assert gateway_session[1] == agent_session[3], (
+        assert agent_session.agent_name == agent_name, "Agent name mismatch in agent database"
+        assert gateway_session.user_id == agent_session.user_id, (
             "User ID mismatch between Gateway and Agent"
         )
 
         return {
             "gateway_session": SessionRecord(
-                gateway_session[0], gateway_session[1], gateway_session[2], ""
+                gateway_session.id, gateway_session.user_id, gateway_session.agent_name, "", ""
             ),
-            "agent_session": AgentSessionRecord(*agent_session, None),
+            "agent_session": AgentSessionRecord(*agent_session),
         }
 
-    async def verify_database_isolation(self, agent_a: str, agent_b: str):
+    async def verify_database_isolation(self, agent_a: str, agent_b: str) -> bool:
         """Verify Agent A's data doesn't appear in Agent B's database"""
 
-        agent_a_conn = await self.db_manager.get_agent_connection(agent_a)
-        agent_b_conn = await self.db_manager.get_agent_connection(agent_b)
-
         # Get all sessions from Agent A
-        cursor_a = await agent_a_conn.execute(
-            "SELECT gateway_session_id FROM agent_sessions"
-        )
-        agent_a_sessions = await cursor_a.fetchall()
-        await cursor_a.close()
+        agent_a_conn = await self.db_manager.get_agent_connection(agent_a)
+        async with agent_a_conn.begin():
+            metadata_a = sa.MetaData()
+            await agent_a_conn.run_sync(metadata_a.reflect)
+            sessions_a = metadata_a.tables["agent_sessions"]
+            
+            query_a = sa.select(sessions_a.c.gateway_session_id)
+            result_a = await agent_a_conn.execute(query_a)
+            agent_a_sessions = result_a.fetchall()
 
         # Verify none appear in Agent B's database
-        for session in agent_a_sessions:
-            cursor_b = await agent_b_conn.execute(
-                "SELECT id FROM agent_sessions WHERE gateway_session_id = ?",
-                (session[0],),
-            )
-            agent_b_session = await cursor_b.fetchone()
-            await cursor_b.close()
+        agent_b_conn = await self.db_manager.get_agent_connection(agent_b)
+        async with agent_b_conn.begin():
+            metadata_b = sa.MetaData()
+            await agent_b_conn.run_sync(metadata_b.reflect)
+            sessions_b = metadata_b.tables["agent_sessions"]
 
-            assert agent_b_session is None, (
-                f"Session leak detected: {session[0]} found in both {agent_a} and {agent_b} databases"
-            )
+            for session_id, in agent_a_sessions:
+                query_b = sa.select(sessions_b).where(sessions_b.c.gateway_session_id == session_id)
+                result_b = await agent_b_conn.execute(query_b)
+                agent_b_session = result_b.first()
+
+                assert agent_b_session is None, (
+                    f"Session leak detected: {session_id} found in both {agent_a} and {agent_b} databases"
+                )
 
         return True
 
@@ -264,31 +286,34 @@ class CrossDatabaseInspector:
 
         # Gateway stats
         gateway_conn = await self.db_manager.get_gateway_connection()
-        cursor = await gateway_conn.execute("SELECT COUNT(*) FROM gateway_sessions")
-        session_count = await cursor.fetchone()
-        await cursor.close()
+        async with gateway_conn.begin():
+            metadata = sa.MetaData()
+            await gateway_conn.run_sync(metadata.reflect)
+            
+            sessions_table = metadata.tables.get("gateway_sessions")
+            messages_table = metadata.tables.get("gateway_messages")
 
-        cursor = await gateway_conn.execute("SELECT COUNT(*) FROM gateway_messages")
-        message_count = await cursor.fetchone()
-        await cursor.close()
+            session_count = (await gateway_conn.execute(sa.select(sa.func.count()).select_from(sessions_table))).scalar() if sessions_table is not None else 0
+            message_count = (await gateway_conn.execute(sa.select(sa.func.count()).select_from(messages_table))).scalar() if messages_table is not None else 0
 
-        stats["gateway"] = {"sessions": session_count[0], "messages": message_count[0]}
+            stats["gateway"] = {"sessions": session_count, "messages": message_count}
 
         # Agent stats
         for agent_name in self.db_manager.agent_db_urls.keys():
             agent_conn = await self.db_manager.get_agent_connection(agent_name)
+            async with agent_conn.begin():
+                metadata = sa.MetaData()
+                await agent_conn.run_sync(metadata.reflect)
 
-            cursor = await agent_conn.execute("SELECT COUNT(*) FROM agent_sessions")
-            agent_session_count = await cursor.fetchone()
-            await cursor.close()
+                agent_sessions_table = metadata.tables.get("agent_sessions")
+                agent_messages_table = metadata.tables.get("agent_messages")
 
-            cursor = await agent_conn.execute("SELECT COUNT(*) FROM agent_messages")
-            agent_message_count = await cursor.fetchone()
-            await cursor.close()
+                agent_session_count = (await agent_conn.execute(sa.select(sa.func.count()).select_from(agent_sessions_table))).scalar() if agent_sessions_table is not None else 0
+                agent_message_count = (await agent_conn.execute(sa.select(sa.func.count()).select_from(agent_messages_table))).scalar() if agent_messages_table is not None else 0
 
-            stats[f"agent_{agent_name}"] = {
-                "sessions": agent_session_count[0],
-                "messages": agent_message_count[0],
-            }
+                stats[f"agent_{agent_name}"] = {
+                    "sessions": agent_session_count,
+                    "messages": agent_message_count,
+                }
 
         return stats

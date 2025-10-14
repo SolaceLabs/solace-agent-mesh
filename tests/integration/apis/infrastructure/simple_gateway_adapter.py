@@ -1,11 +1,13 @@
 """
-Simple Gateway Persistence Adapter using synchronous SQLite.
+Simple Gateway Persistence Adapter using SQLAlchemy Core.
 
-A simplified version that uses standard sqlite3 to avoid dependency issues.
+A simplified version that uses SQLAlchemy for database-agnostic persistence.
 """
 
 import uuid
+import sqlalchemy as sa
 from typing import NamedTuple
+from sqlalchemy import text
 
 from .simple_database_manager import SimpleDatabaseManager
 
@@ -35,22 +37,24 @@ class SimpleGatewayAdapter:
     def create_session(self, user_id: str, agent_name: str) -> SessionResponse:
         """Create a new session with database persistence"""
 
-        # Validate input parameters
         if not user_id or not user_id.strip():
             raise ValueError("user_id cannot be empty")
         if not agent_name or not agent_name.strip():
             raise ValueError("agent_name cannot be empty")
 
-        # Generate unique session ID
         session_id = str(uuid.uuid4())
 
-        # Store session in Gateway database
         with self.db_manager.get_gateway_connection() as conn:
-            conn.execute(
-                "INSERT INTO gateway_sessions (id, user_id, agent_name) VALUES (?, ?, ?)",
-                (session_id, user_id, agent_name),
+            metadata = sa.MetaData()
+            metadata.reflect(bind=conn)
+            sessions_table = metadata.tables["gateway_sessions"]
+
+            query = sa.insert(sessions_table).values(
+                id=session_id, user_id=user_id, agent_name=agent_name
             )
-            conn.commit()
+            conn.execute(query)
+            if conn.in_transaction():
+                conn.commit()
 
         return SessionResponse(id=session_id, user_id=user_id, agent_name=agent_name)
 
@@ -59,51 +63,36 @@ class SimpleGatewayAdapter:
     ) -> MessageResponse:
         """Send a message with database persistence"""
 
-        # Get session info if user_id not provided
-        if not user_id:
-            with self.db_manager.get_gateway_connection() as conn:
-                cursor = conn.execute(
-                    "SELECT user_id, agent_name FROM gateway_sessions WHERE id = ?",
-                    (session_id,),
-                )
-                session_row = cursor.fetchone()
+        with self.db_manager.get_gateway_connection() as conn:
+            metadata = sa.MetaData()
+            metadata.reflect(bind=conn)
+            sessions_table = metadata.tables["gateway_sessions"]
+            messages_table = metadata.tables["gateway_messages"]
+
+            # Get session info
+            query = sa.select(sessions_table.c.user_id, sessions_table.c.agent_name).where(
+                sessions_table.c.id == session_id
+            )
+            session_row = conn.execute(query).first()
 
             if not session_row:
                 raise ValueError(f"Session {session_id} not found")
-
-            user_id, agent_name = session_row
-        else:
-            # Get agent name for this session
-            with self.db_manager.get_gateway_connection() as conn:
-                cursor = conn.execute(
-                    "SELECT agent_name FROM gateway_sessions WHERE id = ?",
-                    (session_id,),
-                )
-                agent_row = cursor.fetchone()
-
-            if not agent_row:
-                raise ValueError(f"Session {session_id} not found")
-
-            agent_name = agent_row[0]
-
-        # Store user message in Gateway database
-        with self.db_manager.get_gateway_connection() as conn:
-            conn.execute(
-                "INSERT INTO gateway_messages (session_id, role, content) VALUES (?, ?, ?)",
-                (session_id, "user", message),
+            
+            # Store user message
+            insert_user_msg = sa.insert(messages_table).values(
+                session_id=session_id, role="user", content=message
             )
-            conn.commit()
+            conn.execute(insert_user_msg)
 
-        # Simulate agent response (in real implementation, this would come from the actual agent)
-        agent_response = f"Received: {message}"
-
-        # Store agent response in Gateway database
-        with self.db_manager.get_gateway_connection() as conn:
-            conn.execute(
-                "INSERT INTO gateway_messages (session_id, role, content) VALUES (?, ?, ?)",
-                (session_id, "assistant", agent_response),
+            # Simulate and store agent response
+            agent_response = f"Received: {message}"
+            insert_agent_msg = sa.insert(messages_table).values(
+                session_id=session_id, role="assistant", content=agent_response
             )
-            conn.commit()
+            conn.execute(insert_agent_msg)
+
+            if conn.in_transaction():
+                conn.commit()
 
         return MessageResponse(
             content=agent_response, session_id=session_id, task_id="simulated_task_id"
@@ -112,41 +101,49 @@ class SimpleGatewayAdapter:
     def switch_session(self, session_id: str) -> SessionResponse:
         """Switch to an existing session"""
 
-        # Verify session exists
         with self.db_manager.get_gateway_connection() as conn:
-            cursor = conn.execute(
-                "SELECT id, user_id, agent_name FROM gateway_sessions WHERE id = ?",
-                (session_id,),
-            )
-            session_row = cursor.fetchone()
+            metadata = sa.MetaData()
+            metadata.reflect(bind=conn)
+            sessions_table = metadata.tables["gateway_sessions"]
 
-        if not session_row:
-            raise ValueError(f"Session {session_id} not found")
+            # Verify session exists
+            query = sa.select(sessions_table).where(sessions_table.c.id == session_id)
+            session_row = conn.execute(query).first()
 
-        # Update session timestamp to indicate it was accessed
-        with self.db_manager.get_gateway_connection() as conn:
-            conn.execute(
-                "UPDATE gateway_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (session_id,),
+            if not session_row:
+                raise ValueError(f"Session {session_id} not found")
+
+            # Update session timestamp
+            update_query = (
+                sa.update(sessions_table)
+                .where(sessions_table.c.id == session_id)
+                .values(updated_at=sa.func.current_timestamp())
             )
-            conn.commit()
+            conn.execute(update_query)
+            if conn.in_transaction():
+                conn.commit()
 
         return SessionResponse(
-            id=session_row[0], user_id=session_row[1], agent_name=session_row[2]
+            id=session_row.id, user_id=session_row.user_id, agent_name=session_row.agent_name
         )
 
     def list_sessions(self, user_id: str) -> list[SessionResponse]:
         """List all sessions for a user"""
 
         with self.db_manager.get_gateway_connection() as conn:
-            cursor = conn.execute(
-                "SELECT id, user_id, agent_name FROM gateway_sessions WHERE user_id = ? ORDER BY updated_at DESC",
-                (user_id,),
+            metadata = sa.MetaData()
+            metadata.reflect(bind=conn)
+            sessions_table = metadata.tables["gateway_sessions"]
+
+            query = (
+                sa.select(sessions_table)
+                .where(sessions_table.c.user_id == user_id)
+                .order_by(sa.desc(sessions_table.c.updated_at))
             )
-            session_rows = cursor.fetchall()
+            session_rows = conn.execute(query).fetchall()
 
         return [
-            SessionResponse(id=row[0], user_id=row[1], agent_name=row[2])
+            SessionResponse(id=row.id, user_id=row.user_id, agent_name=row.agent_name)
             for row in session_rows
         ]
 
@@ -154,17 +151,24 @@ class SimpleGatewayAdapter:
         """Delete a session and its messages"""
 
         with self.db_manager.get_gateway_connection() as conn:
-            # Delete messages first (foreign key constraint)
-            conn.execute(
-                "DELETE FROM gateway_messages WHERE session_id = ?", (session_id,)
+            metadata = sa.MetaData()
+            metadata.reflect(bind=conn)
+            messages_table = metadata.tables["gateway_messages"]
+            sessions_table = metadata.tables["gateway_sessions"]
+
+            # Delete messages first
+            delete_msgs = sa.delete(messages_table).where(
+                messages_table.c.session_id == session_id
             )
+            conn.execute(delete_msgs)
 
             # Delete session
-            cursor = conn.execute(
-                "DELETE FROM gateway_sessions WHERE id = ?", (session_id,)
+            delete_sess = sa.delete(sessions_table).where(
+                sessions_table.c.id == session_id
             )
+            result = conn.execute(delete_sess)
 
-            conn.commit()
+            if conn.in_transaction():
+                conn.commit()
 
-            # Return True if a session was actually deleted
-            return cursor.rowcount > 0
+            return result.rowcount > 0

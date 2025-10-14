@@ -117,37 +117,49 @@ def clean_database_between_tests(request, test_database_engine):
 
 
 def _clean_main_database(test_database_engine):
-    """Clean the main API test database"""
+    """Clean the main API test database using SQLAlchemy Core"""
 
-    SessionLocal = sessionmaker(bind=test_database_engine)
-    session = SessionLocal()
-    try:
-        # Check if tables exist before trying to delete from them
-        inspector = sa.inspect(session.bind)
-        existing_tables = inspector.get_table_names()
+    # Define table names in dependency order for safe deletion
+    table_names = [
+        "feedback",
+        "task_events",
+        "tasks",
+        "chat_messages",
+        "sessions",
+        "users",
+    ]
 
-        # Delete in correct order to handle foreign key constraints
-        if "feedback" in existing_tables:
-            session.execute(text("DELETE FROM feedback"))
-        if "task_events" in existing_tables:
-            session.execute(text("DELETE FROM task_events"))
-        if "tasks" in existing_tables:
-            session.execute(text("DELETE FROM tasks"))
-        if "chat_messages" in existing_tables:
-            session.execute(text("DELETE FROM chat_messages"))
-        if "sessions" in existing_tables:
-            session.execute(text("DELETE FROM sessions"))
-        if "users" in existing_tables:
-            session.execute(text("DELETE FROM users"))
-        session.commit()
-    except Exception as e:
-        # If cleanup fails, just rollback and continue
-        session.rollback()
-        print(
-            f"[API Tests] Database cleanup failed (this may be normal for some tests): {e}"
-        )
-    finally:
-        session.close()
+    with test_database_engine.connect() as connection:
+        try:
+            # Reflect existing tables
+            metadata = sa.MetaData()
+            metadata.reflect(bind=connection)
+            
+            # Get existing tables from metadata
+            existing_tables = metadata.tables
+
+            # Turn off foreign keys for safe deletion
+            if str(connection.engine.url).startswith("sqlite"):
+                connection.execute(text("PRAGMA foreign_keys=OFF"))
+
+            # Delete data from tables that exist
+            for table_name in table_names:
+                if table_name in existing_tables:
+                    table = existing_tables[table_name]
+                    connection.execute(sa.delete(table))
+            
+            # Commit the transaction
+            if connection.in_transaction():
+                connection.commit()
+
+            # Turn foreign keys back on
+            if str(connection.engine.url).startswith("sqlite"):
+                connection.execute(text("PRAGMA foreign_keys=ON"))
+
+        except Exception as e:
+            if connection.in_transaction():
+                connection.rollback()
+            print(f"[API Tests] Database cleanup failed: {e}")
 
 
 def _clean_simple_databases_if_needed(request):
@@ -166,51 +178,56 @@ def _clean_simple_databases_if_needed(request):
                 break
 
 
-def _clean_simple_databases(simple_manager):
-    """Clean data from simple databases without destroying the schema"""
-    import sqlite3
+def _clean_simple_databases(simple_manager: SimpleDatabaseManager):
+    """Clean data from simple databases using SQLAlchemy Core"""
+
+    # Tables to clean in the gateway database
+    gateway_tables_to_clean = [
+        "gateway_messages",
+        "gateway_sessions",
+        "chat_messages",
+        "sessions",
+        "users",
+    ]
 
     # Clean gateway database
-    if simple_manager.gateway_db_path and simple_manager.gateway_db_path.exists():
-        with sqlite3.connect(simple_manager.gateway_db_path) as conn:
-            cursor = conn.cursor()
-            # Check which tables exist and clean them
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = [row[0] for row in cursor.fetchall()]
+    try:
+        with simple_manager.get_gateway_connection() as conn:
+            metadata = sa.MetaData()
+            metadata.reflect(bind=conn)
+            existing_tables = metadata.tables
 
-            # Clean simple framework tables (different from main API tables)
-            if "gateway_messages" in tables:
-                conn.execute("DELETE FROM gateway_messages")
-            if "gateway_sessions" in tables:
-                conn.execute("DELETE FROM gateway_sessions")
-            # Also clean main API tables if they exist (for mixed tests)
-            if "chat_messages" in tables:
-                conn.execute("DELETE FROM chat_messages")
-            if "sessions" in tables:
-                conn.execute("DELETE FROM sessions")
-            if "users" in tables:
-                conn.execute("DELETE FROM users")
-            conn.commit()
+            for table_name in gateway_tables_to_clean:
+                if table_name in existing_tables:
+                    table = existing_tables[table_name]
+                    conn.execute(sa.delete(table))
+            
+            if conn.in_transaction():
+                conn.commit()
+    except Exception as e:
+        print(f"[API Tests] Simple gateway database cleanup failed: {e}")
+
+
+    # Tables to clean in agent databases
+    agent_tables_to_clean = ["agent_sessions", "agent_messages", "sessions", "messages"]
 
     # Clean agent databases
-    for _agent_name, db_path in simple_manager.agent_db_paths.items():
-        if db_path and db_path.exists():
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                tables = [row[0] for row in cursor.fetchall()]
+    for agent_name in simple_manager.agent_db_paths.keys():
+        try:
+            with simple_manager.get_agent_connection(agent_name) as conn:
+                metadata = sa.MetaData()
+                metadata.reflect(bind=conn)
+                existing_tables = metadata.tables
 
-                # Clean simple framework agent tables
-                if "agent_sessions" in tables:
-                    conn.execute("DELETE FROM agent_sessions")
-                if "agent_messages" in tables:
-                    conn.execute("DELETE FROM agent_messages")
-                # Also clean legacy table names if they exist
-                if "sessions" in tables:
-                    conn.execute("DELETE FROM sessions")
-                if "messages" in tables:
-                    conn.execute("DELETE FROM messages")
-                conn.commit()
+                for table_name in agent_tables_to_clean:
+                    if table_name in existing_tables:
+                        table = existing_tables[table_name]
+                        conn.execute(sa.delete(table))
+
+                if conn.in_transaction():
+                    conn.commit()
+        except Exception as e:
+            print(f"[API Tests] Simple agent '{agent_name}' db cleanup failed: {e}")
 
 
 @pytest.fixture(scope="session")

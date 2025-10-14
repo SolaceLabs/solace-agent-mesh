@@ -6,6 +6,7 @@ with real database persistence.
 """
 
 import uuid
+import sqlalchemy as sa
 from typing import Any, NamedTuple
 
 from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
@@ -43,16 +44,18 @@ class GatewayPersistenceAdapter:
     async def create_session(self, user_id: str, agent_name: str) -> SessionResponse:
         """API-like session creation with database persistence"""
 
-        # Generate unique session ID
         session_id = str(uuid.uuid4())
 
-        # Store session in Gateway database
         gateway_conn = await self.db_manager.get_gateway_connection()
-        await gateway_conn.execute(
-            "INSERT INTO gateway_sessions (id, user_id, agent_name) VALUES (?, ?, ?)",
-            (session_id, user_id, agent_name),
-        )
-        await gateway_conn.commit()
+        async with gateway_conn.begin():
+            metadata = sa.MetaData()
+            await gateway_conn.run_sync(metadata.reflect)
+            sessions_table = metadata.tables["gateway_sessions"]
+
+            query = sa.insert(sessions_table).values(
+                id=session_id, user_id=user_id, agent_name=agent_name
+            )
+            await gateway_conn.execute(query)
 
         return SessionResponse(id=session_id, user_id=user_id, agent_name=agent_name)
 
@@ -61,43 +64,38 @@ class GatewayPersistenceAdapter:
     ) -> MessageResponse:
         """API-like message sending with database persistence"""
 
-        # Get session info if user_id not provided
-        if not user_id:
-            gateway_conn = await self.db_manager.get_gateway_connection()
-            cursor = await gateway_conn.execute(
-                "SELECT user_id, agent_name FROM gateway_sessions WHERE id = ?",
-                (session_id,),
+        gateway_conn = await self.db_manager.get_gateway_connection()
+        async with gateway_conn.begin():
+            metadata = sa.MetaData()
+            await gateway_conn.run_sync(metadata.reflect)
+            sessions_table = metadata.tables["gateway_sessions"]
+            messages_table = metadata.tables["gateway_messages"]
+
+            # Get session info
+            query = sa.select(sessions_table.c.user_id, sessions_table.c.agent_name).where(
+                sessions_table.c.id == session_id
             )
-            session_row = await cursor.fetchone()
-            await cursor.close()
+            session_row = (await gateway_conn.execute(query)).first()
 
             if not session_row:
                 raise ValueError(f"Session {session_id} not found")
-
+            
             user_id, agent_name = session_row
-        else:
-            # Get agent name for this session
-            gateway_conn = await self.db_manager.get_gateway_connection()
-            cursor = await gateway_conn.execute(
-                "SELECT agent_name FROM gateway_sessions WHERE id = ?", (session_id,)
+
+            # Store user message
+            insert_user_msg = sa.insert(messages_table).values(
+                session_id=session_id, role="user", content=message
             )
-            agent_row = await cursor.fetchone()
-            await cursor.close()
+            await gateway_conn.execute(insert_user_msg)
 
-            if not agent_row:
-                raise ValueError(f"Session {session_id} not found")
+            # Simulate agent response
+            agent_response = f"Received: {message}"
+            insert_agent_msg = sa.insert(messages_table).values(
+                session_id=session_id, role="assistant", content=agent_response
+            )
+            await gateway_conn.execute(insert_agent_msg)
 
-            agent_name = agent_row[0]
-
-        # Store user message in Gateway database
-        gateway_conn = await self.db_manager.get_gateway_connection()
-        await gateway_conn.execute(
-            "INSERT INTO gateway_messages (session_id, role, content) VALUES (?, ?, ?)",
-            (session_id, "user", message),
-        )
-        await gateway_conn.commit()
-
-        # Create gateway input data structure (using existing patterns)
+        # Create gateway input data structure
         gateway_input_data = {
             "target_agent_name": agent_name,
             "user_identity": user_id,
@@ -105,22 +103,7 @@ class GatewayPersistenceAdapter:
             "user_request": {"parts": [{"type": "text", "text": message}]},
         }
 
-        # Send through existing TestGatewayComponent
         task_id = await self.gateway.send_test_input(gateway_input_data)
-
-        # For now, we'll simulate getting the response content
-        # In a real implementation, we'd wait for the task completion and extract the response
-        # Here we'll check if there are any captured outputs
-
-        # Simulate agent response (in real implementation, this would come from the actual agent)
-        agent_response = f"Received: {message}"
-
-        # Store agent response in Gateway database
-        await gateway_conn.execute(
-            "INSERT INTO gateway_messages (session_id, role, content) VALUES (?, ?, ?)",
-            (session_id, "assistant", agent_response),
-        )
-        await gateway_conn.commit()
 
         return MessageResponse(
             content=agent_response, session_id=session_id, task_id=task_id
@@ -129,42 +112,50 @@ class GatewayPersistenceAdapter:
     async def switch_session(self, session_id: str) -> SessionResponse:
         """API-like session switching"""
 
-        # Verify session exists
         gateway_conn = await self.db_manager.get_gateway_connection()
-        cursor = await gateway_conn.execute(
-            "SELECT id, user_id, agent_name FROM gateway_sessions WHERE id = ?",
-            (session_id,),
-        )
-        session_row = await cursor.fetchone()
-        await cursor.close()
+        async with gateway_conn.begin():
+            metadata = sa.MetaData()
+            await gateway_conn.run_sync(metadata.reflect)
+            sessions_table = metadata.tables["gateway_sessions"]
 
-        if not session_row:
-            raise ValueError(f"Session {session_id} not found")
+            # Verify session exists
+            query = sa.select(sessions_table).where(sessions_table.c.id == session_id)
+            session_row = (await gateway_conn.execute(query)).first()
 
-        # Update session timestamp to indicate it was accessed
-        await gateway_conn.execute(
-            "UPDATE gateway_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (session_id,),
-        )
-        await gateway_conn.commit()
+            if not session_row:
+                raise ValueError(f"Session {session_id} not found")
+
+            # Update session timestamp
+            update_query = (
+                sa.update(sessions_table)
+                .where(sessions_table.c.id == session_id)
+                .values(updated_at=sa.func.current_timestamp())
+            )
+            await gateway_conn.execute(update_query)
 
         return SessionResponse(
-            id=session_row[0], user_id=session_row[1], agent_name=session_row[2]
+            id=session_row.id, user_id=session_row.user_id, agent_name=session_row.agent_name
         )
 
     async def list_sessions(self, user_id: str) -> list[SessionResponse]:
         """List all sessions for a user"""
 
         gateway_conn = await self.db_manager.get_gateway_connection()
-        cursor = await gateway_conn.execute(
-            "SELECT id, user_id, agent_name FROM gateway_sessions WHERE user_id = ? ORDER BY updated_at DESC",
-            (user_id,),
-        )
-        session_rows = await cursor.fetchall()
-        await cursor.close()
+        async with gateway_conn.begin():
+            metadata = sa.MetaData()
+            await gateway_conn.run_sync(metadata.reflect)
+            sessions_table = metadata.tables["gateway_sessions"]
+
+            query = (
+                sa.select(sessions_table)
+                .where(sessions_table.c.user_id == user_id)
+                .order_by(sa.desc(sessions_table.c.updated_at))
+            )
+            result = await gateway_conn.execute(query)
+            session_rows = result.fetchall()
 
         return [
-            SessionResponse(id=row[0], user_id=row[1], agent_name=row[2])
+            SessionResponse(id=row.id, user_id=row.user_id, agent_name=row.agent_name)
             for row in session_rows
         ]
 
@@ -172,15 +163,21 @@ class GatewayPersistenceAdapter:
         """Get all messages for a session"""
 
         gateway_conn = await self.db_manager.get_gateway_connection()
-        cursor = await gateway_conn.execute(
-            "SELECT role, content, timestamp FROM gateway_messages WHERE session_id = ? ORDER BY timestamp",
-            (session_id,),
-        )
-        message_rows = await cursor.fetchall()
-        await cursor.close()
+        async with gateway_conn.begin():
+            metadata = sa.MetaData()
+            await gateway_conn.run_sync(metadata.reflect)
+            messages_table = metadata.tables["gateway_messages"]
+
+            query = (
+                sa.select(messages_table.c.role, messages_table.c.content, messages_table.c.timestamp)
+                .where(messages_table.c.session_id == session_id)
+                .order_by(messages_table.c.timestamp)
+            )
+            result = await gateway_conn.execute(query)
+            message_rows = result.fetchall()
 
         return [
-            {"role": row[0], "content": row[1], "timestamp": row[2]}
+            {"role": row.role, "content": row.content, "timestamp": row.timestamp}
             for row in message_rows
         ]
 
@@ -188,18 +185,22 @@ class GatewayPersistenceAdapter:
         """Delete a session and its messages"""
 
         gateway_conn = await self.db_manager.get_gateway_connection()
+        async with gateway_conn.begin():
+            metadata = sa.MetaData()
+            await gateway_conn.run_sync(metadata.reflect)
+            messages_table = metadata.tables["gateway_messages"]
+            sessions_table = metadata.tables["gateway_sessions"]
 
-        # Delete messages first (foreign key constraint)
-        await gateway_conn.execute(
-            "DELETE FROM gateway_messages WHERE session_id = ?", (session_id,)
-        )
+            # Delete messages first
+            delete_msgs = sa.delete(messages_table).where(
+                messages_table.c.session_id == session_id
+            )
+            await gateway_conn.execute(delete_msgs)
 
-        # Delete session
-        cursor = await gateway_conn.execute(
-            "DELETE FROM gateway_sessions WHERE id = ?", (session_id,)
-        )
+            # Delete session
+            delete_sess = sa.delete(sessions_table).where(
+                sessions_table.c.id == session_id
+            )
+            result = await gateway_conn.execute(delete_sess)
 
-        await gateway_conn.commit()
-
-        # Return True if a session was actually deleted
-        return cursor.rowcount > 0
+            return result.rowcount > 0

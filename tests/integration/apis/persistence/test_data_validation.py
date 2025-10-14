@@ -5,6 +5,7 @@ Tests handling of invalid data, boundary conditions, and security concerns.
 """
 
 import pytest
+import sqlalchemy as sa
 
 from ..infrastructure.simple_database_inspector import SimpleDatabaseInspector
 from ..infrastructure.simple_gateway_adapter import SimpleGatewayAdapter
@@ -144,11 +145,13 @@ class TestErrorRecovery:
 
         # Manually corrupt session data in database (simulate corruption)
         with simple_database_inspector.db_manager.get_gateway_connection() as conn:
+            query = sa.text("UPDATE gateway_sessions SET agent_name = :agent_name WHERE id = :session_id")
             conn.execute(
-                "UPDATE gateway_sessions SET agent_name = ? WHERE id = ?",
-                ("CorruptedAgent", session.id),
+                query,
+                {"agent_name": "CorruptedAgent", "session_id": session.id},
             )
-            conn.commit()
+            if conn.in_transaction():
+                conn.commit()
 
         # Try to send message to corrupted session (should handle gracefully)
         try:

@@ -6,8 +6,8 @@ This runs basic tests without requiring pytest or other external dependencies.
 """
 
 import sys
-import traceback
 from pathlib import Path
+import sqlalchemy as sa
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent.parent
@@ -24,17 +24,6 @@ from tests.integration.apis.infrastructure.simple_gateway_adapter import (
 )
 
 
-def run_test(test_name, test_func):
-    """Run a single test and report results"""
-    try:
-        print(f"\n🧪 Running {test_name}...")
-        test_func()
-        print(f"✅ {test_name} PASSED")
-        return True
-    except Exception as e:
-        print(f"❌ {test_name} FAILED: {e}")
-        traceback.print_exc()
-        return False
 
 
 def test_database_manager_initialization():
@@ -60,20 +49,16 @@ def test_database_manager_initialization():
 
     # Test database connections
     with manager.get_gateway_connection() as gateway_conn:
-        cursor = gateway_conn.execute("SELECT 1")
-        result = cursor.fetchone()
-        assert result[0] == 1
+        result = gateway_conn.execute(sa.select(1)).scalar_one()
+        assert result == 1
 
     for agent_name in manager.agent_db_paths.keys():
         with manager.get_agent_connection(agent_name) as agent_conn:
-            cursor = agent_conn.execute("SELECT 1")
-            result = cursor.fetchone()
-            assert result[0] == 1
+            result = agent_conn.execute(sa.select(1)).scalar_one()
+            assert result == 1
 
     # Clean up
     manager.cleanup_all_databases()
-
-    print("  ✓ Database manager initialized and connections verified")
 
 
 def test_database_inspector():
@@ -113,8 +98,6 @@ def test_database_inspector():
 
     # Clean up
     manager.cleanup_all_databases()
-
-    print("  ✓ Database inspector functionality verified")
 
 
 def test_gateway_adapter():
@@ -176,8 +159,6 @@ def test_gateway_adapter():
     # Clean up
     manager.cleanup_all_databases()
 
-    print("  ✓ Gateway adapter functionality verified")
-
 
 def test_session_isolation():
     """Test that sessions are properly isolated"""
@@ -217,8 +198,6 @@ def test_session_isolation():
     # Clean up
     manager.cleanup_all_databases()
 
-    print("  ✓ Session isolation verified")
-
 
 def test_error_handling():
     """Test error handling"""
@@ -251,42 +230,3 @@ def test_error_handling():
 
     # Clean up
     manager.cleanup_all_databases()
-
-    print("  ✓ Error handling verified")
-
-
-def main():
-    """Run all tests and report results"""
-    print("🚀 Starting API Persistence Framework Tests")
-    print("=" * 50)
-
-    tests = [
-        ("Database Manager Initialization", test_database_manager_initialization),
-        ("Database Inspector", test_database_inspector),
-        ("Gateway Adapter", test_gateway_adapter),
-        ("Session Isolation", test_session_isolation),
-        ("Error Handling", test_error_handling),
-    ]
-
-    passed = 0
-    total = len(tests)
-
-    for test_name, test_func in tests:
-        if run_test(test_name, test_func):
-            passed += 1
-
-    print("\n" + "=" * 50)
-    print(f"📊 Test Results: {passed}/{total} tests passed")
-
-    if passed == total:
-        print(
-            "🎉 All tests passed! The API persistence framework is working correctly."
-        )
-        return 0
-    else:
-        print(f"💥 {total - passed} tests failed.")
-        return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

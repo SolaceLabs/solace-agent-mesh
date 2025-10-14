@@ -5,6 +5,7 @@ Basic tests to verify that the simplified framework works without external depen
 """
 
 import pytest
+import sqlalchemy as sa
 
 from .infrastructure.simple_database_inspector import SimpleDatabaseInspector
 from .infrastructure.simple_database_manager import SimpleDatabaseManager
@@ -45,16 +46,14 @@ def test_database_connections(simple_database_manager: SimpleDatabaseManager):
 
     # Test Gateway connection
     with simple_database_manager.get_gateway_connection() as gateway_conn:
-        cursor = gateway_conn.execute("SELECT 1")
-        result = cursor.fetchone()
-        assert result[0] == 1
+        result = gateway_conn.execute(sa.select(1)).scalar_one()
+        assert result == 1
 
     # Test Agent connections
     for agent_name in simple_database_manager.agent_db_paths.keys():
         with simple_database_manager.get_agent_connection(agent_name) as agent_conn:
-            cursor = agent_conn.execute("SELECT 1")
-            result = cursor.fetchone()
-            assert result[0] == 1
+            result = agent_conn.execute(sa.select(1)).scalar_one()
+            assert result == 1
 
     print("✓ All database connections working")
 
