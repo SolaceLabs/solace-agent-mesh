@@ -310,14 +310,13 @@ Complex orchestration logic is embedded in agent instructions, making it:
 **Description:** Workflows support flow control nodes:
 - **if/else:** Conditional branching based on previous node output
 - **case/switch:** Multi-way branching based on expression
-- **fork:** Parallel execution of multiple branches
-- **join:** Wait for parallel branches to complete and merge results
+- **fork:** Parallel execution of multiple branches with implicit join (waits for all branches to complete and merges results)
 - **loop:** Iteration with max iteration limit
 
 **Acceptance Criteria:**
 - Conditional expressions evaluate correctly
 - Parallel branches execute concurrently
-- Join merges branch outputs correctly
+- Fork implicitly waits for all branches and merges outputs correctly
 - Loops respect max iteration limits
 - Flow control nodes don't require agent personas
 
@@ -545,23 +544,25 @@ Complex orchestration logic is embedded in agent instructions, making it:
 
 ---
 
-### Decision 6: Fork/Join Output Merging with Explicit Keys
+### Decision 6: Fork with Implicit Join and Explicit Output Keys
 
 **Rationale:**
-- Clear semantics for accessing branch outputs
-- Prevents key collisions between branches
-- Enables schema validation on merged result
-- Workflow designer has full control over output structure
+- Fork naturally implies waiting for all branches (matches user expectations)
+- Simpler mental model - no need for explicit join nodes
+- Reduces boilerplate and configuration errors
+- Explicit output keys prevent collisions and enable schema validation
+- Consistent with other workflow systems (Airflow, Step Functions, etc.)
 
 **Alternatives Considered:**
+- Explicit join node (rejected: unnecessary complexity for common case)
 - Automatic merging by key (rejected: collision risk)
 - List of branch outputs (rejected: harder to access specific branch)
 
 **Trade-offs:**
+- Less flexibility for advanced patterns (partial joins) - can be added later if needed
 - Requires workflow designer to specify merge keys
-- Slightly more verbose workflow definitions
 
-**Impact:** High clarity, low implementation complexity
+**Impact:** High clarity and usability, low implementation complexity
 
 **Example:**
 ```yaml
@@ -574,12 +575,15 @@ Complex orchestration logic is embedded in agent instructions, making it:
     - id: enrich_shipping
       agent_persona: ShippingEnricher
       output_key: shipping  # Merged result will have 'shipping' key
+  # Implicit: waits for all branches, merges outputs
 
 - id: next_step
   agent_persona: NextAgent
-  depends_on: [parallel_enrichment]
+  depends_on: [parallel_enrichment]  # Depends on fork itself
   # Input will be: {billing: {...}, shipping: {...}}
 ```
+
+**Future Enhancement:** If needed, add optional `wait_for` parameter to fork for partial joins.
 
 ---
 

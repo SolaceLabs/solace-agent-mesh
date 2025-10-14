@@ -561,10 +561,10 @@ Multi-way branching based on expression value.
 4. **Default:** If no match, execute default branch
 5. **Skip Others:** Mark other branch nodes as "skipped"
 
-### 6.3 Fork/Join Node
+### 6.3 Fork Node (with Implicit Join)
 
 #### Purpose
-Parallel execution of multiple branches with output merging.
+Parallel execution of multiple branches with automatic waiting and output merging.
 
 #### Configuration
 
@@ -578,35 +578,72 @@ Parallel execution of multiple branches with output merging.
     - id: enrich_shipping
       agent_persona: "ShippingEnricher"
       output_key: "shipping"
+    - id: enrich_preferences
+      agent_persona: "PreferencesEnricher"
+      output_key: "preferences"
+  # Implicit behavior:
+  # - Waits for all branches to complete
+  # - Merges outputs using output_keys
+  # - If any branch fails, fork fails
 
-- id: merge_results
-  type: join
-  wait_for: [enrich_billing, enrich_shipping]
-  # Next node receives: {billing: {...}, shipping: {...}}
+- id: process_enriched_data
+  agent_persona: "DataProcessor"
+  depends_on: [parallel_enrichment]
+  input:
+    # Receives merged output: {billing: {...}, shipping: {...}, preferences: {...}}
+    billing_info: "{{parallel_enrichment.output.billing}}"
+    shipping_info: "{{parallel_enrichment.output.shipping}}"
 ```
 
 #### Execution
 
-**Fork:**
-1. **Start Branches:** Execute all branch nodes in parallel
+**Fork Execution:**
+1. **Start Branches:** Execute all branch nodes in parallel using asyncio.gather
 2. **Track Progress:** Monitor each branch completion
-3. **Handle Errors:** If any branch fails, fail entire fork
-
-**Join:**
-1. **Wait for All:** Wait for all specified nodes to complete
-2. **Merge Outputs:** Combine outputs using explicit keys
-3. **Validate Merged:** Validate merged output against next node's input schema
-4. **Pass to Next:** Provide merged output to dependent nodes
+3. **Wait for All:** Implicitly wait for all branches to complete (barrier synchronization)
+4. **Merge Outputs:** Combine outputs using explicit `output_key` from each branch
+5. **Validate Merged:** Validate merged output against dependent node's input schema
+6. **Handle Errors:** If any branch fails, mark fork as failed (allow other branches to complete for cleanup)
+7. **Pass to Next:** Fork's output is the merged object, available to dependent nodes
 
 #### Output Merging
 
-Each fork branch specifies an `output_key`. The join node merges outputs:
+Each fork branch specifies an `output_key`. The fork node automatically merges outputs:
 
 ```python
 merged_output = {
   "billing": enrich_billing_output,
-  "shipping": enrich_shipping_output
+  "shipping": enrich_shipping_output,
+  "preferences": enrich_preferences_output
 }
+```
+
+#### Error Handling
+
+- If **any branch fails**, the fork node fails
+- All other branches are allowed to complete (for proper cleanup)
+- Fork node's status becomes "failed"
+- Workflow fails (unless retry succeeds)
+
+#### Future Enhancement
+
+If partial joins are needed, add optional `wait_for` parameter:
+
+```yaml
+- id: parallel_work
+  type: fork
+  branches:
+    - id: critical_1
+      agent_persona: "CriticalAgent1"
+      output_key: "critical1"
+    - id: critical_2
+      agent_persona: "CriticalAgent2"
+      output_key: "critical2"
+    - id: optional_logging
+      agent_persona: "LoggingAgent"
+      output_key: "logs"
+  wait_for: [critical_1, critical_2]  # Optional: only wait for these branches
+  # If omitted, waits for all branches (default behavior)
 ```
 
 ### 6.4 Loop Node
@@ -745,8 +782,7 @@ Iterate over a list or until a condition is met.
 **Key Methods:**
 - `execute_if_node(node, state)`: Execute if/else node
 - `execute_case_node(node, state)`: Execute case/switch node
-- `execute_fork_node(node, state)`: Execute fork node
-- `execute_join_node(node, state)`: Execute join node
+- `execute_fork_node(node, state)`: Execute fork node with implicit join (parallel execution, wait for all, merge outputs)
 - `execute_loop_node(node, state)`: Execute loop node
 - `evaluate_condition(condition, state)`: Evaluate conditional expression
 
