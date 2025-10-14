@@ -49,7 +49,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         } finally {
             setIsLoading(false);
         }
-    }, [apiPrefix, sessionId]);
+    }, [apiPrefix, sessionId, setArtifacts, setIsLoading, setError]);
 
     useEffect(() => {
         fetchArtifacts();
