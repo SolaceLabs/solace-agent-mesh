@@ -73,6 +73,7 @@ from ...common.middleware.registry import MiddlewareRegistry
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT, HEALTH_CHECK_TTL_SECONDS, HEALTH_CHECK_INTERVAL_SECONDS
 from ...agent.tools.registry import tool_registry
 from ...common.sac.sam_component_base import SamComponentBase
+from ...common.agent_registry import AgentRegistry
 
 if TYPE_CHECKING:
     from .app import AgentInitCleanupConfig
@@ -127,7 +128,6 @@ class SamAgentComponent(SamComponentBase):
         log.info("%s Initializing A2A ADK Host Component...", self.log_identifier)
         
         # Initialize the agent registry for health tracking
-        from ...common.agent_registry import AgentRegistry
         self.agent_registry = AgentRegistry()
         try:
             self.namespace = self.get_config("namespace")
@@ -3225,7 +3225,7 @@ class SamAgentComponent(SamComponentBase):
         for agent_name in agents_to_deregister:
             self._deregister_agent(agent_name)
             
-        log.info(
+        log.debug(
             "%s Agent health check completed. Total agents: %d, De-registered: %d",
             self.log_identifier,
             total_agents,

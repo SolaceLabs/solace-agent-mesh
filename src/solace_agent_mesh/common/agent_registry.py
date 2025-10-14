@@ -6,9 +6,11 @@ Consolidated from src/tools/common/agent_registry.py and src/tools/a2a_cli_clien
 import threading
 import time
 from typing import Dict, List, Optional, Tuple
+import logging
 
 from a2a.types import AgentCard
 
+log = logging.getLogger(__name__)
 
 class AgentRegistry:
     """Stores and manages discovered AgentCards with health tracking."""
@@ -20,7 +22,6 @@ class AgentRegistry:
 
     def add_or_update_agent(self, agent_card: AgentCard):
         """Adds a new agent or updates an existing one."""
-        from solace_ai_connector.common.log import log
         
         if not agent_card or not agent_card.name:
             log.warning("Attempted to register agent with invalid agent card or missing name")
@@ -62,7 +63,6 @@ class AgentRegistry:
         Returns:
             A tuple of (is_expired, seconds_since_last_seen)
         """
-        from solace_ai_connector.common.log import log
         
         with self._lock:
             if agent_name not in self._last_seen:
@@ -88,7 +88,6 @@ class AgentRegistry:
             
     def remove_agent(self, agent_name: str) -> bool:
         """Removes an agent from the registry."""
-        from solace_ai_connector.common.log import log
         
         with self._lock:
             if agent_name in self._agents:

@@ -40,39 +40,3 @@ async def get_discovered_agent_cards(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error retrieving agent list.",
         )
-        
-@router.delete("/agentCards/{agent_name}", response_model=Dict[str, str])
-async def deregister_agent(
-    agent_name: str,
-    agent_registry: AgentRegistry = Depends(get_agent_registry),
-    component: WebUIBackendComponent = Depends(get_sac_component),
-):
-    """
-    Manually deregisters an agent from the registry.
-    """
-    log_prefix = f"[DELETE /api/v1/agentCards/{agent_name}] "
-    log.info("%sRequest received to deregister agent: %s", log_prefix, agent_name)
-    
-    try:
-        # Check if the agent exists in the registry
-        if not agent_registry.get_agent(agent_name):
-            log.warning("%sAgent '%s' not found in registry", log_prefix, agent_name)
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Agent '{agent_name}' not found in registry",
-            )
-        
-        # Call the deregister_agent method in the component
-        component._deregister_agent(agent_name)
-        
-        log.info("%sAgent '%s' successfully deregistered", log_prefix, agent_name)
-        return {"status": "success", "message": f"Agent '{agent_name}' deregistered successfully"}
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
-    except Exception as e:
-        log.exception("%sError deregistering agent '%s': %s", log_prefix, agent_name, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error deregistering agent: {str(e)}",
-        )
