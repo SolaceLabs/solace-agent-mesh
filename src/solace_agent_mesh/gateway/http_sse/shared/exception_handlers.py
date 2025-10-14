@@ -40,15 +40,13 @@ def create_error_response(
 async def validation_error_handler(
     request: Request, exc: ValidationError
 ) -> JSONResponse:
-    """Handle domain validation errors - 400 Bad Request."""
+    """Handle domain validation errors - 422 Unprocessable Entity."""
     if exc.validation_details:
-        # Validation errors with field details
         error_dto = EventErrorDTO.validation_error(exc.message, exc.validation_details)
     else:
-        # General bad request
         error_dto = EventErrorDTO.create("bad request" if not exc.message else exc.message)
 
-    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=error_dto.model_dump())
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=error_dto.model_dump())
 
 
 async def entity_not_found_handler(
@@ -72,9 +70,9 @@ async def entity_already_exists_handler(
 async def business_rule_violation_handler(
     request: Request, exc: BusinessRuleViolationError
 ) -> JSONResponse:
-    """Handle business rule violations - 400 Bad Request."""
+    """Handle business rule violations - 422 Unprocessable Entity."""
     error_dto = EventErrorDTO.create(exc.message)
-    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=error_dto.model_dump())
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=error_dto.model_dump())
 
 
 async def configuration_error_handler(
@@ -88,11 +86,11 @@ async def configuration_error_handler(
 async def data_integrity_error_handler(
     request: Request, exc: DataIntegrityError
 ) -> JSONResponse:
-    """Handle data integrity errors - 400 Bad Request."""
+    """Handle data integrity errors - 422 Unprocessable Entity."""
     # Format: "An entity of type applicationDomain was passed in an invalid format"
     message = f"An entity of type {exc.entity_type} was passed in an invalid format" if hasattr(exc, 'entity_type') else "bad request"
     error_dto = EventErrorDTO.create(message)
-    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=error_dto.model_dump())
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=error_dto.model_dump())
 
 
 async def external_service_error_handler(
@@ -138,7 +136,6 @@ async def request_validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Handle FastAPI request validation errors - 422 Unprocessable Entity."""
-    # Convert Pydantic validation errors to our format
     validation_details = {}
     for error in exc.errors():
         field_path = ".".join(str(x) for x in error["loc"] if x != "body")
@@ -147,13 +144,26 @@ async def request_validation_exception_handler(
         validation_details[field_path].append(error["msg"])
 
     if validation_details:
-        # Field-specific validation errors
         message = "body must not be empty" if not validation_details else "Validation error"
         error_dto = EventErrorDTO.validation_error(message, validation_details)
     else:
-        # General bad request
         error_dto = EventErrorDTO.create("bad request")
 
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=error_dto.model_dump())
+
+
+async def pydantic_validation_exception_handler(
+    request: Request, exc: PydanticValidationError
+) -> JSONResponse:
+    """Handle Pydantic validation errors raised in service layer - 422 Unprocessable Entity."""
+    validation_details = {}
+    for error in exc.errors():
+        field_path = ".".join(str(loc) for loc in error["loc"])
+        if field_path not in validation_details:
+            validation_details[field_path] = []
+        validation_details[field_path].append(error["msg"])
+
+    error_dto = EventErrorDTO.validation_error("Validation failed", validation_details)
     return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=error_dto.model_dump())
 
 
@@ -190,3 +200,4 @@ def register_exception_handlers(app):
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
+    app.add_exception_handler(PydanticValidationError, pydantic_validation_exception_handler)

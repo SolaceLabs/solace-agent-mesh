@@ -2,6 +2,7 @@
 Custom Solace AI Connector Component to host the FastAPI backend for the Web UI.
 """
 
+import logging
 import asyncio
 import json
 import queue
@@ -14,7 +15,7 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, UploadFile
 from fastapi import Request as FastAPIRequest
-from solace_ai_connector.common.log import log
+
 from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
 from solace_ai_connector.common.event import Event, EventType
@@ -30,6 +31,8 @@ from .components.task_logger_forwarder import TaskLoggerForwarderComponent
 from .services.feedback_service import FeedbackService
 from .services.task_logger_service import TaskLoggerService
 from . import dependencies
+
+log = logging.getLogger(__name__)
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -1284,12 +1287,48 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     )
                     self.stop_signal.set()
 
+                try:
+                    from solace_agent_mesh_enterprise.init_enterprise import start_enterprise_background_tasks
+                    log.info("%s Starting enterprise background tasks...", self.log_identifier)
+                    await start_enterprise_background_tasks(self)
+                    log.info("%s Enterprise background tasks started successfully", self.log_identifier)
+                except ImportError:
+                    log.debug("%s Enterprise package not available - skipping background tasks", self.log_identifier)
+                except RuntimeError as enterprise_err:
+                    log.warning(
+                        "%s Enterprise background tasks disabled: %s - Community features will continue normally",
+                        self.log_identifier,
+                        enterprise_err
+                    )
+                except Exception as enterprise_err:
+                    log.error(
+                        "%s Failed to start enterprise background tasks: %s - Community features will continue normally",
+                        self.log_identifier,
+                        enterprise_err,
+                        exc_info=True
+                    )
+
             @self.fastapi_app.on_event("shutdown")
             async def shutdown_event():
                 log.info(
                     "%s [_start_listener] FastAPI shutdown event triggered.",
                     self.log_identifier,
                 )
+
+                try:
+                    from solace_agent_mesh_enterprise.init_enterprise import stop_enterprise_background_tasks
+                    log.info("%s Stopping enterprise background tasks...", self.log_identifier)
+                    await stop_enterprise_background_tasks()
+                    log.info("%s Enterprise background tasks stopped", self.log_identifier)
+                except ImportError:
+                    log.debug("%s Enterprise package not available - no background tasks to stop", self.log_identifier)
+                except Exception as enterprise_err:
+                    log.error(
+                        "%s Failed to stop enterprise background tasks: %s",
+                        self.log_identifier,
+                        enterprise_err,
+                        exc_info=True
+                    )
 
             self.fastapi_thread = threading.Thread(
                 target=self.uvicorn_server.run, daemon=True, name="FastAPI_Thread"

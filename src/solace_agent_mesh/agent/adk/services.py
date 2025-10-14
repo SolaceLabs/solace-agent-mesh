@@ -2,13 +2,14 @@
 Initializes ADK Services based on configuration.
 """
 
+import logging
 import os
 import re
 from typing import Dict, Optional, List, Any
 from typing_extensions import override
 
 from google.genai import types as adk_types
-from solace_ai_connector.common.log import log
+
 
 from google.adk.sessions import (
     BaseSessionService,
@@ -34,6 +35,8 @@ from google.adk.memory import (
 )
 
 from .artifacts.filesystem_artifact_service import FilesystemArtifactService
+
+log = logging.getLogger(__name__)
 
 try:
     from sam_test_infrastructure.artifact_service.service import (

@@ -2,13 +2,14 @@
 Handles ADK Agent and Runner initialization, including tool loading and callback assignment.
 """
 
+import logging
 from typing import Dict, List, Optional, Union, Callable, Tuple, Set, Any, TYPE_CHECKING, Type
 import functools
 import inspect
-from solace_ai_connector.common.log import log
 from solace_ai_connector.common.utils import import_module
 from ...common.utils.type_utils import is_subclass_by_name
 from ...common.middleware.registry import MiddlewareRegistry
+
 
 from .app_llm_agent import AppLlmAgent
 from .tool_wrapper import ADKToolWrapper
@@ -47,6 +48,7 @@ from ..tools.tool_config_types import (
 from ...agent.adk import callbacks as adk_callbacks
 from ...agent.adk.models.lite_llm import LiteLlm
 
+log = logging.getLogger(__name__)
 
 # Define a clear return type for all tool-loading helpers
 ToolLoadingResult = Tuple[List[Union[BaseTool, Callable]], List[BuiltinTool], List[Callable]]

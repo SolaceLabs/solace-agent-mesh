@@ -3,6 +3,7 @@ Service for logging A2A tasks and events to the database.
 """
 
 import copy
+import logging
 import uuid
 from typing import Any, Callable, Dict, Union
 
@@ -14,7 +15,6 @@ from a2a.types import (
     TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
 )
-from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DBSession
 
 from ....common import a2a
@@ -22,6 +22,7 @@ from ..repository.entities import Task, TaskEvent
 from ..repository.task_repository import TaskRepository
 from ..shared import now_epoch_ms
 
+log = logging.getLogger(__name__)
 
 class TaskLoggerService:
     """Service for logging A2A tasks and events to the database."""

@@ -7,13 +7,11 @@ including writing to CSV files and logging.
 """
 
 import csv
-import logging
 import uuid
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from solace_ai_connector.common.log import log
 from sqlalchemy.orm import sessionmaker
 from unittest.mock import MagicMock
 

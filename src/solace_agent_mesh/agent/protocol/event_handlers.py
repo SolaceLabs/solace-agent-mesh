@@ -2,11 +2,11 @@
 Contains event handling logic for the A2A_ADK_HostComponent.
 """
 
+import logging
 import json
 import asyncio
 from typing import TYPE_CHECKING, Dict, Any
 import fnmatch
-from solace_ai_connector.common.log import log
 from solace_ai_connector.common.message import Message as SolaceMessage
 from ...agent.adk.callbacks import _publish_data_part_status_update
 from ...common.data_parts import ToolResultData
@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
 from google.adk.agents.run_config import StreamingMode
 
+log = logging.getLogger(__name__)
 
 def _forward_jsonrpc_response(
     component: "SamAgentComponent",

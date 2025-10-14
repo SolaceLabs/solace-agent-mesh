@@ -9,6 +9,7 @@ This module uses dynamic inheritance to support both standard and enterprise MCP
 The base class is determined at import time based on enterprise package availability.
 """
 
+import logging
 import asyncio
 from typing import Dict, List, Optional, Any, Tuple, Type
 
@@ -21,7 +22,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
 from google.adk.auth.credential_manager import CredentialManager
 
 from google.adk.tools.tool_context import ToolContext
-from solace_ai_connector.common.log import log
+
 
 from ..utils.context_helpers import get_original_session_id
 from ...common.utils.embeds import (
@@ -32,6 +33,7 @@ from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
 )
 
+log = logging.getLogger(__name__)
 
 def _get_base_mcp_toolset_class() -> Tuple[Type[MCPToolset], bool]:
     """
