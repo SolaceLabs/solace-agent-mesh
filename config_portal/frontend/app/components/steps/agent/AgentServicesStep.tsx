@@ -105,7 +105,7 @@ const AgentServicesStep: React.FC<StepProps> = ({
   return (
     <div className="space-y-6">
       <InfoBox>
-        Configure how your agent stores session history and handles artifacts
+        Configure how your agent handles artifacts
         (files). You can use default settings from a shared project
         configuration or define them specifically for this agent.
       </InfoBox>

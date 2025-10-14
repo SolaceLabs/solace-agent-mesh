@@ -386,29 +386,12 @@ def create_agent_config(
     collected_options["session_service_type"] = "sql"
 
     if DATABASE_URL_KEY not in collected_options:
-        use_own_db = False
-        if not skip_interactive:
-            use_own_db = ask_yes_no_question(
-                f"Do you want to use your own database for the '{agent_name_camel_case}' agent?\n"
-                f"  (If no, SQLite embedded database will be used)",
-                default=False,
-            )
-
-        if use_own_db:
-            database_url = ask_if_not_provided(
-                collected_options,
-                DATABASE_URL_KEY,
-                f"Enter the full database URL for the {agent_name_camel_case} agent (e.g., postgresql://user:pass@host/db)",
-                none_interactive=skip_interactive,
-            )
-            collected_options[DATABASE_URL_KEY] = database_url
-        else:
-            db_file = project_root / f"{formatted_names['SNAKE_CASE_NAME']}.db"
-            database_url = f"sqlite:///{db_file.resolve()}"
-            click.echo(
-                f"  Using default SQLite database for {agent_name_camel_case} agent: {db_file}"
-            )
-            collected_options[DATABASE_URL_KEY] = database_url
+        db_file = project_root / f"{formatted_names['SNAKE_CASE_NAME']}.db"
+        database_url = f"sqlite:///{db_file.resolve()}"
+        click.echo(
+            f"  Using default SQLite database for {agent_name_camel_case} agent: {db_file}"
+        )
+        collected_options[DATABASE_URL_KEY] = database_url
 
         try:
             db_url = collected_options.get(DATABASE_URL_KEY)
