@@ -4,7 +4,6 @@ import click
 
 from ...utils import ask_yes_no_question
 from .broker_step import broker_setup_step
-from .database_step import database_setup_step
 from .directory_step import create_project_directories
 from .env_step import ENV_DEFAULTS, create_env_file
 from .orchestrator_step import ORCHESTRATOR_DEFAULTS as O_DEFAULTS

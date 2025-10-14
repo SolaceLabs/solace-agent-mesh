@@ -110,25 +110,11 @@ const AgentServicesStep: React.FC<StepProps> = ({
         configuration or define them specifically for this agent.
       </InfoBox>
 
-      <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-4">
+      { /* <h3 className="text-xl font-semibold text-gray-800 border-b pb-2 mb-4">
         Session Service
       </h3>
 
-      <FormField
-        label="Agent Database URL"
-        htmlFor="database_url"
-        helpText="Leave blank to create a default SQLite database"
-      >
-        <Input
-          id="database_url"
-          value={data.database_url || ""}
-          onChange={handleChange}
-          placeholder={`e.g., sqlite:///{agent_name}.db`}
-        />
-      </FormField>
-
-
-      { /* <FormField
+       <FormField
         label="Session Service Configuration"
         htmlFor="session_service_type"
         required
