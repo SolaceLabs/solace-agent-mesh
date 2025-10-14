@@ -55,8 +55,8 @@ def test_send_task_creates_session_with_message(api_client: TestClient):
     session_id = response_data["result"]["contextId"]
     task_id = response_data["result"]["id"]
 
-    assert session_id is not None
-    assert task_id == "test-task-id"  # From our mock
+    assert isinstance(session_id, str) and session_id.startswith("test-session-")
+    assert isinstance(task_id, str) and task_id.startswith("task-")
 
     print(f"✓ Task submitted and session {session_id} created")
 
