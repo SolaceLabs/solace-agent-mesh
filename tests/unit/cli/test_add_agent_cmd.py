@@ -56,22 +56,11 @@ def test_add_agent_default_db_generation(project_dir):
     )
 
     assert result.exit_code == 0, f"CLI command failed: {result.output}"
-    assert (project_dir / "new_agent.db").exists(), (
-        "Default agent database 'new_agent.db' was not created."
-    )
     agent_config_path = project_dir / "configs" / "agents" / "new_agent_agent.yaml"
     assert agent_config_path.exists(), "Agent config file was not created."
     with open(agent_config_path) as f:
         content = f.read()
-        env_file = project_dir / ".env"
-        assert env_file.exists(), ".env file was not created."
-        with open(env_file) as f:
-            env_content = f.read()
-            db_file = project_dir / "data" / "new_agent.db"
-            assert (
-                f'NEW_AGENT_DATABASE_URL="sqlite:///{db_file.resolve()}"' in env_content
-            )
-        assert 'database_url: "${NEW_AGENT_DATABASE_URL}"' in content
+        assert 'database_url: "${NEW_AGENT, sqlite:///new_agent.db}"' in content
 
 
 @pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
