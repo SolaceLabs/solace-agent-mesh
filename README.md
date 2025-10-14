@@ -54,12 +54,12 @@ The result? A fully asynchronous, event-driven and decoupled AI agent architectu
 ---
 
 ## 🔑 Key Features 
-- **[Multi-Agent Event-Driven Architecture](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/component-overview)** – Agents communicate via the Solace Event Mesh for true scalability
-- **[Agent Orchestration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/agents)** – Complex tasks are automatically broken down and delegated by the [Orchestrator](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/orchestrator) agent
-- **[Flexible Interfaces](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/gateways)** – Integrate with REST API, web UI, [Slack](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration), or build your own integration
-- **[Extensible](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/plugins)** – Add your own agents, gateways, or services with minimal code
-- **[Agent-to-Agent Communication](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/concepts/architecture)** – Agents can discover and delegate tasks to each other seamlessly using the Agent2Agent (A2A) Protocol
-- **[Dynamic Embeds](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/user-guide/builtin-tools/embeds)** – Embed dynamic content like real-time data, calculations and file contents in responses
+- **[Multi-Agent Event-Driven Architecture](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/architecture)** – Agents communicate via the Solace Event Mesh for true scalability
+- **[Agent Orchestration](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/agents)** – Complex tasks are automatically broken down and delegated by the [Orchestrator](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/orchestrator) agent
+- **[Flexible Interfaces](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/gateways)** – Integrate with REST API, web UI, [Slack](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration), or build your own integration
+- **[Extensible](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/plugins)** – Add your own agents, gateways, or services with minimal code
+- **[Agent-to-Agent Communication](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/architecture)** – Agents can discover and delegate tasks to each other seamlessly using the Agent2Agent (A2A) Protocol
+- **[Dynamic Embeds](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/builtin-tools/embeds)** – Embed dynamic content like real-time data, calculations and file contents in responses
 
 📚 **Want to know more?** Check out the full Solace Agent Mesh [documentation](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/).
 
@@ -160,10 +160,10 @@ Want to go further? Here are some hands-on tutorials to help you get started:
 
 | 🔧 Integration | ⏱️ Est. Time | 📘 Tutorial |
 |----------------|--------------|-------------|
-| 🌤️ **Weather Agent**<br>Learn how to build an agent that gives Solace Agent Mesh the ability to access real-time weather information.  | **~15 min** | [Weather Agent Plugin](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/custom-agent) |
-| 🗃️ **SQL Database Integration**<br>Enable Solace Agent Mesh to answer company-specific questions using a sample coffee company database.| **~10–15 min** | [SQL Database Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/sql-database) |
-| 🧠 **MCP Integration**<br>Integrating a Model Context Protocol (MCP) Servers into Solace Agent Mesh. | **~10–15 min** | [MCP Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/mcp-integration) |
-| 💬 **Slack Integration**<br>Chat with Solace Agent Mesh directly from Slack. | **~20–30 min** | [Slack Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/tutorials/slack-integration) |
+| 🌤️ **Weather Agent**<br>Learn how to build an agent that gives Solace Agent Mesh the ability to access real-time weather information.  | **~15 min** | [Weather Agent Plugin](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/custom-agent) |
+| 🗃️ **SQL Database Integration**<br>Enable Solace Agent Mesh to answer company-specific questions using a sample coffee company database.| **~10–15 min** | [SQL Database Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/sql-database) |
+| 🧠 **MCP Integration**<br>Integrating a Model Context Protocol (MCP) Servers into Solace Agent Mesh. | **~10–15 min** | [MCP Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/mcp-integration) |
+| 💬 **Slack Integration**<br>Chat with Solace Agent Mesh directly from Slack. | **~20–30 min** | [Slack Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/slack-integration) |
 
 ---
 
