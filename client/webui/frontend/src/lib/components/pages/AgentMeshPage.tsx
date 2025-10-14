@@ -43,7 +43,7 @@ export function AgentMeshPage() {
             ) : agentsError ? (
                 <EmptyState variant="error" title="Error loading agents" subtitle={agentsError} />
             ) : (
-                <div className={`relative flex-1 overflow-hidden p-4 ${currentLayout === LayoutType.CARDS ? "" : "bg-[var(--muted)] dark:bg-[var(--color-bg-wMain)]"}`}>
+                <div className={`relative flex-1 p-4 ${currentLayout === LayoutType.CARDS ? "" : "bg-[var(--muted)] dark:bg-[var(--color-bg-wMain)]"}`}>
                     <div className="absolute right-8 z-20 flex items-center space-x-4">
                         <LayoutSelector currentLayout={currentLayout} onLayoutChange={setCurrentLayout} />
                     </div>
