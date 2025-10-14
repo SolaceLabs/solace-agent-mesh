@@ -29,44 +29,9 @@ This PRD defines **Prescriptive Workflows**, a new feature for the Solace Agent 
 ### Current State
 SAM currently supports **free-form agent collaboration** where:
 - Agents communicate via natural language requests and responses
-- Data is passed through LLM context (risk of hallucination)
 - No guarantees about output structure or data integrity
 - Orchestration logic is embedded in agent instructions (flexible but unpredictable)
 
-### Pain Points
-
-**1. Data Integrity Issues**
-When critical data (customer IDs, order numbers, API keys) passes through an LLM, there's risk of:
-- Hallucination (inventing plausible but incorrect values)
-- Truncation (partial IDs)
-- Formatting errors (case changes, typos)
-- Confusion with similar values in context
-
-**Example:**
-```
-Agent A returns: {"package_id": "PKG-12345"}
-Agent B receives context with this ID
-Agent B calls: track_package("PKG-12346")  ← LLM hallucinated wrong ID!
-```
-
-**2. Unpredictable Output Structure**
-Without schemas, downstream agents must handle variability:
-- Missing fields
-- Unexpected types
-- Inconsistent naming
-- Nested structure changes
-
-**3. Difficult to Debug**
-When a multi-agent workflow fails:
-- Hard to identify which agent produced invalid output
-- No clear contract violations to point to
-- Requires manual inspection of conversation history
-
-**4. No Reusable Patterns**
-Complex orchestration logic is embedded in agent instructions, making it:
-- Hard to reuse across similar workflows
-- Difficult to test in isolation
-- Challenging to version and maintain
 
 ### User Needs
 
