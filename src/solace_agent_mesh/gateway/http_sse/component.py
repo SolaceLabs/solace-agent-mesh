@@ -1777,6 +1777,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
             ttl_seconds
         )
         
+        # If health check is disabled (TTL or interval is 0), don't perform the check
+        if ttl_seconds <= 0 or health_check_interval <= 0:
+            log.info(
+                "%s Agent health check is disabled (TTL=%d, interval=%d). Skipping check.",
+                self.log_identifier,
+                ttl_seconds,
+                health_check_interval
+            )
+            return
+        
         # Get all agent names from the registry
         agent_names = self.agent_registry.get_agent_names()
         total_agents = len(agent_names)
