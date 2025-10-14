@@ -562,39 +562,82 @@ class SamAgentComponent(SamComponentBase):
                 sub_task_id,
             )
 
-    async def get_correlation_data_for_sub_task_using_logical_task_id(
+    async def get_main_task_context(
         self, logical_task_id: str
-    ):
+    ) -> Optional["TaskExecutionContext"]:
         """
-        Non-destructively retrieves correlation data for a super-task.
+        Retrieves the main task context for a given logical task ID.
+        
+        This method is used when the current agent is the target agent for the task.
+        It returns the TaskExecutionContext which contains the full task state including
+        a2a_context, active_peer_sub_tasks, and other task execution details.
+        
+        Args:
+            logical_task_id: The unique logical ID of the task
+            
+        Returns:
+            The TaskExecutionContext if the task is active, None otherwise
+            
+        Raises:
+            ValueError: If logical_task_id is None or empty
         """
+        if not logical_task_id:
+            raise ValueError("logical_task_id cannot be None or empty")
+        
         with self.active_tasks_lock:
             active_task_context = self.active_tasks.get(logical_task_id)
+            if active_task_context is None:
+                log.warning(
+                    f"No active task context found for logical_task_id: {logical_task_id}"
+                )
+                return None
+            
+            return active_task_context
 
-        if not active_task_context:
-            log.error(
-                "%s TaskExecutionContext not found for task %s. Cannot get correlation data.",
-                self.log_identifier,
-                logical_task_id,
-            )
-            return []
-
-        with active_task_context.lock:
-            active_peer_sub_tasks = (
-                getattr(active_task_context, "active_peer_sub_tasks", None) or {}
-            )
-
+    async def get_all_sub_task_correlation_data_from_logical_task_id(
+        self, logical_task_id: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieves correlation data for all active peer sub-tasks of a given logical task.
+        
+        This method is used when forwarding requests to other agents in an A2A workflow.
+        It returns a list of correlation data dictionaries, each containing information
+        about a peer sub-task including peer_task_id, peer_agent_name, and original_task_context.
+        
+        Args:
+            logical_task_id: The unique logical ID of the parent task
+            
+        Returns:
+            List of correlation data dictionaries for active peer sub-tasks.
+            Returns empty list if no active peer sub-tasks exist.
+            
+        Raises:
+            ValueError: If logical_task_id is None or empty
+        """
+        if not logical_task_id:
+            raise ValueError("logical_task_id cannot be None or empty")
+        
+        with self.active_tasks_lock:
+            active_task_context = self.active_tasks.get(logical_task_id)
+            if active_task_context is None:
+                log.warning(
+                    f"No active task context found for logical_task_id: {logical_task_id}"
+                )
+                return []
+            
+            active_peer_sub_tasks = active_task_context.active_peer_sub_tasks
+            if not active_peer_sub_tasks:
+                log.debug(
+                    f"No active peer sub-tasks found for logical_task_id: {logical_task_id}"
+                )
+                return []
+            
             results = []
             for sub_task_id, correlation_data in active_peer_sub_tasks.items():
                 if sub_task_id is not None and correlation_data is not None:
                     results.append(correlation_data)
-
-            # If we found active peer sub-tasks, return them
-            if results:
-                return results
-
-            # There are no active peer sub-tasks, but the main task is still active
-            return [active_task_context]
+            
+            return results
 
     async def _get_correlation_data_for_sub_task(
         self, sub_task_id: str
