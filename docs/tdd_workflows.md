@@ -55,10 +55,10 @@ This TDD covers the technical design for:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  Solace Event Mesh                                              │
-│  - namespace/agents/{workflow_name}/requests                    │
-│  - namespace/agents/{workflow_name}/responses                   │
-│  - namespace/agents/{workflow_name}/status                      │
-│  - namespace/discovery                                          │
+│  - {namespace}/a2a/v1/agent/request/{workflow_name}             │
+│  - {namespace}/a2a/v1/agent/response/{workflow_name}            │
+│  - {namespace}/a2a/v1/agent/status/{workflow_name}              │
+│  - {namespace}/a2a/v1/discovery/agentcard                       │
 └─────────────────────────────────────────────────────────────────┘
                               ▲  │
                               │  ▼
