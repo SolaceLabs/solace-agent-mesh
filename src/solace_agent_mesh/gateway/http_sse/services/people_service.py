@@ -2,12 +2,12 @@
 Service layer for handling people-related operations, such as searching for users.
 """
 
+import logging
 from typing import Any, Dict, List, Optional
-
-from solace_ai_connector.common.log import log
 
 from ....common.services.identity_service import BaseIdentityService
 
+log = logging.getLogger(__name__)
 
 class PeopleService:
     """

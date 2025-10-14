@@ -3,17 +3,18 @@ Contains individual evaluator functions for different embed types
 and the mapping dictionary.
 """
 
+import logging
 import json
 from datetime import datetime
 import uuid
 from typing import Any, Callable, Dict, Optional, Tuple
-from solace_ai_connector.common.log import log
 from asteval import Interpreter
 import math, random
 
 from ....agent.utils.artifact_helpers import format_metadata_for_llm
 from .constants import EMBED_CHAIN_DELIMITER
 
+log = logging.getLogger(__name__)
 
 MATH_SAFE_SYMBOLS = {
     # Basic math operations

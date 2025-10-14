@@ -31,10 +31,7 @@ def create_webui_gateway_config(
 
     add_gateway = options.get("add_webui_gateway")
     if not skip_interactive and add_gateway is None:
-        add_gateway = ask_yes_no_question(
-            "Do you want to add a default Web UI gateway?",
-            default=default_values.get("add_webui_gateway", True),
-        )
+        add_gateway = default_values.get("add_webui_gateway", True)
     elif add_gateway is None:
         add_gateway = default_values.get("add_webui_gateway", True)
 
@@ -145,57 +142,20 @@ def create_webui_gateway_config(
         is_bool=True,
     )
 
-    session_type = ask_if_not_provided(
-        options,
-        "webui_session_service_type",
-        "Enter WebUI session service type",
-        "sql",
-        skip_interactive,
-        choices=["sql", "memory"],
-    )
-
-    session_behavior = ask_if_not_provided(
-        options,
-        "webui_session_service_behavior",
-        "Enter WebUI session service behavior",
-        "PERSISTENT",
-        skip_interactive,
-        choices=["PERSISTENT", "RUN_BASED"],
-    )
-
     click.echo("Creating Web UI Gateway configuration file...")
     destination_path = project_root / "configs" / "gateways" / "webui.yaml"
 
     try:
         template_content = load_template("webui.yaml")
         
-        if session_type == "sql":
-            session_service_lines = [
-                f'type: "{session_type}"',
-                f'database_url: "${{WEB_UI_GATEWAY_DATABASE_URL}}"',
-                f'default_behavior: "{session_behavior}"',
-            ]
-            session_service_block = "\n" + "\n".join(
-                [f"        {line}" for line in session_service_lines]
-            )
-            
-            data_dir = project_root / "data"
-            data_dir.mkdir(exist_ok=True)
-            webui_db_file = data_dir / "webui_gateway.db"
-            webui_database_url = f"sqlite:///{webui_db_file.resolve()}"
-            
-            try:
-                env_path = project_root / ".env"
-                with open(env_path, "a", encoding="utf-8") as f:
-                    f.write(f'\nWEB_UI_GATEWAY_DATABASE_URL="{webui_database_url}"\n')
-                click.echo(f"  Added WEB_UI_GATEWAY_DATABASE_URL to .env: {webui_database_url}")
-            except Exception as e:
-                click.echo(
-                    click.style(f"Warning: Could not add WEB_UI_GATEWAY_DATABASE_URL to .env: {e}", fg="yellow"),
-                    err=True,
-                )
-        else:
-            session_service_block = "*default_session_service"
+        session_service_lines = [
+            f'type: "sql"',
+            'database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui_gateway.db}"',
+            f'default_behavior: "PERSISTENT"',
+        ]
+        session_service_block = "\n" + "\n".join(
+            [f"        {line}" for line in session_service_lines]
+        )
         
         replacements = {
             "__FRONTEND_WELCOME_MESSAGE__": str(

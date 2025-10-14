@@ -1,3 +1,4 @@
+import logging
 import sys
 import os
 
@@ -7,7 +8,6 @@ sys.path.insert(
 
 from common.utils.asyncio_macos_fix import ensure_asyncio_compatibility
 from .patch_adk import patch_adk
-from solace_ai_connector.common.log import log
 
 ensure_asyncio_compatibility()
 patch_adk()
@@ -28,6 +28,8 @@ from ...agent.sac.component import SamAgentComponent
 from ...agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
 from ...common.utils.pydantic_utils import SamConfigBase
 from ..tools.tool_config_types import AnyToolConfig
+
+log = logging.getLogger(__name__)
 
 info = {
     "class_name": "SamAgentApp",

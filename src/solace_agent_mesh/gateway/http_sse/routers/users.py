@@ -3,15 +3,17 @@ Router for user-related endpoints.
 Maintains backward compatibility with original API format.
 """
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from solace_ai_connector.common.log import log
 
 from .. import dependencies
 from ..shared.auth_utils import get_current_user
 from .dto.requests.user_requests import UpdateDefaultCredentialsRequest
 from .dto.responses.user_responses import UpdateDefaultCredentialsResponse
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 

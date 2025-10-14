@@ -19,7 +19,7 @@ apps:
       namespace: ${NAMESPACE} 
       supports_streaming: true
       agent_name: "OrchestratorAgent"
-      display_name: "OrchestratorAgent"
+      display_name: "Orchestrator"
       model: *planning_model 
 
       instruction: |

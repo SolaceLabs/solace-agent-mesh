@@ -4,7 +4,6 @@ import click
 
 from ...utils import ask_yes_no_question
 from .broker_step import broker_setup_step
-from .database_step import database_setup_step
 from .directory_step import create_project_directories
 from .env_step import ENV_DEFAULTS, create_env_file
 from .orchestrator_step import ORCHESTRATOR_DEFAULTS as O_DEFAULTS
@@ -164,10 +163,6 @@ def run_init_flow(skip_interactive: bool, use_web_based_init_flag: bool, **cli_o
             lambda opts, defs, skip: create_webui_gateway_config(
                 project_root, opts, skip, defs
             ),
-        ),
-        (
-            "Database Setup",
-            lambda opts, defs, skip: database_setup_step(project_root, opts, skip),
         ),
         (
             ".env File Creation",
