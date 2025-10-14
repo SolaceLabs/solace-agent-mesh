@@ -56,7 +56,7 @@ def test_add_agent_default_db_generation(project_dir):
     )
 
     assert result.exit_code == 0, f"CLI command failed: {result.output}"
-    assert (project_dir / "data" / "new_agent.db").exists(), (
+    assert (project_dir / "new_agent.db").exists(), (
         "Default agent database 'new_agent.db' was not created."
     )
     agent_config_path = project_dir / "configs" / "agents" / "new_agent_agent.yaml"

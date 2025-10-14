@@ -40,10 +40,10 @@ def test_init_default_db_generation(project_dir):
     )
 
     # Verify that the default database files are created
-    assert (project_dir / "data" / "webui_gateway.db").exists(), (
+    assert (project_dir / "webui_gateway.db").exists(), (
         "webui_gateway.db was not created"
     )
-    assert (project_dir / "data" / "myorchestrator.db").exists(), (
+    assert (project_dir / "myorchestrator.db").exists(), (
         "myorchestrator.db was not created"
     )
 
