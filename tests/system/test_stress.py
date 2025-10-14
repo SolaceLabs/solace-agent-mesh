@@ -36,7 +36,7 @@ from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 from sam_test_infrastructure.memory_monitor import MemoryMonitor
-from .test_helpers import (
+from ..integration.scenarios_programmatic.test_helpers import (
     create_gateway_input_data,
     submit_test_input,
     get_all_task_events,

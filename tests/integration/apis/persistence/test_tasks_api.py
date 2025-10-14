@@ -37,7 +37,7 @@ def test_send_non_streaming_task(api_client: TestClient):
     # Verify JSONRPC response format
     assert "result" in response_data
     assert "id" in response_data["result"]
-    assert response_data["result"]["id"] == "test-task-id"
+    assert response_data["result"]["id"] is not None
 
     print("✓ Non-streaming task submitted successfully")
 
@@ -74,7 +74,7 @@ def test_send_streaming_task(api_client: TestClient):
     task_id = response_data["result"]["id"]
     session_id = response_data["result"]["contextId"]
 
-    assert task_id == "test-task-id"
+    assert task_id is not None
     assert session_id is not None
     assert len(session_id) > 0
 
@@ -354,8 +354,8 @@ def test_task_with_different_agents(api_client: TestClient):
     # Verify all tasks got unique sessions
     assert len(set(session_ids)) == len(session_ids)
 
-    # Verify all tasks got the same mocked task ID (this is expected with our mock)
-    assert all(task_id == "test-task-id" for task_id in task_ids)
+    # Verify all tasks got unique IDs
+    assert len(set(task_ids)) == len(task_ids)
 
     print(f"✓ Tasks sent to {len(agents_and_messages)} different agents")
 
