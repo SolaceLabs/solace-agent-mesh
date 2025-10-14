@@ -19,9 +19,7 @@ This PRD defines **Prescriptive Workflows**, a new feature for the Solace Agent 
 - **Backward Compatible:** Existing agents and orchestration patterns continue to work unchanged
 
 **Success Metrics:**
-- Workflow execution success rate > 95%
 - Schema validation catches 100% of type mismatches at workflow edges
-- Value reference resolution success rate > 99%
 - Zero breaking changes to existing SAM functionality
 
 ---
@@ -418,18 +416,7 @@ Complex orchestration logic is embedded in agent instructions, making it:
 - Parallel execution works correctly
 - System remains stable under load
 
-#### NFR3: Reliability
-**Description:** Workflows must be reliable:
-- Workflow execution success rate > 95%
-- Schema validation catches 100% of type mismatches
-- Value reference resolution success rate > 99%
-
-**Acceptance Criteria:**
-- Success rate metrics tracked and reported
-- Failures have clear root causes
-- Retry logic improves success rate
-
-#### NFR4: Usability
+#### NFR3: Usability
 **Description:** Workflows must be easy to define and debug:
 - Schema validation errors are clear and actionable
 - Workflow YAML is intuitive and well-documented
@@ -440,7 +427,7 @@ Complex orchestration logic is embedded in agent instructions, making it:
 - Error messages rated as "helpful" by developers
 - Documentation includes complete examples
 
-#### NFR5: Backward Compatibility
+#### NFR4: Backward Compatibility
 **Description:** No breaking changes to existing SAM functionality:
 - Existing agents work unchanged
 - Existing orchestrator patterns continue to work
@@ -702,22 +689,12 @@ Complex orchestration logic is embedded in agent instructions, making it:
 
 ### Primary Metrics
 
-**M1: Workflow Execution Success Rate**
-- **Target:** > 95%
-- **Measurement:** (Successful executions / Total executions) × 100
-- **Rationale:** Workflows must be reliable for production use
-
-**M2: Schema Validation Effectiveness**
+**M1: Schema Validation Effectiveness**
 - **Target:** 100% of type mismatches caught
 - **Measurement:** Manual review of validation failures
 - **Rationale:** Schema validation is core value proposition
 
-**M3: Value Reference Resolution Success Rate**
-- **Target:** > 99%
-- **Measurement:** (Successful resolutions / Total resolution attempts) × 100
-- **Rationale:** Data integrity depends on reliable reference resolution
-
-**M4: Zero Breaking Changes**
+**M2: Zero Breaking Changes**
 - **Target:** 100% of existing integration tests pass
 - **Measurement:** Automated test suite
 - **Rationale:** Backward compatibility is hard requirement
@@ -729,20 +706,10 @@ Complex orchestration logic is embedded in agent instructions, making it:
 - **Measurement:** User testing with workflow designers
 - **Rationale:** Usability indicator
 
-**M6: Error Message Helpfulness**
-- **Target:** > 4/5 rating from developers
-- **Measurement:** User survey
-- **Rationale:** Developer experience indicator
-
-**M7: Workflow Execution Performance**
+**M6: Workflow Execution Performance**
 - **Target:** < 2x sequential agent call latency
 - **Measurement:** Automated benchmarks
 - **Rationale:** Performance overhead must be acceptable
-
-**M8: Adoption Rate**
-- **Target:** 20% of new agent orchestration uses workflows within 3 months
-- **Measurement:** Usage analytics
-- **Rationale:** Feature adoption indicator
 
 ---
 
@@ -931,80 +898,6 @@ Complex orchestration logic is embedded in agent instructions, making it:
 - C) Rely on retry logic and manual intervention (simpler)
 
 **Decision:** Option C for MVP, Option B for future enhancement
-
----
-
-## 12. Timeline & Phases
-
-### Phase 1: MVP (Core Functionality)
-**Duration:** 8-10 weeks  
-**Goal:** Basic workflow execution with schema validation and value references
-
-**Features:**
-- Workflow definition via YAML
-- WorkflowExecutorComponent implementation
-- Schema validation at workflow edges
-- Value reference system (`«value:...»`)
-- Result artifact marking (`«result:...»`)
-- Basic flow control (if/else)
-- A2A status updates
-- Workflow state persistence
-
-**Success Criteria:**
-- Simple workflows (5-10 nodes) execute successfully
-- Schema validation catches type mismatches
-- Value references resolve correctly
-- Workflows appear as agents externally
-
----
-
-### Phase 2: Advanced Flow Control
-**Duration:** 3-4 weeks  
-**Goal:** Support complex workflow patterns
-
-**Features:**
-- Case/switch nodes
-- Fork/join (parallel execution)
-- Loop nodes with max iterations
-- Nested workflow support
-
-**Success Criteria:**
-- Parallel workflows execute correctly
-- Conditional branching works for all patterns
-- Nested workflows handle errors correctly
-
----
-
-### Phase 3: Production Readiness
-**Duration:** 3-4 weeks  
-**Goal:** Hardening and operational features
-
-**Features:**
-- Graceful workflow upgrades
-- Enhanced error messages
-- Performance optimization
-- Comprehensive documentation
-- Example workflows
-
-**Success Criteria:**
-- Workflows can be upgraded without downtime
-- Error messages rated as helpful
-- Performance meets targets
-- Documentation complete
-
----
-
-### Phase 4: Advanced Features (Future)
-**Duration:** TBD  
-**Goal:** Enhanced capabilities based on user feedback
-
-**Potential Features:**
-- Workflow visualization tool
-- Schema compatibility checker
-- Workflow versioning
-- Advanced error recovery
-- Workflow templates library
-- Performance monitoring dashboard
 
 ---
 
