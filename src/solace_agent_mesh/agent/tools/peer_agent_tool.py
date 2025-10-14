@@ -2,13 +2,13 @@
 ADK Tool implementation for delegating tasks to peer A2A agents over Solace.
 """
 
+import logging
 from typing import Any, Dict, Optional, List, Union
 import uuid
 
 from google.adk.tools import BaseTool, ToolContext
 from google.genai import types as adk_types
 from pydantic import BaseModel, Field
-from solace_ai_connector.common.log import log
 
 from ...common.a2a.types import ContentPart
 from a2a.types import (
@@ -18,6 +18,7 @@ from ...common import a2a
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...common.exceptions import MessageSizeExceededError
 
+log = logging.getLogger(__name__)
 
 class ArtifactIdentifier(BaseModel):
     """Identifies a specific version of an artifact."""

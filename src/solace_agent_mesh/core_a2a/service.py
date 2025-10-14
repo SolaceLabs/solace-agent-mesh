@@ -3,10 +3,9 @@ Reusable service layer for core A2A interactions like task submission,
 cancellation, and agent discovery processing.
 """
 
+import logging
 import uuid
 from typing import Dict, Optional, Any, List, Tuple
-
-from solace_ai_connector.common.log import log
 
 from a2a.types import (
     Message as A2AMessage,
@@ -15,6 +14,7 @@ from a2a.types import (
 from ..common import a2a
 from ..common.agent_registry import AgentRegistry
 
+log = logging.getLogger(__name__)
 
 class CoreA2AService:
     """

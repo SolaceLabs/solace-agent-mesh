@@ -3,12 +3,12 @@ Defines FastAPI dependency injectors to access shared resources
 managed by the WebUIBackendComponent.
 """
 
+import logging
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends, HTTPException, Request, status
-from solace_ai_connector.common.log import log
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -29,6 +29,8 @@ from .repository import SessionRepository
 from .repository.interfaces import ITaskRepository
 from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
+
+log = logging.getLogger(__name__)
 
 try:
     from google.adk.artifacts import BaseArtifactService

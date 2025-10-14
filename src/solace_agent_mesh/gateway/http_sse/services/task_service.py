@@ -3,14 +3,15 @@ Service layer for handling A2A task submissions and cancellations.
 Uses CoreA2AService for logic and a provided function for publishing.
 """
 
+import logging
 import threading
 from typing import Callable, Dict, Optional
-
-from solace_ai_connector.common.log import log
 
 from ....common import a2a
 from ....gateway.http_sse.sse_manager import SSEManager
 from ....core_a2a.service import CoreA2AService
+
+log = logging.getLogger(__name__)
 
 PublishFunc = Callable[[str, Dict, Optional[Dict]], None]
 

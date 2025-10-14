@@ -183,6 +183,36 @@ This project is licensed under the **Apache 2.0 License**. See the full license 
 
 ---
 
+## 🧪 Running Tests
+
+This project uses `pytest` for testing. You can run tests using either `hatch` or `pytest` directly.
+
+### Using Hatch
+
+The recommended way to run tests is through the `hatch` environment, which ensures all dependencies are managed correctly.
+
+```bash
+# Run all tests
+hatch test
+
+# Run tests with tags
+hatch test -m "<tag>"
+```
+
+### Using Pytest Directly
+
+If you prefer to use `pytest` directly, you must first install the project with its test dependencies.
+
+```bash
+# Install the project in editable mode with the 'test' extras
+pip install -e .[test]
+
+# Run all tests
+pytest
+```
+
+---
+
 <h3 align="center">
   <img src="./docs/static/img/solace-logo-text.svg" alt="Solace Agent Mesh Logo" width="100"/>
 </h3>
