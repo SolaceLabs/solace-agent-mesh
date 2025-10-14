@@ -1,18 +1,24 @@
-from unittest.mock import Mock, AsyncMock
 import tempfile
-from pathlib import Path
 import uuid
+from pathlib import Path
+from unittest.mock import AsyncMock, Mock
 
-from sqlalchemy import event, create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from solace_agent_mesh.gateway.http_sse.main import app as fastapi_app, setup_dependencies
-from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
-from solace_agent_mesh.gateway.http_sse.services.data_retention_service import DataRetentionService
-from solace_agent_mesh.gateway.http_sse.services.task_logger_service import TaskLoggerService
 from solace_agent_mesh.core_a2a.service import CoreA2AService
+from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+from solace_agent_mesh.gateway.http_sse.main import app as fastapi_app
+from solace_agent_mesh.gateway.http_sse.main import setup_dependencies
+from solace_agent_mesh.gateway.http_sse.services.data_retention_service import (
+    DataRetentionService,
+)
+from solace_agent_mesh.gateway.http_sse.services.task_logger_service import (
+    TaskLoggerService,
+)
 from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
+
 
 def create_test_app(db_url: str = None):
     """
@@ -75,16 +81,18 @@ def create_test_app(db_url: str = None):
 
     # Create a mock CoreA2AService instance for task cancellation tests
     mock_core_a2a_service = Mock(spec=CoreA2AService)
+
     def mock_cancel_task_service(agent_name, task_id, client_id, user_id):
         target_topic = f"test_namespace/a2a/v1/agent/cancel/{agent_name}"
         payload = {
             "jsonrpc": "2.0",
             "id": f"cancel-{task_id}",
             "method": "tasks/cancel",
-            "params": {"id": task_id}
+            "params": {"id": task_id},
         }
         user_properties = {"userId": user_id}
         return target_topic, payload, user_properties
+
     mock_core_a2a_service.cancel_task = mock_cancel_task_service
     mock_component.get_core_a2a_service.return_value = mock_core_a2a_service
 
@@ -101,7 +109,7 @@ def create_test_app(db_url: str = None):
 
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_conn, connection_record):
-        if db_url.startswith('sqlite'):
+        if db_url.startswith("sqlite"):
             cursor = dbapi_conn.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
@@ -126,7 +134,7 @@ def create_test_app(db_url: str = None):
         session_factory=Session, config=data_retention_config
     )
     mock_component.data_retention_service = real_data_retention_service
-    
+
     # Add the database_url attribute that the tests expect
     mock_component.database_url = db_url
 

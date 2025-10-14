@@ -4,13 +4,14 @@ These tests are designed to be run manually or in a dedicated CI job,
 as they are long-running and resource-intensive.
 """
 
-import pytest
 import asyncio
-import json
 import base64
-import uuid
+import json
 import time
-from typing import List, Dict, Any
+import uuid
+from typing import Any
+
+import pytest
 
 try:
     import psutil
@@ -27,19 +28,21 @@ try:
 except ImportError:
     objgraph = None
 
-from sam_test_infrastructure.llm_server.server import TestLLMServer
+from a2a.types import JSONRPCError, Task
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
-from a2a.types import Task, JSONRPCError
+from sam_test_infrastructure.llm_server.server import TestLLMServer
+from sam_test_infrastructure.memory_monitor import MemoryMonitor
+from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
-from solace_ai_connector.solace_ai_connector import SolaceAiConnector
-from sam_test_infrastructure.memory_monitor import MemoryMonitor
+
 from ..integration.scenarios_programmatic.test_helpers import (
     create_gateway_input_data,
-    submit_test_input,
     get_all_task_events,
+    submit_test_input,
 )
 
 pytestmark = [
@@ -59,7 +62,7 @@ pytestmark = [
 ]
 
 
-TASK_PROFILES: List[Dict[str, Any]] = [
+TASK_PROFILES: list[dict[str, Any]] = [
     {
         "id": "simple_text",
         "initial_prompt": "Respond with a simple sentence.",
@@ -171,8 +174,8 @@ TASK_PROFILES: List[Dict[str, Any]] = [
 
 
 def _precompile_llm_responses(
-    responses: List[Dict[str, Any]], scenario_id: str
-) -> List[Dict[str, Any]]:
+    responses: list[dict[str, Any]], scenario_id: str
+) -> list[dict[str, Any]]:
     """
     Recursively walks LLM responses to replace _sub_task_definitions with
     stateful test case directives.
@@ -222,7 +225,7 @@ def _precompile_llm_responses(
 async def _run_task_from_profile(
     gateway_component: TestGatewayComponent,
     llm_server: TestLLMServer,
-    profile: Dict[str, Any],
+    profile: dict[str, Any],
     task_num: int,
 ):
     """Runs a single, complete task using the stateful LLM protocol."""
@@ -256,9 +259,9 @@ async def _run_task_from_profile(
         )
 
         assert events, f"Task {task_id} for profile {profile['id']} produced no events."
-        assert isinstance(
-            events[-1], (Task, JSONRPCError)
-        ), f"Task {task_id} did not end with a terminal event."
+        assert isinstance(events[-1], (Task, JSONRPCError)), (
+            f"Task {task_id} did not end with a terminal event."
+        )
 
         return task_id
     finally:
@@ -313,24 +316,24 @@ async def test_concurrency_stress_with_variety(
     )
     if failed_tasks:
         for i, failure in enumerate(failed_tasks):
-            print(f"  Failure {i+1}: {type(failure).__name__} - {failure}")
-    assert (
-        len(successful_tasks) == parallel_tasks
-    ), f"Expected {parallel_tasks} successful tasks, but {len(failed_tasks)} failed."
+            print(f"  Failure {i + 1}: {type(failure).__name__} - {failure}")
+    assert len(successful_tasks) == parallel_tasks, (
+        f"Expected {parallel_tasks} successful tasks, but {len(failed_tasks)} failed."
+    )
 
     app_cache = InMemoryCache()
     llm_cache = test_llm_server._stateful_responses_cache
-    assert (
-        len(main_agent_component.active_tasks) == 0
-    ), "Main agent should have no lingering active tasks."
-    assert (
-        len(test_gateway_app_instance.task_context_manager._contexts) == 0
-    ), "Gateway task context manager should be empty."
+    assert len(main_agent_component.active_tasks) == 0, (
+        "Main agent should have no lingering active tasks."
+    )
+    assert len(test_gateway_app_instance.task_context_manager._contexts) == 0, (
+        "Gateway task context manager should be empty."
+    )
     test_key = "test_empty_check_key"
     assert app_cache.get(test_key) is None, "InMemoryCache should be empty"
-    assert (
-        len(llm_cache) == 0
-    ), f"TestLLMServer cache should be empty, but contains {len(llm_cache)} items: {list(llm_cache.keys())}"
+    assert len(llm_cache) == 0, (
+        f"TestLLMServer cache should be empty, but contains {len(llm_cache)} items: {list(llm_cache.keys())}"
+    )
     print(
         "Concurrency test completed successfully with all state and caches verified as clean."
     )
@@ -364,10 +367,10 @@ async def test_longevity_with_variety_and_peer_calls(
         )
         task_duration = time.monotonic() - task_start_time
         print(
-            f"  Task {i+1}/{total_tasks} ({profile['id']}) completed in {task_duration:.4f} seconds."
+            f"  Task {i + 1}/{total_tasks} ({profile['id']}) completed in {task_duration:.4f} seconds."
         )
         if (i + 1) % 20 == 0:
-            print(f"  ... completed {i+1}/{total_tasks} tasks.")
+            print(f"  ... completed {i + 1}/{total_tasks} tasks.")
 
     await asyncio.sleep(0.5)
 
@@ -379,17 +382,17 @@ async def test_longevity_with_variety_and_peer_calls(
 
     app_cache = InMemoryCache()
     llm_cache = test_llm_server._stateful_responses_cache
-    assert (
-        len(main_agent_component.active_tasks) == 0
-    ), "Main agent should have no lingering active tasks."
-    assert (
-        len(test_gateway_app_instance.task_context_manager._contexts) == 0
-    ), "Gateway task context manager should be empty."
+    assert len(main_agent_component.active_tasks) == 0, (
+        "Main agent should have no lingering active tasks."
+    )
+    assert len(test_gateway_app_instance.task_context_manager._contexts) == 0, (
+        "Gateway task context manager should be empty."
+    )
     test_key = "test_empty_check_key"
     assert app_cache.get(test_key) is None, "InMemoryCache should be empty"
-    assert (
-        len(llm_cache) == 0
-    ), f"TestLLMServer cache should be empty, but contains {len(llm_cache)} items: {list(llm_cache.keys())}"
+    assert len(llm_cache) == 0, (
+        f"TestLLMServer cache should be empty, but contains {len(llm_cache)} items: {list(llm_cache.keys())}"
+    )
     print(
         "Longevity test completed successfully with all state and caches verified as clean."
     )
@@ -427,10 +430,10 @@ async def test_very_long_longevity_soak_test(
         )
         task_duration = time.monotonic() - task_start_time
         print(
-            f"  Task {i+1}/{total_tasks} ({profile['id']}) completed in {task_duration:.4f} seconds."
+            f"  Task {i + 1}/{total_tasks} ({profile['id']}) completed in {task_duration:.4f} seconds."
         )
         if (i + 1) % 50 == 0:
-            print(f"  ... completed {i+1}/{total_tasks} tasks.")
+            print(f"  ... completed {i + 1}/{total_tasks} tasks.")
 
     await asyncio.sleep(0.5)
 
@@ -442,17 +445,17 @@ async def test_very_long_longevity_soak_test(
 
     app_cache = InMemoryCache()
     llm_cache = test_llm_server._stateful_responses_cache
-    assert (
-        len(main_agent_component.active_tasks) == 0
-    ), "Main agent should have no lingering active tasks."
-    assert (
-        len(test_gateway_app_instance.task_context_manager._contexts) == 0
-    ), "Gateway task context manager should be empty."
+    assert len(main_agent_component.active_tasks) == 0, (
+        "Main agent should have no lingering active tasks."
+    )
+    assert len(test_gateway_app_instance.task_context_manager._contexts) == 0, (
+        "Gateway task context manager should be empty."
+    )
     test_key = "test_empty_check_key"
     assert app_cache.get(test_key) is None, "InMemoryCache should be empty"
-    assert (
-        len(llm_cache) == 0
-    ), f"TestLLMServer cache should be empty, but contains {len(llm_cache)} items: {list(llm_cache.keys())}"
+    assert len(llm_cache) == 0, (
+        f"TestLLMServer cache should be empty, but contains {len(llm_cache)} items: {list(llm_cache.keys())}"
+    )
     print(
         f"Longevity soak test with {total_tasks} tasks completed successfully with all state and caches verified as clean."
     )

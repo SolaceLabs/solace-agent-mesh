@@ -10,28 +10,17 @@ from pathlib import Path
 import pytest
 import sqlalchemy as sa
 
-# FastAPI and database imports
 from fastapi.testclient import TestClient
+from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
+    create_test_app,
+)
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from .infrastructure.simple_database_inspector import SimpleDatabaseInspector
-
-# Import test infrastructure components
 from .infrastructure.simple_database_manager import SimpleDatabaseManager
 from .infrastructure.simple_gateway_adapter import SimpleGatewayAdapter
-from sam_test_infrastructure.fastapi_service.webui_backend_factory import create_test_app
-
-
-# Imports for feedback test fixture
-from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
-from solace_agent_mesh.gateway.http_sse import dependencies
-from solace_agent_mesh.gateway.http_sse.services.task_logger_service import (
-    TaskLoggerService,
-)
-from solace_agent_mesh.core_a2a.service import CoreA2AService
-from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
-from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture(scope="session")
@@ -53,13 +42,13 @@ def test_database_engine(test_database_url):
         pool_pre_ping=True,
         pool_recycle=300,
     )
-    
+
     # Enable foreign keys for SQLite (database-agnostic)
     from sqlalchemy import event
-    
+
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_conn, connection_record):
-        if test_database_url.startswith('sqlite'):
+        if test_database_url.startswith("sqlite"):
             cursor = dbapi_conn.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
@@ -129,7 +118,6 @@ def clean_database_between_tests(request, test_database_engine):
 
 def _clean_main_database(test_database_engine):
     """Clean the main API test database"""
-    from sqlalchemy.orm import sessionmaker
 
     SessionLocal = sessionmaker(bind=test_database_engine)
     session = SessionLocal()
@@ -205,7 +193,7 @@ def _clean_simple_databases(simple_manager):
             conn.commit()
 
     # Clean agent databases
-    for agent_name, db_path in simple_manager.agent_db_paths.items():
+    for _agent_name, db_path in simple_manager.agent_db_paths.items():
         if db_path and db_path.exists():
             with sqlite3.connect(db_path) as conn:
                 cursor = conn.cursor()
