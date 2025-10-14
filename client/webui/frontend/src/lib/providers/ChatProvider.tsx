@@ -848,13 +848,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 closeCurrentEventSource();
                 setCurrentTaskId(null);
                 isFinalizing.current = true;
-                void artifactsRefetch();
                 setTimeout(() => {
                     isFinalizing.current = false;
                 }, 100);
             }
         },
-        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble]
+        [addNotification, closeCurrentEventSource, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble]
     );
 
     const handleNewSession = useCallback(async () => {
