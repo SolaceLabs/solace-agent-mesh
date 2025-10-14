@@ -379,6 +379,7 @@ Received data:
 - Node ID, type (agent/if/fork/etc.)
 - Agent persona name (for agent nodes)
 - Input mapping (template expressions)
+- Request template (optional, for contextualizing the task)
 - Dependencies (depends_on list)
 - Timeout configuration
 - Resolved schemas (input/output)
@@ -441,12 +442,15 @@ PENDING → RUNNING → COMPLETED
 **For Each Node:**
 1. **Prepare Input:** Resolve input mapping templates using previous node outputs
 2. **Validate Input:** Validate against persona input schema
-3. **Execute:** Delegate to agent (or execute flow control logic)
-4. **Extract Result:** Parse result embed from agent response
-5. **Handle Status:**
+3. **Save Input Artifact:** Save resolved input as structured artifact
+4. **Build Request:** Generate request using request template (or default)
+5. **Inject Workflow Prompt:** Add workflow-specific system instructions
+6. **Execute:** Delegate to agent via A2A (or execute flow control logic)
+7. **Extract Result:** Parse result embed from agent response
+8. **Handle Status:**
    - Success: Load artifact, validate output, store for next nodes
    - Failure: Mark node as failed, propagate error
-6. **Update State:** Update node state, persist to session storage
+9. **Update State:** Update node state, persist to session storage
 
 #### Parallel Execution
 
@@ -501,9 +505,16 @@ Conditional branching based on previous node output.
   then:
     - id: create_account
       agent_persona: "CreateAccountAgent"
+      request_template: |
+        Create a new customer account with the validated information.
+        Customer name: {{input.customer_name}}
+        Email: {{input.email}}
   else:
     - id: send_rejection
       agent_persona: "NotificationAgent"
+      request_template: |
+        Send a rejection email to the customer.
+        Reason: {{input.error_message}}
 ```
 
 #### Execution
@@ -684,9 +695,256 @@ Iterate over a list or until a condition is met.
 
 ---
 
-## 7. Data Structures
+## 7. Workflow Node Request Generation
 
-### 7.1 Configuration Models
+### 7.1 Request Template System
+
+#### Purpose
+Provide rich, contextualized task descriptions to workflow nodes that reference previous node outputs while maintaining persona reusability.
+
+#### Request Template Location
+
+Request templates are defined in the workflow node configuration (not in persona definitions):
+
+```yaml
+workflow:
+  nodes:
+    - id: validate_customer
+      agent_persona: "ValidationAgent"
+      input:
+        customer_name: "{{extract_info.output.customer_name}}"
+        email: "{{extract_info.output.email}}"
+      
+      # Optional: Custom request template
+      request_template: |
+        Validate the customer information extracted from the document.
+        
+        Customer Name: {{input.customer_name}}
+        Email Address: {{input.email}}
+        
+        Ensure the email format is valid and the name is not empty.
+```
+
+#### Template Variable Resolution
+
+**Available Variables:**
+- `{{input.field_name}}`: References a field from the node's input (after input mapping resolved)
+- `{{workflow.name}}`: Workflow name
+- `{{node.id}}`: Current node ID
+
+**Resolution Process:**
+1. Workflow executor resolves input mapping (e.g., `{{extract_info.output.customer_name}}` → actual value)
+2. Saves resolved input as artifact: `node_{node_id}_input.json`
+3. Processes request template, replacing `{{input.field}}` with `«value:node_{node_id}_input.json:field»`
+4. Sends resolved request to agent
+
+**Example Resolution:**
+
+Template:
+```
+Customer Name: {{input.customer_name}}
+Email: {{input.email}}
+```
+
+Resolved:
+```
+Customer Name: «value:node_validate_customer_input.json:customer_name»
+Email: «value:node_validate_customer_input.json:email»
+```
+
+#### Default Request Template
+
+If no `request_template` provided, the framework generates a default:
+
+```
+Your task: {first_sentence_of_persona_instruction}
+
+Input data is available in artifact: {input_artifact_name}
+
+Available input fields:
+{list_of_input_schema_properties_with_types}
+
+Please complete your task according to your instructions and mark your output with the result embed.
+```
+
+Example default:
+```
+Your task: Validate customer information for correctness.
+
+Input data is available in artifact: node_validate_customer_input.json
+
+Available input fields:
+- customer_name (string): Customer's full name
+- email (string): Customer's email address
+
+Please complete your task according to your instructions and mark your output with the result embed.
+```
+
+### 7.2 Workflow System Prompt Injection
+
+#### Purpose
+Provide workflow-specific instructions to agents executing as workflow nodes, ensuring they understand the structured execution context and requirements.
+
+#### System Prompt Structure
+
+The complete prompt sent to a workflow node agent consists of:
+
+1. **Persona's Base Instruction** (from persona definition)
+2. **Workflow Execution Mode Header**
+3. **Resolved Request Template** (with value references)
+4. **Input Data Specification**
+5. **Value Reference Protocol**
+6. **Output Requirements**
+
+#### Complete System Prompt Template
+
+```
+{persona_base_instruction}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WORKFLOW EXECUTION MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You are executing as part of a structured workflow.
+
+Workflow: {workflow_name}
+Node ID: {node_id}
+Your Role: {node_position_description}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK REQUEST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{resolved_request_template}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INPUT DATA SPECIFICATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your input data is stored in a structured artifact: {input_artifact_name}
+
+Input Schema (describes available fields):
+{input_schema_formatted}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VALUE REFERENCE PROTOCOL (CRITICAL)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT: You have NOT been given the actual input data values.
+
+To use input data in tool calls or generated content, you MUST use value references.
+
+Syntax: «value:{input_artifact_name}:field_path»
+
+Examples:
+  - To reference 'customer_id': «value:{input_artifact_name}:customer_id»
+  - To reference nested field: «value:{input_artifact_name}:address.zip_code»
+  - To reference array item: «value:{input_artifact_name}:items[0].sku»
+
+WHY THIS MATTERS:
+- Value references ensure data integrity (prevents hallucination or typos)
+- The framework resolves references to actual values when calling tools
+- You MUST NOT attempt to guess, fabricate, or recall data values
+
+WHEN TO LOAD ACTUAL DATA:
+- Only load the input artifact if you need to make content-based decisions
+- Use the load_artifact tool if you need to inspect data for logic/routing
+- For pass-through or transformation tasks, use value references exclusively
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT REQUIREMENTS (MANDATORY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You MUST mark your output using the result embed:
+
+Success:
+  «result:artifact=output_filename.json status=success [message=optional]»
+
+Failure:
+  «result:status=failure message=reason_for_failure»
+
+Your output artifact MUST conform to this schema:
+{output_schema_formatted}
+
+If you cannot complete your task:
+- Use status=failure
+- Provide a clear, specific error message
+- Do NOT retry on your own (the framework handles retries)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONSTRAINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Focus solely on your assigned task
+- Do not attempt to access data outside your input artifact
+- Do not make assumptions about other workflow nodes or overall workflow goals
+- Do not deviate from the specified output schema
+```
+
+#### Template Variables
+
+The system prompt template is populated with:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{persona_base_instruction}` | Agent persona's instruction | "Validate customer information for correctness." |
+| `{workflow_name}` | Name of the workflow | "CustomerOnboardingWorkflow" |
+| `{node_id}` | ID of current node | "validate_customer" |
+| `{node_position_description}` | Optional context | "Node 2 of 5 in workflow" |
+| `{resolved_request_template}` | Request with value references | "Validate customer: Name: «value:...»" |
+| `{input_artifact_name}` | Name of input artifact | "node_validate_customer_input.json" |
+| `{input_schema_formatted}` | Pretty-printed input schema | JSON schema with descriptions |
+| `{output_schema_formatted}` | Pretty-printed output schema | JSON schema with descriptions |
+
+#### Schema Formatting
+
+Schemas are formatted for readability:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "customer_name": {
+      "type": "string",
+      "description": "Customer's full name"
+    },
+    "email": {
+      "type": "string",
+      "description": "Customer's email address"
+    }
+  },
+  "required": ["customer_name", "email"]
+}
+```
+
+#### Injection Point
+
+The workflow system prompt is injected in `WorkflowExecutorComponent._execute_node()`:
+
+1. Load persona's base instruction from persona definition
+2. Build workflow system prompt using template
+3. Combine: `base_instruction + "\n\n" + workflow_prompt`
+4. Send combined instruction to agent via A2A SendTask
+
+#### Configuration Options
+
+Workflow-level configuration for prompt injection (optional, for future):
+
+```yaml
+workflow:
+  prompt_injection:
+    include_position_info: true  # Include "Node X of Y"
+    include_visual_separators: true  # Include ━━━ separators
+    custom_preamble: "Additional context..."  # Optional custom text
+```
+
+**Note:** For MVP, use fixed template. Configuration can be added later if needed.
+
+---
+
+## 8. Data Structures
+
+### 8.1 Configuration Models
 
 **WorkflowConfig:**
 - Parsed from YAML
@@ -705,7 +963,7 @@ Iterate over a list or until a condition is met.
 - Branch definitions
 - Merge strategies
 
-### 7.2 Execution State Models
+### 8.2 Execution State Models
 
 **WorkflowExecutionState:**
 - Complete state of workflow execution
@@ -717,7 +975,7 @@ Iterate over a list or until a condition is met.
 - Status, timing, data, errors
 - Retry tracking
 
-### 7.3 Schema Models
+### 8.3 Schema Models
 
 **Schema Representation:**
 - Standard JSON Schema format
@@ -735,9 +993,9 @@ Iterate over a list or until a condition is met.
 
 ---
 
-## 8. API Contracts
+## 9. API Contracts
 
-### 8.1 WorkflowApp
+### 9.1 WorkflowApp
 
 **Initialization:**
 - Extends SamAgentApp
@@ -748,7 +1006,7 @@ Iterate over a list or until a condition is met.
 - `__init__(app_info, **kwargs)`: Initialize app with workflow config
 - Inherits broker setup, subscription management from SamAgentApp
 
-### 8.2 WorkflowExecutorComponent
+### 9.2 WorkflowExecutorComponent
 
 **Initialization:**
 - Extends ComponentBase
@@ -763,13 +1021,13 @@ Iterate over a list or until a condition is met.
 - `_resolve_value_reference(reference)`: Resolve value reference embed
 - `_parse_result_embed(response_text)`: Parse result embed from response
 
-### 8.3 Schema Validator
+### 9.3 Schema Validator
 
 **Key Methods:**
 - `validate(data, schema, context)`: Validate data against schema
 - `check_compatibility(source_schema, target_schema)`: Check schema compatibility
 
-### 8.4 Embed Resolver
+### 9.4 Embed Resolver
 
 **Key Methods:**
 - `resolve_value_reference(reference, artifact_service, ...)`: Resolve value reference
@@ -777,7 +1035,7 @@ Iterate over a list or until a condition is met.
 - `parse_result_embed(embed_string)`: Parse result embed
 - `extract_result_embed_from_response(response_text)`: Find and parse result embed
 
-### 8.5 Flow Control Executor
+### 9.5 Flow Control Executor
 
 **Key Methods:**
 - `execute_if_node(node, state)`: Execute if/else node
@@ -788,9 +1046,9 @@ Iterate over a list or until a condition is met.
 
 ---
 
-## 9. Error Handling
+## 10. Error Handling
 
-### 9.1 Error Types
+### 10.1 Error Types
 
 **WorkflowConfigurationError:**
 - Invalid workflow YAML
@@ -817,7 +1075,7 @@ Iterate over a list or until a condition is met.
 - Includes timeout duration
 - Fails workflow
 
-### 9.2 Error Propagation
+### 10.2 Error Propagation
 
 **Node Failure:**
 - Mark node as failed
@@ -830,7 +1088,7 @@ Iterate over a list or until a condition is met.
 - Publish failure status update
 - Return error response to caller
 
-### 9.3 Retry Strategy
+### 10.3 Retry Strategy
 
 **Automatic Retry:**
 - Schema validation failures: Up to 3 retries with error in prompt
@@ -844,9 +1102,9 @@ Iterate over a list or until a condition is met.
 
 ---
 
-## 10. Monitoring and Observability
+## 11. Monitoring and Observability
 
-### 10.1 Status Updates
+### 11.1 Status Updates
 
 Workflow publishes A2A status updates at key points:
 
@@ -863,7 +1121,7 @@ Workflow publishes A2A status updates at key points:
 - Metadata only (no intermediate data)
 - Published to workflow status topic
 
-### 10.2 Execution Trace
+### 11.2 Execution Trace
 
 Workflow execution state includes complete trace:
 - All node states with timing
@@ -876,7 +1134,7 @@ Workflow execution state includes complete trace:
 - Can be retrieved for debugging
 - Used for workflow visualization (future)
 
-### 10.3 Metrics
+### 11.3 Metrics
 
 **Key Metrics:**
 - Workflow execution duration
@@ -892,9 +1150,9 @@ Workflow execution state includes complete trace:
 
 ---
 
-## 11. Deployment and Operations
+## 12. Deployment and Operations
 
-### 11.1 Deployment Model
+### 12.1 Deployment Model
 
 **Workflow as SAC App:**
 - Each workflow is a separate SAC app
@@ -907,7 +1165,7 @@ Workflow execution state includes complete trace:
 - Solace broker handles distribution
 - Each instance processes different workflow executions
 
-### 11.2 Graceful Upgrades
+### 12.2 Graceful Upgrades
 
 **Shutdown Mode:**
 1. Old workflow instance receives shutdown signal
@@ -921,7 +1179,7 @@ Workflow execution state includes complete trace:
 - Default: 30 minutes
 - Logged for monitoring
 
-### 11.3 Configuration Management
+### 12.3 Configuration Management
 
 **Workflow Definition:**
 - Stored in YAML files
@@ -940,9 +1198,9 @@ Workflow execution state includes complete trace:
 
 ---
 
-## 12. Testing Strategy
+## 13. Testing Strategy
 
-### 12.1 Unit Tests
+### 13.1 Unit Tests
 
 **Components to Test:**
 - Schema validator (validation, compatibility checking)
@@ -955,7 +1213,7 @@ Workflow execution state includes complete trace:
 - Test edge cases (invalid schemas, missing artifacts, etc.)
 - Verify error messages
 
-### 12.2 Integration Tests
+### 13.2 Integration Tests
 
 **Scenarios:**
 - Simple linear workflow (3-5 nodes)
@@ -970,7 +1228,7 @@ Workflow execution state includes complete trace:
 - Check state persistence
 - Validate status updates
 
-### 12.3 Performance Tests
+### 13.3 Performance Tests
 
 **Metrics:**
 - Workflow execution latency
@@ -985,9 +1243,9 @@ Workflow execution state includes complete trace:
 
 ---
 
-## 13. Future Enhancements
+## 14. Future Enhancements
 
-### 13.1 Workflow Visualization
+### 14.1 Workflow Visualization
 
 **Goal:** Provide visual representation of workflow execution
 
@@ -997,7 +1255,7 @@ Workflow execution state includes complete trace:
 - Node status indicators
 - Execution timeline
 
-### 13.2 Advanced Error Recovery
+### 14.2 Advanced Error Recovery
 
 **Goal:** Support compensation and rollback
 
@@ -1006,7 +1264,7 @@ Workflow execution state includes complete trace:
 - Rollback on failure
 - Partial workflow recovery
 
-### 13.3 Workflow Versioning
+### 14.3 Workflow Versioning
 
 **Goal:** Support multiple versions of workflows and schemas
 
@@ -1015,7 +1273,7 @@ Workflow execution state includes complete trace:
 - Schema evolution (backward compatibility)
 - Gradual rollout (canary deployments)
 
-### 13.4 Workflow Templates
+### 14.4 Workflow Templates
 
 **Goal:** Provide reusable workflow patterns
 
@@ -1024,7 +1282,7 @@ Workflow execution state includes complete trace:
 - Parameterized templates
 - Template composition
 
-### 13.5 Enhanced Monitoring
+### 14.5 Enhanced Monitoring
 
 **Goal:** Comprehensive workflow observability
 
@@ -1036,9 +1294,9 @@ Workflow execution state includes complete trace:
 
 ---
 
-## 14. Open Questions and Decisions
+## 15. Open Questions and Decisions
 
-### 14.1 Resolved Decisions
+### 15.1 Resolved Decisions
 
 1. **Workflows are agents:** ✅ Decided - workflows appear as regular agents
 2. **Schemas with personas:** ✅ Decided - schemas stored with persona definitions
@@ -1046,7 +1304,7 @@ Workflow execution state includes complete trace:
 4. **Result embeds:** ✅ Decided - `«result:artifact=name status=success|failure»` syntax
 5. **Runtime validation:** ✅ Decided - validate at first execution (MVP)
 
-### 14.2 Open Questions
+### 15.2 Open Questions
 
 1. **State persistence strategy:** Follow session service configuration (memory/SQL)
 2. **Workflow visualization:** Defer to future enhancement
