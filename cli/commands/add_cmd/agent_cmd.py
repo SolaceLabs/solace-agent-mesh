@@ -385,33 +385,6 @@ def create_agent_config(
 
     collected_options["session_service_type"] = "sql"
 
-    if DATABASE_URL_KEY not in collected_options:
-        db_file = project_root / f"{formatted_names['SNAKE_CASE_NAME']}.db"
-        database_url = f"sqlite:///{db_file.resolve()}"
-        click.echo(
-            f"  Using default SQLite database for {agent_name_camel_case} agent: {db_file}"
-        )
-        collected_options[DATABASE_URL_KEY] = database_url
-
-        try:
-            db_url = collected_options.get(DATABASE_URL_KEY)
-            if not db_url:
-                error_msg = "Database URL was not provided or determined despite SQL session service being selected."
-                click.echo(
-                    click.style(f"Internal Error: {error_msg}", fg="red"), err=True
-                )
-                raise ValueError(error_msg)
-
-        except Exception as e:
-            click.echo(
-                click.style(
-                    f"Error validating database URL '{collected_options.get(DATABASE_URL_KEY)}': {e}",
-                    fg="red",
-                ),
-                err=True,
-            )
-            return False
-
     collected_options["artifact_service_type"] = ask_if_not_provided(
         collected_options,
         "artifact_service_type",
