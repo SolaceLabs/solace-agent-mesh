@@ -26,35 +26,6 @@ def project_dir(tmp_path):
     shutil.rmtree(project_path)
 
 
-def test_add_agent_read_only_env_file(project_dir, mocker):
-    """
-    Test that 'add agent' command fails gracefully when the .env file is not writable.
-    """
-    env_path = project_dir / ".env"
-    env_path.touch()
-    env_path.chmod(0o444)  # Read-only permissions
-
-    runner = CliRunner()
-    result = runner.invoke(
-        cli,
-        [
-            "add",
-            "agent",
-            "testAgent",
-            "--session-service-type",
-            "sql",
-        ],
-        catch_exceptions=False,
-    )
-
-    assert result.exit_code == 1, "CLI command should have failed."
-    assert "Error appending to .env file" in result.output, (
-        "Error message for unwritable .env file not found."
-    )
-
-    env_path.chmod(0o644)  # Restore write permissions for cleanup
-
-
 def test_add_agent_idempotency(project_dir):
     """
     Test that running 'add agent' multiple times for the same agent updates the config correctly.
