@@ -3,26 +3,33 @@ import { Edit } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/lib/components/ui/dialog";
 import { Button } from "@/lib/components/ui/button";
 
+interface NewChatButtonProps {
+    text?: string;
+    onClick?: () => void;
+}
+
+const NewChatButton: React.FC<NewChatButtonProps> = ({ text, onClick }) => {
+    return (
+        <Button variant="ghost" onClick={onClick} tooltip="Start New Chat Session">
+            <Edit className="size-5" />
+            {text}
+        </Button>
+    );
+};
+
 interface ChatSessionDialogProps {
     buttonText?: string;
 }
-
 export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ buttonText }) => {
     const { handleNewSession } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
 
     return persistenceEnabled ? (
-        <Button variant="ghost" onClick={handleNewSession} tooltip="Start New Chat Session">
-            <Edit className="size-5" />
-            {buttonText}
-        </Button>
+        <NewChatButton text={buttonText} onClick={handleNewSession} />
     ) : (
         <Dialog>
             <DialogTrigger asChild>
-                <Button variant="ghost" tooltip="Start New Chat Session">
-                    <Edit className="size-5" />
-                    {buttonText}
-                </Button>
+                <NewChatButton text={buttonText} />
             </DialogTrigger>
 
             <DialogContent>
