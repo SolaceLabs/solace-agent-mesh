@@ -336,6 +336,28 @@ class BaseGatewayComponent(SamComponentBase):
         if user_config:
             user_properties["a2aUserConfig"] = user_config
 
+        # Enterprise feature: Add signed user identity JWT if trust manager available
+        if hasattr(self, 'trust_manager') and self.trust_manager:
+            try:
+                user_identity_jwt = self.trust_manager.sign_user_identity(
+                    user_info=user_identity,
+                    task_id=task_id
+                )
+                user_properties["userIdentityJWT"] = user_identity_jwt
+                log.debug(
+                    "%s Added signed user identity JWT to task %s",
+                    log_id_prefix,
+                    task_id
+                )
+            except Exception as e:
+                log.error(
+                    "%s Failed to sign user identity for task %s: %s",
+                    log_id_prefix,
+                    task_id,
+                    e
+                )
+                # Continue without JWT - enterprise feature is optional
+
         user_properties["replyTo"] = a2a.get_gateway_response_topic(
             self.namespace, self.gateway_id, task_id
         )
