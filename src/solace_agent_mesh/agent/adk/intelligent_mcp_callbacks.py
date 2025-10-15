@@ -179,7 +179,11 @@ async def save_mcp_response_as_artifact_intelligent(
             except Exception as e:
                 if not processor_config.fallback_to_raw_on_error:
                     raise
-                log.exception("%s Error saving content item: %s", log_identifier, e)
+                log.warning(
+                    "%s Failed to save content item, continuing with remaining items",
+                    log_identifier,
+                    exc_info=True,
+                )
                 overall_status = McpSaveStatus.PARTIAL_SUCCESS
                 failed_artifacts.append({"status": "error", "message": str(e)})
 
@@ -224,7 +228,9 @@ async def save_mcp_response_as_artifact_intelligent(
                     fallback_artifact = SavedArtifactInfo(**fallback_dict)
             except Exception as e:
                 log.warning(
-                    "%s Failed to save raw JSON alongside: %s", log_identifier, e
+                    "%s Failed to save raw JSON alongside intelligent artifacts",
+                    log_identifier,
+                    exc_info=True,
                 )
 
         log.info(
@@ -241,8 +247,10 @@ async def save_mcp_response_as_artifact_intelligent(
         )
 
     except Exception as e:
-        log.exception(
-            "%s Error in intelligent MCP response processing: %s", log_identifier, e
+        log.error(
+            "%s Intelligent MCP response processing failed",
+            log_identifier,
+            exc_info=True,
         )
         if processor_config.fallback_to_raw_on_error:
             log.info(
@@ -265,8 +273,10 @@ async def save_mcp_response_as_artifact_intelligent(
                     message=f"Intelligent processing failed, saved raw JSON as fallback: {e}",
                 )
             except Exception as fallback_error:
-                log.exception(
-                    "%s Fallback also failed: %s", log_identifier, fallback_error
+                log.error(
+                    "%s Fallback to raw JSON also failed",
+                    log_identifier,
+                    exc_info=True,
                 )
 
         return McpSaveResult(
@@ -332,7 +342,11 @@ async def _save_content_item_as_artifact(
         return save_result
 
     except Exception as e:
-        log.exception("%s Error saving content item as artifact: %s", log_identifier, e)
+        log.error(
+            "%s Failed to save content item as artifact",
+            log_identifier,
+            exc_info=True,
+        )
         return {
             "status": "error",
             "data_filename": content_item.filename,
@@ -405,8 +419,10 @@ async def _save_raw_mcp_response_fallback(
         return save_result
 
     except Exception as e:
-        log.exception(
-            "%s Error saving raw MCP response as artifact: %s", log_identifier, e
+        log.error(
+            "%s Failed to save raw MCP response as artifact",
+            log_identifier,
+            exc_info=True,
         )
         return {
             "status": "error",

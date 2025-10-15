@@ -77,6 +77,7 @@ class MCPContentProcessor:
     def __init__(self, tool_name: str, tool_args: Dict[str, Any]):
         self.tool_name = tool_name
         self.tool_args = tool_args
+        # Using f-string here is acceptable as it's only evaluated once during initialization
         self.log_identifier = f"[MCPContentProcessor:{tool_name}]"
 
     def process_mcp_response(
@@ -113,12 +114,11 @@ class MCPContentProcessor:
                 processed_item = self._process_content_item(content_item, idx)
                 if processed_item:
                     content_items.append(processed_item)
-            except Exception as e:
+            except Exception:
                 log.exception(
-                    "%s Error processing content item %d: %s",
+                    "%s Failed to process content item %d",
                     self.log_identifier,
                     idx,
-                    e,
                 )
                 continue
 
@@ -194,10 +194,13 @@ class MCPContentProcessor:
             )
             return None
 
-    def _log_empty_content(self, content_type: str, index: int):
+    def _log_empty_content(self, content_type: str, index: int) -> None:
         """Log warning for empty content and return None."""
         log.warning(
-            "%s %s content item %d is empty", self.log_identifier, content_type, index
+            "%s %s content item %d is empty, skipping",
+            self.log_identifier,
+            content_type,
+            index,
         )
 
     def _create_content_item(
@@ -256,18 +259,19 @@ class MCPContentProcessor:
         mime_type = content_item.get(mime_type_key, default_mime_type)
 
         if not binary_data:
-            return self._log_empty_content(content_type.title(), index)
+            self._log_empty_content(content_type.title(), index)
+            return None
 
         try:
             # Decode base64 data
             content_bytes = base64.b64decode(binary_data)
-        except Exception as e:
+        except Exception:
             log.error(
-                "%s Failed to decode base64 %s data for item %d: %s",
+                "%s Failed to decode base64 %s data for item %d",
                 self.log_identifier,
                 content_type,
                 index,
-                e,
+                exc_info=True,
             )
             return None
 
@@ -307,7 +311,8 @@ class MCPContentProcessor:
         """Process text content with format detection and parsing."""
         text_content = content_item.get("text", "")
         if not text_content:
-            return self._log_empty_content("Text", index)
+            self._log_empty_content("Text", index)
+            return None
 
         # Detect text format
         detected_format, parse_success, parsed_data = (
@@ -431,20 +436,20 @@ class MCPContentProcessor:
                     "is_placeholder": False,
                 }
                 log.debug(
-                    "%s Resource content item %d: decoded base64 blob content, original=%d bytes, decoded=%d bytes",
+                    "%s Decoded resource blob for item %d: original=%d bytes, decoded=%d bytes",
                     self.log_identifier,
                     index,
                     len(blob_content),
                     len(content_bytes),
                 )
-            except Exception as e:
+            except Exception:
                 log.error(
-                    "%s Resource content item %d: failed to decode blob as base64: %s",
+                    "%s Failed to decode base64 blob for resource item %d",
                     self.log_identifier,
                     index,
-                    str(e),
+                    exc_info=True,
                 )
-                return None  # Fail processing for this item
+                return None
         elif text_content:
             # Handle text content
             content_bytes = text_content.encode("utf-8")
@@ -622,8 +627,14 @@ class MCPContentProcessor:
                 extension = get_extension_for_mime_type(mime_type)
                 return f"{self.tool_name}_resource_{index}_{hostname}{extension}"
 
-        except Exception as e:
-            log.debug("%s Error parsing URI %s: %s", self.log_identifier, uri, e)
+        except Exception:
+            log.warning(
+                "%s Failed to parse URI for resource item %d: %s",
+                self.log_identifier,
+                index,
+                uri,
+                exc_info=True,
+            )
 
         # Fallback to generic filename
         extension = get_extension_for_mime_type(mime_type)

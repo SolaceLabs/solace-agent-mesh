@@ -54,7 +54,8 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 
-logger = logging.getLogger("google_adk." + __name__)
+logger = logging.getLogger(__name__)
+trace_logger = logging.getLogger("sam_trace")
 
 _NEW_LINE = "\n"
 _EXCLUDED_PART_FIELD = {"inline_data": {"data"}}
@@ -466,10 +467,10 @@ def _message_to_generate_content_response(
                     part.function_call.id = tool_call.id
                     parts.append(part)
                 except json.JSONDecodeError as e:
-                    logger.error(
-                        "Failed to decode function call arguments: %s. Arguments: %s",
-                        e,
-                        tool_call.function.arguments,
+                    logger.warning(
+                        "Failed to decode function call arguments from LLM response: function=%s error=%s",
+                        tool_call.function.name,
+                        str(e),
                     )
 
     return LlmResponse(
@@ -672,6 +673,32 @@ class LiteLlm(BaseLlm):
         # public api called from runner determines to stream or not
         self._additional_args.pop("stream", None)
 
+        # Log LLM configuration on startup
+        provider = self._extract_provider(model)
+        logger.info(
+            "Initialized LiteLLM client: model=%s provider=%s api_base=%s parallel_tool_calls=%s max_tokens=%s temperature=%s",
+            model,
+            provider,
+            kwargs.get("api_base", "default"),
+            kwargs.get("parallel_tool_calls", False),
+            kwargs.get("max_tokens", "unset"),
+            kwargs.get("temperature", "unset"),
+        )
+
+    @staticmethod
+    def _extract_provider(model: str) -> str:
+        """Extracts provider name from model string.
+
+        Args:
+          model: The model identifier (e.g., "vertex_ai/claude-3-7-sonnet").
+
+        Returns:
+          The provider name (e.g., "vertex_ai").
+        """
+        if "/" in model:
+            return model.split("/")[0]
+        return "unknown"
+
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse, None]:
@@ -690,7 +717,18 @@ class LiteLlm(BaseLlm):
             "tool",
         ]:
             self._maybe_append_user_content(llm_request)
-        logger.debug(_build_request_log(llm_request))
+
+        # Use trace logger for verbose request details
+        if trace_logger.isEnabledFor(logging.DEBUG):
+            trace_logger.debug("[%s] %s", __name__, _build_request_log(llm_request))
+        else:
+            logger.debug(
+                "LLM request: model=%s num_messages=%d has_tools=%s stream=%s",
+                self.model,
+                len(llm_request.contents) if llm_request.contents else 0,
+                bool(llm_request.config.tools if llm_request.config else False),
+                stream,
+            )
 
         messages, tools, response_format, generation_params = _get_completion_inputs(
             llm_request

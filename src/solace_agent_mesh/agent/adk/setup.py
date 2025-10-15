@@ -82,7 +82,7 @@ async def _execute_lifecycle_hook(
     if not func_name:
         return
 
-    log.info(
+    log.debug(
         "%s Executing lifecycle hook: %s.%s",
         component.log_identifier,
         module_name,
@@ -99,19 +99,18 @@ async def _execute_lifecycle_hook(
             )
 
         await func(component, tool_config_model)
-        log.info(
-            "%s Successfully executed lifecycle hook: %s.%s",
+        log.debug(
+            "%s Lifecycle hook completed: %s.%s",
             component.log_identifier,
             module_name,
             func_name,
         )
     except Exception as e:
         log.exception(
-            "%s Fatal error during lifecycle hook execution for '%s.%s': %s",
+            "%s Lifecycle hook execution failed: module=%s function=%s",
             component.log_identifier,
             module_name,
             func_name,
-            e,
         )
         raise RuntimeError(f"Tool lifecycle initialization failed: {e}") from e
 
@@ -139,11 +138,10 @@ def _create_cleanup_partial(
         return functools.partial(func, component, tool_config_model)
     except Exception as e:
         log.exception(
-            "%s Fatal error creating partial for cleanup hook '%s.%s': %s",
+            "%s Failed to create cleanup hook partial: module=%s function=%s",
             component.log_identifier,
             module_name,
             func_name,
-            e,
         )
         raise RuntimeError(f"Tool lifecycle setup failed: {e}") from e
 
@@ -201,8 +199,8 @@ async def _create_python_tool_lifecycle_hooks(
     # 2. DynamicTool/Provider Init (runs second)
     for tool_instance in loaded_python_tools:
         if is_subclass_by_name(type(tool_instance), "DynamicTool"):
-            log.info(
-                "%s Executing .init() method for DynamicTool '%s'.",
+            log.debug(
+                "%s Executing .init() method for DynamicTool: name=%s",
                 component.log_identifier,
                 tool_instance.tool_name,
             )
@@ -302,7 +300,7 @@ def _load_python_class_based_tool(
             tool_config=validated_config
         )
         log.info(
-            "%s Loaded %d tools from DynamicToolProvider '%s' in %s",
+            "%s Loaded %d tools from DynamicToolProvider: provider=%s module=%s",
             component.log_identifier,
             len(dynamic_tools),
             tool_class.__name__,
@@ -329,7 +327,7 @@ def _load_python_class_based_tool(
             )
             continue
         log.info(
-            "%s Loaded dynamic tool: %s from %s",
+            "%s Loaded dynamic tool: name=%s module=%s",
             component.log_identifier,
             declaration.name,
             module_name,
@@ -375,7 +373,7 @@ async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -
 
         loaded_python_tools.append(tool_callable)
         log.info(
-            "%s Loaded Python tool: %s from %s.",
+            "%s Loaded Python tool: name=%s module=%s",
             component.log_identifier,
             tool_callable.__name__,
             module_name,
@@ -414,7 +412,7 @@ async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) 
             raw_string_args=sam_tool_def.raw_string_args,
         )
         log.info(
-            "%s Loaded SAM built-in tool: %s",
+            "%s Loaded SAM builtin tool: name=%s",
             component.log_identifier,
             sam_tool_def.name,
         )
@@ -425,14 +423,14 @@ async def _load_builtin_tool(component: "SamAgentComponent", tool_config: Dict) 
     if adk_tool and isinstance(adk_tool, (BaseTool, Callable)):
         adk_tool.origin = "adk_builtin"
         log.info(
-            "%s Loaded ADK built-in tool: %s",
+            "%s Loaded ADK builtin tool: name=%s",
             component.log_identifier,
             tool_name,
         )
         return [adk_tool], [], []
 
     raise ValueError(
-        f"Built-in tool '{tool_name}' not found in SAM or ADK registry."
+        f"Builtin tool '{tool_name}' not found in SAM or ADK registry."
     )
 
 async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
@@ -462,28 +460,26 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
 
     for init_func, init_config in initializers_to_run.items():
         try:
-            log.info(
-                "%s Running initializer '%s' for tool group '%s'.",
+            log.debug(
+                "%s Running initializer for builtin group: group=%s function=%s",
                 component.log_identifier,
-                init_func.__name__,
                 group_name,
+                init_func.__name__,
             )
             init_func(component, init_config)
-            log.info(
-                "%s Successfully executed initializer '%s' for tool group '%s'.",
+            log.debug(
+                "%s Initializer completed for builtin group: group=%s",
                 component.log_identifier,
-                init_func.__name__,
                 group_name,
             )
         except Exception as e:
             log.exception(
-                "%s Failed to run initializer '%s' for tool group '%s': %s",
+                "%s Initializer failed for builtin group: group=%s function=%s",
                 component.log_identifier,
-                init_func.__name__,
                 group_name,
-                e,
+                init_func.__name__,
             )
-            raise e
+            raise
 
     loaded_tools: List[Union[BaseTool, Callable]] = []
     enabled_builtin_tools: List[BuiltinTool] = []
@@ -500,9 +496,10 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
         enabled_builtin_tools.append(tool_def)
 
     log.info(
-        "Loaded %d tools from built-in group: %s",
-        len(loaded_tools),
+        "%s Loaded builtin group: group=%s count=%d",
+        component.log_identifier,
         group_name,
+        len(loaded_tools),
     )
     return loaded_tools, enabled_builtin_tools, []
 
@@ -593,9 +590,14 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     mcp_toolset_instance.origin = "mcp"
 
     log.info(
-        "%s Initialized MCPToolset (filter: %s) for server: %s",
+        "%s Initialized MCPToolset: connection_type=%s filter=%s",
         component.log_identifier,
-        (tool_filter_list if tool_filter_list else "none (all tools)"),
+        connection_type,
+        tool_filter_list if tool_filter_list else "none",
+    )
+    log.debug(
+        "%s MCP connection params: %s",
+        component.log_identifier,
         connection_params,
     )
 
@@ -635,14 +637,14 @@ def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[
 
             loaded_tools.append(tool_callable)
             enabled_builtin_tools.append(tool_def)
-            log.info(
-                "%s Implicitly loaded internal framework tool: %s",
+            log.debug(
+                "%s Loaded internal framework tool: name=%s",
                 component.log_identifier,
                 tool_def.name,
             )
         else:
             log.warning(
-                "%s Could not find internal framework tool '%s' in registry. Related features may not work.",
+                "%s Internal framework tool not found in registry: name=%s",
                 component.log_identifier,
                 tool_name,
             )
@@ -682,12 +684,13 @@ async def load_adk_tools(
     any_tool_adapter = TypeAdapter(AnyToolConfig)
 
     if not tools_config:
-        log.info(
-            "%s No explicit tools configured in 'tools' list.", component.log_identifier
+        log.debug(
+            "%s No explicit tools configured",
+            component.log_identifier,
         )
     else:
         log.info(
-            "%s Loading %d tool(s) from 'tools' list configuration...",
+            "%s Loading %d tool(s) from configuration",
             component.log_identifier,
             len(tools_config),
         )
@@ -762,13 +765,12 @@ async def load_adk_tools(
                 cleanup_hooks = new_cleanups + cleanup_hooks
 
             except Exception as e:
-                log.error(
-                    "%s Failed to load tool config %s: %s",
+                log.exception(
+                    "%s Failed to load tool: tool_type=%s",
                     component.log_identifier,
-                    tool_config,
-                    e,
+                    tool_config.get("tool_type", "unknown"),
                 )
-                raise e
+                raise
 
     # Load internal framework tools
     (
@@ -781,11 +783,15 @@ async def load_adk_tools(
     cleanup_hooks.extend(internal_cleanups)
 
     log.info(
-        "%s Finished loading tools. Total tools for ADK: %d. Total SAM built-ins for prompt: %d. Total cleanup hooks: %d. Peer tools added dynamically.",
+        "%s Tool loading complete: explicit_tools=%d builtins=%d cleanup_hooks=%d",
         component.log_identifier,
         len(loaded_tools),
         len(enabled_builtin_tools),
         len(cleanup_hooks),
+    )
+    log.debug(
+        "%s Note: Peer agent tools will be added dynamically during runtime",
+        component.log_identifier,
     )
     return loaded_tools, enabled_builtin_tools, cleanup_hooks
 
@@ -813,52 +819,71 @@ def initialize_adk_agent(
         Exception: For other initialization errors.
     """
     agent_name = component.get_config("agent_name")
+    namespace = component.get_config("namespace")
+
+    # Log agent configuration at initialization
+    tool_names = [getattr(t, "name", getattr(t, "__name__", "unknown")) for t in loaded_explicit_tools]
+    builtin_tool_names = [t.name for t in enabled_builtin_tools]
+
     log.info(
-        "%s Initializing ADK Agent '%s' (Peer tools & instructions added via callback)...",
+        "%s Initializing ADK Agent - name=%s namespace=%s explicit_tools=%d builtins=%d",
         component.log_identifier,
         agent_name,
+        namespace,
+        len(loaded_explicit_tools),
+        len(enabled_builtin_tools),
+    )
+    log.debug(
+        "%s Agent tool manifest: explicit=%s builtins=%s",
+        component.log_identifier,
+        tool_names,
+        builtin_tool_names,
     )
 
     model_config = component.get_config("model")
     adk_model_instance: Union[str, BaseLlm]
     if isinstance(model_config, str):
         adk_model_instance = model_config
+        log.debug(
+            "%s Using model string reference: %s",
+            component.log_identifier,
+            model_config,
+        )
     elif isinstance(model_config, dict):
         if model_config.get("type") is None:
             # Use setdefault to add keys only if they are not already present in the YAML
             model_config.setdefault("num_retries", 3)
             model_config.setdefault("timeout", 120)
-            log.info(
-                "%s Applying default resilience settings for LiteLlm model (num_retries=%s, timeout=%s). These can be overridden in YAML.",
+            log.debug(
+                "%s Applied default resilience settings for LiteLlm model: num_retries=%s timeout=%s",
                 component.log_identifier,
                 model_config["num_retries"],
                 model_config["timeout"],
             )
 
         try:
-
             adk_model_instance = LiteLlm(**model_config)
             log.info(
                 "%s Initialized LiteLlm model: %s",
                 component.log_identifier,
                 model_config.get("model"),
             )
-        except ImportError:
+        except ImportError as e:
             log.error(
-                "%s LiteLlm dependency not found. Cannot use dictionary model config.",
+                "%s LiteLlm dependency not found. Ensure litellm package is installed.",
                 component.log_identifier,
             )
-            raise
+            raise ImportError("LiteLlm package is required for dictionary model configuration") from e
         except Exception as e:
             log.error(
-                "%s Failed to initialize model from dictionary config: %s",
+                "%s Failed to initialize LiteLlm model: %s",
                 component.log_identifier,
                 e,
             )
             raise
     else:
         raise ValueError(
-            f"{component.log_identifier} Invalid 'model' configuration type: {type(model_config)}"
+            f"{component.log_identifier} Invalid 'model' configuration type: {type(model_config)}. Expected string or dict."
         )
 
     instruction = component._resolve_instruction_provider(
@@ -888,39 +913,30 @@ def initialize_adk_agent(
         )
         callbacks_in_order_for_before_model = []
 
+        # Build before_model callback chain
         callbacks_in_order_for_before_model.append(
             adk_callbacks.repair_history_callback
-        )
-        log.info(
-            "%s Added repair_history_callback to before_model chain.",
-            component.log_identifier,
         )
 
         if hasattr(component, "_inject_peer_tools_callback"):
             callbacks_in_order_for_before_model.append(
                 component._inject_peer_tools_callback
             )
-            log.info(
-                "%s Added _inject_peer_tools_callback to before_model chain.",
-                component.log_identifier,
-            )
 
         if hasattr(component, "_filter_tools_by_capability_callback"):
             callbacks_in_order_for_before_model.append(
                 component._filter_tools_by_capability_callback
             )
-            log.info(
-                "%s Added _filter_tools_by_capability_callback to before_model chain.",
-                component.log_identifier,
-            )
         if hasattr(component, "_inject_gateway_instructions_callback"):
             callbacks_in_order_for_before_model.append(
                 component._inject_gateway_instructions_callback
             )
-            log.info(
-                "%s Added _inject_gateway_instructions_callback to before_model chain.",
-                component.log_identifier,
-            )
+
+        log.debug(
+            "%s Configured before_model callback chain with %d callbacks",
+            component.log_identifier,
+            len(callbacks_in_order_for_before_model),
+        )
 
         dynamic_instruction_callback_with_component = functools.partial(
             adk_callbacks.inject_dynamic_instructions_callback,
@@ -929,10 +945,6 @@ def initialize_adk_agent(
         )
         callbacks_in_order_for_before_model.append(
             dynamic_instruction_callback_with_component
-        )
-        log.info(
-            "%s Added inject_dynamic_instructions_callback to before_model chain.",
-            component.log_identifier,
         )
 
         solace_llm_trigger_callback_with_component = functools.partial(
@@ -957,8 +969,8 @@ def initialize_adk_agent(
             return None
 
         agent.before_model_callback = final_before_model_wrapper
-        log.info(
-            "%s Final before_model_callback chain (Solace logging now occurs last) assigned to agent.",
+        log.debug(
+            "%s Assigned before_model_callback chain with Solace logging",
             component.log_identifier,
         )
 
@@ -967,8 +979,8 @@ def initialize_adk_agent(
             host_component=component,
         )
         agent.before_tool_callback = tool_invocation_start_cb_with_component
-        log.info(
-            "%s Assigned notify_tool_invocation_start_callback as before_tool_callback.",
+        log.debug(
+            "%s Assigned before_tool_callback for tool invocation notifications",
             component.log_identifier,
         )
 
@@ -1053,8 +1065,8 @@ def initialize_adk_agent(
                 return tool_response
 
         agent.after_tool_callback = chained_after_tool_callback
-        log.info(
-            "%s Chained 'manage_large_mcp_tool_responses_callback' and 'after_tool_callback_inject_metadata' as after_tool_callback.",
+        log.debug(
+            "%s Configured after_tool_callback chain for response processing",
             component.log_identifier,
         )
 
@@ -1067,20 +1079,12 @@ def initialize_adk_agent(
             adk_callbacks.process_artifact_blocks_callback, host_component=component
         )
         callbacks_in_order_for_after_model.append(artifact_block_cb)
-        log.info(
-            "%s Added process_artifact_blocks_callback to after_model chain.",
-            component.log_identifier,
-        )
 
         # 2. Auto-Continuation (may short-circuit the chain)
         auto_continue_cb = functools.partial(
             adk_callbacks.auto_continue_on_max_tokens_callback, host_component=component
         )
         callbacks_in_order_for_after_model.append(auto_continue_cb)
-        log.info(
-            "%s Added auto_continue_on_max_tokens_callback to after_model chain.",
-            component.log_identifier,
-        )
 
         # 3. Solace LLM Response Logging
         solace_llm_response_cb = functools.partial(
@@ -1110,23 +1114,23 @@ def initialize_adk_agent(
             return None
 
         agent.after_model_callback = final_after_model_wrapper
-        log.info(
-            "%s Chained all after_model_callbacks and assigned to agent.",
+        log.debug(
+            "%s Configured after_model callback chain with %d callbacks",
             component.log_identifier,
+            len(callbacks_in_order_for_after_model),
         )
 
         log.info(
-            "%s ADK Agent '%s' created. Callbacks assigned.",
+            "%s ADK Agent initialized successfully: name=%s",
             component.log_identifier,
             agent_name,
         )
         return agent
     except Exception as e:
-        log.error(
-            "%s Failed to create ADK Agent '%s': %s",
+        log.exception(
+            "%s Failed to create ADK Agent: name=%s",
             component.log_identifier,
             agent_name,
-            e,
         )
         raise
 
@@ -1145,8 +1149,8 @@ def initialize_adk_runner(component) -> Runner:
         Exception: For runner initialization errors.
     """
     agent_name = component.get_config("agent_name")
-    log.info(
-        "%s Initializing ADK Runner for agent '%s'...",
+    log.debug(
+        "%s Initializing ADK Runner for agent: %s",
         component.log_identifier,
         agent_name,
     )
@@ -1158,8 +1162,14 @@ def initialize_adk_runner(component) -> Runner:
             artifact_service=component.artifact_service,
             memory_service=component.memory_service,
         )
-        log.info("%s ADK Runner created successfully.", component.log_identifier)
+        log.info(
+            "%s ADK Runner initialized successfully",
+            component.log_identifier,
+        )
         return runner
     except Exception as e:
-        log.error("%s Failed to create ADK Runner: %s", component.log_identifier, e)
+        log.exception(
+            "%s Failed to create ADK Runner",
+            component.log_identifier,
+        )
         raise

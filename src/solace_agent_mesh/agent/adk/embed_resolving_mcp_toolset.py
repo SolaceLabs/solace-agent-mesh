@@ -121,6 +121,7 @@ class EmbedResolvingMCPTool(MCPTool):
                         "%s Failed to resolve embed in string: %s",
                         log_identifier,
                         e,
+                        exc_info=True,
                     )
                     return data
             return data
@@ -136,10 +137,11 @@ class EmbedResolvingMCPTool(MCPTool):
                     resolved_list.append(resolved_item)
                 except Exception as e:
                     log.error(
-                        "%s Failed to resolve embeds in list item %d: %s",
+                        "%s Failed to resolve embeds in list item at index %d: %s",
                         log_identifier,
                         i,
                         e,
+                        exc_info=True,
                     )
                     resolved_list.append(item)  # Keep original on error
             return resolved_list
@@ -155,10 +157,11 @@ class EmbedResolvingMCPTool(MCPTool):
                     resolved_dict[key] = resolved_value
                 except Exception as e:
                     log.error(
-                        "%s Failed to resolve embeds in dict key '%s': %s",
+                        "%s Failed to resolve embeds for dictionary key '%s': %s",
                         log_identifier,
                         key,
                         e,
+                        exc_info=True,
                     )
                     resolved_dict[key] = value  # Keep original on error
             return resolved_dict
@@ -175,6 +178,7 @@ class EmbedResolvingMCPTool(MCPTool):
                     "%s Failed to resolve embeds in tuple: %s",
                     log_identifier,
                     e,
+                    exc_info=True,
                 )
                 return data
 
@@ -190,6 +194,7 @@ class EmbedResolvingMCPTool(MCPTool):
                     "%s Failed to resolve embeds in set: %s",
                     log_identifier,
                     e,
+                    exc_info=True,
                 )
                 return data
 
@@ -214,16 +219,10 @@ class EmbedResolvingMCPTool(MCPTool):
 
         if context_for_embeds:
             log.debug(
-                "%s Starting recursive embed resolution for all parameters. Context type: %s",
+                "%s Starting embed resolution with context type: %s",
                 log_identifier,
                 type(context_for_embeds).__name__,
             )
-            # Log context attributes for debugging
-            if hasattr(context_for_embeds, "__dict__"):
-                context_attrs = list(context_for_embeds.__dict__.keys())
-                log.debug(
-                    "%s Context attributes available: %s", log_identifier, context_attrs
-                )
             try:
                 # Recursively resolve embeds in the entire args structure
                 resolved_args = await self._resolve_embeds_recursively(
@@ -233,17 +232,18 @@ class EmbedResolvingMCPTool(MCPTool):
                     current_depth=0,
                     max_depth=10,  # Configurable depth limit
                 )
-                log.debug("%s Completed recursive embed resolution", log_identifier)
+                log.debug("%s Completed embed resolution for parameters", log_identifier)
             except Exception as e:
                 log.error(
-                    "%s Failed during recursive embed resolution: %s. Using original args.",
+                    "%s Failed during recursive embed resolution: %s. Falling back to original args",
                     log_identifier,
                     e,
+                    exc_info=True,
                 )
                 resolved_args = args  # Fallback to original args
         else:
             log.warning(
-                "%s ToolContext not found. Skipping embed resolution for all parameters.",
+                "%s ToolContext not available - cannot resolve embeds. Tool will execute with original parameters",
                 log_identifier,
             )
             resolved_args = args
@@ -274,6 +274,7 @@ class EmbedResolvingMCPToolset(MCPToolset):
             auth_credential=auth_credential,
         )
         self._tool_config = tool_config or {}
+        log.info("Initialized EmbedResolvingMCPToolset with connection type: %s", type(connection_params).__name__)
 
     async def get_tools(self, readonly_context=None) -> List[MCPTool]:
         """
@@ -297,4 +298,5 @@ class EmbedResolvingMCPToolset(MCPToolset):
             )
             embed_resolving_tools.append(embed_resolving_tool)
 
+        log.info("Wrapped %d MCP tools with embed resolution capability", len(embed_resolving_tools))
         return embed_resolving_tools

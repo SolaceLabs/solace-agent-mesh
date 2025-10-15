@@ -60,7 +60,7 @@ async def run_adk_async_task_thread_wrapper(
 
         if not task_context:
             log.error(
-                "%s TaskExecutionContext not found for task %s. Cannot start ADK runner.",
+                "%s TaskExecutionContext not found for task %s - cannot start ADK runner",
                 component.log_identifier,
                 logical_task_id,
             )
@@ -68,7 +68,7 @@ async def run_adk_async_task_thread_wrapper(
 
         task_context.flush_streaming_buffer()
         log.debug(
-            "%s Cleared streaming text buffer before starting ADK task %s.",
+            "%s Cleared streaming text buffer before starting ADK task %s",
             component.log_identifier,
             logical_task_id,
         )
@@ -94,14 +94,14 @@ async def run_adk_async_task_thread_wrapper(
                     session=adk_session, event=context_setting_event
                 )
                 log.debug(
-                    "%s Appended context-setting event to ADK session %s (via component.session_service) for task %s.",
+                    "%s Appended context-setting event to ADK session %s for task %s",
                     component.log_identifier,
                     adk_session.id,
                     logical_task_id,
                 )
             except Exception as e_append:
                 log.error(
-                    "%s Failed to append context-setting event for task %s: %s.",
+                    "%s Failed to append context-setting event for task %s: %s",
                     component.log_identifier,
                     logical_task_id,
                     e_append,
@@ -112,7 +112,7 @@ async def run_adk_async_task_thread_wrapper(
                     a2a_context["original_solace_message"] = original_message
         else:
             log.warning(
-                "%s Could not inject a2a_context into ADK session state via event for task %s (session or session_service invalid). Tool scope filtering might not work.",
+                "%s Cannot inject a2a_context into ADK session for task %s - session or session_service unavailable; tool scope filtering may not work",
                 component.log_identifier,
                 logical_task_id,
             )
@@ -126,8 +126,8 @@ async def run_adk_async_task_thread_wrapper(
             a2a_context,
         )
 
-        log.debug(
-            "%s ADK task %s awaited and completed (Paused: %s).",
+        log.info(
+            "%s ADK task %s completed successfully (paused=%s)",
             component.log_identifier,
             logical_task_id,
             is_paused,
@@ -136,29 +136,22 @@ async def run_adk_async_task_thread_wrapper(
     except TaskCancelledError as tce:
         exception_to_finalize_with = tce
         log.info(
-            "%s Task %s was cancelled. Propagating to peers before scheduling finalization. Message: %s",
+            "%s Task %s cancelled - propagating to %d peer sub-task(s) before finalization",
             component.log_identifier,
             logical_task_id,
-            tce,
+            len(task_context.active_peer_sub_tasks) if task_context else 0,
         )
         sub_tasks_to_cancel = task_context.active_peer_sub_tasks if task_context else {}
 
         if sub_tasks_to_cancel:
-            log.info(
-                "%s Propagating cancellation to %d peer sub-task(s) for main task %s.",
-                component.log_identifier,
-                len(sub_tasks_to_cancel),
-                logical_task_id,
-            )
             for sub_task_id, sub_task_info in sub_tasks_to_cancel.items():
                 try:
                     target_peer_agent_name = sub_task_info.get("peer_agent_name")
                     if not sub_task_id or not target_peer_agent_name:
                         log.warning(
-                            "%s Incomplete sub-task info found for sub-task %s, cannot cancel: %s",
+                            "%s Cannot cancel sub-task %s - incomplete info (missing task_id or peer_agent_name)",
                             component.log_identifier,
-                            sub_task_id,
-                            sub_task_info,
+                            sub_task_id or "unknown",
                         )
                         continue
 
@@ -177,43 +170,49 @@ async def run_adk_async_task_thread_wrapper(
                         topic=peer_request_topic,
                         user_properties=peer_cancel_user_props,
                     )
+                    log.debug(
+                        "%s Sent CancelTaskRequest to peer %s for sub-task %s",
+                        component.log_identifier,
+                        target_peer_agent_name,
+                        sub_task_id,
+                    )
                 except Exception as e_peer_cancel:
                     log.error(
-                        "%s Failed to send CancelTaskRequest for sub-task %s: %s",
+                        "%s Failed to send CancelTaskRequest for sub-task %s to peer %s: %s",
                         component.log_identifier,
                         sub_task_id,
+                        target_peer_agent_name,
                         e_peer_cancel,
                         exc_info=True,
                     )
     except LlmCallsLimitExceededError as llm_limit_e:
         exception_to_finalize_with = llm_limit_e
         log.warning(
-            "%s LLM call limit exceeded for task %s: %s. Scheduling finalization.",
+            "%s LLM call limit exceeded for task %s - scheduling finalization",
             component.log_identifier,
             logical_task_id,
-            llm_limit_e,
         )
     except BadRequestError as e:
         log.error(
-            "%s Bad Request for task %s: %s.",
+            "%s Bad request error for task %s: %s",
             component.log_identifier,
             logical_task_id,
-            e.message
+            e.message,
+            exc_info=True,
         )
         raise
     except Exception as e:
         exception_to_finalize_with = e
         log.exception(
-            "%s Exception in ADK runner for task %s: %s. Scheduling finalization.",
+            "%s Unexpected exception in ADK runner for task %s - scheduling finalization",
             component.log_identifier,
             logical_task_id,
-            e,
         )
 
     loop = component.get_async_loop()
     if loop and loop.is_running():
         log.debug(
-            "%s Scheduling finalize_task_with_cleanup for task %s.",
+            "%s Scheduling finalize_task_with_cleanup for task %s",
             component.log_identifier,
             logical_task_id,
         )
@@ -225,16 +224,16 @@ async def run_adk_async_task_thread_wrapper(
         )
     else:
         log.error(
-            "%s Async loop not available. Cannot schedule finalization for task %s.",
+            "%s Event loop unavailable - cannot schedule finalization for task %s",
             component.log_identifier,
             logical_task_id,
         )
 
-        log.debug(
-            "%s ADK runner for task %s finished.",
-            component.log_identifier,
-            logical_task_id,
-        )
+    log.debug(
+        "%s ADK runner for task %s finished",
+        component.log_identifier,
+        logical_task_id,
+    )
 
 
 async def run_adk_async_task(
@@ -281,11 +280,11 @@ async def run_adk_async_task(
                     await next_event_task
                 except asyncio.CancelledError:
                     log.debug(
-                        "%s Suppressed CancelledError for next_event_task after signal.",
+                        "%s Suppressed CancelledError for next_event_task after cancellation signal",
                         component.log_identifier,
                     )
                 log.info(
-                    "%s Task %s cancellation detected while awaiting ADK event.",
+                    "%s Task %s cancellation detected while awaiting ADK event",
                     component.log_identifier,
                     logical_task_id,
                 )
@@ -299,7 +298,7 @@ async def run_adk_async_task(
                     await task
                 except asyncio.CancelledError:
                     log.debug(
-                        "%s Suppressed CancelledError for lingering task after event.",
+                        "%s Suppressed CancelledError for lingering task after event",
                         component.log_identifier,
                     )
 
@@ -310,6 +309,12 @@ async def run_adk_async_task(
 
             if event.long_running_tool_ids:
                 is_paused = True
+                log.debug(
+                    "%s Task %s paused - long-running tool invoked: %s",
+                    component.log_identifier,
+                    logical_task_id,
+                    event.long_running_tool_ids,
+                )
 
             if not event_loop_stored and event.invocation_id:
                 task_context.set_event_loop(current_loop)
@@ -320,11 +325,10 @@ async def run_adk_async_task(
                 await component.process_and_publish_adk_event(event, a2a_context)
             except Exception as process_err:
                 log.exception(
-                    "%s Error processing intermediate ADK event %s for task %s: %s",
+                    "%s Failed to process ADK event %s for task %s",
                     component.log_identifier,
                     event.id,
                     logical_task_id,
-                    process_err,
                 )
 
             if task_context.is_cancelled():
@@ -342,24 +346,24 @@ async def run_adk_async_task(
         raise
     except BadRequestError as e:
         log.error(
-            "%s Bad Request for task %s: %s.",
+            "%s Bad request error for task %s: %s",
             component.log_identifier,
             logical_task_id,
-            e.message
+            e.message,
+            exc_info=True,
         )
         raise
     except Exception as e:
         log.exception(
-            "%s Unexpected error in ADK runner loop for task %s: %s",
+            "%s Unexpected error in ADK runner loop for task %s",
             component.log_identifier,
             logical_task_id,
-            e,
         )
         raise
 
     if task_context.is_cancelled():
         log.info(
-            "%s Task %s cancellation detected before finalization.",
+            "%s Task %s cancellation detected before finalization",
             component.log_identifier,
             logical_task_id,
         )
@@ -369,14 +373,14 @@ async def run_adk_async_task(
 
     if is_paused:
         log.info(
-            "%s ADK run completed by invoking a long-running tool. Task %s will remain open, awaiting peer response.",
+            "%s Task %s paused - awaiting peer response for long-running tool",
             component.log_identifier,
             logical_task_id,
         )
         return True
 
     log.debug(
-        "%s ADK run_async completed for task %s. Returning to wrapper for finalization.",
+        "%s ADK run_async completed for task %s - returning to wrapper for finalization",
         component.log_identifier,
         logical_task_id,
     )
