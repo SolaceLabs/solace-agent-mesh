@@ -78,6 +78,7 @@ from ...agent.adk.stream_parser import (
 )
 
 log = logging.getLogger(__name__)
+trace_logger = logging.getLogger("sam_trace")
 
 A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 
@@ -112,8 +113,8 @@ async def _publish_data_part_status_update(
             loop,
         )
     else:
-        log.error(
-            "%s Async loop not available. Cannot publish status update.",
+        log.warning(
+            "%s Async loop not available, skipping status update",
             host_component.log_identifier,
         )
 
@@ -202,8 +203,8 @@ async def process_artifact_blocks_callback(
                             )
 
                     elif isinstance(event, BlockCompletedEvent):
-                        log.info(
-                            "%s Event: BlockCompleted. Content length: %d",
+                        log.debug(
+                            "%s BlockCompleted: content_length=%d",
                             log_identifier,
                             len(event.content),
                         )
@@ -221,7 +222,7 @@ async def process_artifact_blocks_callback(
                         filename = params.get("filename")
                         if not filename or not filename.strip():
                             log.warning(
-                                "%s Fenced artifact block is missing a valid 'filename'. Failing operation.",
+                                "%s Missing or empty 'filename' parameter in artifact block",
                                 log_identifier,
                             )
                             session.state["completed_artifact_blocks_list"].append(
@@ -253,7 +254,7 @@ async def process_artifact_blocks_callback(
                                 )
                             except (ValueError, TypeError):
                                 log.warning(
-                                    "%s Invalid 'schema_max_keys' value '%s'. Ignoring.",
+                                    "%s Invalid 'schema_max_keys' value %r, using default",
                                     log_identifier,
                                     params["schema_max_keys"],
                                 )
@@ -281,16 +282,16 @@ async def process_artifact_blocks_callback(
                                         task_context.register_produced_artifact(
                                             filename, version_for_tool
                                         )
-                                        log.info(
-                                            "%s Registered inline artifact '%s' v%d for task %s.",
+                                        log.debug(
+                                            "%s Registered inline artifact %s v%d for task %s",
                                             log_identifier,
                                             filename,
                                             version_for_tool,
                                             logical_task_id,
                                         )
                                 else:
-                                    log.warning(
-                                        "%s No logical_task_id, cannot register inline artifact.",
+                                    log.debug(
+                                        "%s No logical_task_id available, skipping artifact registration",
                                         log_identifier,
                                     )
                             except Exception as e_track:
@@ -298,6 +299,7 @@ async def process_artifact_blocks_callback(
                                     "%s Failed to track inline artifact: %s",
                                     log_identifier,
                                     e_track,
+                                    exc_info=True,
                                 )
                         else:
                             status_for_tool = "error"
@@ -342,7 +344,7 @@ async def process_artifact_blocks_callback(
         for event in final_parser_result.events:
             if isinstance(event, BlockCompletedEvent):
                 log.warning(
-                    "%s Unterminated artifact block detected at end of turn.",
+                    "%s Unterminated artifact block at end of turn",
                     log_identifier,
                 )
                 params = event.params
@@ -386,8 +388,8 @@ async def process_artifact_blocks_callback(
         # Check if any blocks were completed and need to be injected into the final response
         completed_blocks_list = session.state.get("completed_artifact_blocks_list")
         if completed_blocks_list:
-            log.info(
-                "%s Injecting info for %d saved artifact(s) into final LlmResponse.",
+            log.debug(
+                "%s Injecting %d artifact notification(s) into final response",
                 log_identifier,
                 len(completed_blocks_list),
             )
@@ -481,8 +483,8 @@ def repair_history_callback(
                     next_content_is_valid_response = True
 
             if not next_content_is_valid_response:
-                log.warning(
-                    "%s Found dangling tool call in history for tool(s): %s. Repairing.",
+                log.info(
+                    "%s Repairing dangling tool call for: %s",
                     log_identifier,
                     [fc.name for fc in function_calls],
                 )
@@ -496,9 +498,7 @@ def repair_history_callback(
         i += 1
 
     if history_modified:
-        log.info(
-            "%s History was modified to repair dangling tool calls.", log_identifier
-        )
+        log.debug("%s History repaired for dangling tool calls", log_identifier)
 
     return None
 
@@ -567,8 +567,8 @@ async def manage_large_mcp_tool_responses_callback(
     The `tool_response` is the direct output from the tool's `run_async` method.
     """
     log_identifier = f"[Callback:ManageLargeMCPResponse:{tool.name}]"
-    log.info(
-        "%s Starting callback for tool response, type: %s",
+    log.debug(
+        "%s Processing tool response type=%s",
         log_identifier,
         type(tool_response).__name__,
     )
@@ -600,9 +600,9 @@ async def manage_large_mcp_tool_responses_callback(
         log.debug("%s MCPTool response is already a dictionary.", log_identifier)
     else:
         log.warning(
-            "%s MCPTool response is not a Pydantic model or dict (type: %s). Attempting to proceed, but serialization might fail.",
+            "%s Unexpected response type %s, attempting JSON serialization",
             log_identifier,
-            type(tool_response),
+            type(tool_response).__name__,
         )
         mcp_response_dict = tool_response
 
@@ -623,7 +623,10 @@ async def manage_large_mcp_tool_responses_callback(
         )
     except Exception as e:
         log.error(
-            "%s Error retrieving configuration: %s. Using defaults.", log_identifier, e
+            "%s Failed to retrieve configuration, using defaults: %s",
+            log_identifier,
+            e,
+            exc_info=True,
         )
         save_threshold = 2048
         llm_max_bytes = 4096
@@ -642,9 +645,10 @@ async def manage_large_mcp_tool_responses_callback(
             )
         except TypeError as e:
             log.error(
-                "%s Failed to serialize original MCP tool response dictionary: %s. Returning original response object.",
+                "%s JSON serialization failed, returning original response: %s",
                 log_identifier,
                 e,
+                exc_info=True,
             )
             return tool_response
         needs_truncation_for_llm = original_response_bytes > llm_max_bytes
@@ -662,7 +666,7 @@ async def manage_large_mcp_tool_responses_callback(
         )
         if save_result.status == McpSaveStatus.ERROR:
             log.warning(
-                "%s Failed to save artifact: %s. Proceeding without saved artifact details.",
+                "%s Artifact save failed: %s",
                 log_identifier,
                 save_result.message,
             )
@@ -688,7 +692,9 @@ async def manage_large_mcp_tool_responses_callback(
             "content": truncated_preview_str,
         }
         message_parts_for_llm.append(
-            f"The response from tool '{tool.name}' was too large ({original_response_bytes} bytes) for direct display and has been truncated."
+            "The response from tool '{}' was too large ({} bytes) for direct display and has been truncated.".format(
+                tool.name, original_response_bytes
+            )
         )
         log.debug("%s MCP tool output truncated for LLM.", log_identifier)
 
@@ -732,8 +738,8 @@ async def manage_large_mcp_tool_responses_callback(
                 final_llm_response_dict["saved_mcp_response_artifact_details"] = (
                     save_result.model_dump(exclude_none=True)
                 )
-            log.warning(
-                "%s Artifact save failed, error details included in LLM response.",
+            log.debug(
+                "%s Artifact save failed, including error details in response",
                 log_identifier,
             )
     else:
@@ -758,11 +764,11 @@ async def manage_large_mcp_tool_responses_callback(
         final_llm_response_dict["status"] = "processed"
 
     if not message_parts_for_llm:
-        message_parts_for_llm.append(f"Response from tool '{tool.name}' processed.")
+        message_parts_for_llm.append("Response from tool '{}' processed.".format(tool.name))
     final_llm_response_dict["message_to_llm"] = " ".join(message_parts_for_llm)
 
-    log.info(
-        "%s Returning processed response for LLM. Final status: %s",
+    log.debug(
+        "%s Processed response status=%s",
         log_identifier,
         final_llm_response_dict.get("status", "unknown"),
     )
@@ -926,7 +932,7 @@ def inject_dynamic_instructions_callback(
 
     if not host_component:
         log.error(
-            "%s Host component instance not provided. Cannot inject instructions.",
+            "%s Host component not provided, cannot inject instructions",
             log_identifier,
         )
         return None
@@ -970,20 +976,19 @@ If a plan is created:
             )
             if agent_instruction_str and isinstance(agent_instruction_str, str):
                 injected_instructions.append(agent_instruction_str)
-                log.info(
-                    "%s Injected instructions from agent callback.", log_identifier
-                )
+                log.debug("%s Added agent callback instructions", log_identifier)
             elif agent_instruction_str:
                 log.warning(
-                    "%s Agent instruction callback returned non-string type: %s. Ignoring.",
+                    "%s Agent callback returned non-string type %s, ignoring",
                     log_identifier,
-                    type(agent_instruction_str),
+                    type(agent_instruction_str).__name__,
                 )
         except Exception as e_cb:
             log.error(
-                "%s Error in agent-provided system instruction callback: %s. Skipping.",
+                "%s Agent instruction callback failed: %s",
                 log_identifier,
                 e_cb,
+                exc_info=True,
             )
     if host_component._agent_system_instruction_string:
         log.debug(
@@ -992,23 +997,28 @@ If a plan is created:
         agent_instruction_str = host_component._agent_system_instruction_string
         if agent_instruction_str and isinstance(agent_instruction_str, str):
             injected_instructions.append(agent_instruction_str)
-            log.info("%s Injected static instructions from agent.", log_identifier)
+            log.debug("%s Added static agent instructions", log_identifier)
 
-    contents = llm_request.contents
-    if contents:
-        log.debug("\n\n### LLM Request Contents ###")
-        for content in contents:
-            if content.parts:
-                for part in content.parts:
-                    if part.text:
-                        log.debug("Content part: %s", part.text)
-                    elif part.function_call:
-                        log.debug("Function call: %s", part.function_call.name)
-                    elif part.function_response:
-                        log.debug("Function response: %s", part.function_response)
-                    else:
-                        log.debug("raw: %s", part)
-        log.debug("### End LLM Request Contents ###\n\n")
+    if trace_logger.isEnabledFor(logging.DEBUG):
+        contents = llm_request.contents
+        if contents:
+            trace_logger.debug("[%s] ### LLM Request Contents ###", __name__)
+            for content in contents:
+                if content.parts:
+                    for part in content.parts:
+                        if part.text:
+                            trace_logger.debug("[%s] Content part: %s", __name__, part.text)
+                        elif part.function_call:
+                            trace_logger.debug(
+                                "[%s] Function call: %s", __name__, part.function_call.name
+                            )
+                        elif part.function_response:
+                            trace_logger.debug(
+                                "[%s] Function response: %s", __name__, part.function_response
+                            )
+                        else:
+                            trace_logger.debug("[%s] raw: %s", __name__, part)
+            trace_logger.debug("[%s] ### End LLM Request Contents ###", __name__)
 
     if host_component.get_config("enable_embed_resolution", True):
         include_artifact_content_instr = host_component.get_config(
@@ -1082,21 +1092,22 @@ If a plan is created:
                 llm_request.contents.append(last_call_content)
                 last_call_notification_message_added = True
                 log.info(
-                    "%s Added 'last LLM call' notification as a 'model' message to llm_request.contents. Current calls (%d) reached max_llm_calls (%d).",
+                    "%s Added final call notification: current=%d max=%d",
                     log_identifier,
                     current_llm_calls,
                     max_llm_calls,
                 )
     except Exception as e_last_call:
         log.error(
-            "%s Error checking/injecting last LLM call notification message: %s",
+            "%s Failed to inject final call notification: %s",
             log_identifier,
             e_last_call,
+            exc_info=True,
         )
 
     if host_component.get_config("inject_current_time", True):
         current_time = datetime.now(timezone.utc).strftime("%A, %d %b %Y %H:%M:%S UTC")
-        instruction = f"Current time {current_time}."
+        instruction = "Current time {}.".format(current_time)
         injected_instructions.append(instruction)
 
     if injected_instructions:
@@ -1116,8 +1127,8 @@ If a plan is created:
                 )
             else:
                 llm_request.config.system_instruction = combined_instructions
-            log.info(
-                "%s Injected %d dynamic instruction block(s) into llm_request.config.system_instruction.",
+            log.debug(
+                "%s Injected %d instruction block(s)",
                 log_identifier,
                 len(injected_instructions),
             )
@@ -1142,33 +1153,25 @@ async def after_tool_callback_inject_metadata(
     newly created artifacts into the tool's response dictionary.
     """
     log_identifier = f"[Callback:InjectMetadata:{tool.name}]"
-    log.info(
-        "%s Starting metadata injection for tool response, type: %s",
+    log.debug(
+        "%s Processing metadata injection for response type=%s",
         log_identifier,
         type(tool_response).__name__,
     )
 
     if not host_component:
-        log.error(
-            "%s Host component instance not provided. Cannot proceed.",
-            log_identifier,
-        )
+        log.error("%s Host component not provided, cannot proceed", log_identifier)
         return None
 
     if not tool_context.actions.artifact_delta:
-        log.debug(
-            "%s No artifact delta found. Skipping metadata injection.", log_identifier
-        )
+        log.debug("%s No artifact delta, skipping metadata injection", log_identifier)
         return None
 
     artifact_service: Optional[BaseArtifactService] = (
         tool_context._invocation_context.artifact_service
     )
     if not artifact_service:
-        log.error(
-            "%s ArtifactService not available. Cannot load metadata.",
-            log_identifier,
-        )
+        log.error("%s ArtifactService not available, cannot load metadata", log_identifier)
         return None
 
     app_name = tool_context._invocation_context.app_name
@@ -1179,18 +1182,14 @@ async def after_tool_callback_inject_metadata(
 
     for filename, version in tool_context.actions.artifact_delta.items():
         if filename.endswith(METADATA_SUFFIX):
-            log.debug(
-                "%s Skipping metadata artifact '%s' itself.", log_identifier, filename
-            )
+            log.debug("%s Skipping metadata artifact %s", log_identifier, filename)
             continue
 
-        metadata_filename = f"{filename}{METADATA_SUFFIX}"
+        metadata_filename = "{}{}".format(filename, METADATA_SUFFIX)
         log.debug(
-            "%s Found data artifact '%s' v%d. Attempting to load metadata '%s' v%d.",
+            "%s Loading metadata for artifact %s v%d",
             log_identifier,
             filename,
-            version,
-            metadata_filename,
             version,
         )
 
@@ -1212,15 +1211,15 @@ async def after_tool_callback_inject_metadata(
                     metadata_dict["filename"] = filename
                     formatted_text = format_metadata_for_llm(metadata_dict)
                     metadata_texts.append(formatted_text)
-                    log.info(
-                        "%s Successfully loaded and formatted metadata for '%s' v%d.",
+                    log.debug(
+                        "%s Loaded metadata for %s v%d",
                         log_identifier,
                         filename,
                         version,
                     )
                 except json.JSONDecodeError as json_err:
                     log.warning(
-                        "%s Failed to parse metadata JSON for '%s' v%d: %s",
+                        "%s Metadata JSON parse failed for %s v%d: %s",
                         log_identifier,
                         metadata_filename,
                         version,
@@ -1228,15 +1227,16 @@ async def after_tool_callback_inject_metadata(
                     )
                 except Exception as fmt_err:
                     log.warning(
-                        "%s Failed to format metadata for '%s' v%d: %s",
+                        "%s Metadata format failed for %s v%d: %s",
                         log_identifier,
                         metadata_filename,
                         version,
                         fmt_err,
+                        exc_info=True,
                     )
             else:
-                log.warning(
-                    "%s Companion metadata artifact '%s' v%d not found or empty.",
+                log.debug(
+                    "%s Metadata artifact %s v%d not found",
                     log_identifier,
                     metadata_filename,
                     version,
@@ -1244,36 +1244,33 @@ async def after_tool_callback_inject_metadata(
 
         except Exception as load_err:
             log.error(
-                "%s Error loading companion metadata artifact '%s' v%d: %s",
+                "%s Failed to load metadata %s v%d: %s",
                 log_identifier,
                 metadata_filename,
                 version,
                 load_err,
+                exc_info=True,
             )
 
     if metadata_texts:
         if not isinstance(tool_response, dict):
             log.error(
-                "%s Tool response is not a dictionary. Cannot inject metadata. Type: %s",
+                "%s Tool response type %s is not dict, cannot inject metadata",
                 log_identifier,
-                type(tool_response),
+                type(tool_response).__name__,
             )
             return None
 
         combined_metadata_text = "\n\n".join(metadata_texts)
         tool_response[METADATA_RESPONSE_KEY] = combined_metadata_text
-        log.info(
-            "%s Injected metadata for %d artifact(s) into tool response key '%s'.",
+        log.debug(
+            "%s Injected metadata for %d artifact(s)",
             log_identifier,
             len(metadata_texts),
-            METADATA_RESPONSE_KEY,
         )
         return tool_response
     else:
-        log.debug(
-            "%s No metadata loaded or formatted. Returning original tool response.",
-            log_identifier,
-        )
+        log.debug("%s No metadata loaded, skipping injection", log_identifier)
         return None
 
 
@@ -1290,34 +1287,29 @@ async def track_produced_artifacts_callback(
     TaskExecutionContext.
     """
     log_identifier = f"[Callback:TrackArtifacts:{tool.name}]"
-    log.debug("%s Starting artifact tracking for tool response.", log_identifier)
+    log.debug("%s Processing artifact tracking", log_identifier)
 
     if not tool_context.actions.artifact_delta:
-        log.debug("%s No artifact delta found. Skipping tracking.", log_identifier)
+        log.debug("%s No artifact delta, skipping tracking", log_identifier)
         return None
 
     if not host_component:
-        log.error(
-            "%s Host component instance not provided. Cannot proceed.", log_identifier
-        )
+        log.error("%s Host component not provided, cannot proceed", log_identifier)
         return None
 
     try:
         a2a_context = tool_context.state.get("a2a_context", {})
         logical_task_id = a2a_context.get("logical_task_id")
         if not logical_task_id:
-            log.warning(
-                "%s Could not find logical_task_id in tool_context. Cannot track artifacts.",
-                log_identifier,
-            )
+            log.debug("%s No logical_task_id, cannot track artifacts", log_identifier)
             return None
 
         with host_component.active_tasks_lock:
             task_context = host_component.active_tasks.get(logical_task_id)
 
         if not task_context:
-            log.warning(
-                "%s TaskExecutionContext not found for task %s. Cannot track artifacts.",
+            log.debug(
+                "%s TaskExecutionContext not found for task %s",
                 log_identifier,
                 logical_task_id,
             )
@@ -1326,8 +1318,8 @@ async def track_produced_artifacts_callback(
         for filename, version in tool_context.actions.artifact_delta.items():
             if filename.endswith(METADATA_SUFFIX):
                 continue
-            log.info(
-                "%s Registering produced artifact '%s' v%d for task %s.",
+            log.debug(
+                "%s Registered artifact %s v%d for task %s",
                 log_identifier,
                 filename,
                 version,
@@ -1336,8 +1328,11 @@ async def track_produced_artifacts_callback(
             task_context.register_produced_artifact(filename, version)
 
     except Exception as e:
-        log.exception(
-            "%s Error during artifact tracking callback: %s", log_identifier, e
+        log.error(
+            "%s Artifact tracking failed: %s",
+            log_identifier,
+            e,
+            exc_info=True,
         )
 
     return None
@@ -1364,7 +1359,7 @@ def log_streaming_chunk_callback(
             content_str = f"[ERROR: {llm_response.error_message}]"
 
     except Exception as e:
-        log.error("%s Error logging LLM chunk: %s", log_identifier, e)
+        log.error("%s Error logging LLM chunk: %s", log_identifier, e, exc_info=True)
 
     return None
 
@@ -1379,29 +1374,19 @@ def solace_llm_invocation_callback(
     using the host_component's process_and_publish_adk_event method.
     """
     log_identifier = "[Callback:SolaceLLMInvocation]"
-    log.debug(
-        "%s Running Solace LLM invocation notification callback...", log_identifier
-    )
+    log.debug("%s Processing LLM invocation notification", log_identifier)
 
     if not host_component:
-        log.error(
-            "%s Host component instance not provided. Cannot send Solace message.",
-            log_identifier,
-        )
+        log.error("%s Host component not provided, cannot send message", log_identifier)
         return None
 
     callback_context.state[A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY] = False
-    log.debug(
-        "%s Reset %s to False.", log_identifier, A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY
-    )
+    log.debug("%s Reset stream chunks flag", log_identifier)
 
     try:
         a2a_context = callback_context.state.get("a2a_context")
         if not a2a_context:
-            log.error(
-                "%s a2a_context not found in callback_context.state. Cannot send Solace message.",
-                log_identifier,
-            )
+            log.error("%s a2a_context not found, cannot send message", log_identifier)
             return None
 
         logical_task_id = a2a_context.get("logical_task_id")
@@ -1431,19 +1416,16 @@ def solace_llm_invocation_callback(
                 ),
                 loop,
             )
-            log.debug(
-                "%s Scheduled LLM invocation status update with buffer flush.",
-                log_identifier,
-            )
+            log.debug("%s Scheduled LLM invocation status update", log_identifier)
         else:
-            log.error(
-                "%s Async loop not available. Cannot publish LLM invocation status update.",
-                log_identifier,
-            )
+            log.warning("%s Async loop not available, skipping status update", log_identifier)
 
     except Exception as e:
         log.error(
-            "%s Error during Solace LLM invocation notification: %s", log_identifier, e
+            "%s LLM invocation notification failed: %s",
+            log_identifier,
+            e,
+            exc_info=True,
         )
 
     return None
@@ -1464,19 +1446,13 @@ def solace_llm_response_callback(
         return None
 
     if not host_component:
-        log.error(
-            "%s Host component instance not provided. Cannot send Solace message.",
-            log_identifier,
-        )
+        log.error("%s Host component not provided, cannot send message", log_identifier)
         return None
 
     try:
         a2a_context = callback_context.state.get("a2a_context")
         if not a2a_context:
-            log.error(
-                "%s a2a_context not found in callback_context.state. Cannot send Solace message.",
-                log_identifier,
-            )
+            log.error("%s a2a_context not found, cannot send message", log_identifier)
             return None
 
         agent_name = host_component.get_config("agent_name", "unknown_agent")
@@ -1555,19 +1531,19 @@ def solace_llm_response_callback(
                 loop,
             )
             log.debug(
-                "%s Scheduled LLM response status update with buffer flush (final_chunk=%s).",
+                "%s Scheduled LLM response status update: final_chunk=%s",
                 log_identifier,
                 llm_response.turn_complete,
             )
         else:
-            log.error(
-                "%s Async loop not available. Cannot publish LLM response status update.",
-                log_identifier,
-            )
+            log.warning("%s Async loop not available, skipping status update", log_identifier)
 
     except Exception as e:
         log.error(
-            "%s Error during Solace LLM response notification: %s", log_identifier, e
+            "%s LLM response notification failed: %s",
+            log_identifier,
+            e,
+            exc_info=True,
         )
 
     return None
@@ -1584,23 +1560,15 @@ def notify_tool_invocation_start_callback(
     that a tool is about to be invoked.
     """
     log_identifier = f"[Callback:NotifyToolInvocationStart:{tool.name}]"
-    log.debug(
-        "%s Triggered for tool '%s' with args: %s", log_identifier, tool.name, args
-    )
+    log.debug("%s Processing tool invocation notification", log_identifier)
 
     if not host_component:
-        log.error(
-            "%s Host component instance not provided. Cannot send notification.",
-            log_identifier,
-        )
+        log.error("%s Host component not provided, cannot send notification", log_identifier)
         return
 
     a2a_context = tool_context.state.get("a2a_context")
     if not a2a_context:
-        log.error(
-            "%s a2a_context not found in tool_context.state. Cannot send notification.",
-            log_identifier,
-        )
+        log.error("%s a2a_context not found, cannot send notification", log_identifier)
         return
 
     try:
@@ -1621,16 +1589,14 @@ def notify_tool_invocation_start_callback(
             _publish_data_part_status_update(host_component, a2a_context, tool_data),
             host_component.get_async_loop(),
         )
-        log.debug(
-            "%s Scheduled tool_invocation_start notification.",
-            log_identifier,
-        )
+        log.debug("%s Scheduled tool invocation notification", log_identifier)
 
     except Exception as e:
-        log.exception(
-            "%s Error publishing tool_invocation_start status update: %s",
+        log.error(
+            "%s Tool invocation notification failed: %s",
             log_identifier,
             e,
+            exc_info=True,
         )
 
     return None
@@ -1648,28 +1614,19 @@ def notify_tool_execution_result_callback(
     of a tool's execution.
     """
     log_identifier = f"[Callback:NotifyToolResult:{tool.name}]"
-    log.debug("%s Triggered for tool '%s'", log_identifier, tool.name)
+    log.debug("%s Processing tool result notification", log_identifier)
 
     if not host_component:
-        log.error(
-            "%s Host component instance not provided. Cannot send notification.",
-            log_identifier,
-        )
+        log.error("%s Host component not provided, cannot send notification", log_identifier)
         return
 
     a2a_context = tool_context.state.get("a2a_context")
     if not a2a_context:
-        log.error(
-            "%s a2a_context not found in tool_context.state. Cannot send notification.",
-            log_identifier,
-        )
+        log.error("%s a2a_context not found, cannot send notification", log_identifier)
         return
 
     if tool.is_long_running and not tool_response:
-        log.debug(
-            "%s Tool is long-running and is not yet complete. Don't notify its completion",
-            log_identifier,
-        )
+        log.debug("%s Long-running tool incomplete, skipping completion notification", log_identifier)
         return
 
     try:
@@ -1695,16 +1652,17 @@ def notify_tool_execution_result_callback(
             host_component.get_async_loop(),
         )
         log.debug(
-            "%s Scheduled tool_result notification for function call ID %s.",
+            "%s Scheduled tool result notification for call_id=%s",
             log_identifier,
             tool_context.function_call_id,
         )
 
     except Exception as e:
-        log.exception(
-            "%s Error publishing tool_result status update: %s",
+        log.error(
+            "%s Tool result notification failed: %s",
             log_identifier,
             e,
+            exc_info=True,
         )
 
     return None
@@ -1741,7 +1699,7 @@ def auto_continue_on_max_tokens_callback(
         return None
 
     log.info(
-        "%s Interruption signal detected (explicit: %s, implicit: %s). Triggering auto-continuation.",
+        "%s Interruption detected: explicit=%s implicit=%s",
         log_identifier,
         was_explicitly_interrupted,
         was_implicitly_interrupted,
@@ -1757,10 +1715,7 @@ def auto_continue_on_max_tokens_callback(
             if not (p.function_call and p.function_call.name == "_continue")
         ]
         if was_implicitly_interrupted:
-            log.debug(
-                "%s Removed implicit '_continue' tool call from response parts.",
-                log_identifier,
-            )
+            log.debug("%s Removed implicit '_continue' tool call", log_identifier)
 
     continue_tool_call = adk_types.FunctionCall(
         name="_continue_generation",
@@ -1775,9 +1730,7 @@ def auto_continue_on_max_tokens_callback(
     # the event is not filtered out by history processing logic.
     if not any(p.text for p in existing_parts):
         all_parts.insert(0, adk_types.Part(text=" "))
-        log.debug(
-            "%s Prepended empty text part to ensure event is preserved.", log_identifier
-        )
+        log.debug("%s Prepended empty text part to preserve event", log_identifier)
 
     # Create a new, non-interrupted LlmResponse containing all parts.
     # This ensures the partial text is saved to history and the tool call is executed.

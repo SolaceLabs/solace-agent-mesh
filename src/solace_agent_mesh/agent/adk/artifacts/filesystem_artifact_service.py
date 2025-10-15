@@ -45,12 +45,12 @@ class FilesystemArtifactService(BaseArtifactService):
         try:
             os.makedirs(self.base_path, exist_ok=True)
             logger.info(
-                "FilesystemArtifactService initialized. Base path: %s",
+                "Initialized FilesystemArtifactService: type=filesystem base_path=%s scope_support=session,user",
                 self.base_path,
             )
         except OSError as e:
             logger.error(
-                "Failed to create base directory '%s': %s",
+                "Failed to create artifact base directory at '%s': %s - Check directory permissions and disk space",
                 self.base_path,
                 e,
             )
@@ -118,7 +118,7 @@ class FilesystemArtifactService(BaseArtifactService):
             await asyncio.to_thread(os.makedirs, artifact_dir, exist_ok=True)
         except OSError as e:
             logger.error(
-                "%sFailed to create artifact directory '%s': %s",
+                "%sFailed to create artifact directory at '%s': %s - Check directory permissions",
                 log_prefix,
                 artifact_dir,
                 e,
@@ -148,7 +148,7 @@ class FilesystemArtifactService(BaseArtifactService):
                     f.write(artifact.inline_data.data)
                     f.flush()
                     os.fsync(f.fileno())
-                logger.debug("%sWrote data to %s", log_prefix, version_path)
+                logger.debug("%sWrote artifact data: path=%s", log_prefix, version_path)
 
             def _write_metadata_file():
                 """Write artifact metadata and fsync to disk."""
@@ -156,7 +156,7 @@ class FilesystemArtifactService(BaseArtifactService):
                     json.dump(metadata, f)
                     f.flush()
                     os.fsync(f.fileno())
-                logger.debug("%sWrote metadata to %s", log_prefix, metadata_path)
+                logger.debug("%sWrote artifact metadata: path=%s", log_prefix, metadata_path)
 
             # Run file writes concurrently and wait for both to complete
             await asyncio.gather(
@@ -165,7 +165,7 @@ class FilesystemArtifactService(BaseArtifactService):
             )
 
             logger.info(
-                "%sSaved artifact '%s' version %d successfully.",
+                "%sSaved artifact: filename=%s version=%d",
                 log_prefix,
                 filename,
                 version,
@@ -173,7 +173,7 @@ class FilesystemArtifactService(BaseArtifactService):
             return version
         except (OSError, ValueError, TypeError) as e:
             logger.error(
-                "%sFailed to save artifact '%s' version %d: %s",
+                "%sFailed to save artifact: filename=%s version=%d error=%s",
                 log_prefix,
                 filename,
                 version,
@@ -200,7 +200,7 @@ class FilesystemArtifactService(BaseArtifactService):
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
 
         if not await asyncio.to_thread(os.path.isdir, artifact_dir):
-            logger.debug("%sArtifact directory not found: %s", log_prefix, artifact_dir)
+            logger.debug("%sArtifact directory not found: path=%s", log_prefix, artifact_dir)
             return None
 
         load_version = version
@@ -212,12 +212,12 @@ class FilesystemArtifactService(BaseArtifactService):
                 filename=filename,
             )
             if not versions:
-                logger.debug("%sNo versions found for artifact.", log_prefix)
+                logger.debug("%sNo versions available", log_prefix)
                 return None
             load_version = max(versions)
-            logger.debug("%sLoading latest version: %d", log_prefix, load_version)
+            logger.debug("%sLoading latest version=%d", log_prefix, load_version)
         else:
-            logger.debug("%sLoading specified version: %d", log_prefix, load_version)
+            logger.debug("%sLoading specified version=%d", log_prefix, load_version)
 
         version_path = self._get_version_path(artifact_dir, load_version)
         metadata_path = self._get_metadata_path(artifact_dir, load_version)
@@ -226,7 +226,7 @@ class FilesystemArtifactService(BaseArtifactService):
             os.path.exists, version_path
         ) or not await asyncio.to_thread(os.path.exists, metadata_path):
             logger.warning(
-                "%sData or metadata file missing for version %d.",
+                "%sArtifact files missing for version=%d - Data or metadata file not found",
                 log_prefix,
                 load_version,
             )
@@ -251,7 +251,7 @@ class FilesystemArtifactService(BaseArtifactService):
                 data=data_bytes, mime_type=mime_type
             )
             logger.info(
-                "%sLoaded artifact '%s' version %d successfully (%d bytes, %s).",
+                "%sLoaded artifact: filename=%s version=%d size_bytes=%d mime_type=%s",
                 log_prefix,
                 filename,
                 load_version,
@@ -262,7 +262,7 @@ class FilesystemArtifactService(BaseArtifactService):
 
         except (OSError, json.JSONDecodeError) as e:
             logger.error(
-                "%sFailed to load artifact '%s' version %d: %s",
+                "%sFailed to load artifact: filename=%s version=%d error=%s",
                 log_prefix,
                 filename,
                 load_version,
@@ -291,7 +291,7 @@ class FilesystemArtifactService(BaseArtifactService):
                         filenames.add(item)
             except OSError as e:
                 logger.warning(
-                    "%sError listing session directory '%s': %s",
+                    "%sFailed to list session directory: path=%s error=%s",
                     log_prefix,
                     session_base_dir,
                     e,
@@ -308,14 +308,14 @@ class FilesystemArtifactService(BaseArtifactService):
                         filenames.add(f"user:{item}")
             except OSError as e:
                 logger.warning(
-                    "%sError listing user directory '%s': %s",
+                    "%sFailed to list user directory: path=%s error=%s",
                     log_prefix,
                     user_base_dir,
                     e,
                 )
 
         sorted_filenames = sorted(list(filenames))
-        logger.debug("%sFound %d artifact keys.", log_prefix, len(sorted_filenames))
+        logger.debug("%sFound artifact_count=%d", log_prefix, len(sorted_filenames))
         return sorted_filenames
 
     @override
@@ -326,20 +326,23 @@ class FilesystemArtifactService(BaseArtifactService):
         artifact_dir = self._get_artifact_dir(app_name, user_id, session_id, filename)
 
         if not await asyncio.to_thread(os.path.isdir, artifact_dir):
-            logger.debug("%sArtifact directory not found: %s", log_prefix, artifact_dir)
+            logger.debug("%sArtifact directory not found: path=%s", log_prefix, artifact_dir)
             return
 
         try:
             await asyncio.to_thread(shutil.rmtree, artifact_dir)
             logger.info(
-                "%sRemoved artifact directory and all its contents: %s",
+                "%sDeleted artifact: filename=%s path=%s",
                 log_prefix,
+                filename,
                 artifact_dir,
             )
         except OSError as e:
             logger.error(
-                "%sError deleting artifact directory '%s'",
+                "%sFailed to delete artifact: filename=%s path=%s error=%s",
                 log_prefix,
+                filename,
+                artifact_dir,
                 e,
             )
 
@@ -352,7 +355,7 @@ class FilesystemArtifactService(BaseArtifactService):
         versions = []
 
         if not await asyncio.to_thread(os.path.isdir, artifact_dir):
-            logger.debug("%sArtifact directory not found: %s", log_prefix, artifact_dir)
+            logger.debug("%sArtifact directory not found: path=%s", log_prefix, artifact_dir)
             return []
 
         try:
@@ -365,11 +368,11 @@ class FilesystemArtifactService(BaseArtifactService):
                 ):
                     versions.append(int(item))
         except OSError as e:
-            logger.error("%sError listing versions in directory '%s'", log_prefix, e)
+            logger.error("%sFailed to list versions: path=%s error=%s", log_prefix, artifact_dir, e)
             return []
 
         sorted_versions = sorted(versions)
-        logger.debug("%sFound versions: %s", log_prefix, sorted_versions)
+        logger.debug("%sFound version_count=%d versions=%s", log_prefix, len(sorted_versions), sorted_versions)
         return sorted_versions
 
     def _normalize_filename_unicode(self, filename: str) -> str:

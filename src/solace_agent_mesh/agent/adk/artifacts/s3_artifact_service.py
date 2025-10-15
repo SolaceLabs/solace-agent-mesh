@@ -78,7 +78,9 @@ class S3ArtifactService(BaseArtifactService):
             try:
                 self.s3 = boto3.client("s3", **kwargs)
             except NoCredentialsError as e:
-                logger.error("AWS credentials not found. Please configure credentials.")
+                logger.critical(
+                    "AWS credentials not found - cannot initialize S3ArtifactService"
+                )
                 raise ValueError(
                     "AWS credentials not found. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables or configure AWS credentials."
                 ) from e
@@ -88,23 +90,33 @@ class S3ArtifactService(BaseArtifactService):
         try:
             self.s3.head_bucket(Bucket=self.bucket_name)
             logger.info(
-                "S3ArtifactService initialized successfully. Bucket: %s",
+                "Artifact Service Type: S3 | Artifact Storage Bucket: %s",
                 self.bucket_name,
             )
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
             if error_code == "404":
-                logger.error("S3 bucket '%s' does not exist", self.bucket_name)
+                logger.critical(
+                    "S3 bucket does not exist - cannot initialize S3ArtifactService: %s",
+                    self.bucket_name,
+                )
                 raise ValueError(
                     f"S3 bucket '{self.bucket_name}' does not exist"
                 ) from e
             elif error_code == "403":
-                logger.error("Access denied to S3 bucket '%s'", self.bucket_name)
+                logger.critical(
+                    "Access denied to S3 bucket - cannot initialize S3ArtifactService: %s",
+                    self.bucket_name,
+                )
                 raise ValueError(
                     f"Access denied to S3 bucket '{self.bucket_name}'"
                 ) from e
             else:
-                logger.error("Failed to access S3 bucket '%s': %s", self.bucket_name, e)
+                logger.critical(
+                    "Failed to access S3 bucket - cannot initialize S3ArtifactService: %s",
+                    self.bucket_name,
+                    exc_info=True,
+                )
                 raise ValueError(
                     f"Failed to access S3 bucket '{self.bucket_name}': {e}"
                 ) from e
@@ -183,9 +195,8 @@ class S3ArtifactService(BaseArtifactService):
             await asyncio.to_thread(_put_object)
 
             logger.info(
-                "%sSaved artifact '%s' version %d successfully to S3 key: %s",
+                "%sSaved artifact version %d to S3 (key: %s)",
                 log_prefix,
-                filename,
                 version,
                 object_key,
             )
@@ -193,22 +204,20 @@ class S3ArtifactService(BaseArtifactService):
 
         except ClientError as e:
             logger.error(
-                "%sFailed to save artifact '%s' version %d to S3: %s",
+                "%sFailed to save artifact version %d to S3",
                 log_prefix,
-                filename,
                 version,
-                e,
+                exc_info=True,
             )
             raise OSError(
                 f"Failed to save artifact version {version} to S3: {e}"
             ) from e
         except BotoCoreError as e:
             logger.error(
-                "%sBotoCore error saving artifact '%s' version %d: %s",
+                "%sBotoCore error saving artifact version %d",
                 log_prefix,
-                filename,
                 version,
-                e,
+                exc_info=True,
             )
             raise OSError(
                 f"BotoCore error saving artifact version {version}: {e}"
@@ -260,9 +269,8 @@ class S3ArtifactService(BaseArtifactService):
             artifact_part = adk_types.Part.from_bytes(data=data, mime_type=mime_type)
 
             logger.info(
-                "%sLoaded artifact '%s' version %d successfully (%d bytes, %s)",
+                "%sLoaded artifact version %d from S3 (%d bytes, %s)",
                 log_prefix,
-                filename,
                 load_version,
                 len(data),
                 mime_type,
@@ -272,24 +280,22 @@ class S3ArtifactService(BaseArtifactService):
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
             if error_code == "NoSuchKey":
-                logger.debug("%sArtifact not found: %s", log_prefix, object_key)
+                logger.debug("%sArtifact version %d not found in S3", log_prefix, load_version)
                 return None
             else:
-                logger.error(
-                    "%sFailed to load artifact '%s' version %d from S3: %s",
+                logger.warning(
+                    "%sFailed to load artifact version %d from S3",
                     log_prefix,
-                    filename,
                     load_version,
-                    e,
+                    exc_info=True,
                 )
                 return None
         except BotoCoreError as e:
-            logger.error(
-                "%sBotoCore error loading artifact '%s' version %d: %s",
+            logger.warning(
+                "%sBotoCore error loading artifact version %d",
                 log_prefix,
-                filename,
                 load_version,
-                e,
+                exc_info=True,
             )
             return None
 
@@ -348,7 +354,7 @@ class S3ArtifactService(BaseArtifactService):
             )
 
         sorted_filenames = sorted(list(filenames))
-        logger.debug("%sFound %d artifact keys.", log_prefix, len(sorted_filenames))
+        logger.debug("%sFound %d artifact keys", log_prefix, len(sorted_filenames))
         return sorted_filenames
 
     @override
@@ -368,7 +374,7 @@ class S3ArtifactService(BaseArtifactService):
         )
 
         if not versions:
-            logger.debug("%sNo versions found to delete for artifact.", log_prefix)
+            logger.debug("%sNo versions found to delete", log_prefix)
             return
 
         # Delete all versions
@@ -384,22 +390,18 @@ class S3ArtifactService(BaseArtifactService):
                     )
 
                 await asyncio.to_thread(_delete_object)
-                logger.debug(
-                    "%sDeleted version %d: %s", log_prefix, version, object_key
-                )
+                logger.debug("%sDeleted version %d from S3", log_prefix, version)
             except ClientError as e:
                 logger.warning(
-                    "%sFailed to delete version %d (%s): %s",
+                    "%sFailed to delete version %d from S3",
                     log_prefix,
                     version,
-                    object_key,
-                    e,
+                    exc_info=True,
                 )
 
         logger.info(
-            "%sDeleted artifact '%s' (%d versions)",
+            "%sDeleted artifact from S3 (%d versions)",
             log_prefix,
-            filename,
             len(versions),
         )
 
@@ -433,14 +435,14 @@ class S3ArtifactService(BaseArtifactService):
                             continue  # Skip non-integer versions
 
         except ClientError as e:
-            logger.error(
-                "%sError listing versions with prefix '%s': %s",
+            logger.warning(
+                "%sError listing versions from S3 (prefix: %s)",
                 log_prefix,
                 prefix,
-                e,
+                exc_info=True,
             )
             return []
 
         sorted_versions = sorted(versions)
-        logger.debug("%sFound versions: %s", log_prefix, sorted_versions)
+        logger.debug("%sFound %d versions in S3", log_prefix, len(sorted_versions))
         return sorted_versions

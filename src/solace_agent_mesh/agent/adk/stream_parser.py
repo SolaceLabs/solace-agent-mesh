@@ -3,10 +3,14 @@ A stateful stream parser for identifying and extracting fenced artifact blocks
 from an LLM's text stream.
 """
 
+import logging
 import re
 from enum import Enum, auto
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
+
+log = logging.getLogger(__name__)
+trace_logger = logging.getLogger("sam_trace")
 
 # --- Constants ---
 # These are duplicated from callbacks for now to keep the parser self-contained.
@@ -92,9 +96,14 @@ class FencedBlockStreamParser:
         self._block_params: Dict[str, Any] = {}
         self._progress_update_interval = progress_update_interval_bytes
         self._last_progress_update_size = 0
+        log.debug(
+            "Initialized FencedBlockStreamParser with progress_update_interval=%d bytes",
+            progress_update_interval_bytes,
+        )
 
     def _reset_state(self):
         """Resets the parser to its initial IDLE state."""
+        log.debug("Resetting parser state to IDLE")
         self._state = ParserState.IDLE
         self._speculative_buffer = ""
         self._artifact_buffer = ""
@@ -131,6 +140,7 @@ class FencedBlockStreamParser:
         This will perform a rollback on any partial block and return the
         buffered text.
         """
+        log.debug("Finalizing parser, current state: %s", self._state.name)
         user_text_parts: List[str] = []
         events: List[ParserEvent] = []
 
@@ -139,6 +149,10 @@ class FencedBlockStreamParser:
             rolled_back_text = self._speculative_buffer
             user_text_parts.append(rolled_back_text)
             events.append(BlockInvalidatedEvent(rolled_back_text=rolled_back_text))
+            log.debug(
+                "Rolled back potential block, text length: %d",
+                len(rolled_back_text),
+            )
         elif self._state == ParserState.IN_BLOCK:
             # The turn ended while inside a block. This is an error/failure.
             # The orchestrator (callback) will see this and know to fail the artifact.
@@ -149,6 +163,11 @@ class FencedBlockStreamParser:
                     params=self._block_params, content=self._artifact_buffer
                 )
             )
+            log.warning(
+                "Unterminated artifact block at end of stream, filename: %s, buffered content length: %d",
+                self._block_params.get("filename", "unknown"),
+                len(self._artifact_buffer),
+            )
 
         self._reset_state()
         return ParserResult("".join(user_text_parts), events)
@@ -158,6 +177,7 @@ class FencedBlockStreamParser:
         if char == BLOCK_START_SEQUENCE[0]:
             self._state = ParserState.POTENTIAL_BLOCK
             self._speculative_buffer += char
+            log.debug("State transition: IDLE -> POTENTIAL_BLOCK")
         else:
             user_text_parts.append(char)
 
@@ -177,6 +197,10 @@ class FencedBlockStreamParser:
                 self._block_params = dict(PARAMS_REGEX.findall(params_str))
                 events.append(BlockStartedEvent(params=self._block_params))
                 self._speculative_buffer = ""  # Clear buffer, we are done with it.
+                log.info(
+                    "State transition: POTENTIAL_BLOCK -> IN_BLOCK, filename: %s",
+                    self._block_params.get("filename", "unknown"),
+                )
             # else, we are still buffering the parameters line.
             return
 
@@ -190,6 +214,10 @@ class FencedBlockStreamParser:
         rolled_back_text = self._speculative_buffer
         user_text_parts.append(rolled_back_text)
         events.append(BlockInvalidatedEvent(rolled_back_text=rolled_back_text))
+        log.debug(
+            "Invalid block sequence detected, rolling back %d characters",
+            len(rolled_back_text),
+        )
         self._reset_state()
 
     def _process_in_block(self, char: str, events: List[ParserEvent]):
@@ -205,6 +233,11 @@ class FencedBlockStreamParser:
             events.append(
                 BlockCompletedEvent(params=self._block_params, content=final_content)
             )
+            log.info(
+                "State transition: IN_BLOCK -> IDLE (completed), filename: %s, content length: %d bytes",
+                self._block_params.get("filename", "unknown"),
+                len(final_content),
+            )
             self._reset_state()
         else:
             # Check if we should emit a progress update
@@ -219,3 +252,8 @@ class FencedBlockStreamParser:
                     BlockProgressedEvent(buffered_size=current_size, chunk=new_chunk)
                 )
                 self._last_progress_update_size = current_size
+                log.debug(
+                    "Block progress update: %d bytes buffered",
+                    current_size,
+                )
+

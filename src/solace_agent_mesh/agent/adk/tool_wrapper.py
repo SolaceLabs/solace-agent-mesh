@@ -56,7 +56,7 @@ class ADKToolWrapper:
             functools.update_wrapper(self, original_func)
         except AttributeError as e:
             log.debug(
-                "Could not fully update wrapper for tool '%s': %s. Using fallback attributes.",
+                "Failed to update wrapper metadata for tool '%s': %s - using fallback attributes",
                 self._tool_name,
                 e,
             )
@@ -72,7 +72,7 @@ class ADKToolWrapper:
             self.__closure__ = getattr(original_func, "__closure__", None)
         except AttributeError:
             log.debug(
-                "Could not delegate all dunder attributes for tool '%s'. This is normal for some built-in or C-based functions.",
+                "Skipping dunder attribute delegation for tool '%s' - normal for built-in or C-based functions",
                 self._tool_name,
             )
 
@@ -82,7 +82,7 @@ class ADKToolWrapper:
         except (ValueError, TypeError):
             self.__signature__ = None
             self._accepts_tool_config = False
-            log.warning("Could not determine signature for tool '%s'.", self._tool_name)
+            log.debug("Could not determine signature for tool '%s' - normal for some function types", self._tool_name)
 
     async def __call__(self, *args, **kwargs):
         # Allow overriding the context for embed resolution, e.g., when called from a callback
@@ -112,12 +112,12 @@ class ADKToolWrapper:
             for key, value in kwargs.items():
                 if key in self._raw_string_args and isinstance(value, str):
                     log.debug(
-                        "%s Skipping embed resolution for raw string kwarg '%s'",
+                        "%s Skipping embed resolution for raw string argument: %s",
                         log_identifier,
                         key,
                     )
                 elif isinstance(value, str) and EMBED_DELIMITER_OPEN in value:
-                    log.debug("%s Resolving embeds for kwarg '%s'", log_identifier, key)
+                    log.debug("%s Resolving embeds in argument: %s", log_identifier, key)
                     resolved_value, _, _ = await resolve_embeds_in_string(
                         text=value,
                         context=context_for_embeds,
@@ -129,7 +129,7 @@ class ADKToolWrapper:
                     resolved_kwargs[key] = resolved_value
         else:
             log.warning(
-                "%s ToolContext not found. Skipping embed resolution for all args.",
+                "%s ToolContext not available - skipping embed resolution for all arguments",
                 log_identifier,
             )
             resolved_args = list(args)
@@ -138,7 +138,7 @@ class ADKToolWrapper:
             resolved_kwargs["tool_config"] = self._tool_config
         elif self._tool_config:
             log.warning(
-                "%s Tool was provided a 'tool_config' but its function signature does not accept it. The config will be ignored.",
+                "%s Tool config provided but function signature does not accept 'tool_config' parameter - config will be ignored",
                 log_identifier,
             )
 
@@ -154,7 +154,7 @@ class ADKToolWrapper:
                     ),
                 )
         except Exception as e:
-            log.exception("%s Tool execution failed: %s", log_identifier, e)
+            log.exception("%s Tool execution failed", log_identifier)
             return {
                 "status": "error",
                 "message": f"Tool '{self._tool_name}' failed with an unexpected error: {str(e)}",

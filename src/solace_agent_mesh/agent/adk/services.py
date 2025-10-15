@@ -177,24 +177,42 @@ def initialize_session_service(component) -> BaseSessionService:
         service_type = config.get("type", "memory").lower()
         db_url = config.get("database_url")
 
-    log.info(
-        "%s Initializing Session Service of type: %s",
-        component.log_identifier,
-        service_type,
-    )
-
     if service_type == "memory":
+        log.info(
+            "%s Session Service Type: Memory (in-memory)",
+            component.log_identifier,
+        )
         return InMemorySessionService()
     elif service_type == "sql":
         if not db_url:
+            log.error(
+                "%s Session service configuration error: 'database_url' is required for SQL session service",
+                component.log_identifier,
+            )
             raise ValueError(
                 f"{component.log_identifier} 'database_url' is required for sql session service."
             )
+
+        # Redact credentials from database URL for logging
+        redacted_db_url = re.sub(
+            r'://([^:]+):([^@]+)@',
+            r'://\1:***@',
+            db_url
+        )
+        log.info(
+            "%s Session Service Type: SQL",
+            component.log_identifier,
+        )
+        log.info(
+            "%s Session Database: %s",
+            component.log_identifier,
+            redacted_db_url,
+        )
         try:
             return DatabaseSessionService(db_url=db_url)
         except ImportError:
             log.error(
-                "%s SQLAlchemy not installed. Please install 'google-adk[database]' or 'sqlalchemy'.",
+                "%s SQLAlchemy not installed. Please install 'google-adk[database]' or 'sqlalchemy'",
                 component.log_identifier,
             )
             raise
@@ -202,11 +220,34 @@ def initialize_session_service(component) -> BaseSessionService:
         project = os.environ.get("GOOGLE_CLOUD_PROJECT")
         location = os.environ.get("GOOGLE_CLOUD_LOCATION")
         if not project or not location:
+            log.error(
+                "%s Session service configuration error: GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION environment variables are required for Vertex AI session service",
+                component.log_identifier,
+            )
             raise ValueError(
                 f"{component.log_identifier} GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION env vars required for vertex session service."
             )
+        log.info(
+            "%s Session Service Type: Vertex AI",
+            component.log_identifier,
+        )
+        log.info(
+            "%s Vertex AI Project: %s",
+            component.log_identifier,
+            project,
+        )
+        log.info(
+            "%s Vertex AI Location: %s",
+            component.log_identifier,
+            location,
+        )
         return VertexAiSessionService(project=project, location=location)
     else:
+        log.error(
+            "%s Unsupported session service type: %s",
+            component.log_identifier,
+            service_type,
+        )
         raise ValueError(
             f"{component.log_identifier} Unsupported session service type: {service_type}"
         )
@@ -220,21 +261,34 @@ def initialize_artifact_service(component) -> BaseArtifactService:
     """
     config: Dict = component.get_config("artifact_service", {"type": "memory"})
     service_type = config.get("type", "memory").lower()
-    log.info(
-        "%s Initializing Artifact Service of type: %s",
-        component.log_identifier,
-        service_type,
-    )
+    artifact_scope = component.get_config("artifact_scope", "namespace")
 
     concrete_service: BaseArtifactService
     if service_type == "memory":
+        log.info(
+            "%s Artifact Service Type: Memory (in-memory)",
+            component.log_identifier,
+        )
         concrete_service = InMemoryArtifactService()
     elif service_type == "gcs":
         bucket_name = config.get("bucket_name")
         if not bucket_name:
+            log.error(
+                "%s Artifact service configuration error: 'bucket_name' is required for GCS artifact service",
+                component.log_identifier,
+            )
             raise ValueError(
                 f"{component.log_identifier} 'bucket_name' is required for GCS artifact service."
             )
+        log.info(
+            "%s Artifact Service Type: Google Cloud Storage",
+            component.log_identifier,
+        )
+        log.info(
+            "%s Artifact Storage Bucket: %s",
+            component.log_identifier,
+            bucket_name,
+        )
         try:
             gcs_args = {
                 k: v
@@ -244,22 +298,34 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             concrete_service = GcsArtifactService(bucket_name=bucket_name, **gcs_args)
         except ImportError:
             log.error(
-                "%s google-cloud-storage not installed. Please install 'google-adk[gcs]' or 'google-cloud-storage'.",
+                "%s google-cloud-storage not installed. Please install 'google-adk[gcs]' or 'google-cloud-storage'",
                 component.log_identifier,
             )
             raise
     elif service_type == "filesystem":
         base_path = config.get("base_path")
         if not base_path:
+            log.error(
+                "%s Artifact service configuration error: 'base_path' is required for filesystem artifact service",
+                component.log_identifier,
+            )
             raise ValueError(
                 f"{component.log_identifier} 'base_path' is required for filesystem artifact service."
             )
-
+        log.info(
+            "%s Artifact Service Type: Filesystem",
+            component.log_identifier,
+        )
+        log.info(
+            "%s Artifact Storage Path: %s",
+            component.log_identifier,
+            base_path,
+        )
         try:
             concrete_service = FilesystemArtifactService(base_path=base_path)
         except Exception as e:
             log.error(
-                "%s Failed to initialize FilesystemArtifactService: %s",
+                "%s Failed to initialize filesystem artifact service: %s",
                 component.log_identifier,
                 e,
             )
@@ -267,6 +333,10 @@ def initialize_artifact_service(component) -> BaseArtifactService:
     elif service_type == "s3":
         bucket_name = config.get("bucket_name")
         if not bucket_name or not bucket_name.strip():
+            log.error(
+                "%s Artifact service configuration error: 'bucket_name' is required and cannot be empty for S3 artifact service",
+                component.log_identifier,
+            )
             raise ValueError(
                 f"{component.log_identifier} 'bucket_name' is required and cannot be empty for S3 artifact service."
             )
@@ -310,6 +380,28 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             # Filter out any keys that ended up with a None value.
             s3_config_cleaned = {k: v for k, v in s3_config.items() if v is not None}
 
+            log.info(
+                "%s Artifact Service Type: S3",
+                component.log_identifier,
+            )
+            log.info(
+                "%s Artifact Storage Bucket: %s",
+                component.log_identifier,
+                bucket_name,
+            )
+            if s3_config_cleaned.get("region_name"):
+                log.info(
+                    "%s S3 Region: %s",
+                    component.log_identifier,
+                    s3_config_cleaned["region_name"],
+                )
+            if s3_config_cleaned.get("endpoint_url"):
+                log.info(
+                    "%s S3 Endpoint: %s",
+                    component.log_identifier,
+                    s3_config_cleaned["endpoint_url"],
+                )
+
             concrete_service = S3ArtifactService(bucket_name=bucket_name, **s3_config_cleaned)
         except ImportError as e:
             log.error(
@@ -320,7 +412,7 @@ def initialize_artifact_service(component) -> BaseArtifactService:
             raise
         except Exception as e:
             log.error(
-                "%s Failed to initialize S3ArtifactService: %s",
+                "%s Failed to initialize S3 artifact service: %s",
                 component.log_identifier,
                 e,
             )
@@ -329,24 +421,36 @@ def initialize_artifact_service(component) -> BaseArtifactService:
         if TestInMemoryArtifactService is None:
             log.error(
                 "%s TestInMemoryArtifactService is configured but could not be imported. "
-                "Ensure test infrastructure is in PYTHONPATH if running tests, or check configuration.",
+                "Ensure test infrastructure is in PYTHONPATH if running tests, or check configuration",
                 component.log_identifier,
             )
             raise ImportError("TestInMemoryArtifactService not available.")
         log.info(
-            "%s Using TestInMemoryArtifactService for testing.",
+            "%s Artifact Service Type: TestInMemory (for testing)",
             component.log_identifier,
         )
         concrete_service = TestInMemoryArtifactService()
     else:
+        log.error(
+            "%s Unsupported artifact service type: %s",
+            component.log_identifier,
+            service_type,
+        )
         raise ValueError(
             f"{component.log_identifier} Unsupported artifact service type: {service_type}"
         )
 
+    # Log artifact scope configuration
+    log.info(
+        "%s Artifact Scope: %s",
+        component.log_identifier,
+        artifact_scope.capitalize(),
+    )
+
     # Wrap the concrete service to enforce scoping dynamically.
     # The wrapper will query the component's config at runtime.
-    log.info(
-        "%s Wrapping artifact service with dynamic ScopedArtifactServiceWrapper.",
+    log.debug(
+        "%s Wrapping artifact service with dynamic ScopedArtifactServiceWrapper",
         component.log_identifier,
     )
     return ScopedArtifactServiceWrapper(
@@ -359,34 +463,61 @@ def initialize_memory_service(component) -> BaseMemoryService:
     """Initializes the ADK Memory Service based on configuration."""
     config: Dict = component.get_config("memory_service", {"type": "memory"})
     service_type = config.get("type", "memory").lower()
-    log.info(
-        "%s Initializing Memory Service of type: %s",
-        component.log_identifier,
-        service_type,
-    )
 
     if service_type == "memory":
+        log.info(
+            "%s Memory Service Type: Memory (in-memory)",
+            component.log_identifier,
+        )
         return InMemoryMemoryService()
     elif service_type == "vertex_rag":
+        log.info(
+            "%s Memory Service Type: Vertex AI RAG",
+            component.log_identifier,
+        )
         try:
             rag_args = {
                 k: v for k, v in config.items() if k not in ["type", "default_behavior"]
             }
+            # Log RAG configuration parameters if present
+            if rag_args.get("corpus_name"):
+                log.info(
+                    "%s Vertex AI RAG Corpus: %s",
+                    component.log_identifier,
+                    rag_args["corpus_name"],
+                )
+            if rag_args.get("project"):
+                log.info(
+                    "%s Vertex AI RAG Project: %s",
+                    component.log_identifier,
+                    rag_args["project"],
+                )
+            if rag_args.get("location"):
+                log.info(
+                    "%s Vertex AI RAG Location: %s",
+                    component.log_identifier,
+                    rag_args["location"],
+                )
             return VertexAiRagMemoryService(**rag_args)
         except ImportError:
             log.error(
-                "%s google-cloud-aiplatform not installed. Please install 'google-adk[vertex]' or 'google-cloud-aiplatform'.",
+                "%s google-cloud-aiplatform not installed. Please install 'google-adk[vertex]' or 'google-cloud-aiplatform'",
                 component.log_identifier,
             )
             raise
         except TypeError as e:
             log.error(
-                "%s Error initializing VertexAiRagMemoryService: %s. Check config params.",
+                "%s Failed to initialize Vertex AI RAG memory service: %s. Check configuration parameters",
                 component.log_identifier,
                 e,
             )
             raise
     else:
+        log.error(
+            "%s Unsupported memory service type: %s",
+            component.log_identifier,
+            service_type,
+        )
         raise ValueError(
             f"{component.log_identifier} Unsupported memory service type: {service_type}"
         )
