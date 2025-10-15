@@ -176,8 +176,8 @@ class TestWebUIBackendComponentDeregistration(unittest.TestCase):
         self.component._deregister_agent = MagicMock()
         self.component.get_config = MagicMock()
         self.component.get_config.side_effect = lambda key, default=None: {
-            "agent_health_check_ttl_seconds": 0,  # Disabled
-            "agent_health_check_interval_seconds": 0  # Disabled
+            "agent_health_check_ttl_seconds": 0,  
+            "agent_health_check_interval_seconds": 0  
         }.get(key, default)
         
         # Manually modify the last_seen time for all agents to simulate expiration
@@ -185,10 +185,16 @@ class TestWebUIBackendComponentDeregistration(unittest.TestCase):
             mock_last_seen.__getitem__.side_effect = lambda key: time.time() - 9999  # Very old
             mock_last_seen.__contains__ = lambda self, key: key in ["agent1", "agent2"]
             
-            # Execute
-            self.component._check_agent_health()
+            # Execute - should raise ValueError because both config values are zero
+            with self.assertRaises(ValueError) as context:
+                self.component._check_agent_health()
+            
+            # Verify the error message
+            self.assertIn("agent_health_check_ttl_seconds", str(context.exception))
+            self.assertIn("agent_health_check_interval_seconds", str(context.exception))
+            self.assertIn("must be positive", str(context.exception))
         
-        # Verify - no agents should be deregistered when health check is disabled
+        # Verify no agents were deregistered
         self.component._deregister_agent.assert_not_called()
 
 
