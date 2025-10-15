@@ -39,7 +39,7 @@ The Trust Service is **optional and configurable** - it can be disabled for deve
 
 Each component periodically publishes a **Trust Card** to a well-known topic:
 ```
-a2a/v1/{namespace}/trust/{client-username}
+{namespace}/a2a/v1/trust/{client-username}
 ```
 
 The Trust Card contains:
@@ -69,7 +69,7 @@ The Trust Card contains:
 Trust Cards are protected against impersonation through **Solace broker ACL enforcement**:
 - Each component has unique Solace credentials (client-username)
 - Broker ACLs ensure a component can ONLY publish to topics containing its own client-username
-- Example: Component "web-gateway-01" can only publish to `a2a/v1/*/trust/web-gateway-01`
+- Example: Component "web-gateway-01" can only publish to `*/a2a/v1/trust/web-gateway-01`
 
 This creates a **root of trust**: if the broker allows the publish, the client-username in the topic is authentic, therefore the public key in that Trust Card is authentic.
 
