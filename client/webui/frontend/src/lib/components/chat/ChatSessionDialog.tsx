@@ -1,7 +1,7 @@
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/lib/components/ui";
 import { useChatContext, useConfigContext } from "@/lib/hooks";
-import { DialogClose } from "@radix-ui/react-dialog";
 import { Edit } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/lib/components/ui/dialog";
+import { Button } from "@/lib/components/ui/button";
 
 interface ChatSessionDialogProps {
     buttonText?: string;
