@@ -423,6 +423,14 @@ class SamAgentComponent(SamComponentBase):
             log.exception("%s Initialization failed: %s", self.log_identifier, e)
             raise
 
+    def _get_component_id(self) -> str:
+        """Returns the agent name as the component identifier."""
+        return self.agent_name
+
+    def _get_component_type(self) -> str:
+        """Returns 'agent' as the component type."""
+        return "agent"
+
     def invoke(self, message: SolaceMessage, data: dict) -> dict:
         """Placeholder invoke method. Primary logic resides in process_event."""
         log.warning(

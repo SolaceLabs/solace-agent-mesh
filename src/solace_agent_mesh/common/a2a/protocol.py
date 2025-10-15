@@ -197,6 +197,72 @@ def get_sam_events_subscription_topic(namespace: str, category: str) -> str:
     return f"{namespace.rstrip('/')}/sam/events/{category}/>"
 
 
+def get_trust_card_topic(namespace: str, component_type: str, component_id: str) -> str:
+    """
+    Returns the topic for publishing a Trust Card.
+    
+    Args:
+        namespace: SAM namespace
+        component_type: Type of component ("gateway", "agent", etc.)
+        component_id: Unique component identifier (must match client-username)
+    
+    Returns:
+        Topic string: {namespace}/a2a/v1/trust/{component_type}/{component_id}
+    
+    Raises:
+        ValueError: If any parameter is empty
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not component_type:
+        raise ValueError("Component type cannot be empty.")
+    if not component_id:
+        raise ValueError("Component ID cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/trust/{component_type}/{component_id}"
+
+
+def get_trust_card_subscription_topic(namespace: str, component_type: Optional[str] = None) -> str:
+    """
+    Returns subscription pattern for Trust Cards.
+    
+    Args:
+        namespace: SAM namespace
+        component_type: Optional - subscribe to specific type, or None for all types
+    
+    Returns:
+        Subscription pattern
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    
+    if component_type:
+        return f"{get_a2a_base_topic(namespace)}/trust/{component_type}/*"
+    else:
+        return f"{get_a2a_base_topic(namespace)}/trust/*/*"
+
+
+def extract_trust_card_info_from_topic(topic: str) -> tuple[str, str]:
+    """
+    Extracts component type and ID from trust card topic.
+    
+    Args:
+        topic: Trust card topic
+    
+    Returns:
+        Tuple of (component_type, component_id)
+    
+    Raises:
+        ValueError: If topic format is invalid
+    """
+    parts = topic.split('/')
+    if len(parts) < 6 or parts[1] != 'a2a' or parts[2] != 'v1' or parts[3] != 'trust':
+        raise ValueError(f"Invalid trust card topic format: {topic}")
+    
+    component_type = parts[4]
+    component_id = parts[5]
+    return component_type, component_id
+
+
 def subscription_to_regex(subscription: str) -> str:
     """Converts a Solace topic subscription string to a regex pattern."""
     # Escape regex special characters except for Solace wildcards

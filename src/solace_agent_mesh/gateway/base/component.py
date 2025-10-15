@@ -1177,7 +1177,23 @@ class BaseGatewayComponent(SamComponentBase):
                     processed_successfully = await self._handle_discovery_message(
                         payload
                     )
-                elif a2a.topic_matches_subscription(
+                elif hasattr(self, 'trust_manager') and self.trust_manager:
+                    # Check if this is a trust card message (enterprise feature)
+                    try:
+                        if self.trust_manager.is_trust_card_topic(topic):
+                            await self.trust_manager.handle_trust_card_message(original_broker_message, topic)
+                            processed_successfully = True
+                            continue
+                    except Exception as e:
+                        log.error(
+                            "%s Error handling trust card message: %s",
+                            self.log_identifier,
+                            e,
+                        )
+                        processed_successfully = False
+                        continue
+                
+                if a2a.topic_matches_subscription(
                     topic,
                     a2a.get_gateway_response_subscription_topic(
                         self.namespace, self.gateway_id
@@ -1320,6 +1336,14 @@ class BaseGatewayComponent(SamComponentBase):
         self, external_request_context: Dict[str, Any], error_data: JSONRPCError
     ) -> None:
         pass
+
+    def _get_component_id(self) -> str:
+        """Returns the gateway ID as the component identifier."""
+        return self.gateway_id
+
+    def _get_component_type(self) -> str:
+        """Returns 'gateway' as the component type."""
+        return "gateway"
 
     def invoke(self, message, data):
         if isinstance(message, SolaceMessage):

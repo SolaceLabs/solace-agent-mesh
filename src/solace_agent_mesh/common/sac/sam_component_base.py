@@ -6,7 +6,7 @@ import logging
 import abc
 import asyncio
 import threading
-from typing import Any
+from typing import Any, Optional
 
 from solace_ai_connector.components.component_base import ComponentBase
 
@@ -54,6 +54,20 @@ class SamComponentBase(ComponentBase, abc.ABC):
 
         self._async_loop: asyncio.AbstractEventLoop | None = None
         self._async_thread: threading.Thread | None = None
+        
+        # Trust Manager integration (enterprise feature)
+        self.trust_manager: Optional[Any] = None
+        try:
+            from solace_agent_mesh_enterprise.common.trust import initialize_trust_manager
+            trust_config = self.get_config("trust_manager")
+            if trust_config and trust_config.get("enabled", False):
+                self.trust_manager = initialize_trust_manager(self)
+                log.info("%s Enterprise Trust Manager initialized", self.log_identifier)
+        except ImportError:
+            log.debug("%s Enterprise Trust Manager not available", self.log_identifier)
+        except Exception as e:
+            log.error("%s Failed to initialize Trust Manager: %s", self.log_identifier, e)
+        
         log.info("%s SamComponentBase initialized successfully.", self.log_identifier)
 
     def publish_a2a_message(
@@ -255,6 +269,28 @@ class SamComponentBase(ComponentBase, abc.ABC):
     def get_async_loop(self) -> asyncio.AbstractEventLoop | None:
         """Returns the dedicated asyncio event loop for this component's async tasks."""
         return self._async_loop
+
+    @abc.abstractmethod
+    def _get_component_id(self) -> str:
+        """
+        Returns unique identifier for this component instance.
+        Must be implemented by subclasses.
+        
+        Returns:
+            Unique component identifier (e.g., agent_name, gateway_id)
+        """
+        pass
+
+    @abc.abstractmethod
+    def _get_component_type(self) -> str:
+        """
+        Returns component type string.
+        Must be implemented by subclasses.
+        
+        Returns:
+            Component type ("gateway", "agent", etc.)
+        """
+        pass
 
     @abc.abstractmethod
     async def _async_setup_and_run(self) -> None:

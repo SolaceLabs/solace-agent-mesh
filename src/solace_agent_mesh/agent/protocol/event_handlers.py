@@ -123,6 +123,28 @@ async def process_event(component, event: Event):
                 agent_status_sub_prefix
             ):
                 await handle_a2a_response(component, message)
+            elif hasattr(component, 'trust_manager') and component.trust_manager:
+                # Check if this is a trust card message (enterprise feature)
+                try:
+                    if component.trust_manager.is_trust_card_topic(topic):
+                        await component.trust_manager.handle_trust_card_message(message, topic)
+                        message.call_acknowledgements()
+                        return
+                except Exception as e:
+                    log.error(
+                        "%s Error handling trust card message: %s",
+                        component.log_identifier,
+                        e,
+                    )
+                    message.call_acknowledgements()
+                    return
+                
+                log.warning(
+                    "%s Received message on unhandled topic: %s",
+                    component.log_identifier,
+                    topic,
+                )
+                message.call_acknowledgements()
             else:
                 log.warning(
                     "%s Received message on unhandled topic: %s",
@@ -230,6 +252,26 @@ async def handle_a2a_request(component, message: SolaceMessage):
             
         a2a_request: A2ARequest = A2ARequest.model_validate(payload_dict)
         jsonrpc_request_id = a2a.get_request_id(a2a_request)
+
+        # Enterprise feature: Verify user identity JWT if present
+        verified_user_identity = None
+        if hasattr(component, 'trust_manager') and component.trust_manager:
+            user_identity_jwt = message.get_user_properties().get("userIdentityJWT")
+            if user_identity_jwt:
+                try:
+                    verified_user_identity = component.trust_manager.verify_user_identity_jwt(user_identity_jwt)
+                    log.info(
+                        "%s Verified user identity from JWT: %s",
+                        component.log_identifier,
+                        verified_user_identity.get("sub") if verified_user_identity else "unknown"
+                    )
+                except Exception as e:
+                    log.error(
+                        "%s JWT verification failed: %s",
+                        component.log_identifier,
+                        e
+                    )
+                    # Continue without verified identity - component may have its own auth requirements
 
         # Extract properties from message user properties  
         client_id = message.get_user_properties().get("clientId", "default_client")
