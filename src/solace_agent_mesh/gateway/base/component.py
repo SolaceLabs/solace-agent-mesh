@@ -282,8 +282,8 @@ class BaseGatewayComponent(SamComponentBase):
             "user_id_for_a2a", user_identity.get("id")
         )
 
-        system_purpose = self.get_config("system_purpose")
-        response_format = self.get_config("response_format")
+        system_purpose = self.get_config("system_purpose", "")
+        response_format = self.get_config("response_format", "")
 
         if not a2a_session_id:
             a2a_session_id = f"gdk-session-{uuid.uuid4().hex}"
