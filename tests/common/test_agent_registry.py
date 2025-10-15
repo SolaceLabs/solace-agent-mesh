@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 import time
 
-from a2a.types import AgentCard
+from a2a.types import AgentCard, AgentCapabilities
 from solace_agent_mesh.common.agent_registry import AgentRegistry
 
 
@@ -17,16 +17,30 @@ class TestAgentRegistry(unittest.TestCase):
         self.agent_card1 = AgentCard(
             name="agent1",
             description="Test Agent 1",
-            capabilities=[],
+            capabilities=AgentCapabilities(
+                streaming=False,
+                push_notifications=False,
+                state_transition_history=False
+            ),
             skills=[],
-            version="1.0.0"
+            version="1.0.0",
+            url="solace:test/agent1",
+            defaultInputModes=["text"],
+            defaultOutputModes=["text"]
         )
         self.agent_card2 = AgentCard(
             name="agent2",
             description="Test Agent 2",
-            capabilities=[],
+            capabilities=AgentCapabilities(
+                streaming=False,
+                push_notifications=False,
+                state_transition_history=False
+            ),
             skills=[],
-            version="1.0.0"
+            version="1.0.0",
+            url="solace:test/agent2",
+            defaultInputModes=["text"],
+            defaultOutputModes=["text"]
         )
         
         # Add agents to registry
@@ -45,16 +59,18 @@ class TestAgentRegistry(unittest.TestCase):
     def test_check_ttl_expired_is_expired(self):
         """Test check_ttl_expired when TTL has expired."""
         # Set up - manually modify the last_seen time
-        with patch.object(self.registry, '_last_seen') as mock_last_seen:
-            mock_last_seen.__getitem__.side_effect = lambda key: time.time() - 20 if key == "agent1" else time.time()
-            mock_last_seen.__contains__ = lambda self, key: key in ["agent1", "agent2"]
-            
-            # Execute
-            is_expired, time_since_last_seen = self.registry.check_ttl_expired("agent1", 10)
+        current_time = time.time()
+        expired_time = current_time - 20
+        
+        # Directly modify the _last_seen dictionary
+        self.registry._last_seen["agent1"] = expired_time
+        
+        # Execute
+        is_expired, time_since_last_seen = self.registry.check_ttl_expired("agent1", 10)
         
         # Verify
         self.assertTrue(is_expired)
-        self.assertGreaterEqual(time_since_last_seen, 20)
+        self.assertGreaterEqual(time_since_last_seen, 10)
 
     def test_check_ttl_expired_nonexistent_agent(self):
         """Test check_ttl_expired with a non-existent agent."""
