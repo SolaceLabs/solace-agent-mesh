@@ -6,36 +6,21 @@ Provides FastAPI TestClient and HTTP-based testing infrastructure.
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock
 
 import pytest
 import sqlalchemy as sa
 
-# FastAPI and database imports
 from fastapi.testclient import TestClient
+from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
+    create_test_app,
+)
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-# Import FastAPI components
-from solace_agent_mesh.gateway.http_sse.main import app as fastapi_app
-from solace_agent_mesh.gateway.http_sse.main import setup_dependencies
-
 from .infrastructure.simple_database_inspector import SimpleDatabaseInspector
-
-# Import test infrastructure components
 from .infrastructure.simple_database_manager import SimpleDatabaseManager
 from .infrastructure.simple_gateway_adapter import SimpleGatewayAdapter
-
-
-# Imports for feedback test fixture
-from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
-from solace_agent_mesh.gateway.http_sse import dependencies
-from solace_agent_mesh.gateway.http_sse.services.task_logger_service import (
-    TaskLoggerService,
-)
-from solace_agent_mesh.core_a2a.service import CoreA2AService
-from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
-from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture(scope="session")
@@ -57,13 +42,13 @@ def test_database_engine(test_database_url):
         pool_pre_ping=True,
         pool_recycle=300,
     )
-    
+
     # Enable foreign keys for SQLite (database-agnostic)
     from sqlalchemy import event
-    
+
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_conn, connection_record):
-        if test_database_url.startswith('sqlite'):
+        if test_database_url.startswith("sqlite"):
             cursor = dbapi_conn.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
@@ -86,143 +71,11 @@ def test_database_url_for_setup(test_database_url):
 
 
 @pytest.fixture(scope="session")
-def mock_component(test_database_engine):
-    """Creates a mock WebUIBackendComponent for testing"""
-    component = Mock()
-
-    # Mock basic component methods
-    component.get_app.return_value = Mock(
-        app_config={
-            "frontend_use_authorization": False,
-            "external_auth_service_url": "http://localhost:8080",
-            "external_auth_callback_uri": "http://localhost:8000/api/v1/auth/callback",
-            "external_auth_provider": "azure",
-            "frontend_redirect_url": "http://localhost:3000",
-        }
-    )
-    component.get_cors_origins.return_value = ["*"]
-
-    # Mock session manager with proper methods
-    import uuid
-
-    mock_session_manager = Mock(secret_key="test-secret-key")
-    mock_session_manager.get_a2a_client_id.return_value = "test-client-id"
-    mock_session_manager.start_new_a2a_session.side_effect = (
-        lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
-    )
-    mock_session_manager.ensure_a2a_session.side_effect = (
-        lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
-    )
-    mock_session_manager.create_new_session_id.side_effect = (
-        lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
-    )
-    component.get_session_manager.return_value = mock_session_manager
-
-    component.identity_service = None
-
-    # Mock A2A methods with task tracking for validation
-    submitted_tasks = {
-        "test-task-id"
-    }  # Pre-populate with default task ID for existing tests
-
-    async def mock_submit_task(*args, **kwargs):
-        task_id = "test-task-id"  # Keep original behavior for existing tests
-        submitted_tasks.add(task_id)
-        return task_id
-
-    async def mock_cancel_task(task_id, *args, **kwargs):
-        if task_id not in submitted_tasks:
-            from fastapi import HTTPException, status
-
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Task {task_id} not found",
-            )
-
-    component.submit_a2a_task = AsyncMock(side_effect=mock_submit_task)
-    component.cancel_a2a_task = AsyncMock(side_effect=mock_cancel_task)
-    component._translate_external_input = AsyncMock(
-        return_value=(
-            "TestAgent",  # target_agent
-            [],  # a2a_parts
-            {},  # external_request_context
-        )
-    )
-
-    # Mock authentication method - use same user ID as default auth middleware
-    component.authenticate_and_enrich_user = AsyncMock(
-        return_value={
-            "id": "sam_dev_user",
-            "name": "Sam Dev User",
-            "email": "sam@dev.local",
-            "authenticated": True,
-            "auth_method": "development",
-        }
-    )
-
-    # Mock the config resolver to handle async user config resolution
-    mock_config_resolver = Mock()
-    mock_config_resolver.resolve_user_config = AsyncMock(return_value={})
-    component.get_config_resolver.return_value = mock_config_resolver
-
-    # Create a real TaskLoggerService instance for persistence tests
-    Session = sessionmaker(bind=test_database_engine)
-    task_logger_config = {"enabled": True}
-    real_task_logger_service = TaskLoggerService(
-        session_factory=Session, config=task_logger_config
-    )
-    component.get_task_logger_service.return_value = real_task_logger_service
-
-    # Create a real DataRetentionService instance for data retention tests
-    from solace_agent_mesh.gateway.http_sse.services.data_retention_service import (
-        DataRetentionService,
-    )
-    data_retention_config = {
-        "enabled": True,
-        "task_retention_days": 90,
-        "feedback_retention_days": 90,
-        "cleanup_interval_hours": 24,
-        "batch_size": 1000,
-    }
-    real_data_retention_service = DataRetentionService(
-        session_factory=Session, config=data_retention_config
-    )
-    component.data_retention_service = real_data_retention_service
-
-    # Create a mock CoreA2AService instance for task cancellation tests
-    mock_core_a2a_service = Mock(spec=CoreA2AService)
-    
-    # Mock the cancel_task method to return valid A2A message components
-    def mock_cancel_task(agent_name, task_id, client_id, user_id):
-        target_topic = f"test_namespace/a2a/v1/agent/cancel/{agent_name}"
-        payload = {
-            "jsonrpc": "2.0",
-            "id": f"cancel-{task_id}",
-            "method": "tasks/cancel",
-            "params": {"id": task_id}
-        }
-        user_properties = {"userId": user_id}
-        return target_topic, payload, user_properties
-    
-    mock_core_a2a_service.cancel_task = mock_cancel_task
-    component.get_core_a2a_service.return_value = mock_core_a2a_service
-
-    # Create a mock SSEManager instance for task service tests
-    mock_sse_manager = Mock(spec=SSEManager)
-    component.get_sse_manager.return_value = mock_sse_manager
-
-    print("[API Tests] Mock component created")
-    yield component
-
-
-@pytest.fixture(scope="session")
-def test_app(test_database_url_for_setup, mock_component):
-    """Creates configured FastAPI test application"""
-    # Set up dependencies and configure the app properly
-    setup_dependencies(mock_component, test_database_url_for_setup)
-
-    print("[API Tests] FastAPI app configured with test dependencies")
-    yield fastapi_app
+def test_app(test_database_url_for_setup):
+    """Creates configured FastAPI test application using the factory"""
+    app = create_test_app(db_url=test_database_url_for_setup)
+    print("[API Tests] FastAPI app configured with test dependencies via factory")
+    yield app
 
 
 @pytest.fixture(scope="session")
@@ -265,7 +118,6 @@ def clean_database_between_tests(request, test_database_engine):
 
 def _clean_main_database(test_database_engine):
     """Clean the main API test database"""
-    from sqlalchemy.orm import sessionmaker
 
     SessionLocal = sessionmaker(bind=test_database_engine)
     session = SessionLocal()
@@ -341,7 +193,7 @@ def _clean_simple_databases(simple_manager):
             conn.commit()
 
     # Clean agent databases
-    for agent_name, db_path in simple_manager.agent_db_paths.items():
+    for _agent_name, db_path in simple_manager.agent_db_paths.items():
         if db_path and db_path.exists():
             with sqlite3.connect(db_path) as conn:
                 cursor = conn.cursor()
@@ -417,7 +269,6 @@ __all__ = [
     "test_database_url",
     "test_database_engine",
     "test_database_url_for_setup",
-    "mock_component",
     "test_app",
     "api_client",
     "authenticated_user",
