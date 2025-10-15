@@ -39,15 +39,21 @@ The Trust Manager is **optional and configurable** - it can be disabled for deve
 
 ### Trust Card Publication
 
-Each component periodically publishes a **Trust Card** to a well-known topic:
+Each component periodically publishes a **Trust Card** to a well-known topic that includes its component type:
 ```
-{namespace}/a2a/v1/trust/{client-username}
+{namespace}/a2a/v1/trust/{component-type}/{client-username}
 ```
+
+**Examples:**
+- Gateway: `myorg/production/a2a/v1/trust/gateway/web-gateway-01`
+- Agent: `myorg/production/a2a/v1/trust/agent/data-analyst-agent`
 
 The Trust Card contains:
 - Component identity (type, ID, namespace)
 - JWKS (JSON Web Key Set) with public keys
 - Issuance and expiration timestamps
+
+**Topic Structure as Security Boundary**: The component type is embedded in the topic structure itself, making it part of the broker ACL enforcement. This eliminates the need for configuration-based gateway registries - the ACL is the source of truth.
 
 **Example Trust Card**:
 ```json
@@ -81,21 +87,59 @@ The Trust Card contains:
 
 ### Security Through Broker ACLs
 
-Trust Cards are protected against impersonation through **Solace broker ACL enforcement**:
-- Each component has unique Solace credentials (client-username)
-- Broker ACLs ensure a component can ONLY publish to topics containing its own client-username
-- Example: Component "web-gateway-01" can only publish to `*/a2a/v1/trust/web-gateway-01`
+Trust Cards are protected against impersonation through **Solace broker ACL enforcement** at two levels:
 
-This creates a **root of trust**: if the broker allows the publish, the client-username in the topic is authentic, therefore the public key in that Trust Card is authentic.
+1. **Component Type Enforcement**: ACLs restrict which component type a client can publish as
+2. **Component ID Enforcement**: ACLs ensure the client-username matches the topic
+
+**Example ACL Configuration:**
+
+For a gateway:
+```
+Client "web-gateway-01":
+  Publish: */a2a/v1/trust/gateway/web-gateway-01
+```
+
+For an agent:
+```
+Client "data-analyst-agent":
+  Publish: */a2a/v1/trust/agent/data-analyst-agent
+```
+
+**Security Properties:**
+- An agent **cannot** publish to `*/a2a/v1/trust/gateway/*` (wrong component type in ACL)
+- A component **cannot** publish with a different client-username (ACL enforces exact match)
+- The broker guarantees both the component type and component ID in the topic are authentic
+
+This creates a **dual root of trust**: 
+1. The client-username in the topic is authentic (guaranteed by ACL)
+2. The component-type in the topic is authentic (guaranteed by ACL)
+3. Therefore, the JWKS in that Trust Card can be trusted for that component type
+
+**Scalability Benefit**: Adding a new gateway only requires creating the appropriate broker ACL. No configuration updates are needed on existing agents - they automatically trust the new gateway based on the topic structure.
 
 ### Trust Card Verification
 
 When a component receives a Trust Card:
-1. Extract the client-username from the topic
-2. Verify it matches the `component_id` in the card payload
-3. Validate the JWKS format and extract public keys
-4. Check the card hasn't expired
-5. Store the JWKS in a local Trust Registry for future JWT verification
+1. Parse the topic to extract both component type and client-username:
+   - Topic: `myorg/production/a2a/v1/trust/gateway/web-gateway-01`
+   - Extracted: `component_type = "gateway"`, `component_id = "web-gateway-01"`
+2. Parse the Trust Card payload
+3. Verify the topic-derived values match the payload (detect tampering):
+   - `component_id` from topic must match `component_id` in payload
+   - `component_type` from topic must match `component_type` in payload
+4. Validate the JWKS format and extract public keys
+5. Check the card hasn't expired
+6. Store in Trust Registry with **topic-derived** component type (source of truth):
+   ```python
+   registry.store(
+       component_id=topic_component_id,      # From topic (ACL-guaranteed)
+       component_type=topic_component_type,  # From topic (ACL-guaranteed)
+       jwks=trust_card.jwks                  # From payload (what we need)
+   )
+   ```
+
+**Critical Security Note**: The component type stored in the registry comes from the **topic**, not the payload. The payload values are only used for verification - if they don't match the topic, the Trust Card is rejected. This prevents a malicious agent from claiming to be a gateway in its Trust Card payload.
 
 ### Key Rotation Support
 
@@ -188,10 +232,13 @@ This prevents:
 When an agent receives a task:
 1. Extract `userIdentityJWT` from user properties
 2. Parse JWT header to get `kid` (key ID) and `alg` (algorithm)
-3. Extract `iss` (issuer) claim from JWT payload
-4. Look up the issuer's JWKS from the Trust Registry
-5. Find the matching public key using `kid`
-6. Verify the issuer's `component_type` is "gateway" (authorization check)
+3. Extract `iss` (issuer) claim from JWT payload (without verification)
+4. Look up the issuer's Trust Card from the Trust Registry
+5. **CRITICAL AUTHORIZATION CHECK**: Verify the issuer's `component_type` is "gateway"
+   - The component type comes from the Trust Card's topic (ACL-guaranteed)
+   - If component type is not "gateway", reject immediately
+   - This prevents agents from signing user identity JWTs
+6. Find the matching public key in the issuer's JWKS using `kid`
 7. Verify the JWT signature using the public key and ES256 algorithm
 8. Validate standard JWT claims:
    - Current time < `exp` (not expired)
@@ -200,7 +247,35 @@ When an agent receives a task:
 10. If all checks pass, extract and trust the user claims (`sub`, `name`, `roles`, `scopes`)
 11. If any check fails, reject the task with a security error
 
-**Authorization Layer**: Agents only accept user identity JWTs from components with `component_type: "gateway"`. This prevents other agents from forging user identities even though they have valid signing keys.
+**Example Verification Code**:
+```python
+def verify_user_identity_jwt(jwt_token: str, trust_registry: TrustRegistry) -> dict:
+    # Get issuer from JWT (unverified)
+    unverified = jwt.decode(jwt_token, options={"verify_signature": False})
+    issuer = unverified.get("iss")
+    
+    # Look up Trust Card
+    trust_card = trust_registry.get_trust_card(issuer)
+    if not trust_card:
+        raise SecurityError(f"Unknown issuer: {issuer}")
+    
+    # AUTHORIZATION: Check component type from topic (ACL-guaranteed)
+    if trust_card.component_type != "gateway":
+        raise SecurityError(
+            f"Issuer '{issuer}' is type '{trust_card.component_type}', "
+            f"not 'gateway'. Only gateways can sign user identity JWTs."
+        )
+    
+    # Continue with signature verification...
+    # (find public key, verify signature, validate claims)
+```
+
+**Authorization Layer**: Agents only accept user identity JWTs from components with `component_type: "gateway"`. The component type is determined by the Trust Card's topic (guaranteed by broker ACL), not by any claim in the Trust Card payload or JWT. This prevents malicious agents from forging user identities:
+
+- An agent with client-username "malicious-agent" can only publish to `*/a2a/v1/trust/agent/malicious-agent`
+- The broker ACL prevents it from publishing to `*/a2a/v1/trust/gateway/malicious-agent`
+- Even if the agent creates a perfectly valid JWT, verification will fail because the Trust Registry shows it as type "agent", not "gateway"
+- The topic structure enforced by ACLs is the ultimate source of truth for component authorization
 
 Sub-agents perform the same verification using the **same JWT** from the original gateway - JWTs are not re-signed, they propagate through the entire task chain.
 
@@ -224,6 +299,7 @@ The Trust Manager provides SAM with enterprise-grade security for user identity 
 - **JWKS (RFC 7517)** for public key distribution
 - **OIDC standard claims** (`iss`, `sub`, `exp`, `iat`, `name`, `email`)
 - **ES256 (ECDSA with P-256)** for signatures
+- **Solace ACLs** as the root of trust for component type enforcement
 
 **Benefits**:
 - Well-understood security properties backed by IETF RFCs
