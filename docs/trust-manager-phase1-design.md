@@ -833,6 +833,60 @@ In the topic routing section:
 
 ---
 
+## Integration with Open Source Repository
+
+The enterprise Trust Manager integrates with the open source `solace-agent-mesh` repository through a factory function pattern. The open source repository provides integration hooks that were added in a previous commit.
+
+### Open Source Integration Points
+
+The open source repository (`solace-agent-mesh`) provides the following integration hooks:
+
+1. **Abstract Methods in `SamComponentBase`**:
+   - `_get_component_id()` - Returns component identifier
+   - `_get_component_type()` - Returns component type ("gateway" or "agent")
+
+2. **Trust Manager Initialization Hook**:
+   ```python
+   # In SamComponentBase.__init__
+   self.trust_manager = None
+   try:
+       from solace_agent_mesh_enterprise.common.trust import initialize_trust_manager
+       trust_config = self.get_config("trust_manager")
+       if trust_config and trust_config.get("enabled", False):
+           self.trust_manager = initialize_trust_manager(self)
+   except ImportError:
+       pass  # Enterprise features not available
+   ```
+
+3. **Message Routing Hooks**:
+   - Components check `if self.trust_manager and self.trust_manager.is_trust_card_topic(topic)`
+   - Routes trust card messages to `trust_manager.handle_trust_card_message()`
+
+4. **Topic Construction Functions** (in `common/a2a/protocol.py`):
+   - `get_trust_card_topic(namespace, component_type, component_id)`
+   - `get_trust_card_subscription_topic(namespace, component_type=None)`
+   - `extract_trust_card_info_from_topic(topic)`
+
+### Enterprise Implementation Requirements
+
+The enterprise implementation must provide:
+
+1. **Factory Function** (`initialize_trust_manager`):
+   - Exported from `solace_agent_mesh_enterprise.common.trust`
+   - Takes a `SamComponentBase` instance
+   - Returns `TrustManager` instance or `None`
+
+2. **TrustManager Public Interface**:
+   - `is_trust_card_topic(topic: str) -> bool` - Check if topic is a trust card topic
+   - `async initialize() -> None` - Initialize keys and publish initial card
+   - `async handle_trust_card_message(message, topic) -> None` - Handle incoming trust cards
+
+### No Open Source Modifications Required
+
+All necessary integration hooks are already present in the open source repository. This enterprise implementation only needs to provide the Trust Manager classes and factory function.
+
+---
+
 ## Configuration Examples
 
 ### Agent Configuration (YAML)
