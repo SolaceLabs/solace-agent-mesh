@@ -78,6 +78,7 @@ test = [
     "pytest-httpx>=0.35.0",
     "fastmcp",
     "httpx>=0.25",
+    "respx",
     "ruff",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
