@@ -205,7 +205,6 @@ async def test_metadata_injection_with_config_values(
     scenario_id = "metadata_injection_test_001"
     print(f"\nRunning scenario: {scenario_id}")
 
-    # Prime LLM with a simple response
     llm_response_data = {
         "id": "chatcmpl-metadata-test",
         "object": "chat.completion",
