@@ -79,6 +79,9 @@ test = [
     "fastmcp",
     "httpx>=0.25",
     "ruff",
+    "testcontainers",
+    "pymysql",
+    "aiosqlite",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
 [tool.hatch.envs.hatch-test]

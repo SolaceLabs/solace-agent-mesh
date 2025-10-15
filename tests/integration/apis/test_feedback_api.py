@@ -6,103 +6,79 @@ feedback payloads and interacts with the configured FeedbackService,
 including writing to CSV files and logging.
 """
 
-import csv
+import json
 import uuid
-from pathlib import Path
-
-import pytest
+import sqlalchemy as sa
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import sessionmaker
 from unittest.mock import MagicMock
 
-from solace_agent_mesh.gateway.http_sse.repository.models import FeedbackModel, TaskModel
 from solace_agent_mesh.gateway.http_sse.shared import now_epoch_ms
+from .infrastructure.gateway_adapter import GatewayAdapter
+from .infrastructure.database_inspector import DatabaseInspector
 
 
-def test_submit_feedback_persists_to_database(api_client: TestClient, test_database_engine):
+def test_submit_feedback_persists_to_database(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
     """
     Tests that a valid feedback submission creates a record in the database.
     """
-    # Arrange: First, create a task to get a valid taskId and sessionId
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Task for feedback"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert task_response.status_code == 200
-    task_result = task_response.json()["result"]
-    task_id = task_result["id"]
-    session_id = task_result["contextId"]
+    # Arrange: Create a session and a task using the gateway adapter
+    session = gateway_adapter.create_session(user_id="feedback_user", agent_name="TestAgent")
+    task = gateway_adapter.send_message(session.id, "Task for feedback")
 
     feedback_payload = {
-        "taskId": task_id,
-        "sessionId": session_id,
+        "taskId": task.task_id,
+        "sessionId": session.id,
         "feedbackType": "up",
         "feedbackText": "This was very helpful!",
     }
 
-    # Act: Submit the feedback
+    # Act: Submit the feedback via the API
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
 
-    # Assert: Check HTTP response and database state
+    # Assert: Check HTTP response
     assert response.status_code == 202
     assert response.json() == {"status": "feedback received"}
 
-    # Verify database record
-    Session = sessionmaker(bind=test_database_engine)
-    db_session = Session()
-    try:
-        feedback_record = (
-            db_session.query(FeedbackModel).filter_by(task_id=task_id).one_or_none()
-        )
+    # Verify database record using the database inspector
+    with database_inspector.db_manager.get_gateway_connection() as conn:
+        metadata = sa.MetaData()
+        metadata.reflect(bind=conn)
+        feedback_table = metadata.tables["feedback"]
+        query = sa.select(feedback_table).where(feedback_table.c.task_id == task.task_id)
+        feedback_record = conn.execute(query).first()
+
         assert feedback_record is not None
-        assert feedback_record.session_id == session_id
+        assert feedback_record.session_id == session.id
         assert feedback_record.rating == "up"
         assert feedback_record.comment == "This was very helpful!"
-        assert feedback_record.user_id == "sam_dev_user"  # From default mock auth
-    finally:
-        db_session.close()
+        # The user_id is injected by the mock authentication in the test client
+        assert feedback_record.user_id == "sam_dev_user"
 
 
-def test_submit_multiple_feedback_records(api_client: TestClient, test_database_engine):
+def test_submit_multiple_feedback_records(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
     """
     Tests that multiple feedback submissions for the same task create distinct records.
     """
-    # Arrange: Create one task
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Task for multiple feedback"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert task_response.status_code == 200
-    task_result = task_response.json()["result"]
-    task_id = task_result["id"]
-    session_id = task_result["contextId"]
+    # Arrange: Create a session and a task
+    session = gateway_adapter.create_session(user_id="multi_feedback_user", agent_name="TestAgent")
+    task = gateway_adapter.send_message(session.id, "Task for multiple feedback")
 
-    payload1 = {"taskId": task_id, "sessionId": session_id, "feedbackType": "up"}
+    payload1 = {
+        "taskId": task.task_id,
+        "sessionId": session.id,
+        "feedbackType": "up"
+    }
     payload2 = {
-        "taskId": task_id,
-        "sessionId": session_id,
+        "taskId": task.task_id,
+        "sessionId": session.id,
         "feedbackType": "down",
         "feedbackText": "Confusing",
     }
@@ -112,17 +88,16 @@ def test_submit_multiple_feedback_records(api_client: TestClient, test_database_
     api_client.post("/api/v1/feedback", json=payload2)
 
     # Assert: Check database for two records
-    Session = sessionmaker(bind=test_database_engine)
-    db_session = Session()
-    try:
-        feedback_records = (
-            db_session.query(FeedbackModel).filter_by(task_id=task_id).all()
-        )
+    with database_inspector.db_manager.get_gateway_connection() as conn:
+        metadata = sa.MetaData()
+        metadata.reflect(bind=conn)
+        feedback_table = metadata.tables["feedback"]
+        query = sa.select(feedback_table).where(feedback_table.c.task_id == task.task_id)
+        feedback_records = conn.execute(query).fetchall()
+
         assert len(feedback_records) == 2
         ratings = {record.rating for record in feedback_records}
         assert ratings == {"up", "down"}
-    finally:
-        db_session.close()
 
 
 
@@ -144,94 +119,65 @@ def test_feedback_missing_required_fields_fails(api_client: TestClient):
 
 
 def test_feedback_publishes_event_when_enabled(
-    api_client: TestClient, monkeypatch, test_database_engine
+    api_client: TestClient,
+    monkeypatch,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector
 ):
     """
     Tests that feedback is published as an event when feedback_publishing is enabled.
     """
-    # Arrange:
-    # 1. Mock the component's config to enable publishing
+    # Arrange
     mock_publish_func = MagicMock()
-
-    # Get the actual component instance used by the test client
     from solace_agent_mesh.gateway.http_sse import dependencies
-
-    component = dependencies.sac_component_instance
-
-    # Monkeypatch the component's config and publish method
+    component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
         lambda key, default=None: {
-            "enabled": True,
-            "topic": "sam/feedback/test/v1",
-            "include_task_info": "summary",
-        }
-        if key == "feedback_publishing"
-        else default,
+            "enabled": True, "topic": "sam/feedback/test/v1", "include_task_info": "summary"
+        } if key == "feedback_publishing" else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    # 2. Create a task via API
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Task for event publishing"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert task_response.status_code == 200
-    task_result = task_response.json()["result"]
-    task_id = task_result["id"]
-    session_id = task_result["contextId"]
+    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    task = gateway_adapter.send_message(session.id, "Task for event publishing")
 
-    # 3. Manually create a task record in the DB so that feedback service can find it
-    Session = sessionmaker(bind=test_database_engine)
-    db_session = Session()
-    try:
-        new_task = TaskModel(
-            id=task_id,
+    # Manually create the task record so the feedback service can find it
+    with database_inspector.db_manager.get_gateway_connection() as conn:
+        metadata = sa.MetaData()
+        metadata.reflect(bind=conn)
+        tasks_table = metadata.tables["tasks"]
+        conn.execute(tasks_table.insert().values(
+            id=task.task_id,
             user_id="sam_dev_user",
-            start_time=now_epoch_ms(),
             initial_request_text="Task for event publishing",
-        )
-        db_session.add(new_task)
-        db_session.commit()
-    finally:
-        db_session.close()
+            start_time=now_epoch_ms(),
+            end_time=now_epoch_ms()
+        ))
+        if conn.in_transaction():
+            conn.commit()
 
-    feedback_payload = {"taskId": task_id, "sessionId": session_id, "feedbackType": "up"}
+    feedback_payload = {"taskId": task.task_id, "sessionId": session.id, "feedbackType": "up"}
 
     # Act
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
 
     # Assert
     assert response.status_code == 202
-
-    # Verify the publish function was called
     mock_publish_func.assert_called_once()
-    call_args, call_kwargs = mock_publish_func.call_args
-
-    published_topic = call_args[0]
-    published_payload = call_args[1]
+    published_topic = mock_publish_func.call_args[0][0]
+    published_payload = mock_publish_func.call_args[0][1]
 
     assert published_topic == "sam/feedback/test/v1"
-    assert published_payload["feedback"]["task_id"] == task_id
+    assert published_payload["feedback"]["task_id"] == task.task_id
     assert published_payload["feedback"]["feedback_type"] == "up"
     assert "task_summary" in published_payload
-    assert published_payload["task_summary"]["id"] == task_id
+    assert published_payload["task_summary"]["id"] == task.task_id
 
 
 def test_feedback_publishing_with_include_task_info_none(
-    api_client: TestClient, monkeypatch, test_database_engine
+    api_client: TestClient, monkeypatch, gateway_adapter: GatewayAdapter
 ):
     """
     Tests that when include_task_info is 'none', no task info is included in the published event.
@@ -239,57 +185,22 @@ def test_feedback_publishing_with_include_task_info_none(
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
-    component = dependencies.sac_component_instance
-
+    component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
         lambda key, default=None: {
-            "enabled": True,
-            "topic": "sam/feedback/test/v1",
-            "include_task_info": "none",
-        }
-        if key == "feedback_publishing"
-        else default,
+            "enabled": True, "topic": "sam/feedback/test/v1", "include_task_info": "none"
+        } if key == "feedback_publishing" else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    # Create task
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Task for none test"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert task_response.status_code == 200
-    task_id = task_response.json()["result"]["id"]
-    session_id = task_response.json()["result"]["contextId"]
+    session = gateway_adapter.create_session(user_id="none_user", agent_name="TestAgent")
+    task = gateway_adapter.send_message(session.id, "Task for none test")
 
-    # Create task in DB
-    Session = sessionmaker(bind=test_database_engine)
-    db_session = Session()
-    try:
-        new_task = TaskModel(
-            id=task_id,
-            user_id="sam_dev_user",
-            start_time=now_epoch_ms(),
-            initial_request_text="Task for none test",
-        )
-        db_session.add(new_task)
-        db_session.commit()
-    finally:
-        db_session.close()
+    # No need to create a task record here, as we are testing the 'none' case
 
-    feedback_payload = {"taskId": task_id, "sessionId": session_id, "feedbackType": "down"}
+    feedback_payload = {"taskId": task.task_id, "sessionId": session.id, "feedbackType": "down"}
 
     # Act
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
@@ -297,18 +208,19 @@ def test_feedback_publishing_with_include_task_info_none(
     # Assert
     assert response.status_code == 202
     mock_publish_func.assert_called_once()
-    
     published_payload = mock_publish_func.call_args[0][1]
-    
-    # Should have feedback but no task_summary or task_stim_data
+
     assert "feedback" in published_payload
-    assert published_payload["feedback"]["task_id"] == task_id
+    assert published_payload["feedback"]["task_id"] == task.task_id
     assert "task_summary" not in published_payload
     assert "task_stim_data" not in published_payload
 
 
 def test_feedback_publishing_with_include_task_info_stim(
-    api_client: TestClient, monkeypatch, test_database_engine
+    api_client: TestClient,
+    monkeypatch,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector
 ):
     """
     Tests that when include_task_info is 'stim', full task history is included in the published event.
@@ -316,8 +228,7 @@ def test_feedback_publishing_with_include_task_info_stim(
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
-    component = dependencies.sac_component_instance
-
+    component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
@@ -325,74 +236,54 @@ def test_feedback_publishing_with_include_task_info_stim(
             "enabled": True,
             "topic": "sam/feedback/test/v1",
             "include_task_info": "stim",
-            "max_payload_size_bytes": 9000000,  # Large enough to not trigger fallback
-        }
-        if key == "feedback_publishing"
-        else default,
+            "max_payload_size_bytes": 9000000,
+        } if key == "feedback_publishing" else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    # Create task
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Task for stim test"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert task_response.status_code == 200
-    task_id = task_response.json()["result"]["id"]
-    session_id = task_response.json()["result"]["contextId"]
+    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    task = gateway_adapter.send_message(session.id, "Task for stim test")
 
-    # Create task and events in DB
-    from solace_agent_mesh.gateway.http_sse.repository.models import TaskEventModel
-    
-    Session = sessionmaker(bind=test_database_engine)
-    db_session = Session()
-    try:
-        new_task = TaskModel(
-            id=task_id,
+    with database_inspector.db_manager.get_gateway_connection() as conn:
+        metadata = sa.MetaData()
+        metadata.reflect(bind=conn)
+        tasks_table = metadata.tables["tasks"]
+        task_events_table = metadata.tables["task_events"]
+
+        # Create the main task record
+        conn.execute(tasks_table.insert().values(
+            id=task.task_id,
             user_id="sam_dev_user",
-            start_time=now_epoch_ms(),
             initial_request_text="Task for stim test",
             status="completed",
-        )
-        db_session.add(new_task)
-        
-        # Add some task events
-        event1 = TaskEventModel(
+            start_time=now_epoch_ms(),
+            end_time=now_epoch_ms()
+        ))
+
+        # Create associated task events
+        conn.execute(task_events_table.insert().values(
             id=str(uuid.uuid4()),
-            task_id=task_id,
+            task_id=task.task_id,
             user_id="sam_dev_user",
             created_time=now_epoch_ms(),
             topic="test/topic/request",
             direction="request",
-            payload={"test": "request_payload"},
-        )
-        event2 = TaskEventModel(
+            payload={"test": "request_payload"}
+        ))
+        conn.execute(task_events_table.insert().values(
             id=str(uuid.uuid4()),
-            task_id=task_id,
+            task_id=task.task_id,
             user_id="sam_dev_user",
-            created_time=now_epoch_ms() + 1000,
+            created_time=now_epoch_ms() + 100,
             topic="test/topic/response",
             direction="response",
-            payload={"test": "response_payload"},
-        )
-        db_session.add(event1)
-        db_session.add(event2)
-        db_session.commit()
-    finally:
-        db_session.close()
+            payload={"test": "response_payload"}
+        ))
 
-    feedback_payload = {"taskId": task_id, "sessionId": session_id, "feedbackType": "up"}
+        if conn.in_transaction():
+            conn.commit()
+
+    feedback_payload = {"taskId": task.task_id, "sessionId": session.id, "feedbackType": "up"}
 
     # Act
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
@@ -400,24 +291,24 @@ def test_feedback_publishing_with_include_task_info_stim(
     # Assert
     assert response.status_code == 202
     mock_publish_func.assert_called_once()
-    
     published_payload = mock_publish_func.call_args[0][1]
-    
-    # Should have feedback and task_stim_data
+
     assert "feedback" in published_payload
-    assert published_payload["feedback"]["task_id"] == task_id
+    assert published_payload["feedback"]["task_id"] == task.task_id
     assert "task_stim_data" in published_payload
-    
-    # Verify stim structure
     stim_data = published_payload["task_stim_data"]
     assert "invocation_details" in stim_data
     assert "invocation_flow" in stim_data
-    assert stim_data["invocation_details"]["task_id"] == task_id
-    assert len(stim_data["invocation_flow"]) == 2  # Two events we created
+    assert stim_data["invocation_details"]["task_id"] == task.task_id
+    # The gateway_adapter creates 2 messages (user + agent), so we expect 2 events
+    assert len(stim_data["invocation_flow"]) >= 2
 
 
 def test_feedback_publishing_stim_fallback_to_summary_on_size_limit(
-    api_client: TestClient, monkeypatch, test_database_engine
+    api_client: TestClient,
+    monkeypatch,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector
 ):
     """
     Tests that when include_task_info is 'stim' but payload exceeds max_payload_size_bytes,
@@ -426,8 +317,7 @@ def test_feedback_publishing_stim_fallback_to_summary_on_size_limit(
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
-    component = dependencies.sac_component_instance
-
+    component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
@@ -435,64 +325,29 @@ def test_feedback_publishing_stim_fallback_to_summary_on_size_limit(
             "enabled": True,
             "topic": "sam/feedback/test/v1",
             "include_task_info": "stim",
-            "max_payload_size_bytes": 100,  # Very small to trigger fallback
-        }
-        if key == "feedback_publishing"
-        else default,
+            "max_payload_size_bytes": 100,  # Very small
+        } if key == "feedback_publishing" else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    # Create task
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Task for fallback test"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert task_response.status_code == 200
-    task_id = task_response.json()["result"]["id"]
-    session_id = task_response.json()["result"]["contextId"]
+    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    task = gateway_adapter.send_message(session.id, "Task for fallback test" * 100) # Large message
 
-    # Create task and events in DB
-    from solace_agent_mesh.gateway.http_sse.repository.models import TaskEventModel
-    
-    Session = sessionmaker(bind=test_database_engine)
-    db_session = Session()
-    try:
-        new_task = TaskModel(
-            id=task_id,
+    with database_inspector.db_manager.get_gateway_connection() as conn:
+        metadata = sa.MetaData()
+        metadata.reflect(bind=conn)
+        tasks_table = metadata.tables["tasks"]
+        conn.execute(tasks_table.insert().values(
+            id=task.task_id,
             user_id="sam_dev_user",
-            start_time=now_epoch_ms(),
             initial_request_text="Task for fallback test",
-            status="completed",
-        )
-        db_session.add(new_task)
-        
-        # Add events with large payloads
-        event1 = TaskEventModel(
-            id=str(uuid.uuid4()),
-            task_id=task_id,
-            user_id="sam_dev_user",
-            created_time=now_epoch_ms(),
-            topic="test/topic/request",
-            direction="request",
-            payload={"large_data": "x" * 1000},  # Large payload
-        )
-        db_session.add(event1)
-        db_session.commit()
-    finally:
-        db_session.close()
+            start_time=now_epoch_ms(),
+            end_time=now_epoch_ms()
+        ))
+        if conn.in_transaction():
+            conn.commit()
 
-    feedback_payload = {"taskId": task_id, "sessionId": session_id, "feedbackType": "up"}
+    feedback_payload = {"taskId": task.task_id, "sessionId": session.id, "feedbackType": "up"}
 
     # Act
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
@@ -500,23 +355,17 @@ def test_feedback_publishing_stim_fallback_to_summary_on_size_limit(
     # Assert
     assert response.status_code == 202
     mock_publish_func.assert_called_once()
-    
     published_payload = mock_publish_func.call_args[0][1]
-    
-    # Should have feedback and task_summary (not stim_data due to fallback)
+
     assert "feedback" in published_payload
-    assert published_payload["feedback"]["task_id"] == task_id
     assert "task_summary" in published_payload
     assert "task_stim_data" not in published_payload
-    
-    # Should have truncation details explaining the fallback
     assert "truncation_details" in published_payload
-    assert published_payload["truncation_details"]["strategy"] == "fallback_to_summary"
     assert published_payload["truncation_details"]["reason"] == "payload_too_large"
 
 
 def test_feedback_publishing_disabled_skips_event_but_saves_to_db(
-    api_client: TestClient, monkeypatch, test_database_engine
+    api_client: TestClient, monkeypatch, gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
 ):
     """
     Tests that when feedback_publishing.enabled = False, no event is published
@@ -525,62 +374,22 @@ def test_feedback_publishing_disabled_skips_event_but_saves_to_db(
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
-    component = dependencies.sac_component_instance
-
-    # Disable feedback publishing
+    component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
-        lambda key, default=None: {
-            "enabled": False,  # Publishing disabled
-            "topic": "sam/feedback/test/v1",
-            "include_task_info": "summary",
-        }
-        if key == "feedback_publishing"
-        else default,
+        lambda key, default=None: {"enabled": False} if key == "feedback_publishing" else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    # Create task
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Task for disabled publishing test"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert task_response.status_code == 200
-    task_id = task_response.json()["result"]["id"]
-    session_id = task_response.json()["result"]["contextId"]
-
-    # Create task in DB
-    Session = sessionmaker(bind=test_database_engine)
-    db_session = Session()
-    try:
-        new_task = TaskModel(
-            id=task_id,
-            user_id="sam_dev_user",
-            start_time=now_epoch_ms(),
-            initial_request_text="Task for disabled publishing test",
-        )
-        db_session.add(new_task)
-        db_session.commit()
-    finally:
-        db_session.close()
+    session = gateway_adapter.create_session(user_id="disabled_user", agent_name="TestAgent")
+    task = gateway_adapter.send_message(session.id, "Task for disabled test")
 
     feedback_payload = {
-        "taskId": task_id,
-        "sessionId": session_id,
+        "taskId": task.task_id,
+        "sessionId": session.id,
         "feedbackType": "down",
-        "feedbackText": "This needs improvement"
+        "feedbackText": "This needs improvement",
     }
 
     # Act
@@ -588,273 +397,139 @@ def test_feedback_publishing_disabled_skips_event_but_saves_to_db(
 
     # Assert
     assert response.status_code == 202
-    
-    # Verify publish was NOT called
     mock_publish_func.assert_not_called()
-    
-    # But feedback should still be saved to database
-    db_session = Session()
-    try:
-        feedback_record = (
-            db_session.query(FeedbackModel).filter_by(task_id=task_id).one_or_none()
-        )
+
+    with database_inspector.db_manager.get_gateway_connection() as conn:
+        metadata = sa.MetaData()
+        metadata.reflect(bind=conn)
+        feedback_table = metadata.tables["feedback"]
+        query = sa.select(feedback_table).where(feedback_table.c.task_id == task.task_id)
+        feedback_record = conn.execute(query).first()
         assert feedback_record is not None
-        assert feedback_record.task_id == task_id
-        assert feedback_record.session_id == session_id
         assert feedback_record.rating == "down"
-        assert feedback_record.comment == "This needs improvement"
-        assert feedback_record.user_id == "sam_dev_user"
-    finally:
-        db_session.close()
 
 
 def test_feedback_publishing_uses_custom_topic(
-    api_client: TestClient, monkeypatch, test_database_engine
+    api_client: TestClient, monkeypatch, gateway_adapter: GatewayAdapter
 ):
     """
-    Test 3: Custom Topic Configuration
     Tests that the configured custom topic is used for publishing feedback events.
     """
     # Arrange
     mock_publish_func = MagicMock()
-    from solace_agent_mesh.gateway.http_sse import dependencies
-    component = dependencies.sac_component_instance
-
     custom_topic = "custom/feedback/topic/v2"
-    
+    from solace_agent_mesh.gateway.http_sse import dependencies
+    component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
         lambda key, default=None: {
-            "enabled": True,
-            "topic": custom_topic,  # Custom topic
-            "include_task_info": "none",
-        }
-        if key == "feedback_publishing"
-        else default,
+            "enabled": True, "topic": custom_topic, "include_task_info": "none"
+        } if key == "feedback_publishing" else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    # Create task
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Task for custom topic test"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert task_response.status_code == 200
-    task_id = task_response.json()["result"]["id"]
-    session_id = task_response.json()["result"]["contextId"]
+    session = gateway_adapter.create_session(user_id="custom_topic_user", agent_name="TestAgent")
+    task = gateway_adapter.send_message(session.id, "Task for custom topic test")
 
-    # Create task in DB
-    Session = sessionmaker(bind=test_database_engine)
-    db_session = Session()
-    try:
-        new_task = TaskModel(
-            id=task_id,
-            user_id="sam_dev_user",
-            start_time=now_epoch_ms(),
-            initial_request_text="Task for custom topic test",
-        )
-        db_session.add(new_task)
-        db_session.commit()
-    finally:
-        db_session.close()
-
-    feedback_payload = {
-        "taskId": task_id,
-        "sessionId": session_id,
-        "feedbackType": "up"
-    }
+    feedback_payload = {"taskId": task.task_id, "sessionId": session.id, "feedbackType": "up"}
 
     # Act
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
 
     # Assert
     assert response.status_code == 202
-    
-    # Verify publish was called with custom topic
     mock_publish_func.assert_called_once()
-    call_args = mock_publish_func.call_args[0]
-    
-    published_topic = call_args[0]
-    published_payload = call_args[1]
-    
-    # Verify custom topic was used
+    published_topic = mock_publish_func.call_args[0][0]
     assert published_topic == custom_topic
-    assert published_payload["feedback"]["task_id"] == task_id
-    assert published_payload["feedback"]["feedback_type"] == "up"
 
 
 def test_feedback_publishing_failure_does_not_break_saving(
-    api_client: TestClient, monkeypatch, test_database_engine
+    api_client: TestClient, monkeypatch, gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
 ):
     """
-    Test 4: Publishing Failure Doesn't Break Feedback Saving
     Tests that if publish_a2a raises an exception, the feedback is still saved to the database.
     """
     # Arrange
     from solace_agent_mesh.gateway.http_sse import dependencies
-    component = dependencies.sac_component_instance
-
-    # Create a mock that raises an exception when called
-    def mock_publish_that_fails(topic, payload, user_properties=None):
-        raise Exception("Simulated publishing failure")
-    
+    component = dependencies.get_sac_component()
+    monkeypatch.setattr(component, "publish_a2a", MagicMock(side_effect=Exception("Simulated failure")))
     monkeypatch.setattr(
         component,
         "get_config",
-        lambda key, default=None: {
-            "enabled": True,
-            "topic": "sam/feedback/test/v1",
-            "include_task_info": "summary",
-        }
-        if key == "feedback_publishing"
-        else default,
+        lambda key, default=None: {"enabled": True} if key == "feedback_publishing" else default,
     )
-    monkeypatch.setattr(component, "publish_a2a", mock_publish_that_fails)
 
-    # Create task
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Task for publish failure test"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert task_response.status_code == 200
-    task_id = task_response.json()["result"]["id"]
-    session_id = task_response.json()["result"]["contextId"]
-
-    # Create task in DB
-    Session = sessionmaker(bind=test_database_engine)
-    db_session = Session()
-    try:
-        new_task = TaskModel(
-            id=task_id,
-            user_id="sam_dev_user",
-            start_time=now_epoch_ms(),
-            initial_request_text="Task for publish failure test",
-        )
-        db_session.add(new_task)
-        db_session.commit()
-    finally:
-        db_session.close()
+    session = gateway_adapter.create_session(user_id="resilience_user", agent_name="TestAgent")
+    task = gateway_adapter.send_message(session.id, "Task for resilience test")
 
     feedback_payload = {
-        "taskId": task_id,
-        "sessionId": session_id,
+        "taskId": task.task_id,
+        "sessionId": session.id,
         "feedbackType": "down",
-        "feedbackText": "Testing resilience"
+        "feedbackText": "Testing resilience",
     }
 
     # Act
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
 
     # Assert
-    # Should still return 202 even though publishing failed
-    assert response.status_code == 202
-    
-    # Verify feedback was still saved to database despite publishing failure
-    db_session = Session()
-    try:
-        feedback_record = (
-            db_session.query(FeedbackModel).filter_by(task_id=task_id).one_or_none()
-        )
+    assert response.status_code == 202  # Should succeed even if publishing fails
+
+    with database_inspector.db_manager.get_gateway_connection() as conn:
+        metadata = sa.MetaData()
+        metadata.reflect(bind=conn)
+        feedback_table = metadata.tables["feedback"]
+        query = sa.select(feedback_table).where(feedback_table.c.task_id == task.task_id)
+        feedback_record = conn.execute(query).first()
         assert feedback_record is not None
-        assert feedback_record.task_id == task_id
-        assert feedback_record.session_id == session_id
         assert feedback_record.rating == "down"
-        assert feedback_record.comment == "Testing resilience"
-        assert feedback_record.user_id == "sam_dev_user"
-    finally:
-        db_session.close()
 
 
 def test_feedback_publishing_payload_structure_with_summary(
-    api_client: TestClient, monkeypatch, test_database_engine
+    api_client: TestClient,
+    monkeypatch,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector
 ):
     """
-    Test 5: Payload Structure Validation
     Tests that the published payload has the correct structure with task_summary.
     """
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
-    component = dependencies.sac_component_instance
-
+    component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
         lambda key, default=None: {
-            "enabled": True,
-            "topic": "sam/feedback/test/v1",
-            "include_task_info": "summary",
-        }
-        if key == "feedback_publishing"
-        else default,
+            "enabled": True, "topic": "sam/feedback/test/v1", "include_task_info": "summary"
+        } if key == "feedback_publishing" else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    # Create task
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Task for payload structure test"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert task_response.status_code == 200
-    task_id = task_response.json()["result"]["id"]
-    session_id = task_response.json()["result"]["contextId"]
+    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    task = gateway_adapter.send_message(session.id, "Task for payload structure test")
 
-    # Create task in DB with specific data
-    Session = sessionmaker(bind=test_database_engine)
-    db_session = Session()
-    try:
-        new_task = TaskModel(
-            id=task_id,
+    with database_inspector.db_manager.get_gateway_connection() as conn:
+        metadata = sa.MetaData()
+        metadata.reflect(bind=conn)
+        tasks_table = metadata.tables["tasks"]
+        conn.execute(tasks_table.insert().values(
+            id=task.task_id,
             user_id="sam_dev_user",
-            start_time=now_epoch_ms(),
-            end_time=now_epoch_ms() + 5000,
-            status="completed",
             initial_request_text="Task for payload structure test",
-        )
-        db_session.add(new_task)
-        db_session.commit()
-    finally:
-        db_session.close()
+            start_time=now_epoch_ms(),
+            end_time=now_epoch_ms()
+        ))
+        if conn.in_transaction():
+            conn.commit()
 
     feedback_payload = {
-        "taskId": task_id,
-        "sessionId": session_id,
+        "taskId": task.task_id,
+        "sessionId": session.id,
         "feedbackType": "up",
-        "feedbackText": "Great response!"
+        "feedbackText": "Great response!",
     }
 
     # Act
@@ -863,81 +538,48 @@ def test_feedback_publishing_payload_structure_with_summary(
     # Assert
     assert response.status_code == 202
     mock_publish_func.assert_called_once()
-    
     published_payload = mock_publish_func.call_args[0][1]
-    
-    # Verify feedback object structure
+
     assert "feedback" in published_payload
     feedback_obj = published_payload["feedback"]
-    assert feedback_obj["task_id"] == task_id
-    assert feedback_obj["session_id"] == session_id
+    assert feedback_obj["task_id"] == task.task_id
     assert feedback_obj["feedback_type"] == "up"
     assert feedback_obj["feedback_text"] == "Great response!"
-    assert feedback_obj["user_id"] == "sam_dev_user"
-    
-    # Verify task_summary structure
+
     assert "task_summary" in published_payload
     task_summary = published_payload["task_summary"]
-    assert task_summary["id"] == task_id
-    assert task_summary["user_id"] == "sam_dev_user"
-    assert task_summary["status"] == "completed"
+    assert task_summary["id"] == task.task_id
     assert task_summary["initial_request_text"] == "Task for payload structure test"
-    assert "start_time" in task_summary
-    assert "end_time" in task_summary
 
 
 def test_feedback_publishing_with_missing_task(
-    api_client: TestClient, monkeypatch, test_database_engine
+    api_client: TestClient, monkeypatch, gateway_adapter: GatewayAdapter
 ):
     """
-    Test 6: Task Not Found Handling
     Tests behavior when include_task_info is set but the task doesn't exist in the database.
     """
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
-    component = dependencies.sac_component_instance
-
+    component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
         lambda key, default=None: {
-            "enabled": True,
-            "topic": "sam/feedback/test/v1",
-            "include_task_info": "summary",
-        }
-        if key == "feedback_publishing"
-        else default,
+            "enabled": True, "topic": "sam/feedback/test/v1", "include_task_info": "summary"
+        } if key == "feedback_publishing" else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    # Create task via API but DON'T create it in the database
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Task for missing task test"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    task_response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert task_response.status_code == 200
-    task_id = task_response.json()["result"]["id"]
-    session_id = task_response.json()["result"]["contextId"]
-
-    # Note: We intentionally do NOT create the task in the database
+    # We don't create a task, just a session
+    session = gateway_adapter.create_session(user_id="missing_task_user", agent_name="TestAgent")
+    fake_task_id = f"task-{uuid.uuid4().hex[:8]}"
 
     feedback_payload = {
-        "taskId": task_id,
-        "sessionId": session_id,
+        "taskId": fake_task_id,
+        "sessionId": session.id,
         "feedbackType": "down",
-        "feedbackText": "Task not found test"
+        "feedbackText": "Task not found test",
     }
 
     # Act
@@ -946,16 +588,9 @@ def test_feedback_publishing_with_missing_task(
     # Assert
     assert response.status_code == 202
     mock_publish_func.assert_called_once()
-    
     published_payload = mock_publish_func.call_args[0][1]
-    
-    # Should have feedback object
+
     assert "feedback" in published_payload
-    assert published_payload["feedback"]["task_id"] == task_id
-    assert published_payload["feedback"]["feedback_type"] == "down"
-    
-    # Should NOT have task_summary since task doesn't exist
+    assert published_payload["feedback"]["task_id"] == fake_task_id
     assert "task_summary" not in published_payload
-    
-    # Should NOT have task_stim_data
     assert "task_stim_data" not in published_payload

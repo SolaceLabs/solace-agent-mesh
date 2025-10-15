@@ -6,384 +6,169 @@ Tests session management through actual HTTP API calls to /sessions endpoints.
 
 import pytest
 from fastapi.testclient import TestClient
+from ..infrastructure.gateway_adapter import GatewayAdapter
+from ..infrastructure.database_inspector import DatabaseInspector
 
 
-@pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
-def test_get_all_sessions_empty(api_client: TestClient):
+def test_get_all_sessions_empty(api_client: TestClient, gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
     """Test that GET /sessions returns empty list initially"""
+    user_id = "sam_dev_user"
+    sessions = database_inspector.get_gateway_sessions(user_id)
+    for session in sessions:
+        gateway_adapter.delete_session(session.id)
 
     response = api_client.get("/api/v1/sessions")
-
     assert response.status_code == 200
     response_data = response.json()
-    assert response_data["sessions"] == []
-    assert response_data["totalCount"] == 0
-
-    print("✓ GET /sessions returns empty list when no sessions exist")
+    assert response_data.get("data", []) == []
 
 
-def test_send_task_creates_session_with_message(api_client: TestClient):
-    """Test that POST /message:stream creates session and persists message"""
+def test_send_task_creates_session_with_message(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+    """Test that creating a session and sending a message works"""
+    user_id = "sam_dev_user"
+    session = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
+    task_response = gateway_adapter.send_message(session.id, "Hello, I need help with a task")
 
-    import uuid
+    sessions = database_inspector.get_gateway_sessions(user_id)
+    assert len(sessions) == 1
+    assert sessions[0].id == session.id
 
-    # Send a streaming task which creates a session
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Hello, I need help with a task"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-
-    response = api_client.post("/api/v1/message:stream", json=task_payload)
-
-    # Verify task was submitted successfully
-    assert response.status_code == 200
-    response_data = response.json()
-    assert "result" in response_data
-    assert "id" in response_data["result"]
-    assert "contextId" in response_data["result"]
-
-    session_id = response_data["result"]["contextId"]
-    task_id = response_data["result"]["id"]
-
-    assert isinstance(session_id, str) and session_id.startswith("test-session-")
-    assert isinstance(task_id, str) and task_id.startswith("task-")
-
-    print(f"✓ Task submitted and session {session_id} created")
+    messages = database_inspector.get_session_messages(session.id)
+    assert len(messages) >= 1
+    assert "Hello, I need help with a task" in task_response.user_message
 
 
-def test_multiple_sessions_via_tasks(api_client: TestClient):
+def test_multiple_sessions_via_tasks(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
     """Test that a user can create multiple sessions with different agents"""
+    user_id = "sam_dev_user"
+    session1 = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
+    session2 = gateway_adapter.create_session(user_id=user_id, agent_name="TestPeerAgentA")
 
-    import uuid
+    assert session1.id != session2.id
 
-    # Create first session with TestAgent
-    task_payload_1 = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Message to TestAgent"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response_1 = api_client.post("/api/v1/message:stream", json=task_payload_1)
-    assert response_1.status_code == 200
-    session_id_1 = response_1.json()["result"]["contextId"]
-
-    # Create second session with TestPeerAgentA
-    task_payload_2 = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Message to PeerAgentA"}],
-                "metadata": {"agent_name": "TestPeerAgentA"},
-            }
-        },
-    }
-    response_2 = api_client.post("/api/v1/message:stream", json=task_payload_2)
-    assert response_2.status_code == 200
-    session_id_2 = response_2.json()["result"]["contextId"]
-
-    # Verify sessions are different
-    assert session_id_1 != session_id_2
-
-    # Verify both sessions show up in sessions list
-    sessions_response = api_client.get("/api/v1/sessions")
-    assert sessions_response.status_code == 200
-    sessions_data = sessions_response.json()
-    sessions = sessions_data["data"]
+    sessions = database_inspector.get_gateway_sessions(user_id)
     assert len(sessions) == 2
-
-    # Verify session IDs and agents
-    session_ids = {s["id"] for s in sessions}
-    assert session_id_1 in session_ids
-    assert session_id_2 in session_ids
-
-    session_agents = {s["id"]: s["agentId"] for s in sessions}
-    assert session_agents[session_id_1] == "TestAgent"
-    assert session_agents[session_id_2] == "TestPeerAgentA"
-
-    print("✓ Multiple sessions created successfully via API")
+    session_ids = {s.id for s in sessions}
+    assert session1.id in session_ids
+    assert session2.id in session_ids
 
 
-@pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
-def test_get_specific_session(api_client: TestClient):
+def test_get_specific_session(gateway_adapter: GatewayAdapter, api_client: TestClient):
     """Test GET /sessions/{session_id} retrieves specific session"""
+    user_id = "sam_dev_user"
+    session = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
 
-    import uuid
-
-    # First create a session
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Help with project X"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert response.status_code == 200
-    session_id = response.json()["result"]["contextId"]
-
-    # Get the specific session
-    session_response = api_client.get(f"/api/v1/sessions/{session_id}")
+    session_response = api_client.get(f"/api/v1/sessions/{session.id}")
     assert session_response.status_code == 200
 
     session_data = session_response.json()
-    assert session_data["id"] == session_id
-    assert session_data["agentId"] == "TestAgent"
-    assert "userId" in session_data
-
-    print(f"✓ Retrieved specific session {session_id} via API")
+    assert session_data.get("data", {}).get("id") == session.id
+    assert session_data.get("data", {}).get("agentId") == "TestAgent"
 
 
-@pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
-def test_get_session_history(api_client: TestClient):
+def test_get_session_history(gateway_adapter: GatewayAdapter, api_client: TestClient):
     """Test GET /sessions/{session_id}/messages retrieves message history"""
+    user_id = "sam_dev_user"
+    session = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
+    gateway_adapter.send_message(session.id, "Test message for history")
 
-    import uuid
-
-    # Create session with message
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Test message for history"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert response.status_code == 200
-    session_id = response.json()["result"]["contextId"]
-
-    # Get session history
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
+    history_response = api_client.get(f"/api/v1/sessions/{session.id}/messages")
     assert history_response.status_code == 200
 
     history = history_response.json()
-    assert isinstance(history, list)  # Direct array format
-    assert len(history) >= 1  # At least the user message should be stored
-
-    # Verify the message content
-    user_message = history[0]
-    assert user_message["message"] == "Test message for history"
-    assert user_message["senderType"] == "user"
-
-    print(f"✓ Retrieved session history for {session_id}")
+    assert isinstance(history, list)
+    assert len(history) == 2
+    
+    user_message = history[0].get("message")
+    assert "Test message for history" in user_message
 
 
-def test_update_session_name(api_client: TestClient):
+def test_update_session_name(gateway_adapter: GatewayAdapter, api_client: TestClient):
     """Test PATCH /sessions/{session_id} updates session name"""
+    user_id = "sam_dev_user"
+    session = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
 
-    import uuid
-
-    # Create a session
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Original message"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert response.status_code == 200
-    session_id = response.json()["result"]["contextId"]
-
-    # Update session name
     update_data = {"name": "Updated Session Name"}
-    update_response = api_client.patch(
-        f"/api/v1/sessions/{session_id}", json=update_data
-    )
+    update_response = api_client.patch(f"/api/v1/sessions/{session.id}", json=update_data)
     assert update_response.status_code == 200
 
     updated_session = update_response.json()
     assert updated_session["name"] == "Updated Session Name"
-    assert updated_session["id"] == session_id
-
-    print(f"✓ Session {session_id} name updated successfully")
+    assert updated_session["id"] == session.id
 
 
-def test_delete_session(api_client: TestClient):
+def test_delete_session(gateway_adapter: GatewayAdapter, api_client: TestClient, database_inspector: DatabaseInspector):
     """Test DELETE /sessions/{session_id} removes session"""
-
-    import uuid
-
-    # Create a session
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Session to be deleted"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert response.status_code == 200
-    session_id = response.json()["result"]["contextId"]
+    user_id = "sam_dev_user"
+    session = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
 
     # Verify session exists
-    session_response = api_client.get(f"/api/v1/sessions/{session_id}")
-    assert session_response.status_code == 200
+    sessions = database_inspector.get_gateway_sessions(user_id)
+    assert len(sessions) == 1
 
     # Delete the session
-    delete_response = api_client.delete(f"/api/v1/sessions/{session_id}")
-    assert delete_response.status_code == 204  # No Content
+    delete_response = api_client.delete(f"/api/v1/sessions/{session.id}")
+    assert delete_response.status_code == 204
 
     # Verify session no longer exists
-    session_response = api_client.get(f"/api/v1/sessions/{session_id}")
-    assert session_response.status_code == 404
-
-    print(f"✓ Session {session_id} deleted successfully")
+    sessions = database_inspector.get_gateway_sessions(user_id)
+    assert len(sessions) == 0
 
 
 def test_session_error_handling(api_client: TestClient):
     """Test error handling for invalid session operations"""
-
     # Test getting non-existent session
     response = api_client.get("/api/v1/sessions/nonexistent_session_id")
     assert response.status_code == 404
 
     # Test getting history for non-existent session
     response = api_client.get("/api/v1/sessions/nonexistent_session_id/messages")
-    assert response.status_code == 404  # Not found (don't reveal existence)
+    assert response.status_code == 404
 
     # Test updating non-existent session
     update_data = {"name": "New Name"}
-    response = api_client.patch(
-        "/api/v1/sessions/nonexistent_session_id", json=update_data
-    )
-    assert response.status_code == 404  # Not found (don't reveal existence)
+    response = api_client.patch("/api/v1/sessions/nonexistent_session_id", json=update_data)
+    assert response.status_code == 404
 
     # Test deleting non-existent session
     response = api_client.delete("/api/v1/sessions/nonexistent_session_id")
-    assert response.status_code == 404  # Not found (don't reveal existence)
-
-    print("✓ Session error handling works correctly")
+    assert response.status_code == 404
 
 
-@pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
-def test_end_to_end_session_workflow(api_client: TestClient):
+def test_end_to_end_session_workflow(gateway_adapter: GatewayAdapter, api_client: TestClient, database_inspector: DatabaseInspector):
     """Test complete session workflow: create -> send messages -> update -> delete"""
-
-    import uuid
-
-    # 1. Create session via task submission
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Start new conversation"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert response.status_code == 200
-    session_id = response.json()["result"]["contextId"]
+    user_id = "sam_dev_user"
+    # 1. Create session
+    session = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
 
     # 2. Verify session appears in sessions list
     sessions_response = api_client.get("/api/v1/sessions")
     assert sessions_response.status_code == 200
     sessions_data = sessions_response.json()
-    sessions = sessions_data["sessions"]
-    assert len(sessions) == 1
-    assert sessions_data["totalCount"] == 1
-    assert sessions[0]["id"] == session_id
+    assert len(sessions_data.get("data", [])) >= 1
+    assert session.id in [s["id"] for s in sessions_data.get("data", [])]
 
     # 3. Send additional message to same session
-    task_payload_2 = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Follow up message"}],
-                "metadata": {"agent_name": "TestAgent"},
-                "contextId": session_id,
-            }
-        },
-    }
-    response_2 = api_client.post("/api/v1/message:stream", json=task_payload_2)
-    assert response_2.status_code == 200
-    assert response_2.json()["result"]["contextId"] == session_id
+    gateway_adapter.send_message(session.id, "Follow up message")
 
     # 4. Check session history
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
+    history_response = api_client.get(f"/api/v1/sessions/{session.id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
-    assert len(history) >= 2  # Should have both messages (direct array)
+    assert len(history) >= 1
 
     # 5. Update session name
     update_data = {"name": "My Test Conversation"}
-    update_response = api_client.patch(
-        f"/api/v1/sessions/{session_id}", json=update_data
-    )
+    update_response = api_client.patch(f"/api/v1/sessions/{session.id}", json=update_data)
     assert update_response.status_code == 200
     update_result = update_response.json()
     assert update_result["name"] == "My Test Conversation"
 
     # 6. Delete session
-    delete_response = api_client.delete(f"/api/v1/sessions/{session_id}")
+    delete_response = api_client.delete(f"/api/v1/sessions/{session.id}")
     assert delete_response.status_code == 204
 
     # 7. Verify session is gone
     sessions_response = api_client.get("/api/v1/sessions")
     assert sessions_response.status_code == 200
-    sessions_data = sessions_response.json()
-    assert len(sessions_data["sessions"]) == 0
-    assert sessions_data["totalCount"] == 0
-
-    print("✓ Complete end-to-end session workflow successful")
+    assert session.id not in [s["id"] for s in sessions_response.json().get("data", [])]

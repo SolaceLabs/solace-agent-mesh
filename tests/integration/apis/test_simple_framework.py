@@ -4,271 +4,206 @@ Simple smoke tests for the API persistence testing framework.
 Basic tests to verify that the simplified framework works without external dependencies.
 """
 
+import json
 import pytest
 import sqlalchemy as sa
 
-from .infrastructure.simple_database_inspector import SimpleDatabaseInspector
-from .infrastructure.simple_database_manager import SimpleDatabaseManager
-from .infrastructure.simple_gateway_adapter import SimpleGatewayAdapter
+from .infrastructure.database_manager import DatabaseManager
+from .infrastructure.gateway_adapter import GatewayAdapter
+from .infrastructure.database_inspector import DatabaseInspector
 
 
-def test_simple_database_manager_initialization(
-    simple_database_manager: SimpleDatabaseManager,
-):
-    """Test that SimpleDatabaseManager initializes correctly"""
+def test_database_initialization_and_connections(database_manager: DatabaseManager, test_agents_list: list[str]):
+    """
+    Test that the DatabaseManager initializes correctly and that all databases are created and accessible.
+    """
+    # 1. Verify the manager and its provider are initialized
+    assert database_manager is not None
+    assert database_manager.provider is not None
 
-    # Verify Gateway database path exists
-    assert simple_database_manager.gateway_db_path is not None
-    assert simple_database_manager.gateway_db_path.exists()
-
-    # Verify Agent database paths exist
-    expected_agents = [
-        "TestAgent",
-        "TestPeerAgentA",
-        "TestPeerAgentB",
-        "TestPeerAgentC",
-    ]
-    assert len(simple_database_manager.agent_db_paths) == len(expected_agents)
-
-    for agent_name in expected_agents:
-        assert agent_name in simple_database_manager.agent_db_paths
-        agent_path = simple_database_manager.agent_db_paths[agent_name]
-        assert agent_path.exists()
-        assert agent_name.lower() in str(agent_path)
-
-    print(
-        f"✓ SimpleDatabaseManager initialized: Gateway + {len(expected_agents)} agents"
-    )
-
-
-def test_database_connections(simple_database_manager: SimpleDatabaseManager):
-    """Test that database connections work"""
-
-    # Test Gateway connection
-    with simple_database_manager.get_gateway_connection() as gateway_conn:
-        result = gateway_conn.execute(sa.select(1)).scalar_one()
-        assert result == 1
-
-    # Test Agent connections
-    for agent_name in simple_database_manager.agent_db_paths.keys():
-        with simple_database_manager.get_agent_connection(agent_name) as agent_conn:
-            result = agent_conn.execute(sa.select(1)).scalar_one()
+    # 2. Verify that the gateway database is accessible
+    try:
+        with database_manager.get_gateway_connection() as gateway_conn:
+            result = gateway_conn.execute(sa.select(1)).scalar_one()
             assert result == 1
+    except Exception as e:
+        pytest.fail(f"Failed to connect to gateway database: {e}")
 
-    print("✓ All database connections working")
+    # 3. Verify that all agent databases are accessible
+    for agent_name in test_agents_list:
+        try:
+            with database_manager.get_agent_connection(agent_name) as agent_conn:
+                result = agent_conn.execute(sa.select(1)).scalar_one()
+                assert result == 1
+        except Exception as e:
+            pytest.fail(f"Failed to connect to agent '{agent_name}' database: {e}")
 
 
-def test_simple_database_inspector_basic(
-    simple_database_inspector: SimpleDatabaseInspector,
-):
-    """Test that SimpleDatabaseInspector works"""
-
-    # Test Gateway migration verification
-    migration_version = simple_database_inspector.verify_gateway_migration_state()
+def test_database_inspector_basic(database_manager: DatabaseManager, test_agents_list: list[str]):
+    """Test that DatabaseInspector works"""
+    inspector = DatabaseInspector(database_manager)
+    migration_version = inspector.verify_gateway_migration_state()
     assert migration_version is not None
     assert len(migration_version) > 0
-    assert migration_version == "test_migration_001"
-
-    # Test Agent schema verification
-    for agent_name in ["TestAgent", "TestPeerAgentA"]:
-        table_names = simple_database_inspector.verify_agent_schema_state(agent_name)
+    
+    for agent_name in test_agents_list:
+        table_names = inspector.verify_agent_schema_state(agent_name)
         assert "agent_sessions" in table_names
         assert "agent_messages" in table_names
         assert "alembic_version" not in table_names
 
-    print("✓ SimpleDatabaseInspector basic functionality working")
 
-
-def test_simple_gateway_adapter_basic(
-    simple_gateway_adapter: SimpleGatewayAdapter,
-    simple_database_inspector: SimpleDatabaseInspector,
-):
-    """Test that SimpleGatewayAdapter basic functionality works"""
-
-    # Test session creation
-    session = simple_gateway_adapter.create_session(
-        user_id="smoke_test_user", agent_name="TestAgent"
-    )
-
+def test_gateway_adapter_basic(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+    """Test that GatewayAdapter basic functionality works"""
+    session = gateway_adapter.create_session(user_id="smoke_test_user", agent_name="TestAgent")
     assert session.id is not None
-    assert len(session.id) > 0
     assert session.user_id == "smoke_test_user"
-    assert session.agent_name == "TestAgent"
+    assert session.agent_id == "TestAgent"
 
-    # Verify session was persisted
-    gateway_sessions = simple_database_inspector.get_gateway_sessions("smoke_test_user")
+    gateway_sessions = database_inspector.get_gateway_sessions("smoke_test_user")
     assert len(gateway_sessions) == 1
     assert gateway_sessions[0].id == session.id
 
-    # Test session listing
-    session_list = simple_gateway_adapter.list_sessions("smoke_test_user")
+    session_list = gateway_adapter.list_sessions("smoke_test_user")
     assert len(session_list) == 1
     assert session_list[0].id == session.id
 
-    print(f"✓ SimpleGatewayAdapter basic functionality working: {session.id}")
 
-
-def test_message_persistence(
-    simple_gateway_adapter: SimpleGatewayAdapter,
-    simple_database_inspector: SimpleDatabaseInspector,
-):
+def test_message_persistence(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
     """Test that messages are persisted correctly"""
-
-    # Create session and send message
-    session = simple_gateway_adapter.create_session(
-        user_id="message_test_user", agent_name="TestAgent"
-    )
-
-    response = simple_gateway_adapter.send_message(session.id, "Hello, test message!")
-
-    # Verify message response
-    assert response.content == "Received: Hello, test message!"
+    session = gateway_adapter.create_session(user_id="message_test_user", agent_name="TestAgent")
+    response = gateway_adapter.send_message(session.id, "Hello, test message!")
+    assert "Received: Hello, test message!" in response.message_bubbles
     assert response.session_id == session.id
 
-    # Verify messages were persisted
-    messages = simple_database_inspector.get_session_messages(session.id)
-    assert len(messages) == 2  # user message + agent response
+    messages = database_inspector.get_session_messages(session.id)
+    assert len(messages) == 2
 
-    # Check user message
-    user_message = messages[0]
-    assert user_message.role == "user"
-    assert user_message.content == "Hello, test message!"
+    # User message
+    user_message_task = messages[0]
+    assert user_message_task.user_message == "Hello, test message!"
+    user_bubbles = json.loads(user_message_task.message_bubbles)
+    assert user_bubbles[0]["role"] == "user"
+    assert user_bubbles[0]["content"] == "Hello, test message!"
 
-    # Check agent response
-    agent_message = messages[1]
-    assert agent_message.role == "assistant"
-    assert agent_message.content == "Received: Hello, test message!"
+    # Agent message
+    agent_message_task = messages[1]
+    assert agent_message_task.user_message is None
+    agent_bubbles = json.loads(agent_message_task.message_bubbles)
+    assert agent_bubbles[0]["role"] == "assistant"
+    assert agent_bubbles[0]["content"] == "Received: Hello, test message!"
 
-    print("✓ Message persistence working correctly")
 
-
-def test_database_architecture_validation(
-    simple_database_inspector: SimpleDatabaseInspector, test_agents_list: list[str]
-):
+def test_database_architecture_validation(database_inspector: DatabaseInspector, test_agents_list: list[str]):
     """Test that database architecture validation works"""
+    # This test is simplified as the new provider model doesn't expose the same architecture details
+    migration_version = database_inspector.verify_gateway_migration_state()
+    assert migration_version is not None
 
-    architecture = simple_database_inspector.verify_database_architecture(
-        test_agents_list
-    )
-
-    # Verify Gateway migration state
-    assert architecture["gateway_migration_version"] == "test_migration_001"
-
-    # Verify all agents have correct schema
     for agent_name in test_agents_list:
-        agent_tables = architecture["agent_schemas"][agent_name]
-        assert "agent_sessions" in agent_tables
-        assert "agent_messages" in agent_tables
-        assert "alembic_version" not in agent_tables
-
-    print(
-        f"✓ Database architecture validation working for {len(test_agents_list)} agents"
-    )
+        table_names = database_inspector.verify_agent_schema_state(agent_name)
+        assert "agent_sessions" in table_names
+        assert "agent_messages" in table_names
+        assert "alembic_version" not in table_names
 
 
-def test_database_cleanup_between_tests(
-    simple_database_inspector: SimpleDatabaseInspector,
-):
+def test_database_cleanup_between_tests(database_inspector: DatabaseInspector, test_agents_list: list[str]):
     """Test that database cleanup works between tests"""
-
-    # This test should start with clean databases
-    stats = simple_database_inspector.get_database_stats()
+    # This test is simplified as cleanup is handled by the provider fixture
+    stats = database_inspector.get_database_stats()
 
     # All databases should start clean
     assert stats["gateway"]["sessions"] == 0
     assert stats["gateway"]["messages"] == 0
 
-    for agent_name in [
-        "TestAgent",
-        "TestPeerAgentA",
-        "TestPeerAgentB",
-        "TestPeerAgentC",
-    ]:
+    for agent_name in test_agents_list:
         agent_key = f"agent_{agent_name}"
         if agent_key in stats:
             assert stats[agent_key]["sessions"] == 0
             assert stats[agent_key]["messages"] == 0
 
-    print("✓ Database cleanup working correctly between tests")
 
-
-def test_session_isolation(
-    simple_gateway_adapter: SimpleGatewayAdapter,
-    simple_database_inspector: SimpleDatabaseInspector,
-):
+def test_session_isolation(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
     """Test that sessions are properly isolated"""
+    session_a = gateway_adapter.create_session(user_id="user_a", agent_name="TestAgent")
+    session_b = gateway_adapter.create_session(user_id="user_b", agent_name="TestAgent")
 
-    # Create two sessions for different users
-    session_a = simple_gateway_adapter.create_session(
-        user_id="user_a", agent_name="TestAgent"
-    )
+    gateway_adapter.send_message(session_a.id, "Message from user A")
+    gateway_adapter.send_message(session_b.id, "Message from user B")
 
-    session_b = simple_gateway_adapter.create_session(
-        user_id="user_b", agent_name="TestAgent"
-    )
-
-    # Send messages to both sessions
-    simple_gateway_adapter.send_message(session_a.id, "Message from user A")
-    simple_gateway_adapter.send_message(session_b.id, "Message from user B")
-
-    # Verify each user only sees their own sessions
-    user_a_sessions = simple_database_inspector.get_gateway_sessions("user_a")
-    user_b_sessions = simple_database_inspector.get_gateway_sessions("user_b")
+    user_a_sessions = database_inspector.get_gateway_sessions("user_a")
+    user_b_sessions = database_inspector.get_gateway_sessions("user_b")
 
     assert len(user_a_sessions) == 1
     assert len(user_b_sessions) == 1
     assert user_a_sessions[0].id == session_a.id
     assert user_b_sessions[0].id == session_b.id
 
-    # Verify messages are isolated
-    messages_a = simple_database_inspector.get_session_messages(session_a.id)
-    messages_b = simple_database_inspector.get_session_messages(session_b.id)
+    messages_a = database_inspector.get_session_messages(session_a.id)
+    messages_b = database_inspector.get_session_messages(session_b.id)
 
     assert len(messages_a) == 2
     assert len(messages_b) == 2
-    assert "user A" in messages_a[0].content
-    assert "user B" in messages_b[0].content
-    assert "user B" not in messages_a[0].content
-    assert "user A" not in messages_b[0].content
 
-    print("✓ Session isolation working correctly")
+    # Check user A's messages
+    bubbles_a = json.loads(messages_a[0].message_bubbles)
+    assert "Message from user A" in bubbles_a[0]["content"]
+    assert "Message from user B" not in bubbles_a[0]["content"]
+
+    # Check user B's messages
+    bubbles_b = json.loads(messages_b[0].message_bubbles)
+    assert "Message from user B" in bubbles_b[0]["content"]
+    assert "Message from user A" not in bubbles_b[0]["content"]
 
 
-def test_agent_database_isolation(simple_database_inspector: SimpleDatabaseInspector):
+def test_agent_database_isolation(database_inspector: DatabaseInspector, test_agents_list: list[str]):
     """Test that agent databases are properly isolated"""
-
     # Test isolation between different agents
-    isolation_verified = simple_database_inspector.verify_database_isolation(
-        "TestAgent", "TestPeerAgentA"
-    )
-    assert isolation_verified
-
-    isolation_verified = simple_database_inspector.verify_database_isolation(
-        "TestPeerAgentA", "TestPeerAgentB"
-    )
-    assert isolation_verified
-
-    print("✓ Agent database isolation verified")
-
-
-def test_error_handling(
-    simple_gateway_adapter: SimpleGatewayAdapter,
-    simple_database_manager: SimpleDatabaseManager,
-):
-    """Test that error handling works correctly"""
-
-    # Test invalid session ID
-    with pytest.raises(ValueError, match="Session .* not found"):
-        simple_gateway_adapter.send_message(
-            "nonexistent_session_id", "This should fail"
+    for i in range(len(test_agents_list) - 1):
+        agent_a = test_agents_list[i]
+        agent_b = test_agents_list[i+1]
+        isolation_verified = database_inspector.verify_database_isolation(
+            agent_a, agent_b
         )
+        assert isolation_verified
 
-    # Test invalid agent name for database connection
-    with pytest.raises(ValueError, match="Agent database .* not initialized"):
-        simple_database_manager.get_agent_connection("NonExistentAgent")
 
-    # Test invalid session for switching
+def test_error_handling(gateway_adapter: GatewayAdapter, database_manager: DatabaseManager):
+    """Test that error handling works correctly"""
     with pytest.raises(ValueError, match="Session .* not found"):
-        simple_gateway_adapter.switch_session("nonexistent_session_id")
+        gateway_adapter.send_message("nonexistent_session_id", "This should fail")
 
-    print("✓ Error handling works correctly")
+    with pytest.raises(ValueError, match="Agent database for 'NonExistentAgent' not initialized."):
+        database_manager.get_agent_connection("NonExistentAgent")
+
+    with pytest.raises(ValueError, match="Session .* not found"):
+        gateway_adapter.switch_session("nonexistent_session_id")
+
+
+def test_database_stats(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector, test_agents_list: list[str]):
+    """Test that get_database_stats returns correct counts."""
+    # 1. Verify initial state is empty
+    initial_stats = database_inspector.get_database_stats()
+    assert initial_stats["gateway"]["sessions"] == 0
+    assert initial_stats["gateway"]["messages"] == 0
+    for agent_name in test_agents_list:
+        agent_key = f"agent_{agent_name}"
+        if agent_key in initial_stats:
+            assert initial_stats[agent_key]["sessions"] == 0
+            assert initial_stats[agent_key]["messages"] == 0
+
+    # 2. Create a session and send a message
+    session = gateway_adapter.create_session(user_id="stats_user", agent_name="TestAgent")
+    gateway_adapter.send_message(session.id, "Hello stats!")
+
+    # 3. Verify stats after actions
+    final_stats = database_inspector.get_database_stats()
+    assert final_stats["gateway"]["sessions"] == 1
+    assert final_stats["gateway"]["messages"] == 2  # User message + simulated agent response
+
+    # Note: The generic GatewayAdapter does not interact with agent databases,
+    # so their stats should remain 0. This is expected behavior for this test.
+    agent_key = "agent_TestAgent"
+    if agent_key in final_stats:
+        assert final_stats[agent_key]["sessions"] == 0
+        assert final_stats[agent_key]["messages"] == 0
