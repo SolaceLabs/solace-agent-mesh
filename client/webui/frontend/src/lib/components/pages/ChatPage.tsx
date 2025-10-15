@@ -8,7 +8,7 @@ import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/
 import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useChatContext, useTaskContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useTaskContext } from "@/lib/hooks";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
@@ -36,8 +36,10 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { agents, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, sessionName } = useChatContext();
+    const { agents, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, sessionName, handleNewSession } =
+        useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
+    const { persistenceEnabled } = useConfigContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
     const [isChatSessionDialogOpen, setChatSessionDialogOpen] = useState(false);
@@ -85,6 +87,15 @@ export function ChatPage() {
     const handleSessionSidePanelToggle = useCallback(() => {
         setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
     }, [isSessionSidePanelCollapsed]);
+
+    const handleNewChat = useCallback(() => {
+        if (persistenceEnabled) {
+            handleNewSession();
+            return;
+        }
+
+        setChatSessionDialogOpen(true);
+    }, [handleNewSession, persistenceEnabled]);
 
     useEffect(() => {
         if (chatSidePanelRef.current && isSidePanelCollapsed) {
@@ -174,7 +185,7 @@ export function ChatPage() {
                                     <PanelLeftIcon className="size-5" />
                                 </Button>
                                 <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-                                <Button variant="ghost" onClick={() => setChatSessionDialogOpen(true)} className="h-10 w-10 p-0" tooltip="Start New Chat Session">
+                                <Button variant="ghost" onClick={handleNewChat} className="h-10 w-10 p-0" tooltip="Start New Chat Session">
                                     <Edit className="size-5" />
                                 </Button>
                             </div>
