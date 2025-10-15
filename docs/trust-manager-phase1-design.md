@@ -2,7 +2,9 @@
 
 ## Overview
 
-This document describes the detailed design for Phase 1 of the SAM Trust Manager implementation, which focuses on creating, publishing, receiving, and storing Trust Cards. This phase establishes the infrastructure for component identity verification without implementing the actual JWT signing and verification functionality (Phase 2).
+This document describes the detailed design for Phase 1 of the SAM Trust Manager implementation in the **solace-agent-mesh-enterprise** repository. This phase focuses on creating, publishing, receiving, and storing Trust Cards, establishing the infrastructure for component identity verification.
+
+**Repository Context**: This implementation is part of the enterprise repository (`solace-agent-mesh-enterprise`). The open source repository (`solace-agent-mesh`) provides integration hooks that this enterprise implementation uses.
 
 **Phase 1 Scope**: Trust Card infrastructure only
 - Key pair generation and management
@@ -63,9 +65,11 @@ Trust Card Reception
 
 ---
 
-## New Files to Create
+## New Files to Create (Enterprise Repository)
 
-### 1. `src/solace_agent_mesh/common/trust/__init__.py`
+All files are created in the `solace-agent-mesh-enterprise` repository.
+
+### 1. `src/solace_agent_mesh_enterprise/common/trust/__init__.py`
 
 **Purpose**: Package initializer for the trust module
 
@@ -81,13 +85,37 @@ from .exceptions import (
     CardVerificationError,
     InvalidCardError,
 )
+
+# Factory function for open source integration
+def initialize_trust_manager(component):
+    """
+    Factory function called by open source components to initialize Trust Manager.
+    
+    Args:
+        component: SamComponentBase instance from open source
+        
+    Returns:
+        TrustManager instance or None if not enabled
+    """
+    trust_config = component.get_config("trust_manager")
+    if not trust_config or not trust_config.get("enabled", False):
+        return None
+    
+    return TrustManager(
+        component_id=component._get_component_id(),
+        component_type=component._get_component_type(),
+        namespace=component.namespace,
+        config=trust_config,
+        publish_callback=component.publish_a2a_message,
+        log_identifier=component.log_identifier
+    )
 ```
 
-**Content**: Standard Python package init with imports from submodules
+**Content**: Standard Python package init with imports from submodules and factory function for open source integration
 
 ---
 
-### 2. `src/solace_agent_mesh/common/trust/trust_card.py`
+### 2. `src/solace_agent_mesh_enterprise/common/trust/trust_card.py`
 
 **Purpose**: Pydantic model for Trust Cards
 
@@ -133,7 +161,7 @@ Represents a component's trust credentials.
 
 ---
 
-### 3. `src/solace_agent_mesh/common/trust/trust_registry.py`
+### 3. `src/solace_agent_mesh_enterprise/common/trust/trust_registry.py`
 
 **Purpose**: Thread-safe storage for discovered Trust Cards
 
@@ -212,7 +240,7 @@ Stores and manages Trust Cards from other components.
 
 ---
 
-### 4. `src/solace_agent_mesh/common/trust/key_manager.py`
+### 4. `src/solace_agent_mesh_enterprise/common/trust/key_manager.py`
 
 **Purpose**: Manages ECDSA key pair generation, loading, and storage
 
@@ -318,7 +346,7 @@ Handles cryptographic key operations for Trust Manager.
 
 ---
 
-### 5. `src/solace_agent_mesh/common/trust/trust_manager.py`
+### 5. `src/solace_agent_mesh_enterprise/common/trust/trust_manager.py`
 
 **Purpose**: Main orchestrator for Trust Manager functionality
 
@@ -330,7 +358,7 @@ Handles cryptographic key operations for Trust Manager.
 - `.trust_registry` - For TrustRegistry
 - `.key_manager` - For KeyManager
 - `.exceptions` - For custom exceptions
-- `..a2a.protocol` - For topic construction
+- `solace_agent_mesh.common.a2a.protocol` - For topic construction (from open source)
 - `datetime` - For timestamp generation
 
 **Key Classes**:
@@ -431,7 +459,7 @@ Orchestrates all trust-related operations for a component.
 
 ---
 
-### 6. `src/solace_agent_mesh/common/trust/exceptions.py`
+### 6. `src/solace_agent_mesh_enterprise/common/trust/exceptions.py`
 
 **Purpose**: Custom exceptions for Trust Manager
 
@@ -1166,31 +1194,41 @@ ERROR [KeyManager:web-gateway-01] Failed to load private key from /secure/keys/w
 
 ## Appendix: File Structure
 
+### Enterprise Repository Structure
+
+```
+src/solace_agent_mesh_enterprise/
+└── common/
+    └── trust/                          # NEW - All files in enterprise repo
+        ├── __init__.py                 # NEW - Includes factory function
+        ├── trust_card.py               # NEW
+        ├── trust_registry.py           # NEW
+        ├── trust_manager.py            # NEW
+        ├── key_manager.py              # NEW
+        └── exceptions.py               # NEW
+```
+
+### Open Source Repository (No Changes Required)
+
+The open source repository already contains all necessary integration hooks:
+
 ```
 src/solace_agent_mesh/
 ├── common/
-│   ├── trust/                          # NEW
-│   │   ├── __init__.py                 # NEW
-│   │   ├── trust_card.py               # NEW
-│   │   ├── trust_registry.py           # NEW
-│   │   ├── trust_manager.py            # NEW
-│   │   ├── key_manager.py              # NEW
-│   │   └── exceptions.py               # NEW
 │   ├── a2a/
-│   │   ├── protocol.py                 # MODIFIED
-│   │   └── types.py                    # (no changes)
+│   │   └── protocol.py                 # Already has trust card topic functions
 │   └── sac/
-│       └── sam_component_base.py       # MODIFIED
+│       └── sam_component_base.py       # Already has trust manager hooks
 ├── agent/
 │   ├── sac/
-│   │   ├── app.py                      # MODIFIED
-│   │   └── component.py                # MODIFIED
+│   │   ├── app.py                      # Already has abstract methods
+│   │   └── component.py                # Already has message routing
 │   └── protocol/
-│       └── event_handlers.py           # MODIFIED
+│       └── event_handlers.py           # Already has trust card routing
 └── gateway/
     └── base/
-        ├── app.py                      # MODIFIED
-        └── component.py                # MODIFIED
+        ├── app.py                      # Already has abstract methods
+        └── component.py                # Already has message routing
 ```
 
 ---
@@ -1225,4 +1263,5 @@ src/solace_agent_mesh/
 - **Date**: 2025-01-15
 - **Status**: Draft for Review
 - **Phase**: Phase 1 (Trust Card Infrastructure)
+- **Repository**: solace-agent-mesh-enterprise
 - **Next Phase**: Phase 2 (JWT Signing and Verification)
