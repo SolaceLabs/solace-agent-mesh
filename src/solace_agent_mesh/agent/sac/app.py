@@ -458,8 +458,8 @@ class SamAgentApp(App):
         broker_config["queue_name"] = generated_queue_name
         log.debug("Injected generated broker.queue_name: %s", generated_queue_name)
 
-        broker_config["temporary_queue"] = True
-        log.debug("Set broker_config.temporary_queue = True")
+        broker_config["temporary_queue"] = app_info.get("broker", {}).get("temporary_queue", True)
+        log.debug("Set broker_config.temporary_queue = %s", broker_config["temporary_queue"])
 
         super().__init__(app_info, **kwargs)
         log.debug("%s Agent initialization complete.", agent_name)

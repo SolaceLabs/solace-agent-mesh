@@ -379,7 +379,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     ),
                     "retry_interval": main_broker_config.get("retry_interval"),
                     "retry_count": main_broker_config.get("retry_count"),
-                    "temporary_queue": True,
+                    "temporary_queue": main_broker_config.get("temporary_queue", True),
                 },
             }
 
@@ -511,7 +511,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     ),
                     "retry_interval": main_broker_config.get("retry_interval"),
                     "retry_count": main_broker_config.get("retry_count"),
-                    "temporary_queue": True,
+                    "temporary_queue": main_broker_config.get("temporary_queue", True),
                 },
             }
 
