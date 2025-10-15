@@ -1,14 +1,15 @@
 """
-API Router for agent discovery.
+API Router for agent discovery and management.
 """
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
+from typing import Dict, List
 
 from ....common.agent_registry import AgentRegistry
 from a2a.types import AgentCard
-from ..dependencies import get_agent_registry
+from ..dependencies import get_agent_registry, get_sac_component
+from ..component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
 
