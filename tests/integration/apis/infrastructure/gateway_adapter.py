@@ -61,15 +61,16 @@ class GatewayAdapter:
 
             # Store user message
             now = now_epoch_ms()
+            user_bubbles = json.dumps([{"role": "user", "text": message}])
             insert_user_msg = sa.insert(messages_table).values(
                 id=task_id,
                 session_id=session_id,
                 user_id=user_id,
                 user_message=message,
-                message_bubbles=json.dumps([{"role": "user", "text": message}]),
+                message_bubbles=user_bubbles,
                 task_metadata=json.dumps({"simulated": True}),
                 created_time=now,
-                updated_time=now
+                updated_time=now,
             )
             conn.execute(insert_user_msg)
 
@@ -77,15 +78,18 @@ class GatewayAdapter:
             agent_response_content = f"Received: {message}"
             agent_task_id = f"task-{uuid.uuid4().hex[:8]}"
             now = now_epoch_ms()
+            agent_bubbles = json.dumps(
+                [{"role": "assistant", "text": agent_response_content}]
+            )
             insert_agent_msg = sa.insert(messages_table).values(
                 id=agent_task_id,
                 session_id=session_id,
                 user_id=user_id,
                 user_message=agent_response_content,
-                message_bubbles=json.dumps([{"role": "assistant", "text": agent_response_content}]),
+                message_bubbles=agent_bubbles,
                 task_metadata=json.dumps({"simulated": True}),
                 created_time=now,
-                updated_time=now
+                updated_time=now,
             )
             conn.execute(insert_agent_msg)
 

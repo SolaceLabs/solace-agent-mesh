@@ -11,7 +11,9 @@ from typing import List, Dict
 from abc import ABC, abstractmethod
 from sqlalchemy.orm import declarative_base
 
-from sam_test_infrastructure.fastapi_service.webui_backend_factory import create_test_app
+from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
+    WebUIBackendFactory,
+)
 
 # Define the Agent schema using SQLAlchemy's declarative base
 Base = declarative_base()
@@ -66,43 +68,40 @@ class SqliteProvider(DatabaseProvider):
     """A database provider that uses temporary SQLite files."""
 
     def __init__(self):
-        self._temp_dir: tempfile.TemporaryDirectory | None = None
         self._sync_engines: Dict[str, sa.Engine] = {}
         self._async_engines: Dict[str, AsyncEngine] = {}
-        self.app = None
+        self._agent_temp_dir = tempfile.TemporaryDirectory()
 
-    def setup(self, agent_names: List[str]):
-        self._temp_dir = tempfile.TemporaryDirectory()
-        temp_path = Path(self._temp_dir.name)
-
+    def setup(self, agent_names: List[str], db_url: str, engine: sa.Engine):
         # Setup Gateway
-        gateway_path = temp_path / "gateway.db"
-        gateway_db_url = f"sqlite:///{gateway_path}"
-        self.app = create_test_app(db_url=gateway_db_url)
-        self._sync_engines["gateway"] = sa.create_engine(gateway_db_url)
-        self._async_engines["gateway"] = create_async_engine(f"sqlite+aiosqlite:///{gateway_path}")
+        self._sync_engines["gateway"] = engine
+        self._async_engines["gateway"] = create_async_engine(
+            db_url.replace("sqlite:", "sqlite+aiosqlite:")
+        )
 
         # Setup Agents
+        agent_temp_path = Path(self._agent_temp_dir.name)
         for name in agent_names:
-            agent_path = temp_path / f"agent_{name}.db"
+            agent_path = agent_temp_path / f"agent_{name}.db"
             agent_sync_engine = sa.create_engine(f"sqlite:///{agent_path}")
             Base.metadata.create_all(agent_sync_engine)
             self._sync_engines[name] = agent_sync_engine
-            self._async_engines[name] = create_async_engine(f"sqlite+aiosqlite:///{agent_path}")
+            self._async_engines[name] = create_async_engine(
+                f"sqlite+aiosqlite:///{agent_path}"
+            )
 
     def teardown(self):
         for engine in self._sync_engines.values():
             engine.dispose()
-        
+
         import asyncio
+
         async def dispose_async():
             for engine in self._async_engines.values():
                 await engine.dispose()
-        
-        asyncio.run(dispose_async())
 
-        if self._temp_dir:
-            self._temp_dir.cleanup()
+        asyncio.run(dispose_async())
+        self._agent_temp_dir.cleanup()
 
     def get_sync_gateway_engine(self) -> sa.Engine:
         return self._sync_engines["gateway"]

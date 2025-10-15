@@ -6,8 +6,8 @@ Tests HTTP status codes, request/response schemas, authentication, and API behav
 
 import json
 import uuid
-
 import pytest
+
 from fastapi.testclient import TestClient
 
 
@@ -46,7 +46,6 @@ class TestSessionsAPIContract:
                 assert field in session
                 assert session[field] is not None
 
-        print("✓ GET /sessions response schema valid")
 
     def test_get_session_by_id_response_schema(self, api_client: TestClient):
         """Test GET /sessions/{id} returns proper JSON object"""
@@ -85,8 +84,6 @@ class TestSessionsAPIContract:
             assert session[field] is not None
 
         assert session["id"] == session_id
-
-        print(f"✓ GET /sessions/{session_id} response schema valid")
 
     def test_get_session_history_response_schema(self, api_client: TestClient):
         """Test GET /sessions/{id}/messages returns proper message array"""
@@ -127,8 +124,6 @@ class TestSessionsAPIContract:
 
             assert message["senderType"] in ["user", "assistant"]
 
-        print(f"✓ GET /sessions/{session_id}/messages response schema valid")
-
     def test_patch_session_request_response_schema(self, api_client: TestClient):
         """Test PATCH /sessions/{id} request and response schemas"""
 
@@ -164,8 +159,6 @@ class TestSessionsAPIContract:
         assert updated_session["name"] == "Updated Session Name"
         assert updated_session["id"] == session_id
 
-        print(f"✓ PATCH /sessions/{session_id} request/response schema valid")
-
     def test_delete_session_response(self, api_client: TestClient):
         """Test DELETE /sessions/{id} returns proper status code"""
 
@@ -192,8 +185,6 @@ class TestSessionsAPIContract:
 
         assert response.status_code == 204  # No Content
         assert response.text == ""  # No response body
-
-        print(f"✓ DELETE /sessions/{session_id} response valid")
 
 
 class TestTasksAPIContract:

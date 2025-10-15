@@ -8,15 +8,19 @@ to prevent information leakage about session existence.
 import pytest
 from fastapi.testclient import TestClient
 
+from ..infrastructure.gateway_adapter import GatewayAdapter
+
 
 @pytest.fixture
-def multi_user_test_setup(test_app):
+def multi_user_test_setup(api_client: TestClient):
     """Creates multiple test clients with different user authentications using FastAPI dependency overrides"""
     from solace_agent_mesh.gateway.http_sse.dependencies import (
         get_user_id,
         sac_component_instance,
     )
     from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+
+    test_app = api_client.app
 
     # Track which user should be returned
     current_test_user = {"user_id": "first_test_user"}
@@ -89,230 +93,94 @@ def multi_user_test_setup(test_app):
     sac_component_instance.authenticate_and_enrich_user = original_auth_method
 
 
-def test_cross_user_session_access_returns_404(multi_user_test_setup):
+def test_cross_user_session_access_returns_404(multi_user_test_setup, gateway_adapter: GatewayAdapter):
     """Test that accessing another user's session returns 404 (not 403) to prevent information leakage"""
 
     first_user_client, second_user_client = multi_user_test_setup
 
-    # Debug: Check which user each client is authenticated as
-    user_a_me = first_user_client.get("/api/v1/users/me")
-    print(
-        f"User A identity: {user_a_me.status_code} - {user_a_me.json() if user_a_me.status_code == 200 else user_a_me.text}"
-    )
-
-    user_b_me = second_user_client.get("/api/v1/users/me")
-    print(
-        f"User B identity: {user_b_me.status_code} - {user_b_me.json() if user_b_me.status_code == 200 else user_b_me.text}"
-    )
-
     # User A creates a session
-    import uuid
-
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "User A's private session"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
-    print(f"Session creation: {response_a.status_code} - {response_a.text}")
-    assert response_a.status_code == 200
-    session_id = response_a.json()["result"]["contextId"]
-
-    # Debug: Check what sessions User A can see
-    sessions_a = first_user_client.get("/api/v1/sessions")
-    print(
-        f"User A sessions: {sessions_a.status_code} - {sessions_a.json() if sessions_a.status_code == 200 else sessions_a.text}"
-    )
+    session_a = gateway_adapter.create_session(user_id="first_test_user", agent_name="TestAgent")
 
     # Verify User A can access their own session
-    session_response = first_user_client.get(f"/api/v1/sessions/{session_id}")
-    print(
-        f"User A session access: {session_response.status_code} - {session_response.text}"
-    )
+    session_response = first_user_client.get(f"/api/v1/sessions/{session_a.id}")
+    assert session_response.status_code == 200
 
     # User B tries to access User A's session - should get 404, not 403
-    unauthorized_response = second_user_client.get(f"/api/v1/sessions/{session_id}")
-    print(
-        f"User B unauthorized access: {unauthorized_response.status_code} - {unauthorized_response.text}"
-    )
-
-    # For now, let's just check if we get different users
-    if user_a_me.status_code == 200 and user_b_me.status_code == 200:
-        user_a_data = user_a_me.json()
-        user_b_data = user_b_me.json()
-        # The /api/v1/users/me endpoint returns 'username' not 'id'
-        user_a_id = user_a_data.get("username")
-        user_b_id = user_b_data.get("username")
-        print(f"User A ID: {user_a_id}, User B ID: {user_b_id}")
-        assert user_a_id != user_b_id, "Users should have different IDs"
-        print("✓ Users have different identities")
-    else:
-        print("❌ Failed to get user identities")
+    unauthorized_response = second_user_client.get(f"/api/v1/sessions/{session_a.id}")
+    assert unauthorized_response.status_code == 404
 
 
-@pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
-def test_cross_user_session_history_returns_404(multi_user_test_setup):
+def test_cross_user_session_history_returns_404(multi_user_test_setup, gateway_adapter: GatewayAdapter):
     """Test that accessing another user's session history returns 404"""
 
     first_user_client, second_user_client = multi_user_test_setup
 
     # User A creates a session with messages
-    import uuid
-
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "User A's private conversation"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
-    assert response_a.status_code == 200
-    session_id = response_a.json()["result"]["contextId"]
+    session_a = gateway_adapter.create_session(user_id="first_test_user", agent_name="TestAgent")
+    gateway_adapter.send_message(session_a.id, "private message")
 
     # Verify User A can access their own session history
-    history_response = first_user_client.get(f"/api/v1/sessions/{session_id}/messages")
+    history_response = first_user_client.get(f"/api/v1/sessions/{session_a.id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
     assert len(history) >= 1
 
     # User B tries to access User A's session history - should get 404
-    unauthorized_history = second_user_client.get(
-        f"/api/v1/sessions/{session_id}/messages"
-    )
+    unauthorized_history = second_user_client.get(f"/api/v1/sessions/{session_a.id}/messages")
     assert unauthorized_history.status_code == 404
-    response_data = unauthorized_history.json()
-    # Handle both regular detail format and JSON-RPC error format
-    error_message = response_data.get("message", "")
-    assert "not found" in error_message.lower()
-
-    print(
-        f"✓ Cross-user session history access properly returns 404 for session {session_id}"
-    )
 
 
-def test_cross_user_session_update_returns_404(multi_user_test_setup):
+def test_cross_user_session_update_returns_404(multi_user_test_setup, gateway_adapter: GatewayAdapter):
     """Test that trying to update another user's session returns 404"""
 
     first_user_client, second_user_client = multi_user_test_setup
 
     # User A creates a session
-    import uuid
-
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "User A's session to be protected"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
-    assert response_a.status_code == 200
-    session_id = response_a.json()["result"]["contextId"]
+    session_a = gateway_adapter.create_session(user_id="first_test_user", agent_name="TestAgent")
 
     # Verify User A can update their own session
     update_data = {"name": "User A's Updated Session"}
-    update_response = first_user_client.patch(
-        f"/api/v1/sessions/{session_id}", json=update_data
-    )
+    update_response = first_user_client.patch(f"/api/v1/sessions/{session_a.id}", json=update_data)
     assert update_response.status_code == 200
     assert update_response.json()["name"] == "User A's Updated Session"
 
     # User B tries to update User A's session - should get 404
     malicious_update = {"name": "Hijacked Session"}
-    unauthorized_update = second_user_client.patch(
-        f"/api/v1/sessions/{session_id}", json=malicious_update
-    )
+    unauthorized_update = second_user_client.patch(f"/api/v1/sessions/{session_a.id}", json=malicious_update)
     assert unauthorized_update.status_code == 404
     response_data = unauthorized_update.json()
     error_message = response_data.get("message")
     assert "not found" in error_message.lower()
 
     # Verify session name wasn't changed by unauthorized user
-    verify_response = first_user_client.get(f"/api/v1/sessions/{session_id}")
+    verify_response = first_user_client.get(f"/api/v1/sessions/{session_a.id}")
     assert verify_response.status_code == 200
-    assert (
-        verify_response.json()["data"]["name"] == "User A's Updated Session"
-    )  # Should still be User A's name
-
-    print(
-        f"✓ Cross-user session update properly blocked with 404 for session {session_id}"
-    )
+    assert verify_response.json()["data"]["name"] == "User A's Updated Session"
 
 
-def test_cross_user_session_deletion_returns_404(multi_user_test_setup):
+def test_cross_user_session_deletion_returns_404(multi_user_test_setup, gateway_adapter: GatewayAdapter):
     """Test that trying to delete another user's session returns 404"""
 
     first_user_client, second_user_client = multi_user_test_setup
 
     # User A creates a session
-    import uuid
-
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [
-                    {
-                        "kind": "text",
-                        "text": "User A's session to be protected from deletion",
-                    }
-                ],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
-    assert response_a.status_code == 200
-    session_id = response_a.json()["result"]["contextId"]
+    session_a = gateway_adapter.create_session(user_id="first_test_user", agent_name="TestAgent")
 
     # Verify session exists for User A
-    session_response = first_user_client.get(f"/api/v1/sessions/{session_id}")
+    session_response = first_user_client.get(f"/api/v1/sessions/{session_a.id}")
     assert session_response.status_code == 200
 
     # User B tries to delete User A's session - should get 404
-    unauthorized_delete = second_user_client.delete(f"/api/v1/sessions/{session_id}")
+    unauthorized_delete = second_user_client.delete(f"/api/v1/sessions/{session_a.id}")
     assert unauthorized_delete.status_code == 404
     response_data = unauthorized_delete.json()
     error_message = response_data.get("message", "")
     assert "not found" in error_message.lower()
 
     # Verify session still exists for User A
-    verify_response = first_user_client.get(f"/api/v1/sessions/{session_id}")
+    verify_response = first_user_client.get(f"/api/v1/sessions/{session_a.id}")
     assert verify_response.status_code == 200
-    assert verify_response.json()["data"]["id"] == session_id
-
-    print(
-        f"✓ Cross-user session deletion properly blocked with 404 for session {session_id}"
-    )
+    assert verify_response.json()["data"]["id"] == session_a.id
 
 
 def test_session_isolation_in_listing(multi_user_test_setup):

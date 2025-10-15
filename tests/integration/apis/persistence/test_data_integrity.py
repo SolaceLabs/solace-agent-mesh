@@ -8,285 +8,81 @@ and database referential integrity through the HTTP API.
 import pytest
 from fastapi.testclient import TestClient
 
+from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.task_responses import TaskResponse
 
-@pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
-def test_session_deletion_cascades_to_messages(api_client: TestClient):
+from ..infrastructure.gateway_adapter import GatewayAdapter
+from ..infrastructure.database_inspector import DatabaseInspector
+
+
+def test_session_deletion_cascades_to_messages(
+    api_client: TestClient, gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+):
     """Test that deleting a session removes all associated messages"""
+    # Arrange: Create a session and add messages using the gateway adapter
+    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    gateway_adapter.send_message(session.id, "First message in session")
+    gateway_adapter.send_message(session.id, "Second message")
+    gateway_adapter.send_message(session.id, "Third message")
 
-    import uuid
+    # Verify session has messages
+    messages = database_inspector.get_session_messages(session.id)
+    # Each user message results in an agent response, so 3 user messages -> 6 total messages
+    assert len(messages) >= 6
+    message_contents = []
+    for message in messages:
+        assert isinstance(message, TaskResponse)
+        if message.user_message:
+            message_contents.append(message.user_message)
 
-    # Create a session with multiple messages
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "First message in session"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert response.status_code == 200
-    session_id = response.json()["result"]["contextId"]
-
-    # Add more messages to the session
-    additional_messages = [
-        "Second message in conversation",
-        "Third message with more content",
-        "Fourth message to test cascade",
-    ]
-
-    for message in additional_messages:
-        followup_payload = {
-            "jsonrpc": "2.0",
-            "id": str(uuid.uuid4()),
-            "method": "message/stream",
-            "params": {
-                "message": {
-                    "role": "user",
-                    "messageId": str(uuid.uuid4()),
-                    "kind": "message",
-                    "parts": [{"kind": "text", "text": message}],
-                    "metadata": {"agent_name": "TestAgent"},
-                    "contextId": session_id,
-                }
-            },
-        }
-        followup_response = api_client.post(
-            "/api/v1/message:stream", json=followup_payload
-        )
-        assert followup_response.status_code == 200
-        assert followup_response.json()["result"]["contextId"] == session_id
-
-    # Verify session has multiple messages
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
-    assert history_response.status_code == 200
-    history = history_response.json()
-    assert len(history) >= 4  # Should have at least 4 user messages
-
-    message_contents = [
-        msg["message"] for msg in history if msg["senderType"] == "user"
-    ]
     assert "First message in session" in message_contents
-    assert "Fourth message to test cascade" in message_contents
+    assert "Third message" in message_contents
 
-    # Delete the session
-    delete_response = api_client.delete(f"/api/v1/sessions/{session_id}")
+    # Act: Delete the session via the API
+    delete_response = api_client.delete(f"/api/v1/sessions/{session.id}")
     assert delete_response.status_code == 204
 
-    # Verify session no longer exists
-    session_response = api_client.get(f"/api/v1/sessions/{session_id}")
+    # Assert: Verify session and its history are gone
+    session_response = api_client.get(f"/api/v1/sessions/{session.id}")
     assert session_response.status_code == 404
-
-    # Verify session history is also gone (should return 404, not empty list)
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
+    history_response = api_client.get(f"/api/v1/sessions/{session.id}/messages")
     assert history_response.status_code == 404
 
-    print(f"✓ Session {session_id} and all associated messages successfully deleted")
 
-
-@pytest.mark.skip(
-    reason="Requires multi-user test architecture - both TestClients authenticate as same user due to AuthMiddleware limitations"
-)
-def test_cross_user_data_isolation_comprehensive(api_client: TestClient, test_app):
+def test_cross_user_data_isolation_comprehensive(
+    gateway_adapter: GatewayAdapter,
+    secondary_gateway_adapter: GatewayAdapter,
+    api_client: TestClient,
+    secondary_api_client: TestClient,
+    database_inspector: DatabaseInspector,
+    secondary_database_inspector: DatabaseInspector,
+):
     """Test comprehensive data isolation between different users"""
+    # Arrange: Create sessions and messages for two different users
+    user1_session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    gateway_adapter.send_message(user1_session.id, "Message from user 1")
 
-    # Import needed components for second user
-    import uuid
-    from unittest.mock import AsyncMock, Mock
+    user2_session = secondary_gateway_adapter.create_session(user_id="secondary_user", agent_name="TestAgent")
+    secondary_gateway_adapter.send_message(user2_session.id, "Message from user 2")
 
-    # Create second user authentication mock
-    def create_second_user_client():
-        from fastapi.testclient import TestClient
+    # Act & Assert:
+    # User 1 should only see their own session
+    user1_sessions = database_inspector.get_gateway_sessions(user_id="sam_dev_user")
+    user1_session_ids = {s.id for s in user1_sessions}
+    assert user1_session.id in user1_session_ids
+    assert user2_session.id not in user1_session_ids
 
-        from solace_agent_mesh.gateway.http_sse import dependencies
+    # User 2 should only see their own session
+    user2_sessions = secondary_database_inspector.get_gateway_sessions(
+        user_id="secondary_user"
+    )
+    user2_session_ids = {s.id for s in user2_sessions}
+    assert user2_session.id in user2_session_ids
+    assert user1_session.id not in user2_session_ids
 
-        # Store original component
-        original_component = dependencies.sac_component_instance
+    # User 2 should get a 404 when trying to access User 1's session directly
+    response = secondary_api_client.get(f"/api/v1/sessions/{user1_session.id}")
+    assert response.status_code == 404
 
-        # Create second mock component
-        second_component = Mock()
-        second_component.get_app.return_value = Mock(
-            app_config={
-                "frontend_use_authorization": False,
-                "external_auth_service_url": "http://localhost:8080",
-                "external_auth_callback_uri": "http://localhost:8000/api/v1/auth/callback",
-                "external_auth_provider": "azure",
-                "frontend_redirect_url": "http://localhost:3000",
-            }
-        )
-        second_component.get_cors_origins.return_value = ["*"]
-
-        mock_session_manager = Mock(secret_key="test-secret-key")
-        mock_session_manager.get_a2a_client_id.return_value = "test-client-id-2"
-        mock_session_manager.start_new_a2a_session.side_effect = (
-            lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
-        )
-        mock_session_manager.ensure_a2a_session.side_effect = (
-            lambda *args: f"test-session-{uuid.uuid4().hex[:8]}"
-        )
-        second_component.get_session_manager.return_value = mock_session_manager
-
-        second_component.identity_service = None
-        second_component.submit_a2a_task = AsyncMock(return_value="test-task-id")
-        second_component.cancel_a2a_task = AsyncMock()
-        second_component._translate_external_input = AsyncMock(
-            return_value=("TestAgent", [], {})
-        )
-
-        # Different user authentication
-        second_component.authenticate_and_enrich_user = AsyncMock(
-            return_value={
-                "id": "isolation_test_user_2",
-                "name": "Isolation Test User 2",
-                "email": "user2@isolation.test",
-                "authenticated": True,
-                "auth_method": "development",
-            }
-        )
-
-        dependencies.set_component_instance(second_component)
-        client = TestClient(test_app)
-
-        return client, lambda: dependencies.set_component_instance(original_component)
-
-    second_client, cleanup = create_second_user_client()
-
-    try:
-        # User 1 creates multiple sessions with different agents
-        user1_sessions = []
-        agents = ["TestAgent", "TestPeerAgentA", "TestPeerAgentB"]
-
-        for i, agent in enumerate(agents):
-            task_payload = {
-                "jsonrpc": "2.0",
-                "id": str(uuid.uuid4()),
-                "method": "message/stream",
-                "params": {
-                    "message": {
-                        "role": "user",
-                        "messageId": str(uuid.uuid4()),
-                        "kind": "message",
-                        "parts": [
-                            {
-                                "kind": "text",
-                                "text": f"User 1's session {i + 1} with {agent}",
-                            }
-                        ],
-                        "metadata": {"agent_name": agent},
-                    }
-                },
-            }
-            response = api_client.post("/api/v1/message:stream", json=task_payload)
-            assert response.status_code == 200
-            session_id = response.json()["result"]["contextId"]
-            user1_sessions.append((session_id, agent))
-
-            # Add follow-up message
-            followup_payload = {
-                "jsonrpc": "2.0",
-                "id": str(uuid.uuid4()),
-                "method": "message/stream",
-                "params": {
-                    "message": {
-                        "role": "user",
-                        "messageId": str(uuid.uuid4()),
-                        "kind": "message",
-                        "parts": [
-                            {
-                                "kind": "text",
-                                "text": f"User 1's follow-up in session {i + 1}",
-                            }
-                        ],
-                        "metadata": {"agent_name": agent},
-                        "contextId": session_id,
-                    }
-                },
-            }
-            followup_response = api_client.post(
-                "/api/v1/message:stream", json=followup_payload
-            )
-            assert followup_response.status_code == 200
-
-        # User 2 creates sessions with same agents
-        user2_sessions = []
-
-        for i, agent in enumerate(agents):
-            task_payload = {
-                "jsonrpc": "2.0",
-                "id": str(uuid.uuid4()),
-                "method": "message/stream",
-                "params": {
-                    "message": {
-                        "role": "user",
-                        "messageId": str(uuid.uuid4()),
-                        "kind": "message",
-                        "parts": [
-                            {
-                                "kind": "text",
-                                "text": f"User 2's session {i + 1} with {agent}",
-                            }
-                        ],
-                        "metadata": {"agent_name": agent},
-                    }
-                },
-            }
-            response = second_client.post("/api/v1/message:stream", json=task_payload)
-            assert response.status_code == 200
-            session_id = response.json()["result"]["contextId"]
-            user2_sessions.append((session_id, agent))
-
-        # Verify User 1 can only see their own sessions
-        user1_list = api_client.get("/api/v1/sessions")
-        assert user1_list.status_code == 200
-        user1_session_ids = {s["id"] for s in user1_list.json()["data"]}
-
-        # User 1 should see all their sessions
-        for session_id, agent in user1_sessions:
-            assert session_id in user1_session_ids
-
-        # User 1 should not see any of User 2's sessions
-        for session_id, agent in user2_sessions:
-            assert session_id not in user1_session_ids
-
-        # Verify User 2 can only see their own sessions
-        user2_list = second_client.get("/api/v1/sessions")
-        assert user2_list.status_code == 200
-        user2_session_ids = {s["id"] for s in user2_list.json()["data"]}
-
-        # User 2 should see all their sessions
-        for session_id, agent in user2_sessions:
-            assert session_id in user2_session_ids
-
-        # User 2 should not see any of User 1's sessions
-        for session_id, agent in user1_sessions:
-            assert session_id not in user2_session_ids
-
-        # Test message content isolation
-        user1_session_id, _ = user1_sessions[0]
-        user1_history = api_client.get(f"/api/v1/sessions/{user1_session_id}/messages")
-        assert user1_history.status_code == 200
-        user1_messages = [
-            msg["message"]
-            for msg in user1_history.json()
-            if msg["senderType"] == "user"
-        ]
-
-        # User 1's messages should contain their content
-        assert any("User 1's session" in msg for msg in user1_messages)
-        assert not any("User 2's session" in msg for msg in user1_messages)
-
-        print(
-            f"✓ Data isolation verified: User 1 has {len(user1_session_ids)} sessions, User 2 has {len(user2_session_ids)} sessions"
-        )
-
-    finally:
-        cleanup()
 
 
 @pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
@@ -798,5 +594,3 @@ def test_user_data_cleanup_integrity(api_client: TestClient):
     final_session_ids = {s["id"] for s in final_sessions["data"]}
     for session_id in session_ids:
         assert session_id not in final_session_ids
-
-    print(f"✓ Clean user data cleanup verified for {len(session_ids)} sessions")
