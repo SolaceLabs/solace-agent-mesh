@@ -1777,14 +1777,15 @@ class WebUIBackendComponent(BaseGatewayComponent):
             ttl_seconds
         )
         
-        if ttl_seconds <= 0 or health_check_interval <= 0:
+        # Validate configuration values
+        if ttl_seconds <= 0 or health_check_interval <= 0 or ttl_seconds < health_check_interval:
             log.error(
-                "%s agent_health_check_ttl_seconds and agent_health_check_interval_seconds must be positive (TTL=%d, interval=%d).",
+                "%s agent_health_check_ttl_seconds (%d) and agent_health_check_interval_seconds (%d) must be positive and TTL must be greater than interval.",
                 self.log_identifier,
                 ttl_seconds,
                 health_check_interval
             )
-            raise ValueError(f"Invalid health check configuration. agent_health_check_ttl_seconds and agent_health_check_interval_seconds must be positive (TTL={ttl_seconds}, interval={health_check_interval}).")
+            raise ValueError(f"Invalid health check configuration. agent_health_check_ttl_seconds ({ttl_seconds}) and agent_health_check_interval_seconds ({health_check_interval}) must be positive and TTL must be greater than interval.")
         
         # Get all agent names from the registry
         agent_names = self.agent_registry.get_agent_names()
