@@ -294,7 +294,11 @@ class BaseGatewayComponent(SamComponentBase):
             )
             external_request_context["a2a_session_id"] = a2a_session_id
 
-        a2a_metadata = {"agent_name": target_agent_name, "system_purpose": system_purpose, "response_format": response_format}
+        a2a_metadata = {
+            "agent_name": target_agent_name,
+            "system_purpose": system_purpose,
+            "response_format": response_format,
+        }
         invoked_artifacts = external_request_context.get("invoked_with_artifacts")
         if invoked_artifacts:
             a2a_metadata["invoked_with_artifacts"] = invoked_artifacts
