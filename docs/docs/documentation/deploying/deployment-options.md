@@ -185,3 +185,11 @@ Use the following settings for the template:
   *(Under: Advanced Settings > Message Expiry)*
 - **Maximum TTL (sec)** = `18000`  
   *(Under: Advanced Settings > Message Expiry)*
+
+:::info
+Queue templates are only applied when a new queue is created from the messaging client.  
+If you have already been running SAM with `temporary_queue` set to `false`, your durable queues were created before the template existed.  
+To apply TTL settings to those queues, either:  
+- Enable **TTL** and **Respect TTL** manually in the Solace console on each queue, or  
+- Delete the existing queues and restart SAM to have them recreated automatically using the new template.
+:::
