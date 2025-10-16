@@ -165,7 +165,7 @@ When the `app.broker.temporary_queue` parameter is set to `true` (default), the 
 If you set `temporary_queue` to `false`, the system will create a durable queue for the client. Durable queues persist beyond the lifetime of a client connection, allowing multiple clients to connect to the same queue and ensuring messages are not lost if the client disconnects. However, this requires manual management of queues, including cleanup of unused ones.
 
 :::tip
-For production environments that are container-managed (for example, Kubernetes), we recommend setting `temporary_queue` to `false`.  
+For production environments that are container-managed (for example, Kubernetes), we recommend setting `temporary_queue` to `false` by setting the environment variable `USE_TEMPORARY_QUEUES=false`.  
 Using temporary queues in these environments can cause startup issues, since a new container may fail to connect if the previous instance is still running and holding the queue. Durable queues avoid this by allowing multiple agent instances to share the same queue.
 :::
 
