@@ -183,7 +183,7 @@ class TestCleanupLogic:
         # Assert
         assert "no database session factory" in caplog.text.lower()
 
-    @patch('solace_agent_mesh.gateway.http_sse.services.data_retention_service.now_epoch_ms')
+    @patch('solace_agent_mesh.gateway.http_sse.shared.timestamp_utils.now_epoch_ms')
     def test_cutoff_time_calculation_for_tasks(self, mock_now):
         """Test that cutoff time is correctly calculated for task cleanup."""
         # Arrange
@@ -230,7 +230,7 @@ class TestCleanupLogic:
         # Verify the repository method was called
         mock_repo.delete_tasks_older_than.assert_called_once()
 
-    @patch('solace_agent_mesh.gateway.http_sse.services.data_retention_service.now_epoch_ms')
+    @patch('solace_agent_mesh.gateway.http_sse.shared.timestamp_utils.now_epoch_ms')
     def test_cutoff_time_calculation_for_feedback(self, mock_now):
         """Test that cutoff time is correctly calculated for feedback cleanup."""
         # Arrange
