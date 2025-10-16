@@ -498,6 +498,30 @@ class SamAgentComponent(SamComponentBase):
     def handle_timer_event(self, timer_data: Dict[str, Any]):
         """Handles timer events, specifically for agent card publishing."""
         log.debug("%s Received timer event: %s", self.log_identifier, timer_data)
+        
+        # Check if Trust Manager wants to handle this timer (ENTERPRISE FEATURE)
+        if self.trust_manager:
+            loop = self.get_async_loop()
+            if loop and loop.is_running():
+                timer_id = timer_data.get("timer_id")
+                coro = self.trust_manager.handle_timer_event(timer_id)
+                future = asyncio.run_coroutine_threadsafe(coro, loop)
+                try:
+                    handled = future.result(timeout=1.0)
+                    if handled:
+                        log.debug(
+                            "%s Timer event handled by Trust Manager",
+                            self.log_identifier
+                        )
+                        return  # Trust Manager handled it
+                except Exception as e:
+                    log.warning(
+                        "%s Error in Trust Manager timer handling: %s",
+                        self.log_identifier,
+                        e
+                    )
+        
+        # Existing timer handling code
         if timer_data.get("timer_id") == self._card_publish_timer_id:
             publish_agent_card(self)
 
@@ -3248,6 +3272,10 @@ class SamAgentComponent(SamComponentBase):
         Main async logic for the agent component.
         This is called by the base class's `_run_async_operations`.
         """
+        # Call base class to initialize Trust Manager
+        await super()._async_setup_and_run()
+        
+        # Perform agent-specific async initialization
         await self._perform_async_init()
 
     def _pre_async_cleanup(self) -> None:
@@ -3255,4 +3283,15 @@ class SamAgentComponent(SamComponentBase):
         Pre-cleanup actions for the agent component.
         Called by the base class before stopping the async loop.
         """
-        pass
+        # Cleanup Trust Manager if present (ENTERPRISE FEATURE)
+        if self.trust_manager:
+            try:
+                log.info("%s Cleaning up Trust Manager...", self.log_identifier)
+                self.trust_manager.cleanup(self.cancel_timer)
+                log.info("%s Trust Manager cleanup complete", self.log_identifier)
+            except Exception as e:
+                log.error(
+                    "%s Error during Trust Manager cleanup: %s",
+                    self.log_identifier,
+                    e
+                )

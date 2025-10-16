@@ -1135,6 +1135,9 @@ class BaseGatewayComponent(SamComponentBase):
 
     async def _async_setup_and_run(self) -> None:
         """Main async logic for the gateway component."""
+        # Call base class to initialize Trust Manager
+        await super()._async_setup_and_run()
+        
         log.info(
             "%s Starting _start_listener() to initiate external platform connection.",
             self.log_identifier,
@@ -1149,6 +1152,19 @@ class BaseGatewayComponent(SamComponentBase):
 
     def _pre_async_cleanup(self) -> None:
         """Pre-cleanup actions for the gateway component."""
+        # Cleanup Trust Manager if present (ENTERPRISE FEATURE)
+        if self.trust_manager:
+            try:
+                log.info("%s Cleaning up Trust Manager...", self.log_identifier)
+                self.trust_manager.cleanup(self.cancel_timer)
+                log.info("%s Trust Manager cleanup complete", self.log_identifier)
+            except Exception as e:
+                log.error(
+                    "%s Error during Trust Manager cleanup: %s",
+                    self.log_identifier,
+                    e
+                )
+        
         log.info("%s Calling _stop_listener()...", self.log_identifier)
         self._stop_listener()
 
@@ -1203,7 +1219,7 @@ class BaseGatewayComponent(SamComponentBase):
                     # Check if this is a trust card message (enterprise feature)
                     try:
                         if self.trust_manager.is_trust_card_topic(topic):
-                            await self.trust_manager.handle_trust_card_message(original_broker_message, topic)
+                            await self.trust_manager.handle_trust_card_message(payload, topic)
                             processed_successfully = True
                             continue
                     except Exception as e:

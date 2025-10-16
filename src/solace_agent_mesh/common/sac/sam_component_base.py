@@ -292,13 +292,33 @@ class SamComponentBase(ComponentBase, abc.ABC):
         """
         pass
 
-    @abc.abstractmethod
     async def _async_setup_and_run(self) -> None:
         """
-        Abstract method for subclasses to implement their main asynchronous logic.
-        This coroutine is executed within the managed event loop.
+        Base async setup that initializes Trust Manager if present.
+        Subclasses should override and call super() first, then add their logic.
         """
-        pass
+        # Initialize Trust Manager if present (ENTERPRISE FEATURE)
+        if self.trust_manager:
+            try:
+                log.info(
+                    "%s Initializing Trust Manager with periodic publishing...",
+                    self.log_identifier
+                )
+                await self.trust_manager.initialize(self.add_timer)
+                log.info(
+                    "%s Trust Manager initialized successfully",
+                    self.log_identifier
+                )
+            except Exception as e:
+                log.error(
+                    "%s Failed to initialize Trust Manager: %s",
+                    self.log_identifier,
+                    e,
+                    exc_info=True
+                )
+                # Trust Manager failure should not prevent component startup
+                # Set to None to disable trust manager for this session
+                self.trust_manager = None
 
     @abc.abstractmethod
     def _pre_async_cleanup(self) -> None:
