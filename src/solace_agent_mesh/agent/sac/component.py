@@ -404,12 +404,12 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     publish_interval_sec,
                 )
-                # Register timer with callback - no need to override handle_timer_event!
+                # Register timer with callback
                 self.add_timer(
                     delay_ms=1000,
                     timer_id=self._card_publish_timer_id,
                     interval_ms=publish_interval_sec * 1000,
-                    callback=self._handle_agent_card_publish_timer,
+                    callback=lambda timer_data: publish_agent_card(self),
                 )
             else:
                 log.warning(
@@ -434,82 +434,46 @@ class SamAgentComponent(SamComponentBase):
         return "agent"
 
     def invoke(self, message: SolaceMessage, data: dict) -> dict:
-        """Placeholder invoke method. Primary logic resides in process_event."""
+        """Placeholder invoke method. Primary logic resides in _handle_message."""
         log.warning(
-            "%s 'invoke' method called, but primary logic resides in 'process_event'. This should not happen in normal operation.",
+            "%s 'invoke' method called, but primary logic resides in '_handle_message'. This should not happen in normal operation.",
             self.log_identifier,
         )
         return None
 
-    def process_event(self, event: Event):
-        """Processes incoming events (Messages, Timers, etc.)."""
-        try:
-            loop = self.get_async_loop()
-            is_loop_running = loop.is_running() if loop else False
-            if loop and is_loop_running:
-                coro = process_event(self, event)
-                future = asyncio.run_coroutine_threadsafe(coro, loop)
-                future.add_done_callback(
-                    functools.partial(
-                        self._handle_scheduled_task_completion,
-                        event_type_for_log=event.event_type,
-                    )
-                )
-            else:
-                log.error(
-                    "%s Async loop not available or not running (loop is %s, is_running: %s). Cannot process event: %s",
-                    self.log_identifier,
-                    "present" if loop else "None",
-                    is_loop_running,
-                    event.event_type,
-                )
-                if event.event_type == EventType.MESSAGE:
-                    try:
-                        event.data.call_negative_acknowledgements()
-                        log.warning(
-                            "%s NACKed message due to unavailable async loop for event processing.",
-                            self.log_identifier,
-                        )
-                    except Exception as nack_e:
-                        log.error(
-                            "%s Failed to NACK message after async loop issue: %s",
-                            self.log_identifier,
-                            nack_e,
-                        )
-        except Exception as e:
-            log.error(
-                "%s Error processing event: %s. Exception: %s",
-                self.log_identifier,
-                event.event_type,
-                e,
-            )
-            if event.event_type == EventType.MESSAGE:
-                try:
-                    event.data.call_negative_acknowledgements()
-                    log.warning(
-                        "%s NACKed message due to error in event processing.",
-                        self.log_identifier,
-                    )
-                except Exception as nack_e:
-                    log.error(
-                        "%s Failed to NACK message after error in event processing: %s",
-                        self.log_identifier,
-                        nack_e,
-                    )
-
-    def _handle_agent_card_publish_timer(self, timer_data: Dict[str, Any]):
+    def _handle_message(self, message: SolaceMessage, topic: str) -> None:
         """
-        Callback for agent card publishing timer.
+        Handle incoming message by scheduling async processing.
+        
+        Routes the message to the async event handler on the component's event loop.
         
         Args:
-            timer_data: Timer event data
+            message: The Solace message
+            topic: The topic the message was received on
         """
-        log.debug(
-            "%s Agent card publish timer fired: %s",
-            self.log_identifier,
-            timer_data,
-        )
-        publish_agent_card(self)
+        loop = self.get_async_loop()
+        is_loop_running = loop.is_running() if loop else False
+        
+        if loop and is_loop_running:
+            # Create event and schedule async processing
+            event = Event(EventType.MESSAGE, message)
+            coro = process_event(self, event)
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            future.add_done_callback(
+                functools.partial(
+                    self._handle_scheduled_task_completion,
+                    event_type_for_log=EventType.MESSAGE,
+                )
+            )
+        else:
+            log.error(
+                "%s Async loop not available or not running (loop is %s, is_running: %s). Cannot process message on topic: %s",
+                self.log_identifier,
+                "present" if loop else "None",
+                is_loop_running,
+                topic,
+            )
+            raise RuntimeError("Async loop not available for message processing")
 
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
         """

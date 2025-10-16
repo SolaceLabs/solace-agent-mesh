@@ -123,52 +123,117 @@ class SamComponentBase(ComponentBase, abc.ABC):
         # Call parent implementation to actually cancel the timer
         super().cancel_timer(timer_id)
 
-    def handle_timer_event(self, timer_data: dict[str, Any]):
+    def process_event(self, event):
         """
-        Handles timer events by routing to registered callbacks.
+        Process incoming events by routing to appropriate handlers.
         
-        This method is called by the SAC framework when a timer fires.
-        It automatically routes to registered callbacks, eliminating the need
-        for subclasses to override this method.
-
+        This base implementation handles MESSAGE and TIMER events:
+        - MESSAGE events are routed to _handle_message() abstract method
+        - TIMER events are routed to registered callbacks
+        - Other events are passed to parent class
+        
         Args:
-            timer_data: Timer event data containing 'timer_id' and other metadata
+            event: Event object from SAC framework
         """
-        timer_id = timer_data.get("timer_id")
-        if not timer_id:
-            log.warning(
-                "%s Timer event missing timer_id: %s",
-                self.log_identifier,
-                timer_data,
-            )
-            return
-
-        # Look up registered callback
-        with self._timer_callbacks_lock:
-            callback = self._timer_callbacks.get(timer_id)
-
-        if callback:
-            try:
-                log.debug(
-                    "%s Invoking registered callback for timer: %s",
+        from solace_ai_connector.common.event import Event, EventType
+        from solace_ai_connector.common.message import Message as SolaceMessage
+        
+        if event.event_type == EventType.MESSAGE:
+            message: SolaceMessage = event.data
+            topic = message.get_topic()
+            
+            if not topic:
+                log.warning(
+                    "%s Received message without topic. Ignoring.",
                     self.log_identifier,
-                    timer_id,
                 )
-                callback(timer_data)
+                try:
+                    message.call_negative_acknowledgements()
+                except Exception as nack_e:
+                    log.error(
+                        "%s Failed to NACK message without topic: %s",
+                        self.log_identifier,
+                        nack_e,
+                    )
+                return
+            
+            try:
+                # Delegate to abstract method implemented by subclass
+                self._handle_message(message, topic)
             except Exception as e:
                 log.error(
-                    "%s Error in timer callback for %s: %s",
+                    "%s Error in _handle_message for topic %s: %s",
                     self.log_identifier,
-                    timer_id,
+                    topic,
                     e,
                     exc_info=True,
                 )
+                try:
+                    message.call_negative_acknowledgements()
+                except Exception as nack_e:
+                    log.error(
+                        "%s Failed to NACK message after error: %s",
+                        self.log_identifier,
+                        nack_e,
+                    )
+                self.handle_error(e, event)
+                
+        elif event.event_type == EventType.TIMER:
+            # Handle timer events via callback registry
+            timer_data = event.data
+            timer_id = timer_data.get("timer_id")
+            
+            if not timer_id:
+                log.warning(
+                    "%s Timer event missing timer_id: %s",
+                    self.log_identifier,
+                    timer_data,
+                )
+                return
+
+            # Look up registered callback
+            with self._timer_callbacks_lock:
+                callback = self._timer_callbacks.get(timer_id)
+
+            if callback:
+                try:
+                    log.debug(
+                        "%s Invoking registered callback for timer: %s",
+                        self.log_identifier,
+                        timer_id,
+                    )
+                    callback(timer_data)
+                except Exception as e:
+                    log.error(
+                        "%s Error in timer callback for %s: %s",
+                        self.log_identifier,
+                        timer_id,
+                        e,
+                        exc_info=True,
+                    )
+            else:
+                log.warning(
+                    "%s No callback registered for timer: %s. Timer event ignored.",
+                    self.log_identifier,
+                    timer_id,
+                )
         else:
-            log.warning(
-                "%s No callback registered for timer: %s. Timer event ignored.",
-                self.log_identifier,
-                timer_id,
-            )
+            # Pass other event types to parent class
+            super().process_event(event)
+
+    @abc.abstractmethod
+    def _handle_message(self, message, topic: str) -> None:
+        """
+        Handle an incoming message.
+        
+        Subclasses must implement this to process messages according to their needs.
+        The base class handles error catching and NACK on failure.
+        
+        Args:
+            message: The Solace message (SolaceMessage instance)
+            topic: The topic the message was received on
+        """
+        pass
 
     def _late_init(self):
         """Late initialization hook called after the component is fully set up."""

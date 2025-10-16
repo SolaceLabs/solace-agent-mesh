@@ -380,49 +380,44 @@ class BaseGatewayComponent(SamComponentBase):
         )
         return task_id
 
-    def process_event(self, event: Event):
-        if event.event_type == EventType.MESSAGE:
-            original_broker_message: Optional[SolaceMessage] = event.data
-            if not original_broker_message:
-                log.warning(
-                    "%s Received MESSAGE event with no data. Ignoring.",
-                    self.log_identifier,
-                )
-                return
-
-            log.debug(
-                "%s Received SolaceMessage on topic: %s. Bridging to internal queue.",
+    def _handle_message(self, message: SolaceMessage, topic: str) -> None:
+        """
+        Handle incoming message by bridging to internal queue.
+        
+        Gateway uses a queue-based pattern for message processing to ensure
+        strict ordering and backpressure handling.
+        
+        Args:
+            message: The Solace message
+            topic: The topic the message was received on
+        """
+        log.debug(
+            "%s Received SolaceMessage on topic: %s. Bridging to internal queue.",
+            self.log_identifier,
+            topic,
+        )
+        
+        try:
+            msg_data_for_processor = {
+                "topic": topic,
+                "payload": message.get_payload(),
+                "user_properties": message.get_user_properties(),
+                "_original_broker_message": message,
+            }
+            self.internal_event_queue.put_nowait(msg_data_for_processor)
+        except queue.Full:
+            log.error(
+                "%s Internal event queue full. Cannot bridge message.",
                 self.log_identifier,
-                original_broker_message.get_topic(),
             )
-            try:
-                msg_data_for_processor = {
-                    "topic": original_broker_message.get_topic(),
-                    "payload": original_broker_message.get_payload(),
-                    "user_properties": original_broker_message.get_user_properties(),
-                    "_original_broker_message": original_broker_message,
-                }
-                self.internal_event_queue.put_nowait(msg_data_for_processor)
-            except queue.Full:
-                log.error(
-                    "%s Internal event queue full. Cannot bridge message. NACKing.",
-                    self.log_identifier,
-                )
-                original_broker_message.call_negative_acknowledgements()
-            except Exception as e:
-                log.exception(
-                    "%s Error bridging message to internal queue: %s. NACKing.",
-                    self.log_identifier,
-                    e,
-                )
-                original_broker_message.call_negative_acknowledgements()
-        else:
-            log.debug(
-                "%s Received non-MESSAGE event type: %s. Passing to super.",
+            raise
+        except Exception as e:
+            log.exception(
+                "%s Error bridging message to internal queue: %s",
                 self.log_identifier,
-                event.event_type,
+                e,
             )
-            super().process_event(event)
+            raise
 
     async def _handle_resolved_signals(
         self,
