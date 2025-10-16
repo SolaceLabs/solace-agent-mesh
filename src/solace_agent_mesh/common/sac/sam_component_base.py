@@ -56,10 +56,119 @@ class SamComponentBase(ComponentBase, abc.ABC):
         self._async_loop: asyncio.AbstractEventLoop | None = None
         self._async_thread: threading.Thread | None = None
 
+        # Timer callback registry
+        self._timer_callbacks: dict[str, Any] = {}
+        self._timer_callbacks_lock = threading.Lock()
+
         # Trust Manager integration (enterprise feature) - initialized as part of _late_init
         self.trust_manager: Optional[Any] = None
 
         log.info("%s SamComponentBase initialized successfully.", self.log_identifier)
+
+    def add_timer(
+        self,
+        delay_ms: int,
+        timer_id: str,
+        interval_ms: int = 0,
+        callback: Optional[Any] = None,
+    ):
+        """
+        Add a timer with optional callback.
+
+        Args:
+            delay_ms: Initial delay in milliseconds
+            timer_id: Unique timer identifier
+            interval_ms: Repeat interval in milliseconds (0 for one-shot)
+            callback: Optional callback function to invoke when timer fires.
+                     If provided, callback will be invoked when timer event occurs.
+                     Callback receives timer_data dict as argument.
+                     Callback should be thread-safe or schedule work appropriately.
+        """
+        # Register callback if provided
+        if callback:
+            with self._timer_callbacks_lock:
+                if timer_id in self._timer_callbacks:
+                    log.warning(
+                        "%s Timer ID '%s' already has a registered callback. Overwriting.",
+                        self.log_identifier,
+                        timer_id,
+                    )
+                self._timer_callbacks[timer_id] = callback
+                log.debug(
+                    "%s Registered callback for timer: %s",
+                    self.log_identifier,
+                    timer_id,
+                )
+
+        # Call parent implementation to actually create the timer
+        super().add_timer(delay_ms=delay_ms, timer_id=timer_id, interval_ms=interval_ms)
+
+    def cancel_timer(self, timer_id: str):
+        """
+        Cancel a timer and remove its callback if registered.
+
+        Args:
+            timer_id: Timer identifier to cancel
+        """
+        # Remove callback registration
+        with self._timer_callbacks_lock:
+            if timer_id in self._timer_callbacks:
+                del self._timer_callbacks[timer_id]
+                log.debug(
+                    "%s Unregistered callback for timer: %s",
+                    self.log_identifier,
+                    timer_id,
+                )
+
+        # Call parent implementation to actually cancel the timer
+        super().cancel_timer(timer_id)
+
+    def handle_timer_event(self, timer_data: dict[str, Any]):
+        """
+        Handles timer events by routing to registered callbacks.
+        
+        This method is called by the SAC framework when a timer fires.
+        It automatically routes to registered callbacks, eliminating the need
+        for subclasses to override this method.
+
+        Args:
+            timer_data: Timer event data containing 'timer_id' and other metadata
+        """
+        timer_id = timer_data.get("timer_id")
+        if not timer_id:
+            log.warning(
+                "%s Timer event missing timer_id: %s",
+                self.log_identifier,
+                timer_data,
+            )
+            return
+
+        # Look up registered callback
+        with self._timer_callbacks_lock:
+            callback = self._timer_callbacks.get(timer_id)
+
+        if callback:
+            try:
+                log.debug(
+                    "%s Invoking registered callback for timer: %s",
+                    self.log_identifier,
+                    timer_id,
+                )
+                callback(timer_data)
+            except Exception as e:
+                log.error(
+                    "%s Error in timer callback for %s: %s",
+                    self.log_identifier,
+                    timer_id,
+                    e,
+                    exc_info=True,
+                )
+        else:
+            log.warning(
+                "%s No callback registered for timer: %s. Timer event ignored.",
+                self.log_identifier,
+                timer_id,
+            )
 
     def _late_init(self):
         """Late initialization hook called after the component is fully set up."""
@@ -319,7 +428,11 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     "%s Initializing Trust Manager with periodic publishing...",
                     self.log_identifier,
                 )
-                await self.trust_manager.initialize(self.add_timer)
+                # Pass event loop and add_timer method to Trust Manager
+                await self.trust_manager.initialize(
+                    add_timer_callback=self.add_timer,
+                    event_loop=self.get_async_loop(),
+                )
                 log.info(
                     "%s Trust Manager initialized successfully", self.log_identifier
                 )

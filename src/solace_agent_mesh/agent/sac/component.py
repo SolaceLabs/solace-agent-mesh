@@ -404,10 +404,12 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     publish_interval_sec,
                 )
+                # Register timer with callback - no need to override handle_timer_event!
                 self.add_timer(
                     delay_ms=1000,
                     timer_id=self._card_publish_timer_id,
                     interval_ms=publish_interval_sec * 1000,
+                    callback=self._handle_agent_card_publish_timer,
                 )
             else:
                 log.warning(
@@ -495,35 +497,19 @@ class SamAgentComponent(SamComponentBase):
                         nack_e,
                     )
 
-    def handle_timer_event(self, timer_data: Dict[str, Any]):
-        """Handles timer events, specifically for agent card publishing."""
-        log.debug("%s Received timer event: %s", self.log_identifier, timer_data)
+    def _handle_agent_card_publish_timer(self, timer_data: Dict[str, Any]):
+        """
+        Callback for agent card publishing timer.
         
-        # Check if Trust Manager wants to handle this timer (ENTERPRISE FEATURE)
-        if self.trust_manager:
-            loop = self.get_async_loop()
-            if loop and loop.is_running():
-                timer_id = timer_data.get("timer_id")
-                coro = self.trust_manager.handle_timer_event(timer_id)
-                future = asyncio.run_coroutine_threadsafe(coro, loop)
-                try:
-                    handled = future.result(timeout=1.0)
-                    if handled:
-                        log.debug(
-                            "%s Timer event handled by Trust Manager",
-                            self.log_identifier
-                        )
-                        return  # Trust Manager handled it
-                except Exception as e:
-                    log.warning(
-                        "%s Error in Trust Manager timer handling: %s",
-                        self.log_identifier,
-                        e
-                    )
-        
-        # Existing timer handling code
-        if timer_data.get("timer_id") == self._card_publish_timer_id:
-            publish_agent_card(self)
+        Args:
+            timer_data: Timer event data
+        """
+        log.debug(
+            "%s Agent card publish timer fired: %s",
+            self.log_identifier,
+            timer_data,
+        )
+        publish_agent_card(self)
 
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
         """
