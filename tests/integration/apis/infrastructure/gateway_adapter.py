@@ -2,14 +2,21 @@
 Generic Gateway Adapter for the API testing framework.
 """
 
-import uuid
 import json
+import uuid
+
 import sqlalchemy as sa
 
-from .database_manager import DatabaseManager
-from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.session_responses import SessionResponse
-from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.task_responses import TaskResponse
+from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.session_responses import (
+    SessionResponse,
+)
+from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.task_responses import (
+    TaskResponse,
+)
 from src.solace_agent_mesh.gateway.http_sse.shared.timestamp_utils import now_epoch_ms
+
+from .database_manager import DatabaseManager
+
 
 class GatewayAdapter:
     """A generic gateway adapter that uses the new DatabaseManager."""
@@ -31,13 +38,15 @@ class GatewayAdapter:
                 name=agent_name,
                 agent_id=agent_name,
                 created_time=now,
-                updated_time=now
+                updated_time=now,
             )
             conn.execute(query)
             if conn.in_transaction():
                 conn.commit()
-            
-            select_query = sa.select(sessions_table).where(sessions_table.c.id == session_id)
+
+            select_query = sa.select(sessions_table).where(
+                sessions_table.c.id == session_id
+            )
             created_session = conn.execute(select_query).first()
 
         return SessionResponse.model_validate(created_session._asdict())
@@ -45,7 +54,7 @@ class GatewayAdapter:
     def send_message(self, session_id: str, message: str) -> TaskResponse:
         """Send a message and persist it, returning a TaskResponse."""
         task_id = f"task-{uuid.uuid4().hex[:8]}"
-        
+
         with self.db_manager.get_gateway_connection() as conn:
             metadata = sa.MetaData()
             metadata.reflect(bind=conn)
@@ -53,7 +62,9 @@ class GatewayAdapter:
             messages_table = metadata.tables["chat_tasks"]
 
             # Get user_id from session
-            select_user_query = sa.select(sessions_table.c.user_id).where(sessions_table.c.id == session_id)
+            select_user_query = sa.select(sessions_table.c.user_id).where(
+                sessions_table.c.id == session_id
+            )
             user_id = conn.execute(select_user_query).scalar()
 
             if not user_id:
@@ -98,7 +109,9 @@ class GatewayAdapter:
                 conn.commit()
 
             # Fetch the created task to return a real response
-            select_query = sa.select(messages_table).where(messages_table.c.id == task_id)
+            select_query = sa.select(messages_table).where(
+                messages_table.c.id == task_id
+            )
             created_task = conn.execute(select_query).first()
 
         # Map to the Pydantic model fields
@@ -133,7 +146,7 @@ class GatewayAdapter:
             session_row = conn.execute(query).first()
             if not session_row:
                 raise ValueError(f"Session {session_id} not found")
-            
+
             update_query = (
                 sa.update(sessions_table)
                 .where(sessions_table.c.id == session_id)
@@ -154,12 +167,16 @@ class GatewayAdapter:
             messages_table = metadata.tables["chat_tasks"]
 
             # The ON DELETE CASCADE foreign key should handle this, but for explicit safety:
-            delete_msgs = sa.delete(messages_table).where(messages_table.c.session_id == session_id)
+            delete_msgs = sa.delete(messages_table).where(
+                messages_table.c.session_id == session_id
+            )
             conn.execute(delete_msgs)
 
-            delete_sess = sa.delete(sessions_table).where(sessions_table.c.id == session_id)
+            delete_sess = sa.delete(sessions_table).where(
+                sessions_table.c.id == session_id
+            )
             result = conn.execute(delete_sess)
-            
+
             if conn.in_transaction():
                 conn.commit()
 

@@ -9,10 +9,10 @@ import pytest
 from ..infrastructure.database_inspector import DatabaseInspector
 from ..infrastructure.gateway_adapter import GatewayAdapter
 from ..utils.persistence_assertions import (
+    assert_agent_schema_correct,
     assert_database_isolation,
     assert_gateway_session_exists,
     assert_session_message_count,
-    assert_agent_schema_correct,
 )
 
 
@@ -154,9 +154,7 @@ def test_individual_agent_isolation(
     """Test isolation for individual agents (parameterized)"""
 
     user_id = f"user_for_{agent_name.lower()}"
-    session = gateway_adapter.create_session(
-        user_id=user_id, agent_name=agent_name
-    )
+    session = gateway_adapter.create_session(user_id=user_id, agent_name=agent_name)
     gateway_adapter.send_message(session.id, f"Message for {agent_name}")
 
     # Verify this agent's session exists in Gateway database
@@ -176,12 +174,8 @@ def test_concurrent_agent_operations(
 
     # Create sessions for different agents
     session_main = gateway_adapter.create_session("concurrent_user", "TestAgent")
-    session_peer_a = gateway_adapter.create_session(
-        "concurrent_user", "TestPeerAgentA"
-    )
-    session_peer_b = gateway_adapter.create_session(
-        "concurrent_user", "TestPeerAgentB"
-    )
+    session_peer_a = gateway_adapter.create_session("concurrent_user", "TestPeerAgentA")
+    session_peer_b = gateway_adapter.create_session("concurrent_user", "TestPeerAgentB")
 
     sessions = [session_main, session_peer_a, session_peer_b]
 
@@ -191,7 +185,7 @@ def test_concurrent_agent_operations(
     gateway_adapter.send_message(sessions[2].id, "Message to PeerAgentB")
 
     # Verify all operations completed correctly and maintained isolation
-    for i, session in enumerate(sessions):
+    for _i, session in enumerate(sessions):
         assert_session_message_count(database_inspector, session.id, 2)
 
     # Verify database isolation is still intact after operations
@@ -230,6 +224,6 @@ def test_agent_message_content_isolation(
         assert user_message.user_message == expected_content
 
         # Verify other agents' content doesn't appear in this session
-        for other_session, other_agent, other_content in sessions:
+        for _other_session, other_agent, other_content in sessions:
             if other_agent != agent_name:
                 assert other_content not in user_message.user_message

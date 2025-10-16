@@ -128,7 +128,7 @@ def test_error_response_headers_consistency(api_client: TestClient):
         # Should not have any sensitive headers in errors
         sensitive_headers = ["authorization", "x-api-key", "cookie"]
         for sensitive_header in sensitive_headers:
-            assert sensitive_header not in headers.keys()
+            assert sensitive_header not in headers
 
 
 def test_error_message_security_no_leakage(api_client: TestClient):
@@ -190,9 +190,9 @@ def test_error_message_security_no_leakage(api_client: TestClient):
         for term in sensitive_terms:
             if term in ["exist", "permission", "unauthorized", "forbidden", "user"]:
                 # These terms should definitely not appear
-                assert (
-                    term not in error_message
-                ), f"Error message contains sensitive term '{term}': {error_message}"
+                assert term not in error_message, (
+                    f"Error message contains sensitive term '{term}': {error_message}"
+                )
 
         # Should contain generic "not found" message
         assert "not found" in error_message
@@ -220,7 +220,7 @@ def test_error_response_structure_validation(api_client: TestClient):
     for test_case in error_test_cases:
         method, endpoint, *data = test_case["request"]
         expected_status = test_case["expected_status"]
-        expected_fields = test_case["expected_fields"]
+        test_case["expected_fields"]
 
         if method == "GET":
             response = api_client.get(endpoint)
@@ -240,18 +240,16 @@ def test_error_response_structure_validation(api_client: TestClient):
         # Handle both standard HTTP error format and JSON-RPC format
         if "jsonrpc" in error_data:
             # JSON-RPC format - check for error field
-            assert (
-                "error" in error_data
-            ), "Missing 'error' field in JSON-RPC error response"
+            assert "error" in error_data, (
+                "Missing 'error' field in JSON-RPC error response"
+            )
             assert error_data["error"] is not None
-            assert (
-                "data" in error_data["error"]
-            ), "Missing 'data' in JSON-RPC error"
+            assert "data" in error_data["error"], "Missing 'data' in JSON-RPC error"
         else:
             # Standard HTTP error format - should have 'detail' field
-            assert (
-                "detail" in error_data
-            ), "Missing required field 'detail' in error response"
+            assert "detail" in error_data, (
+                "Missing required field 'detail' in error response"
+            )
             assert error_data["detail"] is not None
             assert len(str(error_data["detail"])) > 0
 
@@ -268,9 +266,9 @@ def test_error_response_structure_validation(api_client: TestClient):
         ]
 
         for internal_field in internal_fields:
-            assert (
-                internal_field not in error_data
-            ), f"Internal field '{internal_field}' exposed in error response"
+            assert internal_field not in error_data, (
+                f"Internal field '{internal_field}' exposed in error response"
+            )
 
 
 def test_content_type_consistency_in_errors(api_client: TestClient):

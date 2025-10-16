@@ -6,8 +6,8 @@ Tests HTTP status codes, request/response schemas, authentication, and API behav
 
 import json
 import uuid
-import pytest
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -45,7 +45,6 @@ class TestSessionsAPIContract:
             for field in required_fields:
                 assert field in session
                 assert session[field] is not None
-
 
     def test_get_session_by_id_response_schema(self, api_client: TestClient):
         """Test GET /sessions/{id} returns proper JSON object"""
@@ -565,7 +564,6 @@ class TestCORSHeaders:
         response = api_client.get("/api/v1/sessions")
 
         # Check for common CORS headers
-        headers = response.headers
 
         # Note: TestClient might not include all CORS headers in test mode
         # This test validates the structure more than specific values

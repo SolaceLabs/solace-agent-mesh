@@ -8,7 +8,6 @@ special permissions can access tasks belonging to other users.
 import uuid
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
 from solace_agent_mesh.gateway.http_sse.repository.models import TaskModel
@@ -42,14 +41,16 @@ def _create_task_directly_in_db(db_engine, task_id: str, user_id: str, message: 
         db_session.close()
 
 
-def test_task_list_is_isolated_by_user(api_client, secondary_api_client, database_manager):
+def test_task_list_is_isolated_by_user(
+    api_client, secondary_api_client, database_manager
+):
     """
     Tests that users can only see their own tasks in the list view.
     Corresponds to Test Plan 4.1.
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Create tasks directly in the database with specific user IDs
     task_a_id = f"task-user-a-{uuid.uuid4().hex[:8]}"
     task_b_id = f"task-user-b-{uuid.uuid4().hex[:8]}"
@@ -74,14 +75,16 @@ def test_task_list_is_isolated_by_user(api_client, secondary_api_client, databas
     assert tasks_b[0]["user_id"] == "secondary_user"
 
 
-def test_task_detail_is_isolated_by_user(api_client, secondary_api_client, database_manager):
+def test_task_detail_is_isolated_by_user(
+    api_client, secondary_api_client, database_manager
+):
     """
     Tests that a user cannot retrieve the details of another user's task.
     Corresponds to Test Plan 4.2.
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Create a task directly in the database for primary user
     task_a_id = f"task-private-a-{uuid.uuid4().hex[:8]}"
     _create_task_directly_in_db(
@@ -103,7 +106,7 @@ def test_task_detail_is_isolated_by_user(api_client, secondary_api_client, datab
 
 @pytest.mark.skip(
     reason="Admin functionality with 'tasks:read:all' scope not available in standard test fixtures. "
-           "Requires custom user authentication setup with admin permissions."
+    "Requires custom user authentication setup with admin permissions."
 )
 def test_admin_can_query_all_tasks(api_client, secondary_api_client, database_manager):
     """
@@ -112,7 +115,7 @@ def test_admin_can_query_all_tasks(api_client, secondary_api_client, database_ma
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Note: This test would need admin_client with special scope permissions
     # user_a_client, user_b_client, admin_client = multi_user_task_auth_setup
 
@@ -129,7 +132,7 @@ def test_admin_can_query_all_tasks(api_client, secondary_api_client, database_ma
 
     # Note: Admin client would be needed for these operations
     # admin_client = create_admin_client_with_tasks_read_all_scope()
-    
+
     # Admin queries for all tasks (by not specifying a user_id)
     # response_all = admin_client.get("/api/v1/tasks")
     # assert response_all.status_code == 200

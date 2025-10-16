@@ -4,13 +4,17 @@ Session lifecycle tests using FastAPI HTTP endpoints.
 Tests session management through actual HTTP API calls to /sessions endpoints.
 """
 
-import pytest
 from fastapi.testclient import TestClient
-from ..infrastructure.gateway_adapter import GatewayAdapter
+
 from ..infrastructure.database_inspector import DatabaseInspector
+from ..infrastructure.gateway_adapter import GatewayAdapter
 
 
-def test_get_all_sessions_empty(api_client: TestClient, gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+def test_get_all_sessions_empty(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
     """Test that GET /sessions returns empty list initially"""
     user_id = "sam_dev_user"
     sessions = database_inspector.get_gateway_sessions(user_id)
@@ -23,11 +27,15 @@ def test_get_all_sessions_empty(api_client: TestClient, gateway_adapter: Gateway
     assert response_data.get("data", []) == []
 
 
-def test_send_task_creates_session_with_message(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+def test_send_task_creates_session_with_message(
+    gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+):
     """Test that creating a session and sending a message works"""
     user_id = "sam_dev_user"
     session = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
-    task_response = gateway_adapter.send_message(session.id, "Hello, I need help with a task")
+    task_response = gateway_adapter.send_message(
+        session.id, "Hello, I need help with a task"
+    )
 
     sessions = database_inspector.get_gateway_sessions(user_id)
     assert len(sessions) == 1
@@ -38,11 +46,15 @@ def test_send_task_creates_session_with_message(gateway_adapter: GatewayAdapter,
     assert "Hello, I need help with a task" in task_response.user_message
 
 
-def test_multiple_sessions_via_tasks(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+def test_multiple_sessions_via_tasks(
+    gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+):
     """Test that a user can create multiple sessions with different agents"""
     user_id = "sam_dev_user"
     session1 = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
-    session2 = gateway_adapter.create_session(user_id=user_id, agent_name="TestPeerAgentA")
+    session2 = gateway_adapter.create_session(
+        user_id=user_id, agent_name="TestPeerAgentA"
+    )
 
     assert session1.id != session2.id
 
@@ -78,7 +90,7 @@ def test_get_session_history(gateway_adapter: GatewayAdapter, api_client: TestCl
     history = history_response.json()
     assert isinstance(history, list)
     assert len(history) == 2
-    
+
     user_message = history[0].get("message")
     assert "Test message for history" in user_message
 
@@ -89,7 +101,9 @@ def test_update_session_name(gateway_adapter: GatewayAdapter, api_client: TestCl
     session = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
 
     update_data = {"name": "Updated Session Name"}
-    update_response = api_client.patch(f"/api/v1/sessions/{session.id}", json=update_data)
+    update_response = api_client.patch(
+        f"/api/v1/sessions/{session.id}", json=update_data
+    )
     assert update_response.status_code == 200
 
     updated_session = update_response.json()
@@ -97,7 +111,11 @@ def test_update_session_name(gateway_adapter: GatewayAdapter, api_client: TestCl
     assert updated_session["id"] == session.id
 
 
-def test_delete_session(gateway_adapter: GatewayAdapter, api_client: TestClient, database_inspector: DatabaseInspector):
+def test_delete_session(
+    gateway_adapter: GatewayAdapter,
+    api_client: TestClient,
+    database_inspector: DatabaseInspector,
+):
     """Test DELETE /sessions/{session_id} removes session"""
     user_id = "sam_dev_user"
     session = gateway_adapter.create_session(user_id=user_id, agent_name="TestAgent")
@@ -127,7 +145,9 @@ def test_session_error_handling(api_client: TestClient):
 
     # Test updating non-existent session
     update_data = {"name": "New Name"}
-    response = api_client.patch("/api/v1/sessions/nonexistent_session_id", json=update_data)
+    response = api_client.patch(
+        "/api/v1/sessions/nonexistent_session_id", json=update_data
+    )
     assert response.status_code == 404
 
     # Test deleting non-existent session
@@ -135,7 +155,11 @@ def test_session_error_handling(api_client: TestClient):
     assert response.status_code == 404
 
 
-def test_end_to_end_session_workflow(gateway_adapter: GatewayAdapter, api_client: TestClient, database_inspector: DatabaseInspector):
+def test_end_to_end_session_workflow(
+    gateway_adapter: GatewayAdapter,
+    api_client: TestClient,
+    database_inspector: DatabaseInspector,
+):
     """Test complete session workflow: create -> send messages -> update -> delete"""
     user_id = "sam_dev_user"
     # 1. Create session
@@ -159,7 +183,9 @@ def test_end_to_end_session_workflow(gateway_adapter: GatewayAdapter, api_client
 
     # 5. Update session name
     update_data = {"name": "My Test Conversation"}
-    update_response = api_client.patch(f"/api/v1/sessions/{session.id}", json=update_data)
+    update_response = api_client.patch(
+        f"/api/v1/sessions/{session.id}", json=update_data
+    )
     assert update_response.status_code == 200
     update_result = update_response.json()
     assert update_result["name"] == "My Test Conversation"

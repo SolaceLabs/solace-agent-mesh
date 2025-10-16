@@ -8,18 +8,24 @@ and database referential integrity through the HTTP API.
 import pytest
 from fastapi.testclient import TestClient
 
-from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.task_responses import TaskResponse
+from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.task_responses import (
+    TaskResponse,
+)
 
-from ..infrastructure.gateway_adapter import GatewayAdapter
 from ..infrastructure.database_inspector import DatabaseInspector
+from ..infrastructure.gateway_adapter import GatewayAdapter
 
 
 def test_session_deletion_cascades_to_messages(
-    api_client: TestClient, gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
 ):
     """Test that deleting a session removes all associated messages"""
     # Arrange: Create a session and add messages using the gateway adapter
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     gateway_adapter.send_message(session.id, "First message in session")
     gateway_adapter.send_message(session.id, "Second message")
     gateway_adapter.send_message(session.id, "Third message")
@@ -58,10 +64,14 @@ def test_cross_user_data_isolation_comprehensive(
 ):
     """Test comprehensive data isolation between different users"""
     # Arrange: Create sessions and messages for two different users
-    user1_session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    user1_session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     gateway_adapter.send_message(user1_session.id, "Message from user 1")
 
-    user2_session = secondary_gateway_adapter.create_session(user_id="secondary_user", agent_name="TestAgent")
+    user2_session = secondary_gateway_adapter.create_session(
+        user_id="secondary_user", agent_name="TestAgent"
+    )
     secondary_gateway_adapter.send_message(user2_session.id, "Message from user 2")
 
     # Act & Assert:
@@ -84,11 +94,14 @@ def test_cross_user_data_isolation_comprehensive(
     assert response.status_code == 404
 
 
-def test_orphaned_data_prevention(api_client: TestClient, gateway_adapter: GatewayAdapter):
+def test_orphaned_data_prevention(
+    api_client: TestClient, gateway_adapter: GatewayAdapter
+):
     """Test that messages cannot exist without valid sessions"""
-    import uuid
     # Create a session with messages using the gateway adapter
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
 
     # Add messages using the gateway adapter
     gateway_adapter.send_message(session.id, "Message that should not become orphaned")
@@ -118,7 +131,9 @@ def test_orphaned_data_prevention(api_client: TestClient, gateway_adapter: Gatew
         gateway_adapter.send_message(session.id, "Attempt to create orphaned message")
 
 
-def test_referential_integrity_with_multiple_deletions(api_client: TestClient, gateway_adapter: GatewayAdapter):
+def test_referential_integrity_with_multiple_deletions(
+    api_client: TestClient, gateway_adapter: GatewayAdapter
+):
     """Test database referential integrity with multiple session deletions"""
 
     # Create multiple sessions with various message counts using gateway adapter
@@ -126,12 +141,16 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient, g
 
     for i in range(5):
         # Create session using gateway adapter
-        session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+        session = gateway_adapter.create_session(
+            user_id="sam_dev_user", agent_name="TestAgent"
+        )
 
         # Add varying numbers of messages
         message_count = (i + 1) * 2  # 2, 4, 6, 8, 10 messages
         for j in range(message_count):
-            gateway_adapter.send_message(session.id, f"Message {j + 1} in session {i + 1}")
+            gateway_adapter.send_message(
+                session.id, f"Message {j + 1} in session {i + 1}"
+            )
 
         sessions_data.append((session.id, message_count))
 
@@ -188,11 +207,15 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient, g
         assert session_id in current_session_ids
 
 
-def test_session_consistency_across_operations(api_client: TestClient, gateway_adapter: GatewayAdapter):
+def test_session_consistency_across_operations(
+    api_client: TestClient, gateway_adapter: GatewayAdapter
+):
     """Test that session data remains consistent across multiple operations"""
 
     # Create a session using gateway adapter
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     session_id = session.id
 
     # Add initial message using gateway adapter
@@ -256,11 +279,15 @@ def test_session_consistency_across_operations(api_client: TestClient, gateway_a
     assert target_session["agentId"] == "TestAgent"
 
 
-def test_data_integrity_under_concurrent_operations(api_client: TestClient, gateway_adapter: GatewayAdapter):
+def test_data_integrity_under_concurrent_operations(
+    api_client: TestClient, gateway_adapter: GatewayAdapter
+):
     """Test data integrity when performing multiple operations on the same session"""
 
     # Create a session using gateway adapter
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     session_id = session.id
 
     # Add initial message using gateway adapter
@@ -295,9 +322,9 @@ def test_data_integrity_under_concurrent_operations(api_client: TestClient, gate
     # Verify all operations succeeded
     successful_ops = sum(1 for _, success in operations_results if success)
     total_ops = len(operations_results)
-    assert (
-        successful_ops == total_ops
-    ), f"Only {successful_ops}/{total_ops} operations succeeded"
+    assert successful_ops == total_ops, (
+        f"Only {successful_ops}/{total_ops} operations succeeded"
+    )
 
     # Verify final data integrity
     final_session = api_client.get(f"/api/v1/sessions/{session_id}")

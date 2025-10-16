@@ -5,18 +5,22 @@ Tests missing functional scenarios including concurrent operations,
 file upload edge cases, and error recovery scenarios.
 """
 
-import uuid
 import threading
 import time
-import pytest
+import uuid
+
 from fastapi.testclient import TestClient
 
-def test_concurrent_session_modifications_same_user(api_client: TestClient, gateway_adapter):
+
+def test_concurrent_session_modifications_same_user(
+    api_client: TestClient, gateway_adapter
+):
     """Test concurrent modifications to the same session by the same user"""
-    from ..infrastructure.gateway_adapter import GatewayAdapter
 
     # Create a session using gateway adapter
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     session_id = session.id
 
     # Add initial message
@@ -42,7 +46,7 @@ def test_concurrent_session_modifications_same_user(api_client: TestClient, gate
         thread.join()
 
     # All updates should succeed (200 status)
-    for suffix, status_code in results:
+    for _suffix, status_code in results:
         assert status_code == 200
 
     # Verify session still exists and has one of the updated names
@@ -52,12 +56,15 @@ def test_concurrent_session_modifications_same_user(api_client: TestClient, gate
     assert final_name.startswith("Updated Name")
 
 
-def test_concurrent_message_additions_same_session(api_client: TestClient, gateway_adapter):
+def test_concurrent_message_additions_same_session(
+    api_client: TestClient, gateway_adapter
+):
     """Test adding messages concurrently to the same session"""
-    from ..infrastructure.gateway_adapter import GatewayAdapter
 
     # Create a session using gateway adapter (single-threaded, safe)
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     session_id = session.id
 
     # Add initial message using gateway adapter (single-threaded)
@@ -87,14 +94,14 @@ def test_concurrent_message_additions_same_session(api_client: TestClient, gatew
                 },
             }
             response = api_client.post("/api/v1/message:stream", json=followup_payload)
-            
+
             if response.status_code == 200:
                 returned_session_id = response.json()["result"]["contextId"]
                 results.append((message_id, True, returned_session_id))
             else:
                 print(f"HTTP error adding message {message_id}: {response.status_code}")
                 results.append((message_id, False, None))
-                
+
         except Exception as e:
             print(f"Exception adding message {message_id}: {e}")
             results.append((message_id, False, None))
@@ -117,12 +124,16 @@ def test_concurrent_message_additions_same_session(api_client: TestClient, gatew
     print(f"Successful messages: {successful_count}, Failed messages: {failed_count}")
 
     # Test focus: Verify that concurrent API calls succeed without errors
-    assert successful_count >= 8, f"Too many messages failed. Only {successful_count}/10 succeeded"
+    assert successful_count >= 8, (
+        f"Too many messages failed. Only {successful_count}/10 succeeded"
+    )
 
     # Verify all successful operations returned valid session IDs
     for msg_id, success, returned_session_id in results:
         if success:
-            assert returned_session_id is not None, f"Message {msg_id} returned no session ID"
+            assert returned_session_id is not None, (
+                f"Message {msg_id} returned no session ID"
+            )
             # Note: The returned session ID might not be the same as the original
             # due to how the system handles concurrent requests
 
@@ -134,15 +145,17 @@ def test_concurrent_message_additions_same_session(api_client: TestClient, gatew
     history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
-    
+
     # The main verification is that the session exists and has some messages
     # Concurrent message handling may vary based on implementation
     assert len(history) >= 1, "Session should have at least the initial message"
-    
+
     all_message_contents = [msg.get("message", "") for msg in history]
     assert "Initial message for concurrent test" in all_message_contents
-    
-    print(f"Session {session_id} has {len(history)} messages after concurrent operations")
+
+    print(
+        f"Session {session_id} has {len(history)} messages after concurrent operations"
+    )
 
 
 def test_large_file_upload_handling(api_client: TestClient):
@@ -253,10 +266,11 @@ def test_invalid_file_type_upload(api_client: TestClient):
 
 def test_session_name_edge_cases(api_client: TestClient, gateway_adapter):
     """Test session name validation and edge cases"""
-    from ..infrastructure.gateway_adapter import GatewayAdapter
 
     # Create a session using gateway adapter
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     session_id = session.id
 
     # Add initial message
@@ -341,12 +355,15 @@ def test_task_cancellation_after_session_deletion(api_client: TestClient):
         assert "message" in result
 
 
-def test_message_ordering_consistency_under_load(api_client: TestClient, gateway_adapter):
+def test_message_ordering_consistency_under_load(
+    api_client: TestClient, gateway_adapter
+):
     """Test that message ordering remains consistent under concurrent load"""
-    from ..infrastructure.gateway_adapter import GatewayAdapter
 
     # Create a session using gateway adapter
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     session_id = session.id
 
     # Add initial message
@@ -357,7 +374,7 @@ def test_message_ordering_consistency_under_load(api_client: TestClient, gateway
     for i in range(1, 21):  # Messages 1-20
         message_text = f"Message ordering test - message {i}"
         expected_messages.append(message_text)
-        
+
         gateway_adapter.send_message(session_id, message_text)
 
         # Small delay to ensure ordering
@@ -376,7 +393,7 @@ def test_message_ordering_consistency_under_load(api_client: TestClient, gateway
     assert "Message ordering test - message 0" in all_message_contents
     assert "Message ordering test - message 1" in all_message_contents
     assert "Message ordering test - message 20" in all_message_contents
-    
+
     # Verify all expected messages are present
     for expected_msg in expected_messages:
         assert expected_msg in all_message_contents
@@ -387,7 +404,7 @@ def test_error_recovery_after_database_constraints(api_client: TestClient):
 
     # Create a session
     import uuid
-    
+
     task_payload = {
         "jsonrpc": "2.0",
         "id": str(uuid.uuid4()),
@@ -515,21 +532,21 @@ def test_empty_and_whitespace_message_handling(api_client: TestClient):
 
         # Task submission should succeed (returns 200) even with empty messages
         assert response.status_code == 200
-        
+
         result = response.json()["result"]
-        task_id = result["id"]
+        result["id"]
         session_id = result["contextId"]
-        
+
         # The session may be created even with empty messages, but check what actually happens
         session_response = api_client.get(f"/api/v1/sessions/{session_id}")
         # Accept either behavior - session created or not created for empty messages
         assert session_response.status_code in [200, 404]
-        
+
         if session_response.status_code == 200:
             # If session exists, verify message history behavior
             history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
             assert history_response.status_code == 200
-            history = history_response.json()
+            history_response.json()
             # Empty messages might not be stored or might be filtered out
             # The main requirement is that the system handles them gracefully
         else:

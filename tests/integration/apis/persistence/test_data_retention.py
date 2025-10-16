@@ -122,7 +122,7 @@ def test_data_retention_deletes_old_tasks(database_manager):
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Arrange: Create tasks at different times
     now_ms = now_epoch_ms()
 
@@ -185,8 +185,8 @@ def test_data_retention_deletes_old_tasks(database_manager):
 
 @pytest.mark.xfail(
     reason="Task deletion does not cascade to task events due to bulk delete implementation "
-           "using synchronize_session=False in TaskRepository.delete_tasks_older_than(). "
-           "This bypasses SQLAlchemy ORM cascading. Needs fix in repository implementation."
+    "using synchronize_session=False in TaskRepository.delete_tasks_older_than(). "
+    "This bypasses SQLAlchemy ORM cascading. Needs fix in repository implementation."
 )
 def test_data_retention_cascades_to_task_events(api_client_factory):
     """
@@ -300,7 +300,7 @@ def test_data_retention_deletes_multiple_old_tasks(database_manager):
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Arrange: Create 5 old tasks and 3 new tasks
     now_ms = now_epoch_ms()
     old_time_ms = now_ms - (100 * 24 * 60 * 60 * 1000)
@@ -367,7 +367,7 @@ def test_data_retention_respects_batch_size(database_manager):
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Arrange: Create 25 old tasks
     now_ms = now_epoch_ms()
     old_time_ms = now_ms - (100 * 24 * 60 * 60 * 1000)
@@ -417,7 +417,7 @@ def test_data_retention_deletes_old_feedback(database_manager):
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Arrange: Create a task for feedback reference
     now_ms = now_epoch_ms()
     task_id = "task-for-feedback"
@@ -479,7 +479,7 @@ def test_data_retention_deletes_multiple_old_feedback(database_manager):
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Arrange: Create a task for feedback reference
     now_ms = now_epoch_ms()
     task_id = "task-for-multiple-feedback"
@@ -556,7 +556,7 @@ def test_task_and_feedback_retention_periods_independent(database_manager):
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Arrange: Create tasks and feedback at different ages
     now_ms = now_epoch_ms()
 
@@ -641,9 +641,9 @@ def test_task_and_feedback_retention_periods_independent(database_manager):
             medium_feedback = (
                 db.query(FeedbackModel).filter_by(id=medium_feedback_id).first()
             )
-            assert (
-                medium_feedback is None
-            ), "Medium feedback should be deleted (> 30 days)"
+            assert medium_feedback is None, (
+                "Medium feedback should be deleted (> 30 days)"
+            )
 
             # Final counts
             assert _count_tasks_in_db(engine) == 1
@@ -669,45 +669,44 @@ def test_data_retention_respects_disabled_config(database_manager):
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Arrange: Create old data
     now_ms = now_epoch_ms()
     old_time_ms = now_ms - (100 * 24 * 60 * 60 * 1000)
-    
+
     old_task_id = "task-disabled-test"
     _create_task_directly_in_db(
         engine, old_task_id, "sam_dev_user", "Old task", old_time_ms
     )
-    
+
     old_feedback_id = "feedback-disabled-test"
     _create_feedback_directly_in_db(
         engine, old_feedback_id, old_task_id, "sam_dev_user", old_time_ms
     )
-    
+
     # Verify initial state
     assert _count_tasks_in_db(engine) == 1
     assert _count_feedback_in_db(engine) == 1
-    
+
     # Act: Run cleanup with service disabled
     from solace_agent_mesh.gateway.http_sse import dependencies
-    
+
     retention_service = dependencies.get_data_retention_service(
         dependencies.sac_component_instance
     )
-    
+
     original_enabled = retention_service.config.get("enabled")
     retention_service.config["enabled"] = False
-    
+
     try:
         retention_service.cleanup_old_data()
-        
+
         # Assert: Nothing should be deleted
         assert _count_tasks_in_db(engine) == 1
         assert _count_feedback_in_db(engine) == 1
     finally:
         if original_enabled is not None:
             retention_service.config["enabled"] = original_enabled
-
 
 
 def test_data_retention_handles_empty_database(database_manager):
@@ -717,21 +716,21 @@ def test_data_retention_handles_empty_database(database_manager):
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Arrange: Ensure database is empty
     assert _count_tasks_in_db(engine) == 0
     assert _count_feedback_in_db(engine) == 0
-    
+
     # Act: Run cleanup on empty database
     from solace_agent_mesh.gateway.http_sse import dependencies
-    
+
     retention_service = dependencies.get_data_retention_service(
         dependencies.sac_component_instance
     )
-    
+
     # Should not raise any errors
     retention_service.cleanup_old_data()
-    
+
     # Assert: Database still empty, no errors
     assert _count_tasks_in_db(engine) == 0
     assert _count_feedback_in_db(engine) == 0
@@ -744,38 +743,42 @@ def test_data_retention_handles_database_errors(database_manager, monkeypatch):
     """
     # Get the correct engine based on the database provider
     engine = database_manager.provider.get_sync_gateway_engine()
-    
+
     # Arrange: Create a task
     now_ms = now_epoch_ms()
     old_time_ms = now_ms - (100 * 24 * 60 * 60 * 1000)
-    
+
     task_id = "task-error-test"
     _create_task_directly_in_db(
         engine, task_id, "sam_dev_user", "Error test task", old_time_ms
     )
-    
+
     assert _count_tasks_in_db(engine) == 1
-    
+
     # Act: Mock the repository to raise an exception
     from solace_agent_mesh.gateway.http_sse import dependencies
-    from solace_agent_mesh.gateway.http_sse.repository.task_repository import TaskRepository
-    
+    from solace_agent_mesh.gateway.http_sse.repository.task_repository import (
+        TaskRepository,
+    )
+
     original_delete = TaskRepository.delete_tasks_older_than
-    
+
     def mock_delete_with_error(self, cutoff_time_ms, batch_size):
         raise Exception("Simulated database error")
-    
-    monkeypatch.setattr(TaskRepository, "delete_tasks_older_than", mock_delete_with_error)
-    
+
+    monkeypatch.setattr(
+        TaskRepository, "delete_tasks_older_than", mock_delete_with_error
+    )
+
     retention_service = dependencies.get_data_retention_service(
         dependencies.sac_component_instance
     )
-    
+
     # Should not crash, should log error and continue
     retention_service.cleanup_old_data()
-    
+
     # Assert: Task still exists (cleanup failed but didn't crash)
     assert _count_tasks_in_db(engine) == 1
-    
+
     # Restore original method
     monkeypatch.setattr(TaskRepository, "delete_tasks_older_than", original_delete)

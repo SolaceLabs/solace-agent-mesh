@@ -91,9 +91,7 @@ def assert_message_content_contains(
     )
 
 
-def assert_database_isolation(
-    inspector: DatabaseInspector, agent_a: str, agent_b: str
-):
+def assert_database_isolation(inspector: DatabaseInspector, agent_a: str, agent_b: str):
     """Assert that two agents have isolated databases"""
 
     isolation_verified = inspector.verify_database_isolation(agent_a, agent_b)

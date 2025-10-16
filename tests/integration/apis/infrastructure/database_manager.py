@@ -3,40 +3,45 @@ Generic, multi-backend database manager for the API testing framework.
 """
 
 import tempfile
-import os
-from pathlib import Path
-import sqlalchemy as sa
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncConnection
-from sqlalchemy.engine import Connection
-from typing import List, Dict, Type
 from abc import ABC, abstractmethod
-from sqlalchemy.orm import declarative_base
+from pathlib import Path
 
-from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
-    WebUIBackendFactory,
-)
+import psycopg2
+import sqlalchemy as sa
+from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
+from sqlalchemy.orm import declarative_base
 
 # Import testcontainers and database drivers
 from testcontainers.postgres import PostgresContainer
-import psycopg2
 
 # Define the Agent schema using SQLAlchemy's declarative base
 Base = declarative_base()
 
+
 class AgentSessions(Base):
-    __tablename__ = 'agent_sessions'
+    __tablename__ = "agent_sessions"
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     gateway_session_id = sa.Column(sa.String(255), nullable=False, unique=True)
     agent_name = sa.Column(sa.String(255), nullable=False)
     user_id = sa.Column(sa.String(255), nullable=False)
     session_data = sa.Column(sa.Text)
     created_at = sa.Column(sa.DateTime, default=sa.func.current_timestamp())
-    updated_at = sa.Column(sa.DateTime, default=sa.func.current_timestamp(), onupdate=sa.func.current_timestamp())
+    updated_at = sa.Column(
+        sa.DateTime,
+        default=sa.func.current_timestamp(),
+        onupdate=sa.func.current_timestamp(),
+    )
+
 
 class AgentMessages(Base):
-    __tablename__ = 'agent_messages'
+    __tablename__ = "agent_messages"
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    gateway_session_id = sa.Column(sa.String(255), sa.ForeignKey('agent_sessions.gateway_session_id'), nullable=False)
+    gateway_session_id = sa.Column(
+        sa.String(255),
+        sa.ForeignKey("agent_sessions.gateway_session_id"),
+        nullable=False,
+    )
     role = sa.Column(sa.String(50), nullable=False)
     content = sa.Column(sa.Text, nullable=False)
     timestamp = sa.Column(sa.DateTime, default=sa.func.current_timestamp())
@@ -44,9 +49,9 @@ class AgentMessages(Base):
 
 class DatabaseProvider(ABC):
     """Abstract base class for a database provider."""
-    
+
     @abstractmethod
-    def setup(self, agent_names: List[str], **kwargs):
+    def setup(self, agent_names: list[str], **kwargs):
         """Setup databases. Kwargs allow provider-specific configuration."""
         pass
 
@@ -69,7 +74,7 @@ class DatabaseProvider(ABC):
     @abstractmethod
     def get_async_agent_engine(self, agent_name: str) -> AsyncEngine:
         pass
-    
+
     @property
     @abstractmethod
     def provider_type(self) -> str:
@@ -81,11 +86,17 @@ class SqliteProvider(DatabaseProvider):
     """A database provider that uses temporary SQLite files."""
 
     def __init__(self):
-        self._sync_engines: Dict[str, sa.Engine] = {}
-        self._async_engines: Dict[str, AsyncEngine] = {}
+        self._sync_engines: dict[str, sa.Engine] = {}
+        self._async_engines: dict[str, AsyncEngine] = {}
         self._agent_temp_dir = tempfile.TemporaryDirectory()
 
-    def setup(self, agent_names: List[str], db_url: str = None, engine: sa.Engine = None, **kwargs):
+    def setup(
+        self,
+        agent_names: list[str],
+        db_url: str = None,
+        engine: sa.Engine = None,
+        **kwargs,
+    ):
         # Setup Gateway - support both old and new calling patterns
         if engine is not None and db_url is not None:
             # Legacy mode - use provided engine and URL
@@ -98,8 +109,7 @@ class SqliteProvider(DatabaseProvider):
             temp_path = Path(self._agent_temp_dir.name) / "gateway.db"
             gateway_url = f"sqlite:///{temp_path}"
             self._sync_engines["gateway"] = sa.create_engine(
-                gateway_url,
-                connect_args={"check_same_thread": False}
+                gateway_url, connect_args={"check_same_thread": False}
             )
             self._async_engines["gateway"] = create_async_engine(
                 f"sqlite+aiosqlite:///{temp_path}"
@@ -111,8 +121,7 @@ class SqliteProvider(DatabaseProvider):
         for name in agent_names:
             agent_path = agent_temp_path / f"agent_{name}.db"
             agent_sync_engine = sa.create_engine(
-                f"sqlite:///{agent_path}",
-                connect_args={"check_same_thread": False}
+                f"sqlite:///{agent_path}", connect_args={"check_same_thread": False}
             )
             Base.metadata.create_all(agent_sync_engine)
             self._sync_engines[name] = agent_sync_engine
@@ -156,46 +165,52 @@ class PostgreSQLProvider(DatabaseProvider):
     """A database provider that uses testcontainers PostgreSQL."""
 
     def __init__(self):
-        self._sync_engines: Dict[str, sa.Engine] = {}
-        self._async_engines: Dict[str, AsyncEngine] = {}
+        self._sync_engines: dict[str, sa.Engine] = {}
+        self._async_engines: dict[str, AsyncEngine] = {}
         self._container = None
         self._base_url = None
 
-    def setup(self, agent_names: List[str], **kwargs):
+    def setup(self, agent_names: list[str], **kwargs):
         # Start PostgreSQL container
         self._container = PostgresContainer("postgres:15")
         self._container.start()
-        
+
         # Get connection details
         host = self._container.get_container_host_ip()
         port = self._container.get_exposed_port(5432)
         user = self._container.username
         password = self._container.password
         database = self._container.dbname
-        
+
         self._base_url = f"postgresql://{user}:{password}@{host}:{port}"
-        
+
         # Setup Gateway database
         gateway_url = f"{self._base_url}/{database}"
-        gateway_async_url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
-        
-        self._sync_engines["gateway"] = sa.create_engine(gateway_url, pool_pre_ping=True)
+        gateway_async_url = (
+            f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
+        )
+
+        self._sync_engines["gateway"] = sa.create_engine(
+            gateway_url, pool_pre_ping=True
+        )
         self._async_engines["gateway"] = create_async_engine(gateway_async_url)
-        
+
         # Create tables in gateway database
         Base.metadata.create_all(self._sync_engines["gateway"])
-        
+
         # Setup Agent databases
         for name in agent_names:
             agent_db_name = f"agent_{name.lower()}"
             self._create_database(agent_db_name)
-            
+
             agent_url = f"{self._base_url}/{agent_db_name}"
-            agent_async_url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{agent_db_name}"
-            
+            agent_async_url = (
+                f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{agent_db_name}"
+            )
+
             self._sync_engines[name] = sa.create_engine(agent_url, pool_pre_ping=True)
             self._async_engines[name] = create_async_engine(agent_async_url)
-            
+
             # Create tables in agent database
             Base.metadata.create_all(self._sync_engines[name])
 
@@ -204,36 +219,37 @@ class PostgreSQLProvider(DatabaseProvider):
         # Connect to the default database to create new ones
         host = self._container.get_container_host_ip()
         port = self._container.get_exposed_port(5432)
-        
+
         conn = psycopg2.connect(
             host=host,
             port=port,
             user=self._container.username,
             password=self._container.password,
-            database=self._container.dbname
+            database=self._container.dbname,
         )
         conn.autocommit = True
-        
+
         with conn.cursor() as cursor:
             cursor.execute(f'CREATE DATABASE "{db_name}"')
-        
+
         conn.close()
 
     def teardown(self):
         # Clean up WebUIBackendFactory if it exists
-        if hasattr(self, '_webui_factory'):
+        if hasattr(self, "_webui_factory"):
             self._webui_factory.teardown()
-        
+
         for engine in self._sync_engines.values():
             engine.dispose()
 
         import asyncio
+
         async def dispose_async():
             for engine in self._async_engines.values():
                 await engine.dispose()
 
         asyncio.run(dispose_async())
-        
+
         if self._container:
             self._container.stop()
 
@@ -258,27 +274,29 @@ class PostgreSQLProvider(DatabaseProvider):
 
 class DatabaseProviderFactory:
     """Factory for creating database providers based on configuration."""
-    
+
     PROVIDERS = {
         "sqlite": SqliteProvider,
         "postgresql": PostgreSQLProvider,
     }
-    
+
     @classmethod
     def create_provider(cls, provider_type: str) -> DatabaseProvider:
         """Create a database provider instance."""
         if provider_type is None:
             raise ValueError("provider_type is required")
-        
+
         provider_type = provider_type.lower()
-        
+
         if provider_type not in cls.PROVIDERS:
-            raise ValueError(f"Unknown provider type: {provider_type}. Available: {list(cls.PROVIDERS.keys())}")
-        
+            raise ValueError(
+                f"Unknown provider type: {provider_type}. Available: {list(cls.PROVIDERS.keys())}"
+            )
+
         return cls.PROVIDERS[provider_type]()
-    
+
     @classmethod
-    def get_available_providers(cls) -> List[str]:
+    def get_available_providers(cls) -> list[str]:
         """Get list of available database providers."""
         return list(cls.PROVIDERS.keys())
 

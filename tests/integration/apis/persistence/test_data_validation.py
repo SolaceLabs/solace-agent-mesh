@@ -4,9 +4,10 @@ Data validation and edge case tests for persistence framework.
 Tests handling of invalid data, boundary conditions, and security concerns.
 """
 
+import json
+
 import pytest
 import sqlalchemy as sa
-import json
 
 from ..infrastructure.database_inspector import DatabaseInspector
 from ..infrastructure.gateway_adapter import GatewayAdapter
@@ -15,7 +16,9 @@ from ..infrastructure.gateway_adapter import GatewayAdapter
 class TestDataValidation:
     """Tests for data validation and security"""
 
-    @pytest.mark.xfail(reason="SessionResponse model validation intercepts the IntegrityError from the database.")
+    @pytest.mark.xfail(
+        reason="SessionResponse model validation intercepts the IntegrityError from the database."
+    )
     def test_empty_and_null_data_handling(
         self,
         gateway_adapter: GatewayAdapter,
@@ -114,7 +117,7 @@ class TestDataValidation:
 
         # Test SQL injection in message content
         malicious_message = "Hello'; DELETE FROM chat_tasks; --"
-        response = gateway_adapter.send_message(session.id, malicious_message)
+        gateway_adapter.send_message(session.id, malicious_message)
 
         # Verify data integrity
         messages = database_inspector.get_session_messages(session.id)
@@ -139,7 +142,9 @@ class TestErrorRecovery:
 
         # Manually corrupt session data in database (simulate corruption)
         with database_inspector.db_manager.get_gateway_connection() as conn:
-            query = sa.text("UPDATE sessions SET agent_id = :agent_id WHERE id = :session_id")
+            query = sa.text(
+                "UPDATE sessions SET agent_id = :agent_id WHERE id = :session_id"
+            )
             conn.execute(
                 query,
                 {"agent_id": "CorruptedAgent", "session_id": session.id},
@@ -200,7 +205,7 @@ class TestResourceLimits:
 
         # Create many sessions
         sessions = []
-        for i in range(session_count):
+        for _i in range(session_count):
             session = gateway_adapter.create_session(
                 user_id=user_id,
                 agent_name="TestAgent",
@@ -238,8 +243,8 @@ class TestResourceLimits:
 
         # Verify message ordering
         for i in range(message_count):
-            user_message = messages[i*2]
-            agent_message = messages[i*2+1]
+            user_message = messages[i * 2]
+            agent_message = messages[i * 2 + 1]
             expected_content = f"Volume test message {i}"
             assert user_message.user_message == expected_content
             assert agent_message.user_message == f"Received: {expected_content}"
@@ -260,9 +265,7 @@ class TestDataIntegrity:
         )
 
         # Send message (this involves multiple DB operations)
-        gateway_adapter.send_message(
-            session.id, "Transaction test message"
-        )
+        gateway_adapter.send_message(session.id, "Transaction test message")
 
         # Verify both user and agent messages exist (transaction succeeded)
         messages = database_inspector.get_session_messages(session.id)

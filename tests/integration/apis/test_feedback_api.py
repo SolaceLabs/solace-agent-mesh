@@ -6,15 +6,16 @@ feedback payloads and interacts with the configured FeedbackService,
 including writing to CSV files and logging.
 """
 
-import json
 import uuid
-import sqlalchemy as sa
-from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 
+import sqlalchemy as sa
+from fastapi.testclient import TestClient
+
 from solace_agent_mesh.gateway.http_sse.shared import now_epoch_ms
-from .infrastructure.gateway_adapter import GatewayAdapter
+
 from .infrastructure.database_inspector import DatabaseInspector
+from .infrastructure.gateway_adapter import GatewayAdapter
 
 
 def test_submit_feedback_persists_to_database(
@@ -26,7 +27,9 @@ def test_submit_feedback_persists_to_database(
     Tests that a valid feedback submission creates a record in the database.
     """
     # Arrange: Create a session and a task using the gateway adapter
-    session = gateway_adapter.create_session(user_id="feedback_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="feedback_user", agent_name="TestAgent"
+    )
     task = gateway_adapter.send_message(session.id, "Task for feedback")
 
     feedback_payload = {
@@ -48,7 +51,9 @@ def test_submit_feedback_persists_to_database(
         metadata = sa.MetaData()
         metadata.reflect(bind=conn)
         feedback_table = metadata.tables["feedback"]
-        query = sa.select(feedback_table).where(feedback_table.c.task_id == task.task_id)
+        query = sa.select(feedback_table).where(
+            feedback_table.c.task_id == task.task_id
+        )
         feedback_record = conn.execute(query).first()
 
         assert feedback_record is not None
@@ -68,14 +73,12 @@ def test_submit_multiple_feedback_records(
     Tests that multiple feedback submissions for the same task create distinct records.
     """
     # Arrange: Create a session and a task
-    session = gateway_adapter.create_session(user_id="multi_feedback_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="multi_feedback_user", agent_name="TestAgent"
+    )
     task = gateway_adapter.send_message(session.id, "Task for multiple feedback")
 
-    payload1 = {
-        "taskId": task.task_id,
-        "sessionId": session.id,
-        "feedbackType": "up"
-    }
+    payload1 = {"taskId": task.task_id, "sessionId": session.id, "feedbackType": "up"}
     payload2 = {
         "taskId": task.task_id,
         "sessionId": session.id,
@@ -92,13 +95,14 @@ def test_submit_multiple_feedback_records(
         metadata = sa.MetaData()
         metadata.reflect(bind=conn)
         feedback_table = metadata.tables["feedback"]
-        query = sa.select(feedback_table).where(feedback_table.c.task_id == task.task_id)
+        query = sa.select(feedback_table).where(
+            feedback_table.c.task_id == task.task_id
+        )
         feedback_records = conn.execute(query).fetchall()
 
         assert len(feedback_records) == 2
         ratings = {record.rating for record in feedback_records}
         assert ratings == {"up", "down"}
-
 
 
 def test_feedback_missing_required_fields_fails(api_client: TestClient):
@@ -122,7 +126,7 @@ def test_feedback_publishes_event_when_enabled(
     api_client: TestClient,
     monkeypatch,
     gateway_adapter: GatewayAdapter,
-    database_inspector: DatabaseInspector
+    database_inspector: DatabaseInspector,
 ):
     """
     Tests that feedback is published as an event when feedback_publishing is enabled.
@@ -130,17 +134,24 @@ def test_feedback_publishes_event_when_enabled(
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
+
     component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
         lambda key, default=None: {
-            "enabled": True, "topic": "sam/feedback/test/v1", "include_task_info": "summary"
-        } if key == "feedback_publishing" else default,
+            "enabled": True,
+            "topic": "sam/feedback/test/v1",
+            "include_task_info": "summary",
+        }
+        if key == "feedback_publishing"
+        else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     task = gateway_adapter.send_message(session.id, "Task for event publishing")
 
     # Manually create the task record so the feedback service can find it
@@ -148,17 +159,23 @@ def test_feedback_publishes_event_when_enabled(
         metadata = sa.MetaData()
         metadata.reflect(bind=conn)
         tasks_table = metadata.tables["tasks"]
-        conn.execute(tasks_table.insert().values(
-            id=task.task_id,
-            user_id="sam_dev_user",
-            initial_request_text="Task for event publishing",
-            start_time=now_epoch_ms(),
-            end_time=now_epoch_ms()
-        ))
+        conn.execute(
+            tasks_table.insert().values(
+                id=task.task_id,
+                user_id="sam_dev_user",
+                initial_request_text="Task for event publishing",
+                start_time=now_epoch_ms(),
+                end_time=now_epoch_ms(),
+            )
+        )
         if conn.in_transaction():
             conn.commit()
 
-    feedback_payload = {"taskId": task.task_id, "sessionId": session.id, "feedbackType": "up"}
+    feedback_payload = {
+        "taskId": task.task_id,
+        "sessionId": session.id,
+        "feedbackType": "up",
+    }
 
     # Act
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
@@ -185,22 +202,33 @@ def test_feedback_publishing_with_include_task_info_none(
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
+
     component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
         lambda key, default=None: {
-            "enabled": True, "topic": "sam/feedback/test/v1", "include_task_info": "none"
-        } if key == "feedback_publishing" else default,
+            "enabled": True,
+            "topic": "sam/feedback/test/v1",
+            "include_task_info": "none",
+        }
+        if key == "feedback_publishing"
+        else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    session = gateway_adapter.create_session(user_id="none_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="none_user", agent_name="TestAgent"
+    )
     task = gateway_adapter.send_message(session.id, "Task for none test")
 
     # No need to create a task record here, as we are testing the 'none' case
 
-    feedback_payload = {"taskId": task.task_id, "sessionId": session.id, "feedbackType": "down"}
+    feedback_payload = {
+        "taskId": task.task_id,
+        "sessionId": session.id,
+        "feedbackType": "down",
+    }
 
     # Act
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
@@ -220,7 +248,7 @@ def test_feedback_publishing_with_include_task_info_stim(
     api_client: TestClient,
     monkeypatch,
     gateway_adapter: GatewayAdapter,
-    database_inspector: DatabaseInspector
+    database_inspector: DatabaseInspector,
 ):
     """
     Tests that when include_task_info is 'stim', full task history is included in the published event.
@@ -228,6 +256,7 @@ def test_feedback_publishing_with_include_task_info_stim(
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
+
     component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
@@ -237,11 +266,15 @@ def test_feedback_publishing_with_include_task_info_stim(
             "topic": "sam/feedback/test/v1",
             "include_task_info": "stim",
             "max_payload_size_bytes": 9000000,
-        } if key == "feedback_publishing" else default,
+        }
+        if key == "feedback_publishing"
+        else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     task = gateway_adapter.send_message(session.id, "Task for stim test")
 
     with database_inspector.db_manager.get_gateway_connection() as conn:
@@ -251,39 +284,49 @@ def test_feedback_publishing_with_include_task_info_stim(
         task_events_table = metadata.tables["task_events"]
 
         # Create the main task record
-        conn.execute(tasks_table.insert().values(
-            id=task.task_id,
-            user_id="sam_dev_user",
-            initial_request_text="Task for stim test",
-            status="completed",
-            start_time=now_epoch_ms(),
-            end_time=now_epoch_ms()
-        ))
+        conn.execute(
+            tasks_table.insert().values(
+                id=task.task_id,
+                user_id="sam_dev_user",
+                initial_request_text="Task for stim test",
+                status="completed",
+                start_time=now_epoch_ms(),
+                end_time=now_epoch_ms(),
+            )
+        )
 
         # Create associated task events
-        conn.execute(task_events_table.insert().values(
-            id=str(uuid.uuid4()),
-            task_id=task.task_id,
-            user_id="sam_dev_user",
-            created_time=now_epoch_ms(),
-            topic="test/topic/request",
-            direction="request",
-            payload={"test": "request_payload"}
-        ))
-        conn.execute(task_events_table.insert().values(
-            id=str(uuid.uuid4()),
-            task_id=task.task_id,
-            user_id="sam_dev_user",
-            created_time=now_epoch_ms() + 100,
-            topic="test/topic/response",
-            direction="response",
-            payload={"test": "response_payload"}
-        ))
+        conn.execute(
+            task_events_table.insert().values(
+                id=str(uuid.uuid4()),
+                task_id=task.task_id,
+                user_id="sam_dev_user",
+                created_time=now_epoch_ms(),
+                topic="test/topic/request",
+                direction="request",
+                payload={"test": "request_payload"},
+            )
+        )
+        conn.execute(
+            task_events_table.insert().values(
+                id=str(uuid.uuid4()),
+                task_id=task.task_id,
+                user_id="sam_dev_user",
+                created_time=now_epoch_ms() + 100,
+                topic="test/topic/response",
+                direction="response",
+                payload={"test": "response_payload"},
+            )
+        )
 
         if conn.in_transaction():
             conn.commit()
 
-    feedback_payload = {"taskId": task.task_id, "sessionId": session.id, "feedbackType": "up"}
+    feedback_payload = {
+        "taskId": task.task_id,
+        "sessionId": session.id,
+        "feedbackType": "up",
+    }
 
     # Act
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
@@ -308,7 +351,7 @@ def test_feedback_publishing_stim_fallback_to_summary_on_size_limit(
     api_client: TestClient,
     monkeypatch,
     gateway_adapter: GatewayAdapter,
-    database_inspector: DatabaseInspector
+    database_inspector: DatabaseInspector,
 ):
     """
     Tests that when include_task_info is 'stim' but payload exceeds max_payload_size_bytes,
@@ -317,6 +360,7 @@ def test_feedback_publishing_stim_fallback_to_summary_on_size_limit(
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
+
     component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
@@ -326,28 +370,40 @@ def test_feedback_publishing_stim_fallback_to_summary_on_size_limit(
             "topic": "sam/feedback/test/v1",
             "include_task_info": "stim",
             "max_payload_size_bytes": 100,  # Very small
-        } if key == "feedback_publishing" else default,
+        }
+        if key == "feedback_publishing"
+        else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
-    task = gateway_adapter.send_message(session.id, "Task for fallback test" * 100) # Large message
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+    task = gateway_adapter.send_message(
+        session.id, "Task for fallback test" * 100
+    )  # Large message
 
     with database_inspector.db_manager.get_gateway_connection() as conn:
         metadata = sa.MetaData()
         metadata.reflect(bind=conn)
         tasks_table = metadata.tables["tasks"]
-        conn.execute(tasks_table.insert().values(
-            id=task.task_id,
-            user_id="sam_dev_user",
-            initial_request_text="Task for fallback test",
-            start_time=now_epoch_ms(),
-            end_time=now_epoch_ms()
-        ))
+        conn.execute(
+            tasks_table.insert().values(
+                id=task.task_id,
+                user_id="sam_dev_user",
+                initial_request_text="Task for fallback test",
+                start_time=now_epoch_ms(),
+                end_time=now_epoch_ms(),
+            )
+        )
         if conn.in_transaction():
             conn.commit()
 
-    feedback_payload = {"taskId": task.task_id, "sessionId": session.id, "feedbackType": "up"}
+    feedback_payload = {
+        "taskId": task.task_id,
+        "sessionId": session.id,
+        "feedbackType": "up",
+    }
 
     # Act
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
@@ -365,7 +421,10 @@ def test_feedback_publishing_stim_fallback_to_summary_on_size_limit(
 
 
 def test_feedback_publishing_disabled_skips_event_but_saves_to_db(
-    api_client: TestClient, monkeypatch, gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+    api_client: TestClient,
+    monkeypatch,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
 ):
     """
     Tests that when feedback_publishing.enabled = False, no event is published
@@ -374,15 +433,20 @@ def test_feedback_publishing_disabled_skips_event_but_saves_to_db(
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
+
     component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
-        lambda key, default=None: {"enabled": False} if key == "feedback_publishing" else default,
+        lambda key, default=None: {"enabled": False}
+        if key == "feedback_publishing"
+        else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    session = gateway_adapter.create_session(user_id="disabled_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="disabled_user", agent_name="TestAgent"
+    )
     task = gateway_adapter.send_message(session.id, "Task for disabled test")
 
     feedback_payload = {
@@ -403,7 +467,9 @@ def test_feedback_publishing_disabled_skips_event_but_saves_to_db(
         metadata = sa.MetaData()
         metadata.reflect(bind=conn)
         feedback_table = metadata.tables["feedback"]
-        query = sa.select(feedback_table).where(feedback_table.c.task_id == task.task_id)
+        query = sa.select(feedback_table).where(
+            feedback_table.c.task_id == task.task_id
+        )
         feedback_record = conn.execute(query).first()
         assert feedback_record is not None
         assert feedback_record.rating == "down"
@@ -419,20 +485,31 @@ def test_feedback_publishing_uses_custom_topic(
     mock_publish_func = MagicMock()
     custom_topic = "custom/feedback/topic/v2"
     from solace_agent_mesh.gateway.http_sse import dependencies
+
     component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
         lambda key, default=None: {
-            "enabled": True, "topic": custom_topic, "include_task_info": "none"
-        } if key == "feedback_publishing" else default,
+            "enabled": True,
+            "topic": custom_topic,
+            "include_task_info": "none",
+        }
+        if key == "feedback_publishing"
+        else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    session = gateway_adapter.create_session(user_id="custom_topic_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="custom_topic_user", agent_name="TestAgent"
+    )
     task = gateway_adapter.send_message(session.id, "Task for custom topic test")
 
-    feedback_payload = {"taskId": task.task_id, "sessionId": session.id, "feedbackType": "up"}
+    feedback_payload = {
+        "taskId": task.task_id,
+        "sessionId": session.id,
+        "feedbackType": "up",
+    }
 
     # Act
     response = api_client.post("/api/v1/feedback", json=feedback_payload)
@@ -445,22 +522,32 @@ def test_feedback_publishing_uses_custom_topic(
 
 
 def test_feedback_publishing_failure_does_not_break_saving(
-    api_client: TestClient, monkeypatch, gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+    api_client: TestClient,
+    monkeypatch,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
 ):
     """
     Tests that if publish_a2a raises an exception, the feedback is still saved to the database.
     """
     # Arrange
     from solace_agent_mesh.gateway.http_sse import dependencies
+
     component = dependencies.get_sac_component()
-    monkeypatch.setattr(component, "publish_a2a", MagicMock(side_effect=Exception("Simulated failure")))
+    monkeypatch.setattr(
+        component, "publish_a2a", MagicMock(side_effect=Exception("Simulated failure"))
+    )
     monkeypatch.setattr(
         component,
         "get_config",
-        lambda key, default=None: {"enabled": True} if key == "feedback_publishing" else default,
+        lambda key, default=None: {"enabled": True}
+        if key == "feedback_publishing"
+        else default,
     )
 
-    session = gateway_adapter.create_session(user_id="resilience_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="resilience_user", agent_name="TestAgent"
+    )
     task = gateway_adapter.send_message(session.id, "Task for resilience test")
 
     feedback_payload = {
@@ -480,7 +567,9 @@ def test_feedback_publishing_failure_does_not_break_saving(
         metadata = sa.MetaData()
         metadata.reflect(bind=conn)
         feedback_table = metadata.tables["feedback"]
-        query = sa.select(feedback_table).where(feedback_table.c.task_id == task.task_id)
+        query = sa.select(feedback_table).where(
+            feedback_table.c.task_id == task.task_id
+        )
         feedback_record = conn.execute(query).first()
         assert feedback_record is not None
         assert feedback_record.rating == "down"
@@ -490,7 +579,7 @@ def test_feedback_publishing_payload_structure_with_summary(
     api_client: TestClient,
     monkeypatch,
     gateway_adapter: GatewayAdapter,
-    database_inspector: DatabaseInspector
+    database_inspector: DatabaseInspector,
 ):
     """
     Tests that the published payload has the correct structure with task_summary.
@@ -498,30 +587,39 @@ def test_feedback_publishing_payload_structure_with_summary(
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
+
     component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
         lambda key, default=None: {
-            "enabled": True, "topic": "sam/feedback/test/v1", "include_task_info": "summary"
-        } if key == "feedback_publishing" else default,
+            "enabled": True,
+            "topic": "sam/feedback/test/v1",
+            "include_task_info": "summary",
+        }
+        if key == "feedback_publishing"
+        else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     task = gateway_adapter.send_message(session.id, "Task for payload structure test")
 
     with database_inspector.db_manager.get_gateway_connection() as conn:
         metadata = sa.MetaData()
         metadata.reflect(bind=conn)
         tasks_table = metadata.tables["tasks"]
-        conn.execute(tasks_table.insert().values(
-            id=task.task_id,
-            user_id="sam_dev_user",
-            initial_request_text="Task for payload structure test",
-            start_time=now_epoch_ms(),
-            end_time=now_epoch_ms()
-        ))
+        conn.execute(
+            tasks_table.insert().values(
+                id=task.task_id,
+                user_id="sam_dev_user",
+                initial_request_text="Task for payload structure test",
+                start_time=now_epoch_ms(),
+                end_time=now_epoch_ms(),
+            )
+        )
         if conn.in_transaction():
             conn.commit()
 
@@ -561,18 +659,25 @@ def test_feedback_publishing_with_missing_task(
     # Arrange
     mock_publish_func = MagicMock()
     from solace_agent_mesh.gateway.http_sse import dependencies
+
     component = dependencies.get_sac_component()
     monkeypatch.setattr(
         component,
         "get_config",
         lambda key, default=None: {
-            "enabled": True, "topic": "sam/feedback/test/v1", "include_task_info": "summary"
-        } if key == "feedback_publishing" else default,
+            "enabled": True,
+            "topic": "sam/feedback/test/v1",
+            "include_task_info": "summary",
+        }
+        if key == "feedback_publishing"
+        else default,
     )
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
     # We don't create a task, just a session
-    session = gateway_adapter.create_session(user_id="missing_task_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="missing_task_user", agent_name="TestAgent"
+    )
     fake_task_id = f"task-{uuid.uuid4().hex[:8]}"
 
     feedback_payload = {

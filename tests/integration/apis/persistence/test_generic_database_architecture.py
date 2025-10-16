@@ -7,8 +7,8 @@ Tests that verify the correct database setup with Gateway migrations and Agent d
 import pytest
 import sqlalchemy as sa
 
-from ..infrastructure.database_manager import DatabaseManager
 from ..infrastructure.database_inspector import DatabaseInspector
+from ..infrastructure.database_manager import DatabaseManager
 
 
 def test_gateway_database_has_migrations(database_inspector: DatabaseInspector):

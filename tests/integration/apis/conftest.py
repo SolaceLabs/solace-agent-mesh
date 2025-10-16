@@ -5,22 +5,20 @@ Provides FastAPI TestClient and HTTP-based testing infrastructure.
 """
 
 import pytest
-import os
 import sqlalchemy as sa
-
 from fastapi.testclient import TestClient
 from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
     WebUIBackendFactory,
 )
 from sqlalchemy import text
 
+from .infrastructure.database_inspector import DatabaseInspector
 from .infrastructure.database_manager import (
-    DatabaseManager, 
+    DatabaseManager,
     DatabaseProviderFactory,
-    SqliteProvider
+    SqliteProvider,
 )
 from .infrastructure.gateway_adapter import GatewayAdapter
-from .infrastructure.database_inspector import DatabaseInspector
 
 
 @pytest.fixture(scope="session")
@@ -34,14 +32,14 @@ def api_client_factory():
 @pytest.fixture(scope="session")
 def api_client(db_provider, api_client_factory):
     """Creates a TestClient that uses the same app instance as the db_provider."""
-    
+
     # For SQLite, use the original api_client_factory
     if isinstance(db_provider, SqliteProvider):
         app = api_client_factory.app
     else:
         # For containerized databases, use the WebUIBackendFactory we created
         app = db_provider._webui_factory.app
-    
+
     from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
 
     async def override_get_current_user() -> dict:
@@ -55,7 +53,9 @@ def api_client(db_provider, api_client_factory):
 
     app.dependency_overrides[get_current_user] = override_get_current_user
     client = TestClient(app)
-    print(f"[API Tests] FastAPI TestClient created from {db_provider.provider_type} db_provider")
+    print(
+        f"[API Tests] FastAPI TestClient created from {db_provider.provider_type} db_provider"
+    )
     try:
         yield client
     finally:
@@ -80,14 +80,14 @@ def secondary_api_client_factory():
 @pytest.fixture(scope="session")
 def secondary_api_client(secondary_db_provider, secondary_api_client_factory):
     """Creates a secondary TestClient that uses the secondary_db_provider."""
-    
+
     # For SQLite, use the original secondary_api_client_factory
     if isinstance(secondary_db_provider, SqliteProvider):
         app = secondary_api_client_factory.app
     else:
         # For containerized databases, use the WebUIBackendFactory we created
         app = secondary_db_provider._webui_factory.app
-    
+
     from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
 
     async def override_get_current_user() -> dict:
@@ -101,7 +101,9 @@ def secondary_api_client(secondary_db_provider, secondary_api_client_factory):
 
     app.dependency_overrides[get_current_user] = override_get_current_user
     client = TestClient(app)
-    print(f"[API Tests] Secondary FastAPI TestClient created from {secondary_db_provider.provider_type} secondary_db_provider.")
+    print(
+        f"[API Tests] Secondary FastAPI TestClient created from {secondary_db_provider.provider_type} secondary_db_provider."
+    )
     try:
         yield client
     finally:
@@ -126,8 +128,6 @@ def secondary_database_inspector(secondary_database_manager):
     return DatabaseInspector(secondary_database_manager)
 
 
-
-
 @pytest.fixture(autouse=True)
 def clean_database_between_tests(database_manager: DatabaseManager):
     """Cleans database state between tests"""
@@ -148,28 +148,27 @@ def clean_secondary_database_between_tests(secondary_database_manager: DatabaseM
 
 def _clean_main_database(engine):
     """Clean the main API test database using SQLAlchemy Core"""
-    with engine.connect() as connection:
-        with connection.begin():
-            metadata = sa.MetaData()
-            metadata.reflect(bind=connection)
-            
-            # Handle database-specific foreign key constraints
-            db_url = str(connection.engine.url)
-            if db_url.startswith("sqlite"):
-                connection.execute(text("PRAGMA foreign_keys=OFF"))
-            elif db_url.startswith("postgresql"):
-                # PostgreSQL handles FK constraints differently - no need to disable
-                pass
-            
-            # Delete from all tables except alembic_version
-            for table in reversed(metadata.sorted_tables):
-                if table.name == "alembic_version":
-                    continue
-                connection.execute(table.delete())
-            
-            # Re-enable foreign key constraints
-            if db_url.startswith("sqlite"):
-                connection.execute(text("PRAGMA foreign_keys=ON"))
+    with engine.connect() as connection, connection.begin():
+        metadata = sa.MetaData()
+        metadata.reflect(bind=connection)
+
+        # Handle database-specific foreign key constraints
+        db_url = str(connection.engine.url)
+        if db_url.startswith("sqlite"):
+            connection.execute(text("PRAGMA foreign_keys=OFF"))
+        elif db_url.startswith("postgresql"):
+            # PostgreSQL handles FK constraints differently - no need to disable
+            pass
+
+        # Delete from all tables except alembic_version
+        for table in reversed(metadata.sorted_tables):
+            if table.name == "alembic_version":
+                continue
+            connection.execute(table.delete())
+
+        # Re-enable foreign key constraints
+        if db_url.startswith("sqlite"):
+            connection.execute(text("PRAGMA foreign_keys=ON"))
 
 
 @pytest.fixture(scope="session")
@@ -178,15 +177,14 @@ def test_agents_list() -> list[str]:
     return ["TestAgent", "TestPeerAgentA", "TestPeerAgentB", "TestPeerAgentC"]
 
 
-
 # Parameterized database provider fixtures
 @pytest.fixture(scope="session", params=["sqlite", "postgresql"])
 def db_provider_type(request):
-    """Parameterized fixture for database provider type. 
-    
+    """Parameterized fixture for database provider type.
+
     To run against multiple databases, use:
     pytest --db-provider=sqlite,postgresql
-    
+
     Or override this fixture in specific test files.
     """
     return request.param
@@ -202,10 +200,10 @@ def multi_db_provider_type(request):
 @pytest.fixture(scope="session")
 def db_provider(test_agents_list: list[str], api_client_factory, db_provider_type):
     """Database provider fixture that creates the app and all databases."""
-    
+
     # Create provider based on type
     provider = DatabaseProviderFactory.create_provider(db_provider_type)
-    
+
     # All providers now use WebUIBackendFactory integration for proper schema setup
     if isinstance(provider, SqliteProvider):
         # SQLite: Use WebUIBackendFactory's engine and URL
@@ -217,46 +215,51 @@ def db_provider(test_agents_list: list[str], api_client_factory, db_provider_typ
     else:
         # PostgreSQL: Setup container first, then create WebUIBackendFactory with container URL
         provider.setup(agent_names=test_agents_list)
-        
+
         # Create a WebUIBackendFactory using the container's gateway database
         # Get the URL directly from the provider to ensure proper credentials
-        if hasattr(provider, '_container') and provider._container:
+        if hasattr(provider, "_container") and provider._container:
             # For testcontainer providers, build URL with correct credentials
             host = provider._container.get_container_host_ip()
             port = provider._container.get_exposed_port(5432)
             user = provider._container.username
             password = provider._container.password
             database = provider._container.dbname
-            
+
             gateway_url = f"postgresql://{user}:{password}@{host}:{port}/{database}"
         else:
             # Fallback to engine URL
             gateway_url = str(provider.get_sync_gateway_engine().url)
-        
+
         # Use the same gateway_id as the original factory to ensure component compatibility
-        factory = WebUIBackendFactory(db_url=gateway_url, gateway_id=api_client_factory.mock_component.gateway_id)
-        
+        factory = WebUIBackendFactory(
+            db_url=gateway_url, gateway_id=api_client_factory.mock_component.gateway_id
+        )
+
         # Store factory for cleanup
         provider._webui_factory = factory
-        
+
         # Force update the global dependencies to use the new component for tests to work
         from solace_agent_mesh.gateway.http_sse import dependencies
+
         # Force set the component instance (bypass the None check)
         dependencies.sac_component_instance = factory.mock_component
         dependencies.SessionLocal = None  # Reset session factory
         dependencies.init_database(gateway_url)  # Re-initialize with new database
-    
+
     yield provider
     provider.teardown()
 
 
 @pytest.fixture(scope="session")
-def secondary_db_provider(test_agents_list: list[str], secondary_api_client_factory, db_provider_type):
+def secondary_db_provider(
+    test_agents_list: list[str], secondary_api_client_factory, db_provider_type
+):
     """A second, isolated database provider for multi-user tests."""
-    
+
     # Create provider based on type
     provider = DatabaseProviderFactory.create_provider(db_provider_type)
-    
+
     # All providers now use WebUIBackendFactory integration for proper schema setup
     if isinstance(provider, SqliteProvider):
         # SQLite: Use WebUIBackendFactory's engine and URL
@@ -268,22 +271,22 @@ def secondary_db_provider(test_agents_list: list[str], secondary_api_client_fact
     else:
         # PostgreSQL: Setup container first, then create WebUIBackendFactory with container URL
         provider.setup(agent_names=test_agents_list)
-        
+
         # Create a WebUIBackendFactory using the container's gateway database
         # Get the URL directly from the provider to ensure proper credentials
-        if hasattr(provider, '_container') and provider._container:
+        if hasattr(provider, "_container") and provider._container:
             # For testcontainer providers, build URL with correct credentials
             host = provider._container.get_container_host_ip()
             port = provider._container.get_exposed_port(5432)
             user = provider._container.username
             password = provider._container.password
             database = provider._container.dbname
-            
+
             gateway_url = f"postgresql://{user}:{password}@{host}:{port}/{database}"
         else:
             # Fallback to engine URL
             gateway_url = str(provider.get_sync_gateway_engine().url)
-        
+
         secondary_user = {
             "id": "secondary_user",
             "name": "Secondary User",
@@ -292,10 +295,10 @@ def secondary_db_provider(test_agents_list: list[str], secondary_api_client_fact
             "auth_method": "development",
         }
         factory = WebUIBackendFactory(db_url=gateway_url, user=secondary_user)
-        
+
         # Store factory for cleanup
         provider._webui_factory = factory
-    
+
     yield provider
     provider.teardown()
 
@@ -310,7 +313,7 @@ def database_manager(db_provider):
 @pytest.fixture(scope="session")
 def multi_db_provider(test_agents_list: list[str], multi_db_provider_type):
     """Parameterized fixture that runs tests against all database types.
-    
+
     This fixture creates independent database instances for each provider type.
     Use this for tests that should run against all supported databases.
     """
@@ -336,8 +339,6 @@ def gateway_adapter(database_manager: DatabaseManager):
 def database_inspector(database_manager):
     """Creates a new DatabaseInspector."""
     return DatabaseInspector(database_manager)
-
-
 
 
 # Export FastAPI testing fixtures

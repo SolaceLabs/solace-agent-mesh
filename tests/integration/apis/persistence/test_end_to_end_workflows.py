@@ -2,17 +2,26 @@
 End-to-end user workflow tests for the persistence framework.
 """
 
-import pytest
 from fastapi.testclient import TestClient
-from ..infrastructure.gateway_adapter import GatewayAdapter
-from ..infrastructure.database_inspector import DatabaseInspector
 
-def test_complete_user_conversation_workflow(api_client: TestClient, gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+from ..infrastructure.database_inspector import DatabaseInspector
+from ..infrastructure.gateway_adapter import GatewayAdapter
+
+
+def test_complete_user_conversation_workflow(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
     """Test a complete user conversation workflow from start to finish."""
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
 
     gateway_adapter.send_message(session.id, "Hello, I need help with data analysis")
-    gateway_adapter.send_message(session.id, "Can you explain the process step by step?")
+    gateway_adapter.send_message(
+        session.id, "Can you explain the process step by step?"
+    )
     gateway_adapter.send_message(session.id, "What tools would you recommend?")
     gateway_adapter.send_message(session.id, "How long would this typically take?")
 
@@ -20,7 +29,9 @@ def test_complete_user_conversation_workflow(api_client: TestClient, gateway_ada
     assert len(messages) == 8
 
     update_data = {"name": "Data Analysis Help Session"}
-    update_response = api_client.patch(f"/api/v1/sessions/{session.id}", json=update_data)
+    update_response = api_client.patch(
+        f"/api/v1/sessions/{session.id}", json=update_data
+    )
     assert update_response.status_code == 200
     assert update_response.json()["name"] == "Data Analysis Help Session"
 
@@ -30,7 +41,10 @@ def test_complete_user_conversation_workflow(api_client: TestClient, gateway_ada
     assert target_session is not None
     assert target_session.name == "Data Analysis Help Session"
 
-def test_multi_agent_consultation_workflow(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+
+def test_multi_agent_consultation_workflow(
+    gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+):
     """Test workflow where user consults multiple agents."""
     consultations = [
         ("TestAgent", "I need help with project planning"),
@@ -40,29 +54,47 @@ def test_multi_agent_consultation_workflow(gateway_adapter: GatewayAdapter, data
 
     sessions = []
     for agent_name, initial_message in consultations:
-        session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name=agent_name)
+        session = gateway_adapter.create_session(
+            user_id="sam_dev_user", agent_name=agent_name
+        )
         gateway_adapter.send_message(session.id, initial_message)
         sessions.append(session)
 
     all_sessions = database_inspector.get_gateway_sessions("sam_dev_user")
     assert len(all_sessions) >= len(consultations)
 
-    for session, (agent_name, initial_message) in zip(sessions, consultations):
+    for session, (agent_name, initial_message) in zip(
+        sessions, consultations, strict=False
+    ):
         messages = database_inspector.get_session_messages(session.id)
         assert len(messages) == 2
         assert messages[0].user_message == initial_message
 
-def test_document_processing_workflow(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+
+def test_document_processing_workflow(
+    gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+):
     """Test workflow involving file upload and processing"""
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
-    gateway_adapter.send_message(session.id, "Please analyze these documents and provide a summary")
-    gateway_adapter.send_message(session.id, "What are the key themes in these documents?")
-    
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+    gateway_adapter.send_message(
+        session.id, "Please analyze these documents and provide a summary"
+    )
+    gateway_adapter.send_message(
+        session.id, "What are the key themes in these documents?"
+    )
+
     messages = database_inspector.get_session_messages(session.id)
     assert len(messages) == 4
     assert "documents" in messages[0].user_message
 
-def test_session_management_workflow(api_client: TestClient, gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+
+def test_session_management_workflow(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
     """Test comprehensive session management operations."""
     session_configs = [
         ("TestAgent", "API Help"),
@@ -73,7 +105,9 @@ def test_session_management_workflow(api_client: TestClient, gateway_adapter: Ga
 
     created_sessions = []
     for agent_name, name in session_configs:
-        session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name=agent_name)
+        session = gateway_adapter.create_session(
+            user_id="sam_dev_user", agent_name=agent_name
+        )
         update_data = {"name": name}
         response = api_client.patch(f"/api/v1/sessions/{session.id}", json=update_data)
         assert response.status_code == 200
@@ -93,9 +127,16 @@ def test_session_management_workflow(api_client: TestClient, gateway_adapter: Ga
     for deleted_session in sessions_to_delete:
         assert deleted_session.id not in remaining_ids
 
-def test_error_recovery_workflow(api_client: TestClient, gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+
+def test_error_recovery_workflow(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
     """Test workflow that handles various error conditions gracefully"""
-    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
     gateway_adapter.send_message(session.id, "Normal conversation start")
 
     # Try to access non-existent session
@@ -108,11 +149,16 @@ def test_error_recovery_workflow(api_client: TestClient, gateway_adapter: Gatewa
     assert len(messages) == 4
     assert "Follow-up after errors" in messages[2].user_message
 
-def test_high_volume_workflow(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+
+def test_high_volume_workflow(
+    gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+):
     """Test workflow with high volume of API calls"""
     sessions = []
-    for i in range(10):
-        session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    for _i in range(10):
+        session = gateway_adapter.create_session(
+            user_id="sam_dev_user", agent_name="TestAgent"
+        )
         sessions.append(session)
 
     for session in sessions:

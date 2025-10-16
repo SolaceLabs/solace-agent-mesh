@@ -7,7 +7,6 @@ These tests verify the functionality of the task history and retrieval endpoints
 import base64
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Tuple
 
 import pytest
 from fastapi.testclient import TestClient
@@ -61,7 +60,7 @@ def mock_time(monkeypatch) -> TimeController:
 
 def _create_task_and_get_ids(
     api_client: TestClient, message: str, agent_name: str = "TestAgent"
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     """
     Submits a streaming task via the API and returns the resulting task_id and session_id.
 
@@ -138,7 +137,7 @@ def test_create_and_get_basic_task(api_client: TestClient):
         },
     }
     mock_event_data = {
-        "topic": f"test_namespace/a2a/v1/agent/request/TestAgent",
+        "topic": "test_namespace/a2a/v1/agent/request/TestAgent",
         "payload": request_payload,
         "user_properties": {"userId": "sam_dev_user"},
     }
@@ -190,7 +189,7 @@ def test_task_logging_disabled(api_client: TestClient, test_db_engine, monkeypat
         },
     }
     mock_event_data = {
-        "topic": f"test_namespace/a2a/v1/agent/request/TestAgent",
+        "topic": "test_namespace/a2a/v1/agent/request/TestAgent",
         "payload": request_payload,
         "user_properties": {"userId": "sam_dev_user"},
     }
@@ -205,9 +204,9 @@ def test_task_logging_disabled(api_client: TestClient, test_db_engine, monkeypat
         events = db_session.query(TaskEventModel).all()
 
         assert len(tasks) == 0, "No tasks should be created when logging is disabled."
-        assert (
-            len(events) == 0
-        ), "No task events should be created when logging is disabled."
+        assert len(events) == 0, (
+            "No task events should be created when logging is disabled."
+        )
     finally:
         db_session.close()
 
@@ -242,7 +241,7 @@ def _create_file_part_event_data(
         },
     }
     return {
-        "topic": f"test_namespace/a2a/v1/agent/request/TestAgent",
+        "topic": "test_namespace/a2a/v1/agent/request/TestAgent",
         "payload": payload,
         "user_properties": {"userId": "sam_dev_user"},
     }
@@ -423,7 +422,7 @@ def test_event_type_logging_flags(
         },
     }
     request_event_data = {
-        "topic": f"test_namespace/a2a/v1/agent/request/TestAgent",
+        "topic": "test_namespace/a2a/v1/agent/request/TestAgent",
         "payload": request_payload,
         "user_properties": {"userId": "sam_dev_user"},
     }

@@ -3,11 +3,16 @@ Generic Database Inspector for the API testing framework.
 """
 
 import sqlalchemy as sa
-from typing import List
+
+from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.session_responses import (
+    SessionResponse,
+)
+from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.task_responses import (
+    TaskResponse,
+)
 
 from .database_manager import DatabaseManager
-from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.session_responses import SessionResponse
-from src.solace_agent_mesh.gateway.http_sse.routers.dto.responses.task_responses import TaskResponse
+
 
 class DatabaseInspector:
     """A generic database inspector that uses the new DatabaseManager."""
@@ -67,7 +72,7 @@ class DatabaseInspector:
             metadata_a = sa.MetaData()
             metadata_a.reflect(bind=conn_a)
             sessions_a = metadata_a.tables["agent_sessions"]
-            
+
             query_a = sa.select(sessions_a.c.gateway_session_id)
             agent_a_sessions = conn_a.execute(query_a).fetchall()
 
@@ -77,8 +82,10 @@ class DatabaseInspector:
             metadata_b.reflect(bind=conn_b)
             sessions_b = metadata_b.tables["agent_sessions"]
 
-            for session_id, in agent_a_sessions:
-                query_b = sa.select(sessions_b).where(sessions_b.c.gateway_session_id == session_id)
+            for (session_id,) in agent_a_sessions:
+                query_b = sa.select(sessions_b).where(
+                    sessions_b.c.gateway_session_id == session_id
+                )
                 result = conn_b.execute(query_b).first()
 
                 assert result is None, (
@@ -87,7 +94,7 @@ class DatabaseInspector:
 
         return True
 
-    def get_gateway_sessions(self, user_id: str) -> List[SessionResponse]:
+    def get_gateway_sessions(self, user_id: str) -> list[SessionResponse]:
         """Get all gateway sessions for a user."""
         with self.db_manager.get_gateway_connection() as conn:
             metadata = sa.MetaData()
@@ -97,7 +104,7 @@ class DatabaseInspector:
             rows = conn.execute(query).fetchall()
         return [SessionResponse.model_validate(row._asdict()) for row in rows]
 
-    def get_session_messages(self, session_id: str) -> List[TaskResponse]:
+    def get_session_messages(self, session_id: str) -> list[TaskResponse]:
         """Get all messages for a gateway session."""
         with self.db_manager.get_gateway_connection() as conn:
             metadata = sa.MetaData()
@@ -109,7 +116,7 @@ class DatabaseInspector:
                 .order_by(messages_table.c.created_time)
             )
             rows = conn.execute(query).fetchall()
-        
+
         tasks = []
         for row in rows:
             task_data = {
@@ -124,7 +131,7 @@ class DatabaseInspector:
             tasks.append(TaskResponse.model_validate(task_data))
         return tasks
 
-    def get_database_stats(self, agent_names: List[str] = None) -> dict:
+    def get_database_stats(self, agent_names: list[str] = None) -> dict:
         """Get statistics about all databases for debugging."""
         stats = {}
 
@@ -134,9 +141,13 @@ class DatabaseInspector:
             metadata.reflect(bind=conn)
             sessions_table = metadata.tables["sessions"]
             messages_table = metadata.tables["chat_tasks"]
-            
-            session_count = conn.execute(sa.select(sa.func.count()).select_from(sessions_table)).scalar_one()
-            message_count = conn.execute(sa.select(sa.func.count()).select_from(messages_table)).scalar_one()
+
+            session_count = conn.execute(
+                sa.select(sa.func.count()).select_from(sessions_table)
+            ).scalar_one()
+            message_count = conn.execute(
+                sa.select(sa.func.count()).select_from(messages_table)
+            ).scalar_one()
 
         stats["gateway"] = {"sessions": session_count, "messages": message_count}
 
@@ -144,7 +155,11 @@ class DatabaseInspector:
         if agent_names is None:
             # Try to get agent names from provider if available
             if hasattr(self.db_manager.provider, "_sync_engines"):
-                agent_names = [name for name in self.db_manager.provider._sync_engines.keys() if name != "gateway"]
+                agent_names = [
+                    name
+                    for name in self.db_manager.provider._sync_engines
+                    if name != "gateway"
+                ]
             else:
                 # Fallback to empty list if no agent names provided and can't detect
                 agent_names = []
@@ -157,8 +172,12 @@ class DatabaseInspector:
                     sessions_table = metadata.tables["agent_sessions"]
                     messages_table = metadata.tables["agent_messages"]
 
-                    agent_session_count = conn.execute(sa.select(sa.func.count()).select_from(sessions_table)).scalar_one()
-                    agent_message_count = conn.execute(sa.select(sa.func.count()).select_from(messages_table)).scalar_one()
+                    agent_session_count = conn.execute(
+                        sa.select(sa.func.count()).select_from(sessions_table)
+                    ).scalar_one()
+                    agent_message_count = conn.execute(
+                        sa.select(sa.func.count()).select_from(messages_table)
+                    ).scalar_one()
 
                     stats[f"agent_{agent_name}"] = {
                         "sessions": agent_session_count,

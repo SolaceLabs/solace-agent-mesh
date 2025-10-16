@@ -5,15 +5,18 @@ Basic tests to verify that the simplified framework works without external depen
 """
 
 import json
+
 import pytest
 import sqlalchemy as sa
 
+from .infrastructure.database_inspector import DatabaseInspector
 from .infrastructure.database_manager import DatabaseManager
 from .infrastructure.gateway_adapter import GatewayAdapter
-from .infrastructure.database_inspector import DatabaseInspector
 
 
-def test_database_initialization_and_connections(database_manager: DatabaseManager, test_agents_list: list[str]):
+def test_database_initialization_and_connections(
+    database_manager: DatabaseManager, test_agents_list: list[str]
+):
     """
     Test that the DatabaseManager initializes correctly and that all databases are created and accessible.
     """
@@ -39,13 +42,15 @@ def test_database_initialization_and_connections(database_manager: DatabaseManag
             pytest.fail(f"Failed to connect to agent '{agent_name}' database: {e}")
 
 
-def test_database_inspector_basic(database_manager: DatabaseManager, test_agents_list: list[str]):
+def test_database_inspector_basic(
+    database_manager: DatabaseManager, test_agents_list: list[str]
+):
     """Test that DatabaseInspector works"""
     inspector = DatabaseInspector(database_manager)
     migration_version = inspector.verify_gateway_migration_state()
     assert migration_version is not None
     assert len(migration_version) > 0
-    
+
     for agent_name in test_agents_list:
         table_names = inspector.verify_agent_schema_state(agent_name)
         assert "agent_sessions" in table_names
@@ -53,9 +58,13 @@ def test_database_inspector_basic(database_manager: DatabaseManager, test_agents
         assert "alembic_version" not in table_names
 
 
-def test_gateway_adapter_basic(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+def test_gateway_adapter_basic(
+    gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+):
     """Test that GatewayAdapter basic functionality works"""
-    session = gateway_adapter.create_session(user_id="smoke_test_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="smoke_test_user", agent_name="TestAgent"
+    )
     assert session.id is not None
     assert session.user_id == "smoke_test_user"
     assert session.agent_id == "TestAgent"
@@ -69,9 +78,13 @@ def test_gateway_adapter_basic(gateway_adapter: GatewayAdapter, database_inspect
     assert session_list[0].id == session.id
 
 
-def test_message_persistence(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+def test_message_persistence(
+    gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+):
     """Test that messages are persisted correctly"""
-    session = gateway_adapter.create_session(user_id="message_test_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="message_test_user", agent_name="TestAgent"
+    )
     response = gateway_adapter.send_message(session.id, "Hello, test message!")
     assert "Hello, test message!" in response.message_bubbles
     assert response.session_id == session.id
@@ -90,7 +103,9 @@ def test_message_persistence(gateway_adapter: GatewayAdapter, database_inspector
     assert "Received: Hello, test message!" in agent_message_task.message_bubbles
 
 
-def test_database_architecture_validation(database_inspector: DatabaseInspector, test_agents_list: list[str]):
+def test_database_architecture_validation(
+    database_inspector: DatabaseInspector, test_agents_list: list[str]
+):
     """Test that database architecture validation works"""
     # This test is simplified as the new provider model doesn't expose the same architecture details
     migration_version = database_inspector.verify_gateway_migration_state()
@@ -103,7 +118,9 @@ def test_database_architecture_validation(database_inspector: DatabaseInspector,
         assert "alembic_version" not in table_names
 
 
-def test_database_cleanup_between_tests(database_inspector: DatabaseInspector, test_agents_list: list[str]):
+def test_database_cleanup_between_tests(
+    database_inspector: DatabaseInspector, test_agents_list: list[str]
+):
     """Test that database cleanup works between tests"""
     # This test is simplified as cleanup is handled by the provider fixture
     stats = database_inspector.get_database_stats()
@@ -119,7 +136,9 @@ def test_database_cleanup_between_tests(database_inspector: DatabaseInspector, t
             assert stats[agent_key]["messages"] == 0
 
 
-def test_session_isolation(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector):
+def test_session_isolation(
+    gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector
+):
     """Test that sessions are properly isolated"""
     session_a = gateway_adapter.create_session(user_id="user_a", agent_name="TestAgent")
     session_b = gateway_adapter.create_session(user_id="user_b", agent_name="TestAgent")
@@ -152,31 +171,41 @@ def test_session_isolation(gateway_adapter: GatewayAdapter, database_inspector: 
     assert "Message from user A" not in bubbles_b[0]["text"]
 
 
-def test_agent_database_isolation(database_inspector: DatabaseInspector, test_agents_list: list[str]):
+def test_agent_database_isolation(
+    database_inspector: DatabaseInspector, test_agents_list: list[str]
+):
     """Test that agent databases are properly isolated"""
     # Test isolation between different agents
     for i in range(len(test_agents_list) - 1):
         agent_a = test_agents_list[i]
-        agent_b = test_agents_list[i+1]
+        agent_b = test_agents_list[i + 1]
         isolation_verified = database_inspector.verify_database_isolation(
             agent_a, agent_b
         )
         assert isolation_verified
 
 
-def test_error_handling(gateway_adapter: GatewayAdapter, database_manager: DatabaseManager):
+def test_error_handling(
+    gateway_adapter: GatewayAdapter, database_manager: DatabaseManager
+):
     """Test that error handling works correctly"""
     with pytest.raises(ValueError, match="Session .* not found"):
         gateway_adapter.send_message("nonexistent_session_id", "This should fail")
 
-    with pytest.raises(ValueError, match="Agent database for 'NonExistentAgent' not initialized."):
+    with pytest.raises(
+        ValueError, match="Agent database for 'NonExistentAgent' not initialized."
+    ):
         database_manager.get_agent_connection("NonExistentAgent")
 
     with pytest.raises(ValueError, match="Session .* not found"):
         gateway_adapter.switch_session("nonexistent_session_id")
 
 
-def test_database_stats(gateway_adapter: GatewayAdapter, database_inspector: DatabaseInspector, test_agents_list: list[str]):
+def test_database_stats(
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+    test_agents_list: list[str],
+):
     """Test that get_database_stats returns correct counts."""
     # 1. Verify initial state is empty
     initial_stats = database_inspector.get_database_stats()
@@ -189,13 +218,17 @@ def test_database_stats(gateway_adapter: GatewayAdapter, database_inspector: Dat
             assert initial_stats[agent_key]["messages"] == 0
 
     # 2. Create a session and send a message
-    session = gateway_adapter.create_session(user_id="stats_user", agent_name="TestAgent")
+    session = gateway_adapter.create_session(
+        user_id="stats_user", agent_name="TestAgent"
+    )
     gateway_adapter.send_message(session.id, "Hello stats!")
 
     # 3. Verify stats after actions
     final_stats = database_inspector.get_database_stats()
     assert final_stats["gateway"]["sessions"] == 1
-    assert final_stats["gateway"]["messages"] == 2  # User message + simulated agent response
+    assert (
+        final_stats["gateway"]["messages"] == 2
+    )  # User message + simulated agent response
 
     # Note: The generic GatewayAdapter does not interact with agent databases,
     # so their stats should remain 0. This is expected behavior for this test.
