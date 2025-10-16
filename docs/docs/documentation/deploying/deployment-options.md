@@ -158,3 +158,30 @@ Solace Cloud-managed event brokers offer built-in high availability, automatic s
 For more information about cloud-managed options, see [Solace Cloud](https://solace.com/products/event-broker/). For detailed configuration instructions, see [Configuring the Event Broker Connection](../installing-and-configuring/configurations.md#configuring-the-event-broker-connection).
 
 
+### Setting up Queue Templates
+
+When the `app.broker.temporary_queue` parameter is set to `true` (default), the system uses [temporary endpoints](https://docs.solace.com/Messaging/Guaranteed-Msg/Endpoints.htm#temporary-endpoints) for A2A communication. Temporary queues are automatically created and deleted by the broker, which simplifies management and removes the need for manual cleanup. However, temporary queues do not support multiple client connections to the same queue, which may be limiting in scenarios where you run multiple instances of the same agent or need to start a new instance while an old one is still running.
+
+If you set `temporary_queue` to `false`, the system will create a durable queue for the client. Durable queues persist beyond the lifetime of a client connection, allowing multiple clients to connect to the same queue and ensuring messages are not lost if the client disconnects. However, this requires manual management of queues, including cleanup of unused ones.
+
+:::tip
+For production environments that are container-managed (for example, Kubernetes), we recommend setting `temporary_queue` to `false`.  
+Using temporary queues in these environments can cause startup issues, since a new container may fail to connect if the previous instance is still running and holding the queue. Durable queues avoid this by allowing multiple agent instances to share the same queue.
+:::
+
+To prevent messages from piling up in a durable queue when an agent is not running, the queue should be configured with a message TTL (time-to-live) and the **Respect Message TTL** option enabled. To apply these settings automatically for all new queues, you can create a [Queue Template](https://docs.solace.com/Messaging/Guaranteed-Msg/Configuring-Endpoint-Templates.htm) for your Solace Agent Mesh clients. 
+
+To create a queue template in the Solace Cloud Console:
+1. Navigate to **Message VPNs** and select your VPN.
+2. Go to the **Queues** page.
+3. Open the **Templates** tab.
+4. Click **+ Queue Template**.
+
+Use the following settings for the template:
+
+- **Queue Name Filter** = `{NAMESPACE}q/a2a/>`  
+  (Replace `{NAMESPACE}` with the namespace defined in your configuration, for example, `sam/`)
+- **Respect TTL** = `true`  
+  *(Under: Advanced Settings > Message Expiry)*
+- **Maximum TTL (sec)** = `18000`  
+  *(Under: Advanced Settings > Message Expiry)*

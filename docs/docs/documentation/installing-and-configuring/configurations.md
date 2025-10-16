@@ -109,6 +109,8 @@ If you need to configure multiple brokers, you can do so by adding additional en
 Setting the `temporary_queue` parameter to `true` (default) will use [temporary endpoints](https://docs.solace.com/Messaging/Guaranteed-Msg/Endpoints.htm#temporary-endpoints) for A2A communication. Temporary queues are automatically created and deleted by the broker, which simplifies management and reduces the need for manual cleanup. However, it does not allow for multiple client connections to the same queue, which may be a limitation in some scenarios where you're running multiple instances of the same agent or a new instance needs to be started while an old instance is still running.
 
 If you set `temporary_queue` to `false`, the system will create a durable queue for the client. Durable queues persist beyond the lifetime of the client connection, allowing multiple clients to connect to the same queue and ensuring that messages are not lost if the client disconnects. However, this requires manual management of the queues, including cleanup of unused queues.
+
+Check the [Setting up Queue Templates](../deploying/deployment-options.md#setting-up-queue-templates) section for guidance on configuring queue templates to manage message TTL.
 :::
 
 ## LLM Configuration
