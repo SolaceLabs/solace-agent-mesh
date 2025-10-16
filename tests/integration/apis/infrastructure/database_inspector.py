@@ -124,7 +124,7 @@ class DatabaseInspector:
             tasks.append(TaskResponse.model_validate(task_data))
         return tasks
 
-    def get_database_stats(self) -> dict:
+    def get_database_stats(self, agent_names: List[str] = None) -> dict:
         """Get statistics about all databases for debugging."""
         stats = {}
 
@@ -141,10 +141,16 @@ class DatabaseInspector:
         stats["gateway"] = {"sessions": session_count, "messages": message_count}
 
         # Agent stats
-        # This part is provider-specific, but we can make it reasonably generic
-        if hasattr(self.db_manager.provider, "_sync_engines"):
-            agent_names = [name for name in self.db_manager.provider._sync_engines.keys() if name != "gateway"]
-            for agent_name in agent_names:
+        if agent_names is None:
+            # Try to get agent names from provider if available
+            if hasattr(self.db_manager.provider, "_sync_engines"):
+                agent_names = [name for name in self.db_manager.provider._sync_engines.keys() if name != "gateway"]
+            else:
+                # Fallback to empty list if no agent names provided and can't detect
+                agent_names = []
+
+        for agent_name in agent_names:
+            try:
                 with self.db_manager.get_agent_connection(agent_name) as conn:
                     metadata = sa.MetaData()
                     metadata.reflect(bind=conn)
@@ -154,9 +160,12 @@ class DatabaseInspector:
                     agent_session_count = conn.execute(sa.select(sa.func.count()).select_from(sessions_table)).scalar_one()
                     agent_message_count = conn.execute(sa.select(sa.func.count()).select_from(messages_table)).scalar_one()
 
-                stats[f"agent_{agent_name}"] = {
-                    "sessions": agent_session_count,
-                    "messages": agent_message_count,
-                }
+                    stats[f"agent_{agent_name}"] = {
+                        "sessions": agent_session_count,
+                        "messages": agent_message_count,
+                    }
+            except Exception:
+                # If agent database doesn't exist or can't be accessed, skip it
+                continue
 
         return stats

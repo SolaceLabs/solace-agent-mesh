@@ -113,19 +113,26 @@ class WebUIBackendFactory:
         mock_sse_manager = Mock(spec=SSEManager)
         mock_component.get_sse_manager.return_value = mock_sse_manager
 
-        # Create a test database engine and session factory
-        engine = create_engine(
-            db_url,
-            poolclass=StaticPool,
-            connect_args={"check_same_thread": False},
-        )
-
-        @event.listens_for(engine, "connect")
-        def set_sqlite_pragma(dbapi_conn, connection_record):
-            if db_url.startswith("sqlite"):
+        # Create a test database engine and session factory with database-specific settings
+        if db_url.startswith("sqlite"):
+            # SQLite-specific configuration
+            engine = create_engine(
+                db_url,
+                poolclass=StaticPool,
+                connect_args={"check_same_thread": False},
+            )
+            
+            @event.listens_for(engine, "connect")
+            def set_sqlite_pragma(dbapi_conn, connection_record):
                 cursor = dbapi_conn.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
+        else:
+            # PostgreSQL/MySQL configuration - no SQLite-specific arguments
+            engine = create_engine(
+                db_url,
+                pool_pre_ping=True,
+            )
 
         Session = sessionmaker(bind=engine)
 

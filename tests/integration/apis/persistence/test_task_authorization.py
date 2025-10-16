@@ -42,17 +42,20 @@ def _create_task_directly_in_db(db_engine, task_id: str, user_id: str, message: 
         db_session.close()
 
 
-def test_task_list_is_isolated_by_user(api_client, secondary_api_client, api_client_factory):
+def test_task_list_is_isolated_by_user(api_client, secondary_api_client, database_manager):
     """
     Tests that users can only see their own tasks in the list view.
     Corresponds to Test Plan 4.1.
     """
+    # Get the correct engine based on the database provider
+    engine = database_manager.provider.get_sync_gateway_engine()
+    
     # Create tasks directly in the database with specific user IDs
     task_a_id = f"task-user-a-{uuid.uuid4().hex[:8]}"
     task_b_id = f"task-user-b-{uuid.uuid4().hex[:8]}"
 
-    _create_task_directly_in_db(api_client_factory.engine, task_a_id, "sam_dev_user", "Task for user A")
-    _create_task_directly_in_db(api_client_factory.engine, task_b_id, "secondary_user", "Task for user B")
+    _create_task_directly_in_db(engine, task_a_id, "sam_dev_user", "Task for user A")
+    _create_task_directly_in_db(engine, task_b_id, "secondary_user", "Task for user B")
 
     # Primary user lists tasks, should only see their own
     response_a = api_client.get("/api/v1/tasks")
@@ -71,15 +74,18 @@ def test_task_list_is_isolated_by_user(api_client, secondary_api_client, api_cli
     assert tasks_b[0]["user_id"] == "secondary_user"
 
 
-def test_task_detail_is_isolated_by_user(api_client, secondary_api_client, api_client_factory):
+def test_task_detail_is_isolated_by_user(api_client, secondary_api_client, database_manager):
     """
     Tests that a user cannot retrieve the details of another user's task.
     Corresponds to Test Plan 4.2.
     """
+    # Get the correct engine based on the database provider
+    engine = database_manager.provider.get_sync_gateway_engine()
+    
     # Create a task directly in the database for primary user
     task_a_id = f"task-private-a-{uuid.uuid4().hex[:8]}"
     _create_task_directly_in_db(
-        api_client_factory.engine, task_a_id, "sam_dev_user", "Private task for user A"
+        engine, task_a_id, "sam_dev_user", "Private task for user A"
     )
 
     # Primary user can get their own task details
@@ -99,11 +105,14 @@ def test_task_detail_is_isolated_by_user(api_client, secondary_api_client, api_c
     reason="Admin functionality with 'tasks:read:all' scope not available in standard test fixtures. "
            "Requires custom user authentication setup with admin permissions."
 )
-def test_admin_can_query_all_tasks(api_client, secondary_api_client, api_client_factory):
+def test_admin_can_query_all_tasks(api_client, secondary_api_client, database_manager):
     """
     Tests that a user with 'tasks:read:all' scope can view all tasks.
     Corresponds to Test Plan 4.3.
     """
+    # Get the correct engine based on the database provider
+    engine = database_manager.provider.get_sync_gateway_engine()
+    
     # Note: This test would need admin_client with special scope permissions
     # user_a_client, user_b_client, admin_client = multi_user_task_auth_setup
 
@@ -112,10 +121,10 @@ def test_admin_can_query_all_tasks(api_client, secondary_api_client, api_client_
     task_b_id = f"task-admin-b-{uuid.uuid4().hex[:8]}"
 
     _create_task_directly_in_db(
-        api_client_factory.engine, task_a_id, "sam_dev_user", "User A task for admin view"
+        engine, task_a_id, "sam_dev_user", "User A task for admin view"
     )
     _create_task_directly_in_db(
-        api_client_factory.engine, task_b_id, "secondary_user", "User B task for admin view"
+        engine, task_b_id, "secondary_user", "User B task for admin view"
     )
 
     # Note: Admin client would be needed for these operations

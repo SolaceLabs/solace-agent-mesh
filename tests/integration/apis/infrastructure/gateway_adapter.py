@@ -77,7 +77,8 @@ class GatewayAdapter:
             # Simulate and store agent response
             agent_response_content = f"Received: {message}"
             agent_task_id = f"task-{uuid.uuid4().hex[:8]}"
-            now = now_epoch_ms()
+            # Ensure agent message has a later timestamp than user message for consistent ordering
+            now = now_epoch_ms() + 1
             agent_bubbles = json.dumps(
                 [{"role": "assistant", "text": agent_response_content}]
             )

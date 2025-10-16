@@ -80,8 +80,9 @@ test = [
     "httpx>=0.25",
     "ruff",
     "testcontainers",
-    "pymysql",
     "aiosqlite",
+    "psycopg2-binary",
+    "asyncpg",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
 [tool.hatch.envs.hatch-test]
