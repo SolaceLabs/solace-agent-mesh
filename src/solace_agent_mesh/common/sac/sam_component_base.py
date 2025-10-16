@@ -15,6 +15,7 @@ from ..utils.message_utils import validate_message_size
 
 log = logging.getLogger(__name__)
 
+
 class SamComponentBase(ComponentBase, abc.ABC):
     """
     Abstract base class for high-level SAM components (Agents, Gateways).
@@ -54,11 +55,21 @@ class SamComponentBase(ComponentBase, abc.ABC):
 
         self._async_loop: asyncio.AbstractEventLoop | None = None
         self._async_thread: threading.Thread | None = None
-        
-        # Trust Manager integration (enterprise feature)
+
+        # Trust Manager integration (enterprise feature) - initialized as part of _late_init
         self.trust_manager: Optional[Any] = None
+
+        log.info("%s SamComponentBase initialized successfully.", self.log_identifier)
+
+    def _late_init(self):
+        """Late initialization hook called after the component is fully set up."""
+
+        # Setup the Trust Manager if present (enterprise feature)
         try:
-            from solace_agent_mesh_enterprise.common.trust import initialize_trust_manager
+            from solace_agent_mesh_enterprise.common.trust import (
+                initialize_trust_manager,
+            )
+
             trust_config = self.get_config("trust_manager")
             if trust_config and trust_config.get("enabled", False):
                 self.trust_manager = initialize_trust_manager(self)
@@ -66,9 +77,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
         except ImportError:
             log.debug("%s Enterprise Trust Manager not available", self.log_identifier)
         except Exception as e:
-            log.error("%s Failed to initialize Trust Manager: %s", self.log_identifier, e)
-        
-        log.info("%s SamComponentBase initialized successfully.", self.log_identifier)
+            log.error(
+                "%s Failed to initialize Trust Manager: %s", self.log_identifier, e
+            )
 
     def publish_a2a_message(
         self, payload: dict, topic: str, user_properties: dict | None = None
@@ -211,6 +222,10 @@ class SamComponentBase(ComponentBase, abc.ABC):
     def run(self):
         """Starts the component's dedicated async thread."""
         log.info("%s Starting SamComponentBase run method.", self.log_identifier)
+
+        # Do all initialization that needs to be done after we are fully setup
+        self._late_init()
+
         if not self._async_thread or not self._async_thread.is_alive():
             self._async_thread = threading.Thread(
                 target=self._run_async_operations,
@@ -275,7 +290,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
         """
         Returns unique identifier for this component instance.
         Must be implemented by subclasses.
-        
+
         Returns:
             Unique component identifier (e.g., agent_name, gateway_id)
         """
@@ -286,7 +301,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
         """
         Returns component type string.
         Must be implemented by subclasses.
-        
+
         Returns:
             Component type ("gateway", "agent", etc.)
         """
@@ -302,19 +317,18 @@ class SamComponentBase(ComponentBase, abc.ABC):
             try:
                 log.info(
                     "%s Initializing Trust Manager with periodic publishing...",
-                    self.log_identifier
+                    self.log_identifier,
                 )
                 await self.trust_manager.initialize(self.add_timer)
                 log.info(
-                    "%s Trust Manager initialized successfully",
-                    self.log_identifier
+                    "%s Trust Manager initialized successfully", self.log_identifier
                 )
             except Exception as e:
                 log.error(
                     "%s Failed to initialize Trust Manager: %s",
                     self.log_identifier,
                     e,
-                    exc_info=True
+                    exc_info=True,
                 )
                 # Trust Manager failure should not prevent component startup
                 # Set to None to disable trust manager for this session
