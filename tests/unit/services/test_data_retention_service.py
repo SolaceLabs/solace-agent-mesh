@@ -184,8 +184,7 @@ class TestCleanupLogic:
         assert "no database session factory" in caplog.text.lower()
 
     @patch('solace_agent_mesh.gateway.http_sse.services.data_retention_service.now_epoch_ms')
-    @patch('solace_agent_mesh.gateway.http_sse.services.data_retention_service.TaskRepository')
-    def test_cutoff_time_calculation_for_tasks(self, mock_task_repo_class, mock_now):
+    def test_cutoff_time_calculation_for_tasks(self, mock_now):
         """Test that cutoff time is correctly calculated for task cleanup."""
         # Arrange
         # Set current time to a fixed point: 2025-03-01 00:00:00 UTC
@@ -205,19 +204,26 @@ class TestCleanupLogic:
         # Mock the repository to capture the cutoff time
         captured_cutoff = {}
         
-        def mock_delete_tasks(cutoff_time_ms, batch_size):
+        def mock_delete_tasks(*args, **kwargs):
+            # Handle the call signature with db as first parameter
+            if len(args) >= 3:
+                db, cutoff_time_ms, batch_size = args[0], args[1], args[2]
+            else:
+                cutoff_time_ms, batch_size = args[0], args[1]
+            
             captured_cutoff['cutoff_time_ms'] = cutoff_time_ms
             captured_cutoff['batch_size'] = batch_size
             return 0  # No tasks deleted
         
-        mock_repo = Mock()
-        mock_repo.delete_tasks_older_than = Mock(side_effect=mock_delete_tasks)
-        mock_task_repo_class.return_value = mock_repo
-        
-        service = DataRetentionService(session_factory=mock_session_factory, config=config)
-        
-        # Act
-        service.cleanup_old_data()
+        with patch('solace_agent_mesh.gateway.http_sse.services.data_retention_service.TaskRepository') as mock_task_repo_class:
+            mock_repo = Mock()
+            mock_repo.delete_tasks_older_than = Mock(side_effect=mock_delete_tasks)
+            mock_task_repo_class.return_value = mock_repo
+            
+            service = DataRetentionService(session_factory=mock_session_factory, config=config)
+            
+            # Act
+            service.cleanup_old_data()
         
         # Assert
         # Expected cutoff: now - 30 days = 1709251200000 - (30 * 24 * 60 * 60 * 1000)
@@ -232,8 +238,7 @@ class TestCleanupLogic:
         mock_repo.delete_tasks_older_than.assert_called_once()
 
     @patch('solace_agent_mesh.gateway.http_sse.services.data_retention_service.now_epoch_ms')
-    @patch('solace_agent_mesh.gateway.http_sse.services.data_retention_service.FeedbackRepository')
-    def test_cutoff_time_calculation_for_feedback(self, mock_feedback_repo_class, mock_now):
+    def test_cutoff_time_calculation_for_feedback(self, mock_now):
         """Test that cutoff time is correctly calculated for feedback cleanup."""
         # Arrange
         # Set current time to a fixed point: 2025-03-01 00:00:00 UTC
@@ -252,19 +257,26 @@ class TestCleanupLogic:
         # Mock the repository to capture the cutoff time
         captured_cutoff = {}
         
-        def mock_delete_feedback(cutoff_time_ms, batch_size):
+        def mock_delete_feedback(*args, **kwargs):
+            # Handle the call signature with db as first parameter
+            if len(args) >= 3:
+                db, cutoff_time_ms, batch_size = args[0], args[1], args[2]
+            else:
+                cutoff_time_ms, batch_size = args[0], args[1]
+            
             captured_cutoff['cutoff_time_ms'] = cutoff_time_ms
             captured_cutoff['batch_size'] = batch_size
             return 0  # No feedback deleted
         
-        mock_repo = Mock()
-        mock_repo.delete_feedback_older_than = Mock(side_effect=mock_delete_feedback)
-        mock_feedback_repo_class.return_value = mock_repo
-        
-        service = DataRetentionService(session_factory=mock_session_factory, config=config)
-        
-        # Act
-        service.cleanup_old_data()
+        with patch('solace_agent_mesh.gateway.http_sse.services.data_retention_service.FeedbackRepository') as mock_feedback_repo_class:
+            mock_repo = Mock()
+            mock_repo.delete_feedback_older_than = Mock(side_effect=mock_delete_feedback)
+            mock_feedback_repo_class.return_value = mock_repo
+            
+            service = DataRetentionService(session_factory=mock_session_factory, config=config)
+            
+            # Act
+            service.cleanup_old_data()
         
         # Assert
         # Expected cutoff: now - 60 days = 1709251200000 - (60 * 24 * 60 * 60 * 1000)
