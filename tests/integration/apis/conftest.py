@@ -29,9 +29,25 @@ def api_client_factory():
 @pytest.fixture(scope="session")
 def api_client(api_client_factory):
     """Creates a TestClient that uses the same app instance as the db_provider."""
-    client = TestClient(api_client_factory.app)
+    app = api_client_factory.app
+    from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+
+    async def override_get_current_user() -> dict:
+        return {
+            "id": "sam_dev_user",
+            "name": "Sam Dev User",
+            "email": "sam@dev.local",
+            "authenticated": True,
+            "auth_method": "development",
+        }
+
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    client = TestClient(app)
     print("[API Tests] FastAPI TestClient created from db_provider")
-    yield client
+    try:
+        yield client
+    finally:
+        app.dependency_overrides = {}
 
 
 @pytest.fixture(scope="session")
@@ -52,9 +68,25 @@ def secondary_api_client_factory():
 @pytest.fixture(scope="session")
 def secondary_api_client(secondary_api_client_factory):
     """Creates a secondary TestClient that uses the secondary_db_provider."""
-    client = TestClient(secondary_api_client_factory.app)
+    app = secondary_api_client_factory.app
+    from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+
+    async def override_get_current_user() -> dict:
+        return {
+            "id": "secondary_user",
+            "name": "Secondary User",
+            "email": "secondary@dev.local",
+            "authenticated": True,
+            "auth_method": "development",
+        }
+
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    client = TestClient(app)
     print("[API Tests] Secondary FastAPI TestClient created from secondary_db_provider.")
-    yield client
+    try:
+        yield client
+    finally:
+        app.dependency_overrides = {}
 
 
 @pytest.fixture(scope="session")

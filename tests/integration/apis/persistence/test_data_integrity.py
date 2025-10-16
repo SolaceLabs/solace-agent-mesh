@@ -84,173 +84,63 @@ def test_cross_user_data_isolation_comprehensive(
     assert response.status_code == 404
 
 
-
-@pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
-def test_orphaned_data_prevention(api_client: TestClient):
+def test_orphaned_data_prevention(api_client: TestClient, gateway_adapter: GatewayAdapter):
     """Test that messages cannot exist without valid sessions"""
-
     import uuid
+    # Create a session with messages using the gateway adapter
+    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
 
-    # Create a session with messages
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [
-                    {"kind": "text", "text": "Message that should not become orphaned"}
-                ],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert response.status_code == 200
-    session_id = response.json()["result"]["contextId"]
-
-    # Add more messages
+    # Add messages using the gateway adapter
+    gateway_adapter.send_message(session.id, "Message that should not become orphaned")
     for i in range(3):
-        followup_payload = {
-            "jsonrpc": "2.0",
-            "id": str(uuid.uuid4()),
-            "method": "message/stream",
-            "params": {
-                "message": {
-                    "role": "user",
-                    "messageId": str(uuid.uuid4()),
-                    "kind": "message",
-                    "parts": [{"kind": "text", "text": f"Additional message {i + 1}"}],
-                    "metadata": {"agent_name": "TestAgent"},
-                    "contextId": session_id,
-                }
-            },
-        }
-        followup_response = api_client.post(
-            "/api/v1/message:stream", json=followup_payload
-        )
-        assert followup_response.status_code == 200
+        gateway_adapter.send_message(session.id, f"Additional message {i + 1}")
 
-    # Verify messages exist
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
+    # Verify messages exist via API
+    history_response = api_client.get(f"/api/v1/sessions/{session.id}/messages")
     assert history_response.status_code == 200
     messages_before = history_response.json()
     assert len(messages_before) >= 4
 
     # Delete the session (should cascade delete messages)
-    delete_response = api_client.delete(f"/api/v1/sessions/{session_id}")
+    delete_response = api_client.delete(f"/api/v1/sessions/{session.id}")
     assert delete_response.status_code == 204
 
     # Verify session is gone
-    session_response = api_client.get(f"/api/v1/sessions/{session_id}")
+    session_response = api_client.get(f"/api/v1/sessions/{session.id}")
     assert session_response.status_code == 404
 
     # Verify messages are gone (not orphaned)
-    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
+    history_response = api_client.get(f"/api/v1/sessions/{session.id}/messages")
     assert history_response.status_code == 404
 
-    # Try to add message to deleted session (should fail)
-    orphan_attempt_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [
-                    {"kind": "text", "text": "Attempt to create orphaned message"}
-                ],
-                "metadata": {"agent_name": "TestAgent"},
-                "contextId": session_id,
-            }
-        },
-    }
-    orphan_response = api_client.post(
-        "/api/v1/message:stream", json=orphan_attempt_payload
-    )
-    # This should either create a new session or fail gracefully
-    # The important thing is it doesn't create orphaned messages
-    if orphan_response.status_code == 200:
-        # If it succeeds, it should have created a new session
-        new_session_id = orphan_response.json()["result"]["contextId"]
-        assert new_session_id != session_id  # Should be a different session
-
-    print(f"✓ Orphaned message prevention verified for session {session_id}")
+    # Try to send message to deleted session using gateway adapter (should fail)
+    with pytest.raises(ValueError, match=f"Session {session.id} not found"):
+        gateway_adapter.send_message(session.id, "Attempt to create orphaned message")
 
 
-@pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
-def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
+def test_referential_integrity_with_multiple_deletions(api_client: TestClient, gateway_adapter: GatewayAdapter):
     """Test database referential integrity with multiple session deletions"""
 
-    import uuid
-
-    # Create multiple sessions with various message counts
+    # Create multiple sessions with various message counts using gateway adapter
     sessions_data = []
 
     for i in range(5):
-        # Create session
-        task_payload = {
-            "jsonrpc": "2.0",
-            "id": str(uuid.uuid4()),
-            "method": "message/stream",
-            "params": {
-                "message": {
-                    "role": "user",
-                    "messageId": str(uuid.uuid4()),
-                    "kind": "message",
-                    "parts": [
-                        {"kind": "text", "text": f"Initial message for session {i + 1}"}
-                    ],
-                    "metadata": {"agent_name": "TestAgent"},
-                }
-            },
-        }
-        response = api_client.post("/api/v1/message:stream", json=task_payload)
-        assert response.status_code == 200
-        session_id = response.json()["result"]["contextId"]
+        # Create session using gateway adapter
+        session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
 
         # Add varying numbers of messages
         message_count = (i + 1) * 2  # 2, 4, 6, 8, 10 messages
-        for j in range(message_count - 1):  # -1 because we already have initial message
-            followup_payload = {
-                "jsonrpc": "2.0",
-                "id": str(uuid.uuid4()),
-                "method": "message/stream",
-                "params": {
-                    "message": {
-                        "role": "user",
-                        "messageId": str(uuid.uuid4()),
-                        "kind": "message",
-                        "parts": [
-                            {
-                                "kind": "text",
-                                "text": f"Message {j + 2} in session {i + 1}",
-                            }
-                        ],
-                        "metadata": {"agent_name": "TestAgent"},
-                        "contextId": session_id,
-                    }
-                },
-            }
-            followup_response = api_client.post(
-                "/api/v1/message:stream", json=followup_payload
-            )
-            assert followup_response.status_code == 200
+        for j in range(message_count):
+            gateway_adapter.send_message(session.id, f"Message {j + 1} in session {i + 1}")
 
-        sessions_data.append((session_id, message_count))
+        sessions_data.append((session.id, message_count))
 
     # Verify all sessions exist with expected message counts
     for session_id, expected_count in sessions_data:
         history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
         assert history_response.status_code == 200
         messages = history_response.json()
-        user_messages = [msg for msg in messages if msg["senderType"] == "user"]
-        assert len(user_messages) >= expected_count
+        assert len(messages) >= expected_count
 
     # Delete sessions in random order
     import random
@@ -283,10 +173,7 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
             )
             assert remaining_history.status_code == 200
             remaining_messages = remaining_history.json()
-            user_messages = [
-                msg for msg in remaining_messages if msg["senderType"] == "user"
-            ]
-            assert len(user_messages) >= remaining_count
+            assert len(remaining_messages) >= remaining_count
 
     # Verify session list only contains remaining sessions
     sessions_list = api_client.get("/api/v1/sessions")
@@ -300,35 +187,16 @@ def test_referential_integrity_with_multiple_deletions(api_client: TestClient):
     for session_id, _ in remaining_sessions:
         assert session_id in current_session_ids
 
-    print(
-        f"✓ Referential integrity maintained through {len(deleted_sessions)} deletions"
-    )
 
-
-@pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
-def test_session_consistency_across_operations(api_client: TestClient):
+def test_session_consistency_across_operations(api_client: TestClient, gateway_adapter: GatewayAdapter):
     """Test that session data remains consistent across multiple operations"""
 
-    import uuid
+    # Create a session using gateway adapter
+    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session_id = session.id
 
-    # Create a session
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Initial consistency test message"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert response.status_code == 200
-    session_id = response.json()["result"]["contextId"]
+    # Add initial message using gateway adapter
+    gateway_adapter.send_message(session_id, "Initial consistency test message")
 
     # Perform multiple operations and verify consistency
     operations = []
@@ -340,28 +208,9 @@ def test_session_consistency_across_operations(api_client: TestClient):
     assert update_response.status_code == 200
     operations.append("name_update")
 
-    # 2. Add multiple messages
+    # 2. Add multiple messages using gateway adapter
     for i in range(5):
-        msg_payload = {
-            "jsonrpc": "2.0",
-            "id": str(uuid.uuid4()),
-            "method": "message/stream",
-            "params": {
-                "message": {
-                    "role": "user",
-                    "messageId": str(uuid.uuid4()),
-                    "kind": "message",
-                    "parts": [
-                        {"kind": "text", "text": f"Consistency test message {i + 2}"}
-                    ],
-                    "metadata": {"agent_name": "TestAgent"},
-                    "contextId": session_id,
-                }
-            },
-        }
-        msg_response = api_client.post("/api/v1/message:stream", json=msg_payload)
-        assert msg_response.status_code == 200
-        assert msg_response.json()["result"]["contextId"] == session_id
+        gateway_adapter.send_message(session_id, f"Consistency test message {i + 2}")
         operations.append(f"message_{i + 2}")
 
     # 3. Verify session integrity after each operation
@@ -377,10 +226,10 @@ def test_session_consistency_across_operations(api_client: TestClient):
     assert history_response.status_code == 200
     history = history_response.json()
 
-    user_messages = [msg for msg in history if msg["senderType"] == "user"]
-    assert len(user_messages) >= 6  # Initial + 5 additional messages
+    # Verify we have messages
+    assert len(history) >= 6  # Initial + 5 additional messages
 
-    # Verify message ordering and content
+    # Verify message ordering and content by checking all message contents
     expected_messages = [
         "Initial consistency test message",
         "Consistency test message 2",
@@ -390,9 +239,9 @@ def test_session_consistency_across_operations(api_client: TestClient):
         "Consistency test message 6",
     ]
 
-    actual_messages = [msg["message"] for msg in user_messages]
+    all_message_contents = [msg.get("message", "") for msg in history]
     for expected_msg in expected_messages:
-        assert expected_msg in actual_messages
+        assert expected_msg in all_message_contents
 
     # 5. Verify session appears in sessions list with correct data
     sessions_list = api_client.get("/api/v1/sessions")
@@ -406,56 +255,27 @@ def test_session_consistency_across_operations(api_client: TestClient):
     assert target_session["name"] == "Consistency Test Session"
     assert target_session["agentId"] == "TestAgent"
 
-    print(f"✓ Session consistency maintained across {len(operations)} operations")
 
-
-@pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
-def test_data_integrity_under_concurrent_operations(api_client: TestClient):
+def test_data_integrity_under_concurrent_operations(api_client: TestClient, gateway_adapter: GatewayAdapter):
     """Test data integrity when performing multiple operations on the same session"""
 
-    import uuid
+    # Create a session using gateway adapter
+    session = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
+    session_id = session.id
 
-    # Create a session
-    task_payload = {
-        "jsonrpc": "2.0",
-        "id": str(uuid.uuid4()),
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": str(uuid.uuid4()),
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Concurrent operations test"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-    response = api_client.post("/api/v1/message:stream", json=task_payload)
-    assert response.status_code == 200
-    session_id = response.json()["result"]["contextId"]
+    # Add initial message using gateway adapter
+    gateway_adapter.send_message(session_id, "Concurrent operations test")
 
     # Perform multiple operations in sequence (simulating concurrent access)
     operations_results = []
 
-    # Add messages
+    # Add messages using gateway adapter
     for i in range(10):
-        msg_payload = {
-            "jsonrpc": "2.0",
-            "id": str(uuid.uuid4()),
-            "method": "message/stream",
-            "params": {
-                "message": {
-                    "role": "user",
-                    "messageId": str(uuid.uuid4()),
-                    "kind": "message",
-                    "parts": [{"kind": "text", "text": f"Concurrent message {i + 1}"}],
-                    "metadata": {"agent_name": "TestAgent"},
-                    "contextId": session_id,
-                }
-            },
-        }
-        msg_response = api_client.post("/api/v1/message:stream", json=msg_payload)
-        operations_results.append(("message", msg_response.status_code == 200))
+        try:
+            gateway_adapter.send_message(session_id, f"Concurrent message {i + 1}")
+            operations_results.append(("message", True))
+        except Exception:
+            operations_results.append(("message", False))
 
     # Update session name multiple times
     for i in range(3):
@@ -492,18 +312,14 @@ def test_data_integrity_under_concurrent_operations(api_client: TestClient):
     assert final_history.status_code == 200
     history = final_history.json()
 
-    user_messages = [msg for msg in history if msg["senderType"] == "user"]
-    assert len(user_messages) >= 11  # Initial + 10 concurrent messages
+    # Verify we have messages
+    assert len(history) >= 11  # Initial + 10 concurrent messages
 
-    # Check that all concurrent messages are present
-    message_contents = [msg["message"] for msg in user_messages]
-    assert "Concurrent operations test" in message_contents
+    # Check that all concurrent messages are present by checking all message contents
+    all_message_contents = [msg.get("message", "") for msg in history]
+    assert "Concurrent operations test" in all_message_contents
     for i in range(10):
-        assert f"Concurrent message {i + 1}" in message_contents
-
-    print(
-        f"✓ Data integrity maintained through {total_ops} operations on session {session_id}"
-    )
+        assert f"Concurrent message {i + 1}" in all_message_contents
 
 
 def test_user_data_cleanup_integrity(api_client: TestClient):

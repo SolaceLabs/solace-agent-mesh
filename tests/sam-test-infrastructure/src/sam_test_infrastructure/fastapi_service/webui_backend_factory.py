@@ -1,5 +1,6 @@
 import tempfile
 import uuid
+import logging
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
@@ -7,18 +8,22 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
+
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
-from solace_agent_mesh.gateway.http_sse import main
 from solace_agent_mesh.gateway.http_sse.services.data_retention_service import (
     DataRetentionService,
 )
-from solace_agent_mesh.gateway.http_sse.main import app as fastapi_app
 from solace_agent_mesh.gateway.http_sse.services.task_logger_service import (
     TaskLoggerService,
 )
 from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
+from solace_agent_mesh.gateway.http_sse.services.session_service import SessionService
+from solace_agent_mesh.gateway.http_sse.dependencies import get_session_business_service
+
+log = logging.getLogger(__name__)
 
 
 class WebUIBackendFactory:
@@ -73,6 +78,8 @@ class WebUIBackendFactory:
         mock_component.component_config = {
             "app_config": {}
         }
+        # Store the user info on the component for dependency overrides
+        mock_component._factory_user = user
 
         # Mock the config resolver to handle async user config resolution
         mock_config_resolver = Mock()
@@ -144,21 +151,114 @@ class WebUIBackendFactory:
         # Add the database_url attribute that the tests expect
         mock_component.database_url = db_url
 
-        # This function initializes the app, including middleware, dependencies,
-        # exceptions, and calls _setup_routers() to mount all API endpoints.
-        if not main._dependencies_initialized:
-            main.setup_dependencies(component=mock_component, database_url=db_url)
-        else:
-            # If dependencies are already initialized, we only need to set up the new database.
-            # The main app singleton has already been configured. We must NOT re-set the
-            # global component instance, as that will break the first test client.
-            main._setup_database(component=mock_component, database_url=db_url)
+        # Create a real SessionService and attach it to the mock component
+        mock_component.session_service = SessionService(component=mock_component)
 
-        self.app = fastapi_app
+        # Create a completely independent FastAPI app instance instead of using the global singleton
+        self.app = FastAPI(
+            title=f"A2A Web UI Backend (Test - {gateway_id})",
+            version="1.0.0-test",
+            description="Independent test instance for the A2A Web UI Backend",
+        )
+
+        # Set up the independent app with all necessary components
+        self._setup_independent_app(mock_component, db_url)
+
         self.mock_component = mock_component
         self.db_url = db_url
         self.engine = engine
 
+    def _setup_independent_app(self, component, database_url: str):
+        """Set up the FastAPI app by importing and reusing functions from main.py."""
+        
+        # Import the setup functions from main.py
+        from solace_agent_mesh.gateway.http_sse.main import (
+            _setup_database,
+            _get_app_config,
+            _create_api_config,
+            _setup_middleware,
+            _setup_routers,
+            http_exception_handler,
+            validation_exception_handler,
+            generic_exception_handler
+        )
+        from solace_agent_mesh.gateway.http_sse import dependencies
+        
+        # Set up database
+        _setup_database(component, database_url)
+        
+        # Set up API config
+        app_config = _get_app_config(component)
+        api_config_dict = _create_api_config(app_config, database_url)
+        
+        # Store original dependencies state
+        original_component = getattr(dependencies, '_component_instance', None)
+        original_api_config = getattr(dependencies, 'api_config', None)
+        
+        try:
+            # Temporarily set dependencies for setup
+            dependencies.set_component_instance(component)
+            dependencies.set_api_config(api_config_dict)
+            
+            # Temporarily replace the global app in main.py with our app
+            # so the setup functions work on our independent app
+            import solace_agent_mesh.gateway.http_sse.main as main_module
+            original_app = main_module.app
+            main_module.app = self.app
+            
+            try:
+                # Set up middleware and routers using the existing functions
+                _setup_middleware(component)
+                _setup_routers()
+            finally:
+                # Restore the original global app
+                main_module.app = original_app
+        finally:
+            # Restore original dependencies state to avoid polluting global state
+            if original_component is not None:
+                dependencies.set_component_instance(original_component)
+            if original_api_config is not None:
+                dependencies.set_api_config(original_api_config)
+        
+        # Set up independent dependency overrides on our app that don't rely on global state
+        def override_get_current_user():
+            # Return the user configured for this specific factory
+            if hasattr(component, '_factory_user'):
+                return component._factory_user
+            return {
+                "id": "sam_dev_user",
+                "name": "Sam Dev User", 
+                "email": "sam@dev.local",
+                "authenticated": True,
+                "auth_method": "development",
+            }
+        
+        def override_get_user_id():
+            user = override_get_current_user()
+            return user.get("id", "sam_dev_user")
+        
+        def override_get_sac_component():
+            return component
+        
+        def override_get_session_service() -> SessionService:
+            return component.session_service
+        
+        # Import the dependency functions and override them on our specific app
+        from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+        from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id, get_sac_component
+        
+        self.app.dependency_overrides[get_current_user] = override_get_current_user
+        self.app.dependency_overrides[get_user_id] = override_get_user_id
+        self.app.dependency_overrides[get_sac_component] = override_get_sac_component
+        self.app.dependency_overrides[get_session_business_service] = override_get_session_service
+        
+        # Set up exception handlers using the imported handlers
+        self.app.add_exception_handler(HTTPException, http_exception_handler)
+        self.app.add_exception_handler(RequestValidationError, validation_exception_handler)
+        self.app.add_exception_handler(Exception, generic_exception_handler)
+
     def teardown(self):
+        # Clean up dependency overrides from our independent app
+        self.app.dependency_overrides = {}
         if self._temp_dir:
             self._temp_dir.cleanup()

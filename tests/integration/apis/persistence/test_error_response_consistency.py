@@ -45,12 +45,10 @@ def test_404_error_response_consistency(api_client: TestClient):
             pytest.fail(f"404 response from {method} {endpoint} is not valid JSON")
 
         # Should contain error message
-        assert "message" in error_data
-        assert isinstance(error_data["message"], str)
-        assert len(error_data["message"]) > 0
-        assert "not found" in error_data["message"].lower()
-
-    print("✓ All 404 error responses have consistent format")
+        assert "detail" in error_data
+        assert isinstance(error_data["detail"], str)
+        assert len(error_data["detail"]) > 0
+        assert "session not found" in error_data["detail"].lower()
 
 
 def test_422_validation_error_response_consistency(api_client: TestClient):
@@ -81,15 +79,13 @@ def test_422_validation_error_response_consistency(api_client: TestClient):
             pytest.fail(f"422 response from {method} {endpoint} is not valid JSON")
 
         # FastAPI validation errors should have specific structure
-        if "message" in error_data:
+        if "detail" in error_data:
             # Should have message field
-            assert isinstance(error_data["message"], str)
+            assert isinstance(error_data["detail"], str)
 
         # May have validationDetails for field-specific errors
         if "validationDetails" in error_data and error_data["validationDetails"]:
             assert isinstance(error_data["validationDetails"], dict)
-
-    print("✓ All 422 validation error responses have consistent format")
 
 
 def test_error_response_headers_consistency(api_client: TestClient):
@@ -133,8 +129,6 @@ def test_error_response_headers_consistency(api_client: TestClient):
         sensitive_headers = ["authorization", "x-api-key", "cookie"]
         for sensitive_header in sensitive_headers:
             assert sensitive_header not in headers.keys()
-
-    print("✓ Error response headers are consistent and secure")
 
 
 def test_error_message_security_no_leakage(api_client: TestClient):
@@ -180,7 +174,7 @@ def test_error_message_security_no_leakage(api_client: TestClient):
         assert response.status_code == 404
 
         error_data = response.json()
-        error_message = error_data.get("message", "").lower()
+        error_message = error_data.get("detail").lower()
 
         # Error message should not reveal sensitive information
         sensitive_terms = [
@@ -202,8 +196,6 @@ def test_error_message_security_no_leakage(api_client: TestClient):
 
         # Should contain generic "not found" message
         assert "not found" in error_message
-
-    print("✓ Error messages don't leak sensitive information")
 
 
 def test_error_response_structure_validation(api_client: TestClient):
@@ -253,15 +245,15 @@ def test_error_response_structure_validation(api_client: TestClient):
             ), "Missing 'error' field in JSON-RPC error response"
             assert error_data["error"] is not None
             assert (
-                "message" in error_data["error"]
-            ), "Missing 'message' in JSON-RPC error"
+                "data" in error_data["error"]
+            ), "Missing 'data' in JSON-RPC error"
         else:
-            # Standard HTTP error format - should have 'message' field
+            # Standard HTTP error format - should have 'detail' field
             assert (
-                "message" in error_data
-            ), "Missing required field 'message' in error response"
-            assert error_data["message"] is not None
-            assert len(str(error_data["message"])) > 0
+                "detail" in error_data
+            ), "Missing required field 'detail' in error response"
+            assert error_data["detail"] is not None
+            assert len(str(error_data["detail"])) > 0
 
         # Ensure no internal/debug fields are exposed
         internal_fields = [
@@ -279,8 +271,6 @@ def test_error_response_structure_validation(api_client: TestClient):
             assert (
                 internal_field not in error_data
             ), f"Internal field '{internal_field}' exposed in error response"
-
-    print("✓ Error response structures are valid and secure")
 
 
 def test_content_type_consistency_in_errors(api_client: TestClient):

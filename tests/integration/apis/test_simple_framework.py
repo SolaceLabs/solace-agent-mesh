@@ -143,13 +143,13 @@ def test_session_isolation(gateway_adapter: GatewayAdapter, database_inspector: 
 
     # Check user A's messages
     bubbles_a = json.loads(messages_a[0].message_bubbles)
-    assert "Message from user A" in bubbles_a[0]["content"]
-    assert "Message from user B" not in bubbles_a[0]["content"]
+    assert "Message from user A" in bubbles_a[0]["text"]
+    assert "Message from user B" not in bubbles_a[0]["text"]
 
     # Check user B's messages
     bubbles_b = json.loads(messages_b[0].message_bubbles)
-    assert "Message from user B" in bubbles_b[0]["content"]
-    assert "Message from user A" not in bubbles_b[0]["content"]
+    assert "Message from user B" in bubbles_b[0]["text"]
+    assert "Message from user A" not in bubbles_b[0]["text"]
 
 
 def test_agent_database_isolation(database_inspector: DatabaseInspector, test_agents_list: list[str]):

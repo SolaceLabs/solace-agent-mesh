@@ -11,182 +11,90 @@ from fastapi.testclient import TestClient
 from ..infrastructure.gateway_adapter import GatewayAdapter
 
 
-@pytest.fixture
-def multi_user_test_setup(api_client: TestClient):
-    """Creates multiple test clients with different user authentications using FastAPI dependency overrides"""
-    from solace_agent_mesh.gateway.http_sse.dependencies import (
-        get_user_id,
-        sac_component_instance,
-    )
-    from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
-
-    test_app = api_client.app
-
-    # Track which user should be returned
-    current_test_user = {"user_id": "first_test_user"}
-
-    # Mock get_current_user dependency - use lambda to avoid parameter validation
-    def mock_get_current_user():
-        user_id = current_test_user["user_id"]
-        if user_id == "first_test_user":
-            return {
-                "id": "first_test_user",
-                "name": "First Test User",
-                "email": "first@test.local",
-                "authenticated": True,
-                "auth_method": "test",
-            }
-        else:
-            return {
-                "id": "second_test_user",
-                "name": "Second Test User",
-                "email": "second@test.local",
-                "authenticated": True,
-                "auth_method": "test",
-            }
-
-    # Mock get_user_id dependency
-    def mock_get_user_id():
-        return current_test_user["user_id"]
-
-    # Mock authenticate_and_enrich_user on the component
-    async def mock_authenticate_and_enrich_user(request_or_data):
-        return mock_get_current_user()
-
-    # Store original overrides and component method
-    original_overrides = test_app.dependency_overrides.copy()
-    original_auth_method = sac_component_instance.authenticate_and_enrich_user
-
-    # Set dependency overrides
-    test_app.dependency_overrides[get_current_user] = mock_get_current_user
-    test_app.dependency_overrides[get_user_id] = mock_get_user_id
-
-    # Override the component's authenticate method
-    sac_component_instance.authenticate_and_enrich_user = (
-        mock_authenticate_and_enrich_user
-    )
-
-    # Create wrapper clients that switch user context
-    class UserTestClient(TestClient):
-        def __init__(self, app, user_id):
-            super().__init__(app)
-            self.user_id = user_id
-
-        def request(self, method, url, **kwargs):
-            # Switch to this user's context for the request
-            old_user = current_test_user["user_id"]
-            current_test_user["user_id"] = self.user_id
-            try:
-                return super().request(method, url, **kwargs)
-            finally:
-                # Restore previous user context
-                current_test_user["user_id"] = old_user
-
-    first_user_client = UserTestClient(test_app, "first_test_user")
-    second_user_client = UserTestClient(test_app, "second_test_user")
-
-    yield first_user_client, second_user_client
-
-    # Restore original dependency overrides AND component method
-    test_app.dependency_overrides.clear()
-    test_app.dependency_overrides.update(original_overrides)
-    sac_component_instance.authenticate_and_enrich_user = original_auth_method
-
-
-def test_cross_user_session_access_returns_404(multi_user_test_setup, gateway_adapter: GatewayAdapter):
+def test_cross_user_session_access_returns_404(api_client: TestClient, secondary_api_client: TestClient, gateway_adapter: GatewayAdapter):
     """Test that accessing another user's session returns 404 (not 403) to prevent information leakage"""
 
-    first_user_client, second_user_client = multi_user_test_setup
-
-    # User A creates a session
-    session_a = gateway_adapter.create_session(user_id="first_test_user", agent_name="TestAgent")
+    # User A creates a session (sam_dev_user)
+    session_a = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
 
     # Verify User A can access their own session
-    session_response = first_user_client.get(f"/api/v1/sessions/{session_a.id}")
+    session_response = api_client.get(f"/api/v1/sessions/{session_a.id}")
     assert session_response.status_code == 200
 
     # User B tries to access User A's session - should get 404, not 403
-    unauthorized_response = second_user_client.get(f"/api/v1/sessions/{session_a.id}")
+    unauthorized_response = secondary_api_client.get(f"/api/v1/sessions/{session_a.id}")
     assert unauthorized_response.status_code == 404
 
 
-def test_cross_user_session_history_returns_404(multi_user_test_setup, gateway_adapter: GatewayAdapter):
+def test_cross_user_session_history_returns_404(api_client: TestClient, secondary_api_client: TestClient, gateway_adapter: GatewayAdapter):
     """Test that accessing another user's session history returns 404"""
 
-    first_user_client, second_user_client = multi_user_test_setup
-
-    # User A creates a session with messages
-    session_a = gateway_adapter.create_session(user_id="first_test_user", agent_name="TestAgent")
+    # User A creates a session with messages (sam_dev_user)
+    session_a = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
     gateway_adapter.send_message(session_a.id, "private message")
 
     # Verify User A can access their own session history
-    history_response = first_user_client.get(f"/api/v1/sessions/{session_a.id}/messages")
+    history_response = api_client.get(f"/api/v1/sessions/{session_a.id}/messages")
     assert history_response.status_code == 200
     history = history_response.json()
     assert len(history) >= 1
 
     # User B tries to access User A's session history - should get 404
-    unauthorized_history = second_user_client.get(f"/api/v1/sessions/{session_a.id}/messages")
+    unauthorized_history = secondary_api_client.get(f"/api/v1/sessions/{session_a.id}/messages")
     assert unauthorized_history.status_code == 404
 
 
-def test_cross_user_session_update_returns_404(multi_user_test_setup, gateway_adapter: GatewayAdapter):
+def test_cross_user_session_update_returns_404(api_client: TestClient, secondary_api_client: TestClient, gateway_adapter: GatewayAdapter):
     """Test that trying to update another user's session returns 404"""
 
-    first_user_client, second_user_client = multi_user_test_setup
-
-    # User A creates a session
-    session_a = gateway_adapter.create_session(user_id="first_test_user", agent_name="TestAgent")
+    # User A creates a session (sam_dev_user)
+    session_a = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
 
     # Verify User A can update their own session
     update_data = {"name": "User A's Updated Session"}
-    update_response = first_user_client.patch(f"/api/v1/sessions/{session_a.id}", json=update_data)
+    update_response = api_client.patch(f"/api/v1/sessions/{session_a.id}", json=update_data)
     assert update_response.status_code == 200
     assert update_response.json()["name"] == "User A's Updated Session"
 
     # User B tries to update User A's session - should get 404
     malicious_update = {"name": "Hijacked Session"}
-    unauthorized_update = second_user_client.patch(f"/api/v1/sessions/{session_a.id}", json=malicious_update)
+    unauthorized_update = secondary_api_client.patch(f"/api/v1/sessions/{session_a.id}", json=malicious_update)
     assert unauthorized_update.status_code == 404
     response_data = unauthorized_update.json()
-    error_message = response_data.get("message")
-    assert "not found" in error_message.lower()
+    error_message = response_data.get("detail")
+    assert "session not found." in error_message.lower()
 
     # Verify session name wasn't changed by unauthorized user
-    verify_response = first_user_client.get(f"/api/v1/sessions/{session_a.id}")
+    verify_response = api_client.get(f"/api/v1/sessions/{session_a.id}")
     assert verify_response.status_code == 200
     assert verify_response.json()["data"]["name"] == "User A's Updated Session"
 
 
-def test_cross_user_session_deletion_returns_404(multi_user_test_setup, gateway_adapter: GatewayAdapter):
+def test_cross_user_session_deletion_returns_404(api_client: TestClient, secondary_api_client: TestClient, gateway_adapter: GatewayAdapter):
     """Test that trying to delete another user's session returns 404"""
 
-    first_user_client, second_user_client = multi_user_test_setup
-
-    # User A creates a session
-    session_a = gateway_adapter.create_session(user_id="first_test_user", agent_name="TestAgent")
+    # User A creates a session (sam_dev_user)
+    session_a = gateway_adapter.create_session(user_id="sam_dev_user", agent_name="TestAgent")
 
     # Verify session exists for User A
-    session_response = first_user_client.get(f"/api/v1/sessions/{session_a.id}")
+    session_response = api_client.get(f"/api/v1/sessions/{session_a.id}")
     assert session_response.status_code == 200
 
     # User B tries to delete User A's session - should get 404
-    unauthorized_delete = second_user_client.delete(f"/api/v1/sessions/{session_a.id}")
+    unauthorized_delete = secondary_api_client.delete(f"/api/v1/sessions/{session_a.id}")
     assert unauthorized_delete.status_code == 404
     response_data = unauthorized_delete.json()
-    error_message = response_data.get("message", "")
-    assert "not found" in error_message.lower()
+    error_message = response_data.get("detail")
+    assert "session not found." in error_message.lower()
 
     # Verify session still exists for User A
-    verify_response = first_user_client.get(f"/api/v1/sessions/{session_a.id}")
+    verify_response = api_client.get(f"/api/v1/sessions/{session_a.id}")
     assert verify_response.status_code == 200
     assert verify_response.json()["data"]["id"] == session_a.id
 
 
-def test_session_isolation_in_listing(multi_user_test_setup):
+def test_session_isolation_in_listing(api_client: TestClient, secondary_api_client: TestClient):
     """Test that users only see their own sessions in the sessions list"""
-
-    first_user_client, second_user_client = multi_user_test_setup
 
     import uuid
 
@@ -207,7 +115,7 @@ def test_session_isolation_in_listing(multi_user_test_setup):
                 }
             },
         }
-        response = first_user_client.post("/api/v1/message:stream", json=task_payload)
+        response = api_client.post("/api/v1/message:stream", json=task_payload)
         assert response.status_code == 200
         user_a_sessions.append(response.json()["result"]["contextId"])
 
@@ -228,12 +136,12 @@ def test_session_isolation_in_listing(multi_user_test_setup):
                 }
             },
         }
-        response = second_user_client.post("/api/v1/message:stream", json=task_payload)
+        response = secondary_api_client.post("/api/v1/message:stream", json=task_payload)
         assert response.status_code == 200
         user_b_sessions.append(response.json()["result"]["contextId"])
 
     # User A should only see their own sessions
-    user_a_list = first_user_client.get("/api/v1/sessions")
+    user_a_list = api_client.get("/api/v1/sessions")
     assert user_a_list.status_code == 200
     user_a_data = user_a_list.json()
     user_a_session_ids = {s["id"] for s in user_a_data["data"]}
@@ -245,7 +153,7 @@ def test_session_isolation_in_listing(multi_user_test_setup):
         assert session_id not in user_a_session_ids
 
     # User B should only see their own sessions
-    user_b_list = second_user_client.get("/api/v1/sessions")
+    user_b_list = secondary_api_client.get("/api/v1/sessions")
     assert user_b_list.status_code == 200
     user_b_data = user_b_list.json()
     user_b_session_ids = {s["id"] for s in user_b_data["data"]}
@@ -256,17 +164,11 @@ def test_session_isolation_in_listing(multi_user_test_setup):
     for session_id in user_a_sessions:
         assert session_id not in user_b_session_ids
 
-    print(
-        f"✓ Session isolation verified: User A has {len(user_a_session_ids)} sessions, User B has {len(user_b_session_ids)} sessions"
-    )
-
 
 def test_consistent_404_for_nonexistent_and_unauthorized_sessions(
-    multi_user_test_setup,
+    api_client: TestClient, secondary_api_client: TestClient,
 ):
     """Test that nonexistent sessions and unauthorized sessions both return 404"""
-
-    first_user_client, second_user_client = multi_user_test_setup
 
     # User A creates a session
     import uuid
@@ -287,7 +189,7 @@ def test_consistent_404_for_nonexistent_and_unauthorized_sessions(
             }
         },
     }
-    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
+    response_a = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response_a.status_code == 200
     real_session_id = response_a.json()["result"]["contextId"]
 
@@ -303,19 +205,19 @@ def test_consistent_404_for_nonexistent_and_unauthorized_sessions(
     # User B should get 404 for both real (unauthorized) and fake (nonexistent) sessions
     for method, endpoint in endpoints_to_test:
         if method == "GET":
-            response = second_user_client.get(endpoint)
+            response = secondary_api_client.get(endpoint)
 
         assert response.status_code == 404
         response_data = response.json()
-        error_message = response_data.get("message", "")
-        assert "not found" in error_message.lower()
+        error_message = response_data.get("detail")
+        assert "session not found." in error_message.lower()
 
     # Test PATCH endpoints
     update_data = {"name": "Test Update"}
-    real_patch_response = second_user_client.patch(
+    real_patch_response = secondary_api_client.patch(
         f"/api/v1/sessions/{real_session_id}", json=update_data
     )
-    fake_patch_response = second_user_client.patch(
+    fake_patch_response = secondary_api_client.patch(
         f"/api/v1/sessions/{fake_session_id}", json=update_data
     )
 
@@ -323,17 +225,15 @@ def test_consistent_404_for_nonexistent_and_unauthorized_sessions(
     assert fake_patch_response.status_code == 404
 
     # Test DELETE endpoints
-    real_delete_response = second_user_client.delete(
+    real_delete_response = secondary_api_client.delete(
         f"/api/v1/sessions/{real_session_id}"
     )
-    fake_delete_response = second_user_client.delete(
+    fake_delete_response = secondary_api_client.delete(
         f"/api/v1/sessions/{fake_session_id}"
     )
 
     assert real_delete_response.status_code == 404
     assert fake_delete_response.status_code == 404
-
-    print("✓ Consistent 404 responses for both nonexistent and unauthorized sessions")
 
 
 def test_authorization_with_empty_session_id(api_client):
@@ -364,13 +264,9 @@ def test_authorization_with_empty_session_id(api_client):
         response = api_client.delete(f"/api/v1/sessions/{invalid_id}")
         assert response.status_code == 404
 
-    print("✓ Invalid session IDs properly handled with 404 responses")
 
-
-def test_session_ownership_after_multiple_operations(multi_user_test_setup):
+def test_session_ownership_after_multiple_operations(api_client: TestClient, secondary_api_client: TestClient):
     """Test that session ownership is consistently validated across multiple operations"""
-
-    first_user_client, second_user_client = multi_user_test_setup
 
     # User A creates a session and performs multiple operations
     import uuid
@@ -389,23 +285,23 @@ def test_session_ownership_after_multiple_operations(multi_user_test_setup):
             }
         },
     }
-    response_a = first_user_client.post("/api/v1/message:stream", json=task_payload)
+    response_a = api_client.post("/api/v1/message:stream", json=task_payload)
     assert response_a.status_code == 200
     session_id = response_a.json()["result"]["contextId"]
 
     # User A performs legitimate operations
     # 1. Get session
-    get_response = first_user_client.get(f"/api/v1/sessions/{session_id}")
+    get_response = api_client.get(f"/api/v1/sessions/{session_id}")
     assert get_response.status_code == 200
 
     # 2. Update session name
-    update_response = first_user_client.patch(
+    update_response = api_client.patch(
         f"/api/v1/sessions/{session_id}", json={"name": "Updated Name"}
     )
     assert update_response.status_code == 200
 
     # 3. Get history
-    history_response = first_user_client.get(f"/api/v1/sessions/{session_id}/messages")
+    history_response = api_client.get(f"/api/v1/sessions/{session_id}/messages")
     assert history_response.status_code == 200
 
     # 4. Add another message to the session
@@ -424,33 +320,29 @@ def test_session_ownership_after_multiple_operations(multi_user_test_setup):
             }
         },
     }
-    followup_response = first_user_client.post(
+    followup_response = api_client.post(
         "/api/v1/message:stream", json=followup_payload
     )
     assert followup_response.status_code == 200
     assert followup_response.json()["result"]["contextId"] == session_id
 
     # After all operations, User B should still get 404 for everything
-    assert second_user_client.get(f"/api/v1/sessions/{session_id}").status_code == 404
+    assert secondary_api_client.get(f"/api/v1/sessions/{session_id}").status_code == 404
     assert (
-        second_user_client.get(f"/api/v1/sessions/{session_id}/messages").status_code
+        secondary_api_client.get(f"/api/v1/sessions/{session_id}/messages").status_code
         == 404
     )
     assert (
-        second_user_client.patch(
+        secondary_api_client.patch(
             f"/api/v1/sessions/{session_id}", json={"name": "Hijack"}
         ).status_code
         == 404
     )
     assert (
-        second_user_client.delete(f"/api/v1/sessions/{session_id}").status_code == 404
+        secondary_api_client.delete(f"/api/v1/sessions/{session_id}").status_code == 404
     )
 
     # Verify User A still has full access
-    final_get = first_user_client.get(f"/api/v1/sessions/{session_id}")
+    final_get = api_client.get(f"/api/v1/sessions/{session_id}")
     assert final_get.status_code == 200
     assert final_get.json()["data"]["name"] == "Updated Name"
-
-    print(
-        f"✓ Session ownership consistently maintained across multiple operations for session {session_id}"
-    )
