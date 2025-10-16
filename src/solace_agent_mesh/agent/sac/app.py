@@ -31,6 +31,15 @@ from ..tools.tool_config_types import AnyToolConfig
 
 log = logging.getLogger(__name__)
 
+# Try to import TrustManagerConfig from enterprise repo
+try:
+    from solace_agent_mesh_enterprise.common.trust.config import TrustManagerConfig
+    _TRUST_MANAGER_CONFIG_AVAILABLE = True
+except ImportError:
+    # Enterprise features not available - create a placeholder type
+    TrustManagerConfig = Dict[str, Any]  # type: ignore
+    _TRUST_MANAGER_CONFIG_AVAILABLE = False
+
 info = {
     "class_name": "SamAgentApp",
     "description": "Custom App class for SAM Agent Host with namespace prefixing and automatic subscription generation.",
@@ -232,6 +241,10 @@ class SamAgentAppConfig(SamConfigBase):
     display_name: str = Field(default=None, description="Human-friendly display name for this ADK agent instance.")
     model: Union[str, Dict[str, Any]] = Field(
         ..., description="ADK model name (string) or BaseLlm config dict."
+    )
+    trust_manager: Optional[Union[TrustManagerConfig, Dict[str, Any]]] = Field(
+        default=None,
+        description="Configuration for the Trust Manager (enterprise feature)"
     )
     instruction: Any = Field(
         default="",
