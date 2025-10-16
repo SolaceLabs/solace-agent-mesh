@@ -128,7 +128,6 @@ class SamAgentComponent(SamComponentBase):
 
         super().__init__(info, **kwargs)
         self.agent_name = self.get_config("agent_name")
-        log.info("%s Initializing A2A ADK Host Component...", self.log_identifier)
         try:
             self.namespace = self.get_config("namespace")
             if not self.namespace:
@@ -159,17 +158,12 @@ class SamAgentComponent(SamComponentBase):
                 "default_behavior", "PERSISTENT"
             ).upper()
             if self.default_session_behavior not in ["PERSISTENT", "RUN_BASED"]:
-                log.warning(
+                log.error(
                     "%s Invalid 'default_behavior' in session_service_config: '%s'. Defaulting to PERSISTENT.",
                     self.log_identifier,
                     self.default_session_behavior,
                 )
                 self.default_session_behavior = "PERSISTENT"
-            log.info(
-                "%s Default session behavior set to: %s",
-                self.log_identifier,
-                self.default_session_behavior,
-            )
             self.artifact_service_config = self.get_config(
                 "artifact_service", {"type": "memory"}
             )
@@ -180,17 +174,12 @@ class SamAgentComponent(SamComponentBase):
                 "artifact_handling_mode", "ignore"
             ).lower()
             if self.artifact_handling_mode not in ["ignore", "embed", "reference"]:
-                log.warning(
+                log.error(
                     "%s Invalid artifact_handling_mode '%s'. Defaulting to 'ignore'.",
                     self.log_identifier,
                     self.artifact_handling_mode,
                 )
                 self.artifact_handling_mode = "ignore"
-            log.info(
-                "%s Artifact Handling Mode: %s",
-                self.log_identifier,
-                self.artifact_handling_mode,
-            )
             if self.artifact_handling_mode == "reference":
                 log.warning(
                     "%s Artifact handling mode 'reference' selected, but this component does not currently host an endpoint to serve artifacts. Clients may not be able to retrieve referenced artifacts.",
@@ -223,12 +212,11 @@ class SamAgentComponent(SamComponentBase):
                 "max_message_size_bytes", 10_000_000
             )
 
-            log.info("%s Configuration retrieved successfully.", self.log_identifier)
         except Exception as e:
             log.error(
-                "%s Failed to retrieve configuration via get_config: %s",
+                "%s Failed to retrieve configuration via get_config",
                 self.log_identifier,
-                e,
+                exc_info=True,
             )
             raise ValueError(f"Configuration retrieval error: {e}") from e
         self.session_service: BaseSessionService = None
@@ -256,21 +244,17 @@ class SamAgentComponent(SamComponentBase):
             init_func_details = self.get_config("agent_init_function")
 
             try:
-                log.info(
-                    "%s Initializing synchronous ADK services...", self.log_identifier
-                )
                 self.session_service = initialize_session_service(self)
                 self.artifact_service = initialize_artifact_service(self)
                 self.memory_service = initialize_memory_service(self)
-
                 log.info(
-                    "%s Synchronous ADK services initialized.", self.log_identifier
+                    "%s Initialized session, artifact, and memory services", self.log_identifier
                 )
             except Exception as service_err:
-                log.exception(
-                    "%s Failed to initialize synchronous ADK services: %s",
+                log.error(
+                    "%s Failed to initialize synchronous ADK services",
                     self.log_identifier,
-                    service_err,
+                    exc_info=True,
                 )
                 raise RuntimeError(
                     f"Failed to initialize synchronous ADK services: {service_err}"
@@ -283,12 +267,6 @@ class SamAgentComponent(SamComponentBase):
                 base_path = init_func_details.get("base_path")
                 specific_init_params_dict = init_func_details.get("config", {})
                 if module_name and func_name:
-                    log.info(
-                        "%s Attempting to load init_function: %s.%s",
-                        self.log_identifier,
-                        module_name,
-                        func_name,
-                    )
                     try:
                         module = import_module(module_name, base_path=base_path)
                         init_function = getattr(module, func_name)
@@ -310,22 +288,16 @@ class SamAgentComponent(SamComponentBase):
                                 config_param_name = param_name_sig
                                 break
                         if pydantic_config_model and config_param_name:
-                            log.info(
-                                "%s Found Pydantic config model '%s' for init_function parameter '%s'.",
-                                self.log_identifier,
-                                pydantic_config_model.__name__,
-                                config_param_name,
-                            )
                             try:
                                 validated_config_arg = pydantic_config_model(
                                     **specific_init_params_dict
                                 )
                             except ValidationError as ve:
                                 log.error(
-                                    "%s Validation error for init_function config using Pydantic model '%s': %s",
+                                    "%s Validation error for init_function config using Pydantic model '%s'",
                                     self.log_identifier,
                                     pydantic_config_model.__name__,
-                                    ve,
+                                    exc_info=True,
                                 )
                                 raise ValueError(
                                     f"Invalid configuration for init_function '{func_name}': {ve}"
@@ -334,24 +306,18 @@ class SamAgentComponent(SamComponentBase):
                             config_param_name
                             and param_sig.annotation is not inspect.Parameter.empty
                         ):
-                            log.warning(
+                            log.debug(
                                 "%s Config parameter '%s' for init_function '%s' has a type hint '%s', but it's not a Pydantic BaseModel. Passing raw dict.",
                                 self.log_identifier,
                                 config_param_name,
                                 func_name,
                                 param_sig.annotation,
                             )
-                        else:
-                            log.info(
-                                "%s No Pydantic model type hint found for a config parameter of init_function '%s'. Passing raw dict if a config param exists, or only host_component.",
-                                self.log_identifier,
-                                func_name,
-                            )
                         func_params_list = list(sig.parameters.values())
                         num_actual_params = len(func_params_list)
                         if num_actual_params == 1:
                             if specific_init_params_dict:
-                                log.warning(
+                                log.debug(
                                     "%s Init function '%s' takes 1 argument, but 'config' was provided in YAML. Config will be ignored.",
                                     self.log_identifier,
                                     func_name,
@@ -374,18 +340,18 @@ class SamAgentComponent(SamComponentBase):
                                 f"but got {num_actual_params} parameters."
                             )
                         log.info(
-                            "%s Successfully executed init_function: %s.%s",
+                            "%s Executed init_function: %s.%s",
                             self.log_identifier,
                             module_name,
                             func_name,
                         )
                     except Exception as e:
-                        log.exception(
-                            "%s Fatal error during agent initialization via init_function '%s.%s': %s",
+                        log.error(
+                            "%s Fatal error during agent initialization via init_function '%s.%s'",
                             self.log_identifier,
                             module_name,
                             func_name,
-                            e,
+                            exc_info=True,
                         )
                         raise RuntimeError(
                             f"Agent custom initialization failed: {e}"
@@ -399,11 +365,6 @@ class SamAgentComponent(SamComponentBase):
                 "interval_seconds"
             )
             if publish_interval_sec and publish_interval_sec > 0:
-                log.info(
-                    "%s Scheduling agent card publishing every %d seconds.",
-                    self.log_identifier,
-                    publish_interval_sec,
-                )
                 self.add_timer(
                     delay_ms=1000,
                     timer_id=self._card_publish_timer_id,
@@ -415,12 +376,13 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                 )
             log.info(
-                "%s Initialization complete for agent: %s",
+                "%s Agent component initialized: %s (namespace: %s)",
                 self.log_identifier,
                 self.agent_name,
+                self.namespace,
             )
         except Exception as e:
-            log.exception("%s Initialization failed: %s", self.log_identifier, e)
+            log.error("%s Initialization failed", self.log_identifier, exc_info=True)
             raise
 
     def invoke(self, message: SolaceMessage, data: dict) -> dict:
@@ -456,35 +418,27 @@ class SamAgentComponent(SamComponentBase):
                 if event.event_type == EventType.MESSAGE:
                     try:
                         event.data.call_negative_acknowledgements()
-                        log.warning(
-                            "%s NACKed message due to unavailable async loop for event processing.",
-                            self.log_identifier,
-                        )
                     except Exception as nack_e:
                         log.error(
-                            "%s Failed to NACK message after async loop issue: %s",
+                            "%s Failed to NACK message after async loop issue",
                             self.log_identifier,
-                            nack_e,
+                            exc_info=True,
                         )
         except Exception as e:
             log.error(
-                "%s Error processing event: %s. Exception: %s",
+                "%s Error processing event: %s",
                 self.log_identifier,
                 event.event_type,
-                e,
+                exc_info=True,
             )
             if event.event_type == EventType.MESSAGE:
                 try:
                     event.data.call_negative_acknowledgements()
-                    log.warning(
-                        "%s NACKed message due to error in event processing.",
-                        self.log_identifier,
-                    )
                 except Exception as nack_e:
                     log.error(
-                        "%s Failed to NACK message after error in event processing: %s",
+                        "%s Failed to NACK message after error in event processing",
                         self.log_identifier,
-                        nack_e,
+                        exc_info=True,
                     )
 
     def handle_timer_event(self, timer_data: Dict[str, Any]):
@@ -519,15 +473,15 @@ class SamAgentComponent(SamComponentBase):
 
         if correlation_data:
             log.warning(
-                "%s Detected timeout for sub-task %s (Main Task: %s). Claimed successfully.",
+                "%s Detected timeout for sub-task %s (Main Task: %s)",
                 self.log_identifier,
                 sub_task_id,
                 logical_task_id,
             )
             await self._handle_peer_timeout(sub_task_id, correlation_data)
         else:
-            log.info(
-                "%s Ignoring timeout event for sub-task %s as it was already completed.",
+            log.debug(
+                "%s Ignoring timeout event for sub-task %s as it was already completed",
                 self.log_identifier,
                 sub_task_id,
             )
@@ -604,11 +558,11 @@ class SamAgentComponent(SamComponentBase):
         if correlation_data:
             # If we successfully claimed the task, remove the timeout tracker from the cache.
             self.cache_service.remove_data(sub_task_id)
-            log.info("%s Successfully claimed completion.", log_id)
+            log.debug("%s Successfully claimed completion.", log_id)
             return correlation_data
         else:
             # This means the task was already claimed by a competing event (e.g., timeout vs. response).
-            log.warning("%s Failed to claim; it was already completed.", log_id)
+            log.debug("%s Failed to claim; it was already completed.", log_id)
             return None
 
     async def reset_peer_timeout(self, sub_task_id: str):
@@ -640,7 +594,7 @@ class SamAgentComponent(SamComponentBase):
             expiry=timeout_sec,
             component=self,
         )
-        log.info(
+        log.debug(
             "%s Timeout for sub-task %s has been reset to %d seconds.",
             log_id,
             sub_task_id,
@@ -687,7 +641,7 @@ class SamAgentComponent(SamComponentBase):
             # Always create a new event for the incoming peer responses.
             # The ADK's `contents` processor is responsible for merging multiple
             # tool responses into a single message before the next LLM call.
-            log.info(
+            log.debug(
                 "%s Creating a new tool response event for %d peer responses.",
                 log_retrigger,
                 len(new_response_parts),
@@ -710,7 +664,7 @@ class SamAgentComponent(SamComponentBase):
                 streaming_mode=streaming_mode, max_llm_calls=max_llm_calls
             )
 
-            log.info(
+            log.debug(
                 "%s Re-triggering ADK runner for main task %s.",
                 log_retrigger,
                 logical_task_id,
@@ -720,7 +674,7 @@ class SamAgentComponent(SamComponentBase):
                     self, session, None, run_config, original_task_context
                 )
             finally:
-                log.info(
+                log.debug(
                     "%s Cleaning up parallel invocation state for invocation %s.",
                     log_retrigger,
                     paused_invocation_id,
@@ -728,11 +682,11 @@ class SamAgentComponent(SamComponentBase):
                 task_context.clear_parallel_invocation_state(paused_invocation_id)
 
         except Exception as e:
-            log.exception(
-                "%s Failed to re-trigger ADK runner for task %s: %s",
+            log.error(
+                "%s Failed to re-trigger ADK runner for task %s",
                 log_retrigger,
                 logical_task_id,
-                e,
+                exc_info=True,
             )
             if original_task_context:
                 loop = self.get_async_loop()
@@ -772,7 +726,7 @@ class SamAgentComponent(SamComponentBase):
         peer_agent_name = correlation_data.get("peer_agent_name")
         if peer_agent_name:
             try:
-                log.info(
+                log.debug(
                     "%s Sending CancelTaskRequest to peer '%s' for timed-out sub-task %s.",
                     log_retrigger,
                     peer_agent_name,
@@ -791,11 +745,11 @@ class SamAgentComponent(SamComponentBase):
                 )
             except Exception as e:
                 log.error(
-                    "%s Failed to send CancelTaskRequest to peer '%s' for sub-task %s: %s",
+                    "%s Failed to send CancelTaskRequest to peer '%s' for sub-task %s",
                     log_retrigger,
                     peer_agent_name,
                     sub_task_id,
-                    e,
+                    exc_info=True,
                 )
 
         # Process the timeout locally.
@@ -818,7 +772,7 @@ class SamAgentComponent(SamComponentBase):
         )
 
         if not all_sub_tasks_completed:
-            log.info(
+            log.debug(
                 "%s Waiting for more peer responses for invocation %s after timeout of sub-task %s.",
                 log_retrigger,
                 invocation_id,
@@ -826,7 +780,7 @@ class SamAgentComponent(SamComponentBase):
             )
             return
 
-        log.info(
+        log.debug(
             "%s All peer responses/timeouts received for invocation %s. Retriggering agent.",
             log_retrigger,
             invocation_id,
@@ -914,10 +868,10 @@ class SamAgentComponent(SamComponentBase):
                     )
             except Exception as e:
                 log.error(
-                    "%s Failed to create PeerAgentTool for '%s': %s",
+                    "%s Failed to create PeerAgentTool for '%s'",
                     self.log_identifier,
                     peer_name,
-                    e,
+                    exc_info=True,
                 )
 
         if allowed_peer_descriptions:
@@ -956,9 +910,9 @@ class SamAgentComponent(SamComponentBase):
                 )
             except Exception as e:
                 log.error(
-                    "%s Failed to append dynamic peer tools to LLM request: %s",
+                    "%s Failed to append dynamic peer tools to LLM request",
                     self.log_identifier,
-                    e,
+                    exc_info=True,
                 )
         return None
 
@@ -1308,10 +1262,10 @@ class SamAgentComponent(SamComponentBase):
             )
 
         except Exception as e:
-            log.exception(
-                "%s Error in _publish_text_as_partial_a2a_status_update: %s",
+            log.error(
+                "%s Error in _publish_text_as_partial_a2a_status_update",
                 log_identifier_helper,
-                e,
+                exc_info=True,
             )
 
     async def _publish_agent_status_signal_update(
@@ -1355,10 +1309,10 @@ class SamAgentComponent(SamComponentBase):
             )
 
         except Exception as e:
-            log.exception(
-                "%s Error in _publish_agent_status_signal_update: %s",
+            log.error(
+                "%s Error in _publish_agent_status_signal_update",
                 log_identifier_helper,
-                e,
+                exc_info=True,
             )
 
     async def _flush_buffer_if_needed(
@@ -1430,11 +1384,11 @@ class SamAgentComponent(SamComponentBase):
                 return False
 
         except Exception as e:
-            log.exception(
-                "%s Error during buffer flush (reason: %s): %s",
+            log.error(
+                "%s Error during buffer flush (reason: %s)",
                 log_identifier,
                 reason,
-                e,
+                exc_info=True,
             )
             return False
 
@@ -1526,11 +1480,11 @@ class SamAgentComponent(SamComponentBase):
             )
 
         except Exception as e:
-            log.exception(
-                "%s Error publishing %s status update: %s",
+            log.error(
+                "%s Error publishing %s status update",
                 log_identifier,
                 status_type,
-                e,
+                exc_info=True,
             )
             raise
 
@@ -1941,11 +1895,11 @@ class SamAgentComponent(SamComponentBase):
                     )
 
             except Exception as e:
-                log.exception(
-                    "%s Error processing artifact signal item %s from context: %s",
+                log.error(
+                    "%s Error processing artifact signal item %s from context",
                     log_id,
                     item,
-                    e,
+                    exc_info=True,
                 )
 
     def _format_final_task_status(
@@ -2073,19 +2027,19 @@ class SamAgentComponent(SamComponentBase):
                 final_task_metadata["produced_artifacts"] = (
                     task_context.produced_artifacts
                 )
-                log.info(
+                log.debug(
                     "%s Attaching manifest of %d produced artifacts to final task metadata.",
                     self.log_identifier,
                     len(task_context.produced_artifacts),
                 )
-            
+
             # Add token usage summary
             if task_context:
                 token_summary = task_context.get_token_usage_summary()
                 if token_summary["total_tokens"] > 0:
                     final_task_metadata["token_usage"] = token_summary
                     log.info(
-                        "%s Task %s used %d total tokens (input: %d, output: %d, cached: %d)",
+                        "%s Task %s token usage: total=%d (input=%d, output=%d, cached=%d)",
                         self.log_identifier,
                         logical_task_id,
                         token_summary["total_tokens"],
@@ -2111,25 +2065,19 @@ class SamAgentComponent(SamComponentBase):
 
             self._publish_a2a_event(a2a_payload, target_topic, a2a_context)
             log.info(
-                "%s Published final successful response for task %s to %s (Artifacts NOT bundled).",
+                "%s Task %s completed successfully",
                 self.log_identifier,
                 logical_task_id,
-                target_topic,
             )
             if original_message:
                 try:
                     original_message.call_acknowledgements()
-                    log.info(
-                        "%s Called ACK for original message of task %s.",
-                        self.log_identifier,
-                        logical_task_id,
-                    )
                 except Exception as ack_e:
                     log.error(
-                        "%s Failed to call ACK for task %s: %s",
+                        "%s Failed to call ACK for task %s",
                         self.log_identifier,
                         logical_task_id,
-                        ack_e,
+                        exc_info=True,
                     )
             else:
                 log.warning(
@@ -2139,26 +2087,21 @@ class SamAgentComponent(SamComponentBase):
                 )
 
         except Exception as e:
-            log.exception(
-                "%s Error during successful finalization of task %s: %s",
+            log.error(
+                "%s Error during successful finalization of task %s",
                 self.log_identifier,
                 logical_task_id,
-                e,
+                exc_info=True,
             )
             if original_message:
                 try:
                     original_message.call_negative_acknowledgements()
-                    log.warning(
-                        "%s Called NACK for original message of task %s due to finalization error.",
-                        self.log_identifier,
-                        logical_task_id,
-                    )
                 except Exception as nack_e:
                     log.error(
-                        "%s Failed to call NACK for task %s after finalization error: %s",
+                        "%s Failed to call NACK for task %s after finalization error",
                         self.log_identifier,
                         logical_task_id,
-                        nack_e,
+                        exc_info=True,
                     )
             else:
                 log.warning(
@@ -2233,26 +2176,20 @@ class SamAgentComponent(SamComponentBase):
 
             self._publish_a2a_event(a2a_payload, target_topic, a2a_context)
             log.info(
-                "%s Published final CANCELED response for task %s to %s.",
+                "%s Task %s cancelled by request",
                 self.log_identifier,
                 logical_task_id,
-                target_topic,
             )
 
             if original_message:
                 try:
                     original_message.call_acknowledgements()
-                    log.info(
-                        "%s Called ACK for original message of cancelled task %s.",
-                        self.log_identifier,
-                        logical_task_id,
-                    )
                 except Exception as ack_e:
                     log.error(
-                        "%s Failed to call ACK for cancelled task %s: %s",
+                        "%s Failed to call ACK for cancelled task %s",
                         self.log_identifier,
                         logical_task_id,
-                        ack_e,
+                        exc_info=True,
                     )
             else:
                 log.warning(
@@ -2262,11 +2199,11 @@ class SamAgentComponent(SamComponentBase):
                 )
 
         except Exception as e:
-            log.exception(
-                "%s Error during CANCELED finalization of task %s: %s",
+            log.error(
+                "%s Error during CANCELED finalization of task %s",
                 self.log_identifier,
                 logical_task_id,
-                e,
+                exc_info=True,
             )
             if original_message:
                 try:
@@ -2390,8 +2327,8 @@ class SamAgentComponent(SamComponentBase):
             )
 
         except Exception as e:
-            log.exception(
-                "%s Critical error during session history repair: %s", log_identifier, e
+            log.error(
+                "%s Critical error during session history repair", log_identifier, exc_info=True
             )
 
     def finalize_task_limit_reached(
@@ -2437,26 +2374,20 @@ class SamAgentComponent(SamComponentBase):
 
             self._publish_a2a_event(a2a_payload, target_topic, a2a_context)
             log.info(
-                "%s Published ERROR response for task %s to %s (LLM limit reached, user guided to continue).",
+                "%s Task %s reached LLM call limit",
                 self.log_identifier,
                 logical_task_id,
-                target_topic,
             )
 
             if original_message:
                 try:
                     original_message.call_acknowledgements()
-                    log.info(
-                        "%s Called ACK for original message of task %s (LLM limit reached).",
-                        self.log_identifier,
-                        logical_task_id,
-                    )
                 except Exception as ack_e:
                     log.error(
-                        "%s Failed to call ACK for task %s (LLM limit reached): %s",
+                        "%s Failed to call ACK for task %s (LLM limit reached)",
                         self.log_identifier,
                         logical_task_id,
-                        ack_e,
+                        exc_info=True,
                     )
             else:
                 log.warning(
@@ -2466,11 +2397,11 @@ class SamAgentComponent(SamComponentBase):
                 )
 
         except Exception as e:
-            log.exception(
-                "%s Error during COMPLETED (LLM limit) finalization of task %s: %s",
+            log.error(
+                "%s Error during COMPLETED (LLM limit) finalization of task %s",
                 self.log_identifier,
                 logical_task_id,
-                e,
+                exc_info=True,
             )
             self.finalize_task_error(e, a2a_context)
 
@@ -2523,27 +2454,21 @@ class SamAgentComponent(SamComponentBase):
             )
 
             self._publish_a2a_event(a2a_payload, target_topic, a2a_context)
-            log.info(
-                "%s Published final FAILED Task response for task %s to %s",
+            log.error(
+                "%s Task %s failed",
                 self.log_identifier,
                 logical_task_id,
-                target_topic,
             )
 
             if original_message:
                 try:
                     original_message.call_negative_acknowledgements()
-                    log.info(
-                        "%s Called NACK for original message of failed task %s.",
-                        self.log_identifier,
-                        logical_task_id,
-                    )
                 except Exception as nack_e:
                     log.error(
-                        "%s Failed to call NACK for failed task %s: %s",
+                        "%s Failed to call NACK for failed task %s",
                         self.log_identifier,
                         logical_task_id,
-                        nack_e,
+                        exc_info=True,
                     )
             else:
                 log.warning(
@@ -2553,26 +2478,21 @@ class SamAgentComponent(SamComponentBase):
                 )
 
         except Exception as e:
-            log.exception(
-                "%s Error during error finalization of task %s: %s",
+            log.error(
+                "%s Error during error finalization of task %s",
                 self.log_identifier,
                 logical_task_id,
-                e,
+                exc_info=True,
             )
             if original_message:
                 try:
                     original_message.call_negative_acknowledgements()
-                    log.warning(
-                        "%s Called NACK for task %s during error finalization fallback.",
-                        self.log_identifier,
-                        logical_task_id,
-                    )
                 except Exception as nack_e:
                     log.error(
-                        "%s Failed to call NACK for task %s during error finalization fallback: %s",
+                        "%s Failed to call NACK for task %s during error finalization fallback",
                         self.log_identifier,
                         logical_task_id,
-                        nack_e,
+                        exc_info=True,
                     )
             else:
                 log.warning(
@@ -2621,10 +2541,10 @@ class SamAgentComponent(SamComponentBase):
                     else:
                         await self.finalize_task_success(a2a_context)
                 except Exception as e:
-                    log.exception(
-                        "%s An unexpected error occurred during the finalization logic itself: %s",
+                    log.error(
+                        "%s An unexpected error occurred during the finalization logic itself",
                         log_id,
-                        e,
+                        exc_info=True,
                     )
                     original_message: Optional[SolaceMessage] = a2a_context.get(
                         "original_solace_message"
@@ -2883,41 +2803,27 @@ class SamAgentComponent(SamComponentBase):
     async def _perform_async_init(self):
         """Coroutine executed on the dedicated loop to perform async initialization."""
         try:
-            log.info(
-                "%s Loading tools asynchronously in dedicated thread...",
-                self.log_identifier,
-            )
             (
                 loaded_tools,
                 enabled_builtin_tools,
                 self._tool_cleanup_hooks,
             ) = await load_adk_tools(self)
-            log.info(
-                "%s Initializing ADK Agent/Runner asynchronously in dedicated thread...",
-                self.log_identifier,
-            )
             self.adk_agent = initialize_adk_agent(
                 self, loaded_tools, enabled_builtin_tools
             )
             self.runner = initialize_adk_runner(self)
-
-            log.info("%s Populating agent card tool manifest...", self.log_identifier)
+            log.info("%s ADK agent and runner initialized", self.log_identifier)
             tool_manifest = []
             for tool in loaded_tools:
                 if isinstance(tool, MCPToolset):
                     try:
-                        log.debug(
-                            "%s Retrieving tools from MCPToolset for Agent %s...",
-                            self.log_identifier,
-                            self.agent_name,
-                        )
                         mcp_tools = await tool.get_tools()
                     except Exception as e:
                         log.error(
-                            "%s Error retrieving tools from MCPToolset for Agent Card %s: %s",
+                            "%s Error retrieving tools from MCPToolset for Agent Card %s",
                             self.log_identifier,
                             self.agent_name,
-                            e,
+                            exc_info=True,
                         )
                         continue
                     for mcp_tool in mcp_tools:
@@ -2945,45 +2851,33 @@ class SamAgentComponent(SamComponentBase):
 
             self.agent_card_tool_manifest = tool_manifest
             log.info(
-                "%s Agent card tool manifest populated with %d tools.",
+                "%s Async initialization complete: %d tools loaded",
                 self.log_identifier,
                 len(self.agent_card_tool_manifest),
             )
 
-            log.info(
-                "%s Async initialization steps complete in dedicated thread.",
-                self.log_identifier,
-            )
             if self._async_init_future and not self._async_init_future.done():
-                log.info(
-                    "%s _perform_async_init: Signaling success to main thread.",
-                    self.log_identifier,
-                )
                 self._async_loop.call_soon_threadsafe(
                     self._async_init_future.set_result, True
                 )
             else:
                 log.warning(
-                    "%s _perform_async_init: _async_init_future is None or already done before signaling success.",
+                    "%s _async_init_future is None or already done before signaling success.",
                     self.log_identifier,
                 )
         except Exception as e:
-            log.exception(
-                "%s _perform_async_init: Error during async initialization in dedicated thread: %s",
+            log.error(
+                "%s Error during async initialization in dedicated thread",
                 self.log_identifier,
-                e,
+                exc_info=True,
             )
             if self._async_init_future and not self._async_init_future.done():
-                log.error(
-                    "%s _perform_async_init: Signaling failure to main thread.",
-                    self.log_identifier,
-                )
                 self._async_loop.call_soon_threadsafe(
                     self._async_init_future.set_exception, e
                 )
             else:
                 log.warning(
-                    "%s _perform_async_init: _async_init_future is None or already done before signaling failure.",
+                    "%s _async_init_future is None or already done before signaling failure.",
                     self.log_identifier,
                 )
 
@@ -3001,12 +2895,6 @@ class SamAgentComponent(SamComponentBase):
             base_path = cleanup_func_details.get("base_path")
 
             if module_name and func_name:
-                log.info(
-                    "%s Attempting to load and execute cleanup_function: %s.%s",
-                    self.log_identifier,
-                    module_name,
-                    func_name,
-                )
                 try:
                     module = import_module(module_name, base_path=base_path)
                     cleanup_function = getattr(module, func_name)
@@ -3021,25 +2909,20 @@ class SamAgentComponent(SamComponentBase):
                     else:
                         cleanup_function(self)
                         log.info(
-                            "%s Successfully executed cleanup_function: %s.%s",
+                            "%s Executed cleanup_function: %s.%s",
                             self.log_identifier,
                             module_name,
                             func_name,
                         )
                 except Exception as e:
-                    log.exception(
-                        "%s Error during agent cleanup via cleanup_function '%s.%s': %s",
+                    log.error(
+                        "%s Error during agent cleanup via cleanup_function '%s.%s'",
                         self.log_identifier,
                         module_name,
                         func_name,
-                        e,
+                        exc_info=True,
                     )
         if self._tool_cleanup_hooks:
-            log.info(
-                "%s Executing %d tool cleanup hooks...",
-                self.log_identifier,
-                len(self._tool_cleanup_hooks),
-            )
             if self._async_loop and self._async_loop.is_running():
 
                 async def run_tool_cleanup():
@@ -3050,10 +2933,9 @@ class SamAgentComponent(SamComponentBase):
                     for i, result in enumerate(results):
                         if isinstance(result, Exception):
                             log.error(
-                                "%s Error during tool cleanup hook #%d: %s",
+                                "%s Error during tool cleanup hook #%d",
                                 self.log_identifier,
                                 i,
-                                result,
                                 exc_info=result,
                             )
 
@@ -3062,12 +2944,12 @@ class SamAgentComponent(SamComponentBase):
                 )
                 try:
                     future.result(timeout=15)  # Wait for cleanup to complete
-                    log.info("%s All tool cleanup hooks executed.", self.log_identifier)
+                    log.info("%s Tool cleanup hooks executed", self.log_identifier)
                 except Exception as e:
                     log.error(
-                        "%s Exception while waiting for tool cleanup hooks to finish: %s",
+                        "%s Exception while waiting for tool cleanup hooks to finish",
                         self.log_identifier,
-                        e,
+                        exc_info=True,
                     )
             else:
                 log.warning(
@@ -3124,7 +3006,7 @@ class SamAgentComponent(SamComponentBase):
             return
         self._agent_system_instruction_string = instruction_string
         self._agent_system_instruction_callback = None
-        log.info("%s Static agent system instruction string set.", self.log_identifier)
+        log.debug("%s Static agent system instruction string set.", self.log_identifier)
 
     def set_agent_system_instruction_callback(
         self,
@@ -3143,7 +3025,7 @@ class SamAgentComponent(SamComponentBase):
             return
         self._agent_system_instruction_callback = callback_function
         self._agent_system_instruction_string = None
-        log.info("%s Agent system instruction callback set.", self.log_identifier)
+        log.debug("%s Agent system instruction callback set.", self.log_identifier)
 
     def get_gateway_id(self) -> str:
         """
@@ -3230,8 +3112,8 @@ class SamAgentComponent(SamComponentBase):
             )
             return resolved_text, signals_found, unprocessed_tail
         except Exception as e:
-            log.exception(
-                "%s Error during embed resolution: %s", method_context_log_identifier, e
+            log.error(
+                "%s Error during embed resolution", method_context_log_identifier, exc_info=True
             )
             return raw_text, [], ""
 
