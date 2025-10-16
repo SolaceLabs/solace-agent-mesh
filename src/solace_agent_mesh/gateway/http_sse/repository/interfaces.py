@@ -5,7 +5,8 @@ Repository interfaces defining contracts for data access.
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional
 
-from ..shared.types import PaginationInfo, PaginationParams, SessionId, UserId
+from ..shared.pagination import PaginationParams
+from ..shared.types import SessionId, UserId
 from .entities import Feedback, Session, Task, TaskEvent
 
 if TYPE_CHECKING:
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
 
 class ISessionRepository(ABC):
     """Interface for session data access operations."""
-    
+
     @abstractmethod
     def find_by_user(
         self, user_id: UserId, pagination: PaginationParams | None = None
@@ -64,7 +65,9 @@ class ITaskRepository(ABC):
         pass
 
     @abstractmethod
-    def find_by_id_with_events(self, task_id: str) -> tuple[Task, list[TaskEvent]] | None:
+    def find_by_id_with_events(
+        self, task_id: str
+    ) -> tuple[Task, list[TaskEvent]] | None:
         """Find a task with all its events."""
         pass
 
@@ -109,7 +112,9 @@ class IChatTaskRepository(ABC):
         pass
 
     @abstractmethod
-    def find_by_session(self, session_id: SessionId, user_id: UserId) -> list["ChatTask"]:
+    def find_by_session(
+        self, session_id: SessionId, user_id: UserId
+    ) -> list["ChatTask"]:
         """Find all tasks for a session."""
         pass
 

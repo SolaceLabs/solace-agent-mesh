@@ -6,16 +6,15 @@ for database session management and transaction handling.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, TypeVar, Generic, Type
+from typing import Any, Generic, TypeVar
+
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import NoResultFound
-from .exceptions import EntityNotFoundError, ValidationError
-from .types import PaginationInfo
 
+from .exceptions import EntityNotFoundError
 
-T = TypeVar('T')
-ModelType = TypeVar('ModelType')
-EntityType = TypeVar('EntityType')
+T = TypeVar("T")
+ModelType = TypeVar("ModelType")
+EntityType = TypeVar("EntityType")
 
 
 class BaseRepository(ABC, Generic[ModelType, EntityType]):
@@ -27,7 +26,7 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
     transactions should be handled at the service/API layer.
     """
 
-    def __init__(self, model_class: Type[ModelType], entity_class: Type[EntityType]):
+    def __init__(self, model_class: type[ModelType], entity_class: type[EntityType]):
         """
         Initialize repository with model and entity classes.
 
@@ -44,7 +43,7 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         """Return the entity name for error messages."""
         pass
 
-    def create(self, session: Session, create_data: Dict[str, Any]) -> EntityType:
+    def create(self, session: Session, create_data: dict[str, Any]) -> EntityType:
         """
         Create a new entity.
 
@@ -83,16 +82,20 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         Raises:
             EntityNotFoundError: If entity not found
         """
-        model_instance = session.query(self.model_class).filter(
-            self.model_class.id == str(entity_id)
-        ).first()
+        model_instance = (
+            session.query(self.model_class)
+            .filter(self.model_class.id == str(entity_id))
+            .first()
+        )
 
         if not model_instance:
             raise EntityNotFoundError(self.entity_name, entity_id)
 
         return self.entity_class.model_validate(model_instance)
 
-    def get_all(self, session: Session, limit: Optional[int] = None, offset: Optional[int] = None) -> List[EntityType]:
+    def get_all(
+        self, session: Session, limit: int | None = None, offset: int | None = None
+    ) -> list[EntityType]:
         """
         Get all entities with optional pagination.
 
@@ -112,9 +115,13 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
             query = query.limit(limit)
 
         model_instances = query.all()
-        return [self.entity_class.model_validate(instance) for instance in model_instances]
+        return [
+            self.entity_class.model_validate(instance) for instance in model_instances
+        ]
 
-    def update(self, session: Session, entity_id: Any, update_data: Dict[str, Any]) -> EntityType:
+    def update(
+        self, session: Session, entity_id: Any, update_data: dict[str, Any]
+    ) -> EntityType:
         """
         Update an entity.
 
@@ -129,9 +136,11 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         Raises:
             EntityNotFoundError: If entity not found
         """
-        model_instance = session.query(self.model_class).filter(
-            self.model_class.id == str(entity_id)
-        ).first()
+        model_instance = (
+            session.query(self.model_class)
+            .filter(self.model_class.id == str(entity_id))
+            .first()
+        )
 
         if not model_instance:
             raise EntityNotFoundError(self.entity_name, entity_id)
@@ -158,9 +167,11 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         Raises:
             EntityNotFoundError: If entity not found
         """
-        model_instance = session.query(self.model_class).filter(
-            self.model_class.id == str(entity_id)
-        ).first()
+        model_instance = (
+            session.query(self.model_class)
+            .filter(self.model_class.id == str(entity_id))
+            .first()
+        )
 
         if not model_instance:
             raise EntityNotFoundError(self.entity_name, entity_id)
@@ -179,9 +190,11 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         Returns:
             True if entity exists, False otherwise
         """
-        count = session.query(self.model_class).filter(
-            self.model_class.id == str(entity_id)
-        ).count()
+        count = (
+            session.query(self.model_class)
+            .filter(self.model_class.id == str(entity_id))
+            .count()
+        )
 
         return count > 0
 
@@ -200,52 +213,13 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
 
 class PaginatedRepository(BaseRepository[ModelType, EntityType]):
     """
-    Base repository with enhanced pagination support.
+    Base repository with pagination support.
+
+    Concrete repositories should implement their own pagination methods
+    that apply specific filters and ordering before pagination.
     """
 
-    def get_paginated(self, session: Session, page_number: int, page_size: int) -> tuple[List[EntityType], int]:
-        """
-        Get paginated results.
-
-        Args:
-            session: Database session
-            page_number: Page number (1-based)
-            page_size: Number of items per page
-
-        Returns:
-            Tuple of (entities, total_count)
-        """
-        offset = (page_number - 1) * page_size
-
-        total_count = self.count(session)
-
-        entities = self.get_all(session, limit=page_size, offset=offset)
-
-        return entities, total_count
-
-    def get_paginated_with_info(self, session: Session, pagination: PaginationInfo) -> tuple[List[EntityType], PaginationInfo]:
-        """
-        Get paginated results with complete pagination info.
-
-        Args:
-            session: Database session
-            pagination: Pagination parameters
-
-        Returns:
-            Tuple of (entities, updated_pagination_info)
-        """
-        entities, total_count = self.get_paginated(session, pagination.page, pagination.page_size)
-
-        updated_pagination = PaginationInfo(
-            page=pagination.page,
-            page_size=pagination.page_size,
-            total_items=total_count,
-            total_pages=(total_count + pagination.page_size - 1) // pagination.page_size,
-            has_next=pagination.page * pagination.page_size < total_count,
-            has_previous=pagination.page > 1
-        )
-
-        return entities, updated_pagination
+    pass
 
 
 class ValidationMixin:
@@ -253,7 +227,7 @@ class ValidationMixin:
     Mixin for repositories that need validation logic.
     """
 
-    def validate_create_data(self, create_data: Dict[str, Any]) -> None:
+    def validate_create_data(self, create_data: dict[str, Any]) -> None:
         """
         Validate data before creation.
 
@@ -265,7 +239,7 @@ class ValidationMixin:
         """
         pass
 
-    def validate_update_data(self, update_data: Dict[str, Any]) -> None:
+    def validate_update_data(self, update_data: dict[str, Any]) -> None:
         """
         Validate data before update.
 
