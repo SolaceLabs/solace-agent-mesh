@@ -337,24 +337,23 @@ class BaseGatewayComponent(SamComponentBase):
             user_properties["a2aUserConfig"] = user_config
 
         # Enterprise feature: Add signed user identity JWT if trust manager available
-        if hasattr(self, 'trust_manager') and self.trust_manager:
+        if hasattr(self, "trust_manager") and self.trust_manager:
             try:
                 user_identity_jwt = self.trust_manager.sign_user_identity(
-                    user_info=user_identity,
-                    task_id=task_id
+                    user_info=user_identity, task_id=task_id
                 )
                 user_properties["userIdentityJWT"] = user_identity_jwt
                 log.debug(
                     "%s Added signed user identity JWT to task %s",
                     log_id_prefix,
-                    task_id
+                    task_id,
                 )
             except Exception as e:
                 log.error(
                     "%s Failed to sign user identity for task %s: %s",
                     log_id_prefix,
                     task_id,
-                    e
+                    e,
                 )
                 # Continue without JWT - enterprise feature is optional
 
@@ -1137,7 +1136,7 @@ class BaseGatewayComponent(SamComponentBase):
         """Main async logic for the gateway component."""
         # Call base class to initialize Trust Manager
         await super()._async_setup_and_run()
-        
+
         log.info(
             "%s Starting _start_listener() to initiate external platform connection.",
             self.log_identifier,
@@ -1160,11 +1159,9 @@ class BaseGatewayComponent(SamComponentBase):
                 log.info("%s Trust Manager cleanup complete", self.log_identifier)
             except Exception as e:
                 log.error(
-                    "%s Error during Trust Manager cleanup: %s",
-                    self.log_identifier,
-                    e
+                    "%s Error during Trust Manager cleanup: %s", self.log_identifier, e
                 )
-        
+
         log.info("%s Calling _stop_listener()...", self.log_identifier)
         self._stop_listener()
 
@@ -1215,23 +1212,14 @@ class BaseGatewayComponent(SamComponentBase):
                     processed_successfully = await self._handle_discovery_message(
                         payload
                     )
-                elif hasattr(self, 'trust_manager') and self.trust_manager:
-                    # Check if this is a trust card message (enterprise feature)
-                    try:
-                        if self.trust_manager.is_trust_card_topic(topic):
-                            await self.trust_manager.handle_trust_card_message(payload, topic)
-                            processed_successfully = True
-                            continue
-                    except Exception as e:
-                        log.error(
-                            "%s Error handling trust card message: %s",
-                            self.log_identifier,
-                            e,
-                        )
-                        processed_successfully = False
-                        continue
-                
-                if a2a.topic_matches_subscription(
+                elif (
+                    hasattr(self, "trust_manager")
+                    and self.trust_manager
+                    and self.trust_manager.is_trust_card_topic(topic)
+                ):
+                    await self.trust_manager.handle_trust_card_message(payload, topic)
+                    processed_successfully = True
+                elif a2a.topic_matches_subscription(
                     topic,
                     a2a.get_gateway_response_subscription_topic(
                         self.namespace, self.gateway_id
