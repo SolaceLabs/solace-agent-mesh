@@ -1,6 +1,6 @@
 import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { Edit } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from "@/lib/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose, DialogTrigger, DialogFooter } from "@/lib/components/ui/";
 import { Button } from "@/lib/components/ui/button";
 
 interface NewChatButtonProps {
@@ -38,7 +38,7 @@ export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ buttonText
                     <DialogDescription className="flex flex-col gap-2">Starting a new chat session will clear the current chat history and files. Are you sure you want to proceed?</DialogDescription>
                 </DialogHeader>
 
-                <div className="flex justify-end gap-2">
+                <DialogFooter>
                     <DialogClose asChild>
                         <Button variant="ghost">Cancel</Button>
                     </DialogClose>
@@ -48,7 +48,7 @@ export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ buttonText
                             Start New Chat
                         </Button>
                     </DialogClose>
-                </div>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
