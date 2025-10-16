@@ -423,6 +423,19 @@ class SamAgentApp(App):
             get_agent_status_subscription_topic(namespace, agent_name),
             get_sam_events_subscription_topic(namespace, "session"),
         ]
+        
+        # Add trust card subscription if trust manager is enabled
+        trust_config = app_config.get("trust_manager")
+        if trust_config and trust_config.get("enabled", False):
+            from ..common.a2a import get_trust_card_subscription_topic
+            trust_card_topic = get_trust_card_subscription_topic(namespace)
+            required_topics.append(trust_card_topic)
+            log.info(
+                "Trust Manager enabled for agent '%s', added trust card subscription: %s",
+                agent_name,
+                trust_card_topic,
+            )
+        
         generated_subs = [{"topic": topic} for topic in required_topics]
         log.info(
             "Automatically generated subscriptions for Agent '%s': %s",
