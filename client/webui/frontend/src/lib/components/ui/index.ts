@@ -3,7 +3,7 @@ export { Button } from "./button";
 export { ViewWorkflowButton } from "./ViewWorkflowButton";
 export { Textarea } from "./textarea";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
-export { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./dialog";
+export * from "./dialog";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
 export { Pagination, PaginationContent, PaginationLink, PaginationItem, PaginationPrevious, PaginationNext, PaginationEllipsis } from "./pagination";
 
