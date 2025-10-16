@@ -16,9 +16,11 @@ from a2a.types import (
 )
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi import Request as FastAPIRequest
+from sqlalchemy.orm import Session as DBSession
 
 from ....common import a2a
 from ....gateway.http_sse.dependencies import (
+    get_db,
     get_sac_component,
     get_session_business_service,
     get_session_manager,
@@ -200,6 +202,7 @@ async def search_tasks(
     page: int = 1,
     page_size: int = 20,
     query_user_id: str | None = None,
+    db: DBSession = Depends(get_db),
     user_id: UserId = Depends(get_user_id),
     user_config: dict = Depends(get_user_config),
     repo: ITaskRepository = Depends(get_task_repository),
@@ -257,6 +260,7 @@ async def search_tasks(
 
     try:
         tasks = repo.search(
+            db,
             user_id=target_user_id,
             start_date=start_time_ms,
             end_date=end_time_ms,
@@ -275,6 +279,7 @@ async def search_tasks(
 async def get_task_as_stim_file(
     task_id: str,
     request: FastAPIRequest,
+    db: DBSession = Depends(get_db),
     user_id: UserId = Depends(get_user_id),
     user_config: dict = Depends(get_user_config),
     repo: ITaskRepository = Depends(get_task_repository),
@@ -286,7 +291,7 @@ async def get_task_as_stim_file(
     log.info("%sRequest from user %s", log_prefix, user_id)
 
     try:
-        result = repo.find_by_id_with_events(task_id)
+        result = repo.find_by_id_with_events(db, task_id)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
