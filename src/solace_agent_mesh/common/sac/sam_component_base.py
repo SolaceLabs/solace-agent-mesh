@@ -6,6 +6,7 @@ import logging
 import abc
 import asyncio
 import threading
+import functools
 from typing import Any, Optional
 
 from solace_ai_connector.components.component_base import ComponentBase
@@ -221,13 +222,75 @@ class SamComponentBase(ComponentBase, abc.ABC):
             # Pass other event types to parent class
             super().process_event(event)
 
-    @abc.abstractmethod
     def _handle_message(self, message, topic: str) -> None:
         """
-        Handle an incoming message.
+        Handle an incoming message by routing to async handler.
         
-        Subclasses must implement this to process messages according to their needs.
-        The base class handles error catching and NACK on failure.
+        This base implementation schedules async processing on the component's
+        event loop. Subclasses can override this for custom sync handling,
+        or implement _handle_message_async() for async handling.
+        
+        Args:
+            message: The Solace message (SolaceMessage instance)
+            topic: The topic the message was received on
+        """
+        loop = self.get_async_loop()
+        if loop and loop.is_running():
+            # Schedule async processing
+            coro = self._handle_message_async(message, topic)
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            future.add_done_callback(
+                functools.partial(
+                    self._handle_async_message_completion,
+                    topic=topic
+                )
+            )
+        else:
+            log.error(
+                "%s Async loop not available. Cannot process message on topic: %s",
+                self.log_identifier,
+                topic,
+            )
+            raise RuntimeError("Async loop not available for message processing")
+    
+    def _handle_async_message_completion(
+        self, 
+        future: asyncio.Future, 
+        topic: str
+    ):
+        """Callback to handle completion of async message processing."""
+        try:
+            if future.cancelled():
+                log.warning(
+                    "%s Message processing for topic %s was cancelled.",
+                    self.log_identifier,
+                    topic
+                )
+            elif future.done() and future.exception() is not None:
+                exception = future.exception()
+                log.error(
+                    "%s Message processing for topic %s failed: %s",
+                    self.log_identifier,
+                    topic,
+                    exception,
+                    exc_info=exception
+                )
+        except Exception as e:
+            log.error(
+                "%s Error in async message completion handler for topic %s: %s",
+                self.log_identifier,
+                topic,
+                e,
+                exc_info=True
+            )
+    
+    @abc.abstractmethod
+    async def _handle_message_async(self, message, topic: str) -> None:
+        """
+        Async handler for incoming messages.
+        
+        Subclasses must implement this to process messages asynchronously.
+        This runs on the component's dedicated async event loop.
         
         Args:
             message: The Solace message (SolaceMessage instance)

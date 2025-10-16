@@ -441,39 +441,19 @@ class SamAgentComponent(SamComponentBase):
         )
         return None
 
-    def _handle_message(self, message: SolaceMessage, topic: str) -> None:
+    async def _handle_message_async(self, message: SolaceMessage, topic: str) -> None:
         """
-        Handle incoming message by scheduling async processing.
+        Async handler for incoming messages.
         
-        Routes the message to the async event handler on the component's event loop.
+        Routes the message to the async event handler.
         
         Args:
             message: The Solace message
             topic: The topic the message was received on
         """
-        loop = self.get_async_loop()
-        is_loop_running = loop.is_running() if loop else False
-        
-        if loop and is_loop_running:
-            # Create event and schedule async processing
-            event = Event(EventType.MESSAGE, message)
-            coro = process_event(self, event)
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-            future.add_done_callback(
-                functools.partial(
-                    self._handle_scheduled_task_completion,
-                    event_type_for_log=EventType.MESSAGE,
-                )
-            )
-        else:
-            log.error(
-                "%s Async loop not available or not running (loop is %s, is_running: %s). Cannot process message on topic: %s",
-                self.log_identifier,
-                "present" if loop else "None",
-                is_loop_running,
-                topic,
-            )
-            raise RuntimeError("Async loop not available for message processing")
+        # Create event and process asynchronously
+        event = Event(EventType.MESSAGE, message)
+        await process_event(self, event)
 
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
         """

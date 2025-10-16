@@ -382,9 +382,9 @@ class BaseGatewayComponent(SamComponentBase):
 
     def _handle_message(self, message: SolaceMessage, topic: str) -> None:
         """
-        Handle incoming message by bridging to internal queue.
+        Override to use queue-based pattern instead of direct async.
         
-        Gateway uses a queue-based pattern for message processing to ensure
+        Gateway uses an internal queue for message processing to ensure
         strict ordering and backpressure handling.
         
         Args:
@@ -418,6 +418,17 @@ class BaseGatewayComponent(SamComponentBase):
                 e,
             )
             raise
+    
+    async def _handle_message_async(self, message, topic: str) -> None:
+        """
+        Not used by gateway - we override _handle_message() instead.
+        
+        This is here to satisfy the abstract method requirement, but the
+        gateway uses the queue-based pattern via _handle_message() override.
+        """
+        raise NotImplementedError(
+            "Gateway uses queue-based message handling via _handle_message() override"
+        )
 
     async def _handle_resolved_signals(
         self,
