@@ -165,25 +165,43 @@ This provides defense-in-depth and future flexibility to change security mechani
   - Add private attribute: `self._security_context: Dict[str, Any] = {}`
   - **Purpose**: Opaque storage for enterprise security data
   - **Note**: Open source doesn't know what's stored here
+  - **Location**: After existing instance variable initialization
 
 - [ ] **Add set_security_data method**
   - Method signature: `def set_security_data(self, key: str, value: Any) -> None:`
   - Docstring: "Store opaque security data (enterprise use only)."
-  - Implementation: `self._security_context[key] = value`
+  - Implementation: 
+    ```python
+    with self.lock:
+        self._security_context[key] = value
+    ```
+  - **Thread safety**: Use existing `self.lock` to match class patterns
 
 - [ ] **Add get_security_data method**
   - Method signature: `def get_security_data(self, key: str, default: Any = None) -> Any:`
   - Docstring: "Retrieve opaque security data (enterprise use only)."
-  - Implementation: `return self._security_context.get(key, default)`
+  - Implementation:
+    ```python
+    with self.lock:
+        return self._security_context.get(key, default)
+    ```
+  - **Thread safety**: Use existing `self.lock` to match class patterns
 
 - [ ] **Add clear_security_data method**
   - Method signature: `def clear_security_data(self) -> None:`
-  - Docstring: "Clear all security data on task completion."
-  - Implementation: `self._security_context.clear()`
+  - Docstring: "Clear all security data."
+  - Implementation:
+    ```python
+    with self.lock:
+        self._security_context.clear()
+    ```
+  - **Thread safety**: Use existing `self.lock` to match class patterns
+  - **Note**: Provided for completeness but not explicitly called
 
-- [ ] **Call clear_security_data in cleanup**
-  - Add to any existing cleanup/finalization logic
-  - Ensure security data is cleared when task completes
+- [ ] **Verify automatic cleanup**
+  - **No code changes needed**: Security context is automatically cleaned up when TaskExecutionContext is removed from `active_tasks` and garbage collected
+  - **Verification**: Confirm that `finalize_task_with_cleanup()` removes context via `active_tasks.pop(logical_task_id, None)`
+  - **Note**: Python's garbage collection handles cleanup of `_security_context` dict
 
 ---
 
@@ -264,6 +282,8 @@ This provides defense-in-depth and future flexibility to change security mechani
   - Test `get_security_data()` returns default if key not found
   - Test `clear_security_data()` clears all data
   - Test security data isolated between tasks
+  - Test thread safety of security storage methods
+  - Test automatic cleanup when context is removed from active_tasks
 
 ### Integration Tests (Requires Enterprise)
 
@@ -317,7 +337,8 @@ This provides defense-in-depth and future flexibility to change security mechani
   - Raw token NOT in session state (accessible to tools)
   - Raw token only in TaskExecutionContext generic security storage
   - Verified claims (not raw token) in a2a_context
-  - **Verify**: Uses `set_security_data()` / `get_security_data()` methods
+  - **Verify**: Uses `set_security_data()` / `get_security_data()` methods with thread safety
+  - **Verify**: Security context automatically cleaned up when task completes
 
 - [ ] **ACK vs NACK strategy**
   - Invalid tokens are ACKed (not NACKed)
@@ -513,9 +534,10 @@ This provides defense-in-depth and future flexibility to change security mechani
 
 3. **Store raw token in TaskExecutionContext generic security storage**
    - Only for peer delegation
-   - Uses opaque `set_security_data()` / `get_security_data()` methods
+   - Uses opaque `set_security_data()` / `get_security_data()` methods with thread safety
    - Not accessible to tools
-   - Automatic cleanup with task
+   - Automatic cleanup via garbage collection when task completes
+   - No explicit cleanup method needed (relies on Python GC)
 
 4. **Use generic error messages for all authentication failures**
    - "Authentication failed" for all cases
