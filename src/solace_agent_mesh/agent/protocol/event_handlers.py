@@ -287,6 +287,141 @@ async def handle_a2a_request(component, message: SolaceMessage):
         # For Send, we will generate it.
         logical_task_id = None
         method = a2a.get_request_method(a2a_request)
+        
+        # Enterprise feature: Verify user authentication token if trust manager enabled
+        verified_user_identity = None
+        if hasattr(component, 'trust_manager') and component.trust_manager:
+            log.debug(
+                "%s Trust Manager enabled, extracting authentication token from user properties",
+                component.log_identifier,
+            )
+            auth_token = message.get_user_properties().get("authToken")
+            
+            if auth_token is None:
+                log.warning(
+                    "%s Trust Manager enabled but no authentication token provided",
+                    component.log_identifier,
+                )
+                # Determine task_id for error response
+                if method == "tasks/cancel":
+                    error_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
+                elif method in ["message/send", "message/stream"]:
+                    error_task_id = str(a2a.get_request_id(a2a_request))
+                else:
+                    error_task_id = "unknown"
+                
+                error_response = a2a.create_invalid_request_error_response(
+                    message="Authentication failed",
+                    request_id=jsonrpc_request_id,
+                    data={"reason": "authentication_failed", "task_id": error_task_id},
+                )
+                
+                # Determine reply topic
+                reply_topic = message.get_user_properties().get("replyTo")
+                if not reply_topic:
+                    client_id = message.get_user_properties().get("clientId", "default_client")
+                    reply_topic = a2a.get_client_response_topic(namespace, client_id)
+                
+                component.publish_a2a_message(
+                    payload=error_response.model_dump(exclude_none=True),
+                    topic=reply_topic,
+                )
+                
+                try:
+                    message.call_acknowledgements()
+                    log.debug(
+                        "%s ACKed message with missing authentication token",
+                        component.log_identifier,
+                    )
+                except Exception as ack_e:
+                    log.error(
+                        "%s Failed to ACK message with missing auth token: %s",
+                        component.log_identifier,
+                        ack_e,
+                    )
+                return None
+            
+            # Verify the authentication token
+            log.debug(
+                "%s Extracting authentication token from user properties",
+                component.log_identifier,
+            )
+            
+            # Extract task_id for verification
+            if method == "tasks/cancel":
+                verification_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
+            elif method in ["message/send", "message/stream"]:
+                verification_task_id = str(a2a.get_request_id(a2a_request))
+            else:
+                verification_task_id = None
+            
+            if verification_task_id:
+                try:
+                    verified_claims = component.trust_manager.verify_user_claims(
+                        auth_token=auth_token,
+                        task_id=verification_task_id,
+                    )
+                    
+                    # Extract user identity from verified claims
+                    verified_user_identity = {
+                        "user_id": verified_claims.get("sub"),
+                        "name": verified_claims.get("name"),
+                        "email": verified_claims.get("email"),
+                        "roles": verified_claims.get("roles", []),
+                        "scopes": verified_claims.get("scopes", []),
+                    }
+                    
+                    log.info(
+                        "%s Successfully verified user claims for user '%s' (task: %s)",
+                        component.log_identifier,
+                        verified_claims.get("sub"),
+                        verification_task_id,
+                    )
+                    
+                except Exception as e:
+                    log.warning(
+                        "%s User authentication verification failed for task %s: %s",
+                        component.log_identifier,
+                        verification_task_id,
+                        e,
+                    )
+                    
+                    error_response = a2a.create_invalid_request_error_response(
+                        message="Authentication failed",
+                        request_id=jsonrpc_request_id,
+                        data={"reason": "authentication_failed", "task_id": verification_task_id},
+                    )
+                    
+                    # Determine reply topic
+                    reply_topic = message.get_user_properties().get("replyTo")
+                    if not reply_topic:
+                        client_id = message.get_user_properties().get("clientId", "default_client")
+                        reply_topic = a2a.get_client_response_topic(namespace, client_id)
+                    
+                    component.publish_a2a_message(
+                        payload=error_response.model_dump(exclude_none=True),
+                        topic=reply_topic,
+                    )
+                    
+                    try:
+                        message.call_acknowledgements()
+                        log.debug(
+                            "%s ACKed message with invalid authentication token",
+                            component.log_identifier,
+                        )
+                    except Exception as ack_e:
+                        log.error(
+                            "%s Failed to ACK message with invalid auth token: %s",
+                            component.log_identifier,
+                            ack_e,
+                        )
+                    return None
+        else:
+            log.debug(
+                "%s Trust Manager not available, skipping authentication verification",
+                component.log_identifier,
+            )
+        
         if method == "tasks/cancel":
             logical_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
             log.info(
@@ -576,6 +711,15 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 "response_format": response_format,
                 "host_agent_name": agent_name,
             }
+            
+            # Store verified user identity claims in a2a_context (not the raw token)
+            if verified_user_identity:
+                a2a_context["verified_user_identity"] = verified_user_identity
+                log.debug(
+                    "%s Stored verified user identity in a2a_context for task %s",
+                    component.log_identifier,
+                    logical_task_id,
+                )
             log.debug(
                 "%s A2A Context (shared service model): %s",
                 component.log_identifier,
@@ -586,6 +730,18 @@ async def handle_a2a_request(component, message: SolaceMessage):
             task_context = TaskExecutionContext(
                 task_id=logical_task_id, a2a_context=a2a_context
             )
+            
+            # Store auth token for peer delegation using generic security storage
+            if hasattr(component, 'trust_manager') and component.trust_manager:
+                auth_token = message.get_user_properties().get("authToken")
+                if auth_token:
+                    task_context.set_security_data("auth_token", auth_token)
+                    log.debug(
+                        "%s Stored authentication token in TaskExecutionContext security storage for task %s",
+                        component.log_identifier,
+                        logical_task_id,
+                    )
+            
             with component.active_tasks_lock:
                 component.active_tasks[logical_task_id] = task_context
             log.info(

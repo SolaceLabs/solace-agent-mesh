@@ -73,22 +73,22 @@ This provides defense-in-depth and future flexibility to change security mechani
 
 #### Agent User Claims Verification Integration
 
-- [ ] **Find insertion point**
+- [x] **Find insertion point**
   - After A2ARequest is parsed and validated
   - After task_id is extracted
   - Before TaskExecutionContext is created
   - Before any ADK runner invocation
 
-- [ ] **Add trust manager check**
+- [x] **Add trust manager check**
   - Guard: `if hasattr(component, 'trust_manager') and component.trust_manager:`
   - Log at DEBUG: "Trust Manager not available, skipping authentication verification" (if no trust_manager)
 
-- [ ] **Extract auth token from message**
+- [x] **Extract auth token from message**
   - Get: `auth_token = message.get_user_properties().get("authToken")`
   - **Note**: Generic property name - no mention of JWT
   - Log at DEBUG: "Extracting authentication token from user properties for task {task_id}"
 
-- [ ] **Handle missing auth token**
+- [x] **Handle missing auth token**
   - Check: `if auth_token is None:`
   - Log at WARNING: "Trust Manager enabled but no authentication token provided for task {task_id}"
   - Create error response: `create_invalid_request_error_response()`
@@ -98,20 +98,20 @@ This provides defense-in-depth and future flexibility to change security mechani
   - Call `message.call_acknowledgements()` (ACK, don't retry)
   - Return early (do not process task)
 
-- [ ] **Call generic verification method**
+- [x] **Call generic verification method**
   - Call: `component.trust_manager.verify_user_claims(auth_token=auth_token, task_id=task_id)`
   - **Note**: Method name is generic - no mention of JWT
   - Wrap in try/except block
   - Catch generic Exception (enterprise exceptions may not be available)
 
-- [ ] **Handle verification success**
+- [x] **Handle verification success**
   - Store verified claims: `verified_claims = <result>`
   - Extract user identity from claims (sub, name, email, roles, scopes)
   - Store in a2a_context: `a2a_context["verified_user_identity"] = {...}` (claims only, NOT raw token)
   - Log at INFO: "Successfully verified user claims for user '{sub}' (task: {task_id})"
   - **Important**: No mention of JWT in log messages
 
-- [ ] **Handle verification failure**
+- [x] **Handle verification failure**
   - Log at WARNING: "User authentication verification failed for task {task_id}: {error}" (server-side detail)
   - Create error response: `create_invalid_request_error_response()`
   - Error message: "Authentication failed" (generic, no details)
@@ -120,7 +120,7 @@ This provides defense-in-depth and future flexibility to change security mechani
   - Call `message.call_acknowledgements()` (ACK, don't retry invalid tokens)
   - Return early (do not process task)
 
-- [ ] **Store auth token for peer delegation using generic security storage**
+- [x] **Store auth token for peer delegation using generic security storage**
   - After successful verification
   - Use TaskExecutionContext generic security storage: `task_context.set_security_data("auth_token", auth_token)`
   - **Note**: Opaque storage - open source doesn't know what's being stored
