@@ -253,26 +253,6 @@ async def handle_a2a_request(component, message: SolaceMessage):
         a2a_request: A2ARequest = A2ARequest.model_validate(payload_dict)
         jsonrpc_request_id = a2a.get_request_id(a2a_request)
 
-        # Enterprise feature: Verify user identity JWT if present
-        verified_user_identity = None
-        if hasattr(component, 'trust_manager') and component.trust_manager:
-            user_identity_jwt = message.get_user_properties().get("userIdentityJWT")
-            if user_identity_jwt:
-                try:
-                    verified_user_identity = component.trust_manager.verify_user_identity_jwt(user_identity_jwt)
-                    log.info(
-                        "%s Verified user identity from JWT: %s",
-                        component.log_identifier,
-                        verified_user_identity.get("sub") if verified_user_identity else "unknown"
-                    )
-                except Exception as e:
-                    log.error(
-                        "%s JWT verification failed: %s",
-                        component.log_identifier,
-                        e
-                    )
-                    # Continue without verified identity - component may have its own auth requirements
-
         # Extract properties from message user properties  
         client_id = message.get_user_properties().get("clientId", "default_client")
         status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
