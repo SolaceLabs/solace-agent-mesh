@@ -5,7 +5,7 @@ parsing of JSON-RPC requests and responses.
 import logging
 import re
 import uuid
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 from a2a.types import (
     A2ARequest,
@@ -532,3 +532,75 @@ def extract_task_id_from_topic(
         subscription_pattern,
     )
     return None
+
+
+# --- Client Event Helpers ---
+
+
+def is_client_event(obj: Any) -> bool:
+    """
+    Checks if an object is a ClientEvent tuple (Task, UpdateEvent).
+
+    A ClientEvent is a tuple with 2 elements where the first element is a Task
+    and the second is either a TaskStatusUpdateEvent, TaskArtifactUpdateEvent, or None.
+
+    Args:
+        obj: The object to check.
+
+    Returns:
+        True if the object is a ClientEvent tuple, False otherwise.
+    """
+    if not isinstance(obj, tuple) or len(obj) != 2:
+        return False
+    
+    task, update_event = obj
+    
+    # First element must be a Task
+    if not isinstance(task, Task):
+        return False
+    
+    # Second element must be an update event or None
+    if update_event is not None and not isinstance(
+        update_event, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)
+    ):
+        return False
+    
+    return True
+
+
+def is_message_object(obj: Any) -> bool:
+    """
+    Checks if an object is a Message.
+
+    Args:
+        obj: The object to check.
+
+    Returns:
+        True if the object is a Message, False otherwise.
+    """
+    return isinstance(obj, Message)
+
+
+def unpack_client_event(
+    event: tuple,
+) -> Tuple[Task, Optional[Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent]]]:
+    """
+    Safely unpacks a ClientEvent tuple into its components.
+
+    Args:
+        event: A ClientEvent tuple (Task, UpdateEvent).
+
+    Returns:
+        A tuple of (Task, Optional[UpdateEvent]) where UpdateEvent can be
+        TaskStatusUpdateEvent, TaskArtifactUpdateEvent, or None.
+
+    Raises:
+        ValueError: If the event is not a valid ClientEvent tuple.
+    """
+    if not is_client_event(event):
+        raise ValueError(
+            f"Expected a ClientEvent tuple, got {type(event).__name__}"
+        )
+    
+    task, update_event = event
+    return task, update_event

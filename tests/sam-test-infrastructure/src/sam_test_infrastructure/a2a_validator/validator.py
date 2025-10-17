@@ -79,6 +79,7 @@ class A2AMessageValidator:
         from sam_test_infrastructure.gateway_interface.component import (
             TestGatewayComponent,
         )
+        from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
 
         for component_instance in components_to_patch:
             method_name_to_patch = None
@@ -86,8 +87,9 @@ class A2AMessageValidator:
             is_test_gateway_component = isinstance(
                 component_instance, TestGatewayComponent
             )
+            is_base_proxy_component = isinstance(component_instance, BaseProxyComponent)
 
-            if is_sam_agent_component:
+            if is_sam_agent_component or is_base_proxy_component:
                 method_name_to_patch = "_publish_a2a_message"
             elif is_test_gateway_component:
                 method_name_to_patch = "publish_a2a_message"

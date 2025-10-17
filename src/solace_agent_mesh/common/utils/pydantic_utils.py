@@ -58,3 +58,15 @@ class SamConfigBase(BaseModel):
     def __iter__(self):
         """Provides dict-like iteration over keys."""
         return iter(self.model_dump())
+    
+    def pop(self, key: str, default: Any = None) -> Any:
+        """
+        Provides dict-like .pop() method.
+        Removes the attribute and returns its value, or default if not present.
+        """
+        if hasattr(self, key):
+            value = getattr(self, key)
+            # Set to None rather than deleting, as Pydantic models don't support delattr
+            setattr(self, key, None)
+            return value
+        return default

@@ -1,0 +1,27 @@
+test_case_id: "proxy_http_error_500_001"
+description: "Tests that the proxy correctly translates HTTP 500 errors into A2A error responses"
+tags: ["all", "proxy", "error_handling"]
+skip_intermediate_events: true
+
+# Configure the downstream agent to return an HTTP 500 error
+downstream_http_error:
+  status_code: 500
+  error_body:
+    error: "Internal Server Error"
+    message: "Database connection failed"
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "http_error_tester@example.com"
+  parts:
+    - type: "text"
+      text: "This request should receive an HTTP 500 error"
+  external_context:
+    a2a_session_id: "session_http_error_500_001"
+
+# No successful downstream responses - HTTP error occurs before processing
+
+expected_gateway_output:
+  - type: "error"
+    error_code: -32603  # InternalError
+    error_message_contains: "500"

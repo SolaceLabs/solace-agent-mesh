@@ -1,0 +1,38 @@
+test_case_id: "proxy_auth_static_token_401_001"
+description: "Tests that static tokens do NOT trigger retry on 401"
+tags: ["all", "proxy", "auth"]
+skip_intermediate_events: true
+
+# Configure downstream agent to expect a different token
+downstream_agent_auth:
+  enabled: true
+  type: "bearer"
+  expected_value: "correct_static_token"
+
+# Configure proxy with WRONG static token
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  authentication:
+    type: "static_bearer"
+    token: "wrong_static_token"
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "static_401_tester@example.com"
+  parts:
+    - type: "text"
+      text: "This request should fail with 401 and NOT retry"
+  external_context:
+    a2a_session_id: "session_static_401_001"
+
+# No successful downstream responses
+expected_gateway_output:
+  - type: "error"
+    error_code: -32603  # InternalError
+    # No error_message_contains - just verify we got an InternalError
+
+# Assert only ONE downstream request was made (no retry for static tokens)
+assert_downstream_auth:
+  - request_index: 0
+    authorization_header:
+      exact: "Bearer wrong_static_token"

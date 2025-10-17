@@ -1,0 +1,58 @@
+test_case_id: "proxy_auth_oauth2_persistent_401_001"
+description: "Tests that proxy fails after max retries when 401 persists"
+tags: ["all", "proxy", "auth", "oauth"]
+skip_intermediate_events: true
+
+# Configure OAuth mock to return two different tokens
+mock_oauth_server:
+  token_url: "https://test-oauth.example.com/token"
+  response_sequence:
+    - access_token: "token_attempt_1"
+      expires_in: 3600
+    - access_token: "token_attempt_2"
+      expires_in: 3600
+
+# Configure downstream agent to reject ALL tokens (persistent 401)
+downstream_agent_auth:
+  enabled: true
+  type: "bearer"
+  expected_value: "impossible_token_that_never_matches"
+
+# Configure proxy authentication
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  authentication:
+    type: "oauth2_client_credentials"
+    token_url: "https://test-oauth.example.com/token"
+    client_id: "test_oauth_client_id"
+    client_secret: "test_oauth_client_secret"
+    token_cache_duration_seconds: 3300
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "oauth_persistent_401_tester@example.com"
+  parts:
+    - type: "text"
+      text: "This request should fail after retry due to persistent 401"
+  external_context:
+    a2a_session_id: "session_oauth_persistent_401_001"
+
+# No successful downstream responses - all requests return 401
+expected_gateway_output:
+  - type: "error"
+    error_code: -32603  # InternalError
+    # No error_message_contains - just verify we got an InternalError
+
+# Assert two token requests were made (initial + 1 retry)
+assert_oauth_token_requests:
+  - token_url: "https://test-oauth.example.com/token"
+    call_count: 2
+
+# Assert two downstream requests were made with different tokens
+assert_downstream_auth:
+  - request_index: 0
+    authorization_header:
+      exact: "Bearer token_attempt_1"
+  - request_index: 1
+    authorization_header:
+      exact: "Bearer token_attempt_2"

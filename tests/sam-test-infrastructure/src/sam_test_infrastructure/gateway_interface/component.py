@@ -100,7 +100,9 @@ class TestGatewayComponent(BaseGatewayComponent):
         if not target_agent_name:
             raise ValueError("Test input must specify 'target_agent_name'.")
 
-        a2a_parts_data = external_event.get("a2a_parts", [])
+        a2a_parts_data = external_event.get(
+            "a2a_parts", external_event.get("parts", [])
+        )
         a2a_parts: List[ContentPart] = []
         for part_data in a2a_parts_data:
             part_type = part_data.get("type")
@@ -336,6 +338,18 @@ class TestGatewayComponent(BaseGatewayComponent):
             self.log_identifier,
             task_id,
         )
+
+    def clear_all_captured_cancel_calls(self) -> None:
+        """Clears the list of captured cancellation calls."""
+        self.captured_cancel_calls = []
+        log.debug(
+            "%s TestGatewayComponent: Cleared all captured cancel calls.",
+            self.log_identifier,
+        )
+
+    def was_cancel_called_for_task(self, task_id: str) -> bool:
+        """Checks if cancel_task was called for a specific task ID."""
+        return task_id in self.captured_cancel_calls
 
     async def get_next_captured_output(
         self, task_id: str, timeout: float = 5.0
