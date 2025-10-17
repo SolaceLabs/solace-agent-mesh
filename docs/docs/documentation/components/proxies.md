@@ -7,8 +7,10 @@ sidebar_position: 250
 
 Proxies enable Agent Mesh to integrate with external agents that communicate using the A2A (Agent-to-Agent) protocol over HTTPS but are not natively connected to the Solace event mesh. They act as protocol bridges, allowing agents within the mesh to delegate tasks to external A2A-over-HTTPS agents. The proxy translates between A2A-over-Solace and A2A-over-HTTPS, enabling external agents to participate in collaborative workflows initiated by the mesh.
 
+A single proxy instance can manage multiple external agents, each with its own URL, authentication configuration, and timeout settings.
+
 :::tip[In one sentence]
-Proxies are protocol bridges that connect external A2A-over-HTTPS agents to the Solace event mesh, enabling hybrid agent architectures.
+Proxies are protocol bridges that connect multiple external A2A-over-HTTPS agents to the Solace event mesh, enabling hybrid agent architectures.
 :::
 
 ## Key Functions
@@ -82,6 +84,8 @@ Proxies are configured through YAML files that specify the namespace, downstream
 
 ### Basic Configuration
 
+A single proxy can manage multiple external agents. Each agent in the `proxied_agents` list can have its own URL, authentication, and timeout configuration:
+
 ```yaml
 app:
   class_name: solace_agent_mesh.agent.proxies.a2a.app.A2AProxyApp
@@ -92,6 +96,11 @@ app:
       - name: "external-data-agent"
         url: "https://api.example.com/agent"
         request_timeout_seconds: 120
+      - name: "external-analytics-agent"
+        url: "https://analytics.example.com/agent"
+        request_timeout_seconds: 180
+      - name: "external-reporting-agent"
+        url: "https://reports.example.com/agent"
     artifact_service:
       type: "filesystem"
       base_path: "/tmp/proxy-artifacts"
@@ -105,14 +114,14 @@ broker:
 ### Configuration Parameters
 
 - `namespace`: The topic prefix for A2A communication (for example, "myorg/production").
-- `proxied_agents`: A list of external agents to proxy (see Authentication Types below).
-- `artifact_service`: Configuration for storing artifacts (memory, filesystem, or GCS).
-- `discovery_interval_seconds`: How often to refresh agent cards from external agents (default: 60).
-- `default_request_timeout_seconds`: Default timeout for requests to external agents (default: 300).
+- `proxied_agents`: A list of external agents to proxy. Each agent can have its own URL, authentication, and timeout settings (see Authentication Types below).
+- `artifact_service`: Configuration for storing artifacts (memory, filesystem, or GCS). This is shared across all proxied agents.
+- `discovery_interval_seconds`: How often to refresh agent cards from all external agents (default: 60).
+- `default_request_timeout_seconds`: Default timeout for requests to external agents. Individual agents can override this (default: 300).
 
 ## Authentication Types
 
-The proxy supports three authentication schemes for connecting to downstream agents.
+The proxy supports three authentication schemes for connecting to downstream agents. Each agent in the `proxied_agents` list can use a different authentication type, allowing you to integrate agents with varying security requirements in a single proxy instance.
 
 ### Static Bearer Token
 
@@ -349,13 +358,17 @@ The proxy automatically subscribes to the appropriate Solace topics and begins p
 
 ### Multiple Proxy Configurations
 
-You can create multiple proxy configuration files to organize different sets of external agents. Each file can proxy different agents or use different authentication schemes:
+While a single proxy can manage multiple external agents, you may want to create separate proxy configurations to:
+
+- Organize agents by domain or team
+- Isolate agents with different security requirements
+- Distribute load across multiple proxy instances
 
 ```bash
 configs/
-├── data-agents-proxy.yaml
-├── analytics-agents-proxy.yaml
-└── third-party-agents-proxy.yaml
+├── data-agents-proxy.yaml      # Proxies 3 data-related agents
+├── analytics-agents-proxy.yaml # Proxies 2 analytics agents
+└── third-party-agents-proxy.yaml # Proxies external vendor agents
 ```
 
 Run all proxies together:
@@ -396,24 +409,30 @@ artifact_service:
 
 ### Multiple Proxies
 
-You can run multiple proxy instances to distribute load or isolate different sets of external agents:
+You can run multiple proxy instances to distribute load or isolate different sets of external agents. Each proxy instance can manage multiple agents:
 
 ```yaml
-# proxy-1.yaml
+# data-agents-proxy.yaml
 app:
   name: data-agents-proxy
   app_config:
     proxied_agents:
       - name: "data-agent-1"
         url: "https://data1.example.com/agent"
+      - name: "data-agent-2"
+        url: "https://data2.example.com/agent"
+      - name: "data-agent-3"
+        url: "https://data3.example.com/agent"
 
-# proxy-2.yaml
+# analytics-agents-proxy.yaml
 app:
   name: analytics-agents-proxy
   app_config:
     proxied_agents:
       - name: "analytics-agent-1"
         url: "https://analytics1.example.com/agent"
+      - name: "analytics-agent-2"
+        url: "https://analytics2.example.com/agent"
 ```
 
 ## Troubleshooting

@@ -40,9 +40,21 @@ apps:
       discovery_interval_seconds: 5
 
       # --- List of Downstream Agents to Proxy ---
+      # A single proxy can manage multiple external agents.
+      # Each agent can have its own URL, authentication, and timeout settings.
       proxied_agents:
         # Example 1: A simple agent without authentication
         - name: "HelloWorld" # The name this agent will have on the Solace mesh
           url: "http://localhost:9999" # The real HTTP endpoint of the agent
+        
+        # Example 2: Another agent without authentication
         - name: "AnalysisAgent"
-          url: "http://127.0.0.1:10001" 
+          url: "http://127.0.0.1:10001"
+        
+        # You can add more agents here with different configurations:
+        # - name: "SecureAgent"
+        #   url: "https://api.example.com/agent"
+        #   authentication:
+        #     type: "static_bearer"
+        #     token: "${SECURE_AGENT_TOKEN}"
+        #   request_timeout_seconds: 180
