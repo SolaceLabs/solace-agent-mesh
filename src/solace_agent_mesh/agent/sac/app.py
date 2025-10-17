@@ -23,7 +23,11 @@ from ...common.a2a import (
     get_agent_status_subscription_topic,
     get_sam_events_subscription_topic,
 )
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT, TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
+from ...common.constants import (
+    DEFAULT_COMMUNICATION_TIMEOUT,
+    TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY,
+    TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH,
+)
 from ...agent.sac.component import SamAgentComponent
 from ...agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
 from ...common.utils.pydantic_utils import SamConfigBase
@@ -34,6 +38,7 @@ log = logging.getLogger(__name__)
 # Try to import TrustManagerConfig from enterprise repo
 try:
     from solace_agent_mesh_enterprise.common.trust.config import TrustManagerConfig
+
     _TRUST_MANAGER_CONFIG_AVAILABLE = True
 except ImportError:
     # Enterprise features not available - create a placeholder type
@@ -221,7 +226,9 @@ class ArtifactServiceConfig(SamConfigBase):
 class SessionServiceConfig(SamConfigBase):
     """Configuration for the ADK Session Service."""
 
-    type: str = Field(..., description="Service type (e.g., 'memory', 'sql', 'vertex_rag').")
+    type: str = Field(
+        ..., description="Service type (e.g., 'memory', 'sql', 'vertex_rag')."
+    )
     default_behavior: Literal["PERSISTENT", "RUN_BASED"] = Field(
         default="PERSISTENT", description="Default behavior for session service."
     )
@@ -238,13 +245,16 @@ class SamAgentAppConfig(SamConfigBase):
         description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",
     )
     agent_name: str = Field(..., description="Unique name for this ADK agent instance.")
-    display_name: str = Field(default=None, description="Human-friendly display name for this ADK agent instance.")
+    display_name: str = Field(
+        default=None,
+        description="Human-friendly display name for this ADK agent instance.",
+    )
     model: Union[str, Dict[str, Any]] = Field(
         ..., description="ADK model name (string) or BaseLlm config dict."
     )
     trust_manager: Optional[Union[TrustManagerConfig, Dict[str, Any]]] = Field(
         default=None,
-        description="Configuration for the Trust Manager (enterprise feature)"
+        description="Configuration for the Trust Manager (enterprise feature)",
     )
     instruction: Any = Field(
         default="",
@@ -436,11 +446,12 @@ class SamAgentApp(App):
             get_agent_status_subscription_topic(namespace, agent_name),
             get_sam_events_subscription_topic(namespace, "session"),
         ]
-        
+
         # Add trust card subscription if trust manager is enabled
         trust_config = app_config.get("trust_manager")
         if trust_config and trust_config.get("enabled", False):
-            from ..common.a2a import get_trust_card_subscription_topic
+            from ...common.a2a.protocol import get_trust_card_subscription_topic
+
             trust_card_topic = get_trust_card_subscription_topic(namespace)
             required_topics.append(trust_card_topic)
             log.info(
@@ -448,7 +459,7 @@ class SamAgentApp(App):
                 agent_name,
                 trust_card_topic,
             )
-        
+
         generated_subs = [{"topic": topic} for topic in required_topics]
         log.info(
             "Automatically generated subscriptions for Agent '%s': %s",
