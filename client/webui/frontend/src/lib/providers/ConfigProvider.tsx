@@ -98,7 +98,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     configBotName: data.frontend_bot_name,
                     configFeatureEnablement: data.frontend_feature_enablement ?? {},
                     frontend_use_authorization: data.frontend_use_authorization,
-                    persistenceEnabled: data.persistence_enabled ?? true,
+                    persistenceEnabled: data.persistence_enabled ?? false,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

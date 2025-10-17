@@ -3,12 +3,7 @@ import type { ReactNode } from "react";
 
 import { AlertCircle, FileText, ThumbsDown, ThumbsUp } from "lucide-react";
 
-import {
-    ChatBubble,
-    ChatBubbleMessage,
-    MarkdownHTMLConverter,
-    MessageBanner,
-} from "@/lib/components";
+import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
@@ -72,40 +67,17 @@ const MessageActions: React.FC<{
                     {showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}
                     {shouldShowFeedback && (
                         <div className="flex items-center gap-1">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`}
-                                onClick={() => handleThumbClick("up")}
-                                disabled={!!submittedFeedbackType}
-                            >
-                                <ThumbsUp
-                                    className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] !opacity-100" : ""}`}
-                                />
+                            <Button variant="ghost" size="icon" className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("up")} disabled={!!submittedFeedbackType}>
+                                <ThumbsUp className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] !opacity-100" : ""}`} />
                             </Button>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`}
-                                onClick={() => handleThumbClick("down")}
-                                disabled={!!submittedFeedbackType}
-                            >
-                                <ThumbsDown
-                                    className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] opacity-100" : ""}`}
-                                />
+                            <Button variant="ghost" size="icon" className={`h-6 w-6 ${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("down")} disabled={!!submittedFeedbackType}>
+                                <ThumbsDown className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] opacity-100" : ""}`} />
                             </Button>
                         </div>
                     )}
                 </div>
             </div>
-            {feedbackType && (
-                <FeedbackModal
-                    isOpen={isFeedbackModalOpen}
-                    onClose={handleModalClose}
-                    feedbackType={feedbackType}
-                    onSubmit={handleModalSubmit}
-                />
-            )}
+            {feedbackType && <FeedbackModal isOpen={isFeedbackModalOpen} onClose={handleModalClose} feedbackType={feedbackType} onSubmit={handleModalSubmit} />}
         </>
     );
 };
@@ -246,12 +218,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                         </span>
                     </div>
                 )}
-                <MessageActions
-                    message={message}
-                    showWorkflowButton={!!showWorkflowButton}
-                    showFeedbackActions={!!showFeedbackActions}
-                    handleViewWorkflowClick={handleViewWorkflowClick}
-                />
+                <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />
             </ChatBubbleMessage>
         </ChatBubble>
     );
@@ -262,10 +229,10 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         return null;
     }
     return (
-        <>
+        <div data-testid={`message-${message.metadata?.messageId || "unknown"}`}>
             {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
             {getFileAttachments(message)}
-        </>
+        </div>
     );
 };
