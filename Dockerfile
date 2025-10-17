@@ -1,69 +1,121 @@
-FROM python:3.11-slim AS base
+# syntax=docker/dockerfile:1.9
 
-ENV PYTHONUNBUFFERED=1
-ENV PIP_NO_CACHE_DIR=1
+# ============================================================================
+# Build Stage: Compile dependencies and build wheel
+# ============================================================================
+FROM python:3.11-slim AS builder
 
-# Install system dependencies in a single layer
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+SHELL ["sh", "-exc"]
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1
+
+# Install build dependencies including Node.js (needed for frontend build hook)
+RUN <<EOT
+apt-get update -qy
+apt-get install -y --no-install-recommends \
     build-essential \
     git \
     curl \
-    ffmpeg && \
-    rm -rf /var/lib/apt/lists/* && \
-    curl -sL https://deb.nodesource.com/setup_24.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
-    apt-get purge -y --auto-remove && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    ca-certificates
+curl -sL https://deb.nodesource.com/setup_24.x | bash -
+apt-get install -y --no-install-recommends nodejs
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+EOT
 
-# Builder stage for creating wheels
-FROM base AS builder
+# Install uv - the fast Python package installer
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-WORKDIR /app
+# Configure uv for optimal Docker usage
+ENV UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PYTHON=python3.11 \
+    UV_PROJECT_ENVIRONMENT=/app
 
-# Install hatch first (this layer will be cached unless hatch version changes)
-RUN python3.11 -m pip install --no-cache-dir hatch
+# ============================================================================
+# Step 1: Install dependencies ONLY (cached until pyproject.toml/uv.lock changes)
+# ============================================================================
+WORKDIR /build
 
-# Copy source code
-COPY . .
+# Install dependencies from lockfile (cached until pyproject.toml/uv.lock changes)
+# This step uses cache mount for maximum speed - dependencies are never re-downloaded
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    uv sync --locked --no-dev --no-install-project
 
-# Create wheels for dependencies (this will be cached unless pyproject.toml changes)
-RUN python3.11 -m pip wheel --wheel-dir=/wheels --find-links=/wheels --no-build-isolation .
+# ============================================================================
+# Step 2: Build the project wheel (requires source code and Node.js)
+# ============================================================================
+# Copy source code needed for build
+COPY . /build
 
-# Build the project wheel
-RUN python3.11 -m hatch build -t wheel
+# Build the wheel using hatch (via uv, which hatch natively supports)
+# The custom build hook will run npm to build frontends
+RUN --mount=type=cache,target=/root/.cache/uv \
+    <<EOT
+# Install hatch in the build environment
+uv pip install --system hatch
 
-# Runtime stage
-FROM base AS runtime
+# Build the wheel - this runs build_frontend.py hook
+hatch build -t wheel
 
-# Install Playwright early (large download, rarely changes)
-RUN python3.11 -m pip install playwright && \
-    playwright install-deps chromium
+# Now install the built wheel into /app venv
+uv pip install --python /app/bin/python --no-deps dist/solace_agent_mesh-*.whl
+EOT
 
-# Create non-root user
-RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai
+# ============================================================================
+# Runtime Stage: Minimal image with only runtime dependencies
+# ============================================================================
+FROM python:3.11-slim AS runtime
 
-WORKDIR /app
-RUN chown -R solaceai:solaceai /app /tmp
+SHELL ["sh", "-exc"]
 
-# Switch to non-root user and install Playwright browser
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PATH=/app/bin:$PATH
+
+# Install runtime dependencies only (no build tools, no Node.js)
+RUN <<EOT
+apt-get update -qy
+apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    ffmpeg \
+    ca-certificates
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+groupadd -r solaceai
+useradd --create-home -r -g solaceai solaceai
+EOT
+
+# Copy the complete /app venv from builder (includes all deps + application)
+COPY --from=builder --chown=solaceai:solaceai /app /app
+
+# Install Playwright (large dependency, but needed at runtime)
+# Do this as a separate layer so it's cached independently
+RUN <<EOT
+/app/bin/python -m playwright install-deps chromium
+EOT
+
 USER solaceai
-RUN playwright install chromium
-
-# Install the Solace Agent Mesh package (this layer changes when source code changes)
-USER root
-COPY --from=builder /app/dist/solace_agent_mesh-*.whl /tmp/
-COPY --from=builder /wheels /tmp/wheels
-
-RUN python3.11 -m pip install --find-links=/tmp/wheels \
-    /tmp/solace_agent_mesh-*.whl && \
-    rm -rf /tmp/wheels /tmp/solace_agent_mesh-*.whl
+RUN /app/bin/python -m playwright install chromium
 
 # Copy sample SAM applications
-COPY preset /preset
+USER root
+COPY --chown=solaceai:solaceai preset /preset
 
+WORKDIR /app
 USER solaceai
+
+# Verification and introspection
+RUN <<EOT
+python -V
+python -Im site
+python -Ic 'import solace_agent_mesh'
+EOT
 
 # Required environment variables
 ENV CONFIG_PORTAL_HOST=0.0.0.0

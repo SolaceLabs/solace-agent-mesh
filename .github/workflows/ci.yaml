@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - fast-build
   pull_request:
     types: [opened, synchronize]
     branches:
@@ -186,8 +187,14 @@ jobs:
           platforms: ${{ matrix.platform.name }}
           tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
           push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
-          cache-from: type=gha,scope=${{ matrix.platform.tag_suffix }}
-          cache-to: type=gha,scope=${{ matrix.platform.tag_suffix }},mode=max
+          # Use GitHub Actions cache for both Docker layers and uv cache
+          cache-from: |
+            type=gha,scope=${{ matrix.platform.tag_suffix }}-buildkit
+            type=gha,scope=${{ matrix.platform.tag_suffix }}-uv
+          cache-to: type=gha,scope=${{ matrix.platform.tag_suffix }}-buildkit,mode=max
+          # Enable BuildKit features for cache mounts
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
 
   # ----------------------------------------------------
   # PHASE 3: Merge Multi-Platform Manifest (Always)
@@ -224,17 +231,17 @@ jobs:
             image_name="${{ github.repository }}"
             echo "Using GitHub repository: ${image_name}"
           fi
-          
+
           # Reconstruct tags
           version="${{ needs.prepare-metadata.outputs.version }}"
           release_tag="${{ needs.prepare-metadata.outputs.release_tag }}"
           short_sha="${{ needs.prepare-metadata.outputs.short_sha }}"
-          
+
           tags="${image_name}:${version}"
           tags="${tags},${image_name}:${version}-${short_sha}"
           tags="${tags},${image_name}:${release_tag}"
           tags="${tags},${image_name}:${release_tag}-${short_sha}"
-          
+
           echo "image_name=${image_name}" >> $GITHUB_OUTPUT
           echo "tags=${tags}" >> $GITHUB_OUTPUT
           echo "Created tags: ${tags}"
@@ -245,10 +252,10 @@ jobs:
           # Define the platform-specific tags
           AMD_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-amd64"
           ARM_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-arm64"
-          
+
           echo "AMD64 Tag: ${AMD_TAG}"
           echo "ARM64 Tag: ${ARM_TAG}"
-          
+
           # Convert comma-separated tags string to array and create manifest for each
           IFS=',' read -ra TAGS <<< "${{ steps.image_tags.outputs.tags }}"
           for TAG in "${TAGS[@]}"; do
@@ -260,7 +267,7 @@ jobs:
               "$AMD_TAG" \
               "$ARM_TAG"
           done
-          
+
           echo "Multi-platform manifest created successfully"
 
       - name: Update Release Manifest
