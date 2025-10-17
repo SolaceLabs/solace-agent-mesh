@@ -319,8 +319,7 @@ log:
 
 apps:
   - name: my_a2a_proxy
-    app_base_path: .
-    app_module: src.solace_agent_mesh.agent.proxies.a2a.app
+    app_module: solace_agent_mesh.agent.proxies.a2a.app
     broker:
       <<: *broker_connection
 
@@ -444,7 +443,7 @@ If an external agent does not appear in the mesh:
 1. Check that the agent's URL is accessible from the proxy.
 2. Verify the agent exposes `/.well-known/agent.json`.
 3. Check proxy logs for discovery errors.
-4. Ensure `discovery_interval_seconds` is set appropriately.
+4. Ensure `discovery_interval_seconds` is set appropriately and is more frequent than the `health_check_ttl_seconds` that is set on the calling agents and gateways
 
 ### Authentication Failures
 
@@ -472,20 +471,3 @@ If artifacts are not flowing correctly:
 3. Ensure artifact URIs are correctly formatted.
 4. Check proxy logs for artifact save/load errors.
 
-## Best Practices
-
-1. **Use Environment Variables**: Store all credentials in environment variables, never in configuration files.
-
-2. **Set Appropriate Timeouts**: Configure timeouts based on the expected response time of external agents.
-
-3. **Monitor Discovery**: Regularly check that external agents are being discovered and their cards are up to date.
-
-4. **Isolate Proxies**: Run separate proxy instances for different security zones or external agent groups.
-
-5. **Configure Artifact Storage**: Use persistent artifact storage (filesystem or GCS) rather than memory for production deployments.
-
-6. **Enable Logging**: Configure appropriate log levels to troubleshoot issues without exposing sensitive data.
-
-7. **Test Authentication**: Verify authentication works before deploying to production, especially for OAuth 2.0 flows.
-
-8. **Plan for Failures**: Design your system to handle external agent unavailability gracefully.
