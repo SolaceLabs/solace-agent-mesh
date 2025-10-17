@@ -963,8 +963,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Load session metadata (name)
                 const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
                 if (sessionResponse.ok) {
-                    const sessionData = await sessionResponse.json();
-                    setSessionName(sessionData.name);
+                    const session = await sessionResponse.json();
+                    setSessionName(session?.data?.name ?? "N/A");
                 }
 
                 // Update session state
