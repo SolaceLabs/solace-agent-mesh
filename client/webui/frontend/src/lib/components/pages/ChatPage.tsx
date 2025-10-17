@@ -169,10 +169,10 @@ export function ChatPage() {
                     leadingAction={
                         isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
-                                <Button variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Sessions Panel">
+                                <Button variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
                                     <PanelLeftIcon className="size-5" />
                                 </Button>
-                                <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+                                <div className="h-6 border-t"></div>
 
                                 <ChatSessionDialog />
                             </div>
