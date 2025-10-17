@@ -53,6 +53,7 @@ from typing_extensions import override
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
+from .oauth2_token_manager import OAuth2ClientCredentialsTokenManager
 
 logger = logging.getLogger("google_adk." + __name__)
 
@@ -501,7 +502,7 @@ def _get_completion_inputs(
         elif message_param_or_list:  # Ensure it's not None before appending
             messages.append(message_param_or_list)
 
-    if llm_request.config.system_instruction:
+    if llm_request.config and llm_request.config.system_instruction:
         messages.insert(
             0,
             ChatCompletionDeveloperMessage(
@@ -595,7 +596,7 @@ def _build_request_log(req: LlmRequest) -> str:
 
     function_decls: list[types.FunctionDeclaration] = cast(
         list[types.FunctionDeclaration],
-        req.config.tools[0].function_declarations if req.config.tools else [],
+        req.config.tools[0].function_declarations if req.config and req.config.tools else [],
     )
     function_logs = (
         [_build_function_declaration_log(func_decl) for func_decl in function_decls]
@@ -616,7 +617,7 @@ def _build_request_log(req: LlmRequest) -> str:
 LLM Request:
 -----------------------------------------------------------
 System Instruction:
-{req.config.system_instruction}
+{req.config.system_instruction if req.config else None}
 -----------------------------------------------------------
 Contents:
 {_NEW_LINE.join(contents_logs)}
@@ -654,6 +655,7 @@ class LiteLlm(BaseLlm):
     """The LLM client to use for the model."""
 
     _additional_args: Dict[str, Any] = None
+    _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = None
 
     def __init__(self, model: str, **kwargs):
         """Initializes the LiteLlm class.
@@ -661,9 +663,19 @@ class LiteLlm(BaseLlm):
         Args:
           model: The name of the LiteLlm model.
           **kwargs: Additional arguments to pass to the litellm completion api.
+                   Can include OAuth configuration parameters.
         """
         super().__init__(model=model, **kwargs)
-        self._additional_args = kwargs
+        self._additional_args = kwargs.copy()
+
+        # Extract OAuth configuration if present
+        oauth_config = self._extract_oauth_config(self._additional_args)
+        if oauth_config:
+            self._oauth_token_manager = OAuth2ClientCredentialsTokenManager(**oauth_config)
+            logger.info("OAuth2 token manager initialized for model: %s", model)
+        else:
+            self._oauth_token_manager = None
+
         # preventing generation call with llm_client
         # and overriding messages, tools and stream which are managed internally
         self._additional_args.pop("llm_client", None)
@@ -671,6 +683,48 @@ class LiteLlm(BaseLlm):
         self._additional_args.pop("tools", None)
         # public api called from runner determines to stream or not
         self._additional_args.pop("stream", None)
+
+    def _extract_oauth_config(self, kwargs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Extract OAuth configuration from kwargs.
+
+        Args:
+            kwargs: Keyword arguments that may contain OAuth parameters
+
+        Returns:
+            OAuth configuration dictionary or None if no OAuth config found
+        """
+        oauth_params = [
+            "oauth_token_url",
+            "oauth_client_id",
+            "oauth_client_secret",
+            "oauth_scope",
+            "oauth_ca_cert",
+            "oauth_token_refresh_buffer_seconds",
+            "oauth_max_retries"
+        ]
+
+        oauth_config = {}
+        for param in oauth_params:
+            if param in kwargs:
+                # Map parameter names to OAuth2ClientCredentialsTokenManager constructor
+                if param == "oauth_ca_cert":
+                    oauth_config["ca_cert_path"] = kwargs.pop(param)
+                elif param == "oauth_token_refresh_buffer_seconds":
+                    oauth_config["refresh_buffer_seconds"] = kwargs.pop(param)
+                elif param == "oauth_max_retries":
+                    oauth_config["max_retries"] = kwargs.pop(param)
+                else:
+                    # Remove oauth_ prefix for the token manager
+                    key = param.replace("oauth_", "")
+                    oauth_config[key] = kwargs.pop(param)
+
+        # Return config only if we have the required parameters
+        if "token_url" in oauth_config and "client_id" in oauth_config and "client_secret" in oauth_config:
+            return oauth_config
+        elif oauth_config:
+            logger.warning("Incomplete OAuth configuration found, missing required parameters")
+
+        return None
 
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
@@ -703,6 +757,24 @@ class LiteLlm(BaseLlm):
             "stream_options": {"include_usage": True},
         }
         completion_args.update(self._additional_args)
+
+        # Inject OAuth token if OAuth is configured
+        if self._oauth_token_manager:
+            try:
+                access_token = await self._oauth_token_manager.get_token()
+                # Inject Bearer token via extra_headers
+                extra_headers = completion_args.get("extra_headers", {})
+                extra_headers["Authorization"] = f"Bearer {access_token}"
+                completion_args["extra_headers"] = extra_headers
+                logger.debug("OAuth token injected into request headers")
+            except Exception as e:
+                logger.error("Failed to get OAuth token: %s", str(e))
+                # Check if we have a fallback API key
+                if "api_key" in completion_args:
+                    logger.info("Falling back to API key authentication")
+                else:
+                    logger.error("No fallback authentication available")
+                    raise
 
         if generation_params:
             completion_args.update(generation_params)
