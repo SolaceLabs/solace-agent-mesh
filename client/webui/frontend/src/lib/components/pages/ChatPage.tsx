@@ -172,7 +172,7 @@ export function ChatPage() {
                                 <Button variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
                                     <PanelLeftIcon className="size-5" />
                                 </Button>
-                                <div className="h-6 border-t"></div>
+                                <div className="h-6 border-r"></div>
 
                                 <ChatSessionDialog />
                             </div>
