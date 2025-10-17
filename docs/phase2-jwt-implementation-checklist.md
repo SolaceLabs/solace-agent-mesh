@@ -136,21 +136,21 @@ This provides defense-in-depth and future flexibility to change security mechani
 
 #### Peer Agent Auth Token Propagation
 
-- [ ] **Find peer request creation**
+- [x] **Find peer request creation**
   - Locate where peer agent requests are constructed
   - Find where `user_properties` dict is built for peer requests
 
-- [ ] **Retrieve original auth token using generic security storage**
+- [x] **Retrieve original auth token using generic security storage**
   - Get from TaskExecutionContext: `auth_token = task_context.get_security_data("auth_token")`
   - **Note**: Generic security storage - open source doesn't know what's being retrieved
   - Check if token exists (may be None if no trust_manager)
 
-- [ ] **Add auth token to peer request**
+- [x] **Add auth token to peer request**
   - If token exists: `peer_user_properties["authToken"] = auth_token`
   - **Note**: Generic property name - no mention of JWT
   - Log at DEBUG: "Propagating authentication token to peer agent {peer_agent_name} for sub-task {sub_task_id}"
 
-- [ ] **Verify no re-signing**
+- [x] **Verify no re-signing**
   - Confirm code does NOT call `sign_user_claims()` for peer requests
   - Agents cannot sign user authentication tokens (only gateways can)
   - Pass through original token unchanged

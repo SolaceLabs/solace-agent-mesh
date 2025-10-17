@@ -2794,6 +2794,35 @@ class SamAgentComponent(SamComponentBase):
         }
         if isinstance(user_config, dict):
             user_properties["a2aUserConfig"] = user_config
+        
+        # Retrieve and propagate authentication token from parent task context
+        parent_task_id = a2a_message.metadata.get("parentTaskId")
+        if parent_task_id:
+            with self.active_tasks_lock:
+                parent_task_context = self.active_tasks.get(parent_task_id)
+            
+            if parent_task_context:
+                auth_token = parent_task_context.get_security_data("auth_token")
+                if auth_token:
+                    user_properties["authToken"] = auth_token
+                    log.debug(
+                        "%s Propagating authentication token to peer agent %s for sub-task %s",
+                        log_identifier_helper,
+                        target_agent_name,
+                        sub_task_id,
+                    )
+                else:
+                    log.debug(
+                        "%s No authentication token found in parent task context for sub-task %s",
+                        log_identifier_helper,
+                        sub_task_id,
+                    )
+            else:
+                log.warning(
+                    "%s Parent task context not found for task %s, cannot propagate authentication token",
+                    log_identifier_helper,
+                    parent_task_id,
+                )
 
         self.publish_a2a_message(
             payload=a2a_request.model_dump(by_alias=True, exclude_none=True),
