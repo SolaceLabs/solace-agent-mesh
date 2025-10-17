@@ -645,8 +645,10 @@ def shared_solace_connector(
         tools,
         model_suffix,
         session_behavior="RUN_BASED",
+        inject_system_purpose=False,
+        inject_response_format=False,
     ):
-        return {
+        config = {
             "namespace": "test_namespace",
             "supports_streaming": True,
             "agent_name": agent_name,
@@ -679,6 +681,13 @@ def shared_solace_connector(
             },
             "tools": tools,
         }
+
+        if inject_system_purpose:
+            config["inject_system_purpose"] = True
+        if inject_response_format:
+            config["inject_response_format"] = True
+
+        return config
 
     test_agent_tools = [
         {
@@ -750,6 +759,8 @@ def shared_solace_connector(
         allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied"],
         tools=test_agent_tools,
         model_suffix="sam",
+        inject_system_purpose=True,
+        inject_response_format=True,
     )
 
     peer_agent_tools = [
@@ -925,6 +936,8 @@ def shared_solace_connector(
                 "namespace": "test_namespace",
                 "gateway_id": "TestHarnessGateway_01",
                 "artifact_service": {"type": "test_in_memory"},
+                "system_purpose": "Test gateway system purpose for metadata validation",
+                "response_format": "Test gateway response format for metadata validation",
             },
             "broker": {"dev_mode": True},
             "app_module": "sam_test_infrastructure.gateway_interface.app",

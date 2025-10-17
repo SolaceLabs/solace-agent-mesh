@@ -4,7 +4,8 @@ Session-related response DTOs.
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ....shared.types import PaginationInfo, SessionId, UserId
+from ....shared.pagination import PaginationMeta
+from ....shared.types import SessionId, UserId
 from .base_responses import BaseTimestampResponse
 
 
@@ -20,10 +21,10 @@ class SessionResponse(BaseTimestampResponse):
 
 
 class SessionListResponse(BaseModel):
-    """Response DTO for a list of sessions."""
+    """Response DTO for a list of sessions (legacy - use PaginatedResponse instead)."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     sessions: list[SessionResponse]
-    pagination: PaginationInfo | None = None
+    pagination: PaginationMeta | None = None
     total_count: int = Field(alias="totalCount")

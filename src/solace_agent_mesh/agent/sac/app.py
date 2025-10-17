@@ -23,7 +23,7 @@ from ...common.a2a import (
     get_agent_status_subscription_topic,
     get_sam_events_subscription_topic,
 )
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT, TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
+from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT, TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH, HEALTH_CHECK_TTL_SECONDS, HEALTH_CHECK_INTERVAL_SECONDS
 from ...agent.sac.component import SamAgentComponent
 from ...agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
 from ...common.utils.pydantic_utils import SamConfigBase
@@ -78,6 +78,12 @@ class AgentDiscoveryConfig(SamConfigBase):
 
     enabled: bool = Field(
         default=True, description="Enable discovery and instruction injection."
+    )
+    health_check_ttl_seconds: int = Field(
+        default=HEALTH_CHECK_TTL_SECONDS, description="Time-to-live in seconds after which an unresponsive agent is de-registered."
+    )
+    health_check_interval_seconds: int = Field(
+        default=HEALTH_CHECK_INTERVAL_SECONDS, description="Interval in seconds between health checks."
     )
 
 
@@ -452,8 +458,8 @@ class SamAgentApp(App):
         broker_config["queue_name"] = generated_queue_name
         log.debug("Injected generated broker.queue_name: %s", generated_queue_name)
 
-        broker_config["temporary_queue"] = True
-        log.debug("Set broker_config.temporary_queue = True")
+        broker_config["temporary_queue"] = app_info.get("broker", {}).get("temporary_queue", True)
+        log.debug("Set broker_config.temporary_queue = %s", broker_config["temporary_queue"])
 
         super().__init__(app_info, **kwargs)
         log.debug("%s Agent initialization complete.", agent_name)

@@ -243,10 +243,10 @@ def get_people_service(
     return PeopleService(identity_service=identity_service)
 
 
-def get_task_repository(db: Session = Depends(get_db)) -> ITaskRepository:
+def get_task_repository() -> ITaskRepository:
     """FastAPI dependency to get an instance of TaskRepository."""
     log.debug("[Dependencies] get_task_repository called")
-    return TaskRepository(db)
+    return TaskRepository()
 
 
 def get_feedback_service(
@@ -525,9 +525,9 @@ def get_session_validator(
             try:
                 db = SessionLocal()
                 try:
-                    session_repository = SessionRepository(db)
+                    session_repository = SessionRepository()
                     session_domain = session_repository.find_user_session(
-                        session_id, user_id
+                        db, session_id, user_id
                     )
                     return session_domain is not None
                 finally:

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PanelLeftIcon, Edit } from "lucide-react";
+import { PanelLeftIcon } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
@@ -36,28 +36,10 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const {
-        agents,
-        sessionId,
-        messages,
-        setMessages,
-        selectedAgentName,
-        setSelectedAgentName,
-        isSidePanelCollapsed,
-        setIsSidePanelCollapsed,
-        openSidePanelTab,
-        setTaskIdInSidePanel,
-        isResponding,
-        latestStatusText,
-        sessionToDelete,
-        closeSessionDeleteModal,
-        confirmSessionDelete,
-        sessionName,
-    } = useChatContext();
+    const { agents, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, sessionName } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
-    const [isChatSessionDialogOpen, setChatSessionDialogOpen] = useState(false);
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -130,34 +112,6 @@ export function ChatPage() {
         };
     }, [isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
 
-    useEffect(() => {
-        if (!selectedAgentName && agents.length > 0) {
-            const orchestratorAgent = agents.find(agent => agent.name === "OrchestratorAgent");
-            const agentName = orchestratorAgent ? orchestratorAgent.name : agents[0].name;
-
-            setSelectedAgentName(agentName);
-
-            const selectedAgent = agents.find(agent => agent.name === agentName);
-            const displayedText = selectedAgent?.displayName ? `Hi! I'm the ${selectedAgent?.displayName}. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
-
-            setMessages(prev => {
-                const filteredMessages = prev.filter(msg => !msg.isStatusBubble);
-                return [
-                    ...filteredMessages,
-                    {
-                        role: "agent",
-                        kind: "message",
-                        messageId: `welcome-${Date.now()}`,
-                        parts: [{ kind: "text", text: displayedText }],
-                        isUser: false,
-                        isComplete: true,
-                        metadata: { sessionId, lastProcessedEventSequence: 0 },
-                    },
-                ];
-            });
-        }
-    }, [agents, selectedAgentName, sessionId, setMessages, setSelectedAgentName]);
-
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
         messages.forEach((message, index) => {
@@ -219,9 +173,8 @@ export function ChatPage() {
                                     <PanelLeftIcon className="size-5" />
                                 </Button>
                                 <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-                                <Button variant="ghost" onClick={() => setChatSessionDialogOpen(true)} className="h-10 w-10 p-0" tooltip="Start New Chat Session">
-                                    <Edit className="size-5" />
-                                </Button>
+
+                                <ChatSessionDialog />
                             </div>
                         ) : null
                     }
@@ -265,7 +218,6 @@ export function ChatPage() {
                     </ResizablePanelGroup>
                 </div>
             </div>
-            <ChatSessionDialog isOpen={isChatSessionDialogOpen} onClose={() => setChatSessionDialogOpen(false)} />
             <ChatSessionDeleteDialog isOpen={!!sessionToDelete} onClose={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`} />
         </div>
     );

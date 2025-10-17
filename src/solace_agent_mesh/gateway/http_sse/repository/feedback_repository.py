@@ -12,10 +12,7 @@ from .models import FeedbackModel
 class FeedbackRepository(IFeedbackRepository):
     """SQLAlchemy implementation of feedback repository."""
 
-    def __init__(self, db: DBSession):
-        self.db = db
-
-    def save(self, feedback: Feedback) -> Feedback:
+    def save(self, session: DBSession, feedback: Feedback) -> Feedback:
         """Save feedback."""
         model = FeedbackModel(
             id=feedback.id,
@@ -26,12 +23,12 @@ class FeedbackRepository(IFeedbackRepository):
             comment=feedback.comment,
             created_time=feedback.created_time,
         )
-        self.db.add(model)
-        self.db.commit()
-        self.db.refresh(model)
+        session.add(model)
+        session.flush()
+        session.refresh(model)
         return self._model_to_entity(model)
 
-    def delete_feedback_older_than(self, cutoff_time_ms: int, batch_size: int) -> int:
+    def delete_feedback_older_than(self, session: DBSession, cutoff_time_ms: int, batch_size: int) -> int:
         """
         Delete feedback records older than the cutoff time.
         Uses batch deletion to avoid long-running transactions.
@@ -44,36 +41,36 @@ class FeedbackRepository(IFeedbackRepository):
             Total number of feedback records deleted
         """
         total_deleted = 0
-        
+
         while True:
             # Find a batch of feedback IDs to delete
             feedback_ids_to_delete = (
-                self.db.query(FeedbackModel.id)
+                session.query(FeedbackModel.id)
                 .filter(FeedbackModel.created_time < cutoff_time_ms)
                 .limit(batch_size)
                 .all()
             )
-            
+
             if not feedback_ids_to_delete:
                 break
-            
+
             # Extract IDs from the result tuples
             ids = [feedback_id[0] for feedback_id in feedback_ids_to_delete]
-            
+
             # Delete this batch
             deleted_count = (
-                self.db.query(FeedbackModel)
+                session.query(FeedbackModel)
                 .filter(FeedbackModel.id.in_(ids))
                 .delete(synchronize_session=False)
             )
-            
-            self.db.commit()
+
+            session.commit()
             total_deleted += deleted_count
-            
+
             # If we deleted fewer than batch_size, we're done
             if deleted_count < batch_size:
                 break
-        
+
         return total_deleted
 
     def _model_to_entity(self, model: FeedbackModel) -> Feedback:
