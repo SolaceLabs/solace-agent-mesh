@@ -336,26 +336,41 @@ class BaseGatewayComponent(SamComponentBase):
         if user_config:
             user_properties["a2aUserConfig"] = user_config
 
-        # Enterprise feature: Add signed user identity JWT if trust manager available
+        # Enterprise feature: Add signed user claims if trust manager available
         if hasattr(self, "trust_manager") and self.trust_manager:
+            log.debug(
+                "%s Attempting to sign user claims for task %s",
+                log_id_prefix,
+                task_id,
+            )
             try:
-                user_identity_jwt = self.trust_manager.sign_user_identity(
+                auth_token = self.trust_manager.sign_user_claims(
                     user_info=user_identity, task_id=task_id
                 )
-                user_properties["userIdentityJWT"] = user_identity_jwt
+                user_properties["authToken"] = auth_token
                 log.debug(
-                    "%s Added signed user identity JWT to task %s",
+                    "%s Successfully signed user claims for task %s",
+                    log_id_prefix,
+                    task_id,
+                )
+                log.debug(
+                    "%s Added authentication token to task %s",
                     log_id_prefix,
                     task_id,
                 )
             except Exception as e:
                 log.error(
-                    "%s Failed to sign user identity for task %s: %s",
+                    "%s Failed to sign user claims for task %s: %s",
                     log_id_prefix,
                     task_id,
                     e,
                 )
-                # Continue without JWT - enterprise feature is optional
+                # Continue without token - enterprise feature is optional
+        else:
+            log.debug(
+                "%s Trust Manager not available, proceeding without authentication token",
+                log_id_prefix,
+            )
 
         user_properties["replyTo"] = a2a.get_gateway_response_topic(
             self.namespace, self.gateway_id, task_id

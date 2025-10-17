@@ -33,33 +33,33 @@ This provides defense-in-depth and future flexibility to change security mechani
 
 #### Gateway User Claims Signing Integration
 
-- [ ] **Find insertion point**
+- [x] **Find insertion point**
   - Locate where `user_properties` dict is being built
   - After `authenticate_and_enrich_user()` call
   - Before `self.publish_a2a_message()` call
 
-- [ ] **Add trust manager check**
+- [x] **Add trust manager check**
   - Guard: `if hasattr(self, 'trust_manager') and self.trust_manager:`
   - Log at DEBUG: "Trust Manager not available, proceeding without authentication token" (if no trust_manager)
 
-- [ ] **Call generic signing method**
+- [x] **Call generic signing method**
   - Call: `trust_manager.sign_user_claims(user_info=user_identity, task_id=task_id)`
   - **Note**: Method name is generic - no mention of JWT
   - Wrap in try/except block
   - Catch generic Exception (enterprise exceptions may not be available)
 
-- [ ] **Handle signing success**
+- [x] **Handle signing success**
   - Store token in variable: `auth_token`
   - Add to user_properties: `user_properties["authToken"] = auth_token`
   - **Note**: Generic property name - no mention of JWT
   - Log at DEBUG: "Added authentication token to task {task_id}"
 
-- [ ] **Handle signing failure**
+- [x] **Handle signing failure**
   - Log at ERROR: "Failed to sign user claims for task {task_id}: {error}"
   - Continue without token (degraded mode, don't block task)
   - Do NOT raise exception
 
-- [ ] **Add logging**
+- [x] **Add logging**
   - DEBUG: "Attempting to sign user claims for task {task_id}"
   - DEBUG: "Successfully signed user claims for task {task_id}" (on success)
   - Include task_id and user_id in log messages
