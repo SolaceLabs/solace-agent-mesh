@@ -1,7 +1,14 @@
-# Phase 2 JWT Implementation Checklist
+# Phase 2 User Authentication Token Implementation Checklist
 
 ## Overview
-This checklist tracks the implementation of JWT signing and verification for user identity in the SAM Trust Manager (Phase 2). All JWT logic resides in the enterprise repository. Open source changes are limited to integration hooks only.
+This checklist tracks the implementation of user authentication token signing and verification in the SAM Trust Manager (Phase 2). All cryptographic implementation details (JWT) reside in the enterprise repository. Open source changes use generic security abstractions only.
+
+## Security Abstraction Principle
+The open source repository uses **generic security terminology** to avoid disclosing implementation details:
+- ✅ Use: "authentication token", "auth token", "user claims", "security context"
+- ❌ Avoid: "JWT", "JSON Web Token", "JWKS", specific cryptographic terms
+
+This provides defense-in-depth and future flexibility to change security mechanisms.
 
 ---
 
@@ -24,7 +31,7 @@ This checklist tracks the implementation of JWT signing and verification for use
 
 **Location:** `BaseGatewayComponent.submit_a2a_task()` method
 
-#### Gateway JWT Signing Integration
+#### Gateway User Claims Signing Integration
 
 - [ ] **Find insertion point**
   - Locate where `user_properties` dict is being built
@@ -33,27 +40,30 @@ This checklist tracks the implementation of JWT signing and verification for use
 
 - [ ] **Add trust manager check**
   - Guard: `if hasattr(self, 'trust_manager') and self.trust_manager:`
-  - Log at DEBUG: "Trust Manager not available, proceeding without JWT" (if no trust_manager)
+  - Log at DEBUG: "Trust Manager not available, proceeding without authentication token" (if no trust_manager)
 
-- [ ] **Call JWT signing method**
-  - Call: `trust_manager.sign_user_identity(user_info=user_identity, task_id=task_id)`
+- [ ] **Call generic signing method**
+  - Call: `trust_manager.sign_user_claims(user_info=user_identity, task_id=task_id)`
+  - **Note**: Method name is generic - no mention of JWT
   - Wrap in try/except block
   - Catch generic Exception (enterprise exceptions may not be available)
 
 - [ ] **Handle signing success**
-  - Store JWT in variable: `jwt_token`
-  - Add to user_properties: `user_properties["userIdentityJWT"] = jwt_token`
-  - Log at DEBUG: "Successfully signed user identity JWT for task {task_id}"
+  - Store token in variable: `auth_token`
+  - Add to user_properties: `user_properties["authToken"] = auth_token`
+  - **Note**: Generic property name - no mention of JWT
+  - Log at DEBUG: "Added authentication token to task {task_id}"
 
 - [ ] **Handle signing failure**
-  - Log at ERROR: "Failed to sign user identity JWT for task {task_id}: {error}"
-  - Continue without JWT (degraded mode, don't block task)
+  - Log at ERROR: "Failed to sign user claims for task {task_id}: {error}"
+  - Continue without token (degraded mode, don't block task)
   - Do NOT raise exception
 
 - [ ] **Add logging**
-  - DEBUG: "Attempting to sign user identity JWT for task {task_id}"
-  - DEBUG: "Added signed user identity JWT to task {task_id}" (on success)
+  - DEBUG: "Attempting to sign user claims for task {task_id}"
+  - DEBUG: "Successfully signed user claims for task {task_id}" (on success)
   - Include task_id and user_id in log messages
+  - **Important**: No mention of JWT in any log messages
 
 ---
 
@@ -61,7 +71,7 @@ This checklist tracks the implementation of JWT signing and verification for use
 
 **Location:** `handle_a2a_request()` function
 
-#### Agent JWT Verification Integration
+#### Agent User Claims Verification Integration
 
 - [ ] **Find insertion point**
   - After A2ARequest is parsed and validated
@@ -71,15 +81,16 @@ This checklist tracks the implementation of JWT signing and verification for use
 
 - [ ] **Add trust manager check**
   - Guard: `if hasattr(component, 'trust_manager') and component.trust_manager:`
-  - Log at DEBUG: "Trust Manager not available, skipping JWT verification" (if no trust_manager)
+  - Log at DEBUG: "Trust Manager not available, skipping authentication verification" (if no trust_manager)
 
-- [ ] **Extract JWT from message**
-  - Get: `jwt_token = message.get_user_properties().get("userIdentityJWT")`
-  - Log at DEBUG: "Extracting JWT from user properties for task {task_id}"
+- [ ] **Extract auth token from message**
+  - Get: `auth_token = message.get_user_properties().get("authToken")`
+  - **Note**: Generic property name - no mention of JWT
+  - Log at DEBUG: "Extracting authentication token from user properties for task {task_id}"
 
-- [ ] **Handle missing JWT**
-  - Check: `if jwt_token is None:`
-  - Log at WARNING: "Trust Manager enabled but no JWT provided for task {task_id}"
+- [ ] **Handle missing auth token**
+  - Check: `if auth_token is None:`
+  - Log at WARNING: "Trust Manager enabled but no authentication token provided for task {task_id}"
   - Create error response: `create_invalid_request_error_response()`
   - Error message: "Authentication failed" (generic)
   - Error data: `{"reason": "authentication_failed", "task_id": task_id}`
@@ -87,31 +98,35 @@ This checklist tracks the implementation of JWT signing and verification for use
   - Call `message.call_acknowledgements()` (ACK, don't retry)
   - Return early (do not process task)
 
-- [ ] **Call JWT verification method**
-  - Call: `component.trust_manager.verify_user_identity_jwt(jwt_token=jwt_token, expected_task_id=task_id)`
+- [ ] **Call generic verification method**
+  - Call: `component.trust_manager.verify_user_claims(auth_token=auth_token, task_id=task_id)`
+  - **Note**: Method name is generic - no mention of JWT
   - Wrap in try/except block
   - Catch generic Exception (enterprise exceptions may not be available)
 
 - [ ] **Handle verification success**
   - Store verified claims: `verified_claims = <result>`
   - Extract user identity from claims (sub, name, email, roles, scopes)
-  - Store in a2a_context: `a2a_context["verified_user_identity"] = {...}` (claims only, NOT raw JWT)
-  - Log at INFO: "Successfully verified JWT for user '{sub}' (task: {task_id})"
+  - Store in a2a_context: `a2a_context["verified_user_identity"] = {...}` (claims only, NOT raw token)
+  - Log at INFO: "Successfully verified user claims for user '{sub}' (task: {task_id})"
+  - **Important**: No mention of JWT in log messages
 
 - [ ] **Handle verification failure**
-  - Log at WARNING: "JWT verification failed for task {task_id}: {error}" (server-side detail)
+  - Log at WARNING: "User authentication verification failed for task {task_id}: {error}" (server-side detail)
   - Create error response: `create_invalid_request_error_response()`
   - Error message: "Authentication failed" (generic, no details)
   - Error data: `{"reason": "authentication_failed", "task_id": task_id}`
   - Publish error response to reply topic
-  - Call `message.call_acknowledgements()` (ACK, don't retry invalid JWTs)
+  - Call `message.call_acknowledgements()` (ACK, don't retry invalid tokens)
   - Return early (do not process task)
 
-- [ ] **Store JWT for peer delegation**
+- [ ] **Store auth token for peer delegation using generic security storage**
   - After successful verification
-  - Store in TaskExecutionContext private attribute: `task_context._original_jwt_for_delegation = jwt_token`
-  - Do NOT store in a2a_context (security risk)
-  - Do NOT store in session state (security risk)
+  - Use TaskExecutionContext generic security storage: `task_context.set_security_data("auth_token", auth_token)`
+  - **Note**: Opaque storage - open source doesn't know what's being stored
+  - Do NOT store in a2a_context (security risk - accessible to tools)
+  - Do NOT store in session state (security risk - accessible to tools)
+  - Do NOT use private attributes (use generic security storage instead)
 
 ---
 
@@ -119,24 +134,98 @@ This checklist tracks the implementation of JWT signing and verification for use
 
 **Location:** Peer agent delegation logic (where peer requests are created)
 
-#### Peer Agent JWT Propagation
+#### Peer Agent Auth Token Propagation
 
 - [ ] **Find peer request creation**
   - Locate where peer agent requests are constructed
   - Find where `user_properties` dict is built for peer requests
 
-- [ ] **Retrieve original JWT**
-  - Get from TaskExecutionContext: `original_jwt = task_context._original_jwt_for_delegation`
-  - Check if JWT exists (may be None if no trust_manager)
+- [ ] **Retrieve original auth token using generic security storage**
+  - Get from TaskExecutionContext: `auth_token = task_context.get_security_data("auth_token")`
+  - **Note**: Generic security storage - open source doesn't know what's being retrieved
+  - Check if token exists (may be None if no trust_manager)
 
-- [ ] **Add JWT to peer request**
-  - If JWT exists: `peer_user_properties["userIdentityJWT"] = original_jwt`
-  - Log at DEBUG: "Propagating user identity JWT to peer agent {peer_agent_name} for sub-task {sub_task_id}"
+- [ ] **Add auth token to peer request**
+  - If token exists: `peer_user_properties["authToken"] = auth_token`
+  - **Note**: Generic property name - no mention of JWT
+  - Log at DEBUG: "Propagating authentication token to peer agent {peer_agent_name} for sub-task {sub_task_id}"
 
 - [ ] **Verify no re-signing**
-  - Confirm code does NOT call `sign_user_identity()` for peer requests
-  - Agents cannot sign user identity JWTs (only gateways can)
-  - Pass through original JWT unchanged
+  - Confirm code does NOT call `sign_user_claims()` for peer requests
+  - Agents cannot sign user authentication tokens (only gateways can)
+  - Pass through original token unchanged
+
+### File 4: `src/solace_agent_mesh/agent/sac/task_execution_context.py`
+
+**Location:** `TaskExecutionContext` class
+
+#### Add Generic Security Storage
+
+- [ ] **Add security storage to __init__**
+  - Add private attribute: `self._security_context: Dict[str, Any] = {}`
+  - **Purpose**: Opaque storage for enterprise security data
+  - **Note**: Open source doesn't know what's stored here
+
+- [ ] **Add set_security_data method**
+  - Method signature: `def set_security_data(self, key: str, value: Any) -> None:`
+  - Docstring: "Store opaque security data (enterprise use only)."
+  - Implementation: `self._security_context[key] = value`
+
+- [ ] **Add get_security_data method**
+  - Method signature: `def get_security_data(self, key: str, default: Any = None) -> Any:`
+  - Docstring: "Retrieve opaque security data (enterprise use only)."
+  - Implementation: `return self._security_context.get(key, default)`
+
+- [ ] **Add clear_security_data method**
+  - Method signature: `def clear_security_data(self) -> None:`
+  - Docstring: "Clear all security data on task completion."
+  - Implementation: `self._security_context.clear()`
+
+- [ ] **Call clear_security_data in cleanup**
+  - Add to any existing cleanup/finalization logic
+  - Ensure security data is cleared when task completes
+
+---
+
+## Existing Code Updates (Remove JWT-Specific References)
+
+### File 5: `src/solace_agent_mesh/gateway/base/component.py`
+
+**Location:** Existing code that may reference JWT
+
+#### Remove Any Existing JWT References
+
+- [ ] **Search for existing JWT code**
+  - Search for: "JWT", "userIdentityJWT", "sign_user_identity"
+  - Check if any code already exists from previous implementation attempts
+
+- [ ] **Replace with generic equivalents**
+  - Replace `userIdentityJWT` with `authToken`
+  - Replace `sign_user_identity` with `sign_user_claims`
+  - Replace JWT-specific log messages with generic equivalents
+
+- [ ] **Update comments and docstrings**
+  - Remove any mention of JWT in comments
+  - Use generic security terminology
+
+### File 6: `src/solace_agent_mesh/agent/protocol/event_handlers.py`
+
+**Location:** Existing code that may reference JWT
+
+#### Remove Any Existing JWT References
+
+- [ ] **Search for existing JWT code**
+  - Search for: "JWT", "userIdentityJWT", "verify_user_identity_jwt"
+  - Check if any code already exists from previous implementation attempts
+
+- [ ] **Replace with generic equivalents**
+  - Replace `userIdentityJWT` with `authToken`
+  - Replace `verify_user_identity_jwt` with `verify_user_claims`
+  - Replace JWT-specific log messages with generic equivalents
+
+- [ ] **Update comments and docstrings**
+  - Remove any mention of JWT in comments
+  - Use generic security terminology
 
 ---
 
@@ -145,47 +234,61 @@ This checklist tracks the implementation of JWT signing and verification for use
 ### Unit Tests (Open Source)
 
 - [ ] **Gateway signing tests**
-  - Mock `trust_manager.sign_user_identity()` to return fake JWT
+  - Mock `trust_manager.sign_user_claims()` to return fake auth token
   - Test successful signing path
   - Test signing failure (exception handling)
   - Test no trust_manager (graceful degradation)
-  - Test JWT added to user_properties
+  - Test auth token added to user_properties with generic name "authToken"
+  - **Verify**: No mention of JWT in test code or assertions
 
 - [ ] **Agent verification tests**
-  - Mock `trust_manager.verify_user_identity_jwt()` to return fake claims
+  - Mock `trust_manager.verify_user_claims()` to return fake claims
   - Test successful verification path
-  - Test missing JWT (error response)
+  - Test missing auth token (error response)
   - Test verification failure (error response)
   - Test no trust_manager (graceful degradation)
   - Test verified claims stored in a2a_context
-  - Test error responses use generic messages
+  - Test error responses use generic messages ("Authentication failed")
+  - **Verify**: No mention of JWT in test code or assertions
 
 - [ ] **Peer propagation tests**
-  - Test JWT passed to peer agent
-  - Test no JWT if not present in original request
-  - Test JWT not re-signed
+  - Test auth token passed to peer agent via generic security storage
+  - Test no token if not present in original request
+  - Test token not re-signed
+  - Test generic property name "authToken" used
+  - **Verify**: No mention of JWT in test code
+
+- [ ] **TaskExecutionContext security storage tests**
+  - Test `set_security_data()` stores data
+  - Test `get_security_data()` retrieves data
+  - Test `get_security_data()` returns default if key not found
+  - Test `clear_security_data()` clears all data
+  - Test security data isolated between tasks
 
 ### Integration Tests (Requires Enterprise)
 
 - [ ] **End-to-end flow**
-  - Gateway signs JWT
-  - Agent verifies JWT
+  - Gateway signs user claims (internally uses JWT)
+  - Agent verifies user claims (internally verifies JWT)
   - Verified claims available in agent
   - Task processes successfully
+  - **Verify**: Open source code uses only generic terminology
 
 - [ ] **Multi-hop delegation**
   - Gateway → Agent A → Agent B
-  - JWT propagates through chain
-  - Each agent verifies independently
-  - Original JWT preserved
+  - Auth token propagates through chain via generic security storage
+  - Each agent verifies independently using `verify_user_claims()`
+  - Original token preserved
+  - **Verify**: No JWT-specific code in open source path
 
 - [ ] **Error scenarios**
-  - Missing JWT rejected
-  - Invalid JWT rejected
-  - Expired JWT rejected
-  - Tampered JWT rejected
-  - Unknown issuer rejected
-  - Non-gateway issuer rejected
+  - Missing auth token rejected with generic error
+  - Invalid token rejected with generic error
+  - Expired token rejected with generic error
+  - Tampered token rejected with generic error
+  - Unknown issuer rejected with generic error
+  - Non-gateway issuer rejected with generic error
+  - **Verify**: All error messages are generic ("Authentication failed")
 
 - [ ] **Degradation scenarios**
   - No trust_manager: tasks process normally
@@ -198,31 +301,42 @@ This checklist tracks the implementation of JWT signing and verification for use
 
 ### Code Review Checklist
 
-- [ ] **JWT never logged**
-  - Confirm raw JWT token never appears in log statements
+- [ ] **Auth token never logged**
+  - Confirm raw auth token never appears in log statements
   - Only log success/failure and user_id (after verification)
+  - **Verify**: No "JWT" string in any open source log messages
 
 - [ ] **Generic error messages**
-  - All client-facing JWT errors use "Authentication failed"
+  - All client-facing errors use "Authentication failed"
   - No cryptographic details in error messages
-  - Detailed errors only in server-side logs
+  - No mention of JWT, signature, or specific algorithms
+  - Detailed errors only in server-side logs (enterprise)
 
-- [ ] **JWT storage security**
-  - Raw JWT NOT in a2a_context (accessible to tools)
-  - Raw JWT NOT in session state (accessible to tools)
-  - Raw JWT only in TaskExecutionContext private attribute
-  - Verified claims (not JWT) in a2a_context
+- [ ] **Auth token storage security**
+  - Raw token NOT in a2a_context (accessible to tools)
+  - Raw token NOT in session state (accessible to tools)
+  - Raw token only in TaskExecutionContext generic security storage
+  - Verified claims (not raw token) in a2a_context
+  - **Verify**: Uses `set_security_data()` / `get_security_data()` methods
 
 - [ ] **ACK vs NACK strategy**
-  - Invalid JWTs are ACKed (not NACKed)
+  - Invalid tokens are ACKed (not NACKed)
   - Prevents infinite retry loops
-  - Malformed JWTs won't become valid on retry
+  - Malformed tokens won't become valid on retry
 
-- [ ] **No JWT validation in open source**
-  - All validation in enterprise `verify_user_identity_jwt()`
-  - Open source only calls method and handles result
+- [ ] **No cryptographic validation in open source**
+  - All validation in enterprise `verify_user_claims()` implementation
+  - Open source only calls generic method and handles result
   - No expiration checks in open source
   - No signature checks in open source
+  - No JWT-specific logic in open source
+
+- [ ] **Generic terminology throughout**
+  - Search open source for: "JWT", "json web token", "jwks"
+  - Replace any found instances with generic equivalents
+  - User property: `authToken` (not `userIdentityJWT`)
+  - Methods: `sign_user_claims()`, `verify_user_claims()` (not JWT-specific names)
+  - Logs: "authentication token", "user claims" (not "JWT")
 
 - [ ] **Graceful degradation**
   - JWT failures never crash components
@@ -386,38 +500,97 @@ This checklist tracks the implementation of JWT signing and verification for use
 
 ### Key Decisions
 
-1. **Store verified claims, not raw JWT in a2a_context**
+1. **Use generic security abstraction in open source**
+   - Open source uses generic terminology only
+   - No mention of JWT, JWKS, or cryptographic details
+   - Enterprise owns all implementation details
+   - Provides defense-in-depth and future flexibility
+
+2. **Store verified claims, not raw token in a2a_context**
    - Prevents bearer token exposure to tools
    - Claims are safe to log and serialize
    - Tools get user identity without security risk
 
-2. **Store raw JWT in TaskExecutionContext private attribute**
+3. **Store raw token in TaskExecutionContext generic security storage**
    - Only for peer delegation
+   - Uses opaque `set_security_data()` / `get_security_data()` methods
    - Not accessible to tools
    - Automatic cleanup with task
 
-3. **Use generic error messages for all JWT failures**
+4. **Use generic error messages for all authentication failures**
    - "Authentication failed" for all cases
+   - No mention of JWT, signature, or cryptographic details
    - Prevents information leakage
-   - Detailed errors only in server logs
+   - Detailed errors only in server logs (enterprise)
 
-4. **ACK invalid JWTs, don't NACK**
-   - Invalid JWTs won't become valid on retry
+5. **ACK invalid tokens, don't NACK**
+   - Invalid tokens won't become valid on retry
    - Prevents infinite retry loops
    - Appropriate for security failures
 
-5. **No permissive mode for JWT verification**
+6. **No permissive mode for authentication verification**
    - When trust_manager enabled, verification is mandatory
    - No "log warnings only" mode
    - Security is binary: on or off
 
+7. **Generic user property names**
+   - Use `authToken` (not `userIdentityJWT`)
+   - Use `sign_user_claims()` (not `sign_user_identity()`)
+   - Use `verify_user_claims()` (not `verify_user_identity_jwt()`)
+   - Reduces attack surface knowledge
+
 ### Open Questions Resolved
 
-- **Q: Store JWT in a2a_context?** A: No, store verified claims only
-- **Q: Store JWT in TaskExecutionContext?** A: Yes, in private attribute for delegation
-- **Q: JWT in status updates?** A: No, only in task requests
-- **Q: Validate JWT format in open source?** A: No, all validation in enterprise
+- **Q: Store auth token in a2a_context?** A: No, store verified claims only
+- **Q: Store auth token in TaskExecutionContext?** A: Yes, in generic security storage for delegation
+- **Q: Auth token in status updates?** A: No, only in task requests
+- **Q: Validate token format in open source?** A: No, all validation in enterprise
 - **Q: Permissive verification mode?** A: No, mandatory when enabled
+- **Q: Use JWT-specific terminology in open source?** A: No, use generic security abstraction
+- **Q: Expose implementation details?** A: No, enterprise owns all cryptographic details
+
+---
+
+## Enterprise Repository Interface
+
+### Required Public Methods (Generic Interface)
+
+The enterprise `TrustManager` must provide these generic methods for open source integration:
+
+- [ ] **`sign_user_claims(user_info: Dict, task_id: str) -> str`**
+  - Public interface for signing user claims
+  - Returns opaque authentication token string
+  - Internal implementation uses JWT (not exposed to open source)
+
+- [ ] **`verify_user_claims(auth_token: str, task_id: str) -> Dict`**
+  - Public interface for verifying user claims
+  - Takes opaque authentication token string
+  - Returns verified claims dictionary
+  - Internal implementation verifies JWT (not exposed to open source)
+
+### Internal Implementation (Enterprise Only)
+
+These methods remain internal to enterprise repository:
+
+- [ ] **`sign_user_identity(user_info: Dict, task_id: str) -> str`**
+  - Internal JWT signing implementation
+  - Called by `sign_user_claims()` public interface
+
+- [ ] **`verify_user_identity_jwt(jwt_token: str, task_id: str) -> Dict`**
+  - Internal JWT verification implementation
+  - Called by `verify_user_claims()` public interface
+
+### Enterprise Documentation
+
+- [ ] **Document generic interface**
+  - Explain that open source uses generic methods
+  - Document that JWT is an implementation detail
+  - Explain security benefits of abstraction
+
+- [ ] **Document JWT implementation**
+  - JWT signing and verification details in enterprise docs only
+  - Cryptographic algorithms and key management
+  - Security properties and guarantees
 
 ---
 
