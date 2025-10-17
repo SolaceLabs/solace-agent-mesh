@@ -327,7 +327,10 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 component.log_identifier,
             )
             
-            # Extract task_id for verification
+            # Determine if this is a peer agent call (not from gateway)
+            is_peer_call = message.get_user_properties().get("delegating_agent_name") is not None
+            
+            # Extract task_id for verification (only used for gateway calls)
             if method == "tasks/cancel":
                 verification_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
             elif method in ["message/send", "message/stream"]:
@@ -337,10 +340,26 @@ async def handle_a2a_request(component, message: SolaceMessage):
             
             if verification_task_id:
                 try:
-                    verified_claims = component.trust_manager.verify_user_claims(
-                        auth_token=auth_token,
-                        task_id=verification_task_id,
-                    )
+                    if is_peer_call:
+                        # Peer agent call - verify without task_id binding
+                        # (JWT is bound to original gateway task, not sub-task)
+                        log.debug(
+                            "%s Peer agent call detected, verifying authentication token without task_id binding",
+                            component.log_identifier,
+                        )
+                        verified_claims = component.trust_manager.verify_user_claims_without_task_binding(
+                            auth_token=auth_token,
+                        )
+                    else:
+                        # Gateway call - verify with task_id binding
+                        log.debug(
+                            "%s Gateway call detected, verifying authentication token with task_id binding",
+                            component.log_identifier,
+                        )
+                        verified_claims = component.trust_manager.verify_user_claims(
+                            auth_token=auth_token,
+                            task_id=verification_task_id,
+                        )
                     
                     # Extract user identity from verified claims
                     verified_user_identity = {
