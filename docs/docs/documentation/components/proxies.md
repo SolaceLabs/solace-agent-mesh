@@ -5,7 +5,7 @@ sidebar_position: 250
 
 # Proxies
 
-Proxies enable Agent Mesh to integrate with external agents that communicate using the A2A (Agent-to-Agent) protocol over HTTPS but are not natively connected to the Solace event mesh. They act as protocol bridges, translating between A2A-over-HTTPS and A2A-over-Solace, allowing external agents to participate seamlessly in the agent mesh ecosystem.
+Proxies enable Agent Mesh to integrate with external agents that communicate using the A2A (Agent-to-Agent) protocol over HTTPS but are not natively connected to the Solace event mesh. They act as protocol bridges, allowing agents within the mesh to delegate tasks to external A2A-over-HTTPS agents. The proxy translates between A2A-over-Solace and A2A-over-HTTPS, enabling external agents to participate in collaborative workflows initiated by the mesh.
 
 :::tip[In one sentence]
 Proxies are protocol bridges that connect external A2A-over-HTTPS agents to the Solace event mesh, enabling hybrid agent architectures.
@@ -47,6 +47,7 @@ Proxies are the right choice when you need to:
 | **Deployment** | External agent runs separately | Runs within Agent Mesh |
 | **Authentication** | Proxy handles auth to external agent | Mesh-level authentication |
 | **Latency** | Additional HTTP hop | Direct mesh communication |
+| **Task Initiation** | Can only receive tasks from mesh agents | Can initiate tasks to any agent |
 | **Use Case** | External/third-party agents | Agents you control |
 
 ## Architecture Overview
@@ -69,9 +70,9 @@ graph LR
 
 The proxy performs these operations:
 
-1. **Inbound Flow**: Receives A2A requests from the mesh, resolves artifact URIs to byte content, forwards HTTPS requests to external agents, and streams responses back to the mesh.
+1. **Request Flow**: Receives A2A requests from the mesh, resolves artifact URIs to byte content, forwards HTTPS requests to external agents, and streams responses back to the mesh.
 
-2. **Outbound Flow**: Receives responses from external agents, saves artifacts to the mesh's artifact service, replaces byte content with artifact URIs, and publishes responses to mesh topics.
+2. **Response Flow**: Receives responses from external agents, saves artifacts to the mesh's artifact service, replaces byte content with artifact URIs, and publishes responses to mesh topics.
 
 3. **Discovery Flow**: Periodically fetches agent cards from external agents, updates the local registry, and publishes cards to the mesh discovery topic.
 
@@ -166,7 +167,7 @@ Always use environment variables for sensitive credentials. Never commit tokens 
 
 The proxy manages artifact flow in both directions to ensure seamless integration between the mesh and external agents.
 
-### Inbound Artifacts (Mesh to External Agent)
+### Request Flow: Mesh to External Agent
 
 When forwarding requests to external agents, the proxy resolves artifact URIs to byte content:
 
@@ -177,7 +178,7 @@ When forwarding requests to external agents, the proxy resolves artifact URIs to
 
 This ensures external agents receive complete artifact data without needing access to the mesh's artifact service.
 
-### Outbound Artifacts (External Agent to Mesh)
+### Response Flow: External Agent to Mesh
 
 When receiving responses from external agents, the proxy saves artifacts to the mesh:
 
