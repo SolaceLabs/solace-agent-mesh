@@ -61,11 +61,11 @@ graph LR
     B <-->|HTTPS| D[External Agent 2<br/>A2A-over-HTTPS]
     B <-->|HTTPS| E[External Agent N<br/>A2A-over-HTTPS]
     
-    style B fill:#00C895
-    style A fill:#E8F5F1
-    style C fill:#FFF7C2
-    style D fill:#FFF7C2
-    style E fill:#FFF7C2
+    style B fill:none,stroke:#00C895,stroke-width:2px
+    style A fill:none,stroke:#333,stroke-width:2px
+    style C fill:none,stroke:#333,stroke-width:2px
+    style D fill:none,stroke:#333,stroke-width:2px
+    style E fill:none,stroke:#333,stroke-width:2px
 ```
 
 The proxy performs these operations:
