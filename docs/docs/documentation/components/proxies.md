@@ -293,25 +293,49 @@ When errors occur, the proxy publishes standard A2A error responses to the mesh,
 
 ## Creating a Proxy
 
-To create a proxy, use the Agent Mesh CLI with the plugin system.
+Proxies are configured using standard YAML configuration files, similar to agents and gateways.
 
-### Installation
+### Creating the Configuration File
 
-First, install the A2A proxy plugin (if not already installed):
+Create a new YAML file in your `configs` directory (for example, `configs/my-proxy.yaml`):
 
-```bash
-sam plugin install a2a-proxy
+```yaml
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: my-proxy.log
+
+# Include shared configuration (broker connection, etc.)
+!include shared_config.yaml
+
+apps:
+  - name: my_a2a_proxy
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.proxies.a2a.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}"
+      
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/proxy-artifacts"
+        artifact_scope: "namespace"
+      
+      discovery_interval_seconds: 60
+      default_request_timeout_seconds: 300
+      
+      proxied_agents:
+        - name: "external-agent-1"
+          url: "https://api.example.com/agent"
+          request_timeout_seconds: 120
+          authentication:
+            type: "static_bearer"
+            token: "${AGENT_TOKEN}"
 ```
 
-### Adding a Proxy
-
-Create a new proxy configuration:
-
-```bash
-sam plugin add my-proxy --plugin a2a-proxy
-```
-
-This creates a configuration file in your `configs` directory. Edit the file to add your external agents and authentication settings.
+You can use the example file at `examples/a2a_proxy.yaml` as a template.
 
 ### Running the Proxy
 
@@ -322,6 +346,29 @@ sam run
 ```
 
 The proxy automatically subscribes to the appropriate Solace topics and begins proxying requests to external agents.
+
+### Multiple Proxy Configurations
+
+You can create multiple proxy configuration files to organize different sets of external agents. Each file can proxy different agents or use different authentication schemes:
+
+```bash
+configs/
+├── data-agents-proxy.yaml
+├── analytics-agents-proxy.yaml
+└── third-party-agents-proxy.yaml
+```
+
+Run all proxies together:
+
+```bash
+sam run
+```
+
+Or run specific proxy configurations:
+
+```bash
+sam run configs/data-agents-proxy.yaml
+```
 
 ## Advanced Configuration
 
