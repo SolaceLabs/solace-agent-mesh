@@ -25,6 +25,7 @@ from pydub import AudioSegment
 from ...agent.utils.artifact_helpers import (
     load_artifact_content_or_metadata,
     save_artifact_with_metadata,
+    ensure_correct_extension,
     DEFAULT_SCHEMA_MAX_KEYS,
 )
 from ...agent.utils.context_helpers import get_original_session_id
