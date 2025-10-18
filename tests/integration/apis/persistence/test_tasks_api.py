@@ -156,7 +156,7 @@ def test_send_task_with_large_file_via_artifacts(api_client: TestClient):
     files = {
         "upload_file": (
             "large_test.bin",
-            large_content,
+            io.BytesIO(large_content),
             "application/octet-stream",
         )
     }
@@ -222,7 +222,7 @@ def test_upload_artifact_with_session_management(api_client: TestClient):
     # Test 1: Upload with null sessionId (should create new session)
     large_content = b"x" * (1024 * 1024)  # 1MB file
     files = {
-        "file": (
+        "upload_file": (
             "test_file.bin",
             io.BytesIO(large_content),
             "application/octet-stream",
@@ -231,7 +231,7 @@ def test_upload_artifact_with_session_management(api_client: TestClient):
     data = {
         "sessionId": "",  # Empty string triggers session creation
         "filename": "test_file.bin",
-        "metadata": '{"description": "Test file upload"}',
+        "metadata_json": '{"description": "Test file upload"}',
     }
 
     upload_response = api_client.post(
@@ -268,7 +268,7 @@ def test_upload_artifact_with_session_management(api_client: TestClient):
     # Test 2: Upload to existing session
     second_content = b"y" * (512 * 1024)  # 512KB file
     files2 = {
-        "file": (
+        "upload_file": (
             "second_file.txt",
             io.BytesIO(second_content),
             "text/plain",
@@ -298,7 +298,7 @@ def test_upload_artifact_with_session_management(api_client: TestClient):
 
     # Test 3: Upload with invalid filename (should fail)
     files3 = {
-        "file": (
+        "upload_file": (
             "../invalid.txt",
             io.BytesIO(b"test"),
             "text/plain",
@@ -323,7 +323,7 @@ def test_upload_artifact_with_session_management(api_client: TestClient):
 
     # Test 4: Upload empty file (should fail)
     files4 = {
-        "file": (
+        "upload_file": (
             "empty.txt",
             io.BytesIO(b""),
             "text/plain",
