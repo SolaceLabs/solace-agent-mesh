@@ -163,7 +163,7 @@ Remote A2A agents are useful when you need to:
 - Maintain service isolation while enabling collaboration
 - Gradually migrate existing A2A agents to the mesh
 
-To integrate remote A2A agents, you use a proxy component that acts as a protocol bridge between A2A-over-HTTPS and A2A-over-Solace. The proxy handles authentication, artifact flow, and discovery, making remote agents appear as native mesh agents to other components.
+To integrate external agents, you use a proxy component that acts as a protocol bridge between A2A over HTTPS and A2A over Solace topics. The proxy handles authentication, artifact flow, and discovery, making remote agents appear as native mesh agents to other components.
 
 For detailed information on configuring and deploying proxies for remote agents, see [Proxies](./proxies.md).
 

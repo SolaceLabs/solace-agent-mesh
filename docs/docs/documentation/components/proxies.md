@@ -5,7 +5,7 @@ sidebar_position: 250
 
 # Proxies
 
-Proxies enable Agent Mesh to integrate with external agents that communicate using the A2A (Agent-to-Agent) protocol over HTTPS but are not natively connected to the Solace event mesh. They act as protocol bridges, allowing agents within the mesh to delegate tasks to external A2A-over-HTTPS agents. The proxy translates between A2A-over-Solace and A2A-over-HTTPS, enabling external agents to participate in collaborative workflows initiated by the mesh.
+Proxies act as protocol bridges that connect Agent Mesh to external A2A over HTTPS agents. By translating between A2A over Solace topics and A2A over HTTPS protocols, proxies enable agents within the mesh to delegate tasks to external agents and include them in collaborative workflows.
 
 A single proxy instance can manage multiple external agents, each with its own URL, authentication configuration, and timeout settings.
 
@@ -15,7 +15,7 @@ Proxies are protocol bridges that connect multiple external A2A-over-HTTPS agent
 
 ## Key Functions
 
-1. **Protocol Translation**: Proxies translate between A2A-over-HTTPS and A2A-over-Solace, enabling external agents to communicate with agents on the mesh without modification.
+1. **Protocol Translation**: Proxies translate between A2A over HTTPS and A2A over Solace topics, enabling external agents to communicate with agents on the mesh without modification.
 
 2. **Authentication Management**: Proxies handle authentication to downstream agents, supporting multiple authentication schemes including static bearer tokens, API keys, and OAuth 2.0 client credentials flow with automatic token refresh.
 
@@ -29,9 +29,9 @@ Proxies are protocol bridges that connect multiple external A2A-over-HTTPS agent
 
 ## When to Use a Proxy
 
-Proxies are the right choice when you need to:
+Proxies are the right choice when you need:
 
-- **Integrate Third-Party Agents**: Connect to external A2A agents provided by vendors or partners that run on their own infrastructure.
+- **Integration with Third-Party Agents**: Connect to external A2A agents provided by vendors or partners that run on their own infrastructure.
 
 - **Hybrid Cloud Architectures**: Bridge agents running in different cloud environments or on-premises systems with your Solace mesh.
 
@@ -45,7 +45,7 @@ Proxies are the right choice when you need to:
 
 | Aspect | Proxy | Native Agent |
 |--------|-------|--------------|
-| **Communication** | A2A-over-HTTPS to external agent | A2A-over-Solace directly |
+| **Communication** | A2A over HTTPS to external agent | A2A over Solace topics directly |
 | **Deployment** | External agent runs separately | Runs within Agent Mesh |
 | **Authentication** | Proxy handles auth to external agent | Mesh-level authentication |
 | **Latency** | Additional HTTP hop | Direct mesh communication |
@@ -58,10 +58,10 @@ The proxy sits between the Solace event mesh and external A2A agents, performing
 
 ```mermaid
 graph LR
-    A[Agent Mesh<br/>A2A-over-Solace] <-->|Solace Topics| B[Proxy Component]
-    B <-->|HTTPS| C[External Agent 1<br/>A2A-over-HTTPS]
-    B <-->|HTTPS| D[External Agent 2<br/>A2A-over-HTTPS]
-    B <-->|HTTPS| E[External Agent N<br/>A2A-over-HTTPS]
+    A[Agent Mesh<br/>A2A over Solace Topics] <-->|Solace Topics| B[Proxy Component]
+    B <-->|HTTPS| C[External Agent 1<br/>A2A over HTTPS]
+    B <-->|HTTPS| D[External Agent 2<br/>A2A over HTTPS]
+    B <-->|HTTPS| E[External Agent N<br/>A2A over HTTPS]
     
     style B fill:none,stroke:#00C895,stroke-width:2px
     style A fill:none,stroke:#333,stroke-width:2px
@@ -72,11 +72,11 @@ graph LR
 
 The proxy performs these operations:
 
-1. **Request Flow**: Receives A2A requests from the mesh, resolves artifact URIs to byte content, forwards HTTPS requests to external agents, and streams responses back to the mesh.
+1. **Request Flow**: Receives A2A requests from Agent Mesh, resolves artifact URIs to byte content, forwards HTTPS requests to external agents, and streams responses back to Agent Mesh.
 
-2. **Response Flow**: Receives responses from external agents, saves artifacts to the mesh's artifact service, replaces byte content with artifact URIs, and publishes responses to mesh topics.
+2. **Response Flow**: Receives responses from external agents, saves artifacts to Agent Mesh's artifact service, replaces byte content with artifact URIs, and publishes responses to Agent Mesh topics.
 
-3. **Discovery Flow**: Periodically fetches agent cards from external agents, updates the local registry, and publishes cards to the mesh discovery topic.
+3. **Discovery Flow**: Periodically fetches agent cards from external agents, updates the local registry, and publishes cards to the Agent Mesh discovery topic.
 
 ## Configuration
 
@@ -115,7 +115,10 @@ broker:
 
 - `namespace`: The topic prefix for A2A communication (for example, "myorg/production").
 - `proxied_agents`: A list of external agents to proxy. Each agent can have its own URL, authentication, and timeout settings (see Authentication Types below).
-- `artifact_service`: Configuration for storing artifacts (memory, filesystem, or GCS). This is shared across all proxied agents.
+- `artifact_service`: Configuration for storing artifacts. This is shared across all proxied agents. Supported types:
+  - `memory`: In-memory storage (no additional parameters required)
+  - `filesystem`: Local filesystem storage (requires `base_path` parameter)
+  - `gcs`: Google Cloud Storage (requires `bucket_name` parameter)
 - `discovery_interval_seconds`: How often to refresh agent cards from all external agents (default: 60).
 - `default_request_timeout_seconds`: Default timeout for requests to external agents. Individual agents can override this (default: 300).
 
@@ -174,29 +177,29 @@ Always use environment variables for sensitive credentials. Never commit tokens 
 
 ## Artifact Handling
 
-The proxy manages artifact flow in both directions to ensure seamless integration between the mesh and external agents.
+The proxy manages artifact flow in both directions to ensure seamless integration between Agent Mesh and external agents.
 
-### Request Flow: Mesh to External Agent
+### Request Flow: Agent Mesh to External Agent
 
-When forwarding requests to external agents, the proxy resolves artifact URIs to byte content:
+When it forwards requests to external agents, the proxy resolves artifact URIs to byte content using the following sequence of operations:
 
 1. The proxy receives an A2A request containing artifact references (for example, `artifact://app/user/session/data.csv?version=1`).
-2. The proxy loads the artifact content from the mesh's artifact service.
+2. The proxy loads the artifact content from Agent Mesh's artifact service.
 3. The proxy replaces the URI with the actual byte content in the request.
 4. The proxy forwards the modified request to the external agent.
 
-This ensures external agents receive complete artifact data without needing access to the mesh's artifact service.
+This process ensures that external agents receive complete artifact data without needing access to Agent Mesh's artifact service.
 
-### Response Flow: External Agent to Mesh
+### Response Flow: External Agent to Agent Mesh
 
-When receiving responses from external agents, the proxy saves artifacts to the mesh:
+When it receives responses from external agents, the proxy saves artifacts to Agent Mesh as follows:
 
 1. The external agent returns artifacts with byte content in the response.
-2. The proxy saves each artifact to the mesh's artifact service.
+2. The proxy saves each artifact to Agent Mesh's artifact service.
 3. The proxy replaces the byte content with an artifact URI.
-4. The proxy publishes the modified response to the mesh.
+4. The proxy publishes the modified response to Agent Mesh.
 
-This ensures artifacts are stored centrally and can be accessed by other agents in the mesh.
+This process ensures that artifacts are stored centrally and can be accessed by other agents in Agent Mesh.
 
 ### Artifact Metadata
 
@@ -212,32 +215,26 @@ The proxy maintains agent discovery and health monitoring through periodic agent
 
 ### Initial Discovery
 
-When the proxy starts, it performs synchronous discovery of all configured agents:
+When the proxy starts, it performs synchronous discovery of all configured agents by:
 
-1. Fetches agent cards from each external agent's `/.well-known/agent.json` endpoint.
-2. Updates the local agent registry with agent capabilities.
-3. Publishes agent cards to the mesh discovery topic.
+1. Fetching agent cards from each external agent's `/.well-known/agent.json` endpoint.
+2. Updating the local agent registry with agent capabilities.
+3. Publishing agent cards to the Agent Mesh discovery topic.
 
-This ensures external agents are immediately discoverable when the proxy starts.
+This process ensures that external agents are immediately discoverable when the proxy starts.
 
 ### Periodic Refresh
 
-The proxy periodically refreshes agent cards based on the configured `discovery_interval_seconds`:
-
-1. Fetches updated agent cards from external agents.
-2. Updates the local registry with any changes.
-3. Publishes updated cards to the mesh.
-
-This ensures the mesh has current information about external agent capabilities and availability.
+The proxy periodically refreshes agent cards based on the configured `discovery_interval_seconds`. When the configured interval elapses, the proxy fetches updated agent cards from external agents, updates the local registry with any changes, and then publishes the updated cards to Agent Mesh. This process ensures that Agent Mesh has current information about external agent capabilities and availability.
 
 ### Agent Card Transformation
 
-The proxy transforms agent cards to make external agents appear as native mesh agents:
+The proxy transforms agent cards to make external agents appear as native Agent Mesh agents:
 
 - The `name` field is set to the configured alias (the name you specify in `proxied_agents`).
 - The `url` field is rewritten to use the Solace topic format (for example, `solace:myorg/production/agent/external-data-agent`).
 
-This allows other agents to interact with external agents using standard A2A protocol over Solace, without knowing they are proxied.
+These agent cards allow other agents to interact with external agents using the standard A2A protocol over Solace topics, without knowing they are proxied.
 
 ## Task Lifecycle Management
 
@@ -245,28 +242,28 @@ The proxy tracks active tasks and manages their lifecycle from initiation to com
 
 ### Task Initiation
 
-When a request arrives from the mesh:
+When a request arrives from Agent Mesh, the proxy:
 
-1. The proxy creates a task context to track the task's state.
-2. The proxy resolves inbound artifacts.
-3. The proxy forwards the request to the external agent.
-4. The proxy begins streaming responses back to the mesh.
+1. Creates a task context to track the task's state.
+2. Resolves inbound artifacts.
+3. Forwards the request to the external agent.
+4. Begins streaming responses back to Agent Mesh.
 
 ### Task Cancellation
 
-When a cancellation request arrives:
+When a cancellation request arrives, the proxy:
 
-1. The proxy looks up the active task context.
-2. The proxy forwards the cancellation request to the external agent.
-3. The proxy publishes the cancellation response to the mesh.
+1. Looks up the active task context.
+2. Forwards the cancellation request to the external agent.
+3. Publishes the cancellation response to Agent Mesh.
 
 ### Task Completion
 
-When a task completes:
+When a task completes, the proxy:
 
-1. The proxy processes any final artifacts.
-2. The proxy publishes the final task response to the mesh.
-3. The proxy removes the task context from active tracking.
+1. Processes any final artifacts.
+2. Publishes the final task response to Agent Mesh.
+3. Removes the task context from active tracking.
 
 ## Error Handling and Retry Logic
 
@@ -274,7 +271,7 @@ The proxy implements robust error handling and automatic retry logic for authent
 
 ### OAuth 2.0 Automatic Retry
 
-When using OAuth 2.0 authentication, the proxy automatically handles token expiration:
+When using OAuth 2.0 authentication, the proxy automatically handles token expiration using the following sequence:
 
 1. A request receives a 401 Unauthorized response from the external agent.
 2. The proxy invalidates the cached token.
@@ -282,7 +279,7 @@ When using OAuth 2.0 authentication, the proxy automatically handles token expir
 4. The proxy fetches a fresh token from the OAuth provider.
 5. The proxy retries the request once with the new token.
 
-This ensures seamless operation even when tokens expire during long-running tasks.
+This sequence ensures seamless operation even when tokens expire during long-running tasks.
 
 ### Connection Errors
 
@@ -294,7 +291,7 @@ The proxy provides clear error messages for connection failures:
 
 ### Error Responses
 
-When errors occur, the proxy publishes standard A2A error responses to the mesh, including:
+When errors occur, the proxy publishes standard A2A error responses to Agent Mesh, including:
 
 - `InternalError`: For unexpected proxy errors
 - `InvalidRequestError`: For malformed requests
@@ -438,36 +435,36 @@ app:
 
 ### Agent Not Discoverable
 
-If an external agent does not appear in the mesh:
+If an external agent does not appear in Agent Mesh:
 
 1. Check that the agent's URL is accessible from the proxy.
-2. Verify the agent exposes `/.well-known/agent.json`.
-3. Check proxy logs for discovery errors.
-4. Ensure `discovery_interval_seconds` is set appropriately and is more frequent than the `health_check_ttl_seconds` that is set on the calling agents and gateways
+2. Verify that the agent exposes `/.well-known/agent.json`.
+3. Check the proxy logs for discovery errors.
+4. Ensure that `discovery_interval_seconds` is set appropriately and is more frequent than the `health_check_ttl_seconds` that is set on the calling agents and gateways.
 
 ### Authentication Failures
 
 If requests fail with 401 errors:
 
-1. Verify credentials are correctly set in environment variables.
+1. Verify that the credentials are correctly set in environment variables.
 2. For OAuth 2.0, check that `token_url`, `client_id`, and `client_secret` are correct.
-3. Ensure the OAuth token URL uses HTTPS (required for security).
-4. Check proxy logs for token acquisition errors.
+3. Ensure that the OAuth token URL uses HTTPS (required for security).
+4. Check the proxy logs for token acquisition errors.
 
 ### Timeout Errors
 
 If requests timeout:
 
 1. Increase `request_timeout_seconds` for slow agents.
-2. Check network connectivity between proxy and external agent.
-3. Verify the external agent is responding within the timeout period.
+2. Check the network connectivity between the proxy and the external agent.
+3. Verify that the external agent is responding within the timeout period.
 
 ### Artifact Issues
 
 If artifacts are not flowing correctly:
 
-1. Verify the artifact service is properly configured.
+1. Verify that the artifact service is properly configured.
 2. Check that the proxy has write permissions to the artifact storage location.
-3. Ensure artifact URIs are correctly formatted.
-4. Check proxy logs for artifact save/load errors.
+3. Ensure that the artifact URIs are correctly formatted.
+4. Check the proxy logs for artifact save/load errors.
 
