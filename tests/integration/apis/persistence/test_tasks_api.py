@@ -160,9 +160,15 @@ def test_send_task_with_large_file_via_artifacts(api_client: TestClient):
             "application/octet-stream",
         )
     }
+    data = {
+        "sessionId": session_id,
+        "filename": "large_test.bin"
+    }
 
     upload_response = api_client.post(
-        f"/api/v1/artifacts/{session_id}/large_test.bin", files=files
+        "/api/v1/artifacts/upload",
+        files=files,
+        data=data
     )
     assert upload_response.status_code == 201
     upload_result = upload_response.json()
