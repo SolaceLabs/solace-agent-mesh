@@ -197,14 +197,18 @@ jobs:
           platforms: ${{ matrix.platform.name }}
           tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
           push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
-          # Use GitHub Actions cache for Docker layers, uv cache, and Playwright cache
+          # Use GitHub Actions cache for Docker layers, uv, npm, apt, and Playwright caches
           cache-from: |
             type=gha,scope=${{ matrix.platform.tag_suffix }}-buildkit
             type=gha,scope=${{ matrix.platform.tag_suffix }}-uv
+            type=gha,scope=${{ matrix.platform.tag_suffix }}-npm
+            type=gha,scope=${{ matrix.platform.tag_suffix }}-apt
             type=gha,scope=${{ matrix.platform.tag_suffix }}-playwright
           cache-to: |
             type=gha,scope=${{ matrix.platform.tag_suffix }}-buildkit,mode=max
             type=gha,scope=${{ matrix.platform.tag_suffix }}-uv,mode=max
+            type=gha,scope=${{ matrix.platform.tag_suffix }}-npm,mode=max
+            type=gha,scope=${{ matrix.platform.tag_suffix }}-apt,mode=max
             type=gha,scope=${{ matrix.platform.tag_suffix }}-playwright,mode=max
           # Enable BuildKit features for cache mounts
           build-args: |

@@ -54,12 +54,14 @@ COPY . /build
 
 # Build the wheel using hatch (via uv, which hatch natively supports)
 # The custom build hook will run npm to build frontends
+# Use cache mounts for both uv and npm
 RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,target=/root/.npm \
     <<EOT
 # Install hatch in the build environment
 uv pip install --system hatch
 
-# Build the wheel - this runs build_frontend.py hook
+# Build the wheel - this runs build_frontend.py hook (which uses npm)
 hatch build -t wheel
 
 # Now install the built wheel into /app venv
@@ -78,6 +80,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/app/bin:$PATH
 
 # Install runtime dependencies only (no build tools, no Node.js)
+# Note: When using cache mounts, we should NOT clean apt cache
 RUN <<EOT
 apt-get update -qy
 apt-get install -y --no-install-recommends \
@@ -85,10 +88,10 @@ apt-get install -y --no-install-recommends \
     curl \
     ffmpeg \
     ca-certificates
-apt-get clean
 rm -rf /var/lib/apt/lists/*
-groupadd -r solaceai
-useradd --create-home -r -g solaceai solaceai
+# Create user with specific UID for cache mount compatibility
+groupadd -r -g 1000 solaceai
+useradd --create-home -r -u 1000 -g solaceai solaceai
 EOT
 
 # Copy the complete /app venv from builder (includes all deps + application)
@@ -96,7 +99,7 @@ COPY --from=builder --chown=solaceai:solaceai /app /app
 
 # Install Playwright (large dependency, but needed at runtime)
 # Use cache mounts to speed up repeated builds:
-# - apt cache for system dependencies
+# - apt cache for system dependencies  
 # - playwright cache for chromium binaries
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
