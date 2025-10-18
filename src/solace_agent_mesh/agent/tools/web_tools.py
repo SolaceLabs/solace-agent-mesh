@@ -150,10 +150,9 @@ async def web_request(
             )
 
         response_content_bytes = response.content
-        response_headers = dict(response.headers)
         response_status_code = response.status_code
         original_content_type = (
-            response_headers.get("content-type", "application/octet-stream")
+            response.headers.get("content-type", "application/octet-stream")
             .split(";")[0]
             .strip()
         )
@@ -238,7 +237,7 @@ async def web_request(
                 {k: v for k, v in headers.items() if k.lower() != "authorization"}
             ),
             "response_status_code": response_status_code,
-            "response_headers": json.dumps(response_headers),
+            "response_headers": json.dumps(dict(response.headers)),
             "original_content_type": original_content_type,
             "processed_content_type": processed_content_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),
