@@ -5,7 +5,7 @@ sidebar_position: 250
 
 # Proxies
 
-Proxies act as protocol bridges that connect Agent Mesh to external A2A over HTTPS agents. By translating between A2A over Solace event mesh and A2A over HTTPS protocols, proxies enable agents within the mesh to delegate tasks to external agents and include them in collaborative workflows.
+Proxies act as protocol bridges that connect Agent Mesh to external A2A agents. By translating between A2A over Solace event mesh and A2A over HTTPS protocols, proxies enable agents within the mesh to delegate tasks to external agents and include them in collaborative workflows.
 
 A single proxy instance can manage multiple external agents, each with its own URL, authentication configuration, and timeout settings.
 
@@ -115,10 +115,7 @@ broker:
 
 - `namespace`: The topic prefix for A2A communication (for example, "myorg/production").
 - `proxied_agents`: A list of external agents to proxy. Each agent can have its own URL, authentication, and timeout settings (see Authentication Types below).
-- `artifact_service`: Configuration for storing artifacts. This is shared across all proxied agents. Supported types:
-  - `memory`: In-memory storage (no additional parameters required)
-  - `filesystem`: Local filesystem storage (requires `base_path` parameter)
-  - `gcs`: Google Cloud Storage (requires `bucket_name` parameter)
+- `artifact_service`: Configuration for storing artifacts. This is shared across all proxied agents. This is configured in the same manner as agents and gateways
 - `discovery_interval_seconds`: How often to refresh agent cards from all external agents (default: 60).
 - `default_request_timeout_seconds`: Default timeout for requests to external agents. Individual agents can override this (default: 300).
 
