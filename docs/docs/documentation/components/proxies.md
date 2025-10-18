@@ -5,7 +5,7 @@ sidebar_position: 250
 
 # Proxies
 
-Proxies act as protocol bridges that connect Agent Mesh to external A2A over HTTPS agents. By translating between A2A over Solace topics and A2A over HTTPS protocols, proxies enable agents within the mesh to delegate tasks to external agents and include them in collaborative workflows.
+Proxies act as protocol bridges that connect Agent Mesh to external A2A over HTTPS agents. By translating between A2A over Solace event mesh and A2A over HTTPS protocols, proxies enable agents within the mesh to delegate tasks to external agents and include them in collaborative workflows.
 
 A single proxy instance can manage multiple external agents, each with its own URL, authentication configuration, and timeout settings.
 
@@ -15,7 +15,7 @@ Proxies are protocol bridges that connect multiple external A2A-over-HTTPS agent
 
 ## Key Functions
 
-1. **Protocol Translation**: Proxies translate between A2A over HTTPS and A2A over Solace topics, enabling external agents to communicate with agents on the mesh without modification.
+1. **Protocol Translation**: Proxies translate between A2A over HTTPS and A2A over Solace event mesh, enabling external agents to communicate with agents on the mesh without modification.
 
 2. **Authentication Management**: Proxies handle authentication to downstream agents, supporting multiple authentication schemes including static bearer tokens, API keys, and OAuth 2.0 client credentials flow with automatic token refresh.
 
@@ -45,7 +45,7 @@ Proxies are the right choice when you need:
 
 | Aspect | Proxy | Native Agent |
 |--------|-------|--------------|
-| **Communication** | A2A over HTTPS to external agent | A2A over Solace topics directly |
+| **Communication** | A2A over HTTPS to external agent | A2A over Solace event mesh directly |
 | **Deployment** | External agent runs separately | Runs within Agent Mesh |
 | **Authentication** | Proxy handles auth to external agent | Mesh-level authentication |
 | **Latency** | Additional HTTP hop | Direct mesh communication |
@@ -58,7 +58,7 @@ The proxy sits between the Solace event mesh and external A2A agents, performing
 
 ```mermaid
 graph LR
-    A[Agent Mesh<br/>A2A over Solace Topics] <-->|Solace Topics| B[Proxy Component]
+    A[Agent Mesh<br/>A2A over Solace Event Mesh] <-->|Solace Topics| B[Proxy Component]
     B <-->|HTTPS| C[External Agent 1<br/>A2A over HTTPS]
     B <-->|HTTPS| D[External Agent 2<br/>A2A over HTTPS]
     B <-->|HTTPS| E[External Agent N<br/>A2A over HTTPS]
@@ -234,7 +234,7 @@ The proxy transforms agent cards to make external agents appear as native Agent 
 - The `name` field is set to the configured alias (the name you specify in `proxied_agents`).
 - The `url` field is rewritten to use the Solace topic format (for example, `solace:myorg/production/agent/external-data-agent`).
 
-These agent cards allow other agents to interact with external agents using the standard A2A protocol over Solace topics, without knowing they are proxied.
+These agent cards allow other agents to interact with external agents using the standard A2A protocol over Solace event mesh, without knowing they are proxied.
 
 ## Task Lifecycle Management
 
