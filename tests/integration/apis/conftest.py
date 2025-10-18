@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock
 from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
     WebUIBackendFactory,
 )
+import logging
 from sqlalchemy import text
 
 from .infrastructure.database_inspector import DatabaseInspector
@@ -20,6 +21,34 @@ from .infrastructure.database_manager import (
     SqliteProvider,
 )
 from .infrastructure.gateway_adapter import GatewayAdapter
+
+log = logging.getLogger(__name__)
+
+
+def _patch_mock_component_config(factory):
+    """
+    Explicitly patches the mock component's get_config method to ensure it returns
+    a string for the 'name' key, preventing TypeError in urlunparse.
+    """
+    if not hasattr(factory, "mock_component"):
+        return
+
+    original_side_effect = factory.mock_component.get_config.side_effect
+
+    def get_config_side_effect(key, default=None):
+        if key == "name":
+            # Force return a string for the app name
+            return "A2A_WebUI_App"
+
+        # Fallback to the original side_effect if it exists
+        if callable(original_side_effect):
+            return original_side_effect(key, default)
+
+        # Fallback for safety, though it shouldn't be needed
+        return factory.app_config.get(key, default)
+
+    factory.mock_component.get_config.side_effect = get_config_side_effect
+    log.info("Patched mock_component.get_config to handle 'name' key explicitly.")
 
 
 def _patch_mock_artifact_service(factory):
@@ -226,6 +255,7 @@ def db_provider(test_agents_list: list[str], api_client_factory, db_provider_typ
             engine=api_client_factory.engine,
         )
         _patch_mock_artifact_service(api_client_factory)
+        _patch_mock_component_config(api_client_factory)
     else:
         # PostgreSQL: Setup container first, then create WebUIBackendFactory with container URL
         provider.setup(agent_names=test_agents_list)
@@ -250,6 +280,7 @@ def db_provider(test_agents_list: list[str], api_client_factory, db_provider_typ
             db_url=gateway_url, gateway_id=api_client_factory.mock_component.gateway_id
         )
         _patch_mock_artifact_service(factory)
+        _patch_mock_component_config(factory)
 
         # Store factory for cleanup
         provider._webui_factory = factory
@@ -284,6 +315,7 @@ def secondary_db_provider(
             engine=secondary_api_client_factory.engine,
         )
         _patch_mock_artifact_service(secondary_api_client_factory)
+        _patch_mock_component_config(secondary_api_client_factory)
     else:
         # PostgreSQL: Setup container first, then create WebUIBackendFactory with container URL
         provider.setup(agent_names=test_agents_list)
@@ -312,6 +344,7 @@ def secondary_db_provider(
         }
         factory = WebUIBackendFactory(db_url=gateway_url, user=secondary_user)
         _patch_mock_artifact_service(factory)
+        _patch_mock_component_config(factory)
 
         # Store factory for cleanup
         provider._webui_factory = factory
