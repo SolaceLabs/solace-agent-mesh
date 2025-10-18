@@ -197,11 +197,15 @@ jobs:
           platforms: ${{ matrix.platform.name }}
           tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
           push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
-          # Use GitHub Actions cache for both Docker layers and uv cache
+          # Use GitHub Actions cache for Docker layers, uv cache, and Playwright cache
           cache-from: |
             type=gha,scope=${{ matrix.platform.tag_suffix }}-buildkit
             type=gha,scope=${{ matrix.platform.tag_suffix }}-uv
-          cache-to: type=gha,scope=${{ matrix.platform.tag_suffix }}-buildkit,mode=max
+            type=gha,scope=${{ matrix.platform.tag_suffix }}-playwright
+          cache-to: |
+            type=gha,scope=${{ matrix.platform.tag_suffix }}-buildkit,mode=max
+            type=gha,scope=${{ matrix.platform.tag_suffix }}-uv,mode=max
+            type=gha,scope=${{ matrix.platform.tag_suffix }}-playwright,mode=max
           # Enable BuildKit features for cache mounts
           build-args: |
             BUILDKIT_INLINE_CACHE=1

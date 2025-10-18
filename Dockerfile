@@ -95,13 +95,18 @@ EOT
 COPY --from=builder --chown=solaceai:solaceai /app /app
 
 # Install Playwright (large dependency, but needed at runtime)
-# Do this as a separate layer so it's cached independently
-RUN <<EOT
+# Use cache mounts to speed up repeated builds:
+# - apt cache for system dependencies
+# - playwright cache for chromium binaries
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    <<EOT
 /app/bin/python -m playwright install-deps chromium
 EOT
 
 USER solaceai
-RUN /app/bin/python -m playwright install chromium
+RUN --mount=type=cache,target=/home/solaceai/.cache,uid=1000,gid=1000 \
+    /app/bin/python -m playwright install chromium
 
 # Copy sample SAM applications
 USER root
