@@ -44,8 +44,8 @@ def _patch_mock_component_config(factory):
         if callable(original_side_effect):
             return original_side_effect(key, default)
 
-        # Fallback for safety, though it shouldn't be needed
-        return factory.app_config.get(key, default)
+        # Fallback to default value
+        return default
 
     factory.mock_component.get_config.side_effect = get_config_side_effect
     log.info("Patched mock_component.get_config to handle 'name' key explicitly.")
