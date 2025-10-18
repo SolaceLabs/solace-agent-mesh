@@ -156,7 +156,7 @@ def test_send_task_with_large_file_via_artifacts(api_client: TestClient):
     files = {
         "upload_file": (
             "large_test.bin",
-            io.BytesIO(large_content),
+            large_content,
             "application/octet-stream",
         )
     }
