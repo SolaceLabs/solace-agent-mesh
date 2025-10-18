@@ -45,26 +45,25 @@ from ..dependencies import (
     get_sac_component,
     get_session_validator,
     get_shared_artifact_service,
-    get_user_config,
     get_user_id,
     get_session_manager,
     get_session_business_service_optional,
     get_db_optional,
 )
 
-if TYPE_CHECKING:
-    from ....gateway.http_sse.component import WebUIBackendComponent
 
 from ..session_manager import SessionManager
 from ..services.session_service import SessionService
 from sqlalchemy.orm import Session
 
 from ....agent.utils.artifact_helpers import (
-    DEFAULT_SCHEMA_MAX_KEYS,
     get_artifact_info_list,
     load_artifact_content_or_metadata,
     process_artifact_upload,
 )
+
+if TYPE_CHECKING:
+    from ....gateway.http_sse.component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
 
@@ -875,7 +874,6 @@ async def get_artifact_by_uri(
         raise HTTPException(
             status_code=500, detail="Internal server error fetching artifact by URI"
         )
-
 
 
 @router.delete(
