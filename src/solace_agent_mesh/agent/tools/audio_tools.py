@@ -1345,7 +1345,27 @@ async def transcribe_audio(
             )
 
         audio_bytes = audio_artifact_part.inline_data.data
+        audio_mime_type = audio_artifact_part.inline_data.mime_type or "application/octet-stream"
         log.debug(f"{log_identifier} Loaded audio artifact: {len(audio_bytes)} bytes")
+
+        # Load source audio metadata to copy description
+        source_audio_metadata = {}
+        try:
+            metadata_result = await load_artifact_content_or_metadata(
+                artifact_service=artifact_service,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename_base_for_load,
+                version=version_to_load,
+                load_metadata_only=True,
+                log_identifier_prefix=f"{log_identifier}[source_metadata]",
+            )
+            if metadata_result.get("status") == "success":
+                source_audio_metadata = metadata_result.get("metadata", {})
+                log.debug(f"{log_identifier} Loaded source audio metadata")
+        except Exception as meta_err:
+            log.warning(f"{log_identifier} Could not load source audio metadata: {meta_err}")
 
         temp_file_path = None
         try:
