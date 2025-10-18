@@ -61,16 +61,17 @@ from sqlalchemy.orm import Session
 
 from ....agent.utils.artifact_helpers import (
     DEFAULT_SCHEMA_MAX_KEYS,
-    format_artifact_uri,
     get_artifact_info_list,
     load_artifact_content_or_metadata,
-    save_artifact_with_metadata,
+    process_artifact_upload,
 )
 
 log = logging.getLogger(__name__)
 
+
 class ArtifactUploadResponse(BaseModel):
     """Response model for artifact upload with camelCase fields."""
+
     uri: str
     session_id: str = Field(..., alias="sessionId")
     filename: str
@@ -95,7 +96,11 @@ router = APIRouter()
 async def upload_artifact_with_session(
     request: FastAPIRequest,
     upload_file: UploadFile = File(..., description="The file content to upload"),
-    sessionId: str | None = Form(None, description="Session ID (null/empty to create new session)", alias="sessionId"),
+    sessionId: str | None = Form(
+        None,
+        description="Session ID (null/empty to create new session)",
+        alias="sessionId",
+    ),
     filename: str = Form(..., description="The name of the artifact to create/update"),
     metadata_json: str | None = Form(
         None, description="JSON string of artifact metadata (e.g., description, source)"
@@ -106,7 +111,9 @@ async def upload_artifact_with_session(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:create"])),
     session_manager: SessionManager = Depends(get_session_manager),
-    session_service: SessionService | None = Depends(get_session_business_service_optional),
+    session_service: SessionService | None = Depends(
+        get_session_business_service_optional
+    ),
     db: Session | None = Depends(get_db_optional),
 ):
     """
@@ -129,7 +136,11 @@ async def upload_artifact_with_session(
     else:
         # Create new session when no sessionId provided (like chat does for new conversations)
         effective_session_id = session_manager.create_new_session_id(request)
-        log.info("%sCreated new session for file upload: %s", log_prefix, effective_session_id)
+        log.info(
+            "%sCreated new session for file upload: %s",
+            log_prefix,
+            effective_session_id,
+        )
 
         # Persist session in database if persistence is available (matching chat pattern)
         if session_service and db:
@@ -139,17 +150,27 @@ async def upload_artifact_with_session(
                     user_id=user_id,
                     session_id=effective_session_id,
                     agent_id=None,  # Will be determined when first message is sent
-                    name=None,      # Will be set when first message is sent
+                    name=None,  # Will be set when first message is sent
                 )
                 db.commit()
-                log.info("%sSession created and committed to database: %s", log_prefix, effective_session_id)
+                log.info(
+                    "%sSession created and committed to database: %s",
+                    log_prefix,
+                    effective_session_id,
+                )
             except Exception as session_error:
                 db.rollback()
-                log.warning("%sSession persistence failed, continuing with in-memory session: %s",
-                           log_prefix, session_error)
+                log.warning(
+                    "%sSession persistence failed, continuing with in-memory session: %s",
+                    log_prefix,
+                    session_error,
+                )
         else:
-            log.debug("%sNo persistence available - using in-memory session: %s",
-                     log_prefix, effective_session_id)
+            log.debug(
+                "%sNo persistence available - using in-memory session: %s",
+                log_prefix,
+                effective_session_id,
+            )
 
     # Validate inputs
     if not filename or not filename.strip():
@@ -174,56 +195,83 @@ async def upload_artifact_with_session(
 
     # Validate session (now that we have an effective_session_id)
     if not validate_session(effective_session_id, user_id):
-        log.warning("%sSession validation failed for session: %s", log_prefix, effective_session_id)
+        log.warning(
+            "%sSession validation failed for session: %s",
+            log_prefix,
+            effective_session_id,
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid session or insufficient permissions.",
         )
 
-    log.info("%sUploading file '%s' to session '%s'", log_prefix, filename.strip(), effective_session_id)
+    log.info(
+        "%sUploading file '%s' to session '%s'",
+        log_prefix,
+        filename.strip(),
+        effective_session_id,
+    )
 
     try:
         # Read and validate file content
         content_bytes = await upload_file.read()
-        if not content_bytes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File is empty.",
-            )
 
         mime_type = upload_file.content_type or "application/octet-stream"
         filename_clean = filename.strip()
 
-        log.debug("%sProcessing file: %s (%d bytes, %s)", log_prefix, filename_clean, len(content_bytes), mime_type)
+        log.debug(
+            "%sProcessing file: %s (%d bytes, %s)",
+            log_prefix,
+            filename_clean,
+            len(content_bytes),
+            mime_type,
+        )
 
-        # Parse and validate metadata
-        metadata = {}
-        if metadata_json and metadata_json.strip():
-            try:
-                metadata = json.loads(metadata_json.strip())
-                if not isinstance(metadata, dict):
-                    raise ValueError("Metadata must be a JSON object")
-            except (json.JSONDecodeError, ValueError) as e:
-                log.warning("%sInvalid metadata JSON: %s", log_prefix, e)
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid JSON in metadata field: {str(e)}",
-                )
-
-        app_name = component.get_config("name", "A2A_WebUI_App")
-
-        # Store the artifact using the service
-        artifact_uri = await artifact_service.store(
-            app_name=app_name,
+        # Use the common upload helper
+        upload_result = await process_artifact_upload(
+            artifact_service=artifact_service,
+            component=component,
             user_id=user_id,
             session_id=effective_session_id,
             filename=filename_clean,
             content_bytes=content_bytes,
             mime_type=mime_type,
-            metadata=metadata,
+            metadata_json=metadata_json,
+            log_prefix=log_prefix,
         )
 
-        log.info("%sArtifact stored successfully: %s (%d bytes)", log_prefix, artifact_uri, len(content_bytes))
+        if upload_result["status"] != "success":
+            error_msg = upload_result.get("message", "Failed to upload artifact")
+            error_type = upload_result.get("error", "unknown")
+
+            if error_type in ["invalid_filename", "empty_file"]:
+                status_code = status.HTTP_400_BAD_REQUEST
+            else:
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+            log.error("%s%s", log_prefix, error_msg)
+            raise HTTPException(status_code=status_code, detail=error_msg)
+
+        artifact_uri = upload_result["artifact_uri"]
+        saved_version = upload_result["version"]
+
+        log.info(
+            "%sArtifact stored successfully: %s (%d bytes), version: %s",
+            log_prefix,
+            artifact_uri,
+            len(content_bytes),
+            saved_version,
+        )
+
+        # Get metadata from upload result (it was already parsed and validated)
+        metadata_dict = {}
+        if metadata_json and metadata_json.strip():
+            try:
+                metadata_dict = json.loads(metadata_json.strip())
+                if not isinstance(metadata_dict, dict):
+                    metadata_dict = {}
+            except json.JSONDecodeError:
+                metadata_dict = {}
 
         # Return standardized response using Pydantic model (ensures camelCase conversion)
         return ArtifactUploadResponse(
@@ -232,8 +280,10 @@ async def upload_artifact_with_session(
             filename=filename_clean,
             size=len(content_bytes),
             mime_type=mime_type,  # Will be returned as "mimeType" due to alias
-            metadata=metadata,
-            created_at=datetime.now(timezone.utc).isoformat(),  # Will be returned as "createdAt" due to alias
+            metadata=metadata_dict,
+            created_at=datetime.now(
+                timezone.utc
+            ).isoformat(),  # Will be returned as "createdAt" due to alias
         )
 
     except HTTPException:
@@ -785,7 +835,6 @@ async def get_artifact_by_uri(
             version,
         )
 
-
         log.info(
             "%s User '%s' authorized to access artifact URI.",
             log_id_prefix,
@@ -883,93 +932,49 @@ async def upload_artifact(
 
     try:
         content_bytes = await upload_file.read()
-        if not content_bytes:
-            log.warning("%s Uploaded file is empty.", log_prefix)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Uploaded file cannot be empty.",
-            )
-
         mime_type = upload_file.content_type or "application/octet-stream"
 
-        parsed_metadata = {}
-        if metadata_json:
-            try:
-                parsed_metadata = json.loads(metadata_json)
-                if not isinstance(parsed_metadata, dict):
-                    log.warning(
-                        "%s Metadata JSON did not parse to a dictionary. Ignoring.",
-                        log_prefix,
-                    )
-                    parsed_metadata = {}
-            except json.JSONDecodeError as json_err:
-                log.warning(
-                    "%s Failed to parse metadata_json: %s. Proceeding without it.",
-                    log_prefix,
-                    json_err,
-                )
-
-        app_name = component.get_config("name", "A2A_WebUI_App")
-        current_timestamp = datetime.now(timezone.utc)
-
-        save_result = await save_artifact_with_metadata(
+        # Use the common upload helper
+        upload_result = await process_artifact_upload(
             artifact_service=artifact_service,
-            app_name=app_name,
+            component=component,
             user_id=user_id,
             session_id=session_id,
             filename=filename,
             content_bytes=content_bytes,
             mime_type=mime_type,
-            metadata_dict=parsed_metadata,
-            timestamp=current_timestamp,
-            schema_max_keys=component.get_config(
-                "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
-            ),
+            metadata_json=metadata_json,
+            log_prefix=log_prefix,
         )
 
-        if save_result["status"] == "success":
-            log.info(
-                "%s Artifact and metadata processing completed. Data version: %s, Metadata version: %s. Message: %s",
-                log_prefix,
-                save_result.get("data_version"),
-                save_result.get("metadata_version"),
-                save_result.get("message"),
-            )
-            saved_version = save_result.get("data_version")
-            artifact_uri = format_artifact_uri(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename,
-                version=saved_version,
-            )
-            log.info(
-                "%s Successfully saved artifact. Returning URI: %s",
-                log_prefix,
-                artifact_uri,
-            )
-            return {
-                "filename": filename,
-                "data_version": saved_version,
-                "metadata_version": save_result.get("metadata_version"),
-                "mime_type": mime_type,
-                "size": len(content_bytes),
-                "message": save_result.get("message"),
-                "status": save_result["status"],
-                "uri": artifact_uri,
-            }
-        else:
-            log.error(
-                "%s Failed to save artifact and metadata: %s",
-                log_prefix,
-                save_result.get("message"),
-            )
+        if upload_result["status"] != "success":
+            error_msg = upload_result.get("message", "Failed to upload artifact")
+            log.error("%s%s", log_prefix, error_msg)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=save_result.get(
-                    "message", "Failed to save artifact with metadata."
-                ),
+                detail=error_msg,
             )
+
+        artifact_uri = upload_result["artifact_uri"]
+        saved_version = upload_result["version"]
+
+        log.info(
+            "%s Artifact and metadata processing completed. Data version: %s, Metadata version: %s",
+            log_prefix,
+            saved_version,
+            upload_result.get("metadata_version"),
+        )
+
+        return {
+            "filename": filename,
+            "data_version": saved_version,
+            "metadata_version": upload_result.get("metadata_version"),
+            "mime_type": mime_type,
+            "size": len(content_bytes),
+            "message": upload_result.get("message"),
+            "status": upload_result["status"],
+            "uri": artifact_uri,
+        }
 
     except HTTPException:
         raise
