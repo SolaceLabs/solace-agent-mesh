@@ -533,7 +533,9 @@ def test_static_file_server():
                 print(f"TestStaticFileServer confirmed started after {i + 1} attempts.")
                 ready = True
                 break
-            print(f"TestStaticFileServer not ready yet (attempt {i + 1}/{max_retries})...")
+            print(
+                f"TestStaticFileServer not ready yet (attempt {i + 1}/{max_retries})..."
+            )
         except Exception as e:
             print(
                 f"TestStaticFileServer readiness check (attempt {i + 1}/{max_retries}) encountered an error: {e}"
@@ -1050,6 +1052,7 @@ def shared_solace_connector(
                     {
                         "name": "TestAgent_Proxied",
                         "url": test_a2a_agent_server_harness.url,
+                        "request_timeout_seconds": 3,
                     }
                 ],
                 "artifact_service": {"type": "test_in_memory"},
@@ -1493,16 +1496,16 @@ def clear_all_agent_states_between_tests(
     _clear_agent_component_state(mixed_discovery_agent_app_under_test)
     _clear_agent_component_state(complex_signatures_agent_app_under_test)
     _clear_agent_component_state(config_context_agent_app_under_test)
-    
+
     # Clear proxy client cache to ensure fresh clients with updated auth config
     a2a_proxy_component.clear_client_cache()
-    
+
     # Clear captured auth headers from downstream agent server
     test_a2a_agent_server_harness.clear_captured_auth_headers()
-    
+
     # Clear captured A2A requests from downstream agent server
     test_a2a_agent_server_harness.clear_captured_requests()
-    
+
     # Clear auth validation state from downstream agent server
     test_a2a_agent_server_harness.clear_auth_state()
 
@@ -1614,18 +1617,13 @@ def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
         security=[{"bearer": []}, {"apikey": []}],
         security_schemes={
             "bearer": SecurityScheme(
-                root=HTTPAuthSecurityScheme(
-                    type="http",
-                    scheme="bearer"
-                )
+                root=HTTPAuthSecurityScheme(type="http", scheme="bearer")
             ),
             "apikey": SecurityScheme(
                 root=APIKeySecurityScheme(
-                    type="apiKey",
-                    name="X-API-Key",
-                    in_=In.header
+                    type="apiKey", name="X-API-Key", in_=In.header
                 )
-            )
+            ),
         },
     )
 
