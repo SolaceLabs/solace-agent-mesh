@@ -757,6 +757,14 @@ def shared_solace_connector(
             "tool_name": "web_request",
             "tool_config": {"allow_loopback": True},
         },
+        {
+            "tool_type": "python",
+            "component_module": "solace_agent_mesh.agent.tools.web_tools",
+            "function_name": "web_request",
+            "tool_name": "web_request_strict",
+            "component_base_path": ".",
+            "tool_config": {"allow_loopback": False},
+        },
         {"tool_type": "builtin", "tool_name": "mermaid_diagram_generator"},
         {
             "tool_type": "builtin",
