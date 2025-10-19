@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <item id="1">
+        <name>Test Item One</name>
+        <value>100</value>
+        <description>First test item</description>
+    </item>
+    <item id="2">
+        <name>Test Item Two</name>
+        <value>200</value>
+        <description>Second test item</description>
+    </item>
+    <metadata>
+        <created>2024-01-01T00:00:00Z</created>
+        <purpose>Testing XML content type handling</purpose>
+    </metadata>
+</root>

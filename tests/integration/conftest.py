@@ -30,6 +30,7 @@ from sam_test_infrastructure.gateway_interface.component import TestGatewayCompo
 from sam_test_infrastructure.llm_server.server import TestLLMServer
 from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
 from sam_test_infrastructure.a2a_agent_server.server import TestA2AAgentServer
+from sam_test_infrastructure.static_file_server.server import TestStaticFileServer
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 from sqlalchemy import create_engine, text
 
@@ -514,6 +515,46 @@ def test_llm_server():
 
 
 @pytest.fixture(scope="session")
+def test_static_file_server():
+    """
+    Manages the lifecycle of the TestStaticFileServer for the test session.
+    Yields the TestStaticFileServer instance.
+    """
+    server = TestStaticFileServer(host="127.0.0.1", port=8089)
+    server.start()
+
+    max_retries = 20
+    retry_delay = 0.25
+    ready = False
+    for i in range(max_retries):
+        time.sleep(retry_delay)
+        try:
+            if server.started:
+                print(f"TestStaticFileServer confirmed started after {i + 1} attempts.")
+                ready = True
+                break
+            print(f"TestStaticFileServer not ready yet (attempt {i + 1}/{max_retries})...")
+        except Exception as e:
+            print(
+                f"TestStaticFileServer readiness check (attempt {i + 1}/{max_retries}) encountered an error: {e}"
+            )
+
+    if not ready:
+        try:
+            server.stop()
+        except Exception:
+            pass
+        pytest.fail("TestStaticFileServer did not become ready in time.")
+
+    print(f"TestStaticFileServer fixture: Server ready at {server.url}")
+    yield server
+
+    print("TestStaticFileServer fixture: Stopping server...")
+    server.stop()
+    print("TestStaticFileServer fixture: Server stopped.")
+
+
+@pytest.fixture(scope="session")
 def test_a2a_agent_server_harness(
     mock_agent_card: AgentCard,
 ) -> Generator[TestA2AAgentServer, None, None]:
@@ -576,6 +617,17 @@ def clear_llm_server_configs(test_llm_server: TestLLMServer):
     Also clears the global static response.
     """
     test_llm_server.clear_all_configurations()
+
+
+@pytest.fixture(autouse=True)
+def clear_static_file_server_state(test_static_file_server: TestStaticFileServer):
+    """
+    Automatically clears configured responses and captured requests from the
+    TestStaticFileServer before each test.
+    """
+    yield
+    test_static_file_server.clear_configured_responses()
+    test_static_file_server.clear_captured_requests()
 
 
 @pytest.fixture()
