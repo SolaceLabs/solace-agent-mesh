@@ -69,35 +69,40 @@ class A2AProxyComponent(BaseProxyComponent):
         # Cache Client instances per (agent_name, session_id, is_streaming) to ensure
         # each session gets its own client with session-specific credentials and streaming mode
         self._a2a_clients: Dict[Tuple[str, str, bool], Client] = {}
-        self._credential_store: InMemoryContextCredentialStore = InMemoryContextCredentialStore()
-        self._auth_interceptor: AuthInterceptor = AuthInterceptor(self._credential_store)
+        self._credential_store: InMemoryContextCredentialStore = (
+            InMemoryContextCredentialStore()
+        )
+        self._auth_interceptor: AuthInterceptor = AuthInterceptor(
+            self._credential_store
+        )
         # OAuth 2.0 token cache for client credentials flow
         # Why use asyncio.Lock: Ensures thread-safe access to the token cache
         # when multiple concurrent requests target the same agent
         self._oauth_token_cache: OAuth2TokenCache = OAuth2TokenCache()
-        
+
         # Index agent configs by name for O(1) lookup (performance optimization)
         self._agent_config_by_name: Dict[str, Dict[str, Any]] = {
-            agent["name"]: agent 
-            for agent in self.proxied_agents_config
+            agent["name"]: agent for agent in self.proxied_agents_config
         }
-        
+
         # OAuth 2.0 configuration is now validated by Pydantic models at app initialization
         # No need for separate _validate_oauth_config() method
 
     def _get_agent_config(self, agent_name: str) -> Optional[Dict[str, Any]]:
         """
         O(1) lookup of agent configuration by name.
-        
+
         Args:
             agent_name: The name of the agent to look up.
-            
+
         Returns:
             The agent configuration dictionary, or None if not found.
         """
         return self._agent_config_by_name.get(agent_name)
 
-    async def _fetch_agent_card(self, agent_config: Dict[str, Any]) -> Optional[AgentCard]:
+    async def _fetch_agent_card(
+        self, agent_config: Dict[str, Any]
+    ) -> Optional[AgentCard]:
         """
         Fetches the AgentCard from a downstream A2A agent via HTTPS.
         """
@@ -137,7 +142,7 @@ class A2AProxyComponent(BaseProxyComponent):
     ) -> None:
         """
         Forwards an A2A request to a downstream A2A-over-HTTPS agent.
-        
+
         Implements automatic retry logic for OAuth 2.0 authentication failures.
         If a 401 Unauthorized response is received and the agent uses OAuth 2.0,
         the cached token is invalidated and the request is retried once with a
@@ -166,17 +171,20 @@ class A2AProxyComponent(BaseProxyComponent):
 
                 # Create context with sessionId (camelCase!) so AuthInterceptor can look up credentials
                 from a2a.client.middleware import ClientCallContext
-                
-                session_id = task_context.a2a_context.get("session_id", "default_session")
+
+                session_id = task_context.a2a_context.get(
+                    "session_id", "default_session"
+                )
                 call_context = ClientCallContext(state={"sessionId": session_id})
 
                 # Forward the request with context
-                if isinstance(request, (SendStreamingMessageRequest, SendMessageRequest)):
+                if isinstance(
+                    request, (SendStreamingMessageRequest, SendMessageRequest)
+                ):
                     # Extract the Message from the request params
                     message_to_send = request.params.message
-                    
+
                     # WORKAROUND: The A2A SDK has a bug in ClientTaskManager that breaks streaming.
-                    # Issue has been open with maintainers for over a week with no response.
                     # For streaming requests, we bypass the Client.send_message() method and call
                     # the transport directly to avoid the buggy ClientTaskManager.
                     # Non-streaming requests work fine with the normal client method.
@@ -200,7 +208,9 @@ class A2AProxyComponent(BaseProxyComponent):
                             "%s Using normal client method for non-streaming request",
                             log_identifier,
                         )
-                        async for event in client.send_message(message_to_send, context=call_context):
+                        async for event in client.send_message(
+                            message_to_send, context=call_context
+                        ):
                             await self._process_downstream_response(
                                 event, task_context, client, agent_name
                             )
@@ -214,7 +224,9 @@ class A2AProxyComponent(BaseProxyComponent):
                     # Use the modern client's cancel_task method
                     # Note: Pass the entire params object (TaskIdParams) instead of just the id string
                     # to work around an SDK bug where it doesn't properly handle string inputs
-                    result = await client.cancel_task(request.params, context=call_context)
+                    result = await client.cancel_task(
+                        request.params, context=call_context
+                    )
                     # Publish the canceled task response
                     await self._publish_final_response(result, task_context.a2a_context)
                 else:
@@ -247,7 +259,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 else:
                     # Some other RuntimeError - re-raise it
                     raise
-            
+
             except A2AClientJSONRPCError as e:
                 # Handle JSON-RPC protocol errors
                 log.error(
@@ -259,7 +271,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 # TODO: Publish error response to Solace
                 # Do not retry - this is a protocol-level error
                 raise
-                
+
             except ConnectionError as e:
                 # Connection errors (including those converted from RuntimeError above)
                 log.error(
@@ -269,15 +281,15 @@ class A2AProxyComponent(BaseProxyComponent):
                     e,
                 )
                 raise
-                
+
             except A2AClientHTTPError as e:
                 # Step 4: Add specific handling for 401 Unauthorized errors
                 # The error might be wrapped in an SSE parsing error, so we need to check
                 # if the underlying cause is a 401
                 is_401_error = False
-                
+
                 # Check if this is directly a 401
-                if hasattr(e, 'status_code') and e.status_code == 401:
+                if hasattr(e, "status_code") and e.status_code == 401:
                     is_401_error = True
                 # Check if this is an SSE parsing error caused by a 401 response
                 elif "401" in str(e) or "Unauthorized" in str(e):
@@ -287,7 +299,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 elif "application/json" in str(e) and "text/event-stream" in str(e):
                     # This is likely an SSE parsing error caused by a 401 JSON response
                     is_401_error = True
-                
+
                 if is_401_error and auth_retry_count < max_auth_retries:
                     log.warning(
                         "%s Received 401 Unauthorized from agent '%s' (detected from error: %s). Attempting token refresh (retry %d/%d).",
@@ -297,12 +309,14 @@ class A2AProxyComponent(BaseProxyComponent):
                         auth_retry_count + 1,
                         max_auth_retries,
                     )
-                    
-                    should_retry = await self._handle_auth_error(agent_name, task_context)
+
+                    should_retry = await self._handle_auth_error(
+                        agent_name, task_context
+                    )
                     if should_retry:
                         auth_retry_count += 1
                         continue  # Retry with fresh token
-                
+
                 # Not a retryable auth error, or max retries exceeded
                 log.exception(
                     "%s HTTP error forwarding request: %s",
@@ -310,7 +324,7 @@ class A2AProxyComponent(BaseProxyComponent):
                     e,
                 )
                 raise
-                
+
             except Exception as e:
                 log.exception(
                     "%s Unexpected error forwarding request: %s",
@@ -322,38 +336,36 @@ class A2AProxyComponent(BaseProxyComponent):
                 raise
 
     async def _handle_auth_error(
-        self, 
-        agent_name: str, 
-        task_context: ProxyTaskContext
+        self, agent_name: str, task_context: ProxyTaskContext
     ) -> bool:
         """
         Handles authentication errors by invalidating cached tokens and clients.
-        
+
         This method is called when a 401 Unauthorized response is received from
         a downstream agent. It checks if the agent uses OAuth 2.0 authentication,
         and if so, invalidates the cached token and removes ALL cached clients
         for this agent/session combination (both streaming and non-streaming).
-        
+
         Args:
             agent_name: The name of the agent that returned 401.
             task_context: The current task context.
-        
+
         Returns:
             True if token was invalidated and retry should be attempted.
             False if no retry should be attempted (e.g., static token).
         """
         log_identifier = f"{self.log_identifier}[AuthError:{agent_name}]"
-        
+
         # Step 1: Retrieve agent configuration using O(1) lookup
         agent_config = self._get_agent_config(agent_name)
-        
+
         if not agent_config:
             log.warning(
                 "%s Agent configuration not found. Cannot handle auth error.",
                 log_identifier,
             )
             return False
-        
+
         # Step 2: Check authentication type
         auth_config = agent_config.get("authentication")
         if not auth_config:
@@ -362,13 +374,13 @@ class A2AProxyComponent(BaseProxyComponent):
                 log_identifier,
             )
             return False
-        
+
         auth_type = auth_config.get("type")
         if not auth_type:
             # Legacy config - infer from scheme
             scheme = auth_config.get("scheme", "bearer")
             auth_type = "static_bearer" if scheme == "bearer" else "static_apikey"
-        
+
         if auth_type != "oauth2_client_credentials":
             log.debug(
                 "%s Agent uses '%s' authentication (not OAuth 2.0). No retry for static tokens.",
@@ -376,7 +388,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 auth_type,
             )
             return False
-        
+
         # Step 3: Invalidate cached OAuth token
         log.info(
             "%s Invalidating cached OAuth 2.0 token for agent '%s'.",
@@ -384,7 +396,7 @@ class A2AProxyComponent(BaseProxyComponent):
             agent_name,
         )
         await self._oauth_token_cache.invalidate(agent_name)
-        
+
         # Step 4: Remove ALL cached Clients for this agent/session combination
         # We clear both streaming and non-streaming clients because:
         # 1. Both share the same session_id in the credential store
@@ -392,7 +404,7 @@ class A2AProxyComponent(BaseProxyComponent):
         # 3. We want fresh tokens for any subsequent requests
         # The cache key is a 3-tuple: (agent_name, session_id, is_streaming)
         session_id = task_context.a2a_context.get("session_id", "default_session")
-        
+
         clients_removed = 0
         for is_streaming in [True, False]:
             cache_key = (agent_name, session_id, is_streaming)
@@ -406,7 +418,7 @@ class A2AProxyComponent(BaseProxyComponent):
                     session_id,
                     is_streaming,
                 )
-        
+
         if clients_removed == 0:
             log.warning(
                 "%s No cached Clients found for agent '%s' session '%s'. This is unexpected.",
@@ -420,7 +432,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 log_identifier,
                 clients_removed,
             )
-        
+
         # Step 5: Return True to signal retry should be attempted
         log.info(
             "%s Auth error handling complete. Retry will be attempted with fresh token.",
@@ -433,11 +445,11 @@ class A2AProxyComponent(BaseProxyComponent):
     ) -> str:
         """
         Fetches an OAuth 2.0 access token using the client credentials flow.
-        
+
         This method implements token caching to avoid unnecessary token requests.
         Tokens are cached per agent and automatically expire based on the configured
         cache duration (default: 55 minutes).
-        
+
         Args:
             agent_name: The name of the agent (used as cache key).
             auth_config: Authentication configuration dictionary containing:
@@ -446,34 +458,34 @@ class A2AProxyComponent(BaseProxyComponent):
                 - client_secret: OAuth 2.0 client secret (required)
                 - scope: (optional) Space-separated scope string
                 - token_cache_duration_seconds: (optional) Cache duration in seconds
-        
+
         Returns:
             A valid OAuth 2.0 access token (string).
-        
+
         Raises:
             ValueError: If required OAuth parameters are missing or invalid.
             httpx.HTTPStatusError: If token request returns non-2xx status.
             httpx.RequestError: If network error occurs.
         """
         log_identifier = f"{self.log_identifier}[OAuth2:{agent_name}]"
-        
+
         # Step 1: Check cache first
         cached_token = await self._oauth_token_cache.get(agent_name)
         if cached_token:
             log.debug("%s Using cached OAuth token.", log_identifier)
             return cached_token
-        
+
         # Step 2: Validate required parameters
         token_url = auth_config.get("token_url")
         client_id = auth_config.get("client_id")
         client_secret = auth_config.get("client_secret")
-        
+
         if not all([token_url, client_id, client_secret]):
             raise ValueError(
                 f"{log_identifier} OAuth 2.0 client credentials flow requires "
                 "'token_url', 'client_id', and 'client_secret'."
             )
-        
+
         # SECURITY: Enforce HTTPS for token URL
         parsed_url = urlparse(token_url)
         if parsed_url.scheme != "https":
@@ -486,13 +498,13 @@ class A2AProxyComponent(BaseProxyComponent):
                 f"{log_identifier} OAuth 2.0 token_url must use HTTPS for security. "
                 f"Got: {parsed_url.scheme}://"
             )
-        
+
         # Step 3: Extract optional parameters
         scope = auth_config.get("scope", "")
         # Why 3300 seconds (55 minutes): Provides a 5-minute safety margin before
         # typical 60-minute token expiration, preventing token expiration mid-request
         cache_duration = auth_config.get("token_cache_duration_seconds", 3300)
-        
+
         # Step 4: Log token acquisition attempt
         # SECURITY: Never log client_secret or access_token to prevent credential leakage
         log.info(
@@ -501,7 +513,7 @@ class A2AProxyComponent(BaseProxyComponent):
             token_url,
             scope or "default",
         )
-        
+
         try:
             # Step 5: Create temporary httpx client with 30-second timeout
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -521,32 +533,32 @@ class A2AProxyComponent(BaseProxyComponent):
                     },
                 )
                 response.raise_for_status()
-                
+
                 # Step 7: Parse response
                 token_response = response.json()
                 access_token = token_response.get("access_token")
-                
+
                 if not access_token:
                     raise ValueError(
                         f"{log_identifier} Token response missing 'access_token' field. "
                         f"Response keys: {list(token_response.keys())}"
                     )
-                
+
                 # Step 8: Cache the token
                 await self._oauth_token_cache.set(
                     agent_name, access_token, cache_duration
                 )
-                
+
                 # Step 9: Log success
                 log.info(
                     "%s Successfully obtained OAuth 2.0 token (cached for %ds)",
                     log_identifier,
                     cache_duration,
                 )
-                
+
                 # Step 10: Return access token
                 return access_token
-                
+
         except httpx.HTTPStatusError as e:
             log.error(
                 "%s OAuth 2.0 token request failed with status %d: %s",
@@ -575,27 +587,27 @@ class A2AProxyComponent(BaseProxyComponent):
     ) -> Optional[Client]:
         """
         Gets a cached Client or creates a new one for the given agent, session, and streaming mode.
-        
+
         Caches clients per (agent_name, session_id, is_streaming) to ensure each session gets its
         own client with session-specific credentials and the correct streaming mode. This is necessary because:
         1. The A2A SDK's AuthInterceptor uses session-based credential lookup
         2. The Client's streaming mode is set at creation time and cannot be changed
-        
+
         Supports multiple authentication types:
         - static_bearer: Static bearer token authentication
         - static_apikey: Static API key authentication
         - oauth2_client_credentials: OAuth 2.0 Client Credentials flow with automatic token refresh
-        
+
         For backward compatibility, legacy configurations without a 'type' field
         will have their type inferred from the 'scheme' field.
-        
+
         The client's streaming mode is determined by the original request type from
         the gateway (message/send vs message/stream).
         """
         session_id = task_context.a2a_context.get("session_id", "default_session")
         is_streaming = task_context.a2a_context.get("is_streaming", True)
         cache_key = (agent_name, session_id, is_streaming)
-        
+
         if cache_key in self._a2a_clients:
             return self._a2a_clients[cache_key]
 
@@ -622,7 +634,7 @@ class A2AProxyComponent(BaseProxyComponent):
         auth_config = agent_config.get("authentication")
         if auth_config:
             auth_type = auth_config.get("type")
-            
+
             # Determine auth type (with backward compatibility)
             if not auth_type:
                 # Legacy config: infer type from 'scheme' field
@@ -636,21 +648,21 @@ class A2AProxyComponent(BaseProxyComponent):
                         f"Unknown legacy authentication scheme '{scheme}' for agent '{agent_name}'. "
                         f"Supported schemes: 'bearer', 'apikey'."
                     )
-                
+
                 log.warning(
                     "%s Using legacy authentication config for agent '%s'. "
                     "Consider migrating to 'type' field.",
                     self.log_identifier,
                     agent_name,
                 )
-            
+
             log.info(
                 "%s Configuring authentication type '%s' for agent '%s'",
                 self.log_identifier,
                 auth_type,
                 agent_name,
             )
-            
+
             # Route to appropriate handler
             if auth_type == "static_bearer":
                 token = auth_config.get("token")
@@ -658,21 +670,29 @@ class A2AProxyComponent(BaseProxyComponent):
                     raise ValueError(
                         f"Authentication type 'static_bearer' requires 'token' for agent '{agent_name}'"
                     )
-                await self._credential_store.set_credentials(session_id, "bearer", token)
-            
+                await self._credential_store.set_credentials(
+                    session_id, "bearer", token
+                )
+
             elif auth_type == "static_apikey":
                 token = auth_config.get("token")
                 if not token:
                     raise ValueError(
                         f"Authentication type 'static_apikey' requires 'token' for agent '{agent_name}'"
                     )
-                await self._credential_store.set_credentials(session_id, "apikey", token)
-            
+                await self._credential_store.set_credentials(
+                    session_id, "apikey", token
+                )
+
             elif auth_type == "oauth2_client_credentials":
                 # NEW: OAuth 2.0 Client Credentials Flow
                 try:
-                    access_token = await self._fetch_oauth2_token(agent_name, auth_config)
-                    await self._credential_store.set_credentials(session_id, "bearer", access_token)
+                    access_token = await self._fetch_oauth2_token(
+                        agent_name, auth_config
+                    )
+                    await self._credential_store.set_credentials(
+                        session_id, "bearer", access_token
+                    )
                 except Exception as e:
                     log.error(
                         "%s Failed to obtain OAuth 2.0 token for agent '%s': %s",
@@ -681,7 +701,7 @@ class A2AProxyComponent(BaseProxyComponent):
                         e,
                     )
                     raise
-            
+
             else:
                 raise ValueError(
                     f"Unsupported authentication type '{auth_type}' for agent '{agent_name}'. "
@@ -697,7 +717,7 @@ class A2AProxyComponent(BaseProxyComponent):
             supported_transports=[TransportProtocol.jsonrpc],
             accepted_output_modes=[],
         )
-        
+
         # Create client using ClientFactory
         factory = ClientFactory(config)
         client = factory.create(
@@ -705,7 +725,7 @@ class A2AProxyComponent(BaseProxyComponent):
             consumers=None,
             interceptors=[self._auth_interceptor],
         )
-        
+
         self._a2a_clients[cache_key] = client
         return client
 
@@ -818,6 +838,7 @@ class A2AProxyComponent(BaseProxyComponent):
                             metadata=a2a.get_metadata_from_part(file_part),
                         )
                         from a2a.types import Part
+
                         artifact.parts[i] = Part(root=new_file_part)
 
                         saved_artifacts_manifest.append(
@@ -842,18 +863,20 @@ class A2AProxyComponent(BaseProxyComponent):
 
     async def _process_downstream_response(
         self,
-        event: Union[tuple, Message, Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent],
+        event: Union[
+            tuple, Message, Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent
+        ],
         task_context: ProxyTaskContext,
         client: Client,
         agent_name: str,
     ) -> None:
         """
         Processes a single event from the downstream agent.
-        
+
         When using the normal client (non-streaming), events are:
         - A ClientEvent tuple: (Task, Optional[UpdateEvent])
         - A Message object (for direct responses)
-        
+
         When using transport directly (streaming workaround), events are raw:
         - Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent, or Message objects
         """
@@ -863,7 +886,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
         # Use facade helpers to determine event type
         event_payload = None
-        
+
         # Handle raw transport events (from streaming workaround)
         if isinstance(event, (Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
             event_payload = event
@@ -935,7 +958,9 @@ class A2AProxyComponent(BaseProxyComponent):
             )
 
         # Add agent_name to metadata for all response types
-        if isinstance(event_payload, (Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
+        if isinstance(
+            event_payload, (Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent)
+        ):
             if not event_payload.metadata:
                 event_payload.metadata = {}
             event_payload.metadata["agent_name"] = agent_name
@@ -983,6 +1008,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
                 if not event_payload.status.message:
                     from a2a.types import Part
+
                     event_payload.status.message = Message(
                         message_id=str(uuid.uuid4()),
                         role="agent",
@@ -990,7 +1016,10 @@ class A2AProxyComponent(BaseProxyComponent):
                     )
                 else:
                     from a2a.types import Part
-                    event_payload.status.message.parts.append(Part(root=summary_message_part))
+
+                    event_payload.status.message.parts.append(
+                        Part(root=summary_message_part)
+                    )
 
         if isinstance(event_payload, (Task, TaskStatusUpdateEvent)):
             if isinstance(event_payload, Task):
