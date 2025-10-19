@@ -23,6 +23,7 @@ from sam_test_infrastructure.a2a_agent_server.server import TestA2AAgentServer
 from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
+from sam_test_infrastructure.static_file_server.server import TestStaticFileServer
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from a2a.types import (
     TextPart,
