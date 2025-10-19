@@ -1,5 +1,5 @@
 test_case_id: web_request_post_request
-description: "Test that web_request tool can handle a POST request with a body. Note: Uses external URL because TestStaticFileServer only supports GET requests."
+description: "Test that web_request tool can handle a POST request with a body."
 tags: ["all", "agent", "tools", "web_tools"]
 skip_intermediate_events: true
 
@@ -11,7 +11,7 @@ gateway_input:
     a2a_session_id: "session-462"
   prompt:
     parts:
-      - text: "Please post some data to https://jsonplaceholder.typicode.com/posts"
+      - text: "Please post some data to {{STATIC_FILE_SERVER_URL}}/posts"
 
 llm_interactions:
   - static_response:
@@ -23,11 +23,11 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "web_request"
-                  arguments: '{"url": "https://jsonplaceholder.typicode.com/posts", "method": "POST", "body": "{\"title\":\"foo\",\"body\":\"bar\",\"userId\":1}", "headers": {"Content-Type":"application/json"}}'
+                  arguments: '{"url": "{{STATIC_FILE_SERVER_URL}}/posts", "method": "POST", "body": "{\"title\":\"foo\",\"body\":\"bar\",\"userId\":1}", "headers": {"Content-Type":"application/json"}}'
     expected_request:
       messages:
         - role: "user"
-          content: "Please post some data to https://jsonplaceholder.typicode.com/posts"
+          content: "Please post some data to {{STATIC_FILE_SERVER_URL}}/posts"
       tools_present:
         - "web_request"
   - static_response:
@@ -38,9 +38,9 @@ llm_interactions:
     expected_request:
       messages:
         - role: "user"
-          content: "Please post some data to https://jsonplaceholder.typicode.com/posts"
+          content: "Please post some data to {{STATIC_FILE_SERVER_URL}}/posts"
         - role: "tool"
-          content_matches_regex: '.*"status": "success", "message": "Successfully fetched content from https://jsonplaceholder.typicode.com/posts \(status: 201\). Saved as artifact.*'
+          content_matches_regex: '.*"status": "success", "message": "Successfully fetched content from {{STATIC_FILE_SERVER_URL}}/posts \(status: 201\). Saved as artifact.*'
           tool_call_id: "call_129"
 
 expected_gateway_output:
@@ -57,12 +57,13 @@ expected_gateway_output:
         parts:
           - type: text
             text_contains:
-
               - "I have successfully posted the data."
+
 expected_artifacts:
   - filename_matches_regex: "^web_content_.*\\.json(?<!\\.metadata\\.json)$"
     metadata_contains:
       method: "POST"
       response_status_code: 201
+      original_content_type: "application/json"
   - filename_matches_regex: "^web_content_.*\\.json\\.metadata\\.json$"
     mime_type: "application/json"

@@ -98,6 +98,47 @@ class TestStaticFileServer:
             """Health check endpoint."""
             return JSONResponse({"status": "ok"})
         
+        @self._app.post("/{path:path}")
+        async def handle_post(path: str, request: Request):
+            """Handles POST requests."""
+            # Capture request
+            body = await request.body()
+            self.captured_requests.append({
+                "path": f"/{path}",
+                "method": "POST",
+                "headers": dict(request.headers),
+                "body": body.decode("utf-8", errors="replace"),
+                "timestamp": time.time(),
+            })
+            
+            self.logger.debug(f"POST request for: /{path}")
+            
+            # Check for configured response
+            with self._response_lock:
+                if f"/{path}" in self._configured_responses:
+                    config = self._configured_responses[f"/{path}"]
+                    self.logger.info(
+                        f"Serving configured POST response for /{path} "
+                        f"(status: {config['status_code']})"
+                    )
+                    
+                    return Response(
+                        content=config["content"],
+                        status_code=config["status_code"],
+                        media_type=config.get("content_type", "application/json"),
+                    )
+            
+            # Default POST response (simulating a typical REST API)
+            self.logger.info(f"Serving default POST response for /{path}")
+            return JSONResponse(
+                status_code=201,
+                content={
+                    "id": 101,
+                    "created": True,
+                    "message": "Resource created successfully"
+                }
+            )
+        
         @self._app.get("/{filename:path}")
         async def serve_file(filename: str, request: Request):
             """Serves static files or configured responses."""

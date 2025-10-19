@@ -15,10 +15,14 @@ This directory contains static test files used by the `TestStaticFileServer` for
 
 These files are served by `TestStaticFileServer` during integration tests. The server runs on `http://localhost:8089` by default.
 
+The server supports both GET and POST requests:
+- GET requests serve static files from this directory
+- POST requests return a default 201 Created response (or configured responses for testing)
+
 Example URLs:
-- `http://localhost:8089/sample.json`
-- `http://localhost:8089/sample.html`
-- `http://localhost:8089/sample.txt`
+- `http://localhost:8089/sample.json` (GET)
+- `http://localhost:8089/sample.html` (GET)
+- `http://localhost:8089/posts` (POST)
 
 ## Adding New Test Files
 
