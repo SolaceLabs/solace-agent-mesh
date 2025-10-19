@@ -9,6 +9,7 @@ This directory contains static test files used by the `TestStaticFileServer` for
 - **sample.txt** - Plain text file for testing `text/plain` content type
 - **sample.xml** - XML document for testing `application/xml` content type
 - **sample.csv** - CSV data for testing `text/csv` content type
+- **large_file.bin** - Binary file for testing large response handling
 
 ## Usage
 
