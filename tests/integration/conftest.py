@@ -752,7 +752,11 @@ def shared_solace_connector(
         {"tool_type": "builtin-group", "group_name": "artifact_management"},
         {"tool_type": "builtin-group", "group_name": "data_analysis"},
         {"tool_type": "builtin-group", "group_name": "test"},
-        {"tool_type": "builtin", "tool_name": "web_request"},
+        {
+            "tool_type": "builtin",
+            "tool_name": "web_request",
+            "tool_config": {"allow_loopback": True},
+        },
         {"tool_type": "builtin", "tool_name": "mermaid_diagram_generator"},
         {
             "tool_type": "builtin",
