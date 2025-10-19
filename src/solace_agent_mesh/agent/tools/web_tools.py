@@ -92,7 +92,12 @@ async def web_request(
         log.error(f"{log_identifier} ToolContext is missing.")
         return {"status": "error", "message": "ToolContext is missing."}
 
-    if not _is_safe_url(url):
+    # Check if loopback URLs are allowed (for testing)
+    allow_loopback = False
+    if tool_config:
+        allow_loopback = tool_config.get("allow_loopback", False)
+    
+    if not allow_loopback and not _is_safe_url(url):
         log.error(f"{log_identifier} URL is not safe to request: {url}")
         return {"status": "error", "message": "URL is not safe to request."}
 
