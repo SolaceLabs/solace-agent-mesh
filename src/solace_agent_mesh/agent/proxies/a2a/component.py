@@ -622,13 +622,23 @@ class A2AProxyComponent(BaseProxyComponent):
             log.error(f"Agent card not found for '{agent_name}' in registry.")
             return None
 
-        # Resolve timeout
+        # Resolve timeout - ensure we always have a valid timeout value
         default_timeout = self.get_config("default_request_timeout_seconds", 300)
-        agent_timeout = agent_config.get("request_timeout_seconds", default_timeout)
+        agent_timeout = agent_config.get("request_timeout_seconds")
+        if agent_timeout is None:
+            agent_timeout = default_timeout
         log.info("Using timeout of %ss for agent '%s'.", agent_timeout, agent_name)
 
         # Create a new httpx client with the specific timeout for this agent
-        httpx_client_for_agent = httpx.AsyncClient(timeout=agent_timeout)
+        # httpx.Timeout requires explicit values for connect, read, write, and pool
+        httpx_client_for_agent = httpx.AsyncClient(
+            timeout=httpx.Timeout(
+                connect=agent_timeout,
+                read=agent_timeout,
+                write=agent_timeout,
+                pool=agent_timeout,
+            )
+        )
 
         # Setup authentication if configured
         auth_config = agent_config.get("authentication")
