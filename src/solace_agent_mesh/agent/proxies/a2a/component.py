@@ -171,16 +171,39 @@ class A2AProxyComponent(BaseProxyComponent):
                 call_context = ClientCallContext(state={"sessionId": session_id})
 
                 # Forward the request with context
-                # Modern client always returns an async iterator
                 if isinstance(request, (SendStreamingMessageRequest, SendMessageRequest)):
                     # Extract the Message from the request params
                     message_to_send = request.params.message
                     
-                    # Modern client's send_message returns AsyncIterator[ClientEvent | Message]
-                    async for event in client.send_message(message_to_send, context=call_context):
-                        await self._process_downstream_response(
-                            event, task_context, client, agent_name
+                    # WORKAROUND: The A2A SDK has a bug in ClientTaskManager that breaks streaming.
+                    # Issue has been open with maintainers for over a week with no response.
+                    # For streaming requests, we bypass the Client.send_message() method and call
+                    # the transport directly to avoid the buggy ClientTaskManager.
+                    # Non-streaming requests work fine with the normal client method.
+                    # TODO: Remove this workaround once SDK bug is fixed upstream.
+                    if task_context.a2a_context.get("is_streaming", True):
+                        # Access transport directly (private API) to bypass ClientTaskManager
+                        log.debug(
+                            "%s Using transport directly for streaming request (SDK bug workaround)",
+                            log_identifier,
                         )
+                        async for raw_event in client._transport.send_message_streaming(
+                            request.params, context=call_context
+                        ):
+                            # Process raw events directly without ClientTaskManager
+                            await self._process_downstream_response(
+                                raw_event, task_context, client, agent_name
+                            )
+                    else:
+                        # Non-streaming: use normal client method (works fine)
+                        log.debug(
+                            "%s Using normal client method for non-streaming request",
+                            log_identifier,
+                        )
+                        async for event in client.send_message(message_to_send, context=call_context):
+                            await self._process_downstream_response(
+                                event, task_context, client, agent_name
+                            )
                 elif isinstance(request, CancelTaskRequest):
                     # Forward cancel request to downstream agent
                     log.info(
@@ -819,7 +842,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
     async def _process_downstream_response(
         self,
-        event: Union[tuple, Message],
+        event: Union[tuple, Message, Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent],
         task_context: ProxyTaskContext,
         client: Client,
         agent_name: str,
@@ -827,9 +850,12 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         Processes a single event from the downstream agent.
         
-        The modern client returns either:
+        When using the normal client (non-streaming), events are:
         - A ClientEvent tuple: (Task, Optional[UpdateEvent])
         - A Message object (for direct responses)
+        
+        When using transport directly (streaming workaround), events are raw:
+        - Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent, or Message objects
         """
         log_identifier = (
             f"{self.log_identifier}[ProcessResponse:{task_context.task_id}]"
@@ -837,7 +863,16 @@ class A2AProxyComponent(BaseProxyComponent):
 
         # Use facade helpers to determine event type
         event_payload = None
-        if a2a.is_client_event(event):
+        
+        # Handle raw transport events (from streaming workaround)
+        if isinstance(event, (Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent)):
+            event_payload = event
+            log.debug(
+                "%s Received raw transport event: %s",
+                log_identifier,
+                type(event).__name__,
+            )
+        elif a2a.is_client_event(event):
             # Unpack the ClientEvent tuple
             task, update_event = a2a.unpack_client_event(event)
             # If there's an update event, that's what we should process
