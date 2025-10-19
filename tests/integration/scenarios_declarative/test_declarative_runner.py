@@ -1727,12 +1727,25 @@ async def test_declarative_scenario(
     test_a2a_agent_server_harness: TestA2AAgentServer,
     a2a_proxy_component: BaseProxyComponent,
     mock_oauth_server,
+    test_static_file_server: TestStaticFileServer,
 ):
     """
     Executes a single declarative test scenario discovered by pytest_generate_tests.
     """
     scenario_id = declarative_scenario.get("test_case_id", "N/A")
     scenario_description = declarative_scenario.get("description", "No description")
+
+    # Substitute placeholders in the scenario data
+    from tests.integration.scenarios_declarative.placeholder_utils import (
+        substitute_placeholders,
+        create_test_context,
+    )
+    
+    test_context = create_test_context(
+        test_static_file_server=test_static_file_server,
+        test_llm_server=test_llm_server
+    )
+    declarative_scenario = substitute_placeholders(declarative_scenario, test_context)
 
     # --- Phase 0: MCP Configuration now handled by mcp_configured_sam_app fixture ---
 
