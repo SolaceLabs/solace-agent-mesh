@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import logging
 from dotenv import load_dotenv
+from .test_suite_loader import BrokerConfig
 from solace.messaging.messaging_service import MessagingService
 from solace.messaging.resources.topic_subscription import TopicSubscription
 from solace.messaging.config.solace_properties import (
@@ -59,48 +60,6 @@ class ConfigurationError(SubscriberError):
     pass
 
 
-@dataclass
-class BrokerConfig:
-    """Broker connection configuration with validation."""
-
-    host: str
-    vpn_name: str
-    username: str
-    password: str
-    cert_validated: bool = False
-    connection_timeout: int = 30
-    reconnect_attempts: int = 3
-    reconnect_delay: float = 1.0
-
-    def __post_init__(self):
-        """Validate broker configuration after initialization."""
-        if not self.host or not self.host.strip():
-            raise ConfigurationError("Broker host cannot be empty")
-
-        if not self.vpn_name or not self.vpn_name.strip():
-            raise ConfigurationError("VPN name cannot be empty")
-
-        if not self.username or not self.username.strip():
-            raise ConfigurationError("Username cannot be empty")
-
-        if not self.password or not self.password.strip():
-            raise ConfigurationError("Password cannot be empty")
-
-        if self.connection_timeout <= 0:
-            raise ConfigurationError("Connection timeout must be positive")
-
-        if self.reconnect_attempts < 0:
-            raise ConfigurationError("Reconnect attempts cannot be negative")
-
-    def to_solace_properties(self) -> dict[str, any]:
-        """Convert to Solace messaging properties."""
-        return {
-            transport_layer_properties.HOST: self.host,
-            service_properties.VPN_NAME: self.vpn_name,
-            authentication_properties.SCHEME_BASIC_USER_NAME: self.username,
-            authentication_properties.SCHEME_BASIC_PASSWORD: self.password,
-            transport_layer_security_properties.CERT_VALIDATED: self.cert_validated,
-        }
 
 
 @dataclass
@@ -649,6 +608,7 @@ class MessageSubscriber(threading.Thread):
 
     def __init__(
         self,
+        broker_config: BrokerConfig,
         namespace: str,
         active_tasks: set[str],
         wave_complete_event: threading.Event | None,
@@ -659,6 +619,7 @@ class MessageSubscriber(threading.Thread):
         Initialize the message subscriber.
 
         Args:
+            broker_config: The broker configuration object
             namespace: The namespace for topic subscription
             active_tasks: Set of active task IDs to track
             wave_complete_event: Event to set when all tasks complete
@@ -668,7 +629,7 @@ class MessageSubscriber(threading.Thread):
         super().__init__(name="MessageSubscriber")
 
         # Initialize configuration
-        self.broker_config = self._create_broker_config()
+        self.broker_config = broker_config
         self.subscription_config = SubscriptionConfig(namespace=namespace)
 
         # Initialize services
@@ -688,19 +649,6 @@ class MessageSubscriber(threading.Thread):
         self.start_time = time.time()
         self.messages_received = 0
         self.messages_processed = 0
-
-    def _create_broker_config(self) -> BrokerConfig:
-        """Create broker configuration from environment variables."""
-        try:
-            return BrokerConfig(
-                host=os.environ.get("SOLACE_BROKER_URL", ""),
-                vpn_name=os.environ.get("SOLACE_BROKER_VPN", ""),
-                username=os.environ.get("SOLACE_BROKER_USERNAME", ""),
-                password=os.environ.get("SOLACE_BROKER_PASSWORD", ""),
-            )
-        except ConfigurationError as e:
-            log.error(f"Invalid broker configuration: {e}")
-            raise
 
     def run(self) -> None:
         """Main thread execution method."""
@@ -816,6 +764,7 @@ Subscriber = MessageSubscriber
 
 
 def create_subscriber_from_env(
+    broker_config: BrokerConfig,
     namespace: str,
     active_tasks: set[str],
     wave_complete_event: threading.Event | None = None,
@@ -826,6 +775,7 @@ def create_subscriber_from_env(
     Factory function to create a subscriber with environment-based configuration.
 
     Args:
+        broker_config: The broker configuration object
         namespace: The namespace for topic subscription
         active_tasks: Set of active task IDs to track
         wave_complete_event: Event to set when all tasks complete
@@ -836,6 +786,7 @@ def create_subscriber_from_env(
         Configured MessageSubscriber instance
     """
     return MessageSubscriber(
+        broker_config=broker_config,
         namespace=namespace,
         active_tasks=active_tasks,
         wave_complete_event=wave_complete_event,
@@ -865,7 +816,14 @@ def main():
     subscription_ready = threading.Event()
 
     try:
+        broker_config = BrokerConfig(
+            host=os.environ.get("SOLACE_BROKER_URL", ""),
+            vpn_name=os.environ.get("SOLACE_BROKER_VPN", ""),
+            username=os.environ.get("SOLACE_BROKER_USERNAME", ""),
+            password=os.environ.get("SOLACE_BROKER_PASSWORD", ""),
+        )
         subscriber = create_subscriber_from_env(
+            broker_config=broker_config,
             namespace="test",
             active_tasks=active_tasks,
             subscription_ready_event=subscription_ready,

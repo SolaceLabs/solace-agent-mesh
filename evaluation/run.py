@@ -65,6 +65,14 @@ class ProcessManager:
         self.namespace = f"eval-{uuid.uuid4()}"
         os.environ["NAMESPACE"] = self.namespace
 
+        # Set broker environment variables from the required configuration
+        log.info("Setting broker configuration from test suite...")
+        for key, value in self.config.broker.dict().items():
+            if value is not None:
+                env_key = f"SOLACE_BROKER_{key.upper()}"
+                os.environ[env_key] = str(value)
+                log.info(f"  - Set {env_key}")
+
         agent_files = self.config.agent_configs
 
         command = [sys.executable, "-m", "solace_ai_connector.main", *agent_files]
@@ -399,7 +407,12 @@ class ModelEvaluator:
         """Set up and start the subscriber."""
         subscription_ready_event = threading.Event()
         subscriber = Subscriber(
-            namespace, set(), None, subscription_ready_event, model_results_path
+            self.config.broker,
+            namespace,
+            set(),
+            None,
+            subscription_ready_event,
+            model_results_path,
         )
         subscriber.start()
 
@@ -619,7 +632,12 @@ class EvaluationRunner:
         """Set up a subscriber for remote evaluation."""
         subscription_ready_event = threading.Event()
         subscriber = Subscriber(
-            self.config.namespace, set(), None, subscription_ready_event, results_path
+            self.config.broker,
+            self.config.namespace,
+            set(),
+            None,
+            subscription_ready_event,
+            results_path,
         )
         subscriber.start()
         subscription_ready_event.wait()

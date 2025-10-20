@@ -60,6 +60,57 @@ class ModelConfiguration(BaseModel):
         return self
 
 
+class BrokerConfig(BaseModel):
+    """Broker connection configuration with validation and environment variable resolution."""
+    host: str | None = Field(default=None, alias="SOLACE_BROKER_URL")
+    vpn_name: str | None = Field(default=None, alias="SOLACE_BROKER_VPN")
+    username: str | None = Field(default=None, alias="SOLACE_BROKER_USERNAME")
+    password: str | None = Field(default=None, alias="SOLACE_BROKER_PASSWORD")
+    cert_validated: bool = False
+    connection_timeout: int = 30
+    reconnect_attempts: int = 3
+    reconnect_delay: float = 1.0
+
+    @model_validator(mode='before')
+    @classmethod
+    def resolve_env_vars(cls, data):
+        """Resolve environment variables for broker configuration."""
+        if "env" in data:
+            env_data = data.pop("env")
+            for key, value in env_data.items():
+                if key.endswith("_VAR"):
+                    env_var_name = key[:-4]
+                    env_value = os.getenv(value)
+                    if env_value:
+                        data[env_var_name] = env_value
+        return data
+
+    @model_validator(mode='after')
+    def check_required_fields(self):
+        """Ensure all required broker fields are present."""
+        required_fields = ['host', 'vpn_name', 'username', 'password']
+        missing_fields = [field for field in required_fields if getattr(self, field) is None]
+        if missing_fields:
+            raise ValueError(f"Broker configuration is missing required fields: {missing_fields}")
+        return self
+
+    def to_solace_properties(self) -> dict[str, any]:
+        """Convert to Solace messaging properties."""
+        from solace.messaging.config.solace_properties import (
+            transport_layer_properties,
+            service_properties,
+            authentication_properties,
+            transport_layer_security_properties,
+        )
+        return {
+            transport_layer_properties.HOST: self.host,
+            service_properties.VPN_NAME: self.vpn_name,
+            authentication_properties.SCHEME_BASIC_USER_NAME: self.username,
+            authentication_properties.SCHEME_BASIC_PASSWORD: self.password,
+            transport_layer_security_properties.CERT_VALIDATED: self.cert_validated,
+        }
+
+
 class EvaluationOptions(BaseModel):
     """Evaluation behavior settings with conditional validation."""
     tool_matching_enabled: bool = Field(default=True)
@@ -86,6 +137,7 @@ class EvaluationOptions(BaseModel):
 
 class TestSuiteConfiguration(BaseModel):
     """Complete test suite configuration with comprehensive validation."""
+    broker: BrokerConfig
     agent_configs: list[str] | None = Field(default=None, min_length=1, alias="agents")
     model_configurations: list[ModelConfiguration] | None = Field(default=None, min_length=1, alias="llm_models")
     auth_token: str | None = Field(default=None, alias="auth_token")

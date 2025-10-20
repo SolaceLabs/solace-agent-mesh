@@ -1,4 +1,12 @@
 {
+    "broker": {
+        "env": {
+            "SOLACE_BROKER_URL_VAR": "SOLACE_BROKER_URL",
+            "SOLACE_BROKER_USERNAME_VAR": "SOLACE_BROKER_USERNAME",
+            "SOLACE_BROKER_PASSWORD_VAR": "SOLACE_BROKER_PASSWORD",
+            "SOLACE_BROKER_VPN_VAR": "SOLACE_BROKER_VPN"
+        }
+    },
     "remote_url": "https://your-remote-api-endpoint.com/api/v2",
     "auth_token": "your-secret-auth-token",
     "namespace": "your-remote-namespace",
