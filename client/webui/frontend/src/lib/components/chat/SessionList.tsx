@@ -158,7 +158,7 @@ export const SessionList: React.FC = () => {
 
     return (
         <div className="flex h-full flex-col gap-4 py-6 pl-6">
-            <div className="text-lg">Chat Session History</div>
+            <div className="text-lg">Chat Sessions</div>
             <div className="flex-1 overflow-y-auto">
                 {sessions.length > 0 && (
                     <ul>
