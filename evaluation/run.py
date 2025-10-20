@@ -28,6 +28,7 @@ from .shared import (
     EVALUATION_DIR,
     EvaluationConfigLoader,
     TestSuiteConfiguration,
+    get_local_base_url,
 )
 from .subscriber import Subscriber
 from .summary_builder import SummaryBuilder
@@ -88,18 +89,14 @@ class ProcessManager:
         )
 
         log.info("Waiting for server to become healthy...")
-        self._wait_for_server_ready()
+        self._wait_for_server_ready(get_local_base_url())
 
         return self.process, self.namespace
 
-    def _wait_for_server_ready(self):
+    def _wait_for_server_ready(self, base_url: str):
         """Poll the health endpoint until the server is ready."""
         start_time = time.time()
-        load_dotenv()
-        host = os.getenv("REST_API_HOST", "0.0.0.0")
-        port = os.getenv("REST_API_PORT", "8080")
-        api_base_url = f"http://{host}:{port}/api/v2"
-        health_url = f"{api_base_url.replace('/api/v2', '')}/health"
+        health_url = f"{base_url}/health"
 
         while time.time() - start_time < DEFAULT_STARTUP_WAIT_TIME:
             try:
@@ -122,13 +119,13 @@ class ProcessManager:
     def stop_services(self, subscriber: Subscriber | None = None):
         """Clean up running processes."""
         if subscriber:
-            log.info("--- Terminating subscriber ---")
+            log.info("Terminating subscriber")
             subscriber.stop()
             subscriber.join()
             log.info("Subscriber terminated.")
 
         if self.process:
-            log.info("--- Terminating subprocess ---")
+            log.info("Terminating subprocess")
             self.process.terminate()
             try:
                 self.process.wait(timeout=5)
@@ -149,17 +146,14 @@ class TaskService:
         if config.remote_url:
             self.base_url = config.remote_url
         else:
-            load_dotenv()
-            host = os.getenv("REST_API_HOST", "0.0.0.0")
-            port = os.getenv("REST_API_PORT", "8080")
-            self.base_url = f"http://{host}:{port}/api/v2"
+            self.base_url = get_local_base_url()
 
     def submit_task(
         self, agent_name: str, message: str, artifact_paths: list[str] | None = None
     ) -> str | None:
         """Submit a test case to the agent and return the task ID."""
-        log.info("--- Sending test request ---")
-        url = f"{self.base_url}/tasks"
+        log.info("Sending test request")
+        url = f"{self.base_url}/api/v2/tasks"
         data = {
             "agent_name": agent_name,
             "prompt": message,
@@ -292,7 +286,7 @@ class TestExecutor:
     ) -> bool:
         """Execute a single test case and wait for completion."""
         log.info(
-            f"--- Starting test: {test_run.test_case_file} (run {test_run.run_num}) ---"
+            f"Starting test: {test_run.test_case_file} (run {test_run.run_num})"
         )
 
         # Submit the task
@@ -362,7 +356,7 @@ class ModelEvaluator:
     ) -> float:
         """Evaluate a single model and return execution time."""
         model_name = model_config.name
-        log.info(f"--- Starting evaluation for model: {model_name} ---")
+        log.info(f"Starting evaluation for model: {model_name}")
         start_time = time.time()
 
         # Set environment variables for the model
@@ -381,7 +375,7 @@ class ModelEvaluator:
         try:
             # Execute tests
             successful_tests = self._execute_all_tests(model_results_path, subscriber)
-            log.info(f"--- Completed {successful_tests} tests successfully ---")
+            log.info(f"Completed {successful_tests} tests successfully")
 
         except Exception as e:
             log.error(f"Error during test case execution for model {model_name}: {e}")
@@ -395,7 +389,7 @@ class ModelEvaluator:
         end_time = time.time()
         execution_time = end_time - start_time
         log.info(
-            f"--- Evaluation for model: {model_name} complete in {execution_time:.2f} seconds ---"
+            f"Evaluation for model: {model_name} complete in {execution_time:.2f} seconds"
         )
 
         return execution_time
@@ -435,10 +429,10 @@ class ModelEvaluator:
         total_tests = len(test_runs)
         successful_tests = 0
 
-        log.info(f"--- Starting sequential execution of {total_tests} tests ---")
+        log.info(f"Starting sequential execution of {total_tests} tests")
 
         for i, test_run in enumerate(test_runs, 1):
-            log.info(f"--- Test {i}/{total_tests} ---")
+            log.info(f"Test {i}/{total_tests}")
             success = self.test_executor.execute_test(
                 test_run, model_results_path, self._task_mappings, subscriber
             )
@@ -475,7 +469,7 @@ class ResultsProcessor:
 
     def summarize_results(self, base_results_path: str):
         """Generate summaries for all test results."""
-        log.info("--- Summarizing results ---")
+        log.info("Summarizing results")
 
         for model_name in os.listdir(base_results_path):
             model_path = os.path.join(base_results_path, model_name)
@@ -572,7 +566,7 @@ class EvaluationRunner:
 
     def _run_local_evaluation(self, base_results_path: Path) -> dict[str, float]:
         """Run the full local evaluation with service management."""
-        log.info("--- Starting local evaluation ---")
+        log.info("Starting local evaluation")
         model_execution_times = {}
 
         # This loop iterates through the models defined in the config
@@ -588,8 +582,12 @@ class EvaluationRunner:
 
     def _run_remote_evaluation(self, base_results_path: Path) -> dict[str, float]:
         """Run evaluation against a remote endpoint."""
-        log.info(f"--- Starting remote evaluation against: {self.config.remote_url} ---")
+        log.info(f"Starting remote evaluation against: {self.config.remote_url}")
         start_time = time.time()
+
+        # Check if the remote server is healthy before proceeding
+        process_manager = ProcessManager(self.config, self.verbose)
+        process_manager._wait_for_server_ready(self.config.remote_url)
 
         # Instantiate services with the remote configuration
         task_service = TaskService(self.config, self.verbose)
@@ -608,16 +606,16 @@ class EvaluationRunner:
             task_mappings = {}
             successful_tests = 0
 
-            log.info(f"--- Starting sequential execution of {len(test_runs)} tests ---")
+            log.info(f"Starting sequential execution of {len(test_runs)} tests")
             for i, test_run in enumerate(test_runs, 1):
-                log.info(f"--- Test {i}/{len(test_runs)} ---")
+                log.info(f"Test {i}/{len(test_runs)}")
                 success = test_executor.execute_test(
                     test_run, str(remote_results_path), task_mappings, subscriber
                 )
                 if success:
                     successful_tests += 1
 
-            log.info(f"--- Completed {successful_tests} tests successfully ---")
+            log.info(f"Completed {successful_tests} tests successfully")
 
         finally:
             if subscriber:
@@ -655,19 +653,19 @@ class EvaluationRunner:
     ):
         """Post-process evaluation results."""
         # Categorize messages using the refactored categorizer
-        log.info("--- Categorizing messages ---")
+        log.info("Categorizing messages")
         message_organizer = MessageOrganizer()
         message_organizer.categorize_all_messages(base_results_path)
-        log.info("--- Message categorization finished ---")
+        log.info("Message categorization finished")
 
         # Generate summaries
         self.results_processor.summarize_results(base_results_path)
 
         # Run evaluation
-        log.info("--- Starting evaluation of results ---")
+        log.info("Starting evaluation of results")
         evaluation_orchestrator = EvaluationOrchestrator(config_path)
         evaluation_orchestrator.run_evaluation(base_results_path, model_execution_times)
-        log.info("--- Evaluation of results finished ---")
+        log.info("Evaluation of results finished")
 
     def _generate_reports(self, config_path: str, base_results_path: Path):
         """Generate evaluation reports."""
@@ -802,6 +800,10 @@ class EvaluationRunner:
 
 def main(config_path: str, verbose: bool = False):
     """Main entry point for the evaluation script."""
+    if verbose:
+        logging.basicConfig(level=logging.INFO)
+        log.info("Verbose logging enabled.")
+
     orchestrator = EvaluationRunner(verbose=verbose)
     orchestrator.run_evaluation(config_path)
 

@@ -1,9 +1,11 @@
-import click
+import os
 from importlib import metadata
 from pathlib import Path
 
-from evaluation.run import main as run_evaluation_main
+import click
+
 from cli.utils import error_exit, load_template
+from evaluation.run import main as run_evaluation_main
 
 
 def _ensure_sam_rest_gateway_installed():
@@ -77,6 +79,13 @@ def eval_cmd(test_suite_config_path, verbose):
     )
     _ensure_sam_rest_gateway_installed()
     _ensure_eval_backend_config_exists()
+
+    # Set logging config path for evaluation
+    project_root = Path.cwd()
+    logging_config_path = project_root / "configs" / "logging_config.ini"
+    if logging_config_path.exists():
+        os.environ["LOGGING_CONFIG_PATH"] = str(logging_config_path.resolve())
+
     try:
         run_evaluation_main(test_suite_config_path, verbose=verbose)
         click.echo(click.style("Evaluation completed successfully.", fg="green"))
