@@ -17,6 +17,18 @@
             }
         },
         {
+            "name": "SAM (Agents Only)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "solace_ai_connector.main",
+            "console": "integratedTerminal",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/agents/a2a_multimodal_example.yaml",
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
+        },
+        {
             "name": "SAM (test)",
             "type": "debugpy",
             "request": "launch",
@@ -53,12 +65,12 @@
             }
         },
         {
-            "name": "SAM (test with event-mesh-gateway)",
+            "name": "SAM (test with event-mesh and slack gateway)",
             "type": "debugpy",
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/slack.yaml examples/event-mesh-gateway.yaml examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
+            "args": "--envfile .env examples/gateways/slack_gateway_example.yaml examples/gateways/event-mesh-gateway.yaml examples/a2a_orchestrator.yaml examples/a2a_agents.yaml examples/webui_backend.yaml examples/test_agent.yaml examples/a2a_multimodal.yaml",
             "justMyCode": false,
         },
         {
@@ -170,24 +182,12 @@
             }
         },
         {
-            "name": "Full",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "solace_ai_connector.main",
-            "console": "integratedTerminal",
-            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_example.yaml",
-            "justMyCode": false,
-            "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
-            }
-        },
-        {
             "name": "Minimal",
             "type": "debugpy",
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/agents/a2a_host_example.yaml examples/gateways/webui_example.yaml",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/gateways/webui_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
@@ -211,7 +211,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/gateways/sam_em_gateway.yaml examples/agents/a2a_multimodal_example.yaml examples/agents/orchestrator_example.yaml examples/gateways/webui_example.yaml",
+            "args": "--envfile .env examples/gateways/event-mesh-gateway.yaml examples/agents/a2a_multimodal_example.yaml examples/agents/orchestrator_example.yaml examples/gateways/webui_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"

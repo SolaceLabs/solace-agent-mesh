@@ -9,8 +9,7 @@ log:
   log_file_level: DEBUG
   log_file: em_gateway.log
 
-# To use the `shared_config.yaml` file, uncomment the following line and remove the `shared_config` section below.
-!include shared_config.yaml
+!include ../shared_config.yaml
 
 
 apps:
