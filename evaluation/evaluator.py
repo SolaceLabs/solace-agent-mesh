@@ -5,24 +5,28 @@ This module evaluates AI model performance against test cases using multiple eva
 
 import concurrent.futures
 import json
+import logging
 import os
 import re
 import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
-import logging
+
+import litellm
 import numpy as np
 from rouge import Rouge
-import litellm
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from evaluation.test_suite_loader import EvaluationConfigLoader, TestSuiteConfiguration, EvaluationOptions
-from evaluation.test_case_loader import load_test_case
+from evaluation.shared import (
+    EVALUATION_DIR,
+    EvaluationConfigLoader,
+    EvaluationOptions,
+    TestSuiteConfiguration,
+    load_test_case,
+)
 
 log = logging.getLogger(__name__)
-
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @dataclass
@@ -168,7 +172,7 @@ class ConfigurationService:
     def get_results_path(self) -> str:
         """Get the base results path."""
         config = self.get_config()
-        return os.path.join(SCRIPT_DIR, "results", config.results_directory)
+        return os.path.join(EVALUATION_DIR, "results", config.results_directory)
 
 
 class FileService:
@@ -675,7 +679,7 @@ class EvaluationOrchestrator:
         log.info("--- Evaluation finished ---")
 
 
-def main(config_path: str = "evaluation/test_suite_config.json"):
+def main(config_path: str):
     """Main entry point for command-line usage."""
     orchestrator = EvaluationOrchestrator(config_path)
     results_path = orchestrator.config_service.get_results_path()

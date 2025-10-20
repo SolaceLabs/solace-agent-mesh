@@ -4,32 +4,35 @@ This module orchestrates the evaluation of AI models against test cases.
 """
 
 import json
-import os
-import sys
-import time
-import subprocess
-import requests
-import uuid
-import shutil
-import mimetypes
-import threading
 import logging
-from pathlib import Path
+import mimetypes
+import os
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import uuid
 from dataclasses import dataclass
+from pathlib import Path
+
+import requests
 from dotenv import load_dotenv
-from .test_suite_loader import EvaluationConfigLoader, TestSuiteConfiguration
-from .message_organizer import MessageOrganizer
-from .summary_builder import SummaryBuilder
-from .subscriber import Subscriber
+
 from .evaluator import EvaluationOrchestrator
+from .message_organizer import MessageOrganizer
 from .report_generator import ReportGenerator
+from .shared import (
+    DEFAULT_STARTUP_WAIT_TIME,
+    DEFAULT_TEST_TIMEOUT,
+    EVALUATION_DIR,
+    EvaluationConfigLoader,
+    TestSuiteConfiguration,
+)
+from .subscriber import Subscriber
+from .summary_builder import SummaryBuilder
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 log = logging.getLogger(__name__)
-
-# Constants
-DEFAULT_STARTUP_WAIT_TIME = 60
-DEFAULT_TEST_TIMEOUT = 60
 
 
 @dataclass
@@ -78,7 +81,7 @@ class ProcessManager:
         command = [sys.executable, "-m", "solace_ai_connector.main", *agent_files]
 
         log.info("Starting Solace AI Connector as a subprocess...")
-        project_root = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
+        project_root = os.path.abspath(os.path.join(EVALUATION_DIR, ".."))
 
         self.process = subprocess.Popen(
             command, stdout=sys.stdout, stderr=sys.stderr, cwd=project_root

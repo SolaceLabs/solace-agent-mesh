@@ -3,63 +3,32 @@ Refactored message subscriber with improved structure and readability.
 This module handles Solace message subscription and processing for evaluation.
 """
 
-import os
 import json
+import logging
+import os
 import threading
 import time
 from dataclasses import dataclass, field
-from enum import Enum
-import logging
+
 from dotenv import load_dotenv
-from .test_suite_loader import BrokerConfig
 from solace.messaging.messaging_service import MessagingService
 from solace.messaging.resources.topic_subscription import TopicSubscription
-from solace.messaging.config.solace_properties import (
-    transport_layer_properties,
-    service_properties,
-    authentication_properties,
-    transport_layer_security_properties,
+
+from .shared import (
+    ALLOWED_TOPIC_INFIXES,
+    BLOCKED_TOPIC_INFIXES,
+    MESSAGE_TIMEOUT,
+    BrokerConfig,
+    BrokerConnectionError,
+    ConfigurationError,
+    ConnectionState,
+    MessageProcessingError,
 )
+
 log = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
-
-
-class ConnectionState(Enum):
-    """Represents the connection state of the subscriber."""
-
-    DISCONNECTED = "disconnected"
-    CONNECTING = "connecting"
-    CONNECTED = "connected"
-    DISCONNECTING = "disconnecting"
-    ERROR = "error"
-
-
-class SubscriberError(Exception):
-    """Base exception for subscriber-related errors."""
-
-    pass
-
-
-class BrokerConnectionError(SubscriberError):
-    """Raised when broker connection fails."""
-
-    pass
-
-
-class MessageProcessingError(SubscriberError):
-    """Raised when message processing fails."""
-
-    pass
-
-
-class ConfigurationError(SubscriberError):
-    """Raised when configuration is invalid."""
-
-    pass
-
-
 
 
 @dataclass
@@ -68,18 +37,12 @@ class SubscriptionConfig:
 
     namespace: str
     allowed_topic_infixes: list[str] = field(
-        default_factory=lambda: [
-            "/agent/request/",
-            "/gateway/status/",
-            "/gateway/response/",
-        ]
+        default_factory=lambda: ALLOWED_TOPIC_INFIXES
     )
     blocked_topic_infixes: list[str] = field(
-        default_factory=lambda: [
-            "/discovery/"
-        ]
+        default_factory=lambda: BLOCKED_TOPIC_INFIXES
     )
-    message_timeout: int = 1000
+    message_timeout: int = MESSAGE_TIMEOUT
     filter_non_final_status: bool = True
     remove_config_keys: bool = False
 
@@ -598,10 +561,9 @@ class SubscriptionManager:
         return self.subscription_active
 
 
-class MessageSubscriber(threading.Thread):
+class Subscriber(threading.Thread):
     """
     Main message subscriber class that orchestrates all components.
-
     This is the refactored version of the original Subscriber class,
     maintaining the same interface while providing better structure.
     """
@@ -617,7 +579,6 @@ class MessageSubscriber(threading.Thread):
     ):
         """
         Initialize the message subscriber.
-
         Args:
             broker_config: The broker configuration object
             namespace: The namespace for topic subscription
@@ -626,7 +587,7 @@ class MessageSubscriber(threading.Thread):
             subscription_ready_event: Event to set when subscription is ready
             results_path: Path to save results
         """
-        super().__init__(name="MessageSubscriber")
+        super().__init__(name="Subscriber")
 
         # Initialize configuration
         self.broker_config = broker_config
@@ -759,40 +720,6 @@ class MessageSubscriber(threading.Thread):
         return [msg.to_dict() for msg in self.message_storage.messages]
 
 
-# Backward compatibility alias
-Subscriber = MessageSubscriber
-
-
-def create_subscriber_from_env(
-    broker_config: BrokerConfig,
-    namespace: str,
-    active_tasks: set[str],
-    wave_complete_event: threading.Event | None = None,
-    subscription_ready_event: threading.Event | None = None,
-    results_path: str = ".",
-) -> MessageSubscriber:
-    """
-    Factory function to create a subscriber with environment-based configuration.
-
-    Args:
-        broker_config: The broker configuration object
-        namespace: The namespace for topic subscription
-        active_tasks: Set of active task IDs to track
-        wave_complete_event: Event to set when all tasks complete
-        subscription_ready_event: Event to set when subscription is ready
-        results_path: Path to save results
-
-    Returns:
-        Configured MessageSubscriber instance
-    """
-    return MessageSubscriber(
-        broker_config=broker_config,
-        namespace=namespace,
-        active_tasks=active_tasks,
-        wave_complete_event=wave_complete_event,
-        subscription_ready_event=subscription_ready_event,
-        results_path=results_path,
-    )
 
 
 def main():
@@ -822,7 +749,7 @@ def main():
             username=os.environ.get("SOLACE_BROKER_USERNAME", ""),
             password=os.environ.get("SOLACE_BROKER_PASSWORD", ""),
         )
-        subscriber = create_subscriber_from_env(
+        subscriber = Subscriber(
             broker_config=broker_config,
             namespace="test",
             active_tasks=active_tasks,

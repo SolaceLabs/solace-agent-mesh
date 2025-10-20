@@ -4,29 +4,17 @@ This module categorizes evaluation messages into appropriate run directories.
 """
 
 import json
+import logging
 import os
 from dataclasses import dataclass
-import logging
+
+from .shared import (
+    CategorizationError,
+    InvalidDataError,
+    MissingFileError,
+)
 
 log = logging.getLogger(__name__)
-
-
-class CategorizationError(Exception):
-    """Base exception for categorization errors."""
-
-    pass
-
-
-class MissingFileError(CategorizationError):
-    """Raised when required files are missing."""
-
-    pass
-
-
-class InvalidDataError(CategorizationError):
-    """Raised when data format is invalid."""
-
-    pass
 
 
 @dataclass
@@ -522,7 +510,7 @@ def main(config_path: str = None):
     """Main entry point when running the script directly."""
     try:
         # Import here to avoid circular imports
-        from evaluation.test_suite_loader import EvaluationConfigLoader
+        from evaluation.shared import EvaluationConfigLoader
 
         # Use default config path if none provided
         if config_path is None:

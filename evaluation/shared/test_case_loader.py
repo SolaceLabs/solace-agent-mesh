@@ -4,26 +4,27 @@ This module provides robust test case loading and validation using Pydantic.
 """
 
 import json
+import logging
 import os
 import sys
 from pathlib import Path
-import logging
-from pydantic import BaseModel, Field, field_validator, ValidationError
 from typing import Literal
+
+from pydantic import BaseModel, Field, ValidationError, field_validator
+
+from .constants import (
+    DEFAULT_CATEGORY,
+    DEFAULT_DESCRIPTION,
+    DEFAULT_WAIT_TIME,
+    MAX_WAIT_TIME,
+)
+from .exceptions import (
+    TestCaseError,
+    TestCaseFileNotFoundError,
+    TestCaseParseError,
+)
+
 log = logging.getLogger(__name__)
-
-
-class TestCaseError(Exception):
-    """Base exception for test case-related errors."""
-    pass
-
-class TestCaseFileNotFoundError(TestCaseError):
-    """Raised when the test case file is not found."""
-    pass
-
-class TestCaseParseError(TestCaseError):
-    """Raised when the test case file cannot be parsed or validated."""
-    pass
 
 
 class Artifact(BaseModel):
@@ -75,9 +76,9 @@ class TestCase(BaseModel):
     test_case_id: str = Field(..., min_length=1)
     query: str = Field(..., min_length=1)
     target_agent: str = Field(..., min_length=1)
-    category: str = "Other"
-    description: str = "No description provided."
-    wait_time: int = Field(60, gt=0, le=300)
+    category: str = DEFAULT_CATEGORY
+    description: str = DEFAULT_DESCRIPTION
+    wait_time: int = Field(DEFAULT_WAIT_TIME, gt=0, le=MAX_WAIT_TIME)
     artifacts: list[Artifact] = Field(default_factory=list)
     evaluation: Evaluation = Field(default_factory=Evaluation)
 

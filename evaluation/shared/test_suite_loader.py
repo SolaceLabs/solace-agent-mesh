@@ -3,12 +3,28 @@ Modern Pydantic-based configuration loader with comprehensive validation.
 Replaces complex custom validation with clean, declarative models.
 """
 
-from pydantic import BaseModel, Field, field_validator, model_validator, ValidationError
-from pathlib import Path
-import os
 import json
-import sys
 import logging
+import os
+import sys
+from pathlib import Path
+
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from solace.messaging.config.solace_properties import (
+    authentication_properties,
+    service_properties,
+    transport_layer_properties,
+    transport_layer_security_properties,
+)
+
+from .constants import (
+    BROKER_REQUIRED_FIELDS,
+    DEFAULT_CONNECTION_TIMEOUT,
+    DEFAULT_RECONNECT_ATTEMPTS,
+    DEFAULT_RECONNECT_DELAY,
+    DEFAULT_RESULTS_DIR,
+    DEFAULT_RUN_COUNT,
+)
 
 log = logging.getLogger(__name__)
 
@@ -67,9 +83,9 @@ class BrokerConfig(BaseModel):
     username: str | None = Field(default=None, alias="SOLACE_BROKER_USERNAME")
     password: str | None = Field(default=None, alias="SOLACE_BROKER_PASSWORD")
     cert_validated: bool = False
-    connection_timeout: int = 30
-    reconnect_attempts: int = 3
-    reconnect_delay: float = 1.0
+    connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT
+    reconnect_attempts: int = DEFAULT_RECONNECT_ATTEMPTS
+    reconnect_delay: float = DEFAULT_RECONNECT_DELAY
 
     @model_validator(mode='before')
     @classmethod
@@ -88,20 +104,13 @@ class BrokerConfig(BaseModel):
     @model_validator(mode='after')
     def check_required_fields(self):
         """Ensure all required broker fields are present."""
-        required_fields = ['host', 'vpn_name', 'username', 'password']
-        missing_fields = [field for field in required_fields if getattr(self, field) is None]
+        missing_fields = [field for field in BROKER_REQUIRED_FIELDS if getattr(self, field) is None]
         if missing_fields:
             raise ValueError(f"Broker configuration is missing required fields: {missing_fields}")
         return self
 
     def to_solace_properties(self) -> dict[str, any]:
         """Convert to Solace messaging properties."""
-        from solace.messaging.config.solace_properties import (
-            transport_layer_properties,
-            service_properties,
-            authentication_properties,
-            transport_layer_security_properties,
-        )
         return {
             transport_layer_properties.HOST: self.host,
             service_properties.VPN_NAME: self.vpn_name,
@@ -144,8 +153,8 @@ class TestSuiteConfiguration(BaseModel):
     remote_url: str | None = Field(default=None, alias="remote_url")
     namespace: str | None = Field(default=None, alias="namespace")
     test_case_files: list[str] = Field(min_length=1, alias="test_cases")
-    results_directory: str = Field(default="tests", min_length=1, alias="results_dir_name")
-    run_count: int = Field(default=1, ge=1, alias="runs")
+    results_directory: str = Field(default=DEFAULT_RESULTS_DIR, min_length=1, alias="results_dir_name")
+    run_count: int = Field(default=DEFAULT_RUN_COUNT, ge=1, alias="runs")
     evaluation_options: EvaluationOptions = Field(default_factory=EvaluationOptions, alias="evaluation_settings")
 
     @field_validator('agent_configs', 'test_case_files', mode='before')

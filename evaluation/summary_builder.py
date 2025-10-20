@@ -7,12 +7,14 @@ import json
 import logging
 import os
 import re
-import yaml
-from datetime import datetime
 from dataclasses import dataclass, field
-log = logging.getLogger(__name__)
+from datetime import datetime
 
-from .test_case_loader import load_test_case
+import yaml
+
+from .shared import load_test_case
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
