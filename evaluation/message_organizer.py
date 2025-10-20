@@ -6,7 +6,6 @@ This module categorizes evaluation messages into appropriate run directories.
 import json
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -36,18 +35,18 @@ class TaskMessage:
     """Represents a categorized task message with extracted metadata."""
 
     topic: str
-    payload: Dict[str, Any]
-    task_id: Optional[str] = None
-    parent_task_id: Optional[str] = None
+    payload: dict[str, any]
+    task_id: str | None = None
+    parent_task_id: str | None = None
 
     @classmethod
-    def from_dict(cls, message_dict: Dict[str, Any]) -> "TaskMessage":
+    def from_dict(cls, message_dict: dict[str, any]) -> "TaskMessage":
         """Create TaskMessage from dictionary representation."""
         return cls(
             topic=message_dict.get("topic", ""), payload=message_dict.get("payload", {})
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, any]:
         """Convert TaskMessage back to dictionary format."""
         return {"topic": self.topic, "payload": self.payload}
 
@@ -56,9 +55,9 @@ class TaskMessage:
 class TaskMapping:
     """Represents task ID to directory mappings with validation."""
 
-    mappings: Dict[str, str]
+    mappings: dict[str, str]
 
-    def get_run_directory(self, task_id: str) -> Optional[str]:
+    def get_run_directory(self, task_id: str) -> str | None:
         """Get the run directory for a given task ID."""
         return self.mappings.get(task_id)
 
@@ -101,7 +100,7 @@ class TaskIdExtractor:
 
     def extract_task_id(
         self, message: TaskMessage
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """
         Extract task ID using multiple strategies in order of preference.
         Returns (parent_task_id, sub_task_id) tuple.
@@ -132,7 +131,7 @@ class TaskIdExtractor:
 
     def _extract_from_subtask_delegation(
         self, payload: dict
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Strategy 1: Check for sub-task delegation (agent-to-agent calls)."""
         params = payload.get("params", {})
         if isinstance(params, dict):
@@ -148,7 +147,7 @@ class TaskIdExtractor:
 
     def _extract_from_toplevel_id(
         self, payload: dict
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Strategy 2: Get the primary task ID from the top-level 'id' field."""
         task_id = payload.get("id")
         if task_id and isinstance(task_id, str):
@@ -157,7 +156,7 @@ class TaskIdExtractor:
 
     def _extract_from_result_object(
         self, payload: dict
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Strategy 3: Fallback for status updates which also have taskId nested."""
         result = payload.get("result", {})
         if isinstance(result, dict):
@@ -168,7 +167,7 @@ class TaskIdExtractor:
 
     def _extract_from_topic(
         self, message: TaskMessage
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Strategy 4: Extract from topic path (fallback method)."""
         topic = message.topic
         if not topic:
@@ -186,7 +185,7 @@ class FileOperations:
     """Handles file I/O operations with comprehensive error handling."""
 
     @staticmethod
-    def load_json(filepath: str) -> Any:
+    def load_json(filepath: str) -> any:
         """Load JSON file with error handling and validation."""
         try:
             if not os.path.exists(filepath):
@@ -204,7 +203,7 @@ class FileOperations:
             raise CategorizationError(f"Error loading file {filepath}: {e}")
 
     @staticmethod
-    def save_json(data: Any, filepath: str) -> None:
+    def save_json(data: any, filepath: str) -> None:
         """Save data as JSON with error handling."""
         try:
             # Ensure directory exists
@@ -313,7 +312,7 @@ class MessageCategorizer:
 
         return TaskMapping(mappings=mappings_data)
 
-    def _load_messages(self, model_path: str) -> List[TaskMessage]:
+    def _load_messages(self, model_path: str) -> list[TaskMessage]:
         """Load and parse messages from file with validation."""
         messages_file = os.path.join(model_path, "full_messages.json")
         messages_data = self.file_ops.load_json(messages_file)
@@ -334,7 +333,7 @@ class MessageCategorizer:
 
         return messages
 
-    def _extract_task_ids_from_messages(self, messages: List[TaskMessage]) -> None:
+    def _extract_task_ids_from_messages(self, messages: list[TaskMessage]) -> None:
         """Extract task IDs from all messages and update the message objects."""
         for message in messages:
             task_id, sub_task_id = self.task_extractor.extract_task_id(message)
@@ -342,7 +341,7 @@ class MessageCategorizer:
             message.parent_task_id = task_id if sub_task_id else None
 
     def _update_task_mappings(
-        self, messages: List[TaskMessage], task_mappings: TaskMapping
+        self, messages: list[TaskMessage], task_mappings: TaskMapping
     ) -> int:
         """Update task mappings with sub-task relationships."""
         updated_count = 0
@@ -369,8 +368,8 @@ class MessageCategorizer:
         return updated_count
 
     def _categorize_by_task_id(
-        self, messages: List[TaskMessage], task_mappings: TaskMapping
-    ) -> Dict[str, List[TaskMessage]]:
+        self, messages: list[TaskMessage], task_mappings: TaskMapping
+    ) -> dict[str, list[TaskMessage]]:
         """Group messages by their target run directory."""
         categorized = {}
 
@@ -390,7 +389,7 @@ class MessageCategorizer:
         return categorized
 
     def _save_categorized_messages(
-        self, categorized_messages: Dict[str, List[TaskMessage]]
+        self, categorized_messages: dict[str, list[TaskMessage]]
     ) -> int:
         """Save categorized messages to their respective directories."""
         total_saved = 0
@@ -430,7 +429,7 @@ class MessageOrganizer:
 
     def categorize_all_messages(
         self, base_results_path: str
-    ) -> Dict[str, CategorizationResult]:
+    ) -> dict[str, CategorizationResult]:
         """
         Main entry point for categorizing all messages across all models.
         Returns a dictionary mapping model names to their categorization results.
@@ -493,7 +492,7 @@ class MessageOrganizer:
             logger.error(f"Failed to process model {model_name}: {e}")
             raise
 
-    def _log_summary_statistics(self, results: Dict[str, CategorizationResult]) -> None:
+    def _log_summary_statistics(self, results: dict[str, CategorizationResult]) -> None:
         """Log summary statistics for all processed models."""
         if not results:
             logger.warning("No models were successfully processed")

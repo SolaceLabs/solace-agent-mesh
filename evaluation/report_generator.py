@@ -7,7 +7,6 @@ import json
 import logging
 from datetime import datetime
 from dataclasses import dataclass, field
-from typing import Dict, Any
 from pathlib import Path
 
 # Set up logging
@@ -15,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Import configuration and data services
-from .config_loader import ConfigLoader
+from .config_loader import EvaluationConfigLoader, TestSuiteConfiguration
 from .report_data_processor import ReportDataProcessor
 
 
@@ -23,9 +22,9 @@ from .report_data_processor import ReportDataProcessor
 class ReportConfig:
     """Centralized configuration for report generation."""
 
-    def __init__(self, config_data: Dict[str, Any], results_dir: Path):
-        self.config_data = config_data
-        self.results_dir_name = config_data.get("results_dir_name", "tests")
+    def __init__(self, config: TestSuiteConfiguration, results_dir: Path):
+        self.config = config
+        self.results_dir_name = config.results_directory
 
         # Calculate paths
         self.script_dir = Path(__file__).parent
@@ -78,19 +77,19 @@ class ConfigurationService:
     """Handles configuration loading and validation."""
 
     def __init__(self, config_path: str):
-        self.config_loader = ConfigLoader(config_path)
+        self.config_loader = EvaluationConfigLoader(config_path)
         self._config_cache = None
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> TestSuiteConfiguration:
         """Get the main configuration."""
         if self._config_cache is None:
-            self._config_cache = self.config_loader.load_config()
+            self._config_cache = self.config_loader.load_configuration()
         return self._config_cache
 
     def create_report_config(self, results_dir: Path) -> ReportConfig:
         """Create a ReportConfig instance."""
-        config_data = self.get_config()
-        return ReportConfig(config_data, results_dir)
+        config = self.get_config()
+        return ReportConfig(config, results_dir)
 
 
 class FileService:
@@ -235,7 +234,7 @@ class TemplateProcessor:
     """Handles template rendering and placeholder replacement."""
 
     @staticmethod
-    def replace_placeholders(template_content: str, data: Dict[str, Any]) -> str:
+    def replace_placeholders(template_content: str, data: dict[str, any]) -> str:
         """Replace placeholders in template with actual data."""
         try:
             # Convert all values to strings for replacement
@@ -268,7 +267,7 @@ class TemplateProcessor:
             return template_content
 
     def process_template_with_data(
-        self, template_content: str, data: Dict[str, Any]
+        self, template_content: str, data: dict[str, any]
     ) -> str:
         """Process a template with evaluation data."""
         if not template_content:
@@ -400,8 +399,8 @@ class HTMLAssembler:
     def assemble_report(
         self,
         assets: TemplateAssets,
-        evaluation_data: Dict[str, Any],
-        detailed_data: Dict[str, Any],
+        evaluation_data: dict[str, any],
+        detailed_data: dict[str, any],
     ) -> str:
         """Assemble the complete HTML report with modal functionality."""
         logger.info("Assembling HTML report with modal functionality...")
@@ -460,8 +459,8 @@ class ReportSummaryService:
 
     @staticmethod
     def generate_summary(
-        evaluation_data: Dict[str, Any], output_path: Path
-    ) -> Dict[str, str]:
+        evaluation_data: dict[str, any], output_path: Path
+    ) -> dict[str, str]:
         """Generate summary information for logging."""
         models = evaluation_data.get("models", [])
         execution_time = evaluation_data.get(
@@ -550,7 +549,7 @@ class ReportGenerator:
 
     def _get_evaluation_data(
         self, config: ReportConfig
-    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    ) -> tuple[dict[str, any], dict[str, any]]:
         """Get evaluation data from the data processor."""
         logger.info("Extracting evaluation data...")
 
@@ -565,8 +564,8 @@ class ReportGenerator:
     def _generate_html_content(
         self,
         assets: TemplateAssets,
-        evaluation_data: Dict[str, Any],
-        detailed_data: Dict[str, Any],
+        evaluation_data: dict[str, any],
+        detailed_data: dict[str, any],
     ) -> str:
         """Generate the complete HTML content."""
         logger.info("Generating HTML content...")
@@ -583,7 +582,7 @@ class ReportGenerator:
         logger.info(f"Writing report to: {output_path}")
         self.file_service.write_file(output_path, html_content)
 
-    def _log_summary(self, evaluation_data: Dict[str, Any], output_path: Path):
+    def _log_summary(self, evaluation_data: dict[str, any], output_path: Path):
         """Log summary information about the generated report."""
         summary = self.summary_service.generate_summary(evaluation_data, output_path)
 
@@ -599,8 +598,8 @@ def main(config_path: str = "evaluation/test_suite_config.json"):
     try:
         generator = ReportGenerator(config_path)
         # For standalone execution, calculate results_dir based on config
-        config_data = generator.config_service.get_config()
-        results_dir_name = config_data.get("results_dir_name", "tests")
+        config = generator.config_service.get_config()
+        results_dir_name = config.results_directory
         script_dir = Path(__file__).parent
         results_dir = script_dir / "results" / results_dir_name
         generator.generate_report(results_dir)

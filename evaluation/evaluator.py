@@ -11,15 +11,13 @@ import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Tuple
 import logging
-
 import numpy as np
 from rouge import Rouge
 import litellm
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from evaluation.config_loader import ConfigLoader
+from evaluation.config_loader import EvaluationConfigLoader, TestSuiteConfiguration, EvaluationOptions
 from evaluation.test_case_loader import load_test_case
 
 logging.basicConfig(level=logging.INFO)
@@ -35,14 +33,14 @@ class EvaluationResult:
     run_number: int
     test_case_id: str
     test_case_path: str
-    tool_match_score: Optional[float] = None
-    response_match_score: Optional[float] = None
-    llm_eval_score: Optional[float] = None
-    llm_eval_reasoning: Optional[str] = None
-    duration_seconds: Optional[float] = None
-    errors: List[str] = field(default_factory=list)
+    tool_match_score: float | None = None
+    response_match_score: float | None = None
+    llm_eval_score: float | None = None
+    llm_eval_reasoning: str | None = None
+    duration_seconds: float | None = None
+    errors: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, any]:
         """Convert to dictionary format for JSON serialization."""
         result = {
             "run": self.run_number,
@@ -74,10 +72,10 @@ class ScoreStatistics:
     """Statistical summary of evaluation scores."""
 
     average: float
-    distribution: Dict[str, float]
+    distribution: dict[str, float]
 
     @classmethod
-    def from_scores(cls, scores: List[float]) -> "ScoreStatistics":
+    def from_scores(cls, scores: list[float]) -> "ScoreStatistics":
         """Create statistics from a list of scores."""
         if not scores:
             return cls(
@@ -103,13 +101,13 @@ class TestCaseResults:
 
     test_case_id: str
     category: str
-    runs: List[EvaluationResult]
+    runs: list[EvaluationResult]
     average_duration: float
     tool_match_scores: ScoreStatistics
     response_match_scores: ScoreStatistics
     llm_eval_scores: ScoreStatistics
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, any]:
         """Convert to dictionary format for JSON serialization."""
         return {
             "test_case_id": self.test_case_id,
@@ -136,10 +134,10 @@ class ModelResults:
     """Complete evaluation results for a model."""
 
     model_name: str
-    total_execution_time: Optional[float]
-    test_cases: List[TestCaseResults]
+    total_execution_time: float | None
+    test_cases: list[TestCaseResults]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, any]:
         """Convert to dictionary format for JSON serialization."""
         return {
             "model_name": self.model_name,
@@ -152,36 +150,33 @@ class ConfigurationService:
     """Handles configuration loading and validation."""
 
     def __init__(self, config_path: str):
-        self.config_loader = ConfigLoader(config_path)
+        self.config_loader = EvaluationConfigLoader(config_path)
         self._config_cache = None
         self._evaluation_settings_cache = None
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> TestSuiteConfiguration:
         """Get the main configuration."""
         if self._config_cache is None:
-            self._config_cache = self.config_loader.load_config()
+            self._config_cache = self.config_loader.load_configuration()
         return self._config_cache
 
-    def get_evaluation_settings(self) -> Dict[str, Any]:
+    def get_evaluation_settings(self) -> EvaluationOptions:
         """Get evaluation settings."""
         if self._evaluation_settings_cache is None:
-            self._evaluation_settings_cache = (
-                self.config_loader.get_evaluation_settings()
-            )
+            self._evaluation_settings_cache = self.config_loader.get_evaluation_options()
         return self._evaluation_settings_cache
 
     def get_results_path(self) -> str:
         """Get the base results path."""
         config = self.get_config()
-        results_dir_name = config["results_dir_name"]
-        return os.path.join(SCRIPT_DIR, "results", results_dir_name)
+        return os.path.join(SCRIPT_DIR, "results", config.results_directory)
 
 
 class FileService:
     """Handles file I/O operations."""
 
     @staticmethod
-    def load_json(filepath: str) -> Any:
+    def load_json(filepath: str) -> any:
         """Load JSON data from file."""
         try:
             with open(filepath, "r") as f:
@@ -191,7 +186,7 @@ class FileService:
             raise
 
     @staticmethod
-    def save_json(data: Any, filepath: str):
+    def save_json(data: any, filepath: str):
         """Save data as JSON to file."""
         try:
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -211,12 +206,12 @@ class StatisticsService:
     """Handles statistical calculations and aggregations."""
 
     @staticmethod
-    def calculate_score_statistics(scores: List[float]) -> ScoreStatistics:
+    def calculate_score_statistics(scores: list[float]) -> ScoreStatistics:
         """Calculate statistical summary for a list of scores."""
         return ScoreStatistics.from_scores(scores)
 
     @staticmethod
-    def calculate_average_duration(durations: List[float]) -> float:
+    def calculate_average_duration(durations: list[float]) -> float:
         """Calculate average duration from a list of durations."""
         if not durations:
             return 0.0
@@ -228,8 +223,8 @@ class EvaluationStrategy(ABC):
 
     @abstractmethod
     def evaluate(
-        self, test_case: Dict[str, Any], summary_data: Dict[str, Any]
-    ) -> Optional[float]:
+        self, test_case: dict[str, any], summary_data: dict[str, any]
+    ) -> float | None:
         """Evaluate a test case run and return a score."""
         pass
 
@@ -238,8 +233,8 @@ class ToolMatchEvaluator(EvaluationStrategy):
     """Evaluates tool usage against expected tools."""
 
     def evaluate(
-        self, test_case: Dict[str, Any], summary_data: Dict[str, Any]
-    ) -> Optional[float]:
+        self, test_case: dict[str, any], summary_data: dict[str, any]
+    ) -> float | None:
         """Evaluate tool matching score."""
         try:
             expected_tools = test_case["evaluation"]["expected_tools"]
@@ -268,8 +263,8 @@ class ResponseMatchEvaluator(EvaluationStrategy):
         self.rouge = Rouge()
 
     def evaluate(
-        self, test_case: Dict[str, Any], summary_data: Dict[str, Any]
-    ) -> Optional[float]:
+        self, test_case: dict[str, any], summary_data: dict[str, any]
+    ) -> float | None:
         """Evaluate response matching score using a weighted ROUGE average."""
         try:
             expected_response = test_case["evaluation"]["expected_response"]
@@ -297,7 +292,7 @@ class ResponseMatchEvaluator(EvaluationStrategy):
 class LLMEvaluator(EvaluationStrategy):
     """Evaluates responses using an LLM judge."""
 
-    def __init__(self, llm_config: Dict[str, Any]):
+    def __init__(self, llm_config: dict[str, any]):
         self.model = llm_config.get("LLM_SERVICE_PLANNING_MODEL_NAME")
         self.api_key = llm_config.get("LLM_SERVICE_API_KEY")
         self.api_base = llm_config.get("LLM_SERVICE_ENDPOINT")
@@ -308,8 +303,8 @@ class LLMEvaluator(EvaluationStrategy):
             )
 
     def evaluate(
-        self, test_case: Dict[str, Any], summary_data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        self, test_case: dict[str, any], summary_data: dict[str, any]
+    ) -> dict[str, any] | None:
         """Evaluate response using LLM and return score with reasoning."""
         try:
             query = test_case["query"]
@@ -351,8 +346,8 @@ class LLMEvaluator(EvaluationStrategy):
         expected_response: str,
         actual_response: str,
         criterion: str,
-        input_artifacts: List[Dict],
-        output_artifacts: List[Dict],
+        input_artifacts: list[dict],
+        output_artifacts: list[dict],
     ) -> str:
         """Build the evaluation prompt for the LLM."""
         return f"""
@@ -367,7 +362,7 @@ class LLMEvaluator(EvaluationStrategy):
         Format your response exactly as:
         Score: [0.0-1.0]
         Reasoning: [Your detailed explanation of why you gave this score, considering both the response and any artifacts created]
-        
+
         Provide a score from 0.0 to 1.0 where:
         - 1.0 = Excellent: Fully meets the criterion and expectations
         - 0.8-0.9 = Good: Mostly meets the criterion with minor issues
@@ -415,7 +410,7 @@ class LLMEvaluator(EvaluationStrategy):
 class RunEvaluator:
     """Evaluates individual test runs."""
 
-    def __init__(self, evaluation_settings: Dict[str, Any]):
+    def __init__(self, evaluation_settings: dict[str, any]):
         self.evaluation_settings = evaluation_settings
         self.file_service = FileService()
 
@@ -443,9 +438,9 @@ class RunEvaluator:
         self,
         run_number: int,
         run_path: str,
-        test_case: Dict[str, Any],
+        test_case: dict[str, any],
         test_case_path: str,
-    ) -> Optional[EvaluationResult]:
+    ) -> EvaluationResult | None:
         """Evaluate a single test run."""
         logger.info(
             f"    - Evaluating run {run_number} for test case {test_case['test_case_id']}"
@@ -496,7 +491,7 @@ class RunEvaluator:
 class ModelEvaluator:
     """Evaluates all runs for a single model."""
 
-    def __init__(self, config: Dict[str, Any], evaluation_settings: Dict[str, Any]):
+    def __init__(self, config: dict[str, any], evaluation_settings: dict[str, any]):
         self.config = config
         self.evaluation_settings = evaluation_settings
         self.run_evaluator = RunEvaluator(evaluation_settings)
@@ -542,7 +537,7 @@ class ModelEvaluator:
 
     def _collect_evaluation_tasks(
         self, model_results_path: str
-    ) -> List[Tuple[int, str, Dict[str, Any], str]]:
+    ) -> list[tuple[int, str, dict[str, any], str]]:
         """Collect all evaluation tasks for the model."""
         tasks = []
 
@@ -558,7 +553,7 @@ class ModelEvaluator:
         return tasks
 
     def _aggregate_test_case_results(
-        self, test_case_id: str, runs: List[EvaluationResult]
+        self, test_case_id: str, runs: list[EvaluationResult]
     ) -> TestCaseResults:
         """Aggregate results for a test case across multiple runs."""
         # Load test case to get category
@@ -623,7 +618,7 @@ class EvaluationOrchestrator:
     def run_evaluation(
         self,
         base_results_path: str,
-        model_execution_times: Optional[Dict[str, float]] = None,
+        model_execution_times: dict[str, float] | None = None,
     ):
         """Main entry point for the evaluation process."""
         logger.info("--- Starting evaluation ---")
@@ -634,10 +629,26 @@ class EvaluationOrchestrator:
         config = self.config_service.get_config()
         evaluation_settings = self.config_service.get_evaluation_settings()
 
-        model_evaluator = ModelEvaluator(config, evaluation_settings)
+        # Convert evaluation settings to dict format for backwards compatibility
+        settings_dict = {
+            "tool_match": {"enabled": evaluation_settings.tool_matching_enabled},
+            "response_match": {"enabled": evaluation_settings.response_matching_enabled},
+            "llm_evaluator": {
+                "enabled": evaluation_settings.llm_evaluation_enabled,
+                "env": evaluation_settings.llm_evaluator_environment.variables if evaluation_settings.llm_evaluator_environment else {}
+            }
+        }
 
-        for model_config in config["llm_models"]:
-            model_name = model_config["name"]
+        # Convert config to dict format for backwards compatibility
+        config_dict = {
+            "test_cases": config.test_case_files,
+            "runs": config.run_count
+        }
+
+        model_evaluator = ModelEvaluator(config_dict, settings_dict)
+
+        for model_config in config.model_configurations:
+            model_name = model_config.name
 
             # Evaluate the model
             model_results = model_evaluator.evaluate_model(

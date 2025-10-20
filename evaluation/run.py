@@ -15,10 +15,9 @@ import mimetypes
 import threading
 from pathlib import Path
 
-from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from dotenv import load_dotenv
-from .config_loader import ConfigLoader
+from .config_loader import EvaluationConfigLoader, TestSuiteConfiguration
 from .message_organizer import MessageOrganizer
 from .summary_builder import SummaryBuilder
 from .subscriber import Subscriber
@@ -27,41 +26,9 @@ from .report_generator import ReportGenerator
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-
-@dataclass
-class EvaluationConfig:
-    """Centralized configuration with validation and defaults."""
-
-    # Constants
-    DEFAULT_STARTUP_WAIT_TIME = 60
-    DEFAULT_TEST_TIMEOUT = 60
-
-    def __init__(self, config_data: Dict[str, Any]):
-        load_dotenv()
-        host = os.getenv("REST_API_HOST", "0.0.0.0")
-        port = os.getenv("REST_API_PORT", "8080")
-        self.API_BASE_URL = f"http://{host}:{port}/api/v2"
-        self.config_data = config_data
-        self.agents = config_data.get("agents", [])
-        self.test_cases = config_data.get("test_cases", [])
-        self.llm_models = config_data.get("llm_models", [])
-        self.runs = config_data.get("runs", 1)
-        self.results_dir_name = config_data.get("results_dir_name", "tests")
-
-        self._validate_config()
-
-    def _validate_config(self):
-        """Validate required configuration fields."""
-        if not self.agents:
-            raise ValueError("'agents' configuration is required and cannot be empty")
-        if not self.test_cases:
-            raise ValueError(
-                "'test_cases' configuration is required and cannot be empty"
-            )
-        if not self.llm_models:
-            raise ValueError(
-                "'llm_models' configuration is required and cannot be empty"
-            )
+# Constants
+DEFAULT_STARTUP_WAIT_TIME = 60
+DEFAULT_TEST_TIMEOUT = 60
 
 
 @dataclass
@@ -70,7 +37,7 @@ class TestRun:
 
     agent: str
     query: str
-    artifacts: List[str]
+    artifacts: list[str]
     wait_time: int
     test_case_file: str
     run_num: int
@@ -85,19 +52,19 @@ class TestRun:
 class ProcessManager:
     """Manages subprocess lifecycle for the Solace AI Connector."""
 
-    def __init__(self, config: EvaluationConfig, verbose: bool = False):
+    def __init__(self, config: TestSuiteConfiguration, verbose: bool = False):
         self.config = config
-        self.process: Optional[subprocess.Popen] = None
-        self.namespace: Optional[str] = None
+        self.process: subprocess.Popen | None = None
+        self.namespace: str | None = None
         self.verbose = verbose
 
-    def start_services(self) -> Tuple[subprocess.Popen, str]:
+    def start_services(self) -> tuple[subprocess.Popen, str]:
         """Start the Solace AI Connector and return process and namespace."""
         load_dotenv()
         self.namespace = f"eval-{uuid.uuid4()}"
         os.environ["NAMESPACE"] = self.namespace
 
-        agent_files = self.config.agents
+        agent_files = self.config.agent_configs
 
         command = [sys.executable, "-m", "solace_ai_connector.main", *agent_files]
 
@@ -116,9 +83,13 @@ class ProcessManager:
     def _wait_for_server_ready(self):
         """Poll the health endpoint until the server is ready."""
         start_time = time.time()
-        health_url = f"{self.config.API_BASE_URL.replace('/api/v2', '')}/health"
+        load_dotenv()
+        host = os.getenv("REST_API_HOST", "0.0.0.0")
+        port = os.getenv("REST_API_PORT", "8080")
+        api_base_url = f"http://{host}:{port}/api/v2"
+        health_url = f"{api_base_url.replace('/api/v2', '')}/health"
 
-        while time.time() - start_time < self.config.DEFAULT_STARTUP_WAIT_TIME:
+        while time.time() - start_time < DEFAULT_STARTUP_WAIT_TIME:
             try:
                 response = requests.get(health_url)
                 if response.status_code == 200:
@@ -133,10 +104,10 @@ class ProcessManager:
                 time.sleep(1)
 
         raise RuntimeError(
-            f"Server did not become healthy within {self.config.DEFAULT_STARTUP_WAIT_TIME} seconds."
+            f"Server did not become healthy within {DEFAULT_STARTUP_WAIT_TIME} seconds."
         )
 
-    def stop_services(self, subscriber: Optional[Subscriber] = None):
+    def stop_services(self, subscriber: Subscriber | None = None):
         """Clean up running processes."""
         if subscriber:
             print("--- Terminating subscriber ---")
@@ -160,14 +131,16 @@ class ProcessManager:
 class TaskService:
     """Handles task submission and tracking."""
 
-    def __init__(self, config: EvaluationConfig, verbose: bool = False):
-        self.config = config
-        self.base_url = config.API_BASE_URL
+    def __init__(self, verbose: bool = False):
         self.verbose = verbose
+        load_dotenv()
+        host = os.getenv("REST_API_HOST", "0.0.0.0")
+        port = os.getenv("REST_API_PORT", "8080")
+        self.base_url = f"http://{host}:{port}/api/v2"
 
     def submit_task(
-        self, agent_name: str, message: str, artifact_paths: Optional[List[str]] = None
-    ) -> Optional[str]:
+        self, agent_name: str, message: str, artifact_paths: list[str] | None = None
+    ) -> str | None:
         """Submit a test case to the agent and return the task ID."""
         print("--- Sending test request ---")
         url = f"{self.base_url}/tasks"
@@ -195,7 +168,7 @@ class TaskService:
         finally:
             self._close_file_uploads(files_to_upload)
 
-    def _prepare_file_uploads(self, artifact_paths: List[str]) -> List[Tuple]:
+    def _prepare_file_uploads(self, artifact_paths: list[str]) -> list[tuple]:
         """Prepare file uploads for the request."""
         files_to_upload = []
         for path in artifact_paths:
@@ -207,7 +180,7 @@ class TaskService:
             )
         return files_to_upload
 
-    def _close_file_uploads(self, files_to_upload: List[Tuple]):
+    def _close_file_uploads(self, files_to_upload: list[tuple]):
         """Close file handles after upload."""
         for _, file_tuple in files_to_upload:
             file_tuple[1].close()
@@ -228,13 +201,13 @@ class FileService:
             shutil.rmtree(path)
 
     @staticmethod
-    def save_json(data: Any, filepath: str):
+    def save_json(data: any, filepath: str):
         """Save data as JSON to file."""
         with open(filepath, "w") as f:
             json.dump(data, f, indent=4)
 
     @staticmethod
-    def load_json(filepath: str) -> Any:
+    def load_json(filepath: str) -> any:
         """Load JSON data from file."""
         with open(filepath, "r") as f:
             return json.load(f)
@@ -243,27 +216,25 @@ class FileService:
 class TestRunBuilder:
     """Builds test run configurations from test cases."""
 
-    def __init__(self, config: EvaluationConfig):
+    def __init__(self, config: TestSuiteConfiguration):
         self.config = config
 
-    def build_test_runs(self) -> List[TestRun]:
+    def build_test_runs(self) -> list[TestRun]:
         """Build all test runs from configuration."""
         test_runs = []
 
-        for test_case_path in self.config.test_cases:
+        for test_case_path in self.config.test_case_files:
             test_case = FileService.load_json(test_case_path)
 
             artifact_paths = self._get_artifact_paths(test_case, test_case_path)
 
             test_case_file = os.path.basename(test_case_path)
-            for run_num in range(1, self.config.runs + 1):
+            for run_num in range(1, self.config.run_count + 1):
                 test_run = TestRun(
                     agent=test_case["target_agent"],
                     query=test_case["query"],
                     artifacts=artifact_paths,
-                    wait_time=test_case.get(
-                        "wait_time", self.config.DEFAULT_TEST_TIMEOUT
-                    ),
+                    wait_time=test_case.get("wait_time", DEFAULT_TEST_TIMEOUT),
                     test_case_file=test_case_path,
                     run_num=run_num,
                 )
@@ -271,7 +242,7 @@ class TestRunBuilder:
 
         return test_runs
 
-    def _get_artifact_paths(self, test_case: Dict, test_case_path: str) -> List[str]:
+    def _get_artifact_paths(self, test_case: dict, test_case_path: str) -> list[str]:
         """Extract artifact paths from test case."""
         artifact_paths = []
         if "artifacts" in test_case:
@@ -294,7 +265,7 @@ class TestExecutor:
         self,
         test_run: TestRun,
         model_results_path: str,
-        task_mappings: Dict[str, str],
+        task_mappings: dict[str, str],
         subscriber: Subscriber,
     ) -> bool:
         """Execute a single test case and wait for completion."""
@@ -355,20 +326,20 @@ class TestExecutor:
 class ModelEvaluator:
     """Handles the evaluation of a single model."""
 
-    def __init__(self, config: EvaluationConfig, verbose: bool = False):
+    def __init__(self, config: TestSuiteConfiguration, verbose: bool = False):
         self.config = config
         self.process_manager = ProcessManager(config, verbose=verbose)
-        self.task_service = TaskService(config, verbose=verbose)
+        self.task_service = TaskService(verbose=verbose)
         self.file_service = FileService()
         self.test_builder = TestRunBuilder(config)
         self.test_executor = TestExecutor(self.task_service, self.file_service, verbose=verbose)
         self.verbose = verbose
 
     def evaluate_model(
-        self, model_config: Dict[str, Any], base_results_path: str
+        self, model_config: dict[str, any], base_results_path: str
     ) -> float:
         """Evaluate a single model and return execution time."""
-        model_name = model_config["name"]
+        model_name = model_config.name
         print(f"--- Starting evaluation for model: {model_name} ---")
         start_time = time.time()
 
@@ -407,10 +378,11 @@ class ModelEvaluator:
 
         return execution_time
 
-    def _set_model_environment(self, model_config: Dict[str, Any]):
+    def _set_model_environment(self, model_config: dict[str, any]):
         """Set environment variables for the model."""
-        for key, value in model_config.get("env", {}).items():
-            os.environ[key] = value
+        for key, value in model_config.environment.variables.items():
+            if value is not None:
+                os.environ[key] = value
 
     def _setup_subscriber(self, namespace: str, model_results_path: str) -> Subscriber:
         """Set up and start the subscriber."""
@@ -455,7 +427,7 @@ class ModelEvaluator:
         app_process: subprocess.Popen,
         subscriber: Subscriber,
         model_results_path: str,
-        task_mappings: Dict[str, str],
+        task_mappings: dict[str, str],
     ):
         """Clean up after model evaluation."""
         self.process_manager.stop_services(subscriber)
@@ -513,10 +485,10 @@ class EvaluationRunner:
     """Main orchestrator that coordinates the entire evaluation process."""
 
     def __init__(self, verbose: bool = False):
-        self.config: Optional[EvaluationConfig] = None
+        self.config: TestSuiteConfiguration | None = None
         self.file_service = FileService()
         self.results_processor = ResultsProcessor(self.file_service, verbose=verbose)
-        self.report_generator: Optional[ReportGenerator] = None
+        self.report_generator: ReportGenerator | None = None
         self.verbose = verbose
 
     def run_evaluation(self, config_path: str):
@@ -528,7 +500,7 @@ class EvaluationRunner:
             self._load_configuration(config_path)
 
             # Set up results directory in the current working directory
-            base_results_path = Path.cwd() / "results" / self.config.results_dir_name
+            base_results_path = Path.cwd() / "results" / self.config.results_directory
             self._setup_results_directory(base_results_path)
 
             # Run model evaluations
@@ -555,9 +527,8 @@ class EvaluationRunner:
 
     def _load_configuration(self, config_path: str):
         """Load and validate the evaluation configuration."""
-        config_loader = ConfigLoader(config_path)
-        config_data = config_loader.load_config()
-        self.config = EvaluationConfig(config_data)
+        config_loader = EvaluationConfigLoader(config_path)
+        self.config = config_loader.load_configuration()
         self.report_generator = ReportGenerator(config_path)
         print("Configuration loaded and validated successfully.")
 
@@ -569,23 +540,23 @@ class EvaluationRunner:
 
         print(f"Results directory set up at: {base_results_path}")
 
-    def _evaluate_all_models(self, base_results_path: str) -> Dict[str, float]:
+    def _evaluate_all_models(self, base_results_path: str) -> dict[str, float]:
         """Evaluate all configured models."""
         model_execution_times = {}
 
-        for model_config in self.config.llm_models:
+        for model_config in self.config.model_configurations:
             model_evaluator = ModelEvaluator(self.config, verbose=self.verbose)
             execution_time = model_evaluator.evaluate_model(
                 model_config, base_results_path
             )
-            model_execution_times[model_config["name"]] = execution_time
+            model_execution_times[model_config.name] = execution_time
 
         return model_execution_times
 
     def _post_process_results(
         self,
         base_results_path: str,
-        model_execution_times: Dict[str, float],
+        model_execution_times: dict[str, float],
         config_path: str,
     ):
         """Post-process evaluation results."""
@@ -685,7 +656,7 @@ class EvaluationRunner:
                 f"{tool_score:<12} | {response_score:<16} | {llm_score:<10}"
             )
 
-    def _get_model_stats(self, model_path: str) -> Dict[str, Any]:
+    def _get_model_stats(self, model_path: str) -> dict[str, any]:
         """Process results for a single model and return stats."""
         model_stats = {}
         results_file = os.path.join(model_path, "results.json")
