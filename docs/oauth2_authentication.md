@@ -23,19 +23,19 @@ Add the following environment variables to your `.env` file:
 
 ```bash
 # Required OAuth Configuration
-OAUTH_TOKEN_URL="https://auth.example.com/oauth/token"
-OAUTH_CLIENT_ID="your_client_id"
-OAUTH_CLIENT_SECRET="your_client_secret"
+LLM_SERVICE_OAUTH_TOKEN_URL="https://auth.example.com/oauth/token"
+LLM_SERVICE_OAUTH_CLIENT_ID="your_client_id"
+LLM_SERVICE_OAUTH_CLIENT_SECRET="your_client_secret"
 
 # Optional OAuth Configuration
-OAUTH_SCOPE="llm.read llm.write"
-OAUTH_CA_CERT_PATH="/path/to/ca.crt"
-OAUTH_TOKEN_REFRESH_BUFFER_SECONDS="300"
+LLM_SERVICE_OAUTH_SCOPE="llm.read llm.write"
+LLM_SERVICE_OAUTH_CA_CERT_PATH="/path/to/ca.crt"
+LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS="300"
 
 # LLM Configuration
-OAUTH_LLM_PLANNING_MODEL_NAME="your-planning-model"
-OAUTH_LLM_GENERAL_MODEL_NAME="your-general-model"
-OAUTH_LLM_API_BASE="https://api.example.com/v1"
+LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME="your-planning-model"
+LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME="your-general-model"
+LLM_SERVICE_OAUTH_ENDPOINT="https://api.example.com/v1"
 ```
 
 ### YAML Configuration
@@ -46,32 +46,32 @@ Configure OAuth authentication in your `shared_config.yaml`:
 models:
   # OAuth-authenticated planning model
   planning: &oauth_planning_model
-    model: ${OAUTH_LLM_PLANNING_MODEL_NAME}
-    api_base: ${OAUTH_LLM_API_BASE}
+    model: ${LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME}
+    api_base: ${LLM_SERVICE_OAUTH_ENDPOINT}
     
     # OAuth 2.0 Client Credentials configuration
-    oauth_token_url: ${OAUTH_TOKEN_URL}
-    oauth_client_id: ${OAUTH_CLIENT_ID}
-    oauth_client_secret: ${OAUTH_CLIENT_SECRET}
-    oauth_scope: ${OAUTH_SCOPE}
-    oauth_ca_cert: ${OAUTH_CA_CERT_PATH}
-    oauth_token_refresh_buffer_seconds: ${OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
+    oauth_token_url: ${LLM_SERVICE_OAUTH_TOKEN_URL}
+    oauth_client_id: ${LLM_SERVICE_OAUTH_CLIENT_ID}
+    oauth_client_secret: ${LLM_SERVICE_OAUTH_CLIENT_SECRET}
+    oauth_scope: ${LLM_SERVICE_OAUTH_SCOPE}
+    oauth_ca_cert: ${LLM_SERVICE_OAUTH_CA_CERT_PATH}
+    oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
     
     parallel_tool_calls: true
     temperature: 0.1
 
   # OAuth-authenticated general model
   general: &oauth_general_model
-    model: ${OAUTH_LLM_GENERAL_MODEL_NAME}
-    api_base: ${OAUTH_LLM_API_BASE}
+    model: ${LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME}
+    api_base: ${LLM_SERVICE_OAUTH_ENDPOINT}
     
     # OAuth 2.0 Client Credentials configuration
-    oauth_token_url: ${OAUTH_TOKEN_URL}
-    oauth_client_id: ${OAUTH_CLIENT_ID}
-    oauth_client_secret: ${OAUTH_CLIENT_SECRET}
-    oauth_scope: ${OAUTH_SCOPE}
-    oauth_ca_cert: ${OAUTH_CA_CERT_PATH}
-    oauth_token_refresh_buffer_seconds: ${OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
+    oauth_token_url: ${LLM_SERVICE_OAUTH_TOKEN_URL}
+    oauth_client_id: ${LLM_SERVICE_OAUTH_CLIENT_ID}
+    oauth_client_secret: ${LLM_SERVICE_OAUTH_CLIENT_SECRET}
+    oauth_scope: ${LLM_SERVICE_OAUTH_SCOPE}
+    oauth_ca_cert: ${LLM_SERVICE_OAUTH_CA_CERT_PATH}
+    oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
 ```
 
 ## Configuration Parameters
@@ -136,21 +136,21 @@ If no fallback is available, the request will fail with the OAuth error.
    ```
    ERROR: OAuth token request failed with status 401: Invalid client credentials
    ```
-   - Verify `OAUTH_CLIENT_ID` and `OAUTH_CLIENT_SECRET`
+   - Verify `LLM_SERVICE_OAUTH_CLIENT_ID` and `LLM_SERVICE_OAUTH_CLIENT_SECRET`
    - Check if credentials are properly URL-encoded
 
 2. **Invalid Scope**
    ```
    ERROR: OAuth token request failed with status 400: Invalid scope
    ```
-   - Verify `OAUTH_SCOPE` matches provider requirements
+   - Verify `LLM_SERVICE_OAUTH_SCOPE` matches provider requirements
    - Check if scope values are space-separated
 
 3. **SSL Certificate Issues**
    ```
    ERROR: OAuth token request failed: SSL certificate verification failed
    ```
-   - Set `OAUTH_CA_CERT_PATH` for custom CA certificates
+   - Set `LLM_SERVICE_OAUTH_CA_CERT_PATH` for custom CA certificates
    - Verify certificate chain is complete
 
 4. **Token Refresh Issues**

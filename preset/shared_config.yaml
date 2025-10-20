@@ -50,29 +50,29 @@ shared_config:
     # OAuth 2.0 Client Credentials authentication example
     oauth_planning: &oauth_planning_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper with OAuth authentication.
-      model: ${OAUTH_LLM_PLANNING_MODEL_NAME} # Use env var for model name
-      api_base: ${OAUTH_LLM_API_BASE} # Use env var for endpoint URL
+      model: ${LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME} # Use env var for model name
+      api_base: ${LLM_SERVICE_OAUTH_ENDPOINT} # Use env var for endpoint URL
 
       # OAuth 2.0 Client Credentials configuration
-      oauth_token_url: ${OAUTH_TOKEN_URL} # OAuth token endpoint URL
-      oauth_client_id: ${OAUTH_CLIENT_ID} # OAuth client identifier
-      oauth_client_secret: ${OAUTH_CLIENT_SECRET} # OAuth client secret
-      oauth_scope: ${OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
-      oauth_token_refresh_buffer_seconds: ${OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
+      oauth_token_url: ${LLM_SERVICE_OAUTH_TOKEN_URL} # OAuth token endpoint URL
+      oauth_client_id: ${LLM_SERVICE_OAUTH_CLIENT_ID} # OAuth client identifier
+      oauth_client_secret: ${LLM_SERVICE_OAUTH_CLIENT_SECRET} # OAuth client secret
+      oauth_scope: ${LLM_SERVICE_OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
+      oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
 
       parallel_tool_calls: true
 
     oauth_general: &oauth_general_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper with OAuth authentication.
-      model: ${OAUTH_LLM_GENERAL_MODEL_NAME} # Use env var for model name
-      api_base: ${OAUTH_LLM_API_BASE} # Use env var for endpoint URL
+      model: ${LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME} # Use env var for model name
+      api_base: ${LLM_SERVICE_OAUTH_ENDPOINT} # Use env var for endpoint URL
 
       # OAuth 2.0 Client Credentials configuration
-      oauth_token_url: ${OAUTH_TOKEN_URL} # OAuth token endpoint URL
-      oauth_client_id: ${OAUTH_CLIENT_ID} # OAuth client identifier
-      oauth_client_secret: ${OAUTH_CLIENT_SECRET} # OAuth client secret
-      oauth_scope: ${OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
-      oauth_token_refresh_buffer_seconds: ${OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
+      oauth_token_url: ${LLM_SERVICE_OAUTH_TOKEN_URL} # OAuth token endpoint URL
+      oauth_client_id: ${LLM_SERVICE_OAUTH_CLIENT_ID} # OAuth client identifier
+      oauth_client_secret: ${LLM_SERVICE_OAUTH_CLIENT_SECRET} # OAuth client secret
+      oauth_scope: ${LLM_SERVICE_OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
+      oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
 
   - services:    
     # Default artifact service configuration

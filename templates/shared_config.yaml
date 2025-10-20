@@ -57,17 +57,17 @@ shared_config:
     oauth_planning: &oauth_planning_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper with OAuth authentication.
       # 'model' uses the specific model identifier your endpoint expects.
-      model: ${OAUTH_LLM_PLANNING_MODEL_NAME} # Use env var for model name
+      model: ${LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME} # Use env var for model name
       # 'api_base' tells LiteLLM where to send the request.
-      api_base: ${OAUTH_LLM_API_BASE} # Use env var for endpoint URL
+      api_base: ${LLM_SERVICE_OAUTH_ENDPOINT} # Use env var for endpoint URL
 
       # OAuth 2.0 Client Credentials configuration
-      oauth_token_url: ${OAUTH_TOKEN_URL} # OAuth token endpoint URL
-      oauth_client_id: ${OAUTH_CLIENT_ID} # OAuth client identifier
-      oauth_client_secret: ${OAUTH_CLIENT_SECRET} # OAuth client secret
-      oauth_scope: ${OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
-      # oauth_ca_cert: ${OAUTH_CA_CERT_PATH} # Optional: Custom CA certificate path
-      oauth_token_refresh_buffer_seconds: ${OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300} # Refresh buffer
+      oauth_token_url: ${LLM_SERVICE_OAUTH_TOKEN_URL} # OAuth token endpoint URL
+      oauth_client_id: ${LLM_SERVICE_OAUTH_CLIENT_ID} # OAuth client identifier
+      oauth_client_secret: ${LLM_SERVICE_OAUTH_CLIENT_SECRET} # OAuth client secret
+      oauth_scope: ${LLM_SERVICE_OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
+      # oauth_ca_cert: ${LLM_SERVICE_OAUTH_CA_CERT_PATH} # Optional: Custom CA certificate path
+      oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300} # Refresh buffer
 
       # Enable parallel tool calls for planning model
       parallel_tool_calls: true
@@ -77,17 +77,17 @@ shared_config:
     oauth_general: &oauth_general_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper with OAuth authentication.
       # 'model' uses the specific model identifier your endpoint expects.
-      model: ${OAUTH_LLM_GENERAL_MODEL_NAME} # Use env var for model name
+      model: ${LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME} # Use env var for model name
       # 'api_base' tells LiteLLM where to send the request.
-      api_base: ${OAUTH_LLM_API_BASE} # Use env var for endpoint URL
+      api_base: ${LLM_SERVICE_OAUTH_ENDPOINT} # Use env var for endpoint URL
 
       # OAuth 2.0 Client Credentials configuration
-      oauth_token_url: ${OAUTH_TOKEN_URL} # OAuth token endpoint URL
-      oauth_client_id: ${OAUTH_CLIENT_ID} # OAuth client identifier
-      oauth_client_secret: ${OAUTH_CLIENT_SECRET} # OAuth client secret
-      oauth_scope: ${OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
-      # oauth_ca_cert: ${OAUTH_CA_CERT_PATH} # Optional: Custom CA certificate path
-      oauth_token_refresh_buffer_seconds: ${OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300} # Refresh buffer
+      oauth_token_url: ${LLM_SERVICE_OAUTH_TOKEN_URL} # OAuth token endpoint URL
+      oauth_client_id: ${LLM_SERVICE_OAUTH_CLIENT_ID} # OAuth client identifier
+      oauth_client_secret: ${LLM_SERVICE_OAUTH_CLIENT_SECRET} # OAuth client secret
+      oauth_scope: ${LLM_SERVICE_OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
+      # oauth_ca_cert: ${LLM_SERVICE_OAUTH_CA_CERT_PATH} # Optional: Custom CA certificate path
+      oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300} # Refresh buffer
 
   - services:
     # Default session service configuration
