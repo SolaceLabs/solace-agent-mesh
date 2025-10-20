@@ -108,17 +108,6 @@ Agent Mesh supports OAuth 2.0 Client Credentials authentication for LLM provider
 
 The OAuth 2.0 Client Credentials flow is a machine-to-machine authentication method defined in [RFC 6749](https://tools.ietf.org/html/rfc6749#section-4.4). Agent Mesh handles the complete OAuth lifecycle automatically, including token acquisition, caching, refresh, and injection into LLM requests. This implementation ensures secure and efficient authentication without requiring manual token management.
 
-### Key Features
-
-The OAuth authentication system provides several important capabilities:
-
-- **Automatic Token Management**: Tokens are automatically fetched, cached in memory, and refreshed before expiration
-- **Thread-Safe Operations**: Concurrent requests safely share cached tokens without conflicts
-- **Intelligent Retry Logic**: Exponential backoff with jitter handles transient failures gracefully
-- **Proactive Token Refresh**: Tokens refresh before expiration to prevent request failures
-- **SSL/TLS Support**: Custom CA certificates enable secure connections to private OAuth servers
-- **Graceful Fallback**: Automatic fallback to API key authentication if OAuth fails and an API key is configured
-
 ### Configuration Parameters
 
 OAuth authentication requires several configuration parameters that you can specify through environment variables and YAML configuration:
@@ -187,18 +176,6 @@ models:
     oauth_token_refresh_buffer_seconds: ${OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
 ```
 
-### How OAuth Authentication Works
-
-The OAuth authentication process follows these steps:
-
-1. **Token Acquisition**: When the first LLM request is made, the system sends a POST request to the OAuth token endpoint with client credentials and scope, receiving an access token with expiration information.
-
-2. **Token Caching**: The access token is cached in memory with a time-to-live (TTL) based on the token expiration time minus the refresh buffer, with a minimum cache time of 60 seconds.
-
-3. **Token Injection**: For each LLM request, the system checks if the cached token is valid, fetches a new token if needed, and injects the Bearer token into request headers as `Authorization: Bearer <token>`.
-
-4. **Token Refresh**: Tokens are proactively refreshed when the current time plus the refresh buffer exceeds the token expiration time, preventing requests from failing due to expired tokens.
-
 ### Error Handling and Fallback
 
 The OAuth system implements robust error handling:
@@ -251,14 +228,6 @@ Check network connectivity to the OAuth endpoint, verify the OAuth endpoint URL 
 
 This OAuth implementation works with any LLM provider that supports OAuth 2.0 Client Credentials flow, accepts Bearer tokens in the `Authorization` header, and is compatible with LiteLLM's request format. Examples include Azure OpenAI with OAuth-enabled endpoints, custom enterprise LLM deployments, and third-party LLM services with OAuth support.
 
-### Migration from API Key Authentication
-
-To migrate from API key to OAuth authentication:
-
-1. Add OAuth environment variables to your `.env` file
-2. Update your `shared_config.yaml` to include OAuth parameters for the relevant models
-3. Test the OAuth configuration with your provider to ensure proper authentication
-4. Optionally remove API key configuration, or keep it as a fallback mechanism
 
 ## Security and SSL/TLS Configuration
 
