@@ -776,8 +776,9 @@ async def load_adk_tools(
                                 )
                         except Exception as e:
                             log.error(
-                                "%s Failed to discover tools from MCP server for name registration: %s",
+                                "%s [%s] Failed to discover tools from MCP server for name registration: %s",
                                 component.log_identifier,
+                                component.agent_name,
                                 str(e),
                             )
                             raise

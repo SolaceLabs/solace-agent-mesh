@@ -259,6 +259,14 @@ async def run_adk_async_task(
     current_loop = asyncio.get_running_loop()
     is_paused = False
 
+    if not component.runner:
+        agent_info = f"{component.agent_name}" if component.agent_name else ""
+        raise RuntimeError(
+            f"ADK Runner not initialized in agent {agent_info}. "
+            f"This may occur if the component was not started properly due to configuration issues. "
+            f"Task ID: {logical_task_id}"
+        )
+
     adk_event_generator = component.runner.run_async(
         user_id=adk_session.user_id,
         session_id=adk_session.id,
