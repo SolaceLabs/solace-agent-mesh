@@ -5,7 +5,6 @@ Replaces complex custom validation with clean, declarative models.
 
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -24,7 +23,9 @@ from .constants import (
     DEFAULT_RECONNECT_DELAY,
     DEFAULT_RESULTS_DIR,
     DEFAULT_RUN_COUNT,
+    REMOTE_REQUIRED_FIELDS,
 )
+from .helpers import resolve_env_vars
 
 log = logging.getLogger(__name__)
 
@@ -35,22 +36,10 @@ class EnvironmentVariables(BaseModel):
 
     @model_validator(mode='before')
     @classmethod
-    def resolve_env_vars(cls, data):
-        """Automatically resolve environment variables ending with _VAR."""
-        # If data is a dict that doesn't have 'variables' key, treat the whole dict as variables
+    def build_variables(cls, data: any) -> any:
+        """Build a variables dictionary from raw data."""
         if isinstance(data, dict) and 'variables' not in data:
-            resolved = {}
-            for key, value in data.items():
-                if key.endswith("_VAR"):
-                    env_var_name = key[:-4]  # Remove '_VAR' suffix
-                    env_value = os.getenv(value)
-                    if not env_value:
-                        log.warning(f"Environment variable '{value}' not set for {env_var_name}")
-                    resolved[env_var_name] = env_value
-                else:
-                    # This is a direct value, include it as-is
-                    resolved[key] = value
-            return {"variables": resolved}
+            return {"variables": resolve_env_vars(data)}
         return data
 
     def get(self, key: str, default: str | None = None) -> str | None:
@@ -76,6 +65,19 @@ class ModelConfiguration(BaseModel):
         return self
 
 
+class RemoteConfig(BaseModel):
+    """Remote configuration with environment variable support."""
+    environment: EnvironmentVariables
+
+    @model_validator(mode='before')
+    @classmethod
+    def build_environment(cls, data: any) -> any:
+        if isinstance(data, dict):
+            # All fields are environment variables
+            return {"environment": data}
+        return data
+
+
 class BrokerConfig(BaseModel):
     """Broker connection configuration with validation and environment variable resolution."""
     host: str | None = Field(default=None, alias="SOLACE_BROKER_URL")
@@ -89,17 +91,9 @@ class BrokerConfig(BaseModel):
 
     @model_validator(mode='before')
     @classmethod
-    def resolve_env_vars(cls, data):
+    def resolve_env_vars(cls, data: dict) -> dict:
         """Resolve environment variables for broker configuration."""
-        if "env" in data:
-            env_data = data.pop("env")
-            for key, value in env_data.items():
-                if key.endswith("_VAR"):
-                    env_var_name = key[:-4]
-                    env_value = os.getenv(value)
-                    if env_value:
-                        data[env_var_name] = env_value
-        return data
+        return resolve_env_vars(data)
 
     @model_validator(mode='after')
     def check_required_fields(self):
@@ -149,9 +143,7 @@ class TestSuiteConfiguration(BaseModel):
     broker: BrokerConfig
     agent_configs: list[str] | None = Field(default=None, min_length=1, alias="agents")
     model_configurations: list[ModelConfiguration] | None = Field(default=None, min_length=1, alias="llm_models")
-    auth_token: str | None = Field(default=None, alias="auth_token")
-    remote_url: str | None = Field(default=None, alias="remote_url")
-    namespace: str | None = Field(default=None, alias="namespace")
+    remote: RemoteConfig | None = Field(default=None)
     test_case_files: list[str] = Field(min_length=1, alias="test_cases")
     results_directory: str = Field(default=DEFAULT_RESULTS_DIR, min_length=1, alias="results_dir_name")
     run_count: int = Field(default=DEFAULT_RUN_COUNT, ge=1, alias="runs")
@@ -178,20 +170,20 @@ class TestSuiteConfiguration(BaseModel):
     @model_validator(mode='after')
     def validate_configuration_mode(self):
         """Validate that either remote or local configuration is correctly provided."""
-        is_remote = self.remote_url is not None
+        is_remote = self.remote is not None
         is_local = self.agent_configs is not None and self.model_configurations is not None
 
         if is_remote and is_local:
-            raise ValueError("Configuration cannot have both 'remote_url' and local settings ('agents', 'llm_models').")
+            raise ValueError("Configuration cannot have both 'remote' and local settings ('agents', 'llm_models').")
 
         if is_remote and (self.agent_configs or self.model_configurations):
-             raise ValueError("When 'remote_url' is provided, 'agents' and 'llm_models' must not be set.")
+            raise ValueError("When 'remote' is provided, 'agents' and 'llm_models' must not be set.")
 
-        if is_remote and not self.namespace:
-            raise ValueError("When 'remote_url' is provided, 'namespace' must also be set.")
+        if is_remote and not self.remote.environment.is_complete(REMOTE_REQUIRED_FIELDS):
+            raise ValueError(f"Remote configuration requires environment variables: {REMOTE_REQUIRED_FIELDS}")
 
         if not is_remote and not is_local:
-            raise ValueError("Configuration must include either 'remote_url' or local settings ('agents', 'llm_models').")
+            raise ValueError("Configuration must include either 'remote' or local settings ('agents', 'llm_models').")
 
         return self
 
@@ -228,18 +220,7 @@ class ConfigurationParser:
         if result["llm_evaluation_enabled"]:
             env_data = raw_settings.get("llm_evaluator", {}).get("env", {})
             if env_data:
-                # Pre-resolve environment variables for evaluation settings
-                resolved_env = {}
-                for key, value in env_data.items():
-                    if key.endswith("_VAR"):
-                        env_var_name = key[:-4]  # Remove '_VAR' suffix
-                        env_value = os.getenv(value)
-                        if env_value:  # Only include if environment variable is set
-                            resolved_env[env_var_name] = env_value
-                    else:
-                        resolved_env[key] = value
-
-                result["llm_evaluator_environment"] = EnvironmentVariables(variables=resolved_env)
+                result["llm_evaluator_environment"] = env_data
 
         return result
 

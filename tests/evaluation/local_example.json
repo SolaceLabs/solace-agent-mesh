@@ -4,12 +4,10 @@
         "examples/agents/orchestrator_example.yaml"
     ],
     "broker": {
-        "env": {
-            "SOLACE_BROKER_URL_VAR": "SOLACE_BROKER_URL",
-            "SOLACE_BROKER_USERNAME_VAR": "SOLACE_BROKER_USERNAME",
-            "SOLACE_BROKER_PASSWORD_VAR": "SOLACE_BROKER_PASSWORD",
-            "SOLACE_BROKER_VPN_VAR": "SOLACE_BROKER_VPN"
-        }
+        "SOLACE_BROKER_URL_VAR": "SOLACE_BROKER_URL",
+        "SOLACE_BROKER_USERNAME_VAR": "SOLACE_BROKER_USERNAME",
+        "SOLACE_BROKER_PASSWORD_VAR": "SOLACE_BROKER_PASSWORD",
+        "SOLACE_BROKER_VPN_VAR": "SOLACE_BROKER_VPN"
     },
     "llm_models": [
         {

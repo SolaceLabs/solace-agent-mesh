@@ -143,8 +143,8 @@ class TaskService:
     def __init__(self, config: TestSuiteConfiguration, verbose: bool = False):
         self.verbose = verbose
         self.config = config
-        if config.remote_url:
-            self.base_url = config.remote_url
+        if config.remote:
+            self.base_url = config.remote.environment.get("EVAL_REMOTE_URL")
         else:
             self.base_url = get_local_base_url()
 
@@ -160,8 +160,10 @@ class TaskService:
         }
 
         headers = {}
-        if self.config.auth_token:
-            headers["Authorization"] = f"Bearer {self.config.auth_token}"
+        if self.config.remote:
+            auth_token = self.config.remote.environment.get("EVAL_AUTH_TOKEN")
+            if auth_token:
+                headers["Authorization"] = f"Bearer {auth_token}"
 
         files_to_upload = []
         if artifact_paths:
@@ -525,7 +527,7 @@ class EvaluationRunner:
             self._setup_results_directory(base_results_path)
 
             # Run model evaluations
-            if self.config.remote_url:
+            if self.config.remote:
                 model_execution_times = self._run_remote_evaluation(base_results_path)
             else:
                 model_execution_times = self._run_local_evaluation(base_results_path)
@@ -582,12 +584,13 @@ class EvaluationRunner:
 
     def _run_remote_evaluation(self, base_results_path: Path) -> dict[str, float]:
         """Run evaluation against a remote endpoint."""
-        log.info(f"Starting remote evaluation against: {self.config.remote_url}")
+        remote_url = self.config.remote.environment.get("EVAL_REMOTE_URL")
+        log.info(f"Starting remote evaluation against: {remote_url}")
         start_time = time.time()
 
         # Check if the remote server is healthy before proceeding
         process_manager = ProcessManager(self.config, self.verbose)
-        process_manager._wait_for_server_ready(self.config.remote_url)
+        process_manager._wait_for_server_ready(remote_url)
 
         # Instantiate services with the remote configuration
         task_service = TaskService(self.config, self.verbose)
@@ -632,9 +635,10 @@ class EvaluationRunner:
     def _setup_remote_subscriber(self, results_path: str) -> Subscriber:
         """Set up a subscriber for remote evaluation."""
         subscription_ready_event = threading.Event()
+        namespace = self.config.remote.environment.get("EVAL_NAMESPACE")
         subscriber = Subscriber(
             self.config.broker,
-            self.config.namespace,
+            namespace,
             set(),
             None,
             subscription_ready_event,

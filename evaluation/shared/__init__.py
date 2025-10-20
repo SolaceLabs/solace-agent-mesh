@@ -16,6 +16,7 @@ from .constants import (
     EVALUATION_DIR,
     MAX_WAIT_TIME,
     MESSAGE_TIMEOUT,
+    REMOTE_REQUIRED_FIELDS,
     ConnectionState,
 )
 from .exceptions import (
@@ -57,6 +58,7 @@ __all__ = [
     "EVALUATION_DIR",
     "MAX_WAIT_TIME",
     "BROKER_REQUIRED_FIELDS",
+    "REMOTE_REQUIRED_FIELDS",
     "ALLOWED_TOPIC_INFIXES",
     "BLOCKED_TOPIC_INFIXES",
     "MESSAGE_TIMEOUT",

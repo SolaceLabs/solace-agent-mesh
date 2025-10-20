@@ -1,15 +1,15 @@
 {
     "broker": {
-        "env": {
-            "SOLACE_BROKER_URL_VAR": "SOLACE_BROKER_URL",
-            "SOLACE_BROKER_USERNAME_VAR": "SOLACE_BROKER_USERNAME",
-            "SOLACE_BROKER_PASSWORD_VAR": "SOLACE_BROKER_PASSWORD",
-            "SOLACE_BROKER_VPN_VAR": "SOLACE_BROKER_VPN"
-        }
+        "SOLACE_BROKER_URL_VAR": "SOLACE_BROKER_URL",
+        "SOLACE_BROKER_USERNAME_VAR": "SOLACE_BROKER_USERNAME",
+        "SOLACE_BROKER_PASSWORD_VAR": "SOLACE_BROKER_PASSWORD",
+        "SOLACE_BROKER_VPN_VAR": "SOLACE_BROKER_VPN"
     },
-    "remote_url": "https://your-remote-api-endpoint.com/api/v2",
-    "auth_token": "your-secret-auth-token",
-    "namespace": "your-remote-namespace",
+    "remote": {
+        "EVAL_REMOTE_URL_VAR": "EVAL_REMOTE_URL",
+        "EVAL_AUTH_TOKEN_VAR": "EVAL_AUTH_TOKEN",
+        "EVAL_NAMESPACE_VAR": "EVAL_NAMESPACE"
+    },
     "results_dir_name": "sam-remote-eval-test",
     "runs": 1,
     "test_cases": [

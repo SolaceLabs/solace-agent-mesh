@@ -650,7 +650,7 @@ class EvaluationOrchestrator:
 
         model_evaluator = ModelEvaluator(config_dict, settings_dict)
 
-        if config.remote_url:
+        if config.remote:
             # Handle remote evaluation
             model_name = "remote"
             model_results = model_evaluator.evaluate_model(model_name, base_results_path)

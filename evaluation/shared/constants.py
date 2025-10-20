@@ -22,6 +22,7 @@ MAX_WAIT_TIME = 300
 
 # Validation
 BROKER_REQUIRED_FIELDS = ["host", "vpn_name", "username", "password"]
+REMOTE_REQUIRED_FIELDS = ["EVAL_REMOTE_URL", "EVAL_NAMESPACE"]
 
 
 # Subscription Defaults
