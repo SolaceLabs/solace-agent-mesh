@@ -522,7 +522,7 @@ def main(config_path: str = None):
     """Main entry point when running the script directly."""
     try:
         # Import here to avoid circular imports
-        from evaluation.config_loader import EvaluationConfigLoader
+        from evaluation.test_suite_loader import EvaluationConfigLoader
 
         # Use default config path if none provided
         if config_path is None:

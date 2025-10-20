@@ -16,7 +16,7 @@ import threading
 from pathlib import Path
 from dataclasses import dataclass
 from dotenv import load_dotenv
-from .config_loader import EvaluationConfigLoader, TestSuiteConfiguration
+from .test_suite_loader import EvaluationConfigLoader, TestSuiteConfiguration
 from .message_organizer import MessageOrganizer
 from .summary_builder import SummaryBuilder
 from .subscriber import Subscriber

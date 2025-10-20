@@ -11,7 +11,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 # Import configuration and data services
-from .config_loader import EvaluationConfigLoader, TestSuiteConfiguration
+from .test_suite_loader import EvaluationConfigLoader, TestSuiteConfiguration
 from .report_data_processor import ReportDataProcessor
 
 

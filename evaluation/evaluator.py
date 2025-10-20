@@ -17,7 +17,7 @@ from rouge import Rouge
 import litellm
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from evaluation.config_loader import EvaluationConfigLoader, TestSuiteConfiguration, EvaluationOptions
+from evaluation.test_suite_loader import EvaluationConfigLoader, TestSuiteConfiguration, EvaluationOptions
 from evaluation.test_case_loader import load_test_case
 
 log = logging.getLogger(__name__)
