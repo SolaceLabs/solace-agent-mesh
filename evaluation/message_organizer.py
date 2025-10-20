@@ -8,8 +8,7 @@ import os
 from dataclasses import dataclass
 import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class CategorizationError(Exception):
@@ -124,7 +123,7 @@ class TaskIdExtractor:
                 if task_id:
                     return task_id, sub_task_id
             except Exception as e:
-                logger.debug(f"Task ID extraction strategy failed: {e}")
+                log.debug(f"Task ID extraction strategy failed: {e}")
                 continue
 
         return None, None
@@ -194,7 +193,7 @@ class FileOperations:
             with open(filepath, "r") as f:
                 data = json.load(f)
 
-            logger.debug(f"Successfully loaded JSON from {filepath}")
+            log.debug(f"Successfully loaded JSON from {filepath}")
             return data
 
         except json.JSONDecodeError as e:
@@ -212,7 +211,7 @@ class FileOperations:
             with open(filepath, "w") as f:
                 json.dump(data, f, indent=4)
 
-            logger.debug(f"Successfully saved JSON to {filepath}")
+            log.debug(f"Successfully saved JSON to {filepath}")
 
         except Exception as e:
             raise CategorizationError(f"Error saving file {filepath}: {e}")
@@ -239,7 +238,7 @@ class MessageCategorizer:
         self, model_path: str, model_name: str
     ) -> CategorizationResult:
         """Categorize messages for a single model with comprehensive error handling."""
-        logger.info(f"Starting message categorization for model: {model_name}")
+        log.info(f"Starting message categorization for model: {model_name}")
 
         try:
             # Validate required files exist
@@ -249,7 +248,7 @@ class MessageCategorizer:
             task_mappings = self._load_task_mappings(model_path)
             messages = self._load_messages(model_path)
 
-            logger.info(
+            log.info(
                 f"Loaded {len(messages)} messages and {len(task_mappings.mappings)} task mappings"
             )
 
@@ -278,11 +277,11 @@ class MessageCategorizer:
                 updated_mappings_count=updated_mappings_count,
             )
 
-            logger.info(f"Categorization completed for {model_name}: {result}")
+            log.info(f"Categorization completed for {model_name}: {result}")
             return result
 
         except Exception as e:
-            logger.error(f"Error categorizing messages for model {model_name}: {e}")
+            log.error(f"Error categorizing messages for model {model_name}: {e}")
             raise
 
     def _validate_required_files(self, model_path: str, model_name: str) -> None:
@@ -328,7 +327,7 @@ class MessageCategorizer:
                 message = TaskMessage.from_dict(message_dict)
                 messages.append(message)
             except Exception as e:
-                logger.warning(f"Skipping invalid message at index {i}: {e}")
+                log.warning(f"Skipping invalid message at index {i}: {e}")
                 continue
 
         return messages
@@ -361,7 +360,7 @@ class MessageCategorizer:
                 task_mappings.add_mapping(message.task_id, parent_directory)
                 updated_count += 1
 
-                logger.debug(
+                log.debug(
                     f"Mapped sub-task {message.task_id} to parent directory: {parent_directory}"
                 )
 
@@ -404,10 +403,10 @@ class MessageCategorizer:
                 self.file_ops.save_json(message_dicts, output_file)
                 total_saved += len(messages)
 
-                logger.info(f"Saved {len(messages)} messages to {output_file}")
+                log.info(f"Saved {len(messages)} messages to {output_file}")
 
             except Exception as e:
-                logger.error(f"Error saving messages to {run_directory}: {e}")
+                log.error(f"Error saving messages to {run_directory}: {e}")
                 continue
 
         return total_saved
@@ -416,7 +415,7 @@ class MessageCategorizer:
         """Save updated task mappings back to file."""
         mappings_file = os.path.join(model_path, "task_mappings.json")
         self.file_ops.save_json(task_mappings.mappings, mappings_file)
-        logger.info(f"Updated task mappings saved to {mappings_file}")
+        log.info(f"Updated task mappings saved to {mappings_file}")
 
 
 class MessageOrganizer:
@@ -434,7 +433,7 @@ class MessageOrganizer:
         Main entry point for categorizing all messages across all models.
         Returns a dictionary mapping model names to their categorization results.
         """
-        logger.info(
+        log.info(
             f"Starting message categorization for all models in: {base_results_path}"
         )
 
@@ -449,7 +448,7 @@ class MessageOrganizer:
                 model_path = os.path.join(base_results_path, model_name)
 
                 if not self.file_ops.is_directory(model_path):
-                    logger.debug(f"Skipping non-directory: {model_name}")
+                    log.debug(f"Skipping non-directory: {model_name}")
                     continue
 
                 try:
@@ -458,13 +457,13 @@ class MessageOrganizer:
                     processed_models += 1
 
                 except (MissingFileError, InvalidDataError) as e:
-                    logger.warning(f"Skipping model {model_name}: {e}")
+                    log.warning(f"Skipping model {model_name}: {e}")
                     continue
                 except Exception as e:
-                    logger.error(f"Error processing model {model_name}: {e}")
+                    log.error(f"Error processing model {model_name}: {e}")
                     continue
 
-            logger.info(
+            log.info(
                 f"Message categorization completed. Processed {processed_models} models."
             )
             self._log_summary_statistics(results)
@@ -472,30 +471,30 @@ class MessageOrganizer:
             return results
 
         except Exception as e:
-            logger.error(f"Error during message categorization: {e}")
+            log.error(f"Error during message categorization: {e}")
             raise
 
     def _process_model_directory(
         self, model_path: str, model_name: str
     ) -> CategorizationResult:
         """Process a single model directory and return categorization results."""
-        logger.info(f"Processing model directory: {model_name}")
+        log.info(f"Processing model directory: {model_name}")
 
         try:
             result = self.categorizer.categorize_messages_for_model(
                 model_path, model_name
             )
-            logger.info(f"Successfully processed model {model_name}: {result}")
+            log.info(f"Successfully processed model {model_name}: {result}")
             return result
 
         except Exception as e:
-            logger.error(f"Failed to process model {model_name}: {e}")
+            log.error(f"Failed to process model {model_name}: {e}")
             raise
 
     def _log_summary_statistics(self, results: dict[str, CategorizationResult]) -> None:
         """Log summary statistics for all processed models."""
         if not results:
-            logger.warning("No models were successfully processed")
+            log.warning("No models were successfully processed")
             return
 
         total_messages = sum(result.total_messages for result in results.values())
@@ -510,26 +509,32 @@ class MessageOrganizer:
             total_categorized / total_messages if total_messages > 0 else 0.0
         )
 
-        logger.info("=== CATEGORIZATION SUMMARY ===")
-        logger.info(f"Models processed: {len(results)}")
-        logger.info(f"Total messages: {total_messages}")
-        logger.info(f"Messages categorized: {total_categorized}")
-        logger.info(f"Overall success rate: {overall_success_rate:.1%}")
-        logger.info(f"New task mappings added: {total_mappings_added}")
-        logger.info("==============================")
+        log.info("=== CATEGORIZATION SUMMARY ===")
+        log.info(f"Models processed: {len(results)}")
+        log.info(f"Total messages: {total_messages}")
+        log.info(f"Messages categorized: {total_categorized}")
+        log.info(f"Overall success rate: {overall_success_rate:.1%}")
+        log.info(f"New task mappings added: {total_mappings_added}")
+        log.info("==============================")
 
 
-def main():
+def main(config_path: str = None):
     """Main entry point when running the script directly."""
     try:
         # Import here to avoid circular imports
-        from evaluation.config_loader import ConfigLoader
+        from evaluation.config_loader import EvaluationConfigLoader
+
+        # Use default config path if none provided
+        if config_path is None:
+            SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(SCRIPT_DIR, "..", "tests", "evaluation", "config.json")
+
+        config_loader = EvaluationConfigLoader(config_path)
+        config = config_loader.load_configuration()
+        results_dir_name = config.results_directory
 
         SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-        config_loader = ConfigLoader()
-        config = config_loader.load_config()
-        results_dir_name = config["results_dir_name"]
-        base_results_path = os.path.join(SCRIPT_DIR, "results", results_dir_name)
+        base_results_path = os.path.join(SCRIPT_DIR, "..", "results", results_dir_name)
 
         orchestrator = MessageOrganizer()
         results = orchestrator.categorize_all_messages(base_results_path)
@@ -538,9 +543,19 @@ def main():
         print(f"Processed {len(results)} models")
 
     except Exception as e:
-        logger.error(f"Script execution failed: {e}")
+        log.error(f"Script execution failed: {e}")
         raise
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Categorize evaluation messages.")
+    parser.add_argument(
+        "--config",
+        type=str,
+        help="Path to the evaluation config.json file. If not provided, uses default test config.",
+    )
+    args = parser.parse_args()
+
+    main(args.config)

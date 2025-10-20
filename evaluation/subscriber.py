@@ -7,12 +7,10 @@ import os
 import json
 import threading
 import time
-from typing import Dict, List, Optional, Any, Set, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
 from dotenv import load_dotenv
-
 from solace.messaging.messaging_service import MessagingService
 from solace.messaging.resources.topic_subscription import TopicSubscription
 from solace.messaging.config.solace_properties import (
@@ -21,10 +19,7 @@ from solace.messaging.config.solace_properties import (
     authentication_properties,
     transport_layer_security_properties,
 )
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -97,7 +92,7 @@ class BrokerConfig:
         if self.reconnect_attempts < 0:
             raise ConfigurationError("Reconnect attempts cannot be negative")
 
-    def to_solace_properties(self) -> Dict[str, Any]:
+    def to_solace_properties(self) -> dict[str, any]:
         """Convert to Solace messaging properties."""
         return {
             transport_layer_properties.HOST: self.host,
@@ -113,14 +108,14 @@ class SubscriptionConfig:
     """Subscription configuration and topic filters."""
 
     namespace: str
-    allowed_topic_infixes: List[str] = field(
+    allowed_topic_infixes: list[str] = field(
         default_factory=lambda: [
             "/agent/request/",
             "/gateway/status/",
             "/gateway/response/",
         ]
     )
-    blocked_topic_infixes: List[str] = field(
+    blocked_topic_infixes: list[str] = field(
         default_factory=lambda: [
             "/discovery/"
         ]
@@ -158,11 +153,11 @@ class ProcessedMessage:
     """Structured representation of a processed message."""
 
     topic: str
-    payload: Any
+    payload: any
     timestamp: float = field(default_factory=time.time)
-    message_type: Optional[str] = None
+    message_type: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "topic": self.topic,
@@ -185,7 +180,7 @@ class MessageSanitizer:
     """Handles message sanitization and cleaning."""
 
     @staticmethod
-    def remove_key_recursive(obj: Any, key_to_remove: str) -> None:
+    def remove_key_recursive(obj: any, key_to_remove: str) -> None:
         """
         Recursively remove a key from nested dictionaries and lists.
 
@@ -206,10 +201,10 @@ class MessageSanitizer:
                 for item in obj:
                     MessageSanitizer.remove_key_recursive(item, key_to_remove)
         except Exception as e:
-            logger.warning(f"Error during key removal: {e}")
+            log.warning(f"Error during key removal: {e}")
 
     @staticmethod
-    def sanitize_message(payload: Any, remove_config: bool = True) -> Any:
+    def sanitize_message(payload: any, remove_config: bool = True) -> any:
         """
         Sanitize message payload by removing unwanted keys.
 
@@ -239,7 +234,7 @@ class MessageProcessor:
         self.processed_count = 0
         self.error_count = 0
 
-    def process_message(self, inbound_message) -> Optional[ProcessedMessage]:
+    def process_message(self, inbound_message) -> ProcessedMessage | None:
         """
         Process an inbound message and return a ProcessedMessage if valid.
 
@@ -280,10 +275,10 @@ class MessageProcessor:
 
         except Exception as e:
             self.error_count += 1
-            logger.warning(f"Error processing message: {e}")
+            log.warning(f"Error processing message: {e}")
             return None
 
-    def _extract_payload(self, inbound_message) -> Optional[Any]:
+    def _extract_payload(self, inbound_message):
         """Extract and parse payload from inbound message."""
         try:
             payload_bytes = inbound_message.get_payload_as_bytes()
@@ -300,10 +295,10 @@ class MessageProcessor:
                 return payload_str
 
         except Exception as e:
-            logger.warning(f"Error extracting payload: {e}")
+            log.warning(f"Error extracting payload: {e}")
             return None
 
-    def _should_filter_status_message(self, topic: str, payload: Any) -> bool:
+    def _should_filter_status_message(self, topic: str, payload: any) -> bool:
         """Check if a status message should be filtered out."""
         if not self.config.filter_non_final_status:
             return False
@@ -325,7 +320,7 @@ class MessageProcessor:
 
         return False
 
-    def _find_part_type(self, data: Any, type_to_find: str) -> bool:
+    def _find_part_type(self, data: any, type_to_find: str) -> bool:
         """Recursively search for a part with a specific type."""
         if isinstance(data, dict):
             if data.get("type") == type_to_find:
@@ -350,7 +345,7 @@ class MessageProcessor:
         else:
             return "unknown"
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         """Get processing statistics."""
         return {
             "processed_count": self.processed_count,
@@ -362,14 +357,14 @@ class TaskTracker:
     """Tracks task completion and manages active tasks."""
 
     def __init__(
-        self, active_tasks: Set[str], wave_complete_event: Optional[threading.Event]
+        self, active_tasks: set[str], wave_complete_event: threading.Event | None
     ):
         self.active_tasks = active_tasks
         self.wave_complete_event = wave_complete_event
-        self.completed_tasks: List[TaskCompletionEvent] = []
+        self.completed_tasks: list[TaskCompletionEvent] = []
         self._lock = threading.Lock()
 
-    def handle_task_completion(self, topic: str) -> Optional[TaskCompletionEvent]:
+    def handle_task_completion(self, topic: str) -> TaskCompletionEvent | None:
         """
         Handle task completion based on topic.
 
@@ -389,7 +384,7 @@ class TaskTracker:
 
             with self._lock:
                 if task_id in self.active_tasks:
-                    logger.info(f"Task {task_id} completed")
+                    log.info(f"Task {task_id} completed")
                     self.active_tasks.remove(task_id)
 
                     completion_event = TaskCompletionEvent(task_id=task_id, topic=topic)
@@ -397,17 +392,17 @@ class TaskTracker:
 
                     # Check if all tasks are complete
                     if not self.active_tasks and self.wave_complete_event:
-                        logger.info("All tasks completed, setting wave complete event")
+                        log.info("All tasks completed, setting wave complete event")
                         self.wave_complete_event.set()
 
                     return completion_event
 
         except Exception as e:
-            logger.error(f"Error handling task completion: {e}")
+            log.error(f"Error handling task completion: {e}")
 
         return None
 
-    def _extract_task_id(self, topic: str) -> Optional[str]:
+    def _extract_task_id(self, topic: str) -> str | None:
         """Extract task ID from topic."""
         try:
             return topic.split("/")[-1]
@@ -430,7 +425,7 @@ class MessageStorage:
 
     def __init__(self, results_path: str):
         self.results_path = results_path
-        self.messages: List[ProcessedMessage] = []
+        self.messages: list[ProcessedMessage] = []
         self._lock = threading.Lock()
 
     def add_message(self, message: ProcessedMessage) -> None:
@@ -466,11 +461,11 @@ class MessageStorage:
             with open(output_file, "w") as f:
                 json.dump(message_dicts, f, indent=4)
 
-            logger.info(f"Saved {len(message_dicts)} messages to {output_file}")
+            log.info(f"Saved {len(message_dicts)} messages to {output_file}")
             return output_file
 
         except Exception as e:
-            logger.error(f"Error saving messages: {e}")
+            log.error(f"Error saving messages: {e}")
             raise MessageProcessingError(f"Failed to save messages: {e}")
 
     def clear_messages(self) -> None:
@@ -484,7 +479,7 @@ class BrokerConnectionService:
 
     def __init__(self, config: BrokerConfig):
         self.config = config
-        self.messaging_service: Optional[MessagingService] = None
+        self.messaging_service: MessagingService | None = None
         self.connection_state = ConnectionState.DISCONNECTED
         self._connection_lock = threading.Lock()
 
@@ -492,13 +487,13 @@ class BrokerConnectionService:
         """Connect to the Solace broker."""
         with self._connection_lock:
             if self.connection_state == ConnectionState.CONNECTED:
-                logger.warning("Already connected to broker")
+                log.warning("Already connected to broker")
                 return
 
             self.connection_state = ConnectionState.CONNECTING
 
             try:
-                logger.info("Connecting to Solace PubSub+ Broker...")
+                log.info("Connecting to Solace PubSub+ Broker...")
 
                 broker_props = self.config.to_solace_properties()
                 self.messaging_service = (
@@ -507,37 +502,37 @@ class BrokerConnectionService:
                 self.messaging_service.connect()
 
                 self.connection_state = ConnectionState.CONNECTED
-                logger.info("Successfully connected to broker")
+                log.info("Successfully connected to broker")
 
             except Exception as e:
                 self.connection_state = ConnectionState.ERROR
-                logger.error(f"Failed to connect to broker: {e}")
+                log.error(f"Failed to connect to broker: {e}")
                 raise BrokerConnectionError(f"Connection failed: {e}")
 
     def disconnect(self) -> None:
         """Disconnect from the Solace broker."""
         with self._connection_lock:
             if self.connection_state == ConnectionState.DISCONNECTED:
-                logger.warning("Already disconnected from broker")
+                log.warning("Already disconnected from broker")
                 return
 
             self.connection_state = ConnectionState.DISCONNECTING
 
             try:
                 if self.messaging_service:
-                    logger.info("Disconnecting from broker...")
+                    log.info("Disconnecting from broker...")
                     self.messaging_service.disconnect()
                     self.messaging_service = None
 
                 self.connection_state = ConnectionState.DISCONNECTED
-                logger.info("Successfully disconnected from broker")
+                log.info("Successfully disconnected from broker")
 
             except Exception as e:
                 self.connection_state = ConnectionState.ERROR
-                logger.error(f"Error during disconnect: {e}")
+                log.error(f"Error during disconnect: {e}")
                 raise BrokerConnectionError(f"Disconnect failed: {e}")
 
-    def get_messaging_service(self) -> Optional[MessagingService]:
+    def get_messaging_service(self) -> MessagingService | None:
         """Get the messaging service instance."""
         return self.messaging_service
 
@@ -563,12 +558,12 @@ class SubscriptionManager:
         self._receiver_lock = threading.Lock()
 
     def start_subscription(
-        self, subscription_ready_event: Optional[threading.Event] = None
+        self, subscription_ready_event: threading.Event | None = None
     ) -> None:
         """Start message subscription."""
         with self._receiver_lock:
             if self.subscription_active:
-                logger.warning("Subscription already active")
+                log.warning("Subscription already active")
                 return
 
             if not self.connection_service.is_connected():
@@ -592,17 +587,17 @@ class SubscriptionManager:
                 self.message_receiver.add_subscription(subscription)
 
                 self.subscription_active = True
-                logger.info(f"Started subscription to: {self.config.topic_pattern}")
+                log.info(f"Started subscription to: {self.config.topic_pattern}")
 
                 # Signal that subscription is ready
                 if subscription_ready_event:
                     subscription_ready_event.set()
 
             except Exception as e:
-                logger.error(f"Failed to start subscription: {e}")
+                log.error(f"Failed to start subscription: {e}")
                 raise BrokerConnectionError(f"Subscription failed: {e}")
 
-    def receive_message(self, timeout: Optional[int] = None):
+    def receive_message(self, timeout: int | None = None):
         """
         Receive a message from the subscription.
 
@@ -620,7 +615,7 @@ class SubscriptionManager:
         try:
             return self.message_receiver.receive_message(timeout=timeout_ms)
         except Exception as e:
-            logger.warning(f"Error receiving message: {e}")
+            log.warning(f"Error receiving message: {e}")
             return None
 
     def stop_subscription(self) -> None:
@@ -631,15 +626,15 @@ class SubscriptionManager:
 
             try:
                 if self.message_receiver:
-                    logger.info("Stopping message receiver...")
+                    log.info("Stopping message receiver...")
                     self.message_receiver.terminate()
                     self.message_receiver = None
 
                 self.subscription_active = False
-                logger.info("Subscription stopped")
+                log.info("Subscription stopped")
 
             except Exception as e:
-                logger.error(f"Error stopping subscription: {e}")
+                log.error(f"Error stopping subscription: {e}")
 
     def is_active(self) -> bool:
         """Check if subscription is active."""
@@ -657,9 +652,9 @@ class MessageSubscriber(threading.Thread):
     def __init__(
         self,
         namespace: str,
-        active_tasks: Set[str],
-        wave_complete_event: Optional[threading.Event],
-        subscription_ready_event: Optional[threading.Event],
+        active_tasks: set[str],
+        wave_complete_event: threading.Event | None,
+        subscription_ready_event: threading.Event | None,
         results_path: str,
     ):
         """
@@ -706,14 +701,14 @@ class MessageSubscriber(threading.Thread):
                 password=os.environ.get("SOLACE_BROKER_PASSWORD", ""),
             )
         except ConfigurationError as e:
-            logger.error(f"Invalid broker configuration: {e}")
+            log.error(f"Invalid broker configuration: {e}")
             raise
 
     def run(self) -> None:
         """Main thread execution method."""
         try:
             self._running = True
-            logger.info("Starting message subscriber...")
+            log.info("Starting message subscriber...")
 
             # Connect to broker
             self.connection_service.connect()
@@ -725,13 +720,13 @@ class MessageSubscriber(threading.Thread):
             self._message_processing_loop()
 
         except Exception as e:
-            logger.error(f"Error in subscriber thread: {e}")
+            log.error(f"Error in subscriber thread: {e}")
         finally:
             self._cleanup()
 
     def _message_processing_loop(self) -> None:
         """Main message processing loop."""
-        logger.info("Starting message processing loop...")
+        log.info("Starting message processing loop...")
 
         while self._running:
             try:
@@ -744,7 +739,7 @@ class MessageSubscriber(threading.Thread):
 
             except Exception as e:
                 if self._running:
-                    logger.error(f"Error in message processing loop: {e}")
+                    log.error(f"Error in message processing loop: {e}")
                     # Continue processing other messages
                     continue
 
@@ -764,11 +759,11 @@ class MessageSubscriber(threading.Thread):
                 self.task_tracker.handle_task_completion(processed_message.topic)
 
         except Exception as e:
-            logger.warning(f"Error handling message: {e}")
+            log.warning(f"Error handling message: {e}")
 
     def stop(self) -> None:
         """Stop the subscriber and clean up resources."""
-        logger.info("Stopping message subscriber...")
+        log.info("Stopping message subscriber...")
         self._running = False
 
     def _cleanup(self) -> None:
@@ -787,33 +782,33 @@ class MessageSubscriber(threading.Thread):
             self._log_final_statistics()
 
         except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+            log.error(f"Error during cleanup: {e}")
 
     def _log_final_statistics(self) -> None:
         """Log final processing statistics."""
         runtime = time.time() - self.start_time
         processor_stats = self.message_processor.get_stats()
 
-        logger.info("=== SUBSCRIBER STATISTICS ===")
-        logger.info(f"Runtime: {runtime:.2f} seconds")
-        logger.info(f"Messages received: {self.messages_received}")
-        logger.info(f"Messages processed: {self.messages_processed}")
-        logger.info(f"Messages stored: {self.message_storage.get_message_count()}")
-        logger.info(f"Processing errors: {processor_stats['error_count']}")
-        logger.info(
+        log.info("=== SUBSCRIBER STATISTICS ===")
+        log.info(f"Runtime: {runtime:.2f} seconds")
+        log.info(f"Messages received: {self.messages_received}")
+        log.info(f"Messages processed: {self.messages_processed}")
+        log.info(f"Messages stored: {self.message_storage.get_message_count()}")
+        log.info(f"Processing errors: {processor_stats['error_count']}")
+        log.info(
             f"Active tasks remaining: {self.task_tracker.get_active_task_count()}"
         )
-        logger.info(f"Tasks completed: {self.task_tracker.get_completed_task_count()}")
-        logger.info("=============================")
+        log.info(f"Tasks completed: {self.task_tracker.get_completed_task_count()}")
+        log.info("=============================")
 
     # Backward compatibility properties
     @property
-    def active_tasks(self) -> Set[str]:
+    def active_tasks(self) -> set[str]:
         """Get active tasks set for backward compatibility."""
         return self.task_tracker.active_tasks
 
     @property
-    def messages(self) -> List[Dict[str, Any]]:
+    def messages(self) -> list[dict[str, any]]:
         """Get messages list for backward compatibility."""
         return [msg.to_dict() for msg in self.message_storage.messages]
 
@@ -824,9 +819,9 @@ Subscriber = MessageSubscriber
 
 def create_subscriber_from_env(
     namespace: str,
-    active_tasks: Set[str],
-    wave_complete_event: Optional[threading.Event] = None,
-    subscription_ready_event: Optional[threading.Event] = None,
+    active_tasks: set[str],
+    wave_complete_event: threading.Event | None = None,
+    subscription_ready_event: threading.Event | None = None,
     results_path: str = ".",
 ) -> MessageSubscriber:
     """

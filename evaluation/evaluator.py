@@ -20,8 +20,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from evaluation.config_loader import EvaluationConfigLoader, TestSuiteConfiguration, EvaluationOptions
 from evaluation.test_case_loader import load_test_case
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -182,7 +181,7 @@ class FileService:
             with open(filepath, "r") as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            logger.error(f"Failed to load JSON from {filepath}: {e}")
+            log.error(f"Failed to load JSON from {filepath}: {e}")
             raise
 
     @staticmethod
@@ -193,7 +192,7 @@ class FileService:
             with open(filepath, "w") as f:
                 json.dump(data, f, indent=4)
         except Exception as e:
-            logger.error(f"Failed to save JSON to {filepath}: {e}")
+            log.error(f"Failed to save JSON to {filepath}: {e}")
             raise
 
     @staticmethod
@@ -252,7 +251,7 @@ class ToolMatchEvaluator(EvaluationStrategy):
             return len(found_tools) / len(expected_set)
 
         except (KeyError, TypeError) as e:
-            logger.warning(f"Error in tool match evaluation: {e}")
+            log.warning(f"Error in tool match evaluation: {e}")
             return None
 
 
@@ -285,7 +284,7 @@ class ResponseMatchEvaluator(EvaluationStrategy):
             return weighted_score
 
         except (ValueError, KeyError, TypeError) as e:
-            logger.warning(f"Error in response match evaluation: {e}")
+            log.warning(f"Error in response match evaluation: {e}")
             return 0.0
 
 
@@ -337,7 +336,7 @@ class LLMEvaluator(EvaluationStrategy):
             return {"score": score, "reasoning": reasoning}
 
         except Exception as e:
-            logger.error(f"Error in LLM evaluation: {e}")
+            log.error(f"Error in LLM evaluation: {e}")
             return None
 
     def _build_evaluation_prompt(
@@ -432,7 +431,7 @@ class RunEvaluator:
                 llm_config = evaluation_settings["llm_evaluator"]["env"]
                 self.llm_evaluator = LLMEvaluator(llm_config)
             except Exception as e:
-                logger.error(f"Failed to initialize LLM evaluator: {e}")
+                log.error(f"Failed to initialize LLM evaluator: {e}")
 
     def evaluate_run(
         self,
@@ -442,14 +441,14 @@ class RunEvaluator:
         test_case_path: str,
     ) -> EvaluationResult | None:
         """Evaluate a single test run."""
-        logger.info(
+        log.info(
             f"    - Evaluating run {run_number} for test case {test_case['test_case_id']}"
         )
 
         # Load summary data
         summary_path = os.path.join(run_path, "summary.json")
         if not self.file_service.file_exists(summary_path):
-            logger.warning(
+            log.warning(
                 f"      Summary file not found for run {run_number}, skipping."
             )
             return None
@@ -457,7 +456,7 @@ class RunEvaluator:
         try:
             summary_data = self.file_service.load_json(summary_path)
         except Exception as e:
-            logger.error(f"      Error loading summary.json for run {run_number}: {e}")
+            log.error(f"      Error loading summary.json for run {run_number}: {e}")
             return None
 
         # Create evaluation result
@@ -499,7 +498,7 @@ class ModelEvaluator:
 
     def evaluate_model(self, model_name: str, base_results_path: str) -> ModelResults:
         """Evaluate all test cases for a model."""
-        logger.info(f"Evaluating model: {model_name}")
+        log.info(f"Evaluating model: {model_name}")
 
         model_results_path = os.path.join(base_results_path, model_name)
 
@@ -520,7 +519,7 @@ class ModelEvaluator:
                     if result:
                         model_results_data[result.test_case_id].append(result)
                 except Exception as e:
-                    logger.error(f"An error occurred during evaluation: {e}")
+                    log.error(f"An error occurred during evaluation: {e}")
 
         # Aggregate results by test case
         test_case_results = []
@@ -603,7 +602,7 @@ class ResultsWriter:
             base_results_path, model_results.model_name, "results.json"
         )
         self.file_service.save_json(model_results.to_dict(), results_path)
-        logger.info(
+        log.info(
             f"Results for model {model_results.model_name} written to {results_path}"
         )
 
@@ -621,7 +620,7 @@ class EvaluationOrchestrator:
         model_execution_times: dict[str, float] | None = None,
     ):
         """Main entry point for the evaluation process."""
-        logger.info("--- Starting evaluation ---")
+        log.info("--- Starting evaluation ---")
 
         if model_execution_times is None:
             model_execution_times = {}
@@ -663,7 +662,7 @@ class EvaluationOrchestrator:
             # Write results to file
             self.results_writer.write_model_results(model_results, base_results_path)
 
-        logger.info("--- Evaluation finished ---")
+        log.info("--- Evaluation finished ---")
 
 
 def main(config_path: str = "evaluation/test_suite_config.json"):

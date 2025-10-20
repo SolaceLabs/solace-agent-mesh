@@ -10,8 +10,7 @@ import json
 import sys
 import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class EnvironmentVariables(BaseModel):
@@ -30,7 +29,7 @@ class EnvironmentVariables(BaseModel):
                     env_var_name = key[:-4]  # Remove '_VAR' suffix
                     env_value = os.getenv(value)
                     if not env_value:
-                        logger.warning(f"Environment variable '{value}' not set for {env_var_name}")
+                        log.warning(f"Environment variable '{value}' not set for {env_var_name}")
                     resolved[env_var_name] = env_value
                 else:
                     # This is a direct value, include it as-is
@@ -182,7 +181,7 @@ class EvaluationConfigLoader:
                 context={'config_dir': self.parser.config_dir}
             )
 
-            logger.info("Configuration loaded and validated successfully.")
+            log.info("Configuration loaded and validated successfully.")
             return config
 
         except ValidationError as e:
@@ -201,7 +200,3 @@ class EvaluationConfigLoader:
             field_path = " -> ".join(str(loc) for loc in error['loc'])
             message = error['msg']
             print(f"  Field '{field_path}': {message}")
-
-
-# Backward compatibility aliases - can be removed after all files are updated
-ConfigLoader = EvaluationConfigLoader

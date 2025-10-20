@@ -7,14 +7,10 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Union
 from enum import Enum
 from pathlib import Path
 import logging
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -62,8 +58,8 @@ class ValidationReport:
     """Detailed validation report with all errors and warnings."""
 
     def __init__(self):
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
 
     def add_error(self, field: str, message: str):
         """Add a validation error."""
@@ -96,14 +92,14 @@ class FieldValidator:
     name: str
     validation_level: ValidationLevel
     field_type: type
-    default_value: Any = None
-    min_length: Optional[int] = None
-    max_length: Optional[int] = None
-    min_value: Optional[Union[int, float]] = None
-    max_value: Optional[Union[int, float]] = None
-    allowed_values: Optional[List[Any]] = None
-    pattern: Optional[str] = None
-    custom_validator: Optional[str] = None
+    default_value: any = None
+    min_length: int | None = None
+    max_length: int | None = None
+    min_value: int | float | None = None
+    max_value: int | float | None = None
+    allowed_values: list[any] | None = None
+    pattern: str | None = None
+    custom_validator: str | None = None
 
 
 @dataclass
@@ -141,7 +137,7 @@ class ArtifactConfig:
 class EvaluationConfig:
     """Evaluation criteria configuration with validation."""
 
-    expected_tools: List[str] = field(default_factory=list)
+    expected_tools: list[str] = field(default_factory=list)
     expected_response: str = ""
     criterion: str = ""
 
@@ -176,7 +172,7 @@ class TestCase:
     category: str = "Other"
     description: str = "No description provided."
     wait_time: int = 60
-    artifacts: List[ArtifactConfig] = field(default_factory=list)
+    artifacts: list[ArtifactConfig] = field(default_factory=list)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
 
     def __post_init__(self):
@@ -202,7 +198,7 @@ class TestCase:
         if not isinstance(self.artifacts, list):
             raise TestCaseValidationError("artifacts must be a list")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, any]:
         """Convert test case to dictionary format for JSON serialization."""
         return {
             "test_case_id": self.test_case_id,
@@ -333,10 +329,10 @@ class TestCaseValidator:
     def validate_field(
         self,
         field_name: str,
-        value: Any,
-        rules: Dict[str, FieldValidator],
+        value: any,
+        rules: dict[str, FieldValidator],
         context: str = "",
-    ) -> Any:
+    ) -> any:
         """Validate individual field with comprehensive checks."""
         rule = rules.get(field_name)
         if not rule:
@@ -411,8 +407,8 @@ class TestCaseValidator:
         return value
 
     def validate_artifact(
-        self, artifact_data: Dict[str, Any], index: int
-    ) -> Optional[ArtifactConfig]:
+        self, artifact_data: dict[str, any], index: int
+    ) -> ArtifactConfig | None:
         """Validate individual artifact configuration."""
         context = f"artifacts[{index}]"
 
@@ -445,7 +441,7 @@ class TestCaseValidator:
             self.report.add_error(context, str(e))
             return None
 
-    def validate_evaluation(self, eval_data: Dict[str, Any]) -> EvaluationConfig:
+    def validate_evaluation(self, eval_data: dict[str, any]) -> EvaluationConfig:
         """Validate evaluation configuration."""
         context = "evaluation"
 
@@ -484,7 +480,7 @@ class TestCaseLoader:
     def __init__(self, test_cases_dir: str):
         self.test_cases_dir = test_cases_dir
 
-    def load_file(self, test_case_id: str) -> Dict[str, Any]:
+    def load_file(self, test_case_id: str) -> dict[str, any]:
         """Load test case file with comprehensive error handling."""
         # Normalize test case ID
         if test_case_id.endswith(".test.json"):
@@ -514,7 +510,7 @@ class TestCaseProcessor:
         self.loader = TestCaseLoader(test_cases_dir)
         self.validator = TestCaseValidator(test_cases_dir)
 
-    def load_and_process(self, test_case_id: str) -> Dict[str, Any]:
+    def load_and_process(self, test_case_id: str) -> dict[str, any]:
         """Load and process test case, returning the same format as original."""
         try:
             # Load raw test case
@@ -534,7 +530,7 @@ class TestCaseProcessor:
             # Log warnings if any
             if self.validator.report.warnings:
                 for warning in self.validator.report.warnings:
-                    logger.warning(f"Test case '{test_case_id}': {warning}")
+                    log.warning(f"Test case '{test_case_id}': {warning}")
 
             return processed_test_case
 
@@ -551,8 +547,8 @@ class TestCaseProcessor:
             sys.exit(1)
 
     def _process_test_case(
-        self, raw_test_case: Dict[str, Any], test_case_id: str
-    ) -> Dict[str, Any]:
+        self, raw_test_case: dict[str, any], test_case_id: str
+    ) -> dict[str, any]:
         """Process and validate the raw test case."""
         # Validate and set defaults for root-level fields
         validated_test_case_id = self.validator.validate_field(
@@ -621,7 +617,7 @@ class TestCaseProcessor:
 
 
 # Main API function - same interface as original
-def load_test_case(test_case_path: str) -> Dict[str, Any]:
+def load_test_case(test_case_path: str) -> dict[str, any]:
     """
     Load test case from a JSON file with comprehensive validation.
     Returns the same format as the original function.

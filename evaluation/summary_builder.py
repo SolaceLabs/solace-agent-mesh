@@ -7,9 +7,7 @@ import json
 import os
 import re
 import yaml
-
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple, Set
 from dataclasses import dataclass, field
 from .test_case_loader import load_test_case
 
@@ -21,7 +19,7 @@ class ToolCall:
     call_id: str
     agent: str
     tool_name: str
-    arguments: Dict[str, Any]
+    arguments: dict[str, any]
     timestamp: str
 
 
@@ -31,21 +29,21 @@ class ArtifactInfo:
 
     artifact_name: str
     directory: str
-    versions: List[Dict[str, Any]]
-    artifact_type: Optional[str] = None
-    source_path: Optional[str] = None
-    created_by_tool: Optional[str] = None
-    created_by_call_id: Optional[str] = None
-    creation_timestamp: Optional[str] = None
+    versions: list[dict[str, any]]
+    artifact_type: str | None = None
+    source_path: str | None = None
+    created_by_tool: str | None = None
+    created_by_call_id: str | None = None
+    creation_timestamp: str | None = None
 
 
 @dataclass
 class TimeMetrics:
     """Time-related metrics for a test run."""
 
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
-    duration_seconds: Optional[float] = None
+    start_time: str | None = None
+    end_time: str | None = None
+    duration_seconds: float | None = None
 
 
 @dataclass
@@ -61,12 +59,12 @@ class RunSummary:
     final_status: str = ""
     final_message: str = ""
     time_metrics: TimeMetrics = field(default_factory=TimeMetrics)
-    tool_calls: List[ToolCall] = field(default_factory=list)
-    input_artifacts: List[ArtifactInfo] = field(default_factory=list)
-    output_artifacts: List[ArtifactInfo] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    input_artifacts: list[ArtifactInfo] = field(default_factory=list)
+    output_artifacts: list[ArtifactInfo] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, any]:
         """Convert summary to dictionary format for JSON serialization."""
         return {
             "test_case_id": self.test_case_id,
@@ -115,10 +113,10 @@ class RunSummary:
 class ConfigService:
     """Handles configuration loading and YAML processing."""
 
-    _config_cache: Dict[str, Any] = {}
+    _config_cache: dict[str, any] = {}
 
     @classmethod
-    def load_yaml_with_includes(cls, file_path: str) -> Dict[str, Any]:
+    def load_yaml_with_includes(cls, file_path: str) -> dict[str, any]:
         """Load YAML file with !include directive processing and caching."""
         if file_path in cls._config_cache:
             return cls._config_cache[file_path]
@@ -153,7 +151,7 @@ class ConfigService:
         return content
 
     @classmethod
-    def get_artifact_config(cls) -> Tuple[str, str]:
+    def get_artifact_config(cls) -> tuple[str, str]:
         """Get artifact service configuration from eval backend config."""
         try:
             webui_config = cls.load_yaml_with_includes("configs/eval_backend.yaml")
@@ -178,7 +176,7 @@ class FileService:
     """Handles file operations and path management."""
 
     @staticmethod
-    def load_json(filepath: str) -> Any:
+    def load_json(filepath: str) -> any:
         """Load JSON data from file."""
         try:
             with open(filepath, "r") as f:
@@ -187,7 +185,7 @@ class FileService:
             raise ValueError(f"Failed to load JSON from {filepath}: {e}")
 
     @staticmethod
-    def save_json(data: Any, filepath: str):
+    def save_json(data: any, filepath: str):
         """Save data as JSON to file."""
         try:
             with open(filepath, "w") as f:
@@ -200,7 +198,7 @@ class TestCaseService:
     """Handles test case loading and validation."""
 
     @staticmethod
-    def load_test_case(test_case_id: str) -> Optional[Dict[str, Any]]:
+    def load_test_case(test_case_id: str) -> dict[str, any] | None:
         """Load test case definition with error handling."""
         try:
             return load_test_case(test_case_id)
@@ -208,7 +206,7 @@ class TestCaseService:
             return None
 
     @staticmethod
-    def extract_input_artifact_names(test_case: Dict[str, Any]) -> Set[str]:
+    def extract_input_artifact_names(test_case: dict[str, any]) -> set[str]:
         """Extract input artifact names from test case definition."""
         input_artifact_names = set()
         test_case_artifacts = test_case.get("artifacts", [])
@@ -226,7 +224,7 @@ class TimeProcessor:
     """Handles timestamp parsing and duration calculations."""
 
     @staticmethod
-    def extract_start_time(first_message: Dict[str, Any]) -> Optional[str]:
+    def extract_start_time(first_message: dict[str, any]) -> str | None:
         """Extract start time from the first message."""
         try:
             payload = first_message.get("payload", {})
@@ -250,7 +248,7 @@ class TimeProcessor:
         return None
 
     @staticmethod
-    def extract_end_time(last_message: Dict[str, Any]) -> Optional[str]:
+    def extract_end_time(last_message: dict[str, any]) -> str | None:
         """Extract end time from the last message."""
         try:
             payload = last_message.get("payload", {})
@@ -263,7 +261,7 @@ class TimeProcessor:
     @staticmethod
     def calculate_duration(
         start_time_str: str, end_time_str: str
-    ) -> Tuple[Optional[float], Optional[str]]:
+    ) -> tuple[float | None, str | None]:
         """Calculate duration and return normalized start time."""
         try:
             start_time = datetime.fromisoformat(start_time_str)
@@ -293,8 +291,8 @@ class MessageProcessor:
 
     @staticmethod
     def extract_namespace_and_agent(
-        first_message: Dict[str, Any],
-    ) -> Tuple[Optional[str], Optional[str]]:
+        first_message: dict[str, any],
+    ) -> tuple[str | None, str | None]:
         """Extract namespace and target agent from the first message topic."""
         try:
             topic = first_message.get("topic", "")
@@ -308,7 +306,7 @@ class MessageProcessor:
         return None, None
 
     @staticmethod
-    def extract_context_id(first_message: Dict[str, Any]) -> Optional[str]:
+    def extract_context_id(first_message: dict[str, any]) -> str | None:
         """Extract context ID from the first message."""
         try:
             payload = first_message.get("payload", {})
@@ -320,8 +318,8 @@ class MessageProcessor:
 
     @staticmethod
     def extract_final_status_info(
-        last_message: Dict[str, Any],
-    ) -> Tuple[Optional[str], Optional[str]]:
+        last_message: dict[str, any],
+    ) -> tuple[str | None, str | None]:
         """Extract final status and message from the last message."""
         try:
             payload = last_message.get("payload", {})
@@ -344,7 +342,7 @@ class MessageProcessor:
             return None, None
 
     @staticmethod
-    def extract_tool_calls(messages: List[Dict[str, Any]]) -> List[ToolCall]:
+    def extract_tool_calls(messages: list[dict[str, any]]) -> list[ToolCall]:
         """Extract all tool calls from messages."""
         tool_calls = []
         processed_tool_calls = set()
@@ -385,7 +383,7 @@ class ArtifactService:
         self.base_path = base_path
         self.user_identity = user_identity
 
-    def get_artifact_info(self, namespace: str, context_id: str) -> List[ArtifactInfo]:
+    def get_artifact_info(self, namespace: str, context_id: str) -> list[ArtifactInfo]:
         """Retrieve information about artifacts from the session directory."""
         artifact_info = []
         session_dir = os.path.join(
@@ -431,10 +429,10 @@ class ArtifactService:
 
     def categorize_artifacts(
         self,
-        artifacts: List[ArtifactInfo],
-        test_case: Dict[str, Any],
-        tool_calls: List[ToolCall],
-    ) -> Tuple[List[ArtifactInfo], List[ArtifactInfo]]:
+        artifacts: list[ArtifactInfo],
+        test_case: dict[str, any],
+        tool_calls: list[ToolCall],
+    ) -> tuple[list[ArtifactInfo], list[ArtifactInfo]]:
         """Categorize artifacts into input and output based on test case and tool calls."""
         input_artifacts = []
         output_artifacts = []
@@ -463,8 +461,8 @@ class ArtifactService:
         return input_artifacts, output_artifacts
 
     def _create_tool_output_mapping(
-        self, tool_calls: List[ToolCall]
-    ) -> Dict[str, ToolCall]:
+        self, tool_calls: list[ToolCall]
+    ) -> dict[str, ToolCall]:
         """Create mapping of output filenames to the tools that created them."""
         tool_output_mapping = {}
 
@@ -484,7 +482,7 @@ class ArtifactService:
         return tool_output_mapping
 
     def _enhance_input_artifact(
-        self, artifact: ArtifactInfo, test_case: Dict[str, Any]
+        self, artifact: ArtifactInfo, test_case: dict[str, any]
     ) -> ArtifactInfo:
         """Enhance input artifact with test case information."""
         enhanced_artifact = ArtifactInfo(
@@ -509,7 +507,7 @@ class ArtifactService:
         return enhanced_artifact
 
     def _enhance_output_artifact(
-        self, artifact: ArtifactInfo, tool_output_mapping: Dict[str, ToolCall]
+        self, artifact: ArtifactInfo, tool_output_mapping: dict[str, ToolCall]
     ) -> ArtifactInfo:
         """Enhance output artifact with tool creation information."""
         enhanced_artifact = ArtifactInfo(
@@ -536,9 +534,9 @@ class SummaryBuilder:
         self.test_case_service = TestCaseService()
         self.time_processor = TimeProcessor()
         self.message_processor = MessageProcessor()
-        self.artifact_service: Optional[ArtifactService] = None
+        self.artifact_service: ArtifactService | None = None
 
-    def summarize_run(self, messages_file_path: str) -> Dict[str, Any]:
+    def summarize_run(self, messages_file_path: str) -> dict[str, any]:
         """
         Create a comprehensive summary of a test run from messages.json file.
 
@@ -584,7 +582,7 @@ class SummaryBuilder:
 
     def _load_and_validate_messages(
         self, messages_file_path: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, any]]:
         """Load and validate messages from file."""
         try:
             messages = self.file_service.load_json(messages_file_path)
@@ -606,7 +604,7 @@ class SummaryBuilder:
 
     def _load_test_case(
         self, summary: RunSummary, test_case_path: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, any]:
         """Load test case and update summary with test case info."""
         test_case = self.test_case_service.load_test_case(test_case_path)
 
@@ -621,9 +619,9 @@ class SummaryBuilder:
 
     def _process_messages(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, any]],
         summary: RunSummary,
-        test_case: Dict[str, Any],
+        test_case: dict[str, any],
     ):
         """Process all messages to extract relevant information."""
         if not messages:
@@ -666,8 +664,8 @@ class SummaryBuilder:
 
     def _process_time_metrics(
         self,
-        first_message: Dict[str, Any],
-        last_message: Dict[str, Any],
+        first_message: dict[str, any],
+        last_message: dict[str, any],
         summary: RunSummary,
     ):
         """Process and calculate time metrics."""
@@ -690,7 +688,7 @@ class SummaryBuilder:
                     "Could not parse start or end time to calculate duration."
                 )
 
-    def _add_artifact_information(self, summary: RunSummary, test_case: Dict[str, Any]):
+    def _add_artifact_information(self, summary: RunSummary, test_case: dict[str, any]):
         """Add artifact information if configuration is available."""
         if not summary.namespace or not summary.context_id:
             return
@@ -719,7 +717,7 @@ class SummaryBuilder:
             summary.errors.append(f"Could not add artifact info: {str(e)}")
 
 
-def summarize_run(messages_file_path: str) -> Dict[str, Any]:
+def summarize_run(messages_file_path: str) -> dict[str, any]:
     """
     Main entry point for summarizing a test run.
 
