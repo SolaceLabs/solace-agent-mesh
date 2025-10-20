@@ -1,23 +1,10 @@
 import os
-from importlib import metadata
 from pathlib import Path
 
 import click
 
 from cli.utils import error_exit, load_template
 from evaluation.run import main as run_evaluation_main
-
-
-def _ensure_sam_rest_gateway_installed():
-    """Checks if the sam-rest-gateway package is installed."""
-    try:
-        metadata.distribution("sam-rest-gateway")
-    except metadata.PackageNotFoundError:
-        error_exit(
-            "Error: 'sam-rest-gateway' is not installed. "
-            "Please install it using: "
-            'pip install "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"'
-        )
 
 
 def _ensure_eval_backend_config_exists():
@@ -77,7 +64,6 @@ def eval_cmd(test_suite_config_path, verbose):
             fg="blue",
         )
     )
-    _ensure_sam_rest_gateway_installed()
     _ensure_eval_backend_config_exists()
 
     # Set logging config path for evaluation

@@ -14,6 +14,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
+from importlib import metadata
 from pathlib import Path
 
 import requests
@@ -34,6 +35,24 @@ from .subscriber import Subscriber
 from .summary_builder import SummaryBuilder
 
 log = logging.getLogger(__name__)
+
+
+def _error_exit(message: str):
+    """Logs an error message and exits."""
+    log.error(message)
+    sys.exit(1)
+
+
+def _ensure_sam_rest_gateway_installed():
+    """Checks if the sam-rest-gateway package is installed for local evaluation."""
+    try:
+        metadata.distribution("sam-rest-gateway")
+    except metadata.PackageNotFoundError:
+        _error_exit(
+            "Error: 'sam-rest-gateway' is not installed. "
+            "Please install it using: "
+            'pip install "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"'
+        )
 
 
 @dataclass
@@ -568,6 +587,7 @@ class EvaluationRunner:
 
     def _run_local_evaluation(self, base_results_path: Path) -> dict[str, float]:
         """Run the full local evaluation with service management."""
+        _ensure_sam_rest_gateway_installed()
         log.info("Starting local evaluation")
         model_execution_times = {}
 

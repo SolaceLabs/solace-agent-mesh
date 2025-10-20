@@ -77,6 +77,15 @@ class RemoteConfig(BaseModel):
             return {"environment": data}
         return data
 
+    @model_validator(mode='after')
+    def sanitize_namespace(self):
+        """Remove trailing slashes from EVAL_NAMESPACE."""
+        if self.environment and "EVAL_NAMESPACE" in self.environment.variables:
+            namespace = self.environment.variables.get("EVAL_NAMESPACE")
+            if namespace:
+                self.environment.variables["EVAL_NAMESPACE"] = namespace.rstrip("/")
+        return self
+
 
 class BrokerConfig(BaseModel):
     """Broker connection configuration with validation and environment variable resolution."""
