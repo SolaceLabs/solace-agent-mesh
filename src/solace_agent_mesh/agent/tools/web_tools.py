@@ -92,7 +92,12 @@ async def web_request(
         log.error(f"{log_identifier} ToolContext is missing.")
         return {"status": "error", "message": "ToolContext is missing."}
 
-    if not _is_safe_url(url):
+    # Check if loopback URLs are allowed (for testing)
+    allow_loopback = False
+    if tool_config:
+        allow_loopback = tool_config.get("allow_loopback", False)
+    
+    if not allow_loopback and not _is_safe_url(url):
         log.error(f"{log_identifier} URL is not safe to request: {url}")
         return {"status": "error", "message": "URL is not safe to request."}
 
@@ -150,10 +155,9 @@ async def web_request(
             )
 
         response_content_bytes = response.content
-        response_headers = dict(response.headers)
         response_status_code = response.status_code
         original_content_type = (
-            response_headers.get("content-type", "application/octet-stream")
+            response.headers.get("content-type", "application/octet-stream")
             .split(";")[0]
             .strip()
         )
@@ -238,7 +242,7 @@ async def web_request(
                 {k: v for k, v in headers.items() if k.lower() != "authorization"}
             ),
             "response_status_code": response_status_code,
-            "response_headers": json.dumps(response_headers),
+            "response_headers": json.dumps(dict(response.headers)),
             "original_content_type": original_content_type,
             "processed_content_type": processed_content_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),

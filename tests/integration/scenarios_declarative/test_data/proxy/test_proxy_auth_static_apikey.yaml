@@ -1,0 +1,49 @@
+test_case_id: "proxy_auth_static_apikey_001"
+description: "Tests that the proxy correctly sends a static API key to the downstream agent"
+tags: ["all", "proxy", "auth"]
+skip_intermediate_events: true
+
+downstream_agent_auth:
+  enabled: true
+  type: "apikey"
+  expected_value: "test_api_key_xyz789"
+
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  authentication:
+    type: "static_apikey"
+    token: "test_api_key_xyz789"
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "auth_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Test authenticated request with API key"
+  external_context:
+    a2a_session_id: "session_auth_apikey_001"
+
+downstream_a2a_agent_responses:
+  - id: "task-auth-apikey"
+    contextId: "session_auth_apikey_001"
+    kind: "task"
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "API key authenticated request processed."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "API key authenticated request processed."
+
+assert_downstream_auth:
+  - request_index: 0
+    api_key_header: "test_api_key_xyz789"
