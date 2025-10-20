@@ -100,6 +100,166 @@ LiteLLM supports numerous other providers including Cohere, Hugging Face, Togeth
 
 For a complete list of supported providers and their specific configuration requirements, see the [LiteLLM providers documentation](https://docs.litellm.ai/docs/providers).
 
+## OAuth 2.0 Authentication
+
+Agent Mesh supports OAuth 2.0 Client Credentials authentication for LLM providers that require OAuth-based authentication instead of traditional API keys. This authentication method provides enhanced security through automatic token management, secure credential handling, and seamless integration with OAuth-enabled LLM endpoints.
+
+### Overview
+
+The OAuth 2.0 Client Credentials flow is a machine-to-machine authentication method defined in [RFC 6749](https://tools.ietf.org/html/rfc6749#section-4.4). Agent Mesh handles the complete OAuth lifecycle automatically, including token acquisition, caching, refresh, and injection into LLM requests. This implementation ensures secure and efficient authentication without requiring manual token management.
+
+### Key Features
+
+The OAuth authentication system provides several important capabilities:
+
+- **Automatic Token Management**: Tokens are automatically fetched, cached in memory, and refreshed before expiration
+- **Thread-Safe Operations**: Concurrent requests safely share cached tokens without conflicts
+- **Intelligent Retry Logic**: Exponential backoff with jitter handles transient failures gracefully
+- **Proactive Token Refresh**: Tokens refresh before expiration to prevent request failures
+- **SSL/TLS Support**: Custom CA certificates enable secure connections to private OAuth servers
+- **Graceful Fallback**: Automatic fallback to API key authentication if OAuth fails and an API key is configured
+
+### Configuration Parameters
+
+OAuth authentication requires several configuration parameters that you can specify through environment variables and YAML configuration:
+
+| Parameter | Required | Description | Default |
+|-----------|----------|-------------|---------|
+| `oauth_token_url` | Yes | OAuth token endpoint URL | - |
+| `oauth_client_id` | Yes | OAuth client identifier | - |
+| `oauth_client_secret` | Yes | OAuth client secret | - |
+| `oauth_scope` | No | OAuth scope (space-separated) | None |
+| `oauth_ca_cert` | No | Custom CA certificate path for OAuth endpoint | None |
+| `oauth_token_refresh_buffer_seconds` | No | Seconds before expiration to refresh token | 300 |
+
+### Environment Variables
+
+Configure OAuth credentials securely using environment variables in your `.env` file:
+
+```bash
+# Required OAuth Configuration
+OAUTH_TOKEN_URL="https://auth.example.com/oauth/token"
+OAUTH_CLIENT_ID="your_client_id"
+OAUTH_CLIENT_SECRET="your_client_secret"
+
+# Optional OAuth Configuration
+OAUTH_SCOPE="llm.read llm.write"
+OAUTH_CA_CERT_PATH="/path/to/ca.crt"
+OAUTH_TOKEN_REFRESH_BUFFER_SECONDS="300"
+
+# LLM Endpoint Configuration
+OAUTH_LLM_API_BASE="https://api.example.com/v1"
+```
+
+### YAML Configuration
+
+Configure OAuth-authenticated models in your `shared_config.yaml` file:
+
+```yaml
+models:
+  # OAuth-authenticated planning model
+  planning:
+    model: ${OAUTH_LLM_PLANNING_MODEL_NAME}
+    api_base: ${OAUTH_LLM_API_BASE}
+    
+    # OAuth 2.0 Client Credentials configuration
+    oauth_token_url: ${OAUTH_TOKEN_URL}
+    oauth_client_id: ${OAUTH_CLIENT_ID}
+    oauth_client_secret: ${OAUTH_CLIENT_SECRET}
+    oauth_scope: ${OAUTH_SCOPE}
+    oauth_ca_cert: ${OAUTH_CA_CERT_PATH}
+    oauth_token_refresh_buffer_seconds: ${OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
+    
+    parallel_tool_calls: true
+    temperature: 0.1
+
+  # OAuth-authenticated general model
+  general:
+    model: ${OAUTH_LLM_GENERAL_MODEL_NAME}
+    api_base: ${OAUTH_LLM_API_BASE}
+    
+    # OAuth 2.0 Client Credentials configuration
+    oauth_token_url: ${OAUTH_TOKEN_URL}
+    oauth_client_id: ${OAUTH_CLIENT_ID}
+    oauth_client_secret: ${OAUTH_CLIENT_SECRET}
+    oauth_scope: ${OAUTH_SCOPE}
+    oauth_ca_cert: ${OAUTH_CA_CERT_PATH}
+    oauth_token_refresh_buffer_seconds: ${OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
+```
+
+### How OAuth Authentication Works
+
+The OAuth authentication process follows these steps:
+
+1. **Token Acquisition**: When the first LLM request is made, the system sends a POST request to the OAuth token endpoint with client credentials and scope, receiving an access token with expiration information.
+
+2. **Token Caching**: The access token is cached in memory with a time-to-live (TTL) based on the token expiration time minus the refresh buffer, with a minimum cache time of 60 seconds.
+
+3. **Token Injection**: For each LLM request, the system checks if the cached token is valid, fetches a new token if needed, and injects the Bearer token into request headers as `Authorization: Bearer <token>`.
+
+4. **Token Refresh**: Tokens are proactively refreshed when the current time plus the refresh buffer exceeds the token expiration time, preventing requests from failing due to expired tokens.
+
+### Error Handling and Fallback
+
+The OAuth system implements robust error handling:
+
+- **4xx Errors**: Client configuration errors result in no retries, as these indicate credential or configuration issues
+- **5xx Errors**: Server errors trigger exponential backoff with jitter for up to 3 retry attempts
+- **Network Errors**: Connection issues trigger exponential backoff with jitter for up to 3 retry attempts
+
+If OAuth authentication fails and an `api_key` is configured in the model settings, the system automatically falls back to API key authentication and logs the OAuth failure. If no fallback is available, the request fails with the OAuth error.
+
+### Security Considerations
+
+When implementing OAuth authentication, follow these security best practices:
+
+1. **Credential Storage**: Always store OAuth credentials securely using environment variables, never hardcode them in configuration files
+2. **Token Caching**: Tokens are cached in memory only and never persisted to disk
+3. **SSL/TLS**: Always use HTTPS for OAuth endpoints to protect credentials in transit
+4. **Custom CA Certificates**: Use the `oauth_ca_cert` parameter for private or internal OAuth servers with custom certificate authorities
+5. **Scope Limitation**: Request only the minimal OAuth scopes required for your LLM operations
+
+### Troubleshooting OAuth Issues
+
+Common OAuth authentication issues and their solutions:
+
+**Invalid Client Credentials**
+```
+ERROR: OAuth token request failed with status 401: Invalid client credentials
+```
+Verify that `OAUTH_CLIENT_ID` and `OAUTH_CLIENT_SECRET` are correct and properly URL-encoded if they contain special characters.
+
+**Invalid Scope**
+```
+ERROR: OAuth token request failed with status 400: Invalid scope
+```
+Verify that `OAUTH_SCOPE` matches your provider's requirements and that scope values are space-separated.
+
+**SSL Certificate Issues**
+```
+ERROR: OAuth token request failed: SSL certificate verification failed
+```
+Set `OAUTH_CA_CERT_PATH` to point to your custom CA certificate file and verify the certificate chain is complete.
+
+**Token Refresh Issues**
+```
+WARNING: OAuth token request failed (attempt 1/4): Connection timeout
+```
+Check network connectivity to the OAuth endpoint, verify the OAuth endpoint URL is correct, and consider increasing timeout values if needed.
+
+### Supported Providers
+
+This OAuth implementation works with any LLM provider that supports OAuth 2.0 Client Credentials flow, accepts Bearer tokens in the `Authorization` header, and is compatible with LiteLLM's request format. Examples include Azure OpenAI with OAuth-enabled endpoints, custom enterprise LLM deployments, and third-party LLM services with OAuth support.
+
+### Migration from API Key Authentication
+
+To migrate from API key to OAuth authentication:
+
+1. Add OAuth environment variables to your `.env` file
+2. Update your `shared_config.yaml` to include OAuth parameters for the relevant models
+3. Test the OAuth configuration with your provider to ensure proper authentication
+4. Optionally remove API key configuration, or keep it as a fallback mechanism
+
 ## Security and SSL/TLS Configuration
 
 Agent Mesh provides comprehensive security controls for connections to LLM endpoints, allowing you to fine-tune SSL/TLS behavior to meet your organization's security requirements. These settings help ensure secure communication with LLM providers while providing flexibility for various network environments and security policies.
