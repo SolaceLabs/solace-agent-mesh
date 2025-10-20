@@ -96,8 +96,8 @@ useradd --create-home -r -u 1000 -g solaceai solaceai
 EOT
 
 # Copy the complete /app venv from builder (includes all deps + application)
-# Use --link for faster layer creation (avoid unnecessary file copies)
-COPY --from=builder --link --chown=solaceai:solaceai /app /app
+# Note: --link is incompatible with --chown for non-root users
+COPY --from=builder --chown=solaceai:solaceai /app /app
 
 # Install Playwright (large dependency, but needed at runtime)
 # Use cache mounts to speed up repeated builds:
@@ -115,7 +115,7 @@ RUN --mount=type=cache,target=/home/solaceai/.cache,uid=1000,gid=1000 \
 
 # Copy sample SAM applications
 USER root
-COPY --link --chown=solaceai:solaceai preset /preset
+COPY --chown=solaceai:solaceai preset /preset
 
 WORKDIR /app
 USER solaceai
