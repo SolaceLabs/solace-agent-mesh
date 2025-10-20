@@ -4,7 +4,7 @@ import { MockAuthProvider } from "./MockAuthProvider";
 import { MockTaskProvider } from "./MockTaskProvider";
 import { MockConfigProvider } from "./MockConfigProvider";
 import type { AuthContextValue } from "@/lib/contexts/AuthContext";
-import type { ChatContextValue, ConfigContextValue, TaskContextValue } from "@/lib";
+import { ThemeProvider, type ChatContextValue, type ConfigContextValue, type TaskContextValue } from "@/lib";
 import { MockChatProvider } from "./MockChatProvider";
 
 interface RouterValues {
@@ -42,13 +42,15 @@ interface StoryProviderProps {
  */
 export const StoryProvider: React.FC<StoryProviderProps> = ({ children, authContextValues = {}, chatContextValues = {}, taskContextValues = {}, configContextValues = {} }) => {
     const content = (
-        <MockConfigProvider mockValues={configContextValues}>
-            <MockAuthProvider mockValues={authContextValues}>
-                <MockTaskProvider mockValues={taskContextValues}>
-                    <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
-                </MockTaskProvider>
-            </MockAuthProvider>
-        </MockConfigProvider>
+        <ThemeProvider>
+            <MockConfigProvider mockValues={configContextValues}>
+                <MockAuthProvider mockValues={authContextValues}>
+                    <MockTaskProvider mockValues={taskContextValues}>
+                        <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
+                    </MockTaskProvider>
+                </MockAuthProvider>
+            </MockConfigProvider>
+        </ThemeProvider>
     );
 
     return content;
