@@ -1,13 +1,11 @@
 """Unit tests for OAuth2ClientCredentialsTokenManager."""
 
 import asyncio
-import json
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-import pytest_asyncio
 
 from solace_agent_mesh.agent.adk.models.oauth2_token_manager import (
     OAuth2ClientCredentialsTokenManager,
