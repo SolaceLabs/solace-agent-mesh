@@ -35,15 +35,16 @@ ENV UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app
 
 # ============================================================================
-# Step 1: Install dependencies ONLY (cached until pyproject.toml/uv.lock changes)
+# Step 1: Install dependencies ONLY (cached until uv.lock changes)
 # ============================================================================
 WORKDIR /build
 
-# Install dependencies from lockfile (cached until pyproject.toml/uv.lock changes)
-# This step uses cache mount for maximum speed - dependencies are never re-downloaded
+# Copy only the lock file first - this layer is cached unless dependencies actually change
+COPY uv.lock pyproject.toml ./
+
+# Install dependencies from lockfile (cached until uv.lock changes)
+# Using cache mount ensures packages are never re-downloaded
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
     uv sync --locked --no-dev --no-install-project
 
 # ============================================================================
@@ -95,7 +96,8 @@ useradd --create-home -r -u 1000 -g solaceai solaceai
 EOT
 
 # Copy the complete /app venv from builder (includes all deps + application)
-COPY --from=builder --chown=solaceai:solaceai /app /app
+# Use --link for faster layer creation (avoid unnecessary file copies)
+COPY --from=builder --link --chown=solaceai:solaceai /app /app
 
 # Install Playwright (large dependency, but needed at runtime)
 # Use cache mounts to speed up repeated builds:
@@ -113,7 +115,7 @@ RUN --mount=type=cache,target=/home/solaceai/.cache,uid=1000,gid=1000 \
 
 # Copy sample SAM applications
 USER root
-COPY --chown=solaceai:solaceai preset /preset
+COPY --link --chown=solaceai:solaceai preset /preset
 
 WORKDIR /app
 USER solaceai
