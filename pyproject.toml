@@ -64,12 +64,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gcs = ["google-cloud-storage>=2.0"]
-s3 = ["boto3>=1.35.0,<2.0"]
-vertex = ["google-cloud-aiplatform>=1.38"]
-employee_tools = ["holidays>=0.24"]
+gcs = ["google-cloud-storage==2.19.0"]
+s3 = ["boto3==1.40.37"]
+vertex = ["google-cloud-aiplatform==1.120.0"]
+employee_tools = ["holidays==0.81.0"]
 postgresql = ["psycopg2-binary==2.9.10"]
-test = [
+
+[tool.hatch.envs.hatch-test]
+parallel = false
+installer = "pip"
+dependencies = [
+    "solace-agent-mesh[postgresql,gcs,vertex,employee_tools,s3]",
     "pytest-asyncio",
     "pytest>=8.0.0",
     "pytest-mock>=3.0.0",
@@ -79,13 +84,11 @@ test = [
     "fastmcp",
     "httpx>=0.25",
     "ruff",
+    "testcontainers",
+    "aiosqlite",
+    "psycopg2-binary",
+    "asyncpg",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
-]
-[tool.hatch.envs.hatch-test]
-parallel = false
-installer = "pip"
-dependencies = [
-    "solace-agent-mesh[test,postgresql,gcs,vertex,employee_tools,s3]",
 ]
 
 [[tool.hatch.envs.hatch-test.matrix]]

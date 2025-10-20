@@ -272,7 +272,7 @@ class BaseGatewayApp(App):
         broker_config["queue_name"] = (
             f"{self.namespace.strip('/')}/q/gdk/gateway/{self.gateway_id}"
         )
-        broker_config["temporary_queue"] = True
+        broker_config["temporary_queue"] = modified_app_info.get("broker", {}).get("temporary_queue", True)
         log.debug(
             "Injected broker settings for gateway '%s': %s",
             self.gateway_id,

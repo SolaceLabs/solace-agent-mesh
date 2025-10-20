@@ -285,7 +285,8 @@ async def web_request(
         return {
             "status": "success",
             "message": f"Successfully fetched content from {url} (status: {response_status_code}). "
-            f"Saved as artifact '{final_artifact_filename}' v{save_result['data_version']}.",
+            f"Saved as artifact '{final_artifact_filename}' v{save_result['data_version']}. "
+            f"Analyze the content of '{final_artifact_filename}' before providing a final answer to the user.",
             "output_filename": final_artifact_filename,
             "output_version": save_result["data_version"],
             "response_status_code": response_status_code,

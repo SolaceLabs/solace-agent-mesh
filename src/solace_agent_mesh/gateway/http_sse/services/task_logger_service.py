@@ -71,7 +71,7 @@ class TaskLoggerService:
 
         db = self.session_factory()
         try:
-            repo = TaskRepository(db)
+            repo = TaskRepository()
 
             # Infer details from the parsed event
             direction, task_id, user_id = self._infer_event_details(
@@ -95,7 +95,7 @@ class TaskLoggerService:
             sanitized_payload = self._sanitize_payload(payload)
 
             # Check for existing task or create a new one
-            task = repo.find_by_id(task_id)
+            task = repo.find_by_id(db, task_id)
             if not task:
                 if direction == "request":
                     initial_text = self._extract_initial_text(parsed_event)
@@ -107,7 +107,7 @@ class TaskLoggerService:
                             initial_text[:1024] if initial_text else None
                         ),  # Truncate
                     )
-                    repo.save_task(new_task)
+                    repo.save_task(db, new_task)
                     log.info(
                         f"{self.log_identifier} Created new task record for ID: {task_id}"
                     )
@@ -120,7 +120,7 @@ class TaskLoggerService:
                         start_time=now_epoch_ms(),
                         initial_request_text="[Task started before logger was active]",
                     )
-                    repo.save_task(placeholder_task)
+                    repo.save_task(db, placeholder_task)
                     log.info(
                         f"{self.log_identifier} Created placeholder task record for ID: {task_id}"
                     )
@@ -135,12 +135,12 @@ class TaskLoggerService:
                 direction=direction,
                 payload=sanitized_payload,
             )
-            repo.save_event(task_event)
+            repo.save_event(db, task_event)
 
             # If it's a final event, update the master task record
             final_status = self._get_final_status(parsed_event)
             if final_status:
-                task_to_update = repo.find_by_id(task_id)
+                task_to_update = repo.find_by_id(db, task_id)
                 if task_to_update:
                     task_to_update.end_time = now_epoch_ms()
                     task_to_update.status = final_status
@@ -159,8 +159,8 @@ class TaskLoggerService:
                                 f"output={token_usage.get('total_output_tokens')}, "
                                 f"cached={token_usage.get('total_cached_input_tokens')}"
                             )
-                    
-                    repo.save_task(task_to_update)
+
+                    repo.save_task(db, task_to_update)
                     log.info(
                         f"{self.log_identifier} Finalized task record for ID: {task_id} with status: {final_status}"
                     )
