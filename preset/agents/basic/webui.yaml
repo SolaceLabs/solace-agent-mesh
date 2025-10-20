@@ -21,7 +21,7 @@ apps:
       session_secret_key: "${SESSION_SECRET_KEY}"
 
       session_service:
-        type: "${PERSISTENCE_TYPE, memory}"
+        type: "${PERSISTENCE_TYPE, sql}"
         database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
         default_behavior: "PERSISTENT"
 
