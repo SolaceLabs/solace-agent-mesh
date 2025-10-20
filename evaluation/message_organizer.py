@@ -190,16 +190,16 @@ class FileOperations:
             if not os.path.exists(filepath):
                 raise MissingFileError(f"File not found: {filepath}")
 
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 data = json.load(f)
 
             log.debug(f"Successfully loaded JSON from {filepath}")
             return data
 
         except json.JSONDecodeError as e:
-            raise InvalidDataError(f"Invalid JSON in file {filepath}: {e}")
+            raise InvalidDataError(f"Invalid JSON in file {filepath}: {e}") from e
         except Exception as e:
-            raise CategorizationError(f"Error loading file {filepath}: {e}")
+            raise CategorizationError(f"Error loading file {filepath}: {e}") from e
 
     @staticmethod
     def save_json(data: any, filepath: str) -> None:
@@ -214,7 +214,7 @@ class FileOperations:
             log.debug(f"Successfully saved JSON to {filepath}")
 
         except Exception as e:
-            raise CategorizationError(f"Error saving file {filepath}: {e}")
+            raise CategorizationError(f"Error saving file {filepath}: {e}") from e
 
     @staticmethod
     def file_exists(filepath: str) -> bool:

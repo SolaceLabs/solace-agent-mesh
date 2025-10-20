@@ -96,7 +96,7 @@ class FileService:
     def read_file(filepath: Path, encoding: str = "utf-8") -> str:
         """Read file content with error handling."""
         try:
-            with open(filepath, "r", encoding=encoding) as f:
+            with open(filepath, encoding=encoding) as f:
                 return f.read()
         except FileNotFoundError:
             log.error(f"File not found: {filepath}")

@@ -88,7 +88,7 @@ class TestSuiteConfiguration(BaseModel):
     """Complete test suite configuration with comprehensive validation."""
     agent_configs: list[str] = Field(min_length=1, alias="agents")
     model_configurations: list[ModelConfiguration] = Field(min_length=1, alias="llm_models")
-    test_case_files: list[str] = Field(min_length=1, alias="test_cases") 
+    test_case_files: list[str] = Field(min_length=1, alias="test_cases")
     results_directory: str = Field(default="tests", min_length=1, alias="results_dir_name")
     run_count: int = Field(default=1, ge=1, alias="runs")
     evaluation_options: EvaluationOptions = Field(default_factory=EvaluationOptions, alias="evaluation_settings")
@@ -120,7 +120,7 @@ class ConfigurationParser:
     def load_raw_config(self) -> dict[str, any]:
         """Load raw JSON configuration."""
         try:
-            with open(self.config_path, 'r') as f:
+            with open(self.config_path) as f:
                 return json.load(f)
         except FileNotFoundError:
             log.error(f"Configuration file not found: {self.config_path}")

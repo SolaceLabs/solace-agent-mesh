@@ -178,7 +178,7 @@ class FileService:
     def load_json(filepath: str) -> any:
         """Load JSON data from file."""
         try:
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             log.error(f"Failed to load JSON from {filepath}: {e}")

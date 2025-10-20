@@ -125,7 +125,7 @@ class ConfigService:
             return cls._config_cache[file_path]
 
         try:
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 content = f.read()
 
             content = cls._process_includes(content, file_path)
@@ -134,7 +134,7 @@ class ConfigService:
             return config
 
         except (FileNotFoundError, yaml.YAMLError) as e:
-            raise ValueError(f"Failed to load YAML config from {file_path}: {e}")
+            raise ValueError(f"Failed to load YAML config from {file_path}: {e}") from e
 
     @staticmethod
     def _process_includes(content: str, base_file_path: str) -> str:
@@ -144,7 +144,7 @@ class ConfigService:
         def replacer(match):
             include_path = match.group(1).strip()
             include_path = os.path.join(os.path.dirname(base_file_path), include_path)
-            with open(include_path, "r") as inc_f:
+            with open(include_path) as inc_f:
                 return inc_f.read()
 
         # Repeatedly replace includes until none are left
@@ -172,7 +172,7 @@ class ConfigService:
             raise ValueError("Could not find 'a2a_eval_backend_app' config")
 
         except Exception as e:
-            raise ValueError(f"Failed to load artifact configuration: {e}")
+            raise ValueError(f"Failed to load artifact configuration: {e}") from e
 
 
 class FileService:
@@ -182,10 +182,10 @@ class FileService:
     def load_json(filepath: str) -> any:
         """Load JSON data from file."""
         try:
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            raise ValueError(f"Failed to load JSON from {filepath}: {e}")
+            raise ValueError(f"Failed to load JSON from {filepath}: {e}") from e
 
     @staticmethod
     def save_json(data: any, filepath: str):
@@ -194,7 +194,7 @@ class FileService:
             with open(filepath, "w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            raise ValueError(f"Failed to save JSON to {filepath}: {e}")
+            raise ValueError(f"Failed to save JSON to {filepath}: {e}") from e
 
 
 class TestCaseService:
@@ -418,7 +418,7 @@ class ArtifactService:
                     version_metadata_path = os.path.join(metadata_dir, version_file)
                     if os.path.exists(version_metadata_path):
                         try:
-                            with open(version_metadata_path, "r") as f:
+                            with open(version_metadata_path) as f:
                                 metadata = json.load(f)
                             versions.append(
                                 {"version": version_file, "metadata": metadata}

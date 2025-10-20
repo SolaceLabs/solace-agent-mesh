@@ -143,9 +143,7 @@ class SubscriptionConfig:
     def is_topic_allowed(self, topic: str) -> bool:
         """Check if a topic is allowed based on configured infixes."""
         # return any(infix in topic for infix in self.allowed_topic_infixes)
-        if any(infix in topic for infix in self.blocked_topic_infixes):
-            return False
-        return True
+        return not any(infix in topic for infix in self.blocked_topic_infixes)
 
 
 @dataclass
@@ -325,7 +323,7 @@ class MessageProcessor:
         if isinstance(data, dict):
             if data.get("type") == type_to_find:
                 return True
-            for key, value in data.items():
+            for _key, value in data.items():
                 if self._find_part_type(value, type_to_find):
                     return True
         elif isinstance(data, list):
@@ -466,7 +464,7 @@ class MessageStorage:
 
         except Exception as e:
             log.error(f"Error saving messages: {e}")
-            raise MessageProcessingError(f"Failed to save messages: {e}")
+            raise MessageProcessingError(f"Failed to save messages: {e}") from e
 
     def clear_messages(self) -> None:
         """Clear all stored messages."""
@@ -507,7 +505,7 @@ class BrokerConnectionService:
             except Exception as e:
                 self.connection_state = ConnectionState.ERROR
                 log.error(f"Failed to connect to broker: {e}")
-                raise BrokerConnectionError(f"Connection failed: {e}")
+                raise BrokerConnectionError(f"Connection failed: {e}") from e
 
     def disconnect(self) -> None:
         """Disconnect from the Solace broker."""
@@ -530,7 +528,7 @@ class BrokerConnectionService:
             except Exception as e:
                 self.connection_state = ConnectionState.ERROR
                 log.error(f"Error during disconnect: {e}")
-                raise BrokerConnectionError(f"Disconnect failed: {e}")
+                raise BrokerConnectionError(f"Disconnect failed: {e}") from e
 
     def get_messaging_service(self) -> MessagingService | None:
         """Get the messaging service instance."""
@@ -595,7 +593,7 @@ class SubscriptionManager:
 
             except Exception as e:
                 log.error(f"Failed to start subscription: {e}")
-                raise BrokerConnectionError(f"Subscription failed: {e}")
+                raise BrokerConnectionError(f"Subscription failed: {e}") from e
 
     def receive_message(self, timeout: int | None = None):
         """

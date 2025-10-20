@@ -82,7 +82,7 @@ class FileService:
     def load_json(filepath: Path) -> any:
         """Load JSON data from file."""
         try:
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 return json.load(f)
         except FileNotFoundError:
             log.warning(f"File not found: {filepath}")
@@ -208,7 +208,7 @@ class MetricsCalculationService:
         test_cases = set()
         all_run_counts = []
 
-        for model_name, results in model_results.items():
+        for _model_name, results in model_results.items():
             if "test_cases" in results:
                 for test_case in results["test_cases"]:
                     test_case_id = test_case.get("test_case_id")
@@ -258,7 +258,7 @@ class ChartDataService:
 
         # Prepare chart data
         if category_scores:
-            chart_config.categories = sorted(list(category_scores.keys()))
+            chart_config.categories = sorted(category_scores.keys())
             chart_config.category_scores = category_scores
             chart_config.datasets = self._generate_chart_datasets(
                 category_scores, model_results
@@ -272,7 +272,7 @@ class ChartDataService:
         """Extract category to test case mapping."""
         category_test_mapping = defaultdict(set)
 
-        for model_name, results in model_results.items():
+        for _model_name, results in model_results.items():
             if "test_cases" in results:
                 for test_case in results["test_cases"]:
                     test_id = test_case.get("test_case_id")
@@ -282,7 +282,7 @@ class ChartDataService:
 
         # Convert sets to sorted lists
         return {
-            cat: sorted(list(tests)) for cat, tests in category_test_mapping.items()
+            cat: sorted(tests) for cat, tests in category_test_mapping.items()
         }
 
     def _calculate_category_scores(
@@ -297,7 +297,7 @@ class ChartDataService:
         for category, test_names in category_test_mapping.items():
             category_scores[category] = {}
 
-            for model_name in model_results.keys():
+            for model_name in model_results:
                 scores = []
 
                 # Collect scores for this category and model
@@ -347,7 +347,7 @@ class ChartDataService:
         }
 
         chart_datasets = []
-        categories = sorted(list(category_scores.keys()))
+        categories = sorted(category_scores.keys())
 
         for model_name in sorted(model_results.keys()):
             model_data = []
@@ -358,8 +358,10 @@ class ChartDataService:
             color = model_colors.get(model_name)
             if color is None:
                 # Generate a random color if not in the predefined list
-                r = lambda: random.randint(0, 255)
-                color = f"#{r():02x}{r():02x}{r():02x}"
+                def generate_random_component():
+                    return random.randint(0, 255)
+
+                color = f"#{generate_random_component():02x}{generate_random_component():02x}{generate_random_component():02x}"
 
             chart_datasets.append(
                 {
@@ -502,7 +504,7 @@ class TemplateDataService:
             for test_result in test_results:
                 test_scores = []
 
-                for model_name, performance in model_performances.items():
+                for model_name, _performance in model_performances.items():
                     if test_result.test_case_id in test_result.model_results:
                         model_data = test_result.model_results[
                             test_result.test_case_id
@@ -571,7 +573,7 @@ class TemplateDataService:
 
                     category_tests.append(
                         f"""
-                        <div class="test-item" 
+                        <div class="test-item"
                              data-test-name="{test_result.test_case_id}"
                              data-test-description="{test_result.description}"
                              data-test-data="{modal_data_json}">
@@ -884,7 +886,7 @@ class ReportDataProcessor:
                     if test_case_id:
                         test_case_names.add(test_case_id)
 
-        return sorted(list(test_case_names))
+        return sorted(test_case_names)
 
     def _metrics_to_dict(self, metrics: EvaluationMetrics) -> dict[str, any]:
         """Convert EvaluationMetrics to dictionary."""

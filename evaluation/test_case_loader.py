@@ -105,16 +105,16 @@ def load_test_case(test_case_path: str) -> dict[str, any]:
         raise TestCaseFileNotFoundError(f"Test case file not found: {test_case_path}")
 
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             data = json.load(f)
             test_case = TestCase.model_validate(data)
             return test_case.to_dict()
     except json.JSONDecodeError as e:
-        raise TestCaseParseError(f"Invalid JSON in test case file {test_case_path}: {e}")
+        raise TestCaseParseError(f"Invalid JSON in test case file {test_case_path}: {e}") from e
     except ValidationError as e:
-        raise TestCaseParseError(f"Test case validation failed for {test_case_path}:\n{e}")
+        raise TestCaseParseError(f"Test case validation failed for {test_case_path}:\n{e}") from e
     except Exception as e:
-        raise TestCaseError(f"Error reading or processing test case file {test_case_path}: {e}")
+        raise TestCaseError(f"Error reading or processing test case file {test_case_path}: {e}") from e
 
 def validate_test_case_file(test_case_path: str) -> None:
     """

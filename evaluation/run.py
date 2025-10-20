@@ -176,15 +176,18 @@ class TaskService:
             mimetype, _ = mimetypes.guess_type(path)
             if mimetype is None:
                 mimetype = "text/plain"
+            # Read file content with context manager
+            with open(path, "rb") as f:
+                file_content = f.read()
             files_to_upload.append(
-                ("files", (os.path.basename(path), open(path, "rb"), mimetype))
+                ("files", (os.path.basename(path), file_content, mimetype))
             )
         return files_to_upload
 
     def _close_file_uploads(self, files_to_upload: list[tuple]):
-        """Close file handles after upload."""
-        for _, file_tuple in files_to_upload:
-            file_tuple[1].close()
+        """Close file handles after upload (no longer needed as files are read into memory)."""
+        # No longer needed since we read files into memory with context managers
+        pass
 
 
 class FileService:
@@ -210,7 +213,7 @@ class FileService:
     @staticmethod
     def load_json(filepath: str) -> any:
         """Load JSON data from file."""
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             return json.load(f)
 
 
@@ -229,7 +232,6 @@ class TestRunBuilder:
 
             artifact_paths = self._get_artifact_paths(test_case, test_case_path)
 
-            test_case_file = os.path.basename(test_case_path)
             for run_num in range(1, self.config.run_count + 1):
                 test_run = TestRun(
                     agent=test_case["target_agent"],
@@ -564,9 +566,7 @@ class EvaluationRunner:
         # Categorize messages using the refactored categorizer
         log.info("--- Categorizing messages ---")
         message_organizer = MessageOrganizer()
-        categorization_results = message_organizer.categorize_all_messages(
-            base_results_path
-        )
+        message_organizer.categorize_all_messages(base_results_path)
         log.info("--- Message categorization finished ---")
 
         # Generate summaries
@@ -634,9 +634,7 @@ class EvaluationRunner:
             log.warning("No summary data to display.")
             return
 
-        # Define headers and find max score lengths
-        headers = ["Tool Match", "Response Match", "LLM Eval"]
-
+        # Define header line
         header_line = (
             f"{'Model':<{max_model_len}} | {'Test Case':<{max_test_case_len}} | "
             f"{'Tool Match':<12} | {'Response Match':<16} | {'LLM Eval':<10}"
