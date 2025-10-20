@@ -31,7 +31,7 @@ class SessionService:
     def _get_repositories(self, db: DbSession):
         """Create session repository for the given database session."""
         from ..repository import SessionRepository
-        session_repository = SessionRepository(db)
+        session_repository = SessionRepository()
         return session_repository
 
     def is_persistence_enabled(self) -> bool:
@@ -57,8 +57,8 @@ class SessionService:
         session_repository = self._get_repositories(db)
 
         # Pass pagination params directly - repository will handle offset calculation
-        sessions = session_repository.find_by_user(user_id, pagination)
-        total_count = session_repository.count_by_user(user_id)
+        sessions = session_repository.find_by_user(db, user_id, pagination)
+        total_count = session_repository.count_by_user(db, user_id)
 
         return PaginatedResponse.create(sessions, total_count, pagination)
 
@@ -69,7 +69,7 @@ class SessionService:
             return None
 
         session_repository = self._get_repositories(db)
-        return session_repository.find_user_session(session_id, user_id)
+        return session_repository.find_user_session(db, session_id, user_id)
 
     def create_session(
         self,
@@ -100,7 +100,7 @@ class SessionService:
         )
 
         session_repository = self._get_repositories(db)
-        created_session = session_repository.save(session)
+        created_session = session_repository.save(db, session)
         log.info("Created new session %s for user %s", created_session.id, user_id)
 
         if not created_session:
@@ -121,12 +121,12 @@ class SessionService:
             raise ValueError("Session name cannot exceed 255 characters")
 
         session_repository = self._get_repositories(db)
-        session = session_repository.find_user_session(session_id, user_id)
+        session = session_repository.find_user_session(db, session_id, user_id)
         if not session:
             return None
 
         session.update_name(name)
-        updated_session = session_repository.save(session)
+        updated_session = session_repository.save(db, session)
 
         log.info("Updated session %s name to '%s'", session_id, name)
         return updated_session
@@ -138,7 +138,7 @@ class SessionService:
             raise ValueError("Invalid session ID")
 
         session_repository = self._get_repositories(db)
-        session = session_repository.find_user_session(session_id, user_id)
+        session = session_repository.find_user_session(db, session_id, user_id)
         if not session:
             log.warning(
                 "Attempted to delete non-existent session %s by user %s",
@@ -155,7 +155,7 @@ class SessionService:
             )
             return False
 
-        deleted = session_repository.delete(session_id, user_id)
+        deleted = session_repository.delete(db, session_id, user_id)
         if not deleted:
             return False
 
@@ -196,10 +196,10 @@ class SessionService:
         """
         # Validate session exists and belongs to user
         session_repository = self._get_repositories(db)
-        session = session_repository.find_user_session(session_id, user_id)
+        session = session_repository.find_user_session(db, session_id, user_id)
         if not session:
             raise ValueError(f"Session {session_id} not found for user {user_id}")
-        
+
         # Create task entity - pass strings directly
         task = ChatTask(
             id=task_id,
@@ -211,14 +211,14 @@ class SessionService:
             created_time=now_epoch_ms(),
             updated_time=None
         )
-        
+
         # Save via repository
-        task_repo = ChatTaskRepository(db)
-        saved_task = task_repo.save(task)
-        
+        task_repo = ChatTaskRepository()
+        saved_task = task_repo.save(db, task)
+
         # Update session activity
         session.mark_activity()
-        session_repository.save(session)
+        session_repository.save(db, session)
         
         log.info(f"Saved task {task_id} for session {session_id}")
         return saved_task
@@ -245,13 +245,13 @@ class SessionService:
         """
         # Validate session exists and belongs to user
         session_repository = self._get_repositories(db)
-        session = session_repository.find_user_session(session_id, user_id)
+        session = session_repository.find_user_session(db, session_id, user_id)
         if not session:
             raise ValueError(f"Session {session_id} not found for user {user_id}")
-        
+
         # Load tasks
-        task_repo = ChatTaskRepository(db)
-        return task_repo.find_by_session(session_id, user_id)
+        task_repo = ChatTaskRepository()
+        return task_repo.find_by_session(db, session_id, user_id)
 
     def get_session_messages_from_tasks(
         self,

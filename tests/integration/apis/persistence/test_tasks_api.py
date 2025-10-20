@@ -208,7 +208,7 @@ def test_send_task_with_large_file_via_artifacts(api_client: TestClient):
     assert "id" in response_data["result"]
     assert response_data["result"]["contextId"] == session_id
 
-    print(f"✓ Large file uploaded via artifacts and referenced in task successfully")
+    print("✓ Large file uploaded via artifacts and referenced in task successfully")
 
 
 def test_send_task_to_existing_session(api_client: TestClient):
@@ -328,7 +328,7 @@ def test_task_with_different_agents(api_client: TestClient):
     task_ids = []
     session_ids = []
 
-    for i, (agent_name, message) in enumerate(agents_and_messages):
+    for _i, (agent_name, message) in enumerate(agents_and_messages):
         task_payload = {
             "jsonrpc": "2.0",
             "id": str(uuid.uuid4()),
