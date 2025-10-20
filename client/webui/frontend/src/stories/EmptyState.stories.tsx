@@ -1,5 +1,5 @@
+import { EmptyState } from "@/lib/components/common/EmptyState";
 import type { Meta, StoryObj, StoryFn, StoryContext } from "@storybook/react-vite";
-import { EmptyState } from "../components";
 
 const meta = {
     title: "Common/EmptyState",

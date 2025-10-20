@@ -1,5 +1,5 @@
+import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
-import { MessageBanner } from "../components";
 
 const meta = {
     title: "Common/MessageBanner",
