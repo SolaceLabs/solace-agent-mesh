@@ -1,0 +1,71 @@
+test_case_id: "proxy_auth_oauth2_success_001"
+description: "Tests OAuth 2.0 client credentials flow with successful token acquisition"
+tags: ["all", "proxy", "auth", "oauth"]
+skip_intermediate_events: true
+
+# Configure the mock OAuth server
+mock_oauth_server:
+  token_url: "https://test-oauth.example.com/token"
+  access_token: "oauth_access_token_abc123"
+  expires_in: 3600
+
+# Configure downstream agent to expect the OAuth token
+downstream_agent_auth:
+  enabled: true
+  type: "bearer"
+  expected_value: "oauth_access_token_abc123"
+
+# Configure proxy authentication
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  authentication:
+    type: "oauth2_client_credentials"
+    token_url: "https://test-oauth.example.com/token"
+    client_id: "test_oauth_client_id"
+    client_secret: "test_oauth_client_secret"
+    token_cache_duration_seconds: 3300
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "oauth_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Test OAuth authenticated request"
+  external_context:
+    a2a_session_id: "session_oauth_success_001"
+
+downstream_a2a_agent_responses:
+  - id: "task-oauth-success"
+    contextId: "session_oauth_success_001"
+    kind: "task"
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "OAuth authenticated request processed."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "OAuth authenticated request processed."
+
+# Assert OAuth token was requested correctly
+assert_oauth_token_requests:
+  - token_url: "https://test-oauth.example.com/token"
+    call_count: 1
+    request_body_contains:
+      grant_type: "client_credentials"
+      client_id: "test_oauth_client_id"
+      client_secret: "test_oauth_client_secret"
+
+# Assert the acquired token was used
+assert_downstream_auth:
+  - request_index: 0
+    authorization_header:
+      exact: "Bearer oauth_access_token_abc123"

@@ -11,7 +11,7 @@ gateway_input:
     a2a_session_id: "session-463"
   prompt:
     parts:
-      - text: "Please fetch the JSON data from https://jsonplaceholder.typicode.com/todos/1"
+      - text: "Please fetch the JSON data from {{STATIC_FILE_SERVER_URL}}/sample.json"
 
 llm_interactions:
   - static_response:
@@ -23,11 +23,11 @@ llm_interactions:
                 type: "function"
                 function:
                   name: "web_request"
-                  arguments: '{"url": "https://jsonplaceholder.typicode.com/todos/1"}'
+                  arguments: '{"url": "{{STATIC_FILE_SERVER_URL}}/sample.json"}'
     expected_request:
       messages:
         - role: "user"
-          content: "Please fetch the JSON data from https://jsonplaceholder.typicode.com/todos/1"
+          content: "Please fetch the JSON data from {{STATIC_FILE_SERVER_URL}}/sample.json"
       tools_present:
         - "web_request"
   - static_response:
@@ -38,9 +38,9 @@ llm_interactions:
     expected_request:
       messages:
         - role: "user"
-          content: "Please fetch the JSON data from https://jsonplaceholder.typicode.com/todos/1"
+          content: "Please fetch the JSON data from {{STATIC_FILE_SERVER_URL}}/sample.json"
         - role: "tool"
-          content_matches_regex: '.*"status": "success", "message": "Successfully fetched content from https://jsonplaceholder.typicode.com/todos/1 \(status: 200\). Saved as artifact.*'
+          content_matches_regex: '.*"status": "success", "message": "Successfully fetched content from {{STATIC_FILE_SERVER_URL}}/sample.json \(status: 200\). Saved as artifact.*'
           tool_call_id: "call_130"
 
 expected_gateway_output:

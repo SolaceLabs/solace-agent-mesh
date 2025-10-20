@@ -1,0 +1,53 @@
+test_case_id: "proxy_auth_static_bearer_001"
+description: "Tests that the proxy correctly sends a static bearer token to the downstream agent"
+tags: ["all", "proxy", "auth"]
+skip_intermediate_events: true
+
+# Configure downstream agent to expect a specific bearer token
+downstream_agent_auth:
+  enabled: true
+  type: "bearer"
+  expected_value: "test_static_bearer_token_12345"
+
+# Configure proxy authentication
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  authentication:
+    type: "static_bearer"
+    token: "test_static_bearer_token_12345"
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "auth_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Test authenticated request with static bearer token"
+  external_context:
+    a2a_session_id: "session_auth_bearer_001"
+
+downstream_a2a_agent_responses:
+  - id: "task-auth-bearer"
+    contextId: "session_auth_bearer_001"
+    kind: "task"
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Authenticated request processed successfully."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Authenticated request processed successfully."
+
+# Assert that the correct auth header was sent
+assert_downstream_auth:
+  - request_index: 0
+    authorization_header:
+      exact: "Bearer test_static_bearer_token_12345"
