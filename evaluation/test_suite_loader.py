@@ -86,8 +86,11 @@ class EvaluationOptions(BaseModel):
 
 class TestSuiteConfiguration(BaseModel):
     """Complete test suite configuration with comprehensive validation."""
-    agent_configs: list[str] = Field(min_length=1, alias="agents")
-    model_configurations: list[ModelConfiguration] = Field(min_length=1, alias="llm_models")
+    agent_configs: list[str] | None = Field(default=None, min_length=1, alias="agents")
+    model_configurations: list[ModelConfiguration] | None = Field(default=None, min_length=1, alias="llm_models")
+    auth_token: str | None = Field(default=None, alias="auth_token")
+    remote_url: str | None = Field(default=None, alias="remote_url")
+    namespace: str | None = Field(default=None, alias="namespace")
     test_case_files: list[str] = Field(min_length=1, alias="test_cases")
     results_directory: str = Field(default="tests", min_length=1, alias="results_dir_name")
     run_count: int = Field(default=1, ge=1, alias="runs")
@@ -97,16 +100,38 @@ class TestSuiteConfiguration(BaseModel):
     @classmethod
     def resolve_relative_paths(cls, v: list[str], info) -> list[str]:
         """Convert relative paths to absolute paths."""
+        if not v:
+            return v
         config_dir = getattr(info.context, 'config_dir', Path.cwd())
         return [str(config_dir / p) if not Path(p).is_absolute() else p for p in v]
 
     @model_validator(mode='after')
     def add_eval_backend_if_missing(self):
         """Add eval_backend.yaml if not present in agent configs."""
-        if not any(Path(p).name == "eval_backend.yaml" for p in self.agent_configs):
+        if self.agent_configs and not any(Path(p).name == "eval_backend.yaml" for p in self.agent_configs):
             project_root = Path.cwd()
             eval_backend_path = str(project_root / "configs" / "eval_backend.yaml")
             self.agent_configs.append(eval_backend_path)
+        return self
+
+    @model_validator(mode='after')
+    def validate_configuration_mode(self):
+        """Validate that either remote or local configuration is correctly provided."""
+        is_remote = self.remote_url is not None
+        is_local = self.agent_configs is not None and self.model_configurations is not None
+
+        if is_remote and is_local:
+            raise ValueError("Configuration cannot have both 'remote_url' and local settings ('agents', 'llm_models').")
+
+        if is_remote and (self.agent_configs or self.model_configurations):
+             raise ValueError("When 'remote_url' is provided, 'agents' and 'llm_models' must not be set.")
+
+        if is_remote and not self.namespace:
+            raise ValueError("When 'remote_url' is provided, 'namespace' must also be set.")
+
+        if not is_remote and not is_local:
+            raise ValueError("Configuration must include either 'remote_url' or local settings ('agents', 'llm_models').")
+
         return self
 
 

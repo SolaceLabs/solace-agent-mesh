@@ -646,21 +646,31 @@ class EvaluationOrchestrator:
 
         model_evaluator = ModelEvaluator(config_dict, settings_dict)
 
-        for model_config in config.model_configurations:
-            model_name = model_config.name
-
-            # Evaluate the model
-            model_results = model_evaluator.evaluate_model(
-                model_name, base_results_path
-            )
-
-            # Add execution time if available
+        if config.remote_url:
+            # Handle remote evaluation
+            model_name = "remote"
+            model_results = model_evaluator.evaluate_model(model_name, base_results_path)
             execution_time = model_execution_times.get(model_name)
             if execution_time is not None:
                 model_results.total_execution_time = execution_time
-
-            # Write results to file
             self.results_writer.write_model_results(model_results, base_results_path)
+        else:
+            # Handle local evaluation
+            for model_config in config.model_configurations:
+                model_name = model_config.name
+
+                # Evaluate the model
+                model_results = model_evaluator.evaluate_model(
+                    model_name, base_results_path
+                )
+
+                # Add execution time if available
+                execution_time = model_execution_times.get(model_name)
+                if execution_time is not None:
+                    model_results.total_execution_time = execution_time
+
+                # Write results to file
+                self.results_writer.write_model_results(model_results, base_results_path)
 
         log.info("--- Evaluation finished ---")
 

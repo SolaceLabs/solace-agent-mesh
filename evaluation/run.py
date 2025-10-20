@@ -132,12 +132,16 @@ class ProcessManager:
 class TaskService:
     """Handles task submission and tracking."""
 
-    def __init__(self, verbose: bool = False):
+    def __init__(self, config: TestSuiteConfiguration, verbose: bool = False):
         self.verbose = verbose
-        load_dotenv()
-        host = os.getenv("REST_API_HOST", "0.0.0.0")
-        port = os.getenv("REST_API_PORT", "8080")
-        self.base_url = f"http://{host}:{port}/api/v2"
+        self.config = config
+        if config.remote_url:
+            self.base_url = config.remote_url
+        else:
+            load_dotenv()
+            host = os.getenv("REST_API_HOST", "0.0.0.0")
+            port = os.getenv("REST_API_PORT", "8080")
+            self.base_url = f"http://{host}:{port}/api/v2"
 
     def submit_task(
         self, agent_name: str, message: str, artifact_paths: list[str] | None = None
@@ -150,13 +154,17 @@ class TaskService:
             "prompt": message,
         }
 
+        headers = {}
+        if self.config.auth_token:
+            headers["Authorization"] = f"Bearer {self.config.auth_token}"
+
         files_to_upload = []
         if artifact_paths:
             files_to_upload = self._prepare_file_uploads(artifact_paths)
 
         try:
             with requests.Session() as session:
-                response = session.post(url, data=data, files=files_to_upload)
+                response = session.post(url, data=data, files=files_to_upload, headers=headers)
 
             response.raise_for_status()
             task_id = response.json()["taskId"]
@@ -332,7 +340,7 @@ class ModelEvaluator:
     def __init__(self, config: TestSuiteConfiguration, verbose: bool = False):
         self.config = config
         self.process_manager = ProcessManager(config, verbose=verbose)
-        self.task_service = TaskService(verbose=verbose)
+        self.task_service = TaskService(config, verbose=verbose)
         self.file_service = FileService()
         self.test_builder = TestRunBuilder(config)
         self.test_executor = TestExecutor(self.task_service, self.file_service, verbose=verbose)
@@ -507,7 +515,10 @@ class EvaluationRunner:
             self._setup_results_directory(base_results_path)
 
             # Run model evaluations
-            model_execution_times = self._evaluate_all_models(str(base_results_path))
+            if self.config.remote_url:
+                model_execution_times = self._run_remote_evaluation(base_results_path)
+            else:
+                model_execution_times = self._run_local_evaluation(base_results_path)
 
             # Post-process results
             self._post_process_results(
@@ -543,18 +554,77 @@ class EvaluationRunner:
 
         log.info(f"Results directory set up at: {base_results_path}")
 
-    def _evaluate_all_models(self, base_results_path: str) -> dict[str, float]:
-        """Evaluate all configured models."""
+    def _run_local_evaluation(self, base_results_path: Path) -> dict[str, float]:
+        """Run the full local evaluation with service management."""
+        log.info("--- Starting local evaluation ---")
         model_execution_times = {}
 
+        # This loop iterates through the models defined in the config
         for model_config in self.config.model_configurations:
+            # ModelEvaluator manages the lifecycle of local services for each model
             model_evaluator = ModelEvaluator(self.config, verbose=self.verbose)
             execution_time = model_evaluator.evaluate_model(
-                model_config, base_results_path
+                model_config, str(base_results_path)
             )
             model_execution_times[model_config.name] = execution_time
 
         return model_execution_times
+
+    def _run_remote_evaluation(self, base_results_path: Path) -> dict[str, float]:
+        """Run evaluation against a remote endpoint."""
+        log.info(f"--- Starting remote evaluation against: {self.config.remote_url} ---")
+        start_time = time.time()
+
+        # Instantiate services with the remote configuration
+        task_service = TaskService(self.config, self.verbose)
+        test_builder = TestRunBuilder(self.config)
+        test_executor = TestExecutor(task_service, self.file_service, self.verbose)
+
+        # In remote mode, there's no model loop. We create a single "remote" results directory.
+        remote_results_path = base_results_path / "remote"
+        self.file_service.ensure_directory(str(remote_results_path))
+
+        # The subscriber needs to be configured for remote use.
+        subscriber = self._setup_remote_subscriber(str(remote_results_path))
+
+        try:
+            test_runs = test_builder.build_test_runs()
+            task_mappings = {}
+            successful_tests = 0
+
+            log.info(f"--- Starting sequential execution of {len(test_runs)} tests ---")
+            for i, test_run in enumerate(test_runs, 1):
+                log.info(f"--- Test {i}/{len(test_runs)} ---")
+                success = test_executor.execute_test(
+                    test_run, str(remote_results_path), task_mappings, subscriber
+                )
+                if success:
+                    successful_tests += 1
+
+            log.info(f"--- Completed {successful_tests} tests successfully ---")
+
+        finally:
+            if subscriber:
+                subscriber.stop()
+                subscriber.join()
+
+            # Save task mappings for remote run
+            mappings_file = remote_results_path / "task_mappings.json"
+            self.file_service.save_json(task_mappings, str(mappings_file))
+
+        execution_time = time.time() - start_time
+        return {"remote": execution_time}
+
+    def _setup_remote_subscriber(self, results_path: str) -> Subscriber:
+        """Set up a subscriber for remote evaluation."""
+        subscription_ready_event = threading.Event()
+        subscriber = Subscriber(
+            self.config.namespace, set(), None, subscription_ready_event, results_path
+        )
+        subscriber.start()
+        subscription_ready_event.wait()
+        log.info("Remote subscriber is ready.")
+        return subscriber
 
     def _post_process_results(
         self,
