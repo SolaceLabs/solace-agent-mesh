@@ -13,6 +13,7 @@ import uuid
 import shutil
 import mimetypes
 import threading
+import logging
 from pathlib import Path
 from dataclasses import dataclass
 from dotenv import load_dotenv
@@ -24,6 +25,7 @@ from .evaluator import EvaluationOrchestrator
 from .report_generator import ReportGenerator
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+log = logging.getLogger(__name__)
 
 # Constants
 DEFAULT_STARTUP_WAIT_TIME = 60
@@ -67,14 +69,14 @@ class ProcessManager:
 
         command = [sys.executable, "-m", "solace_ai_connector.main", *agent_files]
 
-        print("Starting Solace AI Connector as a subprocess...")
+        log.info("Starting Solace AI Connector as a subprocess...")
         project_root = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 
         self.process = subprocess.Popen(
             command, stdout=sys.stdout, stderr=sys.stderr, cwd=project_root
         )
 
-        print("Waiting for server to become healthy...")
+        log.info("Waiting for server to become healthy...")
         self._wait_for_server_ready()
 
         return self.process, self.namespace
@@ -92,14 +94,14 @@ class ProcessManager:
             try:
                 response = requests.get(health_url)
                 if response.status_code == 200:
-                    print("Server is healthy.")
-                    time.sleep(1)  # Wait an extra second as requested
+                    log.info("Server is healthy.")
+                    time.sleep(5)
                     return
             except requests.ConnectionError:
                 # Server is not yet available, wait and retry
                 time.sleep(1)
             except Exception as e:
-                print(f"An unexpected error occurred during health check: {e}")
+                log.error(f"An unexpected error occurred during health check: {e}")
                 time.sleep(1)
 
         raise RuntimeError(
@@ -109,22 +111,22 @@ class ProcessManager:
     def stop_services(self, subscriber: Subscriber | None = None):
         """Clean up running processes."""
         if subscriber:
-            print("--- Terminating subscriber ---")
+            log.info("--- Terminating subscriber ---")
             subscriber.stop()
             subscriber.join()
-            print("Subscriber terminated.")
+            log.info("Subscriber terminated.")
 
         if self.process:
-            print("--- Terminating subprocess ---")
+            log.info("--- Terminating subprocess ---")
             self.process.terminate()
             try:
                 self.process.wait(timeout=5)
-                print("Subprocess terminated.")
+                log.info("Subprocess terminated.")
             except subprocess.TimeoutExpired:
-                print("Subprocess did not terminate gracefully, killing.")
+                log.info("Subprocess did not terminate gracefully, killing.")
                 self.process.kill()
 
-        print("Process cleanup completed.")
+        log.info("Process cleanup completed.")
 
 
 class TaskService:
@@ -141,7 +143,7 @@ class TaskService:
         self, agent_name: str, message: str, artifact_paths: list[str] | None = None
     ) -> str | None:
         """Submit a test case to the agent and return the task ID."""
-        print("--- Sending test request ---")
+        log.info("--- Sending test request ---")
         url = f"{self.base_url}/tasks"
         data = {
             "agent_name": agent_name,
@@ -158,11 +160,11 @@ class TaskService:
 
             response.raise_for_status()
             task_id = response.json()["taskId"]
-            print(f"Task submitted with ID: {task_id}")
+            log.info(f"Task submitted with ID: {task_id}")
             return task_id
 
         except requests.RequestException as e:
-            print(f"Failed to submit task: {e}")
+            log.error(f"Failed to submit task: {e}")
             return None
         finally:
             self._close_file_uploads(files_to_upload)
@@ -268,7 +270,7 @@ class TestExecutor:
         subscriber: Subscriber,
     ) -> bool:
         """Execute a single test case and wait for completion."""
-        print(
+        log.info(
             f"--- Starting test: {test_run.test_case_file} (run {test_run.run_num}) ---"
         )
 
@@ -278,7 +280,7 @@ class TestExecutor:
         )
 
         if not task_id:
-            print(
+            log.error(
                 f"Failed to start test case: {test_run.test_case_file} (run {test_run.run_num})"
             )
             return False
@@ -306,19 +308,19 @@ class TestExecutor:
         self, task_id: str, wait_time: int, subscriber: Subscriber
     ) -> bool:
         """Wait for task completion with timeout."""
-        print(
+        log.info(
             f"Waiting for task {task_id} to complete (timeout: {wait_time} seconds)..."
         )
 
         start_time = time.time()
         while task_id in subscriber.active_tasks:
             if time.time() - start_time > wait_time:
-                print(f"Task {task_id} timed out after {wait_time} seconds")
+                log.warning(f"Task {task_id} timed out after {wait_time} seconds")
                 subscriber.active_tasks.discard(task_id)
                 return False
             time.sleep(1)
 
-        print(f"Task {task_id} completed successfully")
+        log.info(f"Task {task_id} completed successfully")
         return True
 
 
@@ -339,7 +341,7 @@ class ModelEvaluator:
     ) -> float:
         """Evaluate a single model and return execution time."""
         model_name = model_config.name
-        print(f"--- Starting evaluation for model: {model_name} ---")
+        log.info(f"--- Starting evaluation for model: {model_name} ---")
         start_time = time.time()
 
         # Set environment variables for the model
@@ -358,10 +360,10 @@ class ModelEvaluator:
         try:
             # Execute tests
             successful_tests = self._execute_all_tests(model_results_path, subscriber)
-            print(f"--- Completed {successful_tests} tests successfully ---")
+            log.info(f"--- Completed {successful_tests} tests successfully ---")
 
         except Exception as e:
-            print(f"Error during test case execution for model {model_name}: {e}")
+            log.error(f"Error during test case execution for model {model_name}: {e}")
         finally:
             # Cleanup
             task_mappings = getattr(self, "_task_mappings", {})
@@ -371,7 +373,7 @@ class ModelEvaluator:
 
         end_time = time.time()
         execution_time = end_time - start_time
-        print(
+        log.info(
             f"--- Evaluation for model: {model_name} complete in {execution_time:.2f} seconds ---"
         )
 
@@ -391,9 +393,9 @@ class ModelEvaluator:
         )
         subscriber.start()
 
-        print("Waiting for subscriber to be ready...")
+        log.info("Waiting for subscriber to be ready...")
         subscription_ready_event.wait()
-        print("Subscriber is ready.")
+        log.info("Subscriber is ready.")
 
         return subscriber
 
@@ -407,17 +409,17 @@ class ModelEvaluator:
         total_tests = len(test_runs)
         successful_tests = 0
 
-        print(f"--- Starting sequential execution of {total_tests} tests ---")
+        log.info(f"--- Starting sequential execution of {total_tests} tests ---")
 
         for i, test_run in enumerate(test_runs, 1):
-            print(f"--- Test {i}/{total_tests} ---")
+            log.info(f"--- Test {i}/{total_tests} ---")
             success = self.test_executor.execute_test(
                 test_run, model_results_path, self._task_mappings, subscriber
             )
             if success:
                 successful_tests += 1
             else:
-                print(f"Test {i} failed or timed out")
+                log.warning(f"Test {i} failed or timed out")
 
         return successful_tests
 
@@ -434,7 +436,7 @@ class ModelEvaluator:
         # Save task mappings
         mappings_file = os.path.join(model_results_path, "task_mappings.json")
         self.file_service.save_json(task_mappings, mappings_file)
-        print(f"Task mappings saved to {mappings_file}")
+        log.info(f"Task mappings saved to {mappings_file}")
 
 
 class ResultsProcessor:
@@ -447,7 +449,7 @@ class ResultsProcessor:
 
     def summarize_results(self, base_results_path: str):
         """Generate summaries for all test results."""
-        print("--- Summarizing results ---")
+        log.info("--- Summarizing results ---")
 
         for model_name in os.listdir(base_results_path):
             model_path = os.path.join(base_results_path, model_name)
@@ -477,7 +479,7 @@ class ResultsProcessor:
                 summary_data = self.summary_builder.summarize_run(messages_file)
                 summary_file = os.path.join(run_path, "summary.json")
                 self.file_service.save_json(summary_data, summary_file)
-                print(f"Summary created for {run_path}")
+                log.info(f"Summary created for {run_path}")
 
 
 class EvaluationRunner:
@@ -521,7 +523,7 @@ class EvaluationRunner:
                 self._display_verbose_summary(base_results_path)
 
         except Exception as e:
-            print(f"Evaluation failed: {e}")
+            log.error(f"Evaluation failed: {e}")
             raise
 
     def _load_configuration(self, config_path: str):
@@ -529,7 +531,7 @@ class EvaluationRunner:
         config_loader = EvaluationConfigLoader(config_path)
         self.config = config_loader.load_configuration()
         self.report_generator = ReportGenerator(config_path)
-        print("Configuration loaded and validated successfully.")
+        log.info("Configuration loaded and validated successfully.")
 
     def _setup_results_directory(self, base_results_path: Path):
         """Set up the results directory."""
@@ -537,7 +539,7 @@ class EvaluationRunner:
         self.file_service.remove_directory(str(base_results_path))
         self.file_service.ensure_directory(str(base_results_path))
 
-        print(f"Results directory set up at: {base_results_path}")
+        log.info(f"Results directory set up at: {base_results_path}")
 
     def _evaluate_all_models(self, base_results_path: str) -> dict[str, float]:
         """Evaluate all configured models."""
@@ -560,21 +562,21 @@ class EvaluationRunner:
     ):
         """Post-process evaluation results."""
         # Categorize messages using the refactored categorizer
-        print("--- Categorizing messages ---")
+        log.info("--- Categorizing messages ---")
         message_organizer = MessageOrganizer()
         categorization_results = message_organizer.categorize_all_messages(
             base_results_path
         )
-        print("--- Message categorization finished ---")
+        log.info("--- Message categorization finished ---")
 
         # Generate summaries
         self.results_processor.summarize_results(base_results_path)
 
         # Run evaluation
-        print("--- Starting evaluation of results ---")
+        log.info("--- Starting evaluation of results ---")
         evaluation_orchestrator = EvaluationOrchestrator(config_path)
         evaluation_orchestrator.run_evaluation(base_results_path, model_execution_times)
-        print("--- Evaluation of results finished ---")
+        log.info("--- Evaluation of results finished ---")
 
     def _generate_reports(self, config_path: str, base_results_path: Path):
         """Generate evaluation reports."""
@@ -626,31 +628,28 @@ class EvaluationRunner:
                         summary_data.append((model_name, test_case_id, scores))
 
             except Exception as e:
-                print(f"Error processing results for {model_dir.name}: {e}")
+                log.error(f"Error processing results for {model_dir.name}: {e}")
 
-        # Print formatted output
         if not summary_data:
-            print("No summary data to display.")
+            log.warning("No summary data to display.")
             return
 
         # Define headers and find max score lengths
         headers = ["Tool Match", "Response Match", "LLM Eval"]
 
-        # Print header
         header_line = (
             f"{'Model':<{max_model_len}} | {'Test Case':<{max_test_case_len}} | "
             f"{'Tool Match':<12} | {'Response Match':<16} | {'LLM Eval':<10}"
         )
-        print(header_line)
-        print("-" * len(header_line))
+        log.info(header_line)
+        log.info("-" * len(header_line))
 
-        # Print data rows
         for model_name, test_case_id, scores in summary_data:
             tool_score = scores.get("Tool Match", "N/A")
             response_score = scores.get("Response Match", "N/A")
             llm_score = scores.get("LLM Eval", "N/A")
 
-            print(
+            log.info(
                 f"{model_name:<{max_model_len}} | {test_case_id:<{max_test_case_len}} | "
                 f"{tool_score:<12} | {response_score:<16} | {llm_score:<10}"
             )
@@ -703,13 +702,13 @@ class EvaluationRunner:
                 stats["models"].update(model_stats)
 
         except Exception as e:
-            print(f"Error processing results for stats: {e}")
+            log.error(f"Error processing results for stats: {e}")
 
         stats_path = os.path.join(base_results_path, "stats.json")
         self.file_service.save_json(stats, stats_path)
 
-        print(f"Overall stats written to {stats_path}")
-        print(f"Total execution time: {total_execution_time:.2f} seconds")
+        log.info(f"Overall stats written to {stats_path}")
+        log.info(f"Total execution time: {total_execution_time:.2f} seconds")
 
 
 def main(config_path: str, verbose: bool = False):

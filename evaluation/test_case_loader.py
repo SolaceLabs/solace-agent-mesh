@@ -118,7 +118,7 @@ def load_test_case(test_case_path: str) -> dict[str, any]:
 
 def validate_test_case_file(test_case_path: str) -> None:
     """
-    Validates a test case file and prints errors if any. Exits on failure.
+    Validates a test case file and logs errors if any. Exits on failure.
 
     Args:
         test_case_path: The full path to the test case file.
@@ -130,14 +130,14 @@ def validate_test_case_file(test_case_path: str) -> None:
         load_test_case(test_case_path)
         log.info(f"Test case '{test_case_path}' validation successful.")
     except (TestCaseFileNotFoundError, TestCaseParseError, TestCaseError) as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error(f"Error: {e}")
         sys.exit(1)
 
 def main():
     """Main entry point for command-line usage and testing."""
     if len(sys.argv) != 2:
-        print(f"Usage: python {sys.argv[0]} <path_to_test_case.json>")
-        print(f"Example: python {sys.argv[0]} /path/to/hello_world.test.json")
+        log.error(f"Usage: python {sys.argv[0]} <path_to_test_case.json>")
+        log.error(f"Example: python {sys.argv[0]} /path/to/hello_world.test.json")
         sys.exit(1)
 
     test_case_path = sys.argv[1]
@@ -146,21 +146,20 @@ def main():
         # Load and validate test case
         test_case_data = load_test_case(test_case_path)
 
-        # Print results
-        print(f"Successfully loaded test case: {test_case_data['test_case_id']}")
-        print(f"Target Agent: {test_case_data['target_agent']}")
-        print(f"Category: {test_case_data['category']}")
+        log.info(f"Successfully loaded test case: {test_case_data['test_case_id']}")
+        log.info(f"Target Agent: {test_case_data['target_agent']}")
+        log.info(f"Category: {test_case_data['category']}")
         query = test_case_data['query']
-        print(f"Query: {query[:100]}{'...' if len(query) > 100 else ''}")
-        print(f"Wait Time: {test_case_data['wait_time']} seconds")
-        print(f"Artifacts: {len(test_case_data['artifacts'])} artifact(s)")
-        print(f"Expected Tools: {len(test_case_data['evaluation']['expected_tools'])} tool(s)")
+        log.info(f"Query: {query[:100]}{'...' if len(query) > 100 else ''}")
+        log.info(f"Wait Time: {test_case_data['wait_time']} seconds")
+        log.info(f"Artifacts: {len(test_case_data['artifacts'])} artifact(s)")
+        log.info(f"Expected Tools: {len(test_case_data['evaluation']['expected_tools'])} tool(s)")
 
     except (TestCaseFileNotFoundError, TestCaseParseError, TestCaseError) as e:
-        print(f"Error: {e}", file=sys.stderr)
+        log.error(f"Error: {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"An unexpected error occurred: {e}", file=sys.stderr)
+        log.error(f"An unexpected error occurred: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

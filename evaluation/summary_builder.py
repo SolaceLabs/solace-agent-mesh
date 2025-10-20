@@ -4,11 +4,14 @@ This module processes test run messages and generates comprehensive summaries.
 """
 
 import json
+import logging
 import os
 import re
 import yaml
 from datetime import datetime
 from dataclasses import dataclass, field
+log = logging.getLogger(__name__)
+
 from .test_case_loader import load_test_case
 
 
@@ -739,13 +742,13 @@ def main():
     import sys
 
     if len(sys.argv) != 2:
-        print("Usage: python summarize_refactored.py <messages_file_path>")
+        log.info("Usage: python summarize_refactored.py <messages_file_path>")
         sys.exit(1)
 
     messages_file_path = sys.argv[1]
 
     if not os.path.exists(messages_file_path):
-        print(f"Error: Messages file not found at: {messages_file_path}")
+        log.info(f"Error: Messages file not found at: {messages_file_path}")
         sys.exit(1)
 
     try:
@@ -757,10 +760,10 @@ def main():
         summary_file_path = os.path.join(output_dir, "summary.json")
 
         FileService.save_json(summary_data, summary_file_path)
-        print(f"Summary file created at: {summary_file_path}")
+        log.info(f"Summary file created at: {summary_file_path}")
 
     except Exception as e:
-        print(f"Error generating summary: {e}")
+        log.error(f"Error generating summary: {e}")
         sys.exit(1)
 
 

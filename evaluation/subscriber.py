@@ -853,7 +853,7 @@ def main():
 
     # Set up signal handling for graceful shutdown
     def signal_handler(signum, frame):
-        print("\nShutting down subscriber...")
+        log.info("\nShutting down subscriber...")
         if "subscriber" in locals():
             subscriber.stop()
             subscriber.join()
@@ -878,13 +878,13 @@ def main():
 
         # Wait for subscription to be ready
         subscription_ready.wait(timeout=30)
-        print("Subscriber is ready and running...")
+        log.info("Subscriber is ready and running...")
 
         # Keep running until interrupted
         subscriber.join()
 
     except Exception as e:
-        print(f"Error running subscriber: {e}")
+        log.error(f"Error running subscriber: {e}")
         sys.exit(1)
 
 

@@ -952,15 +952,15 @@ def main():
 
     processor = ReportDataProcessor()
 
-    print("Testing evaluation data extraction...")
+    log.info("Testing evaluation data extraction...")
     eval_data = processor.get_evaluation_data(results_dir)
-    print(f"Found {len(eval_data.get('models', []))} models")
+    log.info(f"Found {len(eval_data.get('models', []))} models")
 
-    print("Testing detailed evaluation data extraction...")
+    log.info("Testing detailed evaluation data extraction...")
     detailed_data = processor.get_detailed_evaluation_data(results_dir)
-    print(f"Total evaluations: {detailed_data.get('total_evaluations', 0)}")
+    log.info(f"Total evaluations: {detailed_data.get('total_evaluations', 0)}")
 
-    print("Report data processing completed successfully!")
+    log.info("Report data processing completed successfully!")
 
 
 if __name__ == "__main__":

@@ -123,10 +123,10 @@ class ConfigurationParser:
             with open(self.config_path, 'r') as f:
                 return json.load(f)
         except FileNotFoundError:
-            print(f"Error: Configuration file not found: {self.config_path}")
+            log.error(f"Configuration file not found: {self.config_path}")
             sys.exit(1)
         except json.JSONDecodeError as e:
-            print(f"Error: Invalid JSON in configuration file: {e}")
+            log.error(f"Invalid JSON in configuration file: {e}")
             sys.exit(1)
 
     def transform_evaluation_settings(self, raw_settings: dict[str, any]) -> dict[str, any]:
@@ -195,8 +195,8 @@ class EvaluationConfigLoader:
 
     def _handle_validation_error(self, e: ValidationError):
         """Convert Pydantic validation errors to user-friendly format."""
-        print("Configuration validation failed:")
+        log.error("Configuration validation failed:")
         for error in e.errors():
             field_path = " -> ".join(str(loc) for loc in error['loc'])
             message = error['msg']
-            print(f"  Field '{field_path}': {message}")
+            log.error(f"  Field '{field_path}': {message}")

@@ -539,8 +539,8 @@ def main(config_path: str = None):
         orchestrator = MessageOrganizer()
         results = orchestrator.categorize_all_messages(base_results_path)
 
-        print("Message categorization completed successfully!")
-        print(f"Processed {len(results)} models")
+        log.info("Message categorization completed successfully!")
+        log.info(f"Processed {len(results)} models")
 
     except Exception as e:
         log.error(f"Script execution failed: {e}")
