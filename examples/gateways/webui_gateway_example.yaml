@@ -1,0 +1,90 @@
+# Solace AI Connector Configuration for A2A Web UI
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG # Use DEBUG for development
+  log_file: webui_example.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  - name: webui_example_app
+    app_base_path: . # Assume running from project root where src/ is located
+    app_module: solace_agent_mesh.gateway.http_sse.app
+
+    # Broker settings for this app instance
+    broker:
+      <<: *broker_connection # Points to shared_config.yaml
+      # Queue name is generated automatically by WebUIBackendApp based on namespace/gateway_id
+
+    # --- App Level Config (Validated by WebUIBackendApp.app_schema) ---
+    app_config:
+      # --- Required ---
+      namespace: ${NAMESPACE} # Namespace for A2A communication
+      session_secret_key: "${SESSION_SECRET_KEY}" # Secret for web sessions
+
+      # # --- Development User Identity Configuration (WARNING: Only for development!) ---
+      # # Force all user identities to sam_dev_user (overrides web-client-xxxxx)
+      # force_user_identity: "sam_dev_user"
+      # # Fallback for null identities (kept for completeness)
+      # default_user_identity: "sam_dev_user"
+
+      # --- Artifact Service (Required) ---
+      artifact_service: *default_artifact_service # Points to shared_config.yaml
+      session_service:
+        type: "sql"
+        database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
+        default_behavior: "PERSISTENT"
+      # --- Optional with Defaults ---
+      gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.
+      fastapi_host: ${FASTAPI_HOST, localhost} # Host for the FastAPI server
+      fastapi_port: ${FASTAPI_PORT, 8000} # Port for the FastAPI server
+      cors_allowed_origins: # List of allowed origins for CORS
+        - "http://localhost:3000" # Example: Allow local React dev server
+        - "http://127.0.0.1:3000"
+        # Add other origins as needed, or use ["*"] for wide open (less secure)
+
+      # --- Embed Resolution Config ---
+      enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
+      gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
+      sse_max_queue_size: ${SSE_MAX_QUEUE_SIZE, 200} # Max size of SSE connection queues
+
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.    
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned. 
+            Format responses to the user in Markdown using appropriate formatting.
+
+      # --- Frontend Config Passthrough ---
+      frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
+      frontend_bot_name: ${FRONTEND_BOT_NAME}
+      frontend_collect_feedback: true
+
+      task_logging:
+        enabled: true
+        log_status_updates: true
+        log_artifact_events: true
+        log_file_parts: true
+        max_file_part_size_bytes: 10240
+
+      feedback_publishing:
+        enabled: true
+        topic: "${NAMESPACE}/sam/feedback/v1"
+        include_task_info: "stim" # Options: "none", "summary", "stim"
+        max_payload_size_bytes: 9000000 # 9MB default, safety margin below 10MB broker limit
+
+      # --- Data Retention Configuration ---
+      # Automatically cleans up old tasks, task events, and feedback to prevent unbounded database growth
+      # data_retention:
+      #   enabled: true                    # Enable/disable automatic cleanup (default: true)
+      #   task_retention_days: 90          # Days to retain task records (default: 90, minimum: 7)
+      #   feedback_retention_days: 90      # Days to retain feedback records (default: 90, minimum: 7)
+      #   cleanup_interval_hours: 24       # How often cleanup runs (default: 24, minimum: 1)
+      #   batch_size: 1000                 # Records deleted per transaction (default: 1000, range: 1-10000)

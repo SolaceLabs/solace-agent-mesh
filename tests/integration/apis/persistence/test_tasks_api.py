@@ -126,7 +126,6 @@ def test_send_task_with_small_file_inline(api_client: TestClient):
     print("✓ Small file sent inline successfully")
 
 
-@pytest.mark.skip(reason="Session management changes in progress for artifact uploads")
 def test_send_task_with_large_file_via_artifacts(api_client: TestClient):
     """Test POST /message:stream with large file uploaded via artifacts endpoint first (≥ 1MB)"""
 
@@ -161,9 +160,15 @@ def test_send_task_with_large_file_via_artifacts(api_client: TestClient):
             "application/octet-stream",
         )
     }
+    data = {
+        "sessionId": session_id,
+        "filename": "large_test.bin"
+    }
 
     upload_response = api_client.post(
-        f"/api/v1/artifacts/{session_id}/large_test.bin", files=files
+        "/api/v1/artifacts/upload",
+        files=files,
+        data=data
     )
     assert upload_response.status_code == 201
     upload_result = upload_response.json()
@@ -208,7 +213,139 @@ def test_send_task_with_large_file_via_artifacts(api_client: TestClient):
     assert "id" in response_data["result"]
     assert response_data["result"]["contextId"] == session_id
 
-    print(f"✓ Large file uploaded via artifacts and referenced in task successfully")
+    print("✓ Large file uploaded via artifacts and referenced in task successfully")
+
+
+def test_upload_artifact_with_session_management(api_client: TestClient):
+    """Test POST /artifacts/upload with automatic session creation and management"""
+
+    # Test 1: Upload with null sessionId (should create new session)
+    large_content = b"x" * (1024 * 1024)  # 1MB file
+    files = {
+        "upload_file": (
+            "test_file.bin",
+            io.BytesIO(large_content),
+            "application/octet-stream",
+        )
+    }
+    data = {
+        "sessionId": "",  # Empty string triggers session creation
+        "filename": "test_file.bin",
+        "metadata_json": '{"description": "Test file upload"}',
+    }
+
+    upload_response = api_client.post(
+        "/api/v1/artifacts/upload",
+        files=files,
+        data=data,
+    )
+
+    assert upload_response.status_code == 201
+    upload_result = upload_response.json()
+
+    # Verify response structure (camelCase due to Pydantic model)
+    assert "uri" in upload_result
+    assert "sessionId" in upload_result
+    assert "filename" in upload_result
+    assert "size" in upload_result
+    assert "mimeType" in upload_result
+    assert "metadata" in upload_result
+    assert "createdAt" in upload_result
+
+    # Verify values
+    assert upload_result["filename"] == "test_file.bin"
+    assert upload_result["size"] == len(large_content)
+    assert upload_result["mimeType"] == "application/octet-stream"
+    assert upload_result["metadata"]["description"] == "Test file upload"
+
+    # Save session ID for next test
+    created_session_id = upload_result["sessionId"]
+    assert created_session_id is not None
+    assert len(created_session_id) > 0
+
+    print(f"✓ Artifact uploaded with auto-created session: {created_session_id}")
+
+    # Test 2: Upload to existing session
+    second_content = b"y" * (512 * 1024)  # 512KB file
+    files2 = {
+        "upload_file": (
+            "second_file.txt",
+            io.BytesIO(second_content),
+            "text/plain",
+        )
+    }
+    data2 = {
+        "sessionId": created_session_id,  # Use existing session
+        "filename": "second_file.txt",
+    }
+
+    upload_response2 = api_client.post(
+        "/api/v1/artifacts/upload",
+        files=files2,
+        data=data2,
+    )
+
+    assert upload_response2.status_code == 201
+    upload_result2 = upload_response2.json()
+
+    # Verify it used the same session
+    assert upload_result2["sessionId"] == created_session_id
+    assert upload_result2["filename"] == "second_file.txt"
+    assert upload_result2["size"] == len(second_content)
+    assert upload_result2["mimeType"] == "text/plain"
+
+    print(f"✓ Second artifact uploaded to existing session: {created_session_id}")
+
+    # Test 3: Upload with invalid filename (should fail)
+    files3 = {
+        "upload_file": (
+            "../invalid.txt",
+            io.BytesIO(b"test"),
+            "text/plain",
+        )
+    }
+    data3 = {
+        "sessionId": created_session_id,
+        "filename": "../invalid.txt",  # Path traversal attempt
+    }
+
+    upload_response3 = api_client.post(
+        "/api/v1/artifacts/upload",
+        files=files3,
+        data=data3,
+    )
+
+    assert upload_response3.status_code == 400
+    error_detail = upload_response3.json()["detail"]
+    assert "Invalid filename" in error_detail or "path" in error_detail.lower()
+
+    print("✓ Invalid filename correctly rejected")
+
+    # Test 4: Upload empty file (should fail)
+    files4 = {
+        "upload_file": (
+            "empty.txt",
+            io.BytesIO(b""),
+            "text/plain",
+        )
+    }
+    data4 = {
+        "sessionId": created_session_id,
+        "filename": "empty.txt",
+    }
+
+    upload_response4 = api_client.post(
+        "/api/v1/artifacts/upload",
+        files=files4,
+        data=data4,
+    )
+
+    assert upload_response4.status_code == 400
+    error_detail4 = upload_response4.json()["detail"]
+    assert "empty" in error_detail4.lower()
+
+    print("✓ Empty file correctly rejected")
+    print("✓ All upload_artifact_with_session tests passed")
 
 
 def test_send_task_to_existing_session(api_client: TestClient):
@@ -328,7 +465,7 @@ def test_task_with_different_agents(api_client: TestClient):
     task_ids = []
     session_ids = []
 
-    for i, (agent_name, message) in enumerate(agents_and_messages):
+    for _i, (agent_name, message) in enumerate(agents_and_messages):
         task_payload = {
             "jsonrpc": "2.0",
             "id": str(uuid.uuid4()),

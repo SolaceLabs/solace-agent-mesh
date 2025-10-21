@@ -25,6 +25,7 @@ from pydub import AudioSegment
 from ...agent.utils.artifact_helpers import (
     load_artifact_content_or_metadata,
     save_artifact_with_metadata,
+    ensure_correct_extension,
     DEFAULT_SCHEMA_MAX_KEYS,
 )
 from ...agent.utils.context_helpers import get_original_session_id
@@ -1210,14 +1211,18 @@ async def concatenate_audio(
 
 async def transcribe_audio(
     audio_filename: str,
+    output_filename: Optional[str] = None,
+    description: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Transcribes an audio recording using an OpenAI-compatible audio transcription API.
+    Transcribes an audio recording and saves the transcription as a text artifact.
 
     Args:
         audio_filename: The filename (and optional :version) of the input audio artifact.
+        output_filename: Optional filename for the transcription text file (without extension).
+        description: Optional description of the transcription for metadata.
         tool_context: The context provided by the ADK framework.
         tool_config: Configuration dictionary containing model, api_base, api_key.
 
@@ -1225,9 +1230,10 @@ async def transcribe_audio(
         A dictionary containing:
         - "status": "success" or "error".
         - "message": A descriptive message about the outcome.
-        - "transcription": The transcribed text from the API (if successful).
-        - "audio_filename": The name of the input audio artifact (if successful).
-        - "audio_version": The version of the input audio artifact (if successful).
+        - "output_filename": The name of the saved transcription artifact.
+        - "output_version": The version of the saved transcription artifact.
+        - "audio_filename": The name of the input audio artifact.
+        - "audio_version": The version of the input audio artifact.
     """
     log_identifier = f"[AudioTools:transcribe_audio:{audio_filename}]"
     if not tool_context:
@@ -1340,7 +1346,27 @@ async def transcribe_audio(
             )
 
         audio_bytes = audio_artifact_part.inline_data.data
+        audio_mime_type = audio_artifact_part.inline_data.mime_type or "application/octet-stream"
         log.debug(f"{log_identifier} Loaded audio artifact: {len(audio_bytes)} bytes")
+
+        # Load source audio metadata to copy description
+        source_audio_metadata = {}
+        try:
+            metadata_result = await load_artifact_content_or_metadata(
+                artifact_service=artifact_service,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename_base_for_load,
+                version=version_to_load,
+                load_metadata_only=True,
+                log_identifier_prefix=f"{log_identifier}[source_metadata]",
+            )
+            if metadata_result.get("status") == "success":
+                source_audio_metadata = metadata_result.get("metadata", {})
+                log.debug(f"{log_identifier} Loaded source audio metadata")
+        except Exception as meta_err:
+            log.warning(f"{log_identifier} Could not load source audio metadata: {meta_err}")
 
         temp_file_path = None
         try:
@@ -1383,12 +1409,93 @@ async def transcribe_audio(
                 f"{log_identifier} Audio transcribed successfully. Transcription length: {len(transcription)} characters"
             )
 
+            # Determine output filename
+            if output_filename:
+                final_filename = ensure_correct_extension(output_filename, "txt")
+            else:
+                # Auto-generate from source audio filename
+                base_name = os.path.splitext(filename_base_for_load)[0]
+                final_filename = f"{base_name}_transcription.txt"
+
+            # Build comprehensive metadata
+            transcription_word_count = len(transcription.split())
+            transcription_char_count = len(transcription)
+            
+            # Build description from multiple sources
+            description_parts = []
+            
+            # Add user-provided description
+            if description:
+                description_parts.append(description)
+            
+            # Add source audio description if available
+            source_description = source_audio_metadata.get("description")
+            if source_description:
+                description_parts.append(f"Source: {source_description}")
+            
+            # Add source audio info
+            description_parts.append(f"Transcribed from audio file '{filename_base_for_load}' (version {version_to_load}, {audio_mime_type})")
+            
+            # Combine all description parts
+            final_description = ". ".join(description_parts)
+            
+            metadata = {
+                "description": final_description,
+                "source_audio_filename": filename_base_for_load,
+                "source_audio_version": version_to_load,
+                "source_audio_mime_type": audio_mime_type,
+                "transcription_model": model_name,
+                "transcription_timestamp": datetime.now(timezone.utc).isoformat(),
+                "transcription_word_count": transcription_word_count,
+                "transcription_char_count": transcription_char_count,
+                "generation_tool": "transcribe_audio",
+            }
+            
+            # Copy source audio description separately for reference
+            if source_description:
+                metadata["source_audio_description"] = source_description
+            
+            # Add user-provided description separately if provided
+            if description:
+                metadata["user_provided_description"] = description
+
+            # Save transcription as text artifact
+            transcription_bytes = transcription.encode("utf-8")
+            
+            save_result = await save_artifact_with_metadata(
+                artifact_service=artifact_service,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=final_filename,
+                content_bytes=transcription_bytes,
+                mime_type="text/plain",
+                metadata_dict=metadata,
+                timestamp=datetime.now(timezone.utc),
+                schema_max_keys=DEFAULT_SCHEMA_MAX_KEYS,
+                tool_context=tool_context,
+            )
+
+            if save_result.get("status") != "success":
+                error_msg = save_result.get("message", "Failed to save transcription artifact")
+                log.error(f"{log_identifier} {error_msg}")
+                return {
+                    "status": "error",
+                    "message": f"Transcription succeeded but failed to save as artifact: {error_msg}",
+                }
+
+            log.info(
+                f"{log_identifier} Transcription saved to '{final_filename}' v{save_result['data_version']}"
+            )
+
             return {
                 "status": "success",
-                "message": "Audio transcribed successfully",
-                "transcription": transcription,
+                "message": "Audio transcribed and saved successfully",
+                "output_filename": final_filename,
+                "output_version": save_result["data_version"],
                 "audio_filename": filename_base_for_load,
                 "audio_version": version_to_load,
+                "result_preview": f"Transcription saved to '{final_filename}' (v{save_result['data_version']}). Length: {transcription_char_count} characters, {transcription_word_count} words."
             }
 
         finally:
@@ -1600,15 +1707,25 @@ concatenate_audio_tool_def = BuiltinTool(
 transcribe_audio_tool_def = BuiltinTool(
     name="transcribe_audio",
     implementation=transcribe_audio,
-    description="Transcribes an audio recording using an OpenAI-compatible audio transcription API.",
+    description="Transcribes an audio recording and saves the transcription as a text artifact.",
     category="audio",
-    required_scopes=["tool:audio:transcribe"],
+    required_scopes=["tool:audio:transcribe", "tool:artifact:create"],
     parameters=adk_types.Schema(
         type=adk_types.Type.OBJECT,
         properties={
             "audio_filename": adk_types.Schema(
                 type=adk_types.Type.STRING,
                 description="The filename (and optional :version) of the input audio artifact.",
+            ),
+            "output_filename": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Optional filename for the transcription text file (without .txt extension). If not provided, will auto-generate from source audio filename.",
+                nullable=True,
+            ),
+            "description": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Optional description of the transcription for metadata (e.g., 'Transcription of customer support call about billing inquiry'). Will be combined with source audio description if available.",
+                nullable=True,
             ),
         },
         required=["audio_filename"],

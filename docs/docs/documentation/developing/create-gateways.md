@@ -609,10 +609,6 @@ apps:
       # Artifact service configuration
       artifact_service: *default_artifact_service
 
-      # Authorization service
-      authorization_service:
-        type: "none"
-
       # System purpose for A2A context
       system_purpose: >
         This system monitors directories for new files and processes them automatically.

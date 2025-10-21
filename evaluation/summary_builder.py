@@ -4,14 +4,18 @@ This module processes test run messages and generates comprehensive summaries.
 """
 
 import json
+import logging
 import os
 import re
+from dataclasses import dataclass, field
+from datetime import datetime
+
+import requests
 import yaml
 
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple, Set
-from dataclasses import dataclass, field
-from .test_case_loader import load_test_case
+from .shared import TestSuiteConfiguration, load_test_case
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -21,7 +25,7 @@ class ToolCall:
     call_id: str
     agent: str
     tool_name: str
-    arguments: Dict[str, Any]
+    arguments: dict[str, any]
     timestamp: str
 
 
@@ -31,21 +35,21 @@ class ArtifactInfo:
 
     artifact_name: str
     directory: str
-    versions: List[Dict[str, Any]]
-    artifact_type: Optional[str] = None
-    source_path: Optional[str] = None
-    created_by_tool: Optional[str] = None
-    created_by_call_id: Optional[str] = None
-    creation_timestamp: Optional[str] = None
+    versions: list[dict[str, any]]
+    artifact_type: str | None = None
+    source_path: str | None = None
+    created_by_tool: str | None = None
+    created_by_call_id: str | None = None
+    creation_timestamp: str | None = None
 
 
 @dataclass
 class TimeMetrics:
     """Time-related metrics for a test run."""
 
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
-    duration_seconds: Optional[float] = None
+    start_time: str | None = None
+    end_time: str | None = None
+    duration_seconds: float | None = None
 
 
 @dataclass
@@ -61,12 +65,12 @@ class RunSummary:
     final_status: str = ""
     final_message: str = ""
     time_metrics: TimeMetrics = field(default_factory=TimeMetrics)
-    tool_calls: List[ToolCall] = field(default_factory=list)
-    input_artifacts: List[ArtifactInfo] = field(default_factory=list)
-    output_artifacts: List[ArtifactInfo] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    input_artifacts: list[ArtifactInfo] = field(default_factory=list)
+    output_artifacts: list[ArtifactInfo] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, any]:
         """Convert summary to dictionary format for JSON serialization."""
         return {
             "test_case_id": self.test_case_id,
@@ -115,16 +119,16 @@ class RunSummary:
 class ConfigService:
     """Handles configuration loading and YAML processing."""
 
-    _config_cache: Dict[str, Any] = {}
+    _config_cache: dict[str, any] = {}
 
     @classmethod
-    def load_yaml_with_includes(cls, file_path: str) -> Dict[str, Any]:
+    def load_yaml_with_includes(cls, file_path: str) -> dict[str, any]:
         """Load YAML file with !include directive processing and caching."""
         if file_path in cls._config_cache:
             return cls._config_cache[file_path]
 
         try:
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 content = f.read()
 
             content = cls._process_includes(content, file_path)
@@ -133,7 +137,7 @@ class ConfigService:
             return config
 
         except (FileNotFoundError, yaml.YAMLError) as e:
-            raise ValueError(f"Failed to load YAML config from {file_path}: {e}")
+            raise ValueError(f"Failed to load YAML config from {file_path}: {e}") from e
 
     @staticmethod
     def _process_includes(content: str, base_file_path: str) -> str:
@@ -143,7 +147,7 @@ class ConfigService:
         def replacer(match):
             include_path = match.group(1).strip()
             include_path = os.path.join(os.path.dirname(base_file_path), include_path)
-            with open(include_path, "r") as inc_f:
+            with open(include_path) as inc_f:
                 return inc_f.read()
 
         # Repeatedly replace includes until none are left
@@ -153,7 +157,7 @@ class ConfigService:
         return content
 
     @classmethod
-    def get_artifact_config(cls) -> Tuple[str, str]:
+    def get_local_artifact_config(cls) -> tuple[str, str]:
         """Get artifact service configuration from eval backend config."""
         try:
             webui_config = cls.load_yaml_with_includes("configs/eval_backend.yaml")
@@ -171,36 +175,36 @@ class ConfigService:
             raise ValueError("Could not find 'a2a_eval_backend_app' config")
 
         except Exception as e:
-            raise ValueError(f"Failed to load artifact configuration: {e}")
+            raise ValueError(f"Failed to load artifact configuration: {e}") from e
 
 
 class FileService:
     """Handles file operations and path management."""
 
     @staticmethod
-    def load_json(filepath: str) -> Any:
+    def load_json(filepath: str) -> any:
         """Load JSON data from file."""
         try:
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            raise ValueError(f"Failed to load JSON from {filepath}: {e}")
+            raise ValueError(f"Failed to load JSON from {filepath}: {e}") from e
 
     @staticmethod
-    def save_json(data: Any, filepath: str):
+    def save_json(data: any, filepath: str):
         """Save data as JSON to file."""
         try:
             with open(filepath, "w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            raise ValueError(f"Failed to save JSON to {filepath}: {e}")
+            raise ValueError(f"Failed to save JSON to {filepath}: {e}") from e
 
 
 class TestCaseService:
     """Handles test case loading and validation."""
 
     @staticmethod
-    def load_test_case(test_case_id: str) -> Optional[Dict[str, Any]]:
+    def load_test_case(test_case_id: str) -> dict[str, any] | None:
         """Load test case definition with error handling."""
         try:
             return load_test_case(test_case_id)
@@ -208,7 +212,7 @@ class TestCaseService:
             return None
 
     @staticmethod
-    def extract_input_artifact_names(test_case: Dict[str, Any]) -> Set[str]:
+    def extract_input_artifact_names(test_case: dict[str, any]) -> set[str]:
         """Extract input artifact names from test case definition."""
         input_artifact_names = set()
         test_case_artifacts = test_case.get("artifacts", [])
@@ -226,7 +230,7 @@ class TimeProcessor:
     """Handles timestamp parsing and duration calculations."""
 
     @staticmethod
-    def extract_start_time(first_message: Dict[str, Any]) -> Optional[str]:
+    def extract_start_time(first_message: dict[str, any]) -> str | None:
         """Extract start time from the first message."""
         try:
             payload = first_message.get("payload", {})
@@ -250,7 +254,7 @@ class TimeProcessor:
         return None
 
     @staticmethod
-    def extract_end_time(last_message: Dict[str, Any]) -> Optional[str]:
+    def extract_end_time(last_message: dict[str, any]) -> str | None:
         """Extract end time from the last message."""
         try:
             payload = last_message.get("payload", {})
@@ -263,7 +267,7 @@ class TimeProcessor:
     @staticmethod
     def calculate_duration(
         start_time_str: str, end_time_str: str
-    ) -> Tuple[Optional[float], Optional[str]]:
+    ) -> tuple[float | None, str | None]:
         """Calculate duration and return normalized start time."""
         try:
             start_time = datetime.fromisoformat(start_time_str)
@@ -293,8 +297,8 @@ class MessageProcessor:
 
     @staticmethod
     def extract_namespace_and_agent(
-        first_message: Dict[str, Any],
-    ) -> Tuple[Optional[str], Optional[str]]:
+        first_message: dict[str, any],
+    ) -> tuple[str | None, str | None]:
         """Extract namespace and target agent from the first message topic."""
         try:
             topic = first_message.get("topic", "")
@@ -308,7 +312,7 @@ class MessageProcessor:
         return None, None
 
     @staticmethod
-    def extract_context_id(first_message: Dict[str, Any]) -> Optional[str]:
+    def extract_context_id(first_message: dict[str, any]) -> str | None:
         """Extract context ID from the first message."""
         try:
             payload = first_message.get("payload", {})
@@ -320,8 +324,8 @@ class MessageProcessor:
 
     @staticmethod
     def extract_final_status_info(
-        last_message: Dict[str, Any],
-    ) -> Tuple[Optional[str], Optional[str]]:
+        last_message: dict[str, any],
+    ) -> tuple[str | None, str | None]:
         """Extract final status and message from the last message."""
         try:
             payload = last_message.get("payload", {})
@@ -344,7 +348,7 @@ class MessageProcessor:
             return None, None
 
     @staticmethod
-    def extract_tool_calls(messages: List[Dict[str, Any]]) -> List[ToolCall]:
+    def extract_tool_calls(messages: list[dict[str, any]]) -> list[ToolCall]:
         """Extract all tool calls from messages."""
         tool_calls = []
         processed_tool_calls = set()
@@ -381,12 +385,107 @@ class MessageProcessor:
 class ArtifactService:
     """Manages artifact discovery, categorization, and metadata."""
 
-    def __init__(self, base_path: str, user_identity: str):
-        self.base_path = base_path
-        self.user_identity = user_identity
+    def __init__(self, config: TestSuiteConfiguration):
+        self.config = config
+        self.is_remote = config.remote is not None
+        if self.is_remote:
+            self.base_url = config.remote.environment.get("EVAL_REMOTE_URL")
+            self.auth_token = config.remote.environment.get("EVAL_AUTH_TOKEN")
+        else:
+            self.base_path, self.user_identity = (
+                ConfigService.get_local_artifact_config()
+            )
 
-    def get_artifact_info(self, namespace: str, context_id: str) -> List[ArtifactInfo]:
-        """Retrieve information about artifacts from the session directory."""
+    def get_artifacts(
+        self, namespace: str, context_id: str
+    ) -> list[ArtifactInfo]:
+        """Retrieve artifact information, either locally or from a remote API."""
+        if self.is_remote:
+            return self._get_remote_artifacts(context_id)
+        else:
+            return self._get_local_artifacts(namespace, context_id)
+
+    def _get_remote_artifacts(self, context_id: str) -> list[ArtifactInfo]:
+        """Fetch artifacts from the remote API."""
+        if not self.base_url:
+            return []
+
+        url = f"{self.base_url}/api/v2/artifacts"
+        params = {"session_id": context_id}
+
+        headers = {"Content-Type": "application/json"}
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+            log.info("Auth token found and added to headers.")
+        else:
+            log.warning("No auth token found for remote artifact request.")
+
+        log.info(f"Fetching remote artifacts from URL: {url} with params: {params}")
+
+        try:
+            with requests.Session() as session:
+                session.headers.update(headers)
+                response = session.get(url, params=params, allow_redirects=False)
+
+            log.info(f"Initial response status: {response.status_code}")
+
+            # Handle 307 Temporary Redirect manually
+            if response.status_code == 307:
+                redirect_url = response.headers.get("Location")
+                if not redirect_url:
+                    log.error(
+                        f"Server sent 307 redirect without a Location header. Full headers: {response.headers}"
+                    )
+                    response.raise_for_status()  # Re-raise the error to halt execution
+
+                log.info(f"Handling 307 redirect to: {redirect_url}")
+                with requests.Session() as redirect_session:
+                    redirect_session.headers.update(headers)
+                    # The redirected URL from the server should be complete, so no params needed.
+                    response = redirect_session.get(redirect_url)
+
+            response.raise_for_status()
+
+            # Handle empty response body after potential redirect
+            if not response.text:
+                log.info("Received empty response from artifact API, assuming no artifacts.")
+                return []
+
+            artifacts_data = response.json()
+
+            artifact_infos = []
+            for data in artifacts_data:
+                # The API returns a flat list of latest versions, so we reconstruct
+                # the version list to match the structure ArtifactInfo expects.
+                version_info = {
+                    "version": data.get("version", 0),
+                    "metadata": {
+                        "mime_type": data.get("mime_type"),
+                        "size": data.get("size"),
+                        "last_modified": data.get("last_modified"),
+                        "description": data.get("description"),
+                        "schema": data.get("schema"),
+                    },
+                }
+                info = ArtifactInfo(
+                    artifact_name=data.get("filename"),
+                    directory="",  # Not applicable for remote
+                    versions=[version_info],
+                )
+                artifact_infos.append(info)
+            return artifact_infos
+
+        except requests.RequestException as e:
+            log.error(f"Failed to fetch remote artifacts: {e}")
+            return []
+        except json.JSONDecodeError:
+            log.error("Failed to decode JSON response from artifact API")
+            return []
+
+    def _get_local_artifacts(
+        self, namespace: str, context_id: str
+    ) -> list[ArtifactInfo]:
+        """Retrieve information about artifacts from the local session directory."""
         artifact_info = []
         session_dir = os.path.join(
             self.base_path, namespace, self.user_identity, context_id
@@ -417,7 +516,7 @@ class ArtifactService:
                     version_metadata_path = os.path.join(metadata_dir, version_file)
                     if os.path.exists(version_metadata_path):
                         try:
-                            with open(version_metadata_path, "r") as f:
+                            with open(version_metadata_path) as f:
                                 metadata = json.load(f)
                             versions.append(
                                 {"version": version_file, "metadata": metadata}
@@ -431,10 +530,10 @@ class ArtifactService:
 
     def categorize_artifacts(
         self,
-        artifacts: List[ArtifactInfo],
-        test_case: Dict[str, Any],
-        tool_calls: List[ToolCall],
-    ) -> Tuple[List[ArtifactInfo], List[ArtifactInfo]]:
+        artifacts: list[ArtifactInfo],
+        test_case: dict[str, any],
+        tool_calls: list[ToolCall],
+    ) -> tuple[list[ArtifactInfo], list[ArtifactInfo]]:
         """Categorize artifacts into input and output based on test case and tool calls."""
         input_artifacts = []
         output_artifacts = []
@@ -463,8 +562,8 @@ class ArtifactService:
         return input_artifacts, output_artifacts
 
     def _create_tool_output_mapping(
-        self, tool_calls: List[ToolCall]
-    ) -> Dict[str, ToolCall]:
+        self, tool_calls: list[ToolCall]
+    ) -> dict[str, ToolCall]:
         """Create mapping of output filenames to the tools that created them."""
         tool_output_mapping = {}
 
@@ -484,7 +583,7 @@ class ArtifactService:
         return tool_output_mapping
 
     def _enhance_input_artifact(
-        self, artifact: ArtifactInfo, test_case: Dict[str, Any]
+        self, artifact: ArtifactInfo, test_case: dict[str, any]
     ) -> ArtifactInfo:
         """Enhance input artifact with test case information."""
         enhanced_artifact = ArtifactInfo(
@@ -509,7 +608,7 @@ class ArtifactService:
         return enhanced_artifact
 
     def _enhance_output_artifact(
-        self, artifact: ArtifactInfo, tool_output_mapping: Dict[str, ToolCall]
+        self, artifact: ArtifactInfo, tool_output_mapping: dict[str, ToolCall]
     ) -> ArtifactInfo:
         """Enhance output artifact with tool creation information."""
         enhanced_artifact = ArtifactInfo(
@@ -531,14 +630,15 @@ class ArtifactService:
 class SummaryBuilder:
     """Main orchestrator for summary creation."""
 
-    def __init__(self):
+    def __init__(self, config: TestSuiteConfiguration):
+        self.config = config
         self.file_service = FileService()
         self.test_case_service = TestCaseService()
         self.time_processor = TimeProcessor()
         self.message_processor = MessageProcessor()
-        self.artifact_service: Optional[ArtifactService] = None
+        self.artifact_service = ArtifactService(self.config)
 
-    def summarize_run(self, messages_file_path: str) -> Dict[str, Any]:
+    def summarize_run(self, messages_file_path: str) -> dict[str, any]:
         """
         Create a comprehensive summary of a test run from messages.json file.
 
@@ -584,7 +684,7 @@ class SummaryBuilder:
 
     def _load_and_validate_messages(
         self, messages_file_path: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, any]]:
         """Load and validate messages from file."""
         try:
             messages = self.file_service.load_json(messages_file_path)
@@ -606,7 +706,7 @@ class SummaryBuilder:
 
     def _load_test_case(
         self, summary: RunSummary, test_case_path: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, any]:
         """Load test case and update summary with test case info."""
         test_case = self.test_case_service.load_test_case(test_case_path)
 
@@ -621,9 +721,9 @@ class SummaryBuilder:
 
     def _process_messages(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, any]],
         summary: RunSummary,
-        test_case: Dict[str, Any],
+        test_case: dict[str, any],
     ):
         """Process all messages to extract relevant information."""
         if not messages:
@@ -666,8 +766,8 @@ class SummaryBuilder:
 
     def _process_time_metrics(
         self,
-        first_message: Dict[str, Any],
-        last_message: Dict[str, Any],
+        first_message: dict[str, any],
+        last_message: dict[str, any],
         summary: RunSummary,
     ):
         """Process and calculate time metrics."""
@@ -690,19 +790,14 @@ class SummaryBuilder:
                     "Could not parse start or end time to calculate duration."
                 )
 
-    def _add_artifact_information(self, summary: RunSummary, test_case: Dict[str, Any]):
+    def _add_artifact_information(self, summary: RunSummary, test_case: dict[str, any]):
         """Add artifact information if configuration is available."""
-        if not summary.namespace or not summary.context_id:
+        if not summary.context_id:
             return
 
         try:
-            # Initialize artifact service if not already done
-            if not self.artifact_service:
-                base_path, user_identity = ConfigService.get_artifact_config()
-                self.artifact_service = ArtifactService(base_path, user_identity)
-
             # Get and categorize artifacts
-            all_artifacts = self.artifact_service.get_artifact_info(
+            all_artifacts = self.artifact_service.get_artifacts(
                 summary.namespace, summary.context_id
             )
 
@@ -719,7 +814,9 @@ class SummaryBuilder:
             summary.errors.append(f"Could not add artifact info: {str(e)}")
 
 
-def summarize_run(messages_file_path: str) -> Dict[str, Any]:
+def summarize_run(
+    messages_file_path: str, config: TestSuiteConfiguration
+) -> dict[str, any]:
     """
     Main entry point for summarizing a test run.
 
@@ -728,11 +825,12 @@ def summarize_run(messages_file_path: str) -> Dict[str, Any]:
 
     Args:
         messages_file_path: Path to the messages.json file
+        config: The test suite configuration.
 
     Returns:
         Dictionary containing the summarized metrics
     """
-    builder = SummaryBuilder()
+    builder = SummaryBuilder(config)
     return builder.summarize_run(messages_file_path)
 
 
@@ -741,13 +839,13 @@ def main():
     import sys
 
     if len(sys.argv) != 2:
-        print("Usage: python summarize_refactored.py <messages_file_path>")
+        log.info("Usage: python summarize_refactored.py <messages_file_path>")
         sys.exit(1)
 
     messages_file_path = sys.argv[1]
 
     if not os.path.exists(messages_file_path):
-        print(f"Error: Messages file not found at: {messages_file_path}")
+        log.info(f"Error: Messages file not found at: {messages_file_path}")
         sys.exit(1)
 
     try:
@@ -759,10 +857,10 @@ def main():
         summary_file_path = os.path.join(output_dir, "summary.json")
 
         FileService.save_json(summary_data, summary_file_path)
-        print(f"Summary file created at: {summary_file_path}")
+        log.info(f"Summary file created at: {summary_file_path}")
 
     except Exception as e:
-        print(f"Error generating summary: {e}")
+        log.error(f"Error generating summary: {e}")
         sys.exit(1)
 
 
