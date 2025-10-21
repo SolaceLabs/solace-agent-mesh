@@ -23,8 +23,6 @@ apps:
       gateway_id: "event-mesh-gw-01" # Unique ID for this gateway instance
 
       artifact_service: *default_artifact_service
-      authorization_service:
-        type: "none" # Or "default_rbac"
       
       # --- Event Mesh Gateway Specific Parameters ---
       event_mesh_broker_config: # For the data plane Solace client

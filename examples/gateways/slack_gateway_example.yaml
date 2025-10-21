@@ -85,19 +85,3 @@ apps:
       # feedback_post_headers:
       #   Authorization: "Bearer your_feedback_token"
       #   Content-Type: "application/json"
-
-      # --- Authorization Service Configuration (Example using default_rbac) ---
-      authorization_service:
-        type: "default_rbac" # Use the GDK's built-in RBAC service, Or "none"
-        # Paths to your role and user assignment YAML files.
-        # These can be absolute paths or relative to the directory where SAC is run.
-        # Using environment variables for flexibility is recommended.
-        role_to_scope_definitions_path: ${ROLE_DEFINITIONS_PATH, examples/auth/dev-roles.yaml}
-        user_to_role_assignments_path: ${USER_ASSIGNMENTS_PATH, examples/auth/dev-users.yaml}
-
-          # Optional: Custom Python providers for more dynamic role/scope lookups.
-          # If these are not provided, the service relies solely on the YAML files.
-          # custom_role_provider_module: "my_company.auth.slack_roles"
-          # custom_role_provider_function: "get_user_roles_from_ldap"
-          # custom_scope_provider_module: "my_company.auth.slack_scopes"
-          # custom_scope_provider_function: "get_scopes_for_role_from_policy_db"

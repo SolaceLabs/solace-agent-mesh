@@ -56,12 +56,6 @@ apps:
       #   type: "local_file"
       #   file_path: "config/users.json" # Example path
 
-      # --- Authorization Service (Optional, for RBAC on agents) ---
-      authorization_service:
-        type: "default_rbac"
-        role_to_scope_definitions_path: ${ROLE_DEFINITIONS_PATH, examples/auth/dev-roles.yaml}
-        user_to_role_assignments_path: ${USER_ASSIGNMENTS_PATH, examples/auth/dev-users.yaml}
-
       # --- REST Gateway Specific Configuration ---
       rest_api_server_host: ${REST_API_HOST, 0.0.0.0}
       rest_api_server_port: ${REST_API_PORT, 8080}
