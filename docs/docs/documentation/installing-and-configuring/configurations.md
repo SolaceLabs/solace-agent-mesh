@@ -51,7 +51,9 @@ shared_config:
       # 'api_key' provides authentication.
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
       # Enable parallel tool calls for planning model
-      parallel_tool_calls: true 
+      parallel_tool_calls: true
+      # Prompt Caching Strategy
+      cache_strategy: "5m" # none, 5m, 1h
       # max_tokens: ${MAX_TOKENS, 16000} # Set a reasonable max token limit for planning
       # temperature: 0.1 # Lower temperature for more deterministic planning
     
@@ -105,6 +107,14 @@ The `broker_connection` section configures the connection to the Solace event br
 If you need to configure multiple brokers, you can do so by adding additional entries under `shared_config` with a unique name (For example,  `broker_connection_eu: &broker_connection_eu` or `broker_connection_us: &broker_connection_us`). Reference these configurations in your agent files using the appropriate anchor, such as `<<: *broker_connection_eu`.
 :::
 
+:::info
+Setting the `temporary_queue` parameter to `true` (default) will use [temporary endpoints](https://docs.solace.com/Messaging/Guaranteed-Msg/Endpoints.htm#temporary-endpoints) for A2A communication. Temporary queues are automatically created and deleted by the broker, which simplifies management and reduces the need for manual cleanup. However, it does not allow for multiple client connections to the same queue, which may be a limitation in some scenarios where you're running multiple instances of the same agent or a new instance needs to be started while an old instance is still running.
+
+If you set `temporary_queue` to `false`, the system will create a durable queue for the client. Durable queues persist beyond the lifetime of the client connection, allowing multiple clients to connect to the same queue and ensuring that messages are not lost if the client disconnects. However, this requires manual management of the queues, including cleanup of unused queues.
+
+Check the [Setting up Queue Templates](../deploying/deployment-options.md#setting-up-queue-templates) section for guidance on configuring queue templates to manage message TTL.
+:::
+
 ## LLM Configuration
 
 The models section configures the various Large Language Models and other generative models that power your agents' intelligence. This configuration leverages the [LiteLLM](https://litellm.ai/) library, which provides a standardized interface for interacting with [different model providers](https://docs.litellm.ai/docs/providers), simplifying the process of switching between or combining multiple AI services.
@@ -120,7 +130,8 @@ Authentication typically requires an API key, but some providers use alternative
 | `model` | `LLM_SERVICE_<MODEL_NAME>_MODEL_NAME` | The specific model identifier that the endpoint expects in the format of `provider/model` (e.g., `openai/gpt-4`, `anthropic/claude-3-opus-20240229`). |
 | `api_base` | `LLM_SERVICE_ENDPOINT` | The base URL of the LLM provider's API endpoint. |
 | `api_key` | `LLM_SERVICE_API_KEY` | The API key for authenticating with the service. |
-| `parallel_tool_calls` | `PARALLEL_TOOL_CALLS` | Enable parallel tool calls for the model. |
+| `parallel_tool_calls` |  | Enable parallel tool calls for the model. |
+| `cache_strategy` |  | Set the prompt caching strategy (one of: `none`, `5m`, `1h`). For more details check [LLM Configuration](./large_language_models.md#prompt-caching) page. |
 | `max_tokens` | `MAX_TOKENS` | Set a reasonable max token limit for the model. |
 | `temperature` | `TEMPERATURE` | Lower temperature for more deterministic planning. |
 

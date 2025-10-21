@@ -5,27 +5,23 @@ This module generates HTML reports from evaluation results with a clean, modular
 
 import json
 import logging
-from datetime import datetime
 from dataclasses import dataclass, field
-from typing import Dict, Any
+from datetime import datetime
 from pathlib import Path
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Import configuration and data services
-from .config_loader import ConfigLoader
 from .report_data_processor import ReportDataProcessor
+from .shared import EvaluationConfigLoader, TestSuiteConfiguration
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
 class ReportConfig:
     """Centralized configuration for report generation."""
 
-    def __init__(self, config_data: Dict[str, Any], results_dir: Path):
-        self.config_data = config_data
-        self.results_dir_name = config_data.get("results_dir_name", "tests")
+    def __init__(self, config: TestSuiteConfiguration, results_dir: Path):
+        self.config = config
+        self.results_dir_name = config.results_directory
 
         # Calculate paths
         self.script_dir = Path(__file__).parent
@@ -78,19 +74,19 @@ class ConfigurationService:
     """Handles configuration loading and validation."""
 
     def __init__(self, config_path: str):
-        self.config_loader = ConfigLoader(config_path)
+        self.config_loader = EvaluationConfigLoader(config_path)
         self._config_cache = None
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> TestSuiteConfiguration:
         """Get the main configuration."""
         if self._config_cache is None:
-            self._config_cache = self.config_loader.load_config()
+            self._config_cache = self.config_loader.load_configuration()
         return self._config_cache
 
     def create_report_config(self, results_dir: Path) -> ReportConfig:
         """Create a ReportConfig instance."""
-        config_data = self.get_config()
-        return ReportConfig(config_data, results_dir)
+        config = self.get_config()
+        return ReportConfig(config, results_dir)
 
 
 class FileService:
@@ -100,13 +96,13 @@ class FileService:
     def read_file(filepath: Path, encoding: str = "utf-8") -> str:
         """Read file content with error handling."""
         try:
-            with open(filepath, "r", encoding=encoding) as f:
+            with open(filepath, encoding=encoding) as f:
                 return f.read()
         except FileNotFoundError:
-            logger.error(f"File not found: {filepath}")
+            log.error(f"File not found: {filepath}")
             raise
         except Exception as e:
-            logger.error(f"Error reading file {filepath}: {e}")
+            log.error(f"Error reading file {filepath}: {e}")
             raise
 
     @staticmethod
@@ -118,9 +114,9 @@ class FileService:
 
             with open(filepath, "w", encoding=encoding) as f:
                 f.write(content)
-            logger.info(f"File written successfully: {filepath}")
+            log.info(f"File written successfully: {filepath}")
         except Exception as e:
-            logger.error(f"Error writing file {filepath}: {e}")
+            log.error(f"Error writing file {filepath}: {e}")
             raise
 
     @staticmethod
@@ -138,20 +134,20 @@ class TemplateService:
     def load_template(self, template_path: Path) -> str:
         """Load a single template file."""
         if not self.file_service.file_exists(template_path):
-            logger.warning(f"Template file not found: {template_path}")
+            log.warning(f"Template file not found: {template_path}")
             return ""
 
         try:
             content = self.file_service.read_file(template_path)
-            logger.debug(f"Loaded template: {template_path}")
+            log.debug(f"Loaded template: {template_path}")
             return content
         except Exception as e:
-            logger.error(f"Failed to load template {template_path}: {e}")
+            log.error(f"Failed to load template {template_path}: {e}")
             return ""
 
     def load_all_templates(self, config: ReportConfig) -> TemplateAssets:
         """Load all required templates including modal components."""
-        logger.info("Loading HTML templates and modal components...")
+        log.info("Loading HTML templates and modal components...")
 
         assets = TemplateAssets()
 
@@ -170,7 +166,7 @@ class TemplateService:
             content = self.load_template(template_path)
             setattr(assets, template_name, content)
 
-        logger.info(f"Loaded {len(template_files)} templates")
+        log.info(f"Loaded {len(template_files)} templates")
         return assets
 
 
@@ -185,38 +181,38 @@ class AssetService:
         css_path = report_dir / "performance_metrics_styles.css"
 
         if not self.file_service.file_exists(css_path):
-            logger.warning(f"CSS file not found: {css_path}")
+            log.warning(f"CSS file not found: {css_path}")
             return ""
 
         try:
             content = self.file_service.read_file(css_path)
-            logger.info(f"Loaded CSS content from: {css_path}")
+            log.info(f"Loaded CSS content from: {css_path}")
             return content
         except Exception as e:
-            logger.error(f"Failed to load CSS content: {e}")
+            log.error(f"Failed to load CSS content: {e}")
             return ""
 
     def load_modal_assets(self, report_dir: Path, assets: TemplateAssets):
         """Load modal CSS and JavaScript files."""
-        logger.info("Loading modal assets...")
+        log.info("Loading modal assets...")
 
         # Load modal CSS
         modal_css_path = report_dir / "modal_styles.css"
         if self.file_service.file_exists(modal_css_path):
             try:
                 assets.modal_css = self.file_service.read_file(modal_css_path)
-                logger.info("Loaded modal CSS")
+                log.info("Loaded modal CSS")
             except Exception as e:
-                logger.error(f"Failed to load modal CSS: {e}")
+                log.error(f"Failed to load modal CSS: {e}")
 
         # Load modal JavaScript files
         modal_script_path = report_dir / "modal_script.js"
         if self.file_service.file_exists(modal_script_path):
             try:
                 assets.modal_script_js = self.file_service.read_file(modal_script_path)
-                logger.info("Loaded modal script JS")
+                log.info("Loaded modal script JS")
             except Exception as e:
-                logger.error(f"Failed to load modal script JS: {e}")
+                log.error(f"Failed to load modal script JS: {e}")
 
         modal_chart_functions_path = report_dir / "modal_chart_functions.js"
         if self.file_service.file_exists(modal_chart_functions_path):
@@ -224,18 +220,18 @@ class AssetService:
                 assets.modal_chart_functions_js = self.file_service.read_file(
                     modal_chart_functions_path
                 )
-                logger.info("Loaded modal chart functions JS")
+                log.info("Loaded modal chart functions JS")
             except Exception as e:
-                logger.error(f"Failed to load modal chart functions JS: {e}")
+                log.error(f"Failed to load modal chart functions JS: {e}")
 
-        logger.info("Modal assets loaded successfully")
+        log.info("Modal assets loaded successfully")
 
 
 class TemplateProcessor:
     """Handles template rendering and placeholder replacement."""
 
     @staticmethod
-    def replace_placeholders(template_content: str, data: Dict[str, Any]) -> str:
+    def replace_placeholders(template_content: str, data: dict[str, any]) -> str:
         """Replace placeholders in template with actual data."""
         try:
             # Convert all values to strings for replacement
@@ -264,15 +260,15 @@ class TemplateProcessor:
             return processed_content
 
         except Exception as e:
-            logger.error(f"Error replacing placeholders: {e}")
+            log.error(f"Error replacing placeholders: {e}")
             return template_content
 
     def process_template_with_data(
-        self, template_content: str, data: Dict[str, Any]
+        self, template_content: str, data: dict[str, any]
     ) -> str:
         """Process a template with evaluation data."""
         if not template_content:
-            logger.warning("Empty template content provided")
+            log.warning("Empty template content provided")
             return ""
 
         return self.replace_placeholders(template_content, data)
@@ -295,11 +291,11 @@ class CSSProcessor:
             inline_css_block = f"<style>\n{css_content}\n</style>"
 
             processed_html = html_content.replace(css_link_pattern, inline_css_block)
-            logger.debug("CSS content inlined successfully")
+            log.debug("CSS content inlined successfully")
             return processed_html
 
         except Exception as e:
-            logger.error(f"Error inlining CSS: {e}")
+            log.error(f"Error inlining CSS: {e}")
             return html_content
 
     @staticmethod
@@ -380,11 +376,11 @@ class CSSProcessor:
                 # Fallback: append to end
                 processed_html += modal_content
 
-            logger.debug("Modal assets inlined successfully")
+            log.debug("Modal assets inlined successfully")
             return processed_html
 
         except Exception as e:
-            logger.error(f"Error inlining modal assets: {e}")
+            log.error(f"Error inlining modal assets: {e}")
             return html_content
 
 
@@ -400,11 +396,11 @@ class HTMLAssembler:
     def assemble_report(
         self,
         assets: TemplateAssets,
-        evaluation_data: Dict[str, Any],
-        detailed_data: Dict[str, Any],
+        evaluation_data: dict[str, any],
+        detailed_data: dict[str, any],
     ) -> str:
         """Assemble the complete HTML report with modal functionality."""
-        logger.info("Assembling HTML report with modal functionality...")
+        log.info("Assembling HTML report with modal functionality...")
 
         try:
             # Process each template with appropriate data
@@ -447,11 +443,11 @@ class HTMLAssembler:
             # Inline CSS and modal assets into the complete HTML
             final_html = self.css_processor.inline_modal_assets(final_html, assets)
 
-            logger.info("HTML report with modal functionality assembled successfully")
+            log.info("HTML report with modal functionality assembled successfully")
             return final_html
 
         except Exception as e:
-            logger.error(f"Error assembling HTML report: {e}")
+            log.error(f"Error assembling HTML report: {e}")
             raise
 
 
@@ -460,8 +456,8 @@ class ReportSummaryService:
 
     @staticmethod
     def generate_summary(
-        evaluation_data: Dict[str, Any], output_path: Path
-    ) -> Dict[str, str]:
+        evaluation_data: dict[str, any], output_path: Path
+    ) -> dict[str, str]:
         """Generate summary information for logging."""
         models = evaluation_data.get("models", [])
         execution_time = evaluation_data.get(
@@ -496,7 +492,7 @@ class ReportGenerator:
 
     def generate_report(self, results_dir: Path):
         """Main entry point for report generation."""
-        logger.info("--- Starting HTML report generation ---")
+        log.info("--- Starting HTML report generation ---")
 
         try:
             # Load configuration
@@ -519,22 +515,22 @@ class ReportGenerator:
             # Generate and log summary
             self._log_summary(evaluation_data, config.output_path)
 
-            logger.info("--- HTML report generation completed successfully ---")
+            log.info("--- HTML report generation completed successfully ---")
 
         except Exception as e:
-            logger.error(f"Report generation failed: {e}")
+            log.error(f"Report generation failed: {e}")
             raise
 
     def _load_configuration(self, results_dir: Path) -> ReportConfig:
         """Load and validate configuration."""
-        logger.info("Loading configuration...")
+        log.info("Loading configuration...")
         config = self.config_service.create_report_config(results_dir)
-        logger.info(f"Configuration loaded. Results directory: {config.results_dir}")
+        log.info(f"Configuration loaded. Results directory: {config.results_dir}")
         return config
 
     def _load_assets(self, config: ReportConfig) -> TemplateAssets:
         """Load all templates and assets including modal components."""
-        logger.info("Loading templates and assets...")
+        log.info("Loading templates and assets...")
 
         # Load templates
         assets = self.template_service.load_all_templates(config)
@@ -545,53 +541,53 @@ class ReportGenerator:
         # Load modal assets
         self.asset_service.load_modal_assets(config.report_dir, assets)
 
-        logger.info("Templates and assets loaded successfully")
+        log.info("Templates and assets loaded successfully")
         return assets
 
     def _get_evaluation_data(
         self, config: ReportConfig
-    ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    ) -> tuple[dict[str, any], dict[str, any]]:
         """Get evaluation data from the data processor."""
-        logger.info("Extracting evaluation data...")
+        log.info("Extracting evaluation data...")
 
         evaluation_data = self.data_processor.get_evaluation_data(config.results_dir)
         detailed_data = self.data_processor.get_detailed_evaluation_data(
             config.results_dir
         )
 
-        logger.info("Evaluation data extracted successfully")
+        log.info("Evaluation data extracted successfully")
         return evaluation_data, detailed_data
 
     def _generate_html_content(
         self,
         assets: TemplateAssets,
-        evaluation_data: Dict[str, Any],
-        detailed_data: Dict[str, Any],
+        evaluation_data: dict[str, any],
+        detailed_data: dict[str, any],
     ) -> str:
         """Generate the complete HTML content."""
-        logger.info("Generating HTML content...")
+        log.info("Generating HTML content...")
 
         html_content = self.html_assembler.assemble_report(
             assets, evaluation_data, detailed_data
         )
 
-        logger.info("HTML content generated successfully")
+        log.info("HTML content generated successfully")
         return html_content
 
     def _write_report(self, html_content: str, output_path: Path):
         """Write the HTML report to file."""
-        logger.info(f"Writing report to: {output_path}")
+        log.info(f"Writing report to: {output_path}")
         self.file_service.write_file(output_path, html_content)
 
-    def _log_summary(self, evaluation_data: Dict[str, Any], output_path: Path):
+    def _log_summary(self, evaluation_data: dict[str, any], output_path: Path):
         """Log summary information about the generated report."""
         summary = self.summary_service.generate_summary(evaluation_data, output_path)
 
-        logger.info("--- Report Generation Summary ---")
-        logger.info(f"Report generated at: {summary['output_path']}")
-        logger.info(f"Models evaluated: {summary['models_evaluated']}")
-        logger.info(f"Total execution time: {summary['total_execution_time']}")
-        logger.info(f"Generation completed at: {summary['generation_time']}")
+        log.info("--- Report Generation Summary ---")
+        log.info(f"Report generated at: {summary['output_path']}")
+        log.info(f"Models evaluated: {summary['models_evaluated']}")
+        log.info(f"Total execution time: {summary['total_execution_time']}")
+        log.info(f"Generation completed at: {summary['generation_time']}")
 
 
 def main(config_path: str = "evaluation/test_suite_config.json"):
@@ -599,13 +595,13 @@ def main(config_path: str = "evaluation/test_suite_config.json"):
     try:
         generator = ReportGenerator(config_path)
         # For standalone execution, calculate results_dir based on config
-        config_data = generator.config_service.get_config()
-        results_dir_name = config_data.get("results_dir_name", "tests")
+        config = generator.config_service.get_config()
+        results_dir_name = config.results_directory
         script_dir = Path(__file__).parent
         results_dir = script_dir / "results" / results_dir_name
         generator.generate_report(results_dir)
     except Exception as e:
-        logger.error(f"Report generation failed: {e}")
+        log.error(f"Report generation failed: {e}")
         raise
 
 

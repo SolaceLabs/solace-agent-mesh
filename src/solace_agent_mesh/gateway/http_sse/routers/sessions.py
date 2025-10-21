@@ -149,8 +149,8 @@ async def save_task(
         # Check if task already exists to determine status code
         from ..repository.chat_task_repository import ChatTaskRepository
 
-        task_repo = ChatTaskRepository(db)
-        existing_task = task_repo.find_by_id(request.task_id, user_id)
+        task_repo = ChatTaskRepository()
+        existing_task = task_repo.find_by_id(db, request.task_id, user_id)
         is_update = existing_task is not None
 
         # Save the task - pass strings directly

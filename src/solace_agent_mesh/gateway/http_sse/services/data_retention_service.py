@@ -188,8 +188,8 @@ class DataRetentionService:
 
         db = self.session_factory()
         try:
-            repo = TaskRepository(db)
-            total_deleted = repo.delete_tasks_older_than(cutoff_time_ms, batch_size)
+            repo = TaskRepository()
+            total_deleted = repo.delete_tasks_older_than(db, cutoff_time_ms, batch_size)
 
             if total_deleted == 0:
                 log.info(
@@ -241,8 +241,8 @@ class DataRetentionService:
 
         db = self.session_factory()
         try:
-            repo = FeedbackRepository(db)
-            total_deleted = repo.delete_feedback_older_than(cutoff_time_ms, batch_size)
+            repo = FeedbackRepository()
+            total_deleted = repo.delete_feedback_older_than(db, cutoff_time_ms, batch_size)
 
             if total_deleted == 0:
                 log.info(

@@ -1094,11 +1094,6 @@ If a plan is created:
             e_last_call,
         )
 
-    if host_component.get_config("inject_current_time", True):
-        current_time = datetime.now(timezone.utc).strftime("%A, %d %b %Y %H:%M:%S UTC")
-        instruction = f"Current time {current_time}."
-        injected_instructions.append(instruction)
-
     if injected_instructions:
         combined_instructions = "\n\n---\n\n".join(injected_instructions)
         if llm_request.config is None:

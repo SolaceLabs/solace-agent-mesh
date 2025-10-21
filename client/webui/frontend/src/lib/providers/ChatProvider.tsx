@@ -963,8 +963,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Load session metadata (name)
                 const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
                 if (sessionResponse.ok) {
-                    const sessionData = await sessionResponse.json();
-                    setSessionName(sessionData.name);
+                    const session = await sessionResponse.json();
+                    setSessionName(session?.data?.name ?? "N/A");
                 }
 
                 // Update session state
@@ -1191,6 +1191,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setMessages(prev => [...prev, userMsg]);
             setUserInput("");
 
+            const errors: string[] = [];
+
             try {
                 // 1. Process files using hybrid approach
                 // For new sessions, process sequentially to ensure all files use the same session
@@ -1213,6 +1215,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 }
                                 uploadedFileParts.push({ kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } });
                             } else {
+                                errors.push(`Failed to upload large file: ${file.name}`);
                                 addNotification(`Failed to upload large file: ${file.name}`, "error");
                             }
                         }
@@ -1228,6 +1231,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             if (uploadResult) {
                                 return { kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } };
                             } else {
+                                errors.push(`Failed to upload large file: ${file.name}`);
                                 addNotification(`Failed to upload large file: ${file.name}`, "error");
                                 return null;
                             }
@@ -1247,6 +1251,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const messageParts: Part[] = [];
                 if (currentInput) {
                     messageParts.push({ kind: "text", text: currentInput });
+                }
+                if (errors.length > 0) {
+                    messageParts.push({ kind: "text", text: `\nNote: Some files failed to upload:\n- ${errors.join("\n- ")}` });
                 }
                 messageParts.push(...uploadedFileParts);
 

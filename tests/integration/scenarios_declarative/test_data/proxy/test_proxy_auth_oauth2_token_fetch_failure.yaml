@@ -1,0 +1,45 @@
+test_case_id: "proxy_auth_oauth2_token_fetch_failure_001"
+description: "Tests proxy behavior when OAuth token endpoint returns error"
+tags: ["all", "proxy", "auth", "oauth"]
+skip_intermediate_events: true
+
+# Configure OAuth mock to return an error
+mock_oauth_server:
+  token_url: "https://test-oauth.example.com/token"
+  error:
+    error: "invalid_client"
+    error_description: "Client authentication failed"
+  status_code: 401
+
+# Configure proxy to use OAuth 2.0
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  authentication:
+    type: "oauth2_client_credentials"
+    token_url: "https://test-oauth.example.com/token"
+    client_id: "test_client_id"
+    client_secret: "test_client_secret"
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "oauth_failure_tester@example.com"
+  parts:
+    - type: "text"
+      text: "This request should fail due to OAuth token fetch failure"
+  external_context:
+    a2a_session_id: "session_oauth_token_failure_001"
+
+# No downstream responses needed - should fail before reaching downstream agent
+expected_gateway_output:
+  - type: "error"
+    error_code: -32603  # InternalError
+    error_message_contains: "401"
+
+# Verify token was requested but failed
+assert_oauth_token_requests:
+  - token_url: "https://test-oauth.example.com/token"
+    call_count: 1
+    request_body_contains:
+      grant_type: "client_credentials"
+      client_id: "test_client_id"
+      client_secret: "test_client_secret"

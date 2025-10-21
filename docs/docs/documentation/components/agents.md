@@ -152,6 +152,21 @@ sam add agent my-agent [--gui]
 
 For more information, see [Creating Custom Agents](../developing/create-agents.md).
 
+## Remote A2A Agents
+
+In addition to agents that run natively within Agent Mesh, you can integrate external agents that communicate using the A2A protocol over HTTPS. These remote agents run on separate infrastructure but can still participate in collaborative workflows with mesh agents.
+
+Remote A2A agents are useful when you need to:
+
+- Integrate third-party agents from vendors or partners
+- Connect agents running in different cloud environments or on-premises systems
+- Maintain service isolation while enabling collaboration
+- Gradually migrate existing A2A agents to the mesh
+
+To integrate external agents, you use a proxy component that acts as a protocol bridge between A2A over HTTPS and A2A over Solace event mesh. The proxy handles authentication, artifact flow, and discovery, making remote agents appear as native mesh agents to other components.
+
+For detailed information on configuring and deploying proxies for remote agents, see [Proxies](./proxies.md).
+
 ## Agent Plugins
 
 You can also use agents built by the community or Solace directly in your app with little to no configuration.

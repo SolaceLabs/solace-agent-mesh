@@ -2,11 +2,9 @@
 Database integrity tests for the task history feature.
 """
 
-import time
 import uuid
 
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import sessionmaker
 
 from solace_agent_mesh.gateway.http_sse import dependencies
 from solace_agent_mesh.gateway.http_sse.repository.models import (
@@ -26,9 +24,7 @@ def test_task_deletion_cascades_to_events(api_client: TestClient, test_db_engine
     """
     # Arrange: Create a task via the API. The TaskLoggerService, running in the
     # background of the test harness, will automatically log events for it.
-    task_id, _ = _create_task_and_get_ids(
-        api_client, "Test message for cascade delete"
-    )
+    task_id, _ = _create_task_and_get_ids(api_client, "Test message for cascade delete")
 
     # Manually log events to simulate the logger behavior, as the API test
     # harness does not have a live message broker.
@@ -95,9 +91,9 @@ def test_task_deletion_cascades_to_events(api_client: TestClient, test_db_engine
             .filter(TaskEventModel.task_id == task_id)
             .all()
         )
-        assert (
-            len(events) >= 2
-        ), f"Task events were not logged correctly for task {task_id}."
+        assert len(events) >= 2, (
+            f"Task events were not logged correctly for task {task_id}."
+        )
         print(f"Found {len(events)} events for task {task_id} before deletion.")
 
         task = db_session.query(TaskModel).filter(TaskModel.id == task_id).one()
@@ -111,18 +107,18 @@ def test_task_deletion_cascades_to_events(api_client: TestClient, test_db_engine
         task_after_delete = (
             db_session.query(TaskModel).filter(TaskModel.id == task_id).one_or_none()
         )
-        assert (
-            task_after_delete is None
-        ), "The task should have been deleted from the tasks table."
+        assert task_after_delete is None, (
+            "The task should have been deleted from the tasks table."
+        )
 
         events_after_delete = (
             db_session.query(TaskEventModel)
             .filter(TaskEventModel.task_id == task_id)
             .all()
         )
-        assert (
-            len(events_after_delete) == 0
-        ), "Task events should have been deleted by the CASCADE constraint."
+        assert len(events_after_delete) == 0, (
+            "Task events should have been deleted by the CASCADE constraint."
+        )
 
         print(
             f"✓ Task deletion for {task_id} correctly cascaded to delete {len(events)} events."

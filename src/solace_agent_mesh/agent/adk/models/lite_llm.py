@@ -53,6 +53,7 @@ from typing_extensions import override
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
+from .oauth2_token_manager import OAuth2ClientCredentialsTokenManager
 
 logger = logging.getLogger("google_adk." + __name__)
 
@@ -479,6 +480,7 @@ def _message_to_generate_content_response(
 
 def _get_completion_inputs(
     llm_request: LlmRequest,
+    cache_strategy: str = "5m",
 ) -> Tuple[
     List[Message],
     Optional[List[Dict]],
@@ -489,6 +491,7 @@ def _get_completion_inputs(
 
     Args:
       llm_request: The LlmRequest to convert.
+      cache_strategy: Cache strategy to apply ("none", "5m", "1h").
 
     Returns:
       The litellm inputs (message list, tool dictionary and response format).
@@ -501,16 +504,32 @@ def _get_completion_inputs(
         elif message_param_or_list:  # Ensure it's not None before appending
             messages.append(message_param_or_list)
 
-    if llm_request.config.system_instruction:
+    if llm_request.config and llm_request.config.system_instruction:
+        # Build system instruction content with optional cache control
+        system_content = {
+            "type": "text",
+            "text": llm_request.config.system_instruction,
+        }
+
+        # Add cache control based on strategy
+        # LiteLLM translates this to provider-specific format (Anthropic, OpenAI, Bedrock, Deepseek)
+        if cache_strategy == "5m":
+            # 5-minute ephemeral cache (Anthropic default)
+            system_content["cache_control"] = {"type": "ephemeral"}
+        elif cache_strategy == "1h":
+            # 1-hour extended cache (Anthropic extended)
+            system_content["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+        # For "none", no cache_control is added
+
         messages.insert(
             0,
             ChatCompletionDeveloperMessage(
                 role="developer",
-                content=llm_request.config.system_instruction,
+                content=[system_content],
             ),
         )
 
-    # 2. Convert tool declarations
+    # 2. Convert tool declarations with caching support
     tools: Optional[List[Dict]] = None
     if (
         llm_request.config
@@ -521,6 +540,16 @@ def _get_completion_inputs(
             _function_declaration_to_tool_param(tool)
             for tool in llm_request.config.tools[0].function_declarations
         ]
+
+        # Enable tool caching via LiteLLM's generic interface
+        # LiteLLM handles provider-specific translation (Anthropic, OpenAI, Bedrock, Deepseek)
+        # Tools are stable because peer agents are alphabetically sorted (component.py)
+        if tools and cache_strategy != "none":
+            # Add cache_control to the LAST tool (required by caching providers)
+            if cache_strategy == "5m":
+                tools[-1]["cache_control"] = {"type": "ephemeral"}
+            elif cache_strategy == "1h":
+                tools[-1]["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
 
     # 3. Handle response format
     response_format: Optional[types.SchemaUnion] = None
@@ -595,7 +624,7 @@ def _build_request_log(req: LlmRequest) -> str:
 
     function_decls: list[types.FunctionDeclaration] = cast(
         list[types.FunctionDeclaration],
-        req.config.tools[0].function_declarations if req.config.tools else [],
+        req.config.tools[0].function_declarations if req.config and req.config.tools else [],
     )
     function_logs = (
         [_build_function_declaration_log(func_decl) for func_decl in function_decls]
@@ -616,7 +645,7 @@ def _build_request_log(req: LlmRequest) -> str:
 LLM Request:
 -----------------------------------------------------------
 System Instruction:
-{req.config.system_instruction}
+{req.config.system_instruction if req.config else None}
 -----------------------------------------------------------
 Contents:
 {_NEW_LINE.join(contents_logs)}
@@ -654,16 +683,42 @@ class LiteLlm(BaseLlm):
     """The LLM client to use for the model."""
 
     _additional_args: Dict[str, Any] = None
+    _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = None
+    _cache_strategy: str = "5m"  # Default to 5-minute ephemeral cache
 
-    def __init__(self, model: str, **kwargs):
+    def __init__(self, model: str, cache_strategy: str = "5m", **kwargs):
         """Initializes the LiteLlm class.
 
         Args:
           model: The name of the LiteLlm model.
+          cache_strategy: Cache strategy to use. Options: "none", "5m" (ephemeral), "1h" (extended).
+                         Defaults to "5m" for backward compatibility.
           **kwargs: Additional arguments to pass to the litellm completion api.
+                   Can include OAuth configuration parameters.
         """
         super().__init__(model=model, **kwargs)
-        self._additional_args = kwargs
+        self._additional_args = kwargs.copy()
+
+        # Validate and store cache strategy
+        valid_strategies = ["none", "5m", "1h"]
+        if cache_strategy not in valid_strategies:
+            logger.warning(
+                "Invalid cache_strategy '%s'. Valid options are: %s. Defaulting to '5m'.",
+                cache_strategy,
+                valid_strategies,
+            )
+            cache_strategy = "5m"
+        self._cache_strategy = cache_strategy
+        logger.info("LiteLlm initialized with cache strategy: %s", self._cache_strategy)
+
+        # Extract OAuth configuration if present
+        oauth_config = self._extract_oauth_config(self._additional_args)
+        if oauth_config:
+            self._oauth_token_manager = OAuth2ClientCredentialsTokenManager(**oauth_config)
+            logger.info("OAuth2 token manager initialized for model: %s", model)
+        else:
+            self._oauth_token_manager = None
+
         # preventing generation call with llm_client
         # and overriding messages, tools and stream which are managed internally
         self._additional_args.pop("llm_client", None)
@@ -671,6 +726,48 @@ class LiteLlm(BaseLlm):
         self._additional_args.pop("tools", None)
         # public api called from runner determines to stream or not
         self._additional_args.pop("stream", None)
+
+    def _extract_oauth_config(self, kwargs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Extract OAuth configuration from kwargs.
+
+        Args:
+            kwargs: Keyword arguments that may contain OAuth parameters
+
+        Returns:
+            OAuth configuration dictionary or None if no OAuth config found
+        """
+        oauth_params = [
+            "oauth_token_url",
+            "oauth_client_id",
+            "oauth_client_secret",
+            "oauth_scope",
+            "oauth_ca_cert",
+            "oauth_token_refresh_buffer_seconds",
+            "oauth_max_retries"
+        ]
+
+        oauth_config = {}
+        for param in oauth_params:
+            if param in kwargs:
+                # Map parameter names to OAuth2ClientCredentialsTokenManager constructor
+                if param == "oauth_ca_cert":
+                    oauth_config["ca_cert_path"] = kwargs.pop(param)
+                elif param == "oauth_token_refresh_buffer_seconds":
+                    oauth_config["refresh_buffer_seconds"] = kwargs.pop(param)
+                elif param == "oauth_max_retries":
+                    oauth_config["max_retries"] = kwargs.pop(param)
+                else:
+                    # Remove oauth_ prefix for the token manager
+                    key = param.replace("oauth_", "")
+                    oauth_config[key] = kwargs.pop(param)
+
+        # Return config only if we have the required parameters
+        if "token_url" in oauth_config and "client_id" in oauth_config and "client_secret" in oauth_config:
+            return oauth_config
+        elif oauth_config:
+            logger.warning("Incomplete OAuth configuration found, missing required parameters")
+
+        return None
 
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
@@ -693,7 +790,7 @@ class LiteLlm(BaseLlm):
         logger.debug(_build_request_log(llm_request))
 
         messages, tools, response_format, generation_params = _get_completion_inputs(
-            llm_request
+            llm_request, self._cache_strategy
         )
         completion_args = {
             "model": self.model,
@@ -703,6 +800,24 @@ class LiteLlm(BaseLlm):
             "stream_options": {"include_usage": True},
         }
         completion_args.update(self._additional_args)
+
+        # Inject OAuth token if OAuth is configured
+        if self._oauth_token_manager:
+            try:
+                access_token = await self._oauth_token_manager.get_token()
+                # Inject Bearer token via extra_headers
+                extra_headers = completion_args.get("extra_headers", {})
+                extra_headers["Authorization"] = f"Bearer {access_token}"
+                completion_args["extra_headers"] = extra_headers
+                logger.debug("OAuth token injected into request headers")
+            except Exception as e:
+                logger.error("Failed to get OAuth token: %s", str(e))
+                # Check if we have a fallback API key
+                if "api_key" in completion_args:
+                    logger.info("Falling back to API key authentication")
+                else:
+                    logger.error("No fallback authentication available")
+                    raise
 
         if generation_params:
             completion_args.update(generation_params)
