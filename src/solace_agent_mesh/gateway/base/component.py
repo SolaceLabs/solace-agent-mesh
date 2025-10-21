@@ -353,11 +353,6 @@ class BaseGatewayComponent(SamComponentBase):
                     log_id_prefix,
                     task_id,
                 )
-                log.debug(
-                    "%s Added authentication token to task %s",
-                    log_id_prefix,
-                    task_id,
-                )
             except Exception as e:
                 log.error(
                     "%s Failed to sign user claims for task %s: %s",
@@ -398,10 +393,10 @@ class BaseGatewayComponent(SamComponentBase):
     def _handle_message(self, message: SolaceMessage, topic: str) -> None:
         """
         Override to use queue-based pattern instead of direct async.
-        
+
         Gateway uses an internal queue for message processing to ensure
         strict ordering and backpressure handling.
-        
+
         Args:
             message: The Solace message
             topic: The topic the message was received on
@@ -411,7 +406,7 @@ class BaseGatewayComponent(SamComponentBase):
             self.log_identifier,
             topic,
         )
-        
+
         try:
             msg_data_for_processor = {
                 "topic": topic,
@@ -433,11 +428,11 @@ class BaseGatewayComponent(SamComponentBase):
                 e,
             )
             raise
-    
+
     async def _handle_message_async(self, message, topic: str) -> None:
         """
         Not used by gateway - we override _handle_message() instead.
-        
+
         This is here to satisfy the abstract method requirement, but the
         gateway uses the queue-based pattern via _handle_message() override.
         """
