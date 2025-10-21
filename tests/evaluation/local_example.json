@@ -1,6 +1,7 @@
 {
     "agents": [
         "examples/agents/a2a_agents_example.yaml",
+        "examples/agents/multimodal_example.yaml",
         "examples/agents/orchestrator_example.yaml"
     ],
     "broker": {
@@ -37,10 +38,18 @@
         }
     ],
     "results_dir_name": "sam-local-eval-test",
-    "runs": 1,
+    "runs": 3,
+    "workers": 4,
     "test_cases": [
+        "tests/evaluation/test_cases/convert_html_to_md.test.json",
+        "tests/evaluation/test_cases/convert_pdf_to_md.test.json",
+        "tests/evaluation/test_cases/create_diagram.test.json",
+        "tests/evaluation/test_cases/file_artifact.test.json",
+        "tests/evaluation/test_cases/filter_csv_employees_by_age_and_country.test.json",
+        "tests/evaluation/test_cases/generate_employee_csv.test.json",
+        "tests/evaluation/test_cases/generate_sales_report.test.json",
         "tests/evaluation/test_cases/hello_world.test.json",
-        "tests/evaluation/test_cases/filter_csv_employees_by_age_and_country.test.json"
+        "tests/evaluation/test_cases/web_search_solace_summary.test.json"
     ],
     "evaluation_settings": {
         "tool_match": {

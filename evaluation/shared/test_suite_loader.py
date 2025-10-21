@@ -23,6 +23,8 @@ from .constants import (
     DEFAULT_RECONNECT_DELAY,
     DEFAULT_RESULTS_DIR,
     DEFAULT_RUN_COUNT,
+    DEFAULT_WORKERS,
+    MAX_WORKERS,
     REMOTE_REQUIRED_FIELDS,
 )
 from .helpers import resolve_env_vars
@@ -156,6 +158,7 @@ class TestSuiteConfiguration(BaseModel):
     test_case_files: list[str] = Field(min_length=1, alias="test_cases")
     results_directory: str = Field(default=DEFAULT_RESULTS_DIR, min_length=1, alias="results_dir_name")
     run_count: int = Field(default=DEFAULT_RUN_COUNT, ge=1, alias="runs")
+    workers: int = Field(default=DEFAULT_WORKERS, ge=1, le=MAX_WORKERS)
     evaluation_options: EvaluationOptions = Field(default_factory=EvaluationOptions, alias="evaluation_settings")
 
     @field_validator('agent_configs', 'test_case_files', mode='before')

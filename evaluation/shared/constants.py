@@ -14,6 +14,8 @@ DEFAULT_WAIT_TIME = 60
 # Test Suite Defaults
 DEFAULT_RESULTS_DIR = "tests"
 DEFAULT_RUN_COUNT = 1
+DEFAULT_WORKERS = 4
+MAX_WORKERS = 8
 
 # Test Case Defaults
 DEFAULT_CATEGORY = "Other"

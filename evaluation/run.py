@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path
@@ -318,6 +319,7 @@ class TestExecutor:
         model_results_path: str,
         task_mappings: dict[str, str],
         subscriber: Subscriber,
+        task_mappings_lock: threading.Lock,
     ) -> bool:
         """Execute a single test case and wait for completion."""
         log.info(
@@ -348,7 +350,8 @@ class TestExecutor:
         )
 
         # Track the task
-        task_mappings[task_id] = run_dir
+        with task_mappings_lock:
+            task_mappings[task_id] = run_dir
         subscriber.active_tasks.add(task_id)
 
         # Wait for completion
@@ -385,6 +388,7 @@ class ModelEvaluator:
         self.test_builder = TestRunBuilder(config)
         self.test_executor = TestExecutor(self.task_service, self.file_service, verbose=verbose)
         self.verbose = verbose
+        self._task_mappings_lock = threading.Lock()
 
     def evaluate_model(
         self, model_config: dict[str, any], base_results_path: str
@@ -457,24 +461,50 @@ class ModelEvaluator:
     def _execute_all_tests(
         self, model_results_path: str, subscriber: Subscriber
     ) -> int:
-        """Execute all test cases and return count of successful tests."""
+        """Execute all test cases in parallel and return count of successful tests."""
         test_runs = self.test_builder.build_test_runs()
 
         self._task_mappings = {}
         total_tests = len(test_runs)
         successful_tests = 0
 
-        log.info(f"Starting sequential execution of {total_tests} tests")
+        log.info(
+            f"Starting parallel execution of {total_tests} tests with {self.config.workers} workers."
+        )
 
-        for i, test_run in enumerate(test_runs, 1):
-            log.info(f"Test {i}/{total_tests}")
-            success = self.test_executor.execute_test(
-                test_run, model_results_path, self._task_mappings, subscriber
-            )
-            if success:
-                successful_tests += 1
-            else:
-                log.warning(f"Test {i} failed or timed out")
+        with ThreadPoolExecutor(max_workers=self.config.workers) as executor:
+            # Create a dictionary to map futures to their test_run
+            future_to_run = {
+                executor.submit(
+                    self.test_executor.execute_test,
+                    test_run,
+                    model_results_path,
+                    self._task_mappings,
+                    subscriber,
+                    self._task_mappings_lock,  # Pass the lock to the worker
+                ): test_run
+                for test_run in test_runs
+            }
+
+            # Process results as they complete
+            for i, future in enumerate(as_completed(future_to_run), 1):
+                test_run = future_to_run[future]
+                log.info(
+                    f"Processing result for test {i}/{total_tests}: {test_run.test_case_id}"
+                )
+                try:
+                    success = future.result()
+                    if success:
+                        successful_tests += 1
+                    else:
+                        log.warning(
+                            f"Test {test_run.test_case_id} (run {test_run.run_num}) failed or timed out."
+                        )
+                except Exception as e:
+                    log.error(
+                        f"Test {test_run.test_case_id} (run {test_run.run_num}) generated an exception: {e}",
+                        exc_info=True,
+                    )
 
         return successful_tests
 
@@ -619,7 +649,7 @@ class EvaluationRunner:
         return model_execution_times
 
     def _run_remote_evaluation(self, base_results_path: Path) -> dict[str, float]:
-        """Run evaluation against a remote endpoint."""
+        """Run evaluation against a remote endpoint in parallel."""
         remote_url = self.config.remote.environment.get("EVAL_REMOTE_URL")
         log.info(f"Starting remote evaluation against: {remote_url}")
         start_time = time.time()
@@ -644,17 +674,41 @@ class EvaluationRunner:
             test_runs = test_builder.build_test_runs()
             task_mappings = {}
             successful_tests = 0
+            task_mappings_lock = threading.Lock()
 
-            log.info(f"Starting sequential execution of {len(test_runs)} tests")
-            for i, test_run in enumerate(test_runs, 1):
-                log.info(f"Test {i}/{len(test_runs)}")
-                success = test_executor.execute_test(
-                    test_run, str(remote_results_path), task_mappings, subscriber
-                )
-                if success:
-                    successful_tests += 1
+            log.info(
+                f"Starting parallel execution of {len(test_runs)} remote tests with {self.config.workers} workers."
+            )
 
-            log.info(f"Completed {successful_tests} tests successfully")
+            with ThreadPoolExecutor(max_workers=self.config.workers) as executor:
+                future_to_run = {
+                    executor.submit(
+                        test_executor.execute_test,
+                        test_run,
+                        str(remote_results_path),
+                        task_mappings,
+                        subscriber,
+                        task_mappings_lock,
+                    ): test_run
+                    for test_run in test_runs
+                }
+
+                for i, future in enumerate(as_completed(future_to_run), 1):
+                    test_run = future_to_run[future]
+                    log.info(
+                        f"Processing result for remote test {i}/{len(test_runs)}: {test_run.test_case_id}"
+                    )
+                    try:
+                        success = future.result()
+                        if success:
+                            successful_tests += 1
+                    except Exception as e:
+                        log.error(
+                            f"Remote test {test_run.test_case_id} generated an exception: {e}",
+                            exc_info=True,
+                        )
+
+            log.info(f"Completed {successful_tests} remote tests successfully")
 
         finally:
             if subscriber:
