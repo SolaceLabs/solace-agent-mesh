@@ -992,7 +992,8 @@ class SamAgentComponent(SamComponentBase):
         peer_tools_to_add = []
         allowed_peer_descriptions = []
 
-        for peer_name, agent_card in self.peer_agents.items():
+        # Sort peer agents alphabetically to ensure consistent tool ordering for prompt caching
+        for peer_name, agent_card in sorted(self.peer_agents.items()):
             if not isinstance(agent_card, AgentCard) or peer_name == self_name:
                 continue
 

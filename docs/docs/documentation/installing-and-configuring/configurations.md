@@ -51,7 +51,9 @@ shared_config:
       # 'api_key' provides authentication.
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
       # Enable parallel tool calls for planning model
-      parallel_tool_calls: true 
+      parallel_tool_calls: true
+      # Prompt Caching Strategy
+      cache_strategy: "5m" # none, 5m, 1h
       # max_tokens: ${MAX_TOKENS, 16000} # Set a reasonable max token limit for planning
       # temperature: 0.1 # Lower temperature for more deterministic planning
     
@@ -128,7 +130,8 @@ Authentication typically requires an API key, but some providers use alternative
 | `model` | `LLM_SERVICE_<MODEL_NAME>_MODEL_NAME` | The specific model identifier that the endpoint expects in the format of `provider/model` (e.g., `openai/gpt-4`, `anthropic/claude-3-opus-20240229`). |
 | `api_base` | `LLM_SERVICE_ENDPOINT` | The base URL of the LLM provider's API endpoint. |
 | `api_key` | `LLM_SERVICE_API_KEY` | The API key for authenticating with the service. |
-| `parallel_tool_calls` | `PARALLEL_TOOL_CALLS` | Enable parallel tool calls for the model. |
+| `parallel_tool_calls` |  | Enable parallel tool calls for the model. |
+| `cache_strategy` |  | Set the prompt caching strategy (one of: `none`, `5m`, `1h`). For more details check [LLM Configuration](./large_language_models.md#prompt-caching) page. |
 | `max_tokens` | `MAX_TOKENS` | Set a reasonable max token limit for the model. |
 | `temperature` | `TEMPERATURE` | Lower temperature for more deterministic planning. |
 
