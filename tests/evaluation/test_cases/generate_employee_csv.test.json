@@ -6,7 +6,7 @@
     "target_agent": "OrchestratorAgent",
     "wait_time": 60,
     "evaluation": {
-        "expected_tools": [],
+        "expected_tools": ["signal_artifact_for_return"],
         "expected_response": "I have generated the CSV file with random employee data and attached it.",
         "criterion": "Evaluate if the agent successfully generates a CSV file with the specified columns and random data."
     }

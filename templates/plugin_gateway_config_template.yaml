@@ -47,9 +47,6 @@ apps:
       gateway_id: __COMPONENT_KEBAB_CASE_NAME__-gw-01
       artifact_service: *default_artifact_service
 
-      authorization_service:
-        type: "none" # Or "default_rbac"
-
       system_purpose: >
             The system is an AI Chatbot with agentic capabilities.
             It will use the agents available to provide information,

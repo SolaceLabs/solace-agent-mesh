@@ -134,8 +134,6 @@ apps:
       namespace: ${NAMESPACE}
       gateway_id: "jira-event-mesh-gw-01"
       artifact_service: *default_artifact_service
-      authorization_service:
-        type: "none" # Or "default_rbac"
       default_user_identity: "anonymous_event_mesh_user" # If no identity from event
 
 
