@@ -596,7 +596,6 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
             # Call the tool configurator with MCP-specific context
             additional_params = configure_mcp_tool(
                 tool_type="mcp",
-                component=component,
                 tool_config=tool_config,
                 connection_params=connection_params,
                 tool_filter=tool_filter_list,

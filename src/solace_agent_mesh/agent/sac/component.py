@@ -107,16 +107,6 @@ info = {
 }
 InstructionProvider = Callable[[ReadonlyContext], str]
 
-
-async def default_auth_handler(
-    event: ADKEvent,
-    component,
-    a2a_context: Dict[str, Any],
-) -> Optional[TaskStatusUpdateEvent]:
-    """Default authentication handler that returns nothing."""
-    return None
-
-
 class SamAgentComponent(SamComponentBase):
     """
     A Solace AI Connector component that hosts a Google ADK agent,
