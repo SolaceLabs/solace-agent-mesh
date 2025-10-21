@@ -39,11 +39,9 @@ log = logging.getLogger(__name__)
 try:
     from solace_agent_mesh_enterprise.common.trust.config import TrustManagerConfig
 
-    _TRUST_MANAGER_CONFIG_AVAILABLE = True
 except ImportError:
     # Enterprise features not available - create a placeholder type
     TrustManagerConfig = Dict[str, Any]  # type: ignore
-    _TRUST_MANAGER_CONFIG_AVAILABLE = False
 
 info = {
     "class_name": "SamAgentApp",
