@@ -588,7 +588,7 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
 
     additional_params = {}
     try:
-        from solace_agent_mesh_enterprise.common.tool_configurator import (
+        from solace_agent_mesh_enterprise.auth.tool_configurator import (
             configure_mcp_tool,
         )
 
