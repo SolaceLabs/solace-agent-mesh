@@ -277,6 +277,22 @@
             ],
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "SAM Eval",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cli.main",
+            "console": "integratedTerminal",
+            "args": [
+                "eval",
+                "tests/evaluation/remote_example.json",
+                "-v"
+            ],
+            "justMyCode": false,
+            "env": {
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+            }
         }
     ],
     "inputs": [
