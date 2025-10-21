@@ -28,15 +28,15 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await canvas.findByTestId("Refresh Agents");
-        await canvas.findByTestId("Click For Details");
+        await canvas.findByTestId("refreshAgents");
+        await canvas.findByTestId("clickForDetails");
     },
 };
 
 export const FilterNoResultsFound: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        const input = await canvas.findByTestId("agent-search-input");
+        const input = await canvas.findByTestId("agentSearchInput");
         await userEvent.type(input, "test");
 
         await canvas.findByText("No agents match your search");

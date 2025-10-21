@@ -104,7 +104,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                         <DetailItem label="Version" value={agent.version} icon={<GitMerge size={14} />} />
                         {agent.capabilities && Object.keys(agent.capabilities).length > 0 && <DetailItem label="Key Capabilities" value={renderCapabilities(agent.capabilities as { [key: string]: unknown })} icon={<Key size={14} />} fullWidthValue />}
                     </div>
-                    <div data-testid="Click For Details" className="text-accent-foreground border-t p-2 text-center text-sm">
+                    <div data-testid="clickForDetails" className="text-accent-foreground border-t p-2 text-center text-sm">
                         Click for details
                     </div>
                 </div>
