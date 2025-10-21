@@ -444,7 +444,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         let errorCount = 0;
         for (const filename of filenamesToDelete) {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${encodeURIComponent(filename)}`, {
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
                     credentials: "include",
                 });
