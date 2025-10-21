@@ -14,6 +14,8 @@ from .artifact import (
     get_artifact_id,
     get_artifact_name,
     get_parts_from_artifact,
+    get_text_content_from_artifact,
+    is_text_only_artifact,
     update_artifact_parts,
     prepare_file_part_for_publishing,
     resolve_file_part_uri,
@@ -25,6 +27,8 @@ from .events import (
     get_artifact_from_artifact_update,
     get_data_parts_from_status_update,
     get_message_from_status_update,
+    is_task_artifact_update,
+    is_task_status_update,
 )
 from .message import (
     create_agent_data_message,
@@ -51,6 +55,11 @@ from .message import (
     get_text_from_message,
     get_text_from_text_part,
     get_uri_from_file_part,
+    is_data_part,
+    is_file_part,
+    is_file_part_bytes,
+    is_file_part_uri,
+    is_text_part,
 )
 from .protocol import (
     create_cancel_task_request,
@@ -92,8 +101,11 @@ from .protocol import (
     get_response_result,
     get_task_id_from_cancel_request,
     extract_task_id_from_topic,
+    is_client_event,
+    is_message_object,
     subscription_to_regex,
     topic_matches_subscription,
+    unpack_client_event,
 )
 from .task import (
     create_final_task,
@@ -122,6 +134,8 @@ __all__ = [
     "get_artifact_id",
     "get_artifact_name",
     "get_parts_from_artifact",
+    "get_text_content_from_artifact",
+    "is_text_only_artifact",
     "update_artifact_parts",
     "prepare_file_part_for_publishing",
     "resolve_file_part_uri",
@@ -132,6 +146,8 @@ __all__ = [
     "get_artifact_from_artifact_update",
     "get_data_parts_from_status_update",
     "get_message_from_status_update",
+    "is_task_artifact_update",
+    "is_task_status_update",
     # message.py
     "create_agent_data_message",
     "create_agent_parts_message",
@@ -157,6 +173,11 @@ __all__ = [
     "get_text_from_message",
     "get_uri_from_file_part",
     "get_text_from_text_part",
+    "is_data_part",
+    "is_file_part",
+    "is_file_part_bytes",
+    "is_file_part_uri",
+    "is_text_part",
     # protocol.py
     "create_cancel_task_request",
     "create_error_response",
@@ -197,8 +218,11 @@ __all__ = [
     "get_response_result",
     "get_task_id_from_cancel_request",
     "extract_task_id_from_topic",
+    "is_client_event",
+    "is_message_object",
     "subscription_to_regex",
     "topic_matches_subscription",
+    "unpack_client_event",
     # task.py
     "create_final_task",
     "create_initial_task",

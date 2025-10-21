@@ -64,6 +64,7 @@ class WebUIBackendFactory:
         mock_component.get_session_manager.return_value = mock_session_manager
         mock_component.identity_service = None
         mock_component.gateway_id = gateway_id
+        mock_component.log_identifier = f"[{gateway_id}]"
 
         # Mock authentication method - use same user ID as default auth middleware
         if user is None:
@@ -126,6 +127,7 @@ class WebUIBackendFactory:
                 cursor = dbapi_conn.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
+
         else:
             # PostgreSQL/MySQL configuration - no SQLite-specific arguments
             engine = create_engine(

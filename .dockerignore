@@ -59,6 +59,7 @@ tests/
 .pytest_cache
 coverage.xml
 htmlcov/
+client/webui/frontend/cypress/
 
 
 # CI/CD files

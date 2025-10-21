@@ -83,6 +83,7 @@ dependencies = [
     "pytest-httpx>=0.35.0",
     "fastmcp",
     "httpx>=0.25",
+    "respx",
     "ruff",
     "testcontainers",
     "aiosqlite",
@@ -154,6 +155,9 @@ markers = [
     "mcp: marks tests related to mcp",
     "notification: marks tests related to notifications",
     "task_cancellation: marks tests related to task cancellation",
+    "proxy: marks tests related to the A2A proxy functionality",
+    "streaming: marks tests related to streaming messages",
+    "artifacts: marks tests related to artifact handling and services",
     "api: marks tests related to the API",
     "tasks: marks tests related to task management",
 
@@ -161,6 +165,7 @@ markers = [
     # Markers for the built-in agent tools.
     "tools: marks tests related to the agent tools",
     "audio_tools: marks tests related to the audio_tools",
+    "peer_tool: marks tests for calling peer agents",
     "builtin_artifact_tools: marks tests related to the builtin_artifact_tools",
     "builtin_data_analysis_tools: marks tests related to the builtin_data_analysis_tools",
     "general_agent_tools: marks tests related to the general_agent_tools",
@@ -168,6 +173,10 @@ markers = [
     "peer_agent_tool: marks tests related to the peer_agent_tool",
     "web_tools: marks tests related to the web_tools",
     "dynamic_tools: marks tests related to the dynamic_tools",
+    "auth: marks tests associated with authentication and authorization",
+    "oauth: OAuth specific tests",
+    "error_handling: Tests related to error handling and recovery",
+    "cancellation: Tests related to task cancellation",
 ]
 
 [tool.hatch.metadata]
