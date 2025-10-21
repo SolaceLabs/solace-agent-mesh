@@ -48,7 +48,7 @@ def _get_base_mcp_toolset_class() -> Tuple[Type[MCPToolset], bool]:
         - supports_tool_config_flag: Whether the class supports tool_config parameter
     """
     try:
-        from solace_agent_mesh_enterprise.common.mcp_toolset_with_manifest import (
+        from solace_agent_mesh_enterprise.auth.mcp_toolset_with_manifest import (
             McpToolsetWithManifest,
         )
 
@@ -70,7 +70,7 @@ def _get_base_mcp_tool_class() -> Tuple[Type[MCPTool], bool]:
         - supports_tool_config_flag: Whether the class supports tool_config parameter
     """
     try:
-        from solace_agent_mesh_enterprise.common.mcp_toolset_with_manifest import (
+        from solace_agent_mesh_enterprise.auth.mcp_toolset_with_manifest import (
             McpToolWithManifest,
         )
 
