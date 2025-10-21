@@ -1,0 +1,35 @@
+{
+    "broker": {
+        "SOLACE_BROKER_URL_VAR": "SOLACE_BROKER_URL",
+        "SOLACE_BROKER_USERNAME_VAR": "SOLACE_BROKER_USERNAME",
+        "SOLACE_BROKER_PASSWORD_VAR": "SOLACE_BROKER_PASSWORD",
+        "SOLACE_BROKER_VPN_VAR": "SOLACE_BROKER_VPN"
+    },
+    "remote": {
+        "EVAL_REMOTE_URL_VAR": "EVAL_REMOTE_URL",
+        "EVAL_AUTH_TOKEN_VAR": "EVAL_AUTH_TOKEN",
+        "EVAL_NAMESPACE_VAR": "EVAL_NAMESPACE"
+    },
+    "results_dir_name": "sam-remote-eval-test",
+    "runs": 1,
+    "test_cases": [
+        "tests/evaluation/test_cases/hello_world.test.json",
+        "tests/evaluation/test_cases/filter_csv_employees_by_age_and_country.test.json"
+    ],
+    "evaluation_settings": {
+        "tool_match": {
+            "enabled": true
+        },
+        "response_match": {
+            "enabled": true
+        },
+        "llm_evaluator": {
+            "enabled": true,
+            "env": {
+                "LLM_SERVICE_PLANNING_MODEL_NAME": "openai/gemini-2.5-pro",
+                "LLM_SERVICE_ENDPOINT_VAR": "LLM_SERVICE_ENDPOINT",
+                "LLM_SERVICE_API_KEY_VAR": "LLM_SERVICE_API_KEY"
+            }
+        }
+    }
+}

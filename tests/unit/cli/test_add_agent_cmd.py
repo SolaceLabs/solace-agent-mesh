@@ -60,7 +60,7 @@ def test_add_agent_default_db_generation(project_dir):
     assert agent_config_path.exists(), "Agent config file was not created."
     with open(agent_config_path) as f:
         content = f.read()
-        assert 'database_url: "${NEW_AGENT, sqlite:///new_agent.db}"' in content
+        assert 'database_url: "${NEW_AGENT_DATABASE_URL, sqlite:///new_agent.db}"' in content
 
 
 @pytest.mark.xfail(reason="This test needs to be reviewed and fixed.")
