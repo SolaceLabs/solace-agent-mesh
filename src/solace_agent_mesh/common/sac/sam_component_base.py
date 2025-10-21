@@ -15,6 +15,7 @@ from ..exceptions import MessageSizeExceededError
 from ..utils.message_utils import validate_message_size
 
 log = logging.getLogger(__name__)
+trace_logger = logging.getLogger("sam_trace")
 
 
 class SamComponentBase(ComponentBase, abc.ABC):
@@ -350,7 +351,10 @@ class SamComponentBase(ComponentBase, abc.ABC):
         """Helper to publish A2A messages via the SAC App with size validation."""
         try:
             log.debug(
-                f"{self.log_identifier} [publish_a2a_message] Starting - topic: {topic}, payload keys: {list(payload.keys()) if isinstance(payload, dict) else 'not_dict'}"
+                "%s [publish_a2a_message] Starting - topic: %s, payload keys: %s",
+                self.log_identifier,
+                topic,
+                list(payload.keys()) if isinstance(payload, dict) else "not_dict"
             )
 
             # Validate message size
@@ -363,14 +367,14 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     f"Message size validation failed: payload size ({actual_size} bytes) "
                     f"exceeds maximum allowed size ({self.max_message_size_bytes} bytes)"
                 )
-                log.error("%s %s", self.log_identifier, error_msg)
+                log.error("%s [publish_a2a_message] %s", self.log_identifier, error_msg)
                 raise MessageSizeExceededError(
                     actual_size, self.max_message_size_bytes, error_msg
                 )
 
             # Debug logging to show message size when publishing
             log.debug(
-                "%s Publishing message to topic %s (size: %d bytes)",
+                "%s [publish_a2a_message] Publishing message to topic %s (size: %d bytes)",
                 self.log_identifier,
                 topic,
                 actual_size,
@@ -379,7 +383,8 @@ class SamComponentBase(ComponentBase, abc.ABC):
             app = self.get_app()
             if app:
                 log.debug(
-                    f"{self.log_identifier} [publish_a2a_message] Got app instance, about to call app.send_message"
+                    "%s [publish_a2a_message] Got app instance, about to call app.send_message",
+                    self.log_identifier
                 )
 
                 # Conditionally log to invocation monitor if it exists (i.e., on an agent)
@@ -389,6 +394,17 @@ class SamComponentBase(ComponentBase, abc.ABC):
                         topic=topic,
                         payload=payload,
                         component_identifier=self.log_identifier,
+                    )
+
+                if trace_logger.isEnabledFor(logging.DEBUG):
+                    trace_logger.debug(
+                        "%s [publish_a2a_message] About to call app.send_message on topic '%s'\nwith payload: %s\nwith user_properties: %s",
+                        self.log_identifier, topic, payload, user_properties
+                    )
+                else:
+                    log.debug(
+                        "%s [publish_a2a_message] About to call app.send_message on topic '%s'",
+                        self.log_identifier, topic
                     )
 
                 log.debug(
