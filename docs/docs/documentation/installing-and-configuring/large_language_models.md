@@ -100,6 +100,103 @@ LiteLLM supports numerous other providers including Cohere, Hugging Face, Togeth
 
 For a complete list of supported providers and their specific configuration requirements, see the [LiteLLM providers documentation](https://docs.litellm.ai/docs/providers).
 
+
+## Prompt Caching
+
+Agent Mesh supports prompt caching to significantly reduce costs and latency when using LLM providers that support this feature. Prompt caching allows frequently-used content such as system instructions and tool definitions to be cached by the LLM provider, reducing both processing time and token costs on subsequent requests.
+
+### How Prompt Caching Works
+
+When you configure prompt caching, the system marks specific portions of each request for caching by the LLM provider. These cached portions persist for a provider-defined duration (typically 5 minutes to 1 hour) and can be reused across multiple requests without re-processing. This approach provides substantial cost savings for agents with large system instructions or extensive tool definitions.
+
+### Supported Providers
+
+The caching mechanism operates transparently through LiteLLM's provider-agnostic interface. Prompt caching support varies by provider:
+
+- **Anthropic Claude**: Full support with explicit cache control, 90% cost reduction on cache hits
+- **OpenAI**: Automatic caching for content exceeding 1,024 tokens
+- **Azure OpenAI**: Automatic caching following OpenAI behavior
+- **AWS Bedrock**: Native caching support via LiteLLM translation
+- **Deepseek**: Native caching support via LiteLLM translation
+
+Providers without caching support safely ignore cache control markers, ensuring backward compatibility across all providers.
+
+### Cache Strategy Configuration
+
+Agent Mesh provides three cache strategies that you can configure per model to optimize costs based on usage patterns:
+
+| Strategy | Description | Cache Duration | Best For |
+|----------|-------------|----------------|----------|
+| `"5m"` | 5-minute ephemeral cache | 5 minutes | High-frequency agents (10+ calls/hour) |
+| `"1h"` | 1-hour extended cache | 1 hour | Burst patterns with gaps (3-10 calls/hour) |
+| `"none"` | Disable caching | N/A | Rarely-used agents (less than 2 calls/hour) |
+
+The default strategy is `"5m"` when not explicitly specified, providing optimal performance for most use cases without requiring configuration changes.
+
+### Configuration Examples
+
+Configure prompt caching in your model settings using the `cache_strategy` parameter:
+
+```yaml
+models:
+  # High-frequency orchestrator with 5-minute cache
+  planning:
+    model: anthropic/claude-sonnet-4-5-20250929
+    api_key: ${ANTHROPIC_API_KEY}
+    cache_strategy: "5m"
+    temperature: 0.1
+
+  # Burst-pattern agent with 1-hour cache
+  analysis:
+    model: anthropic/claude-sonnet-4-5-20250929
+    api_key: ${ANTHROPIC_API_KEY}
+    cache_strategy: "1h"
+    temperature: 0.7
+
+  # Low-frequency agent with caching disabled
+  maintenance:
+    model: anthropic/claude-sonnet-4-5-20250929
+    api_key: ${ANTHROPIC_API_KEY}
+    cache_strategy: "none"
+```
+
+
+### Cache Strategy Selection Guidelines
+
+Choose your cache strategy based on agent usage patterns:
+
+**Use "5m" strategy** when:
+- Agent receives 10 or more requests per hour
+- Requests arrive in steady streams rather than isolated bursts
+- Cache remains warm through continuous use
+- Example: Primary orchestrator agents handling user interactions
+
+**Use "1h" strategy** when:
+- Agent receives 3-10 requests per hour in burst patterns
+- Gaps between request bursts exceed 5 minutes
+- Extended cache duration bridges usage gaps
+- Example: Development and testing scenarios, periodic analysis agents
+
+**Use "none" strategy** when:
+- Agent receives fewer than 2 requests per hour
+- Cache write premium exceeds potential savings
+- System instructions change frequently
+- Example: Maintenance agents, backup handlers, rarely-used specialized agents
+
+### What Gets Cached
+
+The caching system optimizes two primary components of LLM requests:
+
+**System Instructions**: The complete agent system prompt, including capabilities, guidelines, and any static context. System instructions typically represent the largest cacheable content and provide the most significant cost savings.
+
+**Tool Definitions**: All tool declarations available to the agent, including peer agent communication tools. Agent Mesh ensures tool order stability through alphabetical sorting, maintaining cache validity across requests.
+
+Conversation history and user messages are never cached, as these components change with each request and represent the unique context for each interaction.
+
+### Cache Invalidation
+
+The system automatically handles cache invalidation, requiring no manual intervention. When the cache expires or invalidates, the next request writes new cache content, and subsequent requests benefit from the refreshed cache.
+
 ## OAuth 2.0 Authentication
 
 Agent Mesh supports OAuth 2.0 Client Credentials authentication for LLM providers that require OAuth-based authentication instead of traditional API keys. This authentication method provides enhanced security through automatic token management, secure credential handling, and seamless integration with OAuth-enabled LLM endpoints.
