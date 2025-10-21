@@ -47,7 +47,7 @@ export const Default: Story = {
         const canvas = within(canvasElement);
 
         // Open side panel to trigger resize of panel
-        const openRightSidePanel = await canvas.findByTestId("Expand Panel");
+        const openRightSidePanel = await canvas.findByTestId("expandPanel");
         openRightSidePanel.click();
         await canvas.findByText("test.md");
     },
