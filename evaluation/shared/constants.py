@@ -19,6 +19,7 @@ DEFAULT_RUN_COUNT = 1
 DEFAULT_CATEGORY = "Other"
 DEFAULT_DESCRIPTION = "No description provided."
 MAX_WAIT_TIME = 300
+MAX_ARTIFACT_SIZE_MB = 10
 
 # Validation
 BROKER_REQUIRED_FIELDS = ["host", "vpn_name", "username", "password"]

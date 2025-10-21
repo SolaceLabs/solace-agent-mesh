@@ -10,9 +10,10 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 
+import requests
 import yaml
 
-from .shared import load_test_case
+from .shared import TestSuiteConfiguration, load_test_case
 
 log = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ class ConfigService:
         return content
 
     @classmethod
-    def get_artifact_config(cls) -> tuple[str, str]:
+    def get_local_artifact_config(cls) -> tuple[str, str]:
         """Get artifact service configuration from eval backend config."""
         try:
             webui_config = cls.load_yaml_with_includes("configs/eval_backend.yaml")
@@ -384,12 +385,107 @@ class MessageProcessor:
 class ArtifactService:
     """Manages artifact discovery, categorization, and metadata."""
 
-    def __init__(self, base_path: str, user_identity: str):
-        self.base_path = base_path
-        self.user_identity = user_identity
+    def __init__(self, config: TestSuiteConfiguration):
+        self.config = config
+        self.is_remote = config.remote is not None
+        if self.is_remote:
+            self.base_url = config.remote.environment.get("EVAL_REMOTE_URL")
+            self.auth_token = config.remote.environment.get("EVAL_AUTH_TOKEN")
+        else:
+            self.base_path, self.user_identity = (
+                ConfigService.get_local_artifact_config()
+            )
 
-    def get_artifact_info(self, namespace: str, context_id: str) -> list[ArtifactInfo]:
-        """Retrieve information about artifacts from the session directory."""
+    def get_artifacts(
+        self, namespace: str, context_id: str
+    ) -> list[ArtifactInfo]:
+        """Retrieve artifact information, either locally or from a remote API."""
+        if self.is_remote:
+            return self._get_remote_artifacts(context_id)
+        else:
+            return self._get_local_artifacts(namespace, context_id)
+
+    def _get_remote_artifacts(self, context_id: str) -> list[ArtifactInfo]:
+        """Fetch artifacts from the remote API."""
+        if not self.base_url:
+            return []
+
+        url = f"{self.base_url}/api/v2/artifacts"
+        params = {"session_id": context_id}
+
+        headers = {"Content-Type": "application/json"}
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+            log.info("Auth token found and added to headers.")
+        else:
+            log.warning("No auth token found for remote artifact request.")
+
+        log.info(f"Fetching remote artifacts from URL: {url} with params: {params}")
+
+        try:
+            with requests.Session() as session:
+                session.headers.update(headers)
+                response = session.get(url, params=params, allow_redirects=False)
+
+            log.info(f"Initial response status: {response.status_code}")
+
+            # Handle 307 Temporary Redirect manually
+            if response.status_code == 307:
+                redirect_url = response.headers.get("Location")
+                if not redirect_url:
+                    log.error(
+                        f"Server sent 307 redirect without a Location header. Full headers: {response.headers}"
+                    )
+                    response.raise_for_status()  # Re-raise the error to halt execution
+
+                log.info(f"Handling 307 redirect to: {redirect_url}")
+                with requests.Session() as redirect_session:
+                    redirect_session.headers.update(headers)
+                    # The redirected URL from the server should be complete, so no params needed.
+                    response = redirect_session.get(redirect_url)
+
+            response.raise_for_status()
+
+            # Handle empty response body after potential redirect
+            if not response.text:
+                log.info("Received empty response from artifact API, assuming no artifacts.")
+                return []
+
+            artifacts_data = response.json()
+
+            artifact_infos = []
+            for data in artifacts_data:
+                # The API returns a flat list of latest versions, so we reconstruct
+                # the version list to match the structure ArtifactInfo expects.
+                version_info = {
+                    "version": data.get("version", 0),
+                    "metadata": {
+                        "mime_type": data.get("mime_type"),
+                        "size": data.get("size"),
+                        "last_modified": data.get("last_modified"),
+                        "description": data.get("description"),
+                        "schema": data.get("schema"),
+                    },
+                }
+                info = ArtifactInfo(
+                    artifact_name=data.get("filename"),
+                    directory="",  # Not applicable for remote
+                    versions=[version_info],
+                )
+                artifact_infos.append(info)
+            return artifact_infos
+
+        except requests.RequestException as e:
+            log.error(f"Failed to fetch remote artifacts: {e}")
+            return []
+        except json.JSONDecodeError:
+            log.error("Failed to decode JSON response from artifact API")
+            return []
+
+    def _get_local_artifacts(
+        self, namespace: str, context_id: str
+    ) -> list[ArtifactInfo]:
+        """Retrieve information about artifacts from the local session directory."""
         artifact_info = []
         session_dir = os.path.join(
             self.base_path, namespace, self.user_identity, context_id
@@ -534,12 +630,13 @@ class ArtifactService:
 class SummaryBuilder:
     """Main orchestrator for summary creation."""
 
-    def __init__(self):
+    def __init__(self, config: TestSuiteConfiguration):
+        self.config = config
         self.file_service = FileService()
         self.test_case_service = TestCaseService()
         self.time_processor = TimeProcessor()
         self.message_processor = MessageProcessor()
-        self.artifact_service: ArtifactService | None = None
+        self.artifact_service = ArtifactService(self.config)
 
     def summarize_run(self, messages_file_path: str) -> dict[str, any]:
         """
@@ -695,17 +792,12 @@ class SummaryBuilder:
 
     def _add_artifact_information(self, summary: RunSummary, test_case: dict[str, any]):
         """Add artifact information if configuration is available."""
-        if not summary.namespace or not summary.context_id:
+        if not summary.context_id:
             return
 
         try:
-            # Initialize artifact service if not already done
-            if not self.artifact_service:
-                base_path, user_identity = ConfigService.get_artifact_config()
-                self.artifact_service = ArtifactService(base_path, user_identity)
-
             # Get and categorize artifacts
-            all_artifacts = self.artifact_service.get_artifact_info(
+            all_artifacts = self.artifact_service.get_artifacts(
                 summary.namespace, summary.context_id
             )
 
@@ -722,7 +814,9 @@ class SummaryBuilder:
             summary.errors.append(f"Could not add artifact info: {str(e)}")
 
 
-def summarize_run(messages_file_path: str) -> dict[str, any]:
+def summarize_run(
+    messages_file_path: str, config: TestSuiteConfiguration
+) -> dict[str, any]:
     """
     Main entry point for summarizing a test run.
 
@@ -731,11 +825,12 @@ def summarize_run(messages_file_path: str) -> dict[str, any]:
 
     Args:
         messages_file_path: Path to the messages.json file
+        config: The test suite configuration.
 
     Returns:
         Dictionary containing the summarized metrics
     """
-    builder = SummaryBuilder()
+    builder = SummaryBuilder(config)
     return builder.summarize_run(messages_file_path)
 
 

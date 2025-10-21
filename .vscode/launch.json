@@ -274,7 +274,8 @@
             "console": "integratedTerminal",
             "args": [
                 "eval",
-                "tests/evaluation/config.json"
+                "tests/evaluation/remote_example.json",
+                "-v"
             ],
             "justMyCode": false,
             "env": {

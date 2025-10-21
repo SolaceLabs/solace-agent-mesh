@@ -27,6 +27,7 @@ from .shared import (
     DEFAULT_STARTUP_WAIT_TIME,
     DEFAULT_TEST_TIMEOUT,
     EVALUATION_DIR,
+    MAX_ARTIFACT_SIZE_MB,
     EvaluationConfigLoader,
     TestSuiteConfiguration,
     get_local_base_url,
@@ -207,6 +208,19 @@ class TaskService:
         """Prepare file uploads for the request."""
         files_to_upload = []
         for path in artifact_paths:
+            # Check file size before reading
+            try:
+                file_size_mb = os.path.getsize(path) / (1024 * 1024)
+                if file_size_mb > MAX_ARTIFACT_SIZE_MB:
+                    log.warning(
+                        f"Artifact '{os.path.basename(path)}' is {file_size_mb:.2f} MB, "
+                        f"which is larger than the recommended maximum of {MAX_ARTIFACT_SIZE_MB} MB. "
+                        "This may cause memory issues."
+                    )
+            except OSError as e:
+                log.error(f"Could not get size of artifact {path}: {e}")
+                continue
+
             mimetype, _ = mimetypes.guess_type(path)
             if mimetype is None:
                 mimetype = "text/plain"
@@ -219,8 +233,8 @@ class TaskService:
         return files_to_upload
 
     def _close_file_uploads(self, files_to_upload: list[tuple]):
-        """Close file handles after upload (no longer needed as files are read into memory)."""
-        # No longer needed since we read files into memory with context managers
+        """Close file handles after upload (no longer needed)."""
+        # No longer needed
         pass
 
 
@@ -485,12 +499,14 @@ class ResultsProcessor:
 
     def __init__(self, file_service: FileService, verbose: bool = False):
         self.file_service = file_service
-        self.summary_builder = SummaryBuilder()
+        self.summary_builder: SummaryBuilder | None = None
         self.verbose = verbose
 
-    def summarize_results(self, base_results_path: str):
+    def summarize_results(self, base_results_path: str, config: TestSuiteConfiguration):
         """Generate summaries for all test results."""
         log.info("Summarizing results")
+
+        self.summary_builder = SummaryBuilder(config)
 
         for model_name in os.listdir(base_results_path):
             model_path = os.path.join(base_results_path, model_name)
@@ -683,7 +699,7 @@ class EvaluationRunner:
         log.info("Message categorization finished")
 
         # Generate summaries
-        self.results_processor.summarize_results(base_results_path)
+        self.results_processor.summarize_results(base_results_path, self.config)
 
         # Run evaluation
         log.info("Starting evaluation of results")
