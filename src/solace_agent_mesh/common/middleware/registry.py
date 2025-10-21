@@ -98,7 +98,6 @@ class MiddlewareRegistry:
 
         log.info("%s Middleware initialization complete.", LOG_IDENTIFIER)
 
-
     @classmethod
     def reset_bindings(cls):
         """
