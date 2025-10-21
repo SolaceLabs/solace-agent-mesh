@@ -45,8 +45,8 @@ export const Default: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        await canvas.findByTestId("Expand Panel");
-        await canvas.findByTestId("Send message");
+        await canvas.findByTestId("expandPanel");
+        await canvas.findByTestId("sendMessage");
     },
 };
 
@@ -69,9 +69,9 @@ export const WithLoadingMessage: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        await canvas.findByTestId("Expand Panel");
-        await canvas.findByTestId("View Agent Workflow");
-        await canvas.findByTestId("Cancel");
+        await canvas.findByTestId("expandPanel");
+        await canvas.findByTestId("viewAgentWorkflow");
+        await canvas.findByTestId("cancel");
     },
 };
 
@@ -98,10 +98,10 @@ export const WithSidePanelOpen: Story = {
         const canvas = within(canvasElement);
 
         // Open side panel to trigger resize of panel
-        const openRightSidePanel = await canvas.findByTestId("Expand Panel");
+        const openRightSidePanel = await canvas.findByTestId("expandPanel");
         openRightSidePanel.click();
 
-        await canvas.findByTestId("Collapse Panel");
+        await canvas.findByTestId("collapsePanel");
         await canvas.findByText("No files available");
     },
 };
@@ -130,13 +130,13 @@ export const NewSessionDialog: Story = {
         const canvas = within(canvasElement);
 
         // Open side panel to trigger resize of panel
-        const openLeftSidePanel = await canvas.findByTestId("Show Sessions Panel");
+        const openLeftSidePanel = await canvas.findByTestId("showSessionsPanel");
         openLeftSidePanel.click();
 
-        await canvas.findByTestId("Collapse Sessions Panel");
+        await canvas.findByTestId("hideChatSessions");
 
         // Open chat session dialog
-        const startNewChatSessionButton = await canvas.findByTestId("Start New Chat Session");
+        const startNewChatSessionButton = await canvas.findByTestId("startNewChat");
         startNewChatSessionButton.click();
 
         // Verify dialog
