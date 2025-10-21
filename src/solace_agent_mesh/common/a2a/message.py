@@ -305,3 +305,71 @@ def get_filename_from_file_part(part: FilePart) -> Optional[str]:
 def get_mimetype_from_file_part(part: FilePart) -> Optional[str]:
     """Safely retrieves the MIME type from a FilePart."""
     return part.file.mime_type
+
+
+# --- Type Checking Helpers ---
+
+
+def is_text_part(part: Part) -> bool:
+    """
+    Checks if a Part contains a TextPart.
+
+    Args:
+        part: The Part object to check.
+
+    Returns:
+        True if the part contains a TextPart, False otherwise.
+    """
+    return isinstance(part.root, TextPart)
+
+
+def is_file_part(part: Part) -> bool:
+    """
+    Checks if a Part contains a FilePart.
+
+    Args:
+        part: The Part object to check.
+
+    Returns:
+        True if the part contains a FilePart, False otherwise.
+    """
+    return isinstance(part.root, FilePart)
+
+
+def is_data_part(part: Part) -> bool:
+    """
+    Checks if a Part contains a DataPart.
+
+    Args:
+        part: The Part object to check.
+
+    Returns:
+        True if the part contains a DataPart, False otherwise.
+    """
+    return isinstance(part.root, DataPart)
+
+
+def is_file_part_bytes(part: FilePart) -> bool:
+    """
+    Checks if a FilePart uses FileWithBytes (embedded content).
+
+    Args:
+        part: The FilePart object to check.
+
+    Returns:
+        True if the file content is embedded as bytes, False otherwise.
+    """
+    return isinstance(part.file, FileWithBytes)
+
+
+def is_file_part_uri(part: FilePart) -> bool:
+    """
+    Checks if a FilePart uses FileWithUri (reference to external content).
+
+    Args:
+        part: The FilePart object to check.
+
+    Returns:
+        True if the file content is a URI reference, False otherwise.
+    """
+    return isinstance(part.file, FileWithUri)
