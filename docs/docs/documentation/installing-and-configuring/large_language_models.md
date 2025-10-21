@@ -109,11 +109,9 @@ Agent Mesh supports prompt caching to significantly reduce costs and latency whe
 
 When you configure prompt caching, the system marks specific portions of each request for caching by the LLM provider. These cached portions persist for a provider-defined duration (typically 5 minutes to 1 hour) and can be reused across multiple requests without re-processing. This approach provides substantial cost savings for agents with large system instructions or extensive tool definitions.
 
-The caching mechanism operates transparently through LiteLLM's provider-agnostic interface, automatically translating cache control markers to the appropriate format for each provider. Anthropic models use explicit cache control markers and offer a 90% discount on cached tokens. OpenAI models automatically cache repeated content over 1,024 tokens. Other providers like AWS Bedrock and Deepseek support caching through their respective implementations.
-
 ### Supported Providers
 
-Prompt caching support varies by provider:
+The caching mechanism operates transparently through LiteLLM's provider-agnostic interface. Prompt caching support varies by provider:
 
 - **Anthropic Claude**: Full support with explicit cache control, 90% cost reduction on cache hits
 - **OpenAI**: Automatic caching for content exceeding 1,024 tokens
@@ -162,21 +160,6 @@ models:
     cache_strategy: "none"
 ```
 
-### Cost Analysis
-
-For agents with large system instructions, prompt caching provides substantial cost savings. Consider an agent with a 17,000-token system instruction:
-
-**Without caching** (per query):
-- 17,000 input tokens × $3.00/MTok = $0.051
-- Cost for 20 queries/hour: $1.02/hour
-
-**With 5-minute caching** (after first query):
-- First query: 17,000 tokens × $3.75/MTok = $0.064 (cache write, 25% premium)
-- Subsequent queries: 17,000 tokens × $0.30/MTok = $0.005 (cache read, 90% discount)
-- Cost for 20 queries/hour: $0.064 + (19 × $0.005) = $0.159/hour
-- **Savings: 84% reduction**
-
-The break-even point for 5-minute caching occurs at 2 queries within the cache duration. For 1-hour caching, break-even occurs at 3 queries within the cache duration due to the higher cache write premium.
 
 ### Cache Strategy Selection Guidelines
 
