@@ -276,8 +276,13 @@ class SamAgentComponent(SamComponentBase):
                     f"Failed to initialize synchronous ADK services: {service_err}"
                 ) from service_err
 
-            from .app import AgentInitCleanupConfig # delayed import to avoid circular dependency
-            if init_func_details and isinstance(init_func_details, AgentInitCleanupConfig):
+            from .app import (
+                AgentInitCleanupConfig,
+            )  # delayed import to avoid circular dependency
+
+            if init_func_details and isinstance(
+                init_func_details, AgentInitCleanupConfig
+            ):
                 module_name = init_func_details.get("module")
                 func_name = init_func_details.get("name")
                 base_path = init_func_details.get("base_path")
@@ -444,9 +449,9 @@ class SamAgentComponent(SamComponentBase):
     async def _handle_message_async(self, message: SolaceMessage, topic: str) -> None:
         """
         Async handler for incoming messages.
-        
+
         Routes the message to the async event handler.
-        
+
         Args:
             message: The Solace message
             topic: The topic the message was received on
@@ -1102,7 +1107,11 @@ class SamAgentComponent(SamComponentBase):
         """
         if hasattr(tool, "origin") and tool.origin is not None:
             return tool.origin
-        elif hasattr(tool, "func") and hasattr(tool.func, "origin") and tool.func.origin is not None:
+        elif (
+            hasattr(tool, "func")
+            and hasattr(tool.func, "origin")
+            and tool.func.origin is not None
+        ):
             return tool.func.origin
         else:
             return getattr(tool, "origin", "unknown")
@@ -2040,7 +2049,7 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     len(task_context.produced_artifacts),
                 )
-            
+
             # Add token usage summary
             if task_context:
                 token_summary = task_context.get_token_usage_summary()
@@ -2794,13 +2803,13 @@ class SamAgentComponent(SamComponentBase):
         }
         if isinstance(user_config, dict):
             user_properties["a2aUserConfig"] = user_config
-        
+
         # Retrieve and propagate authentication token from parent task context
         parent_task_id = a2a_message.metadata.get("parentTaskId")
         if parent_task_id:
             with self.active_tasks_lock:
                 parent_task_context = self.active_tasks.get(parent_task_id)
-            
+
             if parent_task_context:
                 auth_token = parent_task_context.get_security_data("auth_token")
                 if auth_token:
@@ -2985,8 +2994,11 @@ class SamAgentComponent(SamComponentBase):
 
         cleanup_func_details = self.get_config("agent_cleanup_function")
 
-        from .app import AgentInitCleanupConfig # Avoid circular import
-        if cleanup_func_details and isinstance(cleanup_func_details, AgentInitCleanupConfig):
+        from .app import AgentInitCleanupConfig  # Avoid circular import
+
+        if cleanup_func_details and isinstance(
+            cleanup_func_details, AgentInitCleanupConfig
+        ):
             module_name = cleanup_func_details.get("module")
             func_name = cleanup_func_details.get("name")
             base_path = cleanup_func_details.get("base_path")
@@ -3233,7 +3245,7 @@ class SamAgentComponent(SamComponentBase):
         """
         # Call base class to initialize Trust Manager
         await super()._async_setup_and_run()
-        
+
         # Perform agent-specific async initialization
         await self._perform_async_init()
 
@@ -3245,12 +3257,8 @@ class SamAgentComponent(SamComponentBase):
         # Cleanup Trust Manager if present (ENTERPRISE FEATURE)
         if self.trust_manager:
             try:
-                log.info("%s Cleaning up Trust Manager...", self.log_identifier)
                 self.trust_manager.cleanup(self.cancel_timer)
-                log.info("%s Trust Manager cleanup complete", self.log_identifier)
             except Exception as e:
                 log.error(
-                    "%s Error during Trust Manager cleanup: %s",
-                    self.log_identifier,
-                    e
+                    "%s Error during Trust Manager cleanup: %s", self.log_identifier, e
                 )
