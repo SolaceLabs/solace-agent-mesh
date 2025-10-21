@@ -10,7 +10,7 @@ interface FeedbackModalProps {
     onSubmit: (feedbackText: string) => Promise<void>;
 }
 
-export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, feedbackType, onSubmit }) => {
+export const FeedbackModal = React.memo<FeedbackModalProps>(({ isOpen, onClose, feedbackType, onSubmit }) => {
     const [feedbackText, setFeedbackText] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -44,9 +44,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
         }
     };
 
-    const feedbackPrompt = feedbackType === "up"
-        ? "What did you like about the response?"
-        : "What did you dislike about the response?";
+    const feedbackPrompt = feedbackType === "up" ? "What did you like about the response?" : "What did you dislike about the response?";
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -59,16 +57,8 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col gap-2">
-                    <Textarea
-                        ref={textareaRef}
-                        value={feedbackText}
-                        onChange={(e) => setFeedbackText(e.target.value)}
-                        className="min-h-[120px] text-sm"
-                        disabled={isSubmitting}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                        Along with your feedback, details of the task will be recorded.
-                    </p>
+                    <Textarea ref={textareaRef} value={feedbackText} onChange={e => setFeedbackText(e.target.value)} className="min-h-[120px] text-sm" disabled={isSubmitting} />
+                    <p className="text-muted-foreground text-xs">Along with your feedback, details of the task will be recorded.</p>
                 </div>
                 <DialogFooter>
                     <Button variant="ghost" onClick={handleClose} disabled={isSubmitting}>
@@ -81,4 +71,4 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, f
             </DialogContent>
         </Dialog>
     );
-};
+});

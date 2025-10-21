@@ -188,7 +188,8 @@ export function ChatPage() {
                                 <ChatMessageList className="text-base" ref={chatMessageListRef}>
                                     {messages.map((message, index) => {
                                         const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                        return <ChatMessage message={message} key={`${message.metadata?.sessionId || "session"}-${index}-${message.isUser ? "received" : "sent"}`} isLastWithTaskId={isLastWithTaskId} />;
+                                        const messageKey = message.metadata?.messageId || `temp-${index}`;
+                                        return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} />;
                                     })}
                                 </ChatMessageList>
                                 <div style={CHAT_STYLES}>
