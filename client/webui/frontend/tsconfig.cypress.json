@@ -1,0 +1,25 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.cypress.tsbuildinfo",
+        "target": "es2020",
+        "lib": ["es2020", "dom"],
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        "allowSyntheticDefaultImports": true,
+        "esModuleInterop": true,
+        "isolatedModules": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "noEmit": true,
+        "types": ["cypress", "@testing-library/cypress"],
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["./src/*"],
+            "@app/*": ["./src/app/*"],
+            "@lib/*": ["./src/lib/*"]
+        }
+    },
+    "include": ["cypress/**/*.ts", "cypress/**/*.tsx"],
+    "exclude": ["node_modules", "dist"]
+}

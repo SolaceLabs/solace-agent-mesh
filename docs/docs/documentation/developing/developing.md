@@ -36,3 +36,7 @@ The tutorials provide hands-on examples for common scenarios: [Slack Integration
 ## Development Patterns
 
 The framework supports both direct component creation and plugin-based development. Plugins offer better reusability and distribution, while direct components provide simpler project-specific implementations. The configuration-driven approach uses YAML files to define behavior and Python code for core logic, enabling flexible deployment scenarios and easier management of complex distributed systems.
+
+## Evaluating Agents
+
+The framework includes an evaluation system that helps you test your agents' behavior in a structured way. You can define test suites, run them against your agents, and generate detailed reports to analyze the results. When running evaluations locally, you can also benchmark different language models to see how they affect your agents' responses. For more information, see [Evaluating Agents](evaluations.md).
