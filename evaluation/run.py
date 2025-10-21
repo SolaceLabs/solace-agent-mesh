@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path
 
+import click
 import requests
 from dotenv import load_dotenv
 
@@ -43,6 +44,43 @@ def _error_exit(message: str):
     """Logs an error message and exits."""
     log.error(message)
     sys.exit(1)
+
+
+def _ensure_eval_backend_config_exists():
+    """Checks for eval_backend.yaml and creates it from a template if missing."""
+    project_root = Path.cwd()
+    configs_dir = project_root / "configs"
+    eval_backend_config_path = configs_dir / "eval_backend.yaml"
+
+    if eval_backend_config_path.exists():
+        return
+
+    click.echo(
+        f"'{eval_backend_config_path.relative_to(project_root)}' not found. Creating it..."
+    )
+
+    if not (configs_dir / "shared_config.yaml").exists():
+        _error_exit(
+            "Error: 'configs/shared_config.yaml' not found. Please run 'sam init' first."
+        )
+
+    try:
+        # This is a simplified way to get the template content.
+        # In a real CLI, you'd use a more robust method like `importlib.resources`.
+        template_path = Path(__file__).parent.parent / "templates" / "eval_backend_template.yaml"
+        with open(template_path, encoding="utf-8") as f:
+            template_content = f.read()
+
+        with open(eval_backend_config_path, "w", encoding="utf-8") as f:
+            f.write(template_content)
+        click.echo(
+            click.style(
+                f"Successfully created '{eval_backend_config_path.relative_to(project_root)}'.",
+                fg="green",
+            )
+        )
+    except Exception as e:
+        _error_exit(f"Failed to create eval_backend.yaml: {e}")
 
 
 def _ensure_sam_rest_gateway_installed():
@@ -633,6 +671,7 @@ class EvaluationRunner:
 
     def _run_local_evaluation(self, base_results_path: Path) -> dict[str, float]:
         """Run the full local evaluation with service management."""
+        _ensure_eval_backend_config_exists()
         _ensure_sam_rest_gateway_installed()
         log.info("Starting local evaluation")
         model_execution_times = {}
