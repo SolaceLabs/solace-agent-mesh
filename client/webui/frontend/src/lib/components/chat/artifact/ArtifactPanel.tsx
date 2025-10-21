@@ -79,7 +79,7 @@ export const ArtifactPanel: React.FC = () => {
                                             <FileText className="mx-auto mb-4 h-12 w-12" />
                                             <div className="text-lg font-medium">Files</div>
                                             <div className="mt-2 text-sm">No files available</div>
-                                            <Button className="mt-4" variant="default" onClick={artifactsRefetch} data-testid="refreshFiles" title="Reresh Files">
+                                            <Button className="mt-4" variant="default" onClick={artifactsRefetch} data-testid="refreshFiles" title="Refresh Files">
                                                 Refresh
                                             </Button>
                                         </>
