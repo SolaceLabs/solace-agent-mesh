@@ -30,8 +30,8 @@ Add this to your gateway's `app_config` section:
 ```yaml
 authorization_service:
   type: "default_rbac"
-  role_definitions_path: "examples/auth/dev-roles.yaml"
-  user_assignments_path: "examples/auth/dev-users.yaml"
+  role_to_scope_definitions_path: "examples/auth/dev-roles.yaml"
+  user_to_role_assignments_path: "examples/auth/dev-users.yaml"
 
 # For development: explicitly set default user identity
 # WARNING: Only use in trusted development environments!

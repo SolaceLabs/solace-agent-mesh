@@ -92,8 +92,8 @@ apps:
         # Paths to your role and user assignment YAML files.
         # These can be absolute paths or relative to the directory where SAC is run.
         # Using environment variables for flexibility is recommended.
-        role_definitions_path: ${ROLE_DEFINITIONS_PATH, examples/auth/dev-roles.yaml}
-        user_assignments_path: ${USER_ASSIGNMENTS_PATH, examples/auth/dev-users.yaml}
+        role_to_scope_definitions_path: ${ROLE_DEFINITIONS_PATH, examples/auth/dev-roles.yaml}
+        user_to_role_assignments_path: ${USER_ASSIGNMENTS_PATH, examples/auth/dev-users.yaml}
 
           # Optional: Custom Python providers for more dynamic role/scope lookups.
           # If these are not provided, the service relies solely on the YAML files.

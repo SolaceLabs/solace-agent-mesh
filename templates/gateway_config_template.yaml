@@ -23,8 +23,8 @@ apps:
 
       authorization_service:
         type: "none" # Or "default_rbac"
-        # role_definitions_path: "config/auth/roles.yaml"
-        # user_assignments_path: "config/auth/users.yaml"
+        # role_to_scope_definitions_path: "config/auth/roles.yaml"
+        # user_to_role_assignments_path: "config/auth/users.yaml"
 
       system_purpose: >
         __SYSTEM_PURPOSE__

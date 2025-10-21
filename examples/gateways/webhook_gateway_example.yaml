@@ -54,8 +54,8 @@ apps:
 
       authorization_service: # Required: For A2A scope retrieval and access control
         type: "default_rbac"
-        role_definitions_path: ${ROLE_DEFINITIONS_PATH, examples/auth/dev-roles.yaml}
-        user_assignments_path: ${USER_ASSIGNMENTS_PATH, examples/auth/dev-users.yaml}
+        role_to_scope_definitions_path: ${ROLE_DEFINITIONS_PATH, examples/auth/dev-roles.yaml}
+        user_to_role_assignments_path: ${USER_ASSIGNMENTS_PATH, examples/auth/dev-users.yaml}
       
       # enable_embed_resolution: true # Default is true (for late-stage embeds if any agent returns them)
       # gateway_artifact_content_limit_bytes: 32768 

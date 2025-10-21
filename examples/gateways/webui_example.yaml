@@ -27,8 +27,8 @@ apps:
       # --- Authorization Service (Required for proper access control) ---
       # authorization_service:
       #   type: "default_rbac"
-      #   role_definitions_path: "examples/auth/dev-roles.yaml"
-      #   user_assignments_path: "examples/auth/dev-users.yaml"
+      #   role_to_scope_definitions_path: "examples/auth/dev-roles.yaml"
+      #   user_to_role_assignments_path: "examples/auth/dev-users.yaml"
 
       # # --- Development User Identity Configuration (WARNING: Only for development!) ---
       # # Force all user identities to sam_dev_user (overrides web-client-xxxxx)
