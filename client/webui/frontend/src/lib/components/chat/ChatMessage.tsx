@@ -82,7 +82,7 @@ const MessageActions: React.FC<{
     );
 };
 
-const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
+const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
     if (message.isStatusBubble) {
         return null;
@@ -149,11 +149,11 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
             {contentElements}
         </div>
     );
-};
+});
 
-const MessageWrapper: React.FC<{ message: MessageFE; children: ReactNode; className?: string }> = ({ message, children, className }) => {
+const MessageWrapper = React.memo<{ message: MessageFE; children: ReactNode; className?: string }>(({ message, children, className }) => {
     return <div className={`mt-1 space-y-1 ${message.isUser ? "ml-auto" : "mr-auto"} ${className}`}>{children}</div>;
-};
+});
 
 const getUploadedFiles = (message: MessageFE) => {
     if (message.uploadedFiles && message.uploadedFiles.length > 0) {
