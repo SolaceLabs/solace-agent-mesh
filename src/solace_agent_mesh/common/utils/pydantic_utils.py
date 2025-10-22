@@ -30,9 +30,9 @@ class SamConfigBase(BaseModel):
         Formats Pydantic validation error messages into a clear, actionable format.
 
         Example output:
-        ---- Configuration validation failed for 'AgentConfig' Agent ----
+        ---- Configuration validation failed for 'my-agent-app' ----
 
-           App Name: my-agent-app
+           Agent Name: AgentConfig
 
         ERROR 1:
            Missing required field: 'namespace'
@@ -43,11 +43,12 @@ class SamConfigBase(BaseModel):
         """
 
         error_lines = [
-            f"\n---- Configuration validation failed{" for " + agent_name + " Agent" if agent_name else ""} ----",
+            f"\n---- Configuration validation failed for {app_name or 'UNKNOWN'} ----",
             ""
         ]
 
-        error_lines.extend([f'   App Name: {app_name or "UNKNOWN"}', ''])
+        if agent_name:
+            error_lines.append(f"   Agent Name: {agent_name}\n")
 
         def get_nested_field_description(model_class: Type[BaseModel], path: list) -> str | None:
             """Recursively get field description from nested models"""
