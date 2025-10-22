@@ -7,6 +7,7 @@ import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
 import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
+import { Spinner } from "@/lib/components/ui/spinner";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useTaskContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
@@ -218,10 +219,9 @@ export function ChatPage() {
                                 <div className="flex flex-1 flex-col py-6 min-h-0">
                                     {isLoadingSession ? (
                                         <div className="flex h-full items-center justify-center">
-                                            <div className="flex flex-col items-center gap-4">
-                                                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                                                <p className="text-sm text-muted-foreground">Loading session...</p>
-                                            </div>
+                                            <Spinner size="medium" variant="primary">
+                                                <p className="text-sm text-muted-foreground mt-4">Loading session...</p>
+                                            </Spinner>
                                         </div>
                                     ) : (
                                         <>
