@@ -257,6 +257,10 @@ class SamAgentAppConfig(SamConfigBase):
         default=None,
         description="Human-friendly display name for this ADK agent instance.",
     )
+    deployment: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Deployment tracking information for rolling updates and version control.",
+    )
     model: Union[str, Dict[str, Any]] = Field(
         ..., description="ADK model name (string) or BaseLlm config dict."
     )
