@@ -84,7 +84,7 @@ def _forward_jsonrpc_response(
             payload_to_publish,
             target_topic,
         )
-        log.info(
+        log.debug(
             "%s Forwarded DataPart signal for main task %s (from peer %s) to %s.",
             component.log_identifier,
             main_logical_task_id,
@@ -420,7 +420,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     )
                     if message_handled:
                         message.call_acknowledgements()
-                        log.info(
+                        log.debug(
                             "%s ACKed message handled by input-required auth handler.",
                             component.log_identifier,
                         )
