@@ -17,7 +17,7 @@ apps:
   # Complete Multi-Modal Agent with All Capabilities
   - name: multimodal_agent_app
     app_base_path: .
-    app_module: src.solace_agent_mesh.agent.sac.app
+    app_module: solace_agent_mesh.agent.sac.app
     broker:
       <<: *broker_connection
 
@@ -247,7 +247,7 @@ apps:
 # Image Editing Agent with Gemini 2.0 Flash
   - name: image_editing_agent_app
     app_base_path: .
-    app_module: src.solace_agent_mesh.agent.sac.app
+    app_module: solace_agent_mesh.agent.sac.app
     broker:
       <<: *broker_connection
 
