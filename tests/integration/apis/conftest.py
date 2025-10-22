@@ -284,7 +284,7 @@ def db_provider(test_agents_list: list[str], db_provider_type):
     # Store factory on provider so api_client_factory can access it
     provider.factory = factory
 
-    log.info(f"[API Tests] Created unified WebUIBackendFactory with {db_provider.provider_type} database")
+    log.info(f"[API Tests] Created unified WebUIBackendFactory with {provider.provider_type} database")
 
     yield provider
 
