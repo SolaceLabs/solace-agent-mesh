@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PanelLeftIcon, Edit, LogOut } from "lucide-react";
+import { PanelLeftIcon } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
-import { Header } from "@/lib/components/header";
+import { Header, type BreadcrumbItem } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
 import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
@@ -38,7 +38,7 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { activeProject, setActiveProject } = useProjectContext();
+    const { activeProject, setActiveProject, projects } = useProjectContext();
     const { agents, sessionName, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, isLoadingSession, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, handleNewSession } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -88,15 +88,32 @@ export function ChatPage() {
         setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
     }, [isSessionSidePanelCollapsed]);
 
-    const handleExitProject = () => {
-        setActiveProject(null);
-        handleNewSession();
-    };
+    // Build breadcrumbs based on active project and session
+    const breadcrumbs = useMemo((): BreadcrumbItem[] | undefined => {
+        if (!activeProject) {
+            return undefined;
+        }
 
-    const handleEditProject = () => {
-        setActiveProject(null);
-        handleNewSession();
-    };
+        const crumbs: BreadcrumbItem[] = [
+            {
+                label: "Projects",
+                onClick: () => {
+                    setActiveProject(null);
+                    handleNewSession();
+                }
+            },
+            {
+                label: activeProject.name,
+            }
+        ];
+
+        return crumbs;
+    }, [activeProject, setActiveProject, handleNewSession]);
+
+    // Determine the page title
+    const pageTitle = useMemo(() => {
+        return sessionName || "New Chat";
+    }, [sessionName]);
 
     useEffect(() => {
         if (chatSidePanelRef.current && isSidePanelCollapsed) {
@@ -178,7 +195,8 @@ export function ChatPage() {
             </div>
             <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                 <Header
-                    title={sessionName || "New Chat"}
+                    title={pageTitle}
+                    breadcrumbs={breadcrumbs}
                     leadingAction={
                         isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
@@ -198,24 +216,6 @@ export function ChatPage() {
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
                             <div className="flex h-full w-full flex-col">
-                                {activeProject && (
-                                    <div className="flex flex-shrink-0 items-center justify-between border-b bg-muted px-8 py-2">
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <span className="font-semibold text-muted-foreground">Project:</span>
-                                            <span className="font-bold text-foreground">{activeProject.name}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Button variant="ghost" onClick={handleExitProject} className="flex h-8 items-center gap-2 text-muted-foreground hover:text-foreground">
-                                                <LogOut className="size-4" />
-                                                Exit
-                                            </Button>
-                                            <Button variant="ghost" onClick={handleEditProject} className="flex h-8 items-center gap-2 text-muted-foreground hover:text-foreground">
-                                                <Edit className="size-4" />
-                                                Edit
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
                                 <div className="flex flex-1 flex-col py-6 min-h-0">
                                     {isLoadingSession ? (
                                         <div className="flex h-full items-center justify-center">
