@@ -31,6 +31,42 @@ log = logging.getLogger(__name__)
 TEST_USER_HEADER = "X-Test-User-Id"
 
 
+def _patch_mock_auth_header_aware(factory):
+    """
+    Patches the mock component's authenticate_and_enrich_user to be header-aware.
+    This enables multi-user testing by reading X-Test-User-Id header.
+    """
+    if not hasattr(factory, "mock_component"):
+        return
+
+    from unittest.mock import AsyncMock
+
+    async def mock_authenticate_from_header(request):
+        # Check for test header first (for multi-user tests)
+        test_user_id = request.headers.get(TEST_USER_HEADER, "sam_dev_user")
+        if test_user_id == "secondary_user":
+            return {
+                "id": "secondary_user",
+                "name": "Secondary User",
+                "email": "secondary@dev.local",
+                "authenticated": True,
+                "auth_method": "development",
+            }
+        # Default to primary user
+        return {
+            "id": "sam_dev_user",
+            "name": "Sam Dev User",
+            "email": "sam@dev.local",
+            "authenticated": True,
+            "auth_method": "development",
+        }
+
+    factory.mock_component.authenticate_and_enrich_user = AsyncMock(
+        side_effect=mock_authenticate_from_header
+    )
+    log.info("Patched mock_component.authenticate_and_enrich_user to be header-aware.")
+
+
 def _patch_mock_component_config(factory):
     """
     Explicitly patches the mock component's get_config method to ensure it returns
@@ -255,6 +291,7 @@ def db_provider(test_agents_list: list[str], api_client_factory, db_provider_typ
             db_url=api_client_factory.db_url,
             engine=api_client_factory.engine,
         )
+        _patch_mock_auth_header_aware(api_client_factory)
         _patch_mock_artifact_service(api_client_factory)
         _patch_mock_component_config(api_client_factory)
     else:
@@ -280,6 +317,7 @@ def db_provider(test_agents_list: list[str], api_client_factory, db_provider_typ
         factory = WebUIBackendFactory(
             db_url=gateway_url, gateway_id=api_client_factory.mock_component.gateway_id
         )
+        _patch_mock_auth_header_aware(factory)
         _patch_mock_artifact_service(factory)
         _patch_mock_component_config(factory)
 
