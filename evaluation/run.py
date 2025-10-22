@@ -374,7 +374,8 @@ class TestExecutor:
             return False
 
         # Set up result directory
-        run_dir = model_results_path / test_run.test_case_id / f"run_{test_run.run_num}"
+        test_case_name = Path(test_run.test_case_file).stem.replace(".test", "")
+        run_dir = model_results_path / test_case_name / f"run_{test_run.run_num}"
         self.file_service.ensure_directory(run_dir)
 
         # Save test case path for summary builder

@@ -443,6 +443,7 @@ class RunEvaluator:
 
         # Load summary data
         summary_path = run_path / "summary.json"
+        log.info(f"Summary file path: {summary_path}")
         if not self.file_service.file_exists(summary_path):
             log.warning(
                 f"      Summary file not found for run {run_number}, skipping."
@@ -538,8 +539,8 @@ class ModelEvaluator:
 
         for test_case_path in self.config["test_cases"]:
             test_case = load_test_case(test_case_path)
-            test_case_id = test_case["test_case_id"]
-            test_case_results_path = model_results_path / test_case_id
+            test_case_name = Path(test_case_path).stem.replace(".test", "")
+            test_case_results_path = model_results_path / test_case_name
 
             for i in range(1, self.config["runs"] + 1):
                 run_path = test_case_results_path / f"run_{i}"
@@ -616,7 +617,10 @@ class EvaluationOrchestrator:
         model_execution_times: dict[str, float] | None = None,
     ):
         """Main entry point for the evaluation process."""
-        log.info("--- Starting evaluation ---")
+        log.info("Starting evaluation")
+
+        # Resolve to an absolute path to ensure consistency
+        base_results_path = str(Path(base_results_path).resolve())
 
         if model_execution_times is None:
             model_execution_times = {}
