@@ -96,8 +96,7 @@ class FileService:
     def read_file(filepath: Path, encoding: str = "utf-8") -> str:
         """Read file content with error handling."""
         try:
-            with open(filepath, encoding=encoding) as f:
-                return f.read()
+            return filepath.read_text(encoding=encoding)
         except FileNotFoundError:
             log.error(f"File not found: {filepath}")
             raise
@@ -112,8 +111,7 @@ class FileService:
             # Ensure directory exists
             filepath.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(filepath, "w", encoding=encoding) as f:
-                f.write(content)
+            filepath.write_text(content, encoding=encoding)
             log.info(f"File written successfully: {filepath}")
         except Exception as e:
             log.error(f"Error writing file {filepath}: {e}")
