@@ -5,11 +5,11 @@ Provides FastAPI TestClient and HTTP-based testing infrastructure.
 """
 
 import logging
+from unittest.mock import AsyncMock
+
 import pytest
 import sqlalchemy as sa
-from contextvars import ContextVar
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock
 from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
     WebUIBackendFactory,
 )
@@ -116,9 +116,10 @@ def api_client_factory():
 @pytest.fixture(scope="session", autouse=True)
 def setup_multi_user_auth(api_client_factory):
     """Sets up multi-user authentication for all API clients (autouse fixture)."""
-    from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
-    from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
     from fastapi import Request
+
+    from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
+    from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
 
     app = api_client_factory.app
 
@@ -154,13 +155,8 @@ def setup_multi_user_auth(api_client_factory):
 
 @pytest.fixture(scope="session")
 def api_client(db_provider, api_client_factory, setup_multi_user_auth):
-    """Creates a TestClient that uses the same app instance as the db_provider."""
-    # For SQLite, use the original api_client_factory
-    if isinstance(db_provider, SqliteProvider):
-        app = api_client_factory.app
-    else:
-        # For containerized databases, use the WebUIBackendFactory we created
-        app = db_provider._webui_factory.app
+    """Creates a TestClient using the api_client_factory app (works for both SQLite and PostgreSQL)."""
+    app = api_client_factory.app
 
     # Create a header-based client that injects user ID via custom header
     class HeaderBasedTestClient(TestClient):
@@ -186,6 +182,7 @@ def api_client(db_provider, api_client_factory, setup_multi_user_auth):
 @pytest.fixture(scope="session")
 def secondary_api_client(api_client_factory, setup_multi_user_auth):
     """Creates a secondary TestClient using the SAME app/database but different user auth."""
+
     class HeaderBasedTestClient(TestClient):
         def __init__(self, app, user_id: str):
             super().__init__(app)
@@ -199,7 +196,9 @@ def secondary_api_client(api_client_factory, setup_multi_user_auth):
             return super().request(method, url, **kwargs)
 
     client = HeaderBasedTestClient(api_client_factory.app, "secondary_user")
-    print("[API Tests] Secondary FastAPI TestClient created (same database, different user)")
+    print(
+        "[API Tests] Secondary FastAPI TestClient created (same database, different user)"
+    )
 
     yield client
 
@@ -334,8 +333,6 @@ def db_provider(test_agents_list: list[str], api_client_factory, db_provider_typ
 
     yield provider
     provider.teardown()
-
-
 
 
 @pytest.fixture(scope="session")
