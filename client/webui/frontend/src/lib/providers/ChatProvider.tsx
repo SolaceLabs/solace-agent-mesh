@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 
