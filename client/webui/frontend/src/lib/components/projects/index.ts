@@ -1,4 +1,4 @@
-export { CreateProjectWizard } from "./CreateProjectWizard";
+export { CreateProjectDialog } from "./CreateProjectDialog";
 export { AddProjectFilesDialog } from "./AddProjectFilesDialog";
 export { ProjectCard } from "./ProjectCard";
 export { ProjectList } from "./ProjectList";
