@@ -25,10 +25,10 @@ from .infrastructure.gateway_adapter import GatewayAdapter
 
 log = logging.getLogger(__name__)
 
-# Module-level state for tracking current test user
-# Used by both clients to determine which user they're authenticated as
-_test_user_lock = None
-_current_test_user = {"user_id": "sam_dev_user"}
+# Custom header for test user identification
+# Each TestClient injects this header with their user ID
+# Auth overrides read this header to determine which user made the request
+TEST_USER_HEADER = "X-Test-User-Id"
 
 
 def _patch_mock_component_config(factory):
@@ -82,11 +82,14 @@ def setup_multi_user_auth(api_client_factory):
     """Sets up multi-user authentication for all API clients (autouse fixture)."""
     from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
     from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
+    from fastapi import Request
 
     app = api_client_factory.app
 
-    async def override_get_current_user() -> dict:
-        user_id = _current_test_user.get("user_id", "sam_dev_user")
+    async def override_get_current_user(request: Request) -> dict:
+        # Get user ID from custom test header - this is request-scoped and thread-safe
+        user_id = request.headers.get(TEST_USER_HEADER, "sam_dev_user")
+
         if user_id == "secondary_user":
             return {
                 "id": "secondary_user",
@@ -104,8 +107,8 @@ def setup_multi_user_auth(api_client_factory):
                 "auth_method": "development",
             }
 
-    def override_get_user_id() -> str:
-        return _current_test_user.get("user_id", "sam_dev_user")
+    def override_get_user_id(request: Request) -> str:
+        return request.headers.get(TEST_USER_HEADER, "sam_dev_user")
 
     app.dependency_overrides[get_current_user] = override_get_current_user
     app.dependency_overrides[get_user_id] = override_get_user_id
@@ -123,21 +126,20 @@ def api_client(db_provider, api_client_factory, setup_multi_user_auth):
         # For containerized databases, use the WebUIBackendFactory we created
         app = db_provider._webui_factory.app
 
-    # Create a user-aware primary client
-    class UserAwareTestClient(TestClient):
+    # Create a header-based client that injects user ID via custom header
+    class HeaderBasedTestClient(TestClient):
         def __init__(self, app, user_id: str):
             super().__init__(app)
-            self.user_id = user_id
+            self.test_user_id = user_id
 
         def request(self, method, url, **kwargs):
-            old_user = _current_test_user.get("user_id")
-            _current_test_user["user_id"] = self.user_id
-            try:
-                return super().request(method, url, **kwargs)
-            finally:
-                _current_test_user["user_id"] = old_user
+            # Inject user ID via custom header for every request
+            if "headers" not in kwargs or kwargs["headers"] is None:
+                kwargs["headers"] = {}
+            kwargs["headers"][TEST_USER_HEADER] = self.test_user_id
+            return super().request(method, url, **kwargs)
 
-    client = UserAwareTestClient(app, "sam_dev_user")
+    client = HeaderBasedTestClient(app, "sam_dev_user")
     print(
         f"[API Tests] FastAPI TestClient created from {db_provider.provider_type} db_provider"
     )
@@ -148,20 +150,19 @@ def api_client(db_provider, api_client_factory, setup_multi_user_auth):
 @pytest.fixture(scope="session")
 def secondary_api_client(api_client_factory, setup_multi_user_auth):
     """Creates a secondary TestClient using the SAME app/database but different user auth."""
-    class UserAwareTestClient(TestClient):
+    class HeaderBasedTestClient(TestClient):
         def __init__(self, app, user_id: str):
             super().__init__(app)
-            self.user_id = user_id
+            self.test_user_id = user_id
 
         def request(self, method, url, **kwargs):
-            old_user = _current_test_user.get("user_id")
-            _current_test_user["user_id"] = self.user_id
-            try:
-                return super().request(method, url, **kwargs)
-            finally:
-                _current_test_user["user_id"] = old_user
+            # Inject user ID via custom header for every request
+            if "headers" not in kwargs or kwargs["headers"] is None:
+                kwargs["headers"] = {}
+            kwargs["headers"][TEST_USER_HEADER] = self.test_user_id
+            return super().request(method, url, **kwargs)
 
-    client = UserAwareTestClient(api_client_factory.app, "secondary_user")
+    client = HeaderBasedTestClient(api_client_factory.app, "secondary_user")
     print("[API Tests] Secondary FastAPI TestClient created (same database, different user)")
 
     yield client

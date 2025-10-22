@@ -66,7 +66,7 @@ class WebUIBackendFactory:
         mock_component.gateway_id = gateway_id
         mock_component.log_identifier = f"[{gateway_id}]"
 
-        # Mock authentication method - use same user ID as default auth middleware
+        # Mock authentication method - make it header-aware for multi-user testing
         if user is None:
             user = {
                 "id": "sam_dev_user",
@@ -75,7 +75,23 @@ class WebUIBackendFactory:
                 "authenticated": True,
                 "auth_method": "development",
             }
-        mock_component.authenticate_and_enrich_user = AsyncMock(return_value=user)
+
+        # Make authenticate_and_enrich_user read from X-Test-User-Id header
+        async def mock_authenticate_from_header(request):
+            # Check for test header first (for multi-user tests)
+            test_user_id = request.headers.get("X-Test-User-Id")
+            if test_user_id == "secondary_user":
+                return {
+                    "id": "secondary_user",
+                    "name": "Secondary User",
+                    "email": "secondary@dev.local",
+                    "authenticated": True,
+                    "auth_method": "development",
+                }
+            # Default to primary user
+            return user
+
+        mock_component.authenticate_and_enrich_user = AsyncMock(side_effect=mock_authenticate_from_header)
         mock_component.task_context_manager = Mock()
         mock_component.component_config = {"app_config": {}}
         # Store the user info on the component for dependency overrides
