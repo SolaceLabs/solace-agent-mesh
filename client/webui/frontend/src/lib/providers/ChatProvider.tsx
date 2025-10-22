@@ -994,6 +994,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     setSessionName(session?.name ?? "N/A");
 
                     // Activate or deactivate project context based on session's project
+                    // Set flag to prevent handleNewSession from being triggered by this project change
+                    isSessionSwitchRef.current = true;
+                    
                     if (session?.projectId) {
                         console.log(`${log_prefix} Session belongs to project ${session.projectId}`);
                         
@@ -1418,14 +1421,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
+    const isSessionSwitchRef = useRef(false);
+    
     useEffect(() => {
         // When the active project changes, reset the chat view to a clean slate
-        // and refetch the sessions for that project.
-        if (prevProjectIdRef.current !== activeProject?.id) {
-            console.log("Active project changed, resetting chat view.");
+        // UNLESS the change was triggered by switching to a session (which handles its own state)
+        if (prevProjectIdRef.current !== activeProject?.id && !isSessionSwitchRef.current) {
+            console.log("Active project changed explicitly, resetting chat view.");
             handleNewSession();
         }
         prevProjectIdRef.current = activeProject?.id;
+        // Reset the flag after processing
+        isSessionSwitchRef.current = false;
     }, [activeProject, handleNewSession]);
 
     useEffect(() => {
