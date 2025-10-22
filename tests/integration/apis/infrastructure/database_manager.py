@@ -98,9 +98,8 @@ class SqliteProvider(DatabaseProvider):
         if engine is not None and db_url is not None:
             # Legacy mode - use provided engine and URL
             self._sync_engines["gateway"] = engine
-            self._async_engines["gateway"] = create_async_engine(
-                db_url.replace("sqlite:", "sqlite+aiosqlite:")
-            )
+            # Don't create async engine here - it will be created on-demand if needed
+            self._gateway_async_url = db_url.replace("sqlite:", "sqlite+aiosqlite:")
         else:
             # New mode - create our own temporary SQLite
             temp_path = Path(self._agent_temp_dir.name) / "gateway.db"
@@ -108,9 +107,8 @@ class SqliteProvider(DatabaseProvider):
             self._sync_engines["gateway"] = sa.create_engine(
                 gateway_url, connect_args={"check_same_thread": False}
             )
-            self._async_engines["gateway"] = create_async_engine(
-                f"sqlite+aiosqlite:///{temp_path}"
-            )
+            # Don't create async engine here - it will be created on-demand if needed
+            self._gateway_async_url = f"sqlite+aiosqlite:///{temp_path}"
             Base.metadata.create_all(self._sync_engines["gateway"])
 
         # Setup Agents
@@ -122,9 +120,7 @@ class SqliteProvider(DatabaseProvider):
             )
             Base.metadata.create_all(agent_sync_engine)
             self._sync_engines[name] = agent_sync_engine
-            self._async_engines[name] = create_async_engine(
-                f"sqlite+aiosqlite:///{agent_path}"
-            )
+            # Async engines will be created on-demand
 
     def teardown(self):
         for engine in self._sync_engines.values():
@@ -148,9 +144,20 @@ class SqliteProvider(DatabaseProvider):
         return self._sync_engines[agent_name]
 
     def get_async_gateway_engine(self) -> AsyncEngine:
+        if "gateway" not in self._async_engines:
+            if hasattr(self, "_gateway_async_url"):
+                self._async_engines["gateway"] = create_async_engine(self._gateway_async_url)
+            else:
+                raise ValueError("Async gateway engine not configured")
         return self._async_engines["gateway"]
 
     def get_async_agent_engine(self, agent_name: str) -> AsyncEngine:
+        if agent_name not in self._async_engines:
+            agent_temp_path = Path(self._agent_temp_dir.name)
+            agent_path = agent_temp_path / f"agent_{agent_name}.db"
+            self._async_engines[agent_name] = create_async_engine(
+                f"sqlite+aiosqlite:///{agent_path}"
+            )
         return self._async_engines[agent_name]
 
     @property
