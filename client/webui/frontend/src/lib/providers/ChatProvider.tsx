@@ -3,6 +3,7 @@ import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
+import type { Project } from "@/lib/types/projects";
 
 // Schema version for data migration purposes
 const CURRENT_SCHEMA_VERSION = 1;
@@ -103,7 +104,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
     const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
-    const { activeProject } = useProjectContext();
+    const { activeProject, setActiveProject, projects } = useProjectContext();
 
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
@@ -984,15 +985,44 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsCancelling(false);
 
             try {
-                // Load session tasks instead of old message history
-                await loadSessionTasks(newSessionId);
-
-                // Load session metadata (name)
+                // Load session metadata first to get project info
                 const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
+                let session = null;
                 if (sessionResponse.ok) {
-                    const session = await sessionResponse.json();
-                    setSessionName(session?.data?.name ?? "N/A");
+                    const sessionData = await sessionResponse.json();
+                    session = sessionData?.data;
+                    setSessionName(session?.name ?? "N/A");
+
+                    // Activate or deactivate project context based on session's project
+                    if (session?.projectId) {
+                        console.log(`${log_prefix} Session belongs to project ${session.projectId}`);
+                        
+                        // Check if we're already in the correct project context
+                        if (activeProject?.id !== session.projectId) {
+                            // Find the full project object from the projects array
+                            const project = projects.find((p: Project) => p.id === session.projectId);
+                            
+                            if (project) {
+                                console.log(`${log_prefix} Activating project context: ${project.name}`);
+                                setActiveProject(project);
+                            } else {
+                                console.warn(`${log_prefix} Project ${session.projectId} not found in projects array`);
+                                // Optionally: fetch project details from API here if needed
+                            }
+                        } else {
+                            console.log(`${log_prefix} Already in correct project context`);
+                        }
+                    } else {
+                        // Session has no project - deactivate project context
+                        if (activeProject !== null) {
+                            console.log(`${log_prefix} Session has no project, deactivating project context`);
+                            setActiveProject(null);
+                        }
+                    }
                 }
+
+                // Load session tasks
+                await loadSessionTasks(newSessionId);
 
                 // Update session state
                 setSessionId(newSessionId);
@@ -1009,7 +1039,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 addNotification("Error switching session. Please try again.", "error");
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks, activeProject, projects, setActiveProject]
     );
 
     const updateSessionName = useCallback(
