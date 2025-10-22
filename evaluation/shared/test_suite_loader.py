@@ -21,7 +21,6 @@ from .constants import (
     DEFAULT_CONNECTION_TIMEOUT,
     DEFAULT_RECONNECT_ATTEMPTS,
     DEFAULT_RECONNECT_DELAY,
-    DEFAULT_RESULTS_DIR,
     DEFAULT_RUN_COUNT,
     DEFAULT_WORKERS,
     MAX_WORKERS,
@@ -156,7 +155,7 @@ class TestSuiteConfiguration(BaseModel):
     model_configurations: list[ModelConfiguration] | None = Field(default=None, min_length=1, alias="llm_models")
     remote: RemoteConfig | None = Field(default=None)
     test_case_files: list[str] = Field(min_length=1, alias="test_cases")
-    results_directory: str = Field(default=DEFAULT_RESULTS_DIR, min_length=1, alias="results_dir_name")
+    results_directory: str = Field(min_length=1, alias="results_dir_name")
     run_count: int = Field(default=DEFAULT_RUN_COUNT, ge=1, alias="runs")
     workers: int = Field(default=DEFAULT_WORKERS, ge=1, le=MAX_WORKERS)
     evaluation_options: EvaluationOptions = Field(default_factory=EvaluationOptions, alias="evaluation_settings")

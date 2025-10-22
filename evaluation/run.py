@@ -109,8 +109,7 @@ class TestRun:
     @property
     def test_case_id(self) -> str:
         """Extract test case ID from filename."""
-        base_name = os.path.basename(self.test_case_file)
-        return os.path.splitext(base_name)[0].replace(".test", "")
+        return Path(self.test_case_file).stem.replace(".test", "")
 
 
 class ProcessManager:
@@ -141,7 +140,7 @@ class ProcessManager:
         command = [sys.executable, "-m", "solace_ai_connector.main", *agent_files]
 
         log.info("Starting Solace AI Connector as a subprocess...")
-        project_root = os.path.abspath(os.path.join(EVALUATION_DIR, ".."))
+        project_root = Path(EVALUATION_DIR).parent.resolve()
 
         self.process = subprocess.Popen(
             command, stdout=sys.stdout, stderr=sys.stderr, cwd=project_root
@@ -246,13 +245,14 @@ class TaskService:
     def _prepare_file_uploads(self, artifact_paths: list[str]) -> list[tuple]:
         """Prepare file uploads for the request."""
         files_to_upload = []
-        for path in artifact_paths:
+        for path_str in artifact_paths:
+            path = Path(path_str)
             # Check file size before reading
             try:
-                file_size_mb = os.path.getsize(path) / (1024 * 1024)
+                file_size_mb = path.stat().st_size / (1024 * 1024)
                 if file_size_mb > MAX_ARTIFACT_SIZE_MB:
                     log.warning(
-                        f"Artifact '{os.path.basename(path)}' is {file_size_mb:.2f} MB, "
+                        f"Artifact '{path.name}' is {file_size_mb:.2f} MB, "
                         f"which is larger than the recommended maximum of {MAX_ARTIFACT_SIZE_MB} MB. "
                         "This may cause memory issues."
                     )
@@ -264,11 +264,9 @@ class TaskService:
             if mimetype is None:
                 mimetype = "text/plain"
             # Read file content with context manager
-            with open(path, "rb") as f:
+            with path.open("rb") as f:
                 file_content = f.read()
-            files_to_upload.append(
-                ("files", (os.path.basename(path), file_content, mimetype))
-            )
+            files_to_upload.append(("files", (path.name, file_content, mimetype)))
         return files_to_upload
 
     def _close_file_uploads(self, files_to_upload: list[tuple]):
@@ -281,26 +279,26 @@ class FileService:
     """Handles file operations and path management."""
 
     @staticmethod
-    def ensure_directory(path: str):
+    def ensure_directory(path: Path):
         """Ensure directory exists, create if necessary."""
-        os.makedirs(path, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
-    def remove_directory(path: str):
+    def remove_directory(path: Path):
         """Remove directory and all contents."""
-        if os.path.exists(path):
+        if path.exists():
             shutil.rmtree(path)
 
     @staticmethod
-    def save_json(data: any, filepath: str):
+    def save_json(data: any, filepath: Path):
         """Save data as JSON to file."""
-        with open(filepath, "w") as f:
+        with filepath.open("w") as f:
             json.dump(data, f, indent=4)
 
     @staticmethod
-    def load_json(filepath: str) -> any:
+    def load_json(filepath: Path) -> any:
         """Load JSON data from file."""
-        with open(filepath) as f:
+        with filepath.open() as f:
             return json.load(f)
 
 
@@ -315,7 +313,7 @@ class TestRunBuilder:
         test_runs = []
 
         for test_case_path in self.config.test_case_files:
-            test_case = FileService.load_json(test_case_path)
+            test_case = FileService.load_json(Path(test_case_path))
 
             artifact_paths = self._get_artifact_paths(test_case, test_case_path)
 
@@ -336,10 +334,10 @@ class TestRunBuilder:
         """Extract artifact paths from test case."""
         artifact_paths = []
         if "artifacts" in test_case:
-            test_case_dir = os.path.dirname(test_case_path)
+            test_case_dir = Path(test_case_path).parent
             for artifact in test_case["artifacts"]:
                 if artifact.get("type") == "file":
-                    artifact_paths.append(os.path.join(test_case_dir, artifact["path"]))
+                    artifact_paths.append(str(test_case_dir / artifact["path"]))
         return artifact_paths
 
 
@@ -354,7 +352,7 @@ class TestExecutor:
     def execute_test(
         self,
         test_run: TestRun,
-        model_results_path: str,
+        model_results_path: Path,
         task_mappings: dict[str, str],
         subscriber: Subscriber,
         task_mappings_lock: threading.Lock,
@@ -376,20 +374,16 @@ class TestExecutor:
             return False
 
         # Set up result directory
-        run_dir = os.path.join(
-            model_results_path, test_run.test_case_id, f"run_{test_run.run_num}"
-        )
+        run_dir = model_results_path / test_run.test_case_id / f"run_{test_run.run_num}"
         self.file_service.ensure_directory(run_dir)
 
         # Save test case path for summary builder
         test_info = {"path": test_run.test_case_file}
-        self.file_service.save_json(
-            test_info, os.path.join(run_dir, "test_case_info.json")
-        )
+        self.file_service.save_json(test_info, run_dir / "test_case_info.json")
 
         # Track the task
         with task_mappings_lock:
-            task_mappings[task_id] = run_dir
+            task_mappings[task_id] = str(run_dir)
         subscriber.active_tasks.add(task_id)
 
         # Wait for completion
@@ -429,7 +423,7 @@ class ModelEvaluator:
         self._task_mappings_lock = threading.Lock()
 
     def evaluate_model(
-        self, model_config: dict[str, any], base_results_path: str
+        self, model_config: dict[str, any], base_results_path: Path
     ) -> float:
         """Evaluate a single model and return execution time."""
         model_name = model_config.name
@@ -440,7 +434,7 @@ class ModelEvaluator:
         self._set_model_environment(model_config)
 
         # Set up paths
-        model_results_path = os.path.join(base_results_path, model_name)
+        model_results_path = base_results_path / model_name
         self.file_service.ensure_directory(model_results_path)
 
         # Start services
@@ -477,7 +471,7 @@ class ModelEvaluator:
             if value is not None:
                 os.environ[key] = value
 
-    def _setup_subscriber(self, namespace: str, model_results_path: str) -> Subscriber:
+    def _setup_subscriber(self, namespace: str, model_results_path: Path) -> Subscriber:
         """Set up and start the subscriber."""
         subscription_ready_event = threading.Event()
         subscriber = Subscriber(
@@ -497,7 +491,7 @@ class ModelEvaluator:
         return subscriber
 
     def _execute_all_tests(
-        self, model_results_path: str, subscriber: Subscriber
+        self, model_results_path: Path, subscriber: Subscriber
     ) -> int:
         """Execute all test cases in parallel and return count of successful tests."""
         test_runs = self.test_builder.build_test_runs()
@@ -550,14 +544,14 @@ class ModelEvaluator:
         self,
         app_process: subprocess.Popen,
         subscriber: Subscriber,
-        model_results_path: str,
+        model_results_path: Path,
         task_mappings: dict[str, str],
     ):
         """Clean up after model evaluation."""
         self.process_manager.stop_services(subscriber)
 
         # Save task mappings
-        mappings_file = os.path.join(model_results_path, "task_mappings.json")
+        mappings_file = model_results_path / "task_mappings.json"
         self.file_service.save_json(task_mappings, mappings_file)
         log.info(f"Task mappings saved to {mappings_file}")
 
@@ -570,39 +564,34 @@ class ResultsProcessor:
         self.summary_builder: SummaryBuilder | None = None
         self.verbose = verbose
 
-    def summarize_results(self, base_results_path: str, config: TestSuiteConfiguration):
+    def summarize_results(self, base_results_path: Path, config: TestSuiteConfiguration):
         """Generate summaries for all test results."""
         log.info("Summarizing results")
 
         self.summary_builder = SummaryBuilder(config)
 
-        for model_name in os.listdir(base_results_path):
-            model_path = os.path.join(base_results_path, model_name)
-            if not os.path.isdir(model_path):
+        for model_path in base_results_path.iterdir():
+            if not model_path.is_dir():
                 continue
-
             self._process_model_results(model_path)
 
-    def _process_model_results(self, model_path: str):
+    def _process_model_results(self, model_path: Path):
         """Process results for a single model."""
-        for test_case_name in os.listdir(model_path):
-            test_case_path = os.path.join(model_path, test_case_name)
-            if not os.path.isdir(test_case_path):
+        for test_case_path in model_path.iterdir():
+            if not test_case_path.is_dir():
                 continue
-
             self._process_test_case_results(test_case_path)
 
-    def _process_test_case_results(self, test_case_path: str):
+    def _process_test_case_results(self, test_case_path: Path):
         """Process results for a single test case."""
-        for run_name in os.listdir(test_case_path):
-            run_path = os.path.join(test_case_path, run_name)
-            if not os.path.isdir(run_path):
+        for run_path in test_case_path.iterdir():
+            if not run_path.is_dir():
                 continue
 
-            messages_file = os.path.join(run_path, "messages.json")
-            if os.path.exists(messages_file):
+            messages_file = run_path / "messages.json"
+            if messages_file.exists():
                 summary_data = self.summary_builder.summarize_run(messages_file)
-                summary_file = os.path.join(run_path, "summary.json")
+                summary_file = run_path / "summary.json"
                 self.file_service.save_json(summary_data, summary_file)
                 log.info(f"Summary created for {run_path}")
 
@@ -637,11 +626,11 @@ class EvaluationRunner:
 
             # Post-process results
             self._post_process_results(
-                str(base_results_path), model_execution_times, config_path
+                base_results_path, model_execution_times, config_path
             )
 
             # Save overall statistics
-            self._save_execution_stats(str(base_results_path), start_time)
+            self._save_execution_stats(base_results_path, start_time)
 
             # Generate reports
             self._generate_reports(config_path, base_results_path)
@@ -664,8 +653,8 @@ class EvaluationRunner:
     def _setup_results_directory(self, base_results_path: Path):
         """Set up the results directory."""
         # Clean up existing results
-        self.file_service.remove_directory(str(base_results_path))
-        self.file_service.ensure_directory(str(base_results_path))
+        self.file_service.remove_directory(base_results_path)
+        self.file_service.ensure_directory(base_results_path)
 
         log.info(f"Results directory set up at: {base_results_path}")
 
@@ -681,7 +670,7 @@ class EvaluationRunner:
             # ModelEvaluator manages the lifecycle of local services for each model
             model_evaluator = ModelEvaluator(self.config, verbose=self.verbose)
             execution_time = model_evaluator.evaluate_model(
-                model_config, str(base_results_path)
+                model_config, base_results_path
             )
             model_execution_times[model_config.name] = execution_time
 
@@ -704,14 +693,14 @@ class EvaluationRunner:
 
         # In remote mode, there's no model loop. We create a single "remote" results directory.
         remote_results_path = base_results_path / "remote"
-        self.file_service.ensure_directory(str(remote_results_path))
+        self.file_service.ensure_directory(remote_results_path)
 
         # The subscriber needs to be configured for remote use.
         subscriber = self._setup_remote_subscriber(str(remote_results_path))
 
+        task_mappings = {}
         try:
             test_runs = test_builder.build_test_runs()
-            task_mappings = {}
             successful_tests = 0
             task_mappings_lock = threading.Lock()
 
@@ -724,7 +713,7 @@ class EvaluationRunner:
                     executor.submit(
                         test_executor.execute_test,
                         test_run,
-                        str(remote_results_path),
+                        remote_results_path,
                         task_mappings,
                         subscriber,
                         task_mappings_lock,
@@ -756,7 +745,7 @@ class EvaluationRunner:
 
             # Save task mappings for remote run
             mappings_file = remote_results_path / "task_mappings.json"
-            self.file_service.save_json(task_mappings, str(mappings_file))
+            self.file_service.save_json(task_mappings, mappings_file)
 
         execution_time = time.time() - start_time
         return {"remote": execution_time}
@@ -780,7 +769,7 @@ class EvaluationRunner:
 
     def _post_process_results(
         self,
-        base_results_path: str,
+        base_results_path: Path,
         model_execution_times: dict[str, float],
         config_path: str,
     ):
@@ -797,7 +786,9 @@ class EvaluationRunner:
         # Run evaluation
         log.info("Starting evaluation of results")
         evaluation_orchestrator = EvaluationOrchestrator(config_path)
-        evaluation_orchestrator.run_evaluation(base_results_path, model_execution_times)
+        evaluation_orchestrator.run_evaluation(
+            base_results_path, model_execution_times
+        )
         log.info("Evaluation of results finished")
 
     def _generate_reports(self, config_path: str, base_results_path: Path):
@@ -822,7 +813,7 @@ class EvaluationRunner:
                 continue
 
             try:
-                results_data = self.file_service.load_json(str(results_file))
+                results_data = self.file_service.load_json(results_file)
                 model_name = results_data.get("model_name", model_dir.name)
                 max_model_len = max(max_model_len, len(model_name))
 
@@ -874,15 +865,15 @@ class EvaluationRunner:
                 f"{tool_score:<12} | {response_score:<16} | {llm_score:<10}"
             )
 
-    def _get_model_stats(self, model_path: str) -> dict[str, any]:
+    def _get_model_stats(self, model_path: Path) -> dict[str, any]:
         """Process results for a single model and return stats."""
         model_stats = {}
-        results_file = os.path.join(model_path, "results.json")
-        if not os.path.exists(results_file):
+        results_file = model_path / "results.json"
+        if not results_file.exists():
             return model_stats
 
         results_data = self.file_service.load_json(results_file)
-        model_name = results_data.get("model_name", os.path.basename(model_path))
+        model_name = results_data.get("model_name", model_path.name)
         model_stats[model_name] = {}
 
         for test_case in results_data.get("test_cases", []):
@@ -907,16 +898,15 @@ class EvaluationRunner:
                 model_stats[model_name][test_case_id] = scores
         return model_stats
 
-    def _save_execution_stats(self, base_results_path: str, start_time: float):
+    def _save_execution_stats(self, base_results_path: Path, start_time: float):
         """Save overall execution statistics."""
         end_time = time.time()
         total_execution_time = end_time - start_time
         stats = {"total_execution_time": total_execution_time, "models": {}}
 
         try:
-            for model_dir in os.listdir(base_results_path):
-                model_path = os.path.join(base_results_path, model_dir)
-                if not os.path.isdir(model_path):
+            for model_path in base_results_path.iterdir():
+                if not model_path.is_dir():
                     continue
                 model_stats = self._get_model_stats(model_path)
                 stats["models"].update(model_stats)
@@ -924,7 +914,7 @@ class EvaluationRunner:
         except Exception as e:
             log.error(f"Error processing results for stats: {e}")
 
-        stats_path = os.path.join(base_results_path, "stats.json")
+        stats_path = base_results_path / "stats.json"
         self.file_service.save_json(stats, stats_path)
 
         log.info(f"Overall stats written to {stats_path}")

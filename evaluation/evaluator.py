@@ -6,20 +6,17 @@ This module evaluates AI model performance against test cases using multiple eva
 import concurrent.futures
 import json
 import logging
-import os
 import re
-import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import litellm
 import numpy as np
 from rouge import Rouge
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from evaluation.shared import (
-    EVALUATION_DIR,
+from .shared import (
     EvaluationConfigLoader,
     EvaluationOptions,
     TestSuiteConfiguration,
@@ -169,40 +166,35 @@ class ConfigurationService:
             self._evaluation_settings_cache = self.config_loader.get_evaluation_options()
         return self._evaluation_settings_cache
 
-    def get_results_path(self) -> str:
-        """Get the base results path."""
-        config = self.get_config()
-        return os.path.join(EVALUATION_DIR, "results", config.results_directory)
-
 
 class FileService:
     """Handles file I/O operations."""
 
     @staticmethod
-    def load_json(filepath: str) -> any:
+    def load_json(filepath: Path) -> any:
         """Load JSON data from file."""
         try:
-            with open(filepath) as f:
+            with filepath.open() as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             log.error(f"Failed to load JSON from {filepath}: {e}")
             raise
 
     @staticmethod
-    def save_json(data: any, filepath: str):
+    def save_json(data: any, filepath: Path):
         """Save data as JSON to file."""
         try:
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
-            with open(filepath, "w") as f:
+            filepath.parent.mkdir(parents=True, exist_ok=True)
+            with filepath.open("w") as f:
                 json.dump(data, f, indent=4)
         except Exception as e:
             log.error(f"Failed to save JSON to {filepath}: {e}")
             raise
 
     @staticmethod
-    def file_exists(filepath: str) -> bool:
+    def file_exists(filepath: Path) -> bool:
         """Check if file exists."""
-        return os.path.exists(filepath)
+        return filepath.exists()
 
 
 class StatisticsService:
@@ -440,7 +432,7 @@ class RunEvaluator:
     def evaluate_run(
         self,
         run_number: int,
-        run_path: str,
+        run_path: Path,
         test_case: dict[str, any],
         test_case_path: str,
     ) -> EvaluationResult | None:
@@ -450,7 +442,7 @@ class RunEvaluator:
         )
 
         # Load summary data
-        summary_path = os.path.join(run_path, "summary.json")
+        summary_path = run_path / "summary.json"
         if not self.file_service.file_exists(summary_path):
             log.warning(
                 f"      Summary file not found for run {run_number}, skipping."
@@ -504,7 +496,7 @@ class ModelEvaluator:
         """Evaluate all test cases for a model."""
         log.info(f"Evaluating model: {model_name}")
 
-        model_results_path = os.path.join(base_results_path, model_name)
+        model_results_path = Path(base_results_path) / model_name
 
         # Collect all evaluation tasks
         tasks = self._collect_evaluation_tasks(model_results_path)
@@ -539,18 +531,18 @@ class ModelEvaluator:
         )
 
     def _collect_evaluation_tasks(
-        self, model_results_path: str
-    ) -> list[tuple[int, str, dict[str, any], str]]:
+        self, model_results_path: Path
+    ) -> list[tuple[int, Path, dict[str, any], str]]:
         """Collect all evaluation tasks for the model."""
         tasks = []
 
         for test_case_path in self.config["test_cases"]:
             test_case = load_test_case(test_case_path)
             test_case_id = test_case["test_case_id"]
-            test_case_results_path = os.path.join(model_results_path, test_case_id)
+            test_case_results_path = model_results_path / test_case_id
 
             for i in range(1, self.config["runs"] + 1):
-                run_path = os.path.join(test_case_results_path, f"run_{i}")
+                run_path = test_case_results_path / f"run_{i}"
                 tasks.append((i, run_path, test_case, test_case_path))
 
         return tasks
@@ -602,8 +594,8 @@ class ResultsWriter:
 
     def write_model_results(self, model_results: ModelResults, base_results_path: str):
         """Write model results to file."""
-        results_path = os.path.join(
-            base_results_path, model_results.model_name, "results.json"
+        results_path = (
+            Path(base_results_path) / model_results.model_name / "results.json"
         )
         self.file_service.save_json(model_results.to_dict(), results_path)
         log.info(
@@ -682,8 +674,12 @@ class EvaluationOrchestrator:
 def main(config_path: str):
     """Main entry point for command-line usage."""
     orchestrator = EvaluationOrchestrator(config_path)
-    results_path = orchestrator.config_service.get_results_path()
-    orchestrator.run_evaluation(results_path)
+    # Results path should be based on the current working directory, not the package location.
+    # This main function is for standalone testing.
+    config = orchestrator.config_service.get_config()
+    results_path = Path.cwd() / "results" / config.results_directory
+    results_path.mkdir(parents=True, exist_ok=True)
+    orchestrator.run_evaluation(str(results_path))
 
 
 if __name__ == "__main__":

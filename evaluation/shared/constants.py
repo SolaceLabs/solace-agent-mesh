@@ -1,7 +1,7 @@
-import os
 from enum import Enum
+from pathlib import Path
 
-EVALUATION_DIR = os.path.dirname(os.path.abspath(__file__))
+EVALUATION_DIR = Path(__file__).parent.resolve()
 
 # Timeouts and Delays
 DEFAULT_STARTUP_WAIT_TIME = 60
@@ -12,7 +12,6 @@ DEFAULT_RECONNECT_DELAY = 1.0
 DEFAULT_WAIT_TIME = 60
 
 # Test Suite Defaults
-DEFAULT_RESULTS_DIR = "tests"
 DEFAULT_RUN_COUNT = 1
 DEFAULT_WORKERS = 4
 MAX_WORKERS = 8
