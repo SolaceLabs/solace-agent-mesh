@@ -993,7 +993,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             try {
                 // Load session metadata first to get project info
                 const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
-                let session = null;
+                let session: Session | null = null;
                 if (sessionResponse.ok) {
                     const sessionData = await sessionResponse.json();
                     session = sessionData?.data;
@@ -1009,7 +1009,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         // Check if we're already in the correct project context
                         if (activeProject?.id !== session.projectId) {
                             // Find the full project object from the projects array
-                            const project = projects.find((p: Project) => p.id === session.projectId);
+                            const project = projects.find((p: Project) => p.id === session?.projectId);
                             
                             if (project) {
                                 console.log(`${log_prefix} Activating project context: ${project.name}`);
