@@ -1430,15 +1430,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
     const isSessionSwitchRef = useRef(false);
-    
+
     useEffect(() => {
         // When the active project changes, reset the chat view to a clean slate
         // UNLESS the change was triggered by switching to a session (which handles its own state)
-        if (prevProjectIdRef.current !== activeProject?.id && !isSessionSwitchRef.current) {
+        // Only trigger when activating or switching projects, not when deactivating (going to null)
+        const prevId = prevProjectIdRef.current;
+        const currentId = activeProject?.id;
+        const isActivatingOrSwitching = currentId !== undefined && prevId !== currentId;
+
+        if (isActivatingOrSwitching && !isSessionSwitchRef.current) {
             console.log("Active project changed explicitly, resetting chat view.");
             handleNewSession();
         }
-        prevProjectIdRef.current = activeProject?.id;
+        prevProjectIdRef.current = currentId;
         // Reset the flag after processing
         isSessionSwitchRef.current = false;
     }, [activeProject, handleNewSession]);

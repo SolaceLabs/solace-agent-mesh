@@ -37,8 +37,12 @@ const PANEL_SIZES_OPEN = {
     sidePanelSizes: { ...PANEL_SIZES_CLOSED.sidePanelSizes, max: 50 },
 };
 
-export function ChatPage() {
-    const { activeProject, setActiveProject, projects } = useProjectContext();
+interface ChatPageProps {
+    onNavigateToProjects?: () => void;
+}
+
+export function ChatPage({ onNavigateToProjects }: ChatPageProps) {
+    const { activeProject, setActiveProject, setSelectedProject, projects } = useProjectContext();
     const { agents, sessionName, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, isLoadingSession, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, handleNewSession } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -99,7 +103,8 @@ export function ChatPage() {
                 label: "Projects",
                 onClick: () => {
                     setActiveProject(null);
-                    handleNewSession();
+                    setSelectedProject(null);
+                    onNavigateToProjects?.();
                 }
             },
             {
@@ -108,7 +113,7 @@ export function ChatPage() {
         ];
 
         return crumbs;
-    }, [activeProject, setActiveProject, handleNewSession]);
+    }, [activeProject, setActiveProject, setSelectedProject]);
 
     // Determine the page title
     const pageTitle = useMemo(() => {

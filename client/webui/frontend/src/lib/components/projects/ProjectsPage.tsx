@@ -58,12 +58,9 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     };
 
     const handleChatClick = async (sessionId: string) => {
-        // Activate the project and switch to the chat
-        if (selectedProject) {
-            setActiveProject(selectedProject);
-            await handleSwitchSession(sessionId);
-            onProjectActivated();
-        }
+        // Switch to the session first, which will activate the project automatically
+        await handleSwitchSession(sessionId);
+        onProjectActivated();
     };
 
     const handleStartNewChat = () => {
