@@ -1,13 +1,22 @@
-import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode, useMemo } from "react";
-import { v4 } from "uuid";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
+
+// Type for tasks loaded from the API
+interface TaskFromAPI {
+    taskId: string;
+    messageBubbles: string; // JSON string
+    taskMetadata: string | null; // JSON string
+    createdTime: number;
+    userMessage?: string;
+}
 
 // Schema version for data migration purposes
 const CURRENT_SCHEMA_VERSION = 1;
 
 // Migration function: V0 -> V1 (adds schema_version to tasks without one)
-const migrateV0ToV1 = (task: TaskDataV0): TaskDataV1 => {
+const migrateV0ToV1 = (task: any): any => {
     return {
         ...task,
         taskMetadata: {
@@ -18,7 +27,8 @@ const migrateV0ToV1 = (task: TaskDataV0): TaskDataV1 => {
 };
 
 // Migration registry: maps version numbers to migration functions
-const MIGRATIONS: Record<number, (task: TaskDataAnyVersion) => TaskDataAnyVersion> = {
+
+const MIGRATIONS: Record<number, (task: any) => any> = {
     0: migrateV0ToV1,
     // Uncomment when future branch merges:
     // 1: migrateV1ToV2,
@@ -28,7 +38,9 @@ import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
 import type {
     ArtifactInfo,
+    ArtifactRenderingState,
     CancelTaskRequest,
+    DataPart,
     FileAttachment,
     FilePart,
     JSONRPCErrorResponse,
@@ -36,72 +48,33 @@ import type {
     MessageFE,
     Notification,
     Part,
+    PartFE,
     SendStreamingMessageRequest,
     SendStreamingMessageSuccessResponse,
     Session,
     Task,
-    TaskArtifactUpdateEvent,
     TaskStatusUpdateEvent,
     TextPart,
+    ArtifactPart,
 } from "@/lib/types";
-import type { MessageBubble, TaskMetadata, StoredTaskData } from "@/lib/types/storage";
 
 interface ChatProviderProps {
     children: ReactNode;
 }
 
-// Version-specific task data types
-interface TaskDataV0 {
-    taskId: string;
-    messageBubbles: unknown[];
-    taskMetadata?: {
-        // V0 has no schema_version
-        [key: string]: unknown;
-    } | null;
-    createdTime: number;
-    userMessage?: string;
-}
-
-interface TaskDataV1 {
-    taskId: string;
-    messageBubbles: unknown[];
-    taskMetadata: {
-        schema_version: 1;
-        [key: string]: unknown;
-    };
-    createdTime: number;
-    userMessage?: string;
-}
-
-// Union type for any version (used during migration)
-type TaskDataAnyVersion = TaskDataV0 | TaskDataV1;
-
-// Alias for the CURRENT version - this is what the rest of the code uses
-type TaskDataCurrent = TaskDataV1;
-
-// Type for tasks loaded from the API (always current version after migration)
-interface TaskFromAPI {
-    taskId: string;
-    messageBubbles: string; // JSON string
-    taskMetadata: string | null; // JSON string
-    createdTime: number;
-    userMessage?: string;
-}
-
-// File utils
-const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
-const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve((reader.result as string).split(",")[1]);
-        reader.onerror = error => reject(error);
-    });
-};
-
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
-    const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
+    const apiPrefix = `${configServerUrl}/api/v1`;
+
+    const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
+
+    const fileToBase64 = (file: File): Promise<string> =>
+        new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve((reader.result as string).split(",")[1]);
+            reader.onerror = error => reject(error);
+        });
 
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
@@ -112,26 +85,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
-    const [isCancelling, setIsCancelling] = useState<boolean>(false);
-    const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
-
-    // Refs
-    const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const isFinalizing = useRef(false);
-    const latestStatusText = useRef<string | null>(null);
-    const sseEventSequenceRef = useRef<number>(0);
+    const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
     const isCancellingRef = useRef(isCancelling);
     const savingTasksRef = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         isCancellingRef.current = isCancelling;
     }, [isCancelling]);
+    const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
+    const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Ref for cancel timeout
+    const isFinalizing = useRef(false);
+    const latestStatusText = useRef<string | null>(null);
+    const sseEventSequenceRef = useRef<number>(0);
 
     // Agents State
     const { agents, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
 
     // Chat Side Panel State
-    const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch } = useArtifacts(sessionId);
+    const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts } = useArtifacts(sessionId);
 
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
@@ -152,9 +123,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [currentPreviewedVersionNumber, setCurrentPreviewedVersionNumber] = useState<number | null>(null);
     const [previewFileContent, setPreviewFileContent] = useState<FileAttachment | null>(null);
 
-    // Session State
-    const [sessionName, setSessionName] = useState<string | null>(null);
-    const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
+    // Artifact Rendering State
+    const [artifactRenderingState, setArtifactRenderingState] = useState<ArtifactRenderingState>({
+        expandedArtifacts: new Set<string>(),
+    });
 
     // Feedback State
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
@@ -180,28 +152,26 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     // Helper function to serialize a MessageFE to MessageBubble format for backend
-    const serializeMessageBubble = useCallback((message: MessageFE): MessageBubble => {
+    const serializeMessageBubble = useCallback((message: MessageFE) => {
         const textParts = message.parts?.filter(p => p.kind === "text") as TextPart[] | undefined;
         const combinedText = textParts?.map(p => p.text).join("") || "";
 
         return {
-            id: message.metadata?.messageId || `msg-${v4()}`,
-            type: message.isUser ? "user" : message.artifactNotification ? "artifact_notification" : "agent",
+            id: message.metadata?.messageId || `msg-${crypto.randomUUID()}`,
+            type: message.isUser ? "user" : "agent",
             text: combinedText,
             parts: message.parts,
-            files: message.files,
             uploadedFiles: message.uploadedFiles?.map(f => ({
                 name: f.name,
                 type: f.type,
             })),
-            artifactNotification: message.artifactNotification,
             isError: message.isError,
         };
     }, []);
 
     // Helper function to save task data to backend
     const saveTaskToBackend = useCallback(
-        async (taskData: { task_id: string; user_message?: string; message_bubbles: MessageBubble[]; task_metadata?: TaskMetadata }) => {
+        async (taskData: { task_id: string; user_message?: string; message_bubbles: any[]; task_metadata?: any }) => {
             if (!persistenceEnabled || !sessionId) return;
 
             // Prevent duplicate saves (handles React Strict Mode + race conditions)
@@ -243,8 +213,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     // Helper function to deserialize task data to MessageFE objects
+
     const deserializeTaskToMessages = useCallback(
-        (task: StoredTaskData): MessageFE[] => {
+        (task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }): MessageFE[] => {
             return task.messageBubbles.map(bubble => ({
                 taskId: task.taskId,
                 role: bubble.type === "user" ? "user" : "agent",
@@ -252,9 +223,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isUser: bubble.type === "user",
                 isComplete: true,
                 files: bubble.files,
-                // uploadedFiles in storage is Array<{name, type}>, but MessageFE expects File[]
-                // We can't reconstruct File objects from stored metadata, so omit this field
-                uploadedFiles: undefined,
+                uploadedFiles: bubble.uploadedFiles,
                 artifactNotification: bubble.artifactNotification,
                 isError: bubble.isError,
                 metadata: {
@@ -268,16 +237,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     // Helper function to apply migrations to a task
-    const migrateTask = useCallback((task: TaskDataAnyVersion): TaskDataCurrent => {
-        const version: number = (task.taskMetadata?.schema_version as number) || 0;
+    const migrateTask = useCallback((task: any): any => {
+        const version = task.taskMetadata?.schema_version || 0;
 
         if (version >= CURRENT_SCHEMA_VERSION) {
             // Already at current version
-            return task as TaskDataCurrent;
+            return task;
         }
 
         // Apply migrations sequentially
-        let migratedTask: TaskDataAnyVersion = task;
+        let migratedTask = task;
         for (let v = version; v < CURRENT_SCHEMA_VERSION; v++) {
             const migrationFunc = MIGRATIONS[v];
             if (migrationFunc) {
@@ -288,7 +257,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         }
 
-        return migratedTask as TaskDataCurrent;
+        return migratedTask;
     }, []);
 
     // Helper function to load session tasks and reconstruct messages
@@ -362,15 +331,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const uploadArtifactFile = useCallback(
         async (file: File, overrideSessionId?: string): Promise<{ uri: string; sessionId: string } | null> => {
-            const currentSessionId = overrideSessionId || sessionId;
+            const effectiveSessionId = overrideSessionId || sessionId;
             const formData = new FormData();
-            formData.append("upload_file", file);
-            formData.append("filename", file.name);
-            if (currentSessionId) {
-                formData.append("sessionId", currentSessionId);
-            }
+            formData.append("file", file);
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${effectiveSessionId}/${encodeURIComponent(file.name)}`, {
                     method: "POST",
                     body: formData,
                     credentials: "include",
@@ -380,10 +345,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
-                const artifactData = result.data || result;
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
                 await artifactsRefetch();
-                return { uri: artifactData.uri, sessionId: artifactData.sessionId };
+                return result.uri ? { uri: result.uri, sessionId: effectiveSessionId } : null;
             } catch (error) {
                 addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
                 return null;
@@ -391,6 +355,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [apiPrefix, sessionId, addNotification, artifactsRefetch]
     );
+
+    const [sessionName, setSessionName] = useState<string | null>(null);
+    // Note: Other state variables are already declared above (lines 36-52)
+
+    const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
 
     const deleteArtifactInternal = useCallback(
         async (filename: string) => {
@@ -409,7 +378,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 addNotification(`Error deleting file "${filename}": ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
-        [apiPrefix, sessionId, addNotification, artifactsRefetch]
+        [apiPrefix, addNotification, artifactsRefetch]
     );
 
     const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
@@ -424,10 +393,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const confirmDelete = useCallback(async () => {
         if (artifactToDelete) {
+            // Check if the artifact being deleted is currently being previewed
+            const isCurrentlyPreviewed = previewArtifact?.filename === artifactToDelete.filename;
+
             await deleteArtifactInternal(artifactToDelete.filename);
+
+            // If the deleted artifact was being previewed, go back to file list
+            if (isCurrentlyPreviewed) {
+                setPreviewArtifact(null);
+            }
         }
         closeDeleteModal();
-    }, [artifactToDelete, deleteArtifactInternal, closeDeleteModal]);
+    }, [artifactToDelete, deleteArtifactInternal, closeDeleteModal, previewArtifact, setPreviewArtifact]);
 
     const handleDeleteSelectedArtifacts = useCallback(() => {
         if (selectedArtifactFilenames.size === 0) {
@@ -498,7 +475,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [apiPrefix, sessionId, artifacts, addNotification]
+        [apiPrefix, addNotification, artifacts]
     );
 
     const navigateArtifactVersion = useCallback(
@@ -533,7 +510,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [apiPrefix, addNotification, artifacts, previewedArtifactAvailableVersions, sessionId]
+        [apiPrefix, addNotification, artifacts, previewedArtifactAvailableVersions]
     );
 
     const openMessageAttachmentForPreview = useCallback(
@@ -573,6 +550,77 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isFinalizing.current = false;
     }, []);
 
+    // Download and resolve artifact with embeds
+    const downloadAndResolveArtifact = useCallback(
+        async (filename: string): Promise<FileAttachment | null> => {
+            try {
+                // Find the artifact in state
+                const artifact = artifacts.find(art => art.filename === filename);
+                if (!artifact) {
+                    console.error(`Artifact ${filename} not found in state`);
+                    return null;
+                }
+
+                // Fetch the latest version with embeds resolved
+                const versionsResponse = await authenticatedFetch(
+                    `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`,
+                    { credentials: "include" }
+                );
+                if (!versionsResponse.ok) throw new Error("Error fetching version list");
+
+                const availableVersions: number[] = await versionsResponse.json();
+                if (!availableVersions || availableVersions.length === 0) {
+                    throw new Error("No versions available");
+                }
+
+                const latestVersion = Math.max(...availableVersions);
+                const contentResponse = await authenticatedFetch(
+                    `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`,
+                    { credentials: "include" }
+                );
+                if (!contentResponse.ok) throw new Error("Error fetching artifact content");
+
+                const blob = await contentResponse.blob();
+                const base64Content = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result?.toString().split(",")[1] || "");
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+
+                const fileData: FileAttachment = {
+                    name: filename,
+                    mime_type: artifact.mime_type || "application/octet-stream",
+                    content: base64Content,
+                    last_modified: artifact.last_modified || new Date().toISOString(),
+                };
+
+                // Clear the accumulated content and flags after successful download
+                setArtifacts(prevArtifacts => {
+                    return prevArtifacts.map(art =>
+                        art.filename === filename
+                            ? {
+                                  ...art,
+                                  accumulatedContent: undefined,
+                                  needsEmbedResolution: false,
+                              }
+                            : art
+                    );
+                });
+
+                return fileData;
+            } catch (error) {
+                console.error(`Error downloading artifact ${filename}:`, error);
+                addNotification(
+                    `Error downloading artifact: ${error instanceof Error ? error.message : "Unknown error"}`,
+                    "error"
+                );
+                return null;
+            }
+        },
+        [apiPrefix, sessionId, artifacts, addNotification, setArtifacts]
+    );
+
     const handleSseMessage = useCallback(
         (event: MessageEvent) => {
             sseEventSequenceRef.current += 1;
@@ -580,6 +628,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             let rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
 
             try {
+                console.log("TEST-SSE ChatProvider Raw Message:", event.data);
                 rpcResponse = JSON.parse(event.data) as SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
             } catch (error: unknown) {
                 console.error("Failed to parse SSE message:", error);
@@ -601,7 +650,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isError: true,
                         isComplete: true,
                         metadata: {
-                            messageId: `msg-${v4()}`,
+                            messageId: `msg-${crypto.randomUUID()}`,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -622,7 +671,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const result = rpcResponse.result;
             let isFinalEvent = false;
             let messageToProcess: Message | undefined;
-            let artifactToProcess: TaskArtifactUpdateEvent["artifact"] | undefined;
             let currentTaskIdFromResult: string | undefined;
 
             // Determine event type and extract relevant data
@@ -643,145 +691,342 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     currentTaskIdFromResult = result.taskId;
                     break;
                 case "artifact-update":
-                    artifactToProcess = result.artifact;
-                    currentTaskIdFromResult = result.taskId;
-                    break;
+                    // An artifact was created or updated, refetch the list for the side panel.
+                    void artifactsRefetch();
+                    return; // No further processing needed for this event.
                 default:
                     console.warn("Received unknown result kind in SSE message:", result);
                     return;
             }
 
-            // Process the parts of the message
-            const newContentParts: Part[] = [];
-            const newFileAttachments: FileAttachment[] = [];
-            let agentStatusText: string | null = null;
-
+            // Process data parts first to extract status text
             if (messageToProcess?.parts) {
-                for (const part of messageToProcess.parts) {
-                    if (part.kind === "data") {
-                        const data = part.data;
+                const dataParts = messageToProcess.parts.filter(p => p.kind === "data") as DataPart[];
+                if (dataParts.length > 0) {
+                    for (const part of dataParts) {
+                        const data = part.data as any;
                         if (data && typeof data === "object" && "type" in data) {
                             switch (data.type) {
-                                case "agent_progress_update":
-                                    agentStatusText = String(data?.status_text ?? "Processing...");
+                                case "agent_progress_update": {
+                                    latestStatusText.current = String(data?.status_text ?? "Processing...");
+                                    const otherParts = messageToProcess.parts.filter(p => p.kind !== "data");
+                                    if (otherParts.length === 0) {
+                                        return; // This is a status-only event, do not process further.
+                                    }
                                     break;
-                                case "artifact_creation_progress":
-                                    agentStatusText = `Saving artifact: ${String(data?.filename ?? "unknown file")} (${Number(data?.bytes_saved ?? 0)} bytes)`;
-                                    break;
+                                }
+                                case "artifact_creation_progress": {
+                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk } = data as {
+                                        filename: string;
+                                        status: "in-progress" | "completed" | "failed";
+                                        bytes_transferred: number;
+                                        mime_type?: string;
+                                        description?: string;
+                                        artifact_chunk?: string;
+                                    };
+                                    console.log(`[ChatProvider] Received artifact_creation_progress:`, { filename, status, bytes_transferred, mime_type, description, artifact_chunk });
+                                    console.log(`[ChatProvider] Updating artifact progress: ${filename}, status: ${status}, bytes: ${bytes_transferred}`);
+
+                                    // Track if we need to trigger auto-download after state update
+                                    let shouldAutoDownload = false;
+
+                                    // Update global artifacts list with description and accumulated content
+                                    setArtifacts(prevArtifacts => {
+                                        const existingIndex = prevArtifacts.findIndex(a => a.filename === filename);
+                                        if (existingIndex >= 0) {
+                                            // Update existing artifact, preserving description if new one not provided
+                                            const updated = [...prevArtifacts];
+                                            const existingArtifact = updated[existingIndex];
+                                            const isDisplayed = existingArtifact.isDisplayed || false;
+
+                                            // Check if we should trigger auto-download (before state update)
+                                            if (status === "completed" && isDisplayed) {
+                                                shouldAutoDownload = true;
+                                                console.log(`[ChatProvider] Artifact ${filename} completed while displayed, will trigger auto-download`);
+                                            }
+
+                                            updated[existingIndex] = {
+                                                ...existingArtifact,
+                                                description: description !== undefined ? description : existingArtifact.description,
+                                                size: bytes_transferred || existingArtifact.size,
+                                                last_modified: new Date().toISOString(),
+                                                // Ensure URI is set
+                                                uri: existingArtifact.uri || `artifact://${sessionId}/${filename}`,
+                                                // Accumulate content chunks for in-progress and completed artifacts
+                                                accumulatedContent:
+                                                    status === "in-progress" && artifact_chunk
+                                                        ? (existingArtifact.accumulatedContent || "") + artifact_chunk
+                                                        : status === "completed" && !isDisplayed
+                                                          ? undefined // Clear accumulated content when completed if NOT displayed
+                                                          : existingArtifact.accumulatedContent, // Keep for displayed artifacts
+                                                // Mark that streaming content is plain text (not base64)
+                                                isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : existingArtifact.isAccumulatedContentPlainText,
+                                                // Update mime_type when completed
+                                                mime_type: status === "completed" && mime_type ? mime_type : existingArtifact.mime_type,
+                                                // Mark that embed resolution is needed when completed
+                                                needsEmbedResolution: status === "completed" ? true : existingArtifact.needsEmbedResolution,
+                                            };
+
+                                            return updated;
+                                        } else {
+                                            // Create new artifact entry only if we have description or it's the first chunk
+                                            if (description !== undefined || status === "in-progress") {
+                                                return [
+                                                    ...prevArtifacts,
+                                                    {
+                                                        filename,
+                                                        description: description || null,
+                                                        mime_type: mime_type || "application/octet-stream",
+                                                        size: bytes_transferred || 0,
+                                                        last_modified: new Date().toISOString(),
+                                                        uri: `artifact://${sessionId}/${filename}`,
+                                                        accumulatedContent: status === "in-progress" && artifact_chunk ? artifact_chunk : undefined,
+                                                        isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : false,
+                                                        needsEmbedResolution: status === "completed" ? true : false,
+                                                    },
+                                                ];
+                                            }
+                                        }
+                                        return prevArtifacts;
+                                    });
+
+                                    // Trigger auto-download AFTER state update (outside the setter)
+                                    if (shouldAutoDownload) {
+                                        setTimeout(() => {
+                                            downloadAndResolveArtifact(filename).catch(err => {
+                                                console.error(`[ChatProvider] Auto-download failed for ${filename}:`, err);
+                                            });
+                                        }, 100);
+                                    }
+
+                                    setMessages(prev => {
+                                        const newMessages = [...prev];
+                                        let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
+
+                                        if (agentMessageIndex === -1) {
+                                            const newAgentMessage: MessageFE = {
+                                                role: "agent",
+                                                parts: [],
+                                                taskId: currentTaskIdFromResult,
+                                                isUser: false,
+                                                isComplete: false,
+                                                isStatusBubble: false,
+                                                metadata: { lastProcessedEventSequence: currentEventSequence },
+                                            };
+                                            newMessages.push(newAgentMessage);
+                                            agentMessageIndex = newMessages.length - 1;
+                                        }
+
+                                        const agentMessage = { ...newMessages[agentMessageIndex], parts: [...newMessages[agentMessageIndex].parts] };
+                                        agentMessage.isStatusBubble = false;
+                                        const artifactPartIndex = agentMessage.parts.findIndex(p => p.kind === "artifact" && p.name === filename);
+
+                                        if (status === "in-progress") {
+                                            if (artifactPartIndex > -1) {
+                                                const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                console.log(`[ChatProvider] Updating existing artifact part for ${filename}, old bytes: ${existingPart.bytesTransferred}, new bytes: ${bytes_transferred}`);
+                                                // Create a new part object with immutable update
+                                                const updatedPart: ArtifactPart = {
+                                                    ...existingPart,
+                                                    bytesTransferred: bytes_transferred,
+                                                    status: "in-progress",
+                                                };
+                                                agentMessage.parts[artifactPartIndex] = updatedPart;
+                                                console.log(`[ChatProvider] Updated artifact part:`, updatedPart);
+                                                console.log(`[ChatProvider] Full parts array after update:`, agentMessage.parts);
+                                            } else {
+                                                console.log(`[ChatProvider] Creating new artifact part for ${filename} with bytes: ${bytes_transferred}`);
+                                                const newPart: ArtifactPart = {
+                                                    kind: "artifact",
+                                                    status: "in-progress",
+                                                    name: filename,
+                                                    bytesTransferred: bytes_transferred,
+                                                };
+                                                agentMessage.parts.push(newPart);
+                                                console.log(`[ChatProvider] Created new artifact part:`, newPart);
+                                            }
+                                        } else if (status === "completed") {
+                                            console.log(`[ChatProvider] Marking artifact ${filename} as completed in message parts`);
+                                            const fileAttachment: FileAttachment = {
+                                                name: filename,
+                                                mime_type,
+                                                uri: `artifact://${sessionId}/${filename}`,
+                                            };
+                                            if (artifactPartIndex > -1) {
+                                                const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                console.log(`[ChatProvider] Found existing artifact part at index ${artifactPartIndex}, updating to completed`);
+                                                // Create a new part object with immutable update
+                                                const updatedPart: ArtifactPart = {
+                                                    ...existingPart,
+                                                    status: "completed",
+                                                    file: fileAttachment,
+                                                };
+                                                // Remove bytesTransferred for completed artifacts
+                                                delete updatedPart.bytesTransferred;
+                                                agentMessage.parts[artifactPartIndex] = updatedPart;
+                                                console.log(`[ChatProvider] Updated artifact part to completed:`, updatedPart);
+                                            } else {
+                                                agentMessage.parts.push({
+                                                    kind: "artifact",
+                                                    status: "completed",
+                                                    name: filename,
+                                                    file: fileAttachment,
+                                                });
+                                            }
+                                            void artifactsRefetch();
+                                        } else {
+                                            // status === "failed"
+                                            const errorMsg = `Failed to create artifact: ${filename}`;
+                                            if (artifactPartIndex > -1) {
+                                                const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                // Create a new part object with immutable update
+                                                const updatedPart: ArtifactPart = {
+                                                    ...existingPart,
+                                                    status: "failed",
+                                                    error: errorMsg,
+                                                };
+                                                // Remove bytesTransferred for failed artifacts
+                                                delete updatedPart.bytesTransferred;
+                                                agentMessage.parts[artifactPartIndex] = updatedPart;
+                                            } else {
+                                                agentMessage.parts.push({
+                                                    kind: "artifact",
+                                                    status: "failed",
+                                                    name: filename,
+                                                    error: errorMsg,
+                                                });
+                                            }
+                                            agentMessage.isError = true;
+                                        }
+
+                                        newMessages[agentMessageIndex] = agentMessage;
+                                        console.log(
+                                            `[ChatProvider] Updated message with artifact parts:`,
+                                            agentMessage.parts.filter(p => p.kind === "artifact")
+                                        );
+
+                                        // Filter out OTHER generic status bubbles, but keep our message.
+                                        const finalMessages = newMessages.filter(m => !m.isStatusBubble || m.parts.some(p => p.kind === "artifact" || p.kind === "file"));
+                                        return finalMessages;
+                                    });
+                                    // Return immediately to prevent the generic status handler from running
+                                    return;
+                                }
                                 case "tool_invocation_start":
                                     break;
                                 default:
-                                    newContentParts.push(part);
+                                    console.warn("Received unknown data part type:", data.type);
+                            }
+                        } else if (part.metadata?.tool_name === "_notify_artifact_save") {
+                            // Handle artifact completion notification
+                            const artifactData = data as { filename: string; version: number; status: string };
+                            console.log(`[ChatProvider] Received _notify_artifact_save:`, artifactData);
+                            console.log(`[ChatProvider] Part metadata:`, part.metadata);
+                            console.log(`[ChatProvider] Part data:`, part.data);
+
+                            if (artifactData.status === "success") {
+                                // Mark the artifact as completed in the message parts
+                                setMessages(currentMessages => {
+                                    return currentMessages.map(msg => {
+                                        if (msg.isUser || !msg.parts.some(p => p.kind === "artifact" && p.name === artifactData.filename)) {
+                                            return msg;
+                                        }
+
+                                        return {
+                                            ...msg,
+                                            parts: msg.parts.map(part => {
+                                                if (part.kind === "artifact" && (part as ArtifactPart).name === artifactData.filename) {
+                                                    const fileAttachment: FileAttachment = {
+                                                        name: artifactData.filename,
+                                                        uri: `artifact://${sessionId}/${artifactData.filename}`,
+                                                    };
+                                                    return {
+                                                        kind: "artifact",
+                                                        status: "completed",
+                                                        name: artifactData.filename,
+                                                        file: fileAttachment,
+                                                    } as ArtifactPart;
+                                                }
+                                                return part;
+                                            }),
+                                        };
+                                    });
+                                });
                             }
                         }
-                    } else if (part.kind === "file") {
-                        const filePart = part as FilePart;
-                        const fileInfo = filePart.file;
-                        const attachment: FileAttachment = {
-                            name: fileInfo.name || "untitled_file",
-                            mime_type: fileInfo.mimeType,
-                        };
-                        if ("bytes" in fileInfo && fileInfo.bytes) {
-                            attachment.content = fileInfo.bytes;
-                        } else if ("uri" in fileInfo && fileInfo.uri) {
-                            attachment.uri = fileInfo.uri;
-                        }
-                        newFileAttachments.push(attachment);
-                    } else {
-                        newContentParts.push(part);
                     }
                 }
             }
 
-            if (agentStatusText) {
-                latestStatusText.current = agentStatusText;
-            }
+            const newContentParts = messageToProcess?.parts?.filter(p => p.kind !== "data") || [];
+            const hasNewFiles = newContentParts.some(p => p.kind === "file");
 
             // Update UI state based on processed parts
             setMessages(prevMessages => {
                 const newMessages = [...prevMessages];
+
                 let lastMessage = newMessages[newMessages.length - 1];
 
-                // Remove old status bubble
+                // Remove old generic status bubble
                 if (lastMessage?.isStatusBubble) {
                     newMessages.pop();
                     lastMessage = newMessages[newMessages.length - 1];
                 }
 
-                const textPartFromStream = newContentParts.find(p => p.kind === "text") as TextPart | undefined;
-                const otherContentParts = newContentParts.filter(p => p.kind !== "text");
-
                 // Check if we can append to the last message
-                if (lastMessage && !lastMessage.isUser && !lastMessage.isComplete && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && (textPartFromStream || newFileAttachments.length > 0)) {
+                if (lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
-                        parts: [...lastMessage.parts],
-                        files: lastMessage.files ? [...lastMessage.files] : [],
-                        isComplete: isFinalEvent || newFileAttachments.length > 0,
+                        parts: [...lastMessage.parts, ...newContentParts],
+                        isComplete: isFinalEvent || hasNewFiles,
                         metadata: {
                             ...lastMessage.metadata,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     };
-
-                    if (textPartFromStream) {
-                        const lastPart = updatedMessage.parts[updatedMessage.parts.length - 1];
-                        if (lastPart?.kind === "text") {
-                            updatedMessage.parts[updatedMessage.parts.length - 1] = { ...lastPart, text: lastPart.text + textPartFromStream.text };
-                        } else {
-                            updatedMessage.parts.push(textPartFromStream);
-                        }
-                    }
-
-                    if (otherContentParts.length > 0) {
-                        updatedMessage.parts.push(...otherContentParts);
-                    }
-
-                    if (newFileAttachments.length > 0) {
-                        updatedMessage.files!.push(...newFileAttachments);
-                    }
-
                     newMessages[newMessages.length - 1] = updatedMessage;
                 } else {
                     // Only create a new bubble if there is visible content to render.
-                    const hasVisibleContent = newContentParts.some(p => p.kind === "text" && p.text.trim());
-                    if (hasVisibleContent || newFileAttachments.length > 0 || artifactToProcess) {
+                    const hasVisibleContent = newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file");
+                    if (hasVisibleContent) {
                         const newBubble: MessageFE = {
                             role: "agent",
                             parts: newContentParts,
-                            files: newFileAttachments.length > 0 ? newFileAttachments : undefined,
                             taskId: (result as TaskStatusUpdateEvent).taskId,
                             isUser: false,
-                            isComplete: isFinalEvent || newFileAttachments.length > 0,
+                            isComplete: isFinalEvent || hasNewFiles,
                             metadata: {
-                                messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
+                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
                                 lastProcessedEventSequence: currentEventSequence,
                             },
                         };
-                        if (artifactToProcess) {
-                            newBubble.artifactNotification = { name: artifactToProcess.name || artifactToProcess.artifactId };
-                        }
                         newMessages.push(newBubble);
                     }
                 }
 
                 // Add a new status bubble if the task is not over
-                if (!isFinalEvent && latestStatusText.current) {
-                    newMessages.push({
-                        role: "agent",
-                        parts: [{ kind: "text", text: latestStatusText.current }],
-                        taskId: (result as TaskStatusUpdateEvent).taskId,
-                        isUser: false,
-                        isStatusBubble: true,
-                        isComplete: false,
-                        metadata: {
-                            messageId: `status-${v4()}`,
-                            lastProcessedEventSequence: currentEventSequence,
-                        },
-                    });
-                } else if (isFinalEvent) {
+                if (isFinalEvent) {
                     latestStatusText.current = null;
+                    // Finalize any lingering in-progress artifact parts for this task
+                    for (let i = newMessages.length - 1; i >= 0; i--) {
+                        const msg = newMessages[i];
+                        if (msg.taskId === currentTaskIdFromResult && msg.parts.some(p => p.kind === "artifact" && p.status === "in-progress")) {
+                            const finalParts: PartFE[] = msg.parts.map(p => {
+                                if (p.kind === "artifact" && p.status === "in-progress") {
+                                    // Mark in-progress part as failed
+                                    return { ...p, status: "failed", error: `Artifact creation for "${p.name}" did not complete.` };
+                                }
+                                return p;
+                            });
+                            newMessages[i] = {
+                                ...msg,
+                                parts: finalParts,
+                                isError: true, // Mark as error because it didn't complete
+                                isComplete: true,
+                            };
+                        }
+                    }
                     // Explicitly mark the last message as complete on the final event
                     const taskMessageIndex = newMessages.findLastIndex(msg => !msg.isUser && msg.taskId === currentTaskIdFromResult);
 
@@ -844,6 +1089,41 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     });
                 }
 
+                // Mark all in-progress artifacts as completed when task finishes
+                setMessages(currentMessages => {
+                    return currentMessages.map(msg => {
+                        if (msg.isUser) return msg;
+
+                        const hasInProgressArtifacts = msg.parts.some(
+                            p => p.kind === "artifact" && (p as ArtifactPart).status === "in-progress"
+                        );
+
+                        if (!hasInProgressArtifacts) return msg;
+
+                        return {
+                            ...msg,
+                            parts: msg.parts.map(part => {
+                                if (part.kind === "artifact" && (part as ArtifactPart).status === "in-progress") {
+                                    const artifactPart = part as ArtifactPart;
+                                    const fileAttachment: FileAttachment = {
+                                        name: artifactPart.name,
+                                        mime_type: artifactPart.file?.mime_type,
+                                        uri: `artifact://${sessionId}/${artifactPart.name}`,
+                                    };
+                                    const completedPart: ArtifactPart = {
+                                        kind: "artifact",
+                                        status: "completed",
+                                        name: artifactPart.name,
+                                        file: fileAttachment,
+                                    };
+                                    return completedPart;
+                                }
+                                return part;
+                            }),
+                        };
+                    });
+                });
+
                 setIsResponding(false);
                 closeCurrentEventSource();
                 setCurrentTaskId(null);
@@ -854,7 +1134,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
-        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble]
+        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble, downloadAndResolveArtifact]
     );
 
     const handleNewSession = useCallback(async () => {
@@ -868,7 +1148,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             try {
                 const cancelRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${v4()}`,
+                    id: `req-${crypto.randomUUID()}`,
                     method: "tasks/cancel",
                     params: {
                         id: currentTaskId,
@@ -894,12 +1174,26 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Reset frontend state - session will be created lazily when first message is sent
         console.log(`${log_prefix} Resetting session state - new session will be created when first message is sent`);
 
-        // Clear session ID and name - will be set when first message is sent
+        // Clear session ID - will be set by backend when first message is sent
         setSessionId("");
-        setSessionName(null);
 
-        setSelectedAgentName("");
-        setMessages([]);
+        // Reset UI state with empty session ID
+        const welcomeMessages: MessageFE[] = configWelcomeMessage
+            ? [
+                  {
+                      parts: [{ kind: "text", text: configWelcomeMessage }],
+                      isUser: false,
+                      isComplete: true,
+                      role: "agent",
+                      metadata: {
+                          sessionId: "", // Empty - will be populated when session is created
+                          lastProcessedEventSequence: 0,
+                      },
+                  },
+              ]
+            : [];
+
+        setMessages(welcomeMessages);
         setUserInput("");
         setIsResponding(false);
         setCurrentTaskId(null);
@@ -919,7 +1213,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         // Note: No session events dispatched here since no session exists yet.
         // Session creation event will be dispatched when first message creates the actual session.
-    }, [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, artifactsRefetch, closeCurrentEventSource]);
+    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, configWelcomeMessage, addNotification, artifactsRefetch]);
 
     const handleSwitchSession = useCallback(
         async (newSessionId: string) => {
@@ -933,7 +1227,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${v4()}`,
+                        id: `req-${crypto.randomUUID()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
@@ -963,8 +1257,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Load session metadata (name)
                 const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
                 if (sessionResponse.ok) {
-                    const session = await sessionResponse.json();
-                    setSessionName(session?.data?.name ?? "N/A");
+                    const sessionData = await sessionResponse.json();
+                    setSessionName(sessionData.name);
                 }
 
                 // Update session state
@@ -986,9 +1280,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const updateSessionName = useCallback(
-        async (sessionId: string, newName: string, showNotification: boolean = true) => {
-            if (!persistenceEnabled) return;
-
+        async (sessionId: string, newName: string) => {
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}`, {
                     method: "PATCH",
@@ -999,12 +1291,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const errorData = await response.json().catch(() => ({ detail: "Failed to update session name" }));
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
-
-                // Only show notification if explicitly requested
-                if (showNotification) {
-                    addNotification("Session name updated successfully.");
-                }
-
+                addNotification("Session name updated successfully.");
                 if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
@@ -1012,7 +1299,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 addNotification(`Error updating session name: ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
-        [apiPrefix, persistenceEnabled, addNotification]
+        [apiPrefix, addNotification]
     );
 
     const deleteSession = useCallback(
@@ -1039,6 +1326,42 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [apiPrefix, addNotification, handleNewSession, sessionId]
     );
+
+    // Artifact Rendering Actions
+    const toggleArtifactExpanded = useCallback((filename: string) => {
+        setArtifactRenderingState(prevState => {
+            const newExpandedArtifacts = new Set(prevState.expandedArtifacts);
+
+            if (newExpandedArtifacts.has(filename)) {
+                newExpandedArtifacts.delete(filename);
+            } else {
+                newExpandedArtifacts.add(filename);
+            }
+
+            return {
+                ...prevState,
+                expandedArtifacts: newExpandedArtifacts,
+            };
+        });
+    }, []);
+
+    const isArtifactExpanded = useCallback(
+        (filename: string) => {
+            return artifactRenderingState.expandedArtifacts.has(filename);
+        },
+        [artifactRenderingState.expandedArtifacts]
+    );
+
+    // Artifact Display and Cache Management
+    const markArtifactAsDisplayed = useCallback((filename: string, displayed: boolean) => {
+        setArtifacts(prevArtifacts => {
+            return prevArtifacts.map(artifact =>
+                artifact.filename === filename
+                    ? { ...artifact, isDisplayed: displayed }
+                    : artifact
+            );
+        });
+    }, [setArtifacts]);
 
     const openSessionDeleteModal = useCallback((session: Session) => {
         setSessionToDelete(session);
@@ -1071,7 +1394,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         try {
             const cancelRequest: CancelTaskRequest = {
                 jsonrpc: "2.0",
-                id: `req-${v4()}`,
+                id: `req-${crypto.randomUUID()}`,
                 method: "tasks/cancel",
                 params: {
                     id: currentTaskId,
@@ -1155,16 +1478,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleSubmit = useCallback(
         async (event: FormEvent, files?: File[] | null, userInputOverride?: string | null) => {
+            console.log("handleSubmit: using sessionId", sessionId);
             event.preventDefault();
             const currentInput = userInputOverride?.trim() || userInput.trim();
             const currentFiles = files || [];
-
             if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
                 if (!selectedAgentName) addNotification("Please select an agent first.");
                 if (isCancelling) addNotification("Cannot send new message while a task is being cancelled.");
                 return;
             }
-
             closeCurrentEventSource();
             isFinalizing.current = false;
             setIsResponding(true);
@@ -1172,88 +1494,59 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
 
-            const isNewSession = !sessionId;
-            let effectiveSessionId = sessionId || undefined;
-
             const userMsg: MessageFE = {
                 role: "user",
                 parts: [{ kind: "text", text: currentInput }],
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 metadata: {
-                    messageId: `msg-${v4()}`,
-                    sessionId: effectiveSessionId,
+                    messageId: `msg-${crypto.randomUUID()}`,
+                    sessionId: sessionId,
                     lastProcessedEventSequence: 0,
                 },
             };
-
             latestStatusText.current = "Thinking";
             setMessages(prev => [...prev, userMsg]);
             setUserInput("");
-
-            const errors: string[] = [];
-
             try {
                 // 1. Process files using hybrid approach
-                // For new sessions, process sequentially to ensure all files use the same session
-                // For existing sessions, process in parallel for better performance
-                const uploadedFileParts: FilePart[] = [];
-
-                if (isNewSession) {
-                    // Sequential processing for new sessions
-                    for (const file of currentFiles) {
-                        if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
-                            const base64Content = await fileToBase64(file);
-                            uploadedFileParts.push({ kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } });
+                const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
+                    if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
+                        // Small file: send inline as base64
+                        const base64Content = await fileToBase64(file);
+                        return {
+                            kind: "file",
+                            file: {
+                                bytes: base64Content,
+                                name: file.name,
+                                mimeType: file.type,
+                            },
+                        };
+                    } else {
+                        // Large file: upload and get URI
+                        const result = await uploadArtifactFile(file);
+                        if (result) {
+                            return {
+                                kind: "file",
+                                file: {
+                                    uri: result.uri,
+                                    name: file.name,
+                                    mimeType: file.type,
+                                },
+                            };
                         } else {
-                            const uploadResult = await uploadArtifactFile(file, effectiveSessionId);
-                            if (uploadResult) {
-                                // Capture session ID from first upload
-                                if (!effectiveSessionId && uploadResult.sessionId) {
-                                    effectiveSessionId = uploadResult.sessionId;
-                                    console.log(`Session created via artifact upload: ${effectiveSessionId}`);
-                                }
-                                uploadedFileParts.push({ kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } });
-                            } else {
-                                errors.push(`Failed to upload large file: ${file.name}`);
-                                addNotification(`Failed to upload large file: ${file.name}`, "error");
-                            }
+                            addNotification(`Failed to upload large file: ${file.name}`, "error");
+                            return null;
                         }
                     }
-                } else {
-                    // Parallel processing for existing sessions
-                    const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
-                        if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
-                            const base64Content = await fileToBase64(file);
-                            return { kind: "file", file: { bytes: base64Content, name: file.name, mimeType: file.type } };
-                        } else {
-                            const uploadResult = await uploadArtifactFile(file, effectiveSessionId);
-                            if (uploadResult) {
-                                return { kind: "file", file: { uri: uploadResult.uri, name: file.name, mimeType: file.type } };
-                            } else {
-                                errors.push(`Failed to upload large file: ${file.name}`);
-                                addNotification(`Failed to upload large file: ${file.name}`, "error");
-                                return null;
-                            }
-                        }
-                    });
-                    const results = await Promise.all(filePartsPromises);
-                    uploadedFileParts.push(...results.filter((p): p is FilePart => p !== null));
-                }
+                });
 
-                // If we created a session via artifact upload, update the session state
-                if (isNewSession && effectiveSessionId && effectiveSessionId !== sessionId) {
-                    setSessionId(effectiveSessionId);
-                    console.log(`Session created via artifact upload: ${effectiveSessionId}`);
-                }
+                const uploadedFileParts = (await Promise.all(filePartsPromises)).filter((p): p is FilePart => p !== null);
 
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
                 if (currentInput) {
                     messageParts.push({ kind: "text", text: currentInput });
-                }
-                if (errors.length > 0) {
-                    messageParts.push({ kind: "text", text: `\nNote: Some files failed to upload:\n- ${errors.join("\n- ")}` });
                 }
                 messageParts.push(...uploadedFileParts);
 
@@ -1262,24 +1555,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // 3. Construct the A2A message
+                console.log(`ChatProvider handleSubmit: Using sessionId for contextId: ${sessionId}`);
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
-                    messageId: `msg-${v4()}`,
+                    messageId: `msg-${crypto.randomUUID()}`,
                     kind: "message",
-                    contextId: effectiveSessionId,
-                    metadata: { agent_name: selectedAgentName },
+                    contextId: sessionId,
+                    metadata: {
+                        agent_name: selectedAgentName, // For gateway routing
+                    },
                 };
 
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${v4()}`,
+                    id: `req-${crypto.randomUUID()}`,
                     method: "message/stream",
-                    params: { message: a2aMessage },
+                    params: {
+                        message: a2aMessage,
+                    },
                 };
 
                 // 5. Send the request
+                console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
                 const response = await authenticatedFetch(`${apiPrefix}/message:stream`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -1288,29 +1587,33 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));
+                    console.error("ChatProvider handleSubmit: Error from /message:stream", response.status, errorData);
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
+
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;
                 const responseSessionId = (task as Task & { contextId?: string })?.contextId;
 
+                console.log(`ChatProvider handleSubmit: Extracted responseSessionId: ${responseSessionId}, current sessionId: ${sessionId}`);
+                console.log(`ChatProvider handleSubmit: Full result object:`, result);
+
                 if (!taskId) {
+                    console.error("ChatProvider handleSubmit: Backend did not return a valid taskId. Result:", result);
                     throw new Error("Backend did not return a valid taskId.");
                 }
 
-                if (responseSessionId && responseSessionId !== effectiveSessionId) {
-                    if (effectiveSessionId) {
-                        console.warn(`Backend returned a different session ID (${responseSessionId}) than expected (${effectiveSessionId}). Updating to: ${responseSessionId}`);
-                    } else {
-                        console.log(`Backend created new session: ${responseSessionId}`);
-                    }
+                // Update session ID if backend provided one (for new sessions)
+                console.log(`ChatProvider handleSubmit: Checking session update condition - responseSessionId: ${responseSessionId}, sessionId: ${sessionId}, different: ${responseSessionId !== sessionId}`);
+                if (responseSessionId && responseSessionId !== sessionId) {
+                    console.log(`ChatProvider handleSubmit: Updating sessionId from ${sessionId} to ${responseSessionId}`);
+                    const isNewSession = !sessionId || sessionId === "";
                     setSessionId(responseSessionId);
-                    effectiveSessionId = responseSessionId;
-                }
+                    // Update the user message metadata with the new session ID
+                    setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, metadata: { ...msg.metadata, sessionId: responseSessionId } } : msg)));
 
-                // Save initial task with user message (Step 10.2-10.3)
-                if (effectiveSessionId) {
+                    // Save initial task with user message (Step 10.2-10.3)
                     await saveTaskToBackend({
                         task_id: taskId,
                         user_message: currentInput,
@@ -1321,31 +1624,35 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             agent_name: selectedAgentName,
                         },
                     });
-                }
 
-                // If it was a new session, generate and persist its name.
-                if (isNewSession && responseSessionId) {
-                    const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
-                    const combinedText = textParts
-                        .map(p => p.text)
-                        .join(" ")
-                        .trim();
-                    if (combinedText) {
-                        const newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
-                        setSessionName(newSessionName);
-                        updateSessionName(responseSessionId, newSessionName, false);
+                    // If it was a new session, generate and persist its name
+                    if (isNewSession) {
+                        const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
+                        const combinedText = textParts
+                            .map(p => p.text)
+                            .join(" ")
+                            .trim();
+                        if (combinedText) {
+                            const newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
+                            setSessionName(newSessionName);
+                            await updateSessionName(responseSessionId, newSessionName);
+                        }
                     }
-                    if (typeof window !== "undefined") {
+
+                    // Trigger session list refresh for new sessions
+                    if (isNewSession && typeof window !== "undefined") {
                         window.dispatchEvent(new CustomEvent("new-chat-session"));
                     }
                 }
 
+                console.log(`ChatProvider handleSubmit: Received taskId ${taskId}. Setting currentTaskId and taskIdInSidePanel.`);
                 setCurrentTaskId(taskId);
                 setTaskIdInSidePanel(taskId);
 
                 // Update user message with taskId so it's included in final save
                 setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, taskId: taskId } : msg)));
             } catch (error) {
+                console.error("ChatProvider handleSubmit: Catch block error", error);
                 addNotification(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
                 setIsResponding(false);
                 setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
@@ -1357,6 +1664,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [sessionId, userInput, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble]
     );
 
+    // Auto-select agent when agents load and no agent is selected
     useEffect(() => {
         if (!selectedAgentName && agents.length > 0 && messages.length === 0) {
             const selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
@@ -1439,6 +1747,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         artifacts,
         artifactsLoading,
         artifactsRefetch,
+        setArtifacts,
         uploadArtifactFile,
         isSidePanelCollapsed,
         activeSidePanelTab,
@@ -1474,6 +1783,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setPreviewArtifact,
         updateSessionName,
         deleteSession,
+
+        /** Artifact Rendering Actions */
+        toggleArtifactExpanded,
+        isArtifactExpanded,
+        setArtifactRenderingState,
+        artifactRenderingState,
+
+        /** Artifact Display and Cache Management */
+        markArtifactAsDisplayed,
+        downloadAndResolveArtifact,
     };
 
     return <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>;
