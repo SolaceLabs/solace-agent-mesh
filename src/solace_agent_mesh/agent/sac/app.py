@@ -407,8 +407,8 @@ class SamAgentApp(App):
             # Overwrite the raw dict with the validated object for downstream use
             app_info["app_config"] = app_config
         except ValidationError as e:
-            log.error("Agent configuration validation failed:\n%s", e)
-            raise ValueError(f"Invalid agent configuration: {e}") from e
+            message = SamAgentAppConfig.format_validation_error_message(e, app_info['name'], app_config_dict.get('agent_name'))
+            raise ValueError(message) from e
 
         # The rest of the method can now safely use .get() on the app_config object,
         # ensuring full backward compatibility.
