@@ -11,8 +11,8 @@ from typing import Any
 from solace_ai_connector.components.component_base import ComponentBase
 
 from ..exceptions import MessageSizeExceededError
-
 from ..utils.message_utils import validate_message_size
+
 log = logging.getLogger(__name__)
 
 class SamComponentBase(ComponentBase, abc.ABC):
