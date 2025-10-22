@@ -158,6 +158,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Session State
     const [sessionName, setSessionName] = useState<string | null>(null);
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
+    const [isLoadingSession, setIsLoadingSession] = useState<boolean>(false);
 
     // Feedback State
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
@@ -954,6 +955,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const log_prefix = "ChatProvider.handleSwitchSession:";
             console.log(`${log_prefix} Switching to session ${newSessionId}...`);
 
+            setIsLoadingSession(true);
             closeCurrentEventSource();
 
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
@@ -1040,6 +1042,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             } catch (error) {
                 console.error(`${log_prefix} Failed to fetch session history:`, error);
                 addNotification("Error switching session. Please try again.", "error");
+            } finally {
+                setIsLoadingSession(false);
             }
         },
         [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks, activeProject, projects, setActiveProject]
@@ -1436,7 +1440,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [activeProject, handleNewSession]);
 
     useEffect(() => {
-        if (!selectedAgentName && agents.length > 0 && messages.length === 0) {
+        // Don't show welcome message if we're loading a session
+        if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
             const selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
             setSelectedAgentName(selectedAgent.name);
 
@@ -1454,7 +1459,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             ]);
         }
-    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId]);
+    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession]);
 
     useEffect(() => {
         if (currentTaskId && apiPrefix) {
