@@ -63,7 +63,7 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({
                 <DialogHeader>
                     <DialogTitle>Add Files to Project</DialogTitle>
                     <DialogDescription>
-                        Add descriptions for each file. This helps the AI understand the file's purpose.
+                        Add descriptions for each file. This helps Solace Agent Mesh understand the file's purpose.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">

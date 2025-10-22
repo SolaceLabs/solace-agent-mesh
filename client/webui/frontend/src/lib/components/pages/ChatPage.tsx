@@ -41,14 +41,11 @@ interface ChatPageProps {
 }
 
 export function ChatPage({ onExitProject }: ChatPageProps) {
-
     const { activeProject, setActiveProject } = useProjectContext();
-    const { agents, sessionId, sessionName, messages, setMessages, selectedAgentName, setSelectedAgentName, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, handleNewSession } = useChatContext();
-
+    const { agents, sessionName, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, handleNewSession } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
-    const [isChatSessionDialogOpen, setChatSessionDialogOpen] = useState(false);
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -130,34 +127,6 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
         };
     }, [isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
 
-    useEffect(() => {
-        if (!selectedAgentName && agents.length > 0) {
-            const orchestratorAgent = agents.find(agent => agent.name === "OrchestratorAgent");
-            const agentName = orchestratorAgent ? orchestratorAgent.name : agents[0].name;
-
-            setSelectedAgentName(agentName);
-
-            const selectedAgent = agents.find(agent => agent.name === agentName);
-            const displayedText = selectedAgent?.displayName ? `Hi! I'm the ${selectedAgent?.displayName}. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
-
-            setMessages(prev => {
-                const filteredMessages = prev.filter(msg => !msg.isStatusBubble);
-                return [
-                    ...filteredMessages,
-                    {
-                        role: "agent",
-                        kind: "message",
-                        messageId: `welcome-${Date.now()}`,
-                        parts: [{ kind: "text", text: displayedText }],
-                        isUser: false,
-                        isComplete: true,
-                        metadata: { sessionId, lastProcessedEventSequence: 0 },
-                    },
-                ];
-            });
-        }
-    }, [agents, selectedAgentName, sessionId, setMessages, setSelectedAgentName]);
-
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
         messages.forEach((message, index) => {
@@ -215,13 +184,12 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
                     leadingAction={
                         isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
-                                <Button variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Sessions Panel">
+                                <Button variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
                                     <PanelLeftIcon className="size-5" />
                                 </Button>
-                                <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-                                <Button variant="ghost" onClick={() => setChatSessionDialogOpen(true)} className="h-10 w-10 p-0" tooltip="Start New Chat Session">
-                                    <Edit className="size-5" />
-                                </Button>
+                                <div className="h-6 border-r"></div>
+
+                                <ChatSessionDialog />
                             </div>
                         ) : null
                     }
@@ -252,15 +220,15 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
                                 )}
                                 <div className="flex flex-1 flex-col py-6 min-h-0">
                                     <ChatMessageList className="text-base" ref={chatMessageListRef}>
-                                    {messages.map((message, index) => {
-                                        const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                        return <ChatMessage message={message} key={`${message.metadata?.sessionId || "session"}-${index}-${message.isUser ? "received" : "sent"}`} isLastWithTaskId={isLastWithTaskId} />;
-                                    })}
-                                </ChatMessageList>
-                                <div style={CHAT_STYLES}>
-                                    {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
-                                    <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
-                                </div>
+                                        {messages.map((message, index) => {
+                                            const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
+                                            return <ChatMessage message={message} key={`${message.metadata?.sessionId || "session"}-${index}-${message.isUser ? "received" : "sent"}`} isLastWithTaskId={isLastWithTaskId} />;
+                                        })}
+                                    </ChatMessageList>
+                                    <div style={CHAT_STYLES}>
+                                        {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
+                                        <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                    </div>
                                 </div>
                             </div>
                         </ResizablePanel>
@@ -285,7 +253,6 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
                     </ResizablePanelGroup>
                 </div>
             </div>
-            <ChatSessionDialog isOpen={isChatSessionDialogOpen} onClose={() => setChatSessionDialogOpen(false)} />
             <ChatSessionDeleteDialog isOpen={!!sessionToDelete} onClose={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`} />
         </div>
     );
