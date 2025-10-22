@@ -10,7 +10,7 @@ interface NewChatButtonProps {
 
 const NewChatButton: React.FC<NewChatButtonProps> = ({ text, onClick }) => {
     return (
-        <Button variant="ghost" onClick={onClick} tooltip="Start New Chat Session">
+        <Button data-testid="startNewChat" variant="ghost" onClick={onClick} tooltip="Start New Chat Session">
             <Edit className="size-5" />
             {text}
         </Button>
