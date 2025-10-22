@@ -4,13 +4,14 @@ import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { Ban, Paperclip, Send } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
-import { useChatContext, useDragAndDrop, useDebounce } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useDebounce, useAgentSelection } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
 
 import { FileBadge } from "./file/FileBadge";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
-    const { isResponding, isCancelling, userInput, selectedAgentName, setSelectedAgentName, setUserInput, handleSubmit, handleCancel } = useChatContext();
+    const { isResponding, isCancelling, userInput, selectedAgentName, setUserInput, handleSubmit, handleCancel } = useChatContext();
+    const { handleAgentSelection } = useAgentSelection();
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -161,7 +162,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 </Button>
 
                 <div>Agent: </div>
-                <Select value={selectedAgentName} onValueChange={setSelectedAgentName} disabled={isResponding || agents.length === 0}>
+                <Select value={selectedAgentName} onValueChange={handleAgentSelection} disabled={isResponding || agents.length === 0}>
                     <SelectTrigger className="w-[250px]">
                         <SelectValue defaultValue={selectedAgentName} />
                     </SelectTrigger>

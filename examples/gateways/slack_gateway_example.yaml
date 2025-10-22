@@ -39,10 +39,8 @@ apps:
     # App Level Config - Validated by SlackGatewayApp.app_schema
     app_config:
       # --- Required ---
-      namespace: ${NAMESPACE} 
-      slack_bot_token: ${SLACK_BOT_TOKEN}
-      slack_app_token: ${SLACK_APP_TOKEN}
-
+      namespace: ${NAMESPACE}
+    
       # --- Artifact Service (Required for late embeds) ---
       # Example using filesystem, ensure path exists and is accessible
       # Scope 'namespace' means artifacts are shared with other components
@@ -62,9 +60,24 @@ apps:
       gateway_recursive_embed_depth: 3
 
       # --- Slack Behavior ---
+      slack_bot_token: ${SLACK_BOT_TOKEN}
+      slack_app_token: ${SLACK_APP_TOKEN}
       slack_initial_status_message: ":thinking_face: Thinking..." # Set empty "" to disable
       correct_markdown_formatting: true
       slack_email_cache_ttl_seconds: 0 # Set to 0 for immediate testing of email identity
+
+      # --- System Purpose ---
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned.
+            Format responses to the user in Markdown using appropriate formatting.
 
       # --- Optional Feedback Config ---
       # feedback_enabled: true
@@ -72,19 +85,3 @@ apps:
       # feedback_post_headers:
       #   Authorization: "Bearer your_feedback_token"
       #   Content-Type: "application/json"
-
-      # --- Authorization Service Configuration (Example using default_rbac) ---
-      authorization_service:
-        type: "default_rbac" # Use the GDK's built-in RBAC service
-        # Paths to your role and user assignment YAML files.
-        # These can be absolute paths or relative to the directory where SAC is run.
-        # Using environment variables for flexibility is recommended.
-        role_definitions_path: ${ROLE_DEFINITIONS_PATH, examples/auth/dev-roles.yaml}
-        user_assignments_path: ${USER_ASSIGNMENTS_PATH, examples/auth/dev-users.yaml}
-
-          # Optional: Custom Python providers for more dynamic role/scope lookups.
-          # If these are not provided, the service relies solely on the YAML files.
-          # custom_role_provider_module: "my_company.auth.slack_roles"
-          # custom_role_provider_function: "get_user_roles_from_ldap"
-          # custom_scope_provider_module: "my_company.auth.slack_scopes"
-          # custom_scope_provider_function: "get_scopes_for_role_from_policy_db"

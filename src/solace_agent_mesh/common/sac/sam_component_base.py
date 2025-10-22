@@ -2,17 +2,18 @@
 Base Component class for SAM implementations in the Solace AI Connector.
 """
 
+import logging
 import abc
 import asyncio
 import threading
 from typing import Any
 
-from solace_ai_connector.common.log import log
 from solace_ai_connector.components.component_base import ComponentBase
 
 from ..exceptions import MessageSizeExceededError
 from ..utils.message_utils import validate_message_size
 
+log = logging.getLogger(__name__)
 
 class SamComponentBase(ComponentBase, abc.ABC):
     """

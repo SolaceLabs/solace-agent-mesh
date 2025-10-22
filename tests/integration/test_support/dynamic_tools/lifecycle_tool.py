@@ -2,16 +2,18 @@
 A DynamicTool for testing lifecycle hooks.
 It uses the lifecycle_tracker to record when its init and cleanup methods are called.
 """
+import logging
 from typing import Optional, Any
 from pathlib import Path
 
 from google.adk.tools import ToolContext
 from google.genai import types as adk_types
-from solace_ai_connector.common.log import log
 
 from solace_agent_mesh.agent.tools.dynamic_tool import DynamicTool
 from solace_agent_mesh.agent.tools.tool_config_types import AnyToolConfig
 from tests.integration.test_support.lifecycle_tracker import track
+
+log = logging.getLogger(__name__)
 
 if "SamAgentComponent" not in globals():
     from solace_agent_mesh.agent.sac.component import SamAgentComponent

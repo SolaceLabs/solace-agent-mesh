@@ -1,20 +1,27 @@
+import { useThemeContext } from "@/lib/hooks/useThemeContext";
+
 interface ErrorIllustrationProps {
     width?: number;
     height?: number;
 }
 
 export function ErrorIllustration({ width = 24, height = 24 }: ErrorIllustrationProps) {
+    const { currentTheme } = useThemeContext();
+
+    const fill = currentTheme === "dark" ? "var(--color-background-wMain)" : "var(--color-background-w10)";
+    const errorFill = currentTheme === "dark" ? "var(--color-error-w100)" : "var(--color-error-w10)";
+
     return (
         <svg width={width} height={height} focusable="false" aria-hidden="true" viewBox="0 0 131 131" fill="none">
             <path
                 d="M119.681 63.9952C119.681 94.0948 95.2807 118.495 65.1812 118.495C35.0816 118.495 10.6812 94.0948 10.6812 63.9952C10.6812 33.8957 35.0816 9.49524 65.1812 9.49524C95.2807 9.49524 119.681 33.8957 119.681 63.9952Z"
-                fill="var(--color-error-w10)"
+                fill={errorFill}
             />
             <path d="M2.68115 119.495H128.681V120.495H2.68115V119.495Z" fill="var(--color-secondary-wMain)" />
-            <rect x={14} y={34} width={104.054} height={70.6982} rx={1} fill="var(--color-background-w10)" stroke="var(--color-secondary-wMain)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            <rect x={14} y={34} width={104.054} height={70.6982} rx={1} fill={fill} stroke="var(--color-secondary-wMain)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
             <path
                 d="M59.4929 105.314C59.6018 104.866 60.0032 104.55 60.4646 104.55H72.4448C72.9061 104.55 73.3076 104.866 73.4165 105.314L75.1457 112.433C75.2986 113.062 74.8218 113.669 74.174 113.669H58.7354C58.0876 113.669 57.6107 113.062 57.7637 112.433L59.4929 105.314Z"
-                fill="var(--color-background-w10)"
+                fill={fill}
                 stroke="var(--color-secondary-wMain)"
                 strokeWidth={2}
                 strokeLinecap="round"
@@ -22,7 +29,7 @@ export function ErrorIllustration({ width = 24, height = 24 }: ErrorIllustration
             />
             <path
                 d="M47.7852 114.103C47.7852 113.55 48.2329 113.103 48.7852 113.103H83.2724C83.8247 113.103 84.2724 113.55 84.2724 114.103V118.656C84.2724 119.208 83.8247 119.656 83.2724 119.656H48.7852C48.2329 119.656 47.7852 119.208 47.7852 118.656V114.103Z"
-                fill="var(--color-background-w10)"
+                fill={fill}
                 stroke="var(--color-secondary-wMain)"
                 strokeWidth={2}
                 strokeLinecap="round"
@@ -56,7 +63,7 @@ export function ErrorIllustration({ width = 24, height = 24 }: ErrorIllustration
             />
             <defs>
                 <clipPath id="clip0_1688:196070">
-                    <rect width={24} height={24} fill="var(--color-background-w10)" transform="translate(54.1626 45.2181)" />
+                    <rect width={24} height={24} fill={fill} transform="translate(54.1626 45.2181)" />
                 </clipPath>
             </defs>
         </svg>

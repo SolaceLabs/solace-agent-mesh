@@ -5,7 +5,9 @@ with the AgentRegistry.
 
 from typing import List, Optional
 
-from solace_ai_connector.common.log import log
+import logging
+
+log = logging.getLogger(__name__)
 
 from ....common.agent_registry import AgentRegistry
 from a2a.types import AgentCard

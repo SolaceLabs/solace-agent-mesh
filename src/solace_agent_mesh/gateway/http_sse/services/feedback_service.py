@@ -3,10 +3,10 @@ Service layer for handling user feedback on chat messages.
 """
 
 import json
+import logging
 import uuid
 from typing import TYPE_CHECKING, Callable
 
-from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DBSession
 
 from ..repository.entities import Feedback
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
     from ..repository.interfaces import ITaskRepository
 
+log = logging.getLogger(__name__)
 
 class FeedbackService:
     """Handles the business logic for processing user feedback."""
@@ -70,8 +71,8 @@ class FeedbackService:
 
                 db = self.session_factory()
                 try:
-                    repo = FeedbackRepository(db)
-                    repo.save(feedback_entity)
+                    repo = FeedbackRepository()
+                    repo.save(db, feedback_entity)
                     db.commit()
                     log.info(
                         "Feedback from user '%s' for task '%s' saved to database.",
@@ -130,14 +131,14 @@ class FeedbackService:
         db = self.session_factory()
         try:
             from ..repository.chat_task_repository import ChatTaskRepository
-            
-            task_repo = ChatTaskRepository(db)
-            task = task_repo.find_by_id(task_id, user_id)
-            
+
+            task_repo = ChatTaskRepository()
+            task = task_repo.find_by_id(db, task_id, user_id)
+
             if task:
                 # Update feedback in task metadata
                 task.add_feedback(feedback_type, feedback_text)
-                task_repo.save(task)
+                task_repo.save(db, task)
                 db.commit()
                 log.info(
                     "Updated task metadata with feedback for task '%s' by user '%s'",
@@ -186,45 +187,53 @@ class FeedbackService:
 
         if include_task_info == "summary":
             log.debug("%s Including task summary.", log_id)
-            task_summary_data = self.task_repo.find_by_id(payload.task_id)
-            if task_summary_data:
-                event_payload["task_summary"] = task_summary_data.model_dump()
+            db = self.session_factory()
+            try:
+                task_summary_data = self.task_repo.find_by_id(db, payload.task_id)
+                if task_summary_data:
+                    event_payload["task_summary"] = task_summary_data.model_dump()
+            finally:
+                db.close()
 
         elif include_task_info == "stim":
             log.debug("%s Including task stim data.", log_id)
-            task_with_events = self.task_repo.find_by_id_with_events(payload.task_id)
-            if task_with_events:
-                task, events = task_with_events
-                stim_data = create_stim_from_task_data(task, events)
-                event_payload["task_stim_data"] = stim_data
+            db = self.session_factory()
+            try:
+                task_with_events = self.task_repo.find_by_id_with_events(db, payload.task_id)
+                if task_with_events:
+                    task, events = task_with_events
+                    stim_data = create_stim_from_task_data(task, events)
+                    event_payload["task_stim_data"] = stim_data
 
-                # Check payload size
-                max_size = config.get("max_payload_size_bytes", 9000000)
-                try:
-                    payload_bytes = json.dumps(event_payload).encode("utf-8")
-                    if len(payload_bytes) > max_size:
-                        log.warning(
-                            "%s Stim payload size (%d bytes) exceeds limit (%d bytes). Falling back to summary.",
-                            log_id,
-                            len(payload_bytes),
-                            max_size,
-                        )
-                        # Fallback to summary
-                        del event_payload["task_stim_data"]
-                        task_summary_data = self.task_repo.find_by_id(payload.task_id)
-                        if task_summary_data:
-                            event_payload[
-                                "task_summary"
-                            ] = task_summary_data.model_dump()
-                        event_payload["truncation_details"] = {
-                            "strategy": "fallback_to_summary",
-                            "reason": "payload_too_large",
-                        }
-                except Exception as e:
-                    log.error("%s Error checking payload size: %s", log_id, e)
-                    # If we can't check size, better to not send a potentially huge message
-                    if "task_stim_data" in event_payload:
-                        del event_payload["task_stim_data"]
+                    # Check payload size
+                    max_size = config.get("max_payload_size_bytes", 9000000)
+                    try:
+                        payload_bytes = json.dumps(event_payload).encode("utf-8")
+                        if len(payload_bytes) > max_size:
+                            log.warning(
+                                "%s Stim payload size (%d bytes) exceeds limit (%d bytes). Falling back to summary.",
+                                log_id,
+                                len(payload_bytes),
+                                max_size,
+                            )
+                            # Fallback to summary
+                            del event_payload["task_stim_data"]
+                            task_summary_data = self.task_repo.find_by_id(db, payload.task_id)
+                            if task_summary_data:
+                                event_payload[
+                                    "task_summary"
+                                ] = task_summary_data.model_dump()
+                            event_payload["truncation_details"] = {
+                                "strategy": "fallback_to_summary",
+                                "reason": "payload_too_large",
+                            }
+                    except Exception as e:
+                        log.error("%s Error checking payload size: %s", log_id, e)
+                        # If we can't check size, better to not send a potentially huge message
+                        if "task_stim_data" in event_payload:
+                            del event_payload["task_stim_data"]
+            finally:
+                db.close()
 
         # Publish the event
         topic = config.get("topic", "sam/feedback/v1")

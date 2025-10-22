@@ -2,16 +2,17 @@
 Service for managing automatic cleanup of old data based on retention policies.
 """
 
+import logging
 import time
 from typing import Any, Callable, Dict
 
-from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session as DBSession
 
 from ..repository.feedback_repository import FeedbackRepository
 from ..repository.task_repository import TaskRepository
 from ..shared import now_epoch_ms
 
+log = logging.getLogger(__name__)
 
 class DataRetentionService:
     """
@@ -187,8 +188,8 @@ class DataRetentionService:
 
         db = self.session_factory()
         try:
-            repo = TaskRepository(db)
-            total_deleted = repo.delete_tasks_older_than(cutoff_time_ms, batch_size)
+            repo = TaskRepository()
+            total_deleted = repo.delete_tasks_older_than(db, cutoff_time_ms, batch_size)
 
             if total_deleted == 0:
                 log.info(
@@ -240,8 +241,8 @@ class DataRetentionService:
 
         db = self.session_factory()
         try:
-            repo = FeedbackRepository(db)
-            total_deleted = repo.delete_feedback_older_than(cutoff_time_ms, batch_size)
+            repo = FeedbackRepository()
+            total_deleted = repo.delete_feedback_older_than(db, cutoff_time_ms, batch_size)
 
             if total_deleted == 0:
                 log.info(

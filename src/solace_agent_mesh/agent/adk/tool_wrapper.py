@@ -2,12 +2,11 @@
 Defines the ADKToolWrapper, a consolidated wrapper for ADK tools.
 """
 
+import logging
 import asyncio
 import functools
 import inspect
 from typing import Callable, Dict, List, Optional, Literal
-
-from solace_ai_connector.common.log import log
 
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
@@ -17,6 +16,7 @@ from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
 )
 
+log = logging.getLogger(__name__)
 
 class ADKToolWrapper:
     """

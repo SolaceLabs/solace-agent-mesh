@@ -1,0 +1,8 @@
+This is a plain text test file.
+It contains multiple lines.
+Used for testing text/plain content type handling.
+
+Line 4 with some content.
+Line 5 with more content.
+
+End of test file.

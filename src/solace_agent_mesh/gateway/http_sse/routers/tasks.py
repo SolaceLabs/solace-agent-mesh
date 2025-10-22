@@ -2,65 +2,58 @@
 API Router for submitting and managing tasks to agents.
 """
 
+import logging
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
 import yaml
-from datetime import datetime
-from fastapi import (
-    APIRouter,
-    Depends,
-    HTTPException,
-    Request as FastAPIRequest,
-    Response,
-    status,
-)
-from fastapi.exceptions import RequestValidationError
-from typing import List, Optional, Union
-
-from solace_ai_connector.common.log import log
-
-from ....gateway.http_sse.session_manager import SessionManager
-from ....gateway.http_sse.services.task_service import TaskService
-from ..services.project_service import ProjectService
-from ....gateway.http_sse.services.session_service import SessionService
-from ....gateway.http_sse.repository.interfaces import ITaskRepository
-from ....gateway.http_sse.repository.entities import Task
-from ....gateway.http_sse.shared.types import PaginationParams, UserId
-from ..utils.stim_utils import create_stim_from_task_data
-
 from a2a.types import (
     CancelTaskRequest,
     SendMessageRequest,
-    SendStreamingMessageRequest,
     SendMessageSuccessResponse,
+    SendStreamingMessageRequest,
     SendStreamingMessageSuccessResponse,
 )
-from ....common import a2a
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import Request as FastAPIRequest
+from sqlalchemy.orm import Session as DBSession
 
-from ....gateway.http_sse.dependencies import (
-    get_session_manager,
-    get_sac_component,
-    get_task_service,
-    get_session_business_service,
-    get_task_repository,
-    get_user_id,
-    get_user_config,
-    get_session_business_service,
-)
-from ....gateway.http_sse.dependencies import get_project_service
+from src.solace_agent_mesh.gateway.http_sse.services.project_service import ProjectService
+
 from ....agent.utils.artifact_helpers import (
     get_artifact_info_list,
     load_artifact_content_or_metadata,
     save_artifact_with_metadata,
 )
-from ..services.project_service import GLOBAL_PROJECT_USER_ID
-from datetime import datetime, timezone
-from ....gateway.http_sse.services.session_service import SessionService
 
-from typing import TYPE_CHECKING
+from ....common import a2a
+from ....gateway.http_sse.dependencies import (
+    get_db,
+    get_project_service,
+    get_sac_component,
+    get_session_business_service,
+    get_session_manager,
+    get_task_repository,
+    get_task_service,
+    get_user_config,
+    get_user_id,
+)
+from ....gateway.http_sse.repository.entities import Task
+from ....gateway.http_sse.repository.interfaces import ITaskRepository
+from ....gateway.http_sse.services.project_service import GLOBAL_PROJECT_USER_ID
+from ....gateway.http_sse.services.session_service import SessionService
+from ....gateway.http_sse.services.task_service import TaskService
+from ....gateway.http_sse.session_manager import SessionManager
+from ....gateway.http_sse.shared.pagination import PaginationParams
+from ....gateway.http_sse.shared.types import UserId
+from ..utils.stim_utils import create_stim_from_task_data
 
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
 
 router = APIRouter()
+
+log = logging.getLogger(__name__)
 
 
 async def _inject_project_context(
@@ -190,7 +183,7 @@ async def _inject_project_context(
 
 async def _submit_task(
     request: FastAPIRequest,
-    payload: Union[SendMessageRequest, SendStreamingMessageRequest],
+    payload: SendMessageRequest | SendStreamingMessageRequest,
     session_manager: SessionManager,
     component: "WebUIBackendComponent",
     project_service: ProjectService,
@@ -423,25 +416,25 @@ async def _submit_task(
         )
 
 
-@router.get("/tasks", response_model=List[Task], tags=["Tasks"])
+@router.get("/tasks", response_model=list[Task], tags=["Tasks"])
 async def search_tasks(
     request: FastAPIRequest,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    search: Optional[str] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     page: int = 1,
     page_size: int = 20,
-    query_user_id: Optional[str] = None,
+    query_user_id: str | None = None,
+    db: DBSession = Depends(get_db),
     user_id: UserId = Depends(get_user_id),
     user_config: dict = Depends(get_user_config),
     repo: ITaskRepository = Depends(get_task_repository),
 ):
     """
-    Lists and searches for historical tasks.
-    - Regular users can only search their own tasks.
-    - Users with the 'tasks:read:all' scope can search for any user's tasks by providing `query_user_id`.
+    Lists and filters historical tasks by date.
+    - Regular users can only view their own tasks.
+    - Users with the 'tasks:read:all' scope can view any user's tasks by providing `query_user_id`.
     """
-    log_prefix = f"[GET /api/v1/tasks] "
+    log_prefix = "[GET /api/v1/tasks] "
     log.info("%sRequest from user %s", log_prefix, user_id)
 
     target_user_id = user_id
@@ -485,14 +478,14 @@ async def search_tasks(
                 detail="Invalid end_date format. Use ISO 8601 format.",
             )
 
-    pagination = PaginationParams(page=page, page_size=page_size)
+    pagination = PaginationParams(page_number=page, page_size=page_size)
 
     try:
         tasks = repo.search(
+            db,
             user_id=target_user_id,
             start_date=start_time_ms,
             end_date=end_time_ms,
-            search_query=search,
             pagination=pagination,
         )
         return tasks
@@ -508,6 +501,7 @@ async def search_tasks(
 async def get_task_as_stim_file(
     task_id: str,
     request: FastAPIRequest,
+    db: DBSession = Depends(get_db),
     user_id: UserId = Depends(get_user_id),
     user_config: dict = Depends(get_user_config),
     repo: ITaskRepository = Depends(get_task_repository),
@@ -519,7 +513,7 @@ async def get_task_as_stim_file(
     log.info("%sRequest from user %s", log_prefix, user_id)
 
     try:
-        result = repo.find_by_id_with_events(task_id)
+        result = repo.find_by_id_with_events(db, task_id)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

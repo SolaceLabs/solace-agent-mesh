@@ -2,15 +2,17 @@
 Defines the abstract base class and factory for creating Employee Service providers.
 """
 
+import logging
 import importlib
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 import importlib.metadata as metadata
 
-from solace_ai_connector.common.log import log
+
 from ..utils.in_memory_cache import InMemoryCache
 import pandas as pd
 
+log = logging.getLogger(__name__)
 
 class BaseEmployeeService(ABC):
     """

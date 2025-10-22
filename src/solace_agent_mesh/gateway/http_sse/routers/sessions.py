@@ -1,10 +1,6 @@
-"""
-Session API controller using 3-tiered architecture.
-"""
-
 from typing import Optional
+import logging
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from solace_ai_connector.common.log import log
 from sqlalchemy.orm import Session
 
 from ..dependencies import get_session_business_service, get_db
@@ -19,6 +15,8 @@ from .dto.requests.session_requests import (
 from .dto.requests.task_requests import SaveTaskRequest
 from .dto.responses.session_responses import SessionResponse
 from .dto.responses.task_responses import TaskResponse, TaskListResponse
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -161,8 +159,8 @@ async def save_task(
         # Check if task already exists to determine status code
         from ..repository.chat_task_repository import ChatTaskRepository
 
-        task_repo = ChatTaskRepository(db)
-        existing_task = task_repo.find_by_id(request.task_id, user_id)
+        task_repo = ChatTaskRepository()
+        existing_task = task_repo.find_by_id(db, request.task_id, user_id)
         is_update = existing_task is not None
 
         # Save the task - pass strings directly

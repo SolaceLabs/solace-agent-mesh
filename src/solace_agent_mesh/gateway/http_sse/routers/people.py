@@ -2,15 +2,17 @@
 API endpoints for people-related features, such as user search for autocomplete.
 """
 
+import logging
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, Query
-from solace_ai_connector.common.log import log
 
 from ..dependencies import get_people_service
 from ..services.people_service import PeopleService
 from ..shared.pagination import DataResponse
 from ..shared.response_utils import create_data_response
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 

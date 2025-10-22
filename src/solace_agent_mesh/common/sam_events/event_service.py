@@ -5,14 +5,15 @@ Provides event publishing and subscription for system events like session lifecy
 agent health, configuration changes, etc.
 """
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, Optional, Callable, List
 
-from solace_ai_connector.common.log import log
 from ..a2a.protocol import get_sam_events_topic
 
+log = logging.getLogger(__name__)
 
 @dataclass
 class SamEvent:

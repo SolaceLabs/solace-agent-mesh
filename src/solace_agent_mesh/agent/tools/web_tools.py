@@ -2,6 +2,7 @@
 Collection of Python tools for web-related tasks, such as making HTTP requests.
 """
 
+import logging
 import json
 import uuid
 from datetime import datetime, timezone
@@ -15,7 +16,6 @@ from markdownify import markdownify as md
 from bs4 import BeautifulSoup
 
 from google.adk.tools import ToolContext
-from solace_ai_connector.common.log import log
 
 from ...agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
@@ -27,6 +27,7 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 
+log = logging.getLogger(__name__)
 
 CATEGORY_NAME = "Web Access"
 CATEGORY_DESCRIPTION = "Access the web to find information to complete user requests."
@@ -91,7 +92,12 @@ async def web_request(
         log.error(f"{log_identifier} ToolContext is missing.")
         return {"status": "error", "message": "ToolContext is missing."}
 
-    if not _is_safe_url(url):
+    # Check if loopback URLs are allowed (for testing)
+    allow_loopback = False
+    if tool_config:
+        allow_loopback = tool_config.get("allow_loopback", False)
+    
+    if not allow_loopback and not _is_safe_url(url):
         log.error(f"{log_identifier} URL is not safe to request: {url}")
         return {"status": "error", "message": "URL is not safe to request."}
 
@@ -149,10 +155,9 @@ async def web_request(
             )
 
         response_content_bytes = response.content
-        response_headers = dict(response.headers)
         response_status_code = response.status_code
         original_content_type = (
-            response_headers.get("content-type", "application/octet-stream")
+            response.headers.get("content-type", "application/octet-stream")
             .split(";")[0]
             .strip()
         )
@@ -237,7 +242,7 @@ async def web_request(
                 {k: v for k, v in headers.items() if k.lower() != "authorization"}
             ),
             "response_status_code": response_status_code,
-            "response_headers": json.dumps(response_headers),
+            "response_headers": json.dumps(dict(response.headers)),
             "original_content_type": original_content_type,
             "processed_content_type": processed_content_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -284,7 +289,8 @@ async def web_request(
         return {
             "status": "success",
             "message": f"Successfully fetched content from {url} (status: {response_status_code}). "
-            f"Saved as artifact '{final_artifact_filename}' v{save_result['data_version']}.",
+            f"Saved as artifact '{final_artifact_filename}' v{save_result['data_version']}. "
+            f"Analyze the content of '{final_artifact_filename}' before providing a final answer to the user.",
             "output_filename": final_artifact_filename,
             "output_version": save_result["data_version"],
             "response_status_code": response_status_code,

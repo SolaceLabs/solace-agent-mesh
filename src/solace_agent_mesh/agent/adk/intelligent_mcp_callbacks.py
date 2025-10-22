@@ -5,6 +5,7 @@ This module contains the refactored MCP callback functions that use intelligent
 content processing to save MCP tool responses as appropriately typed artifacts.
 """
 
+import logging
 import json
 import uuid
 from datetime import datetime, timezone
@@ -13,7 +14,6 @@ from enum import Enum
 from pydantic import BaseModel
 
 from google.adk.tools import ToolContext, BaseTool
-from solace_ai_connector.common.log import log
 
 from .mcp_content_processor import MCPContentProcessor, MCPContentProcessorConfig
 from ...agent.utils.artifact_helpers import (
@@ -22,6 +22,7 @@ from ...agent.utils.artifact_helpers import (
 )
 from ...agent.utils.context_helpers import get_original_session_id
 
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ...agent.sac.component import SamAgentComponent

@@ -16,12 +16,9 @@ from .models import ChatTaskModel
 class ChatTaskRepository(IChatTaskRepository):
     """SQLAlchemy implementation of chat task repository."""
 
-    def __init__(self, db: DBSession):
-        self.db = db
-
-    def save(self, task: ChatTask) -> ChatTask:
+    def save(self, session: DBSession, task: ChatTask) -> ChatTask:
         """Save or update a chat task (upsert)."""
-        existing = self.db.query(ChatTaskModel).filter(
+        existing = session.query(ChatTaskModel).filter(
             ChatTaskModel.id == task.id
         ).first()
 
@@ -43,12 +40,12 @@ class ChatTaskRepository(IChatTaskRepository):
                 created_time=task.created_time,
                 updated_time=task.updated_time
             )
-            self.db.add(model)
+            session.add(model)
 
-        self.db.commit()
+        session.flush()
 
         # Reload to get updated values
-        model = self.db.query(ChatTaskModel).filter(
+        model = session.query(ChatTaskModel).filter(
             ChatTaskModel.id == task.id
         ).first()
 
@@ -56,11 +53,12 @@ class ChatTaskRepository(IChatTaskRepository):
 
     def find_by_session(
         self,
+        session: DBSession,
         session_id: SessionId,
         user_id: UserId
     ) -> List[ChatTask]:
         """Find all tasks for a session."""
-        models = self.db.query(ChatTaskModel).filter(
+        models = session.query(ChatTaskModel).filter(
             ChatTaskModel.session_id == session_id,
             ChatTaskModel.user_id == user_id
         ).order_by(ChatTaskModel.created_time.asc()).all()
@@ -69,23 +67,24 @@ class ChatTaskRepository(IChatTaskRepository):
 
     def find_by_id(
         self,
+        session: DBSession,
         task_id: str,
         user_id: UserId
     ) -> Optional[ChatTask]:
         """Find a specific task."""
-        model = self.db.query(ChatTaskModel).filter(
+        model = session.query(ChatTaskModel).filter(
             ChatTaskModel.id == task_id,
             ChatTaskModel.user_id == user_id
         ).first()
 
         return self._model_to_entity(model) if model else None
 
-    def delete_by_session(self, session_id: SessionId) -> bool:
+    def delete_by_session(self, session: DBSession, session_id: SessionId) -> bool:
         """Delete all tasks for a session."""
-        result = self.db.query(ChatTaskModel).filter(
+        result = session.query(ChatTaskModel).filter(
             ChatTaskModel.session_id == session_id
         ).delete()
-        self.db.commit()
+        session.flush()
         return result > 0
 
     def _model_to_entity(self, model: ChatTaskModel) -> ChatTask:

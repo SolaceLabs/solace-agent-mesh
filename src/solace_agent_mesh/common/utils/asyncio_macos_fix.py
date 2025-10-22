@@ -8,8 +8,10 @@ The issue occurs because the default event loop policy on macOS doesn't implemen
 get_child_watcher(), which is required for subprocess creation.
 """
 
+import logging
 import sys
-from solace_ai_connector.common.log import log
+
+log = logging.getLogger(__name__)
 
 
 def apply_macos_asyncio_fix() -> bool:

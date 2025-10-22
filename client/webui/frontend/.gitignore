@@ -27,3 +27,11 @@ static
 # other
 .DS_Store
 solace-agent-mesh-ui-*.tgz
+
+*storybook.log
+storybook-static
+
+# Cypress output
+cypress/screenshots
+cypress/videos
+cypress/results

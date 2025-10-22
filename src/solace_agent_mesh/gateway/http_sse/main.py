@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -20,7 +21,6 @@ from fastapi import status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from solace_ai_connector.common.log import log
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
@@ -65,6 +65,8 @@ from ...gateway.http_sse.routers import (
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
+
+log = logging.getLogger(__name__)
 
 app = FastAPI(
     title="A2A Web UI Backend",
@@ -123,7 +125,8 @@ async def _get_user_info(
 
 def _extract_user_identifier(user_info: dict) -> str:
     user_identifier = (
-        user_info.get("sub")
+        user_info.get("user_id") # internal /user_info endpoint format maps identifier to user_id
+        or user_info.get("sub")
         or user_info.get("client_id")
         or user_info.get("username")
         or user_info.get("oid")

@@ -3,6 +3,8 @@ import { Button } from "@/lib/components/ui/button";
 import type { buttonVariants } from "@/lib/components/ui/button";
 import type { ReactElement } from "react";
 import { ErrorIllustration, NotFoundIllustration } from "@/lib/assets";
+import { cn } from "@/lib/utils";
+import { Spinner } from "../ui/spinner";
 
 type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
 
@@ -15,18 +17,26 @@ export interface ButtonWithCallback {
 interface EmptyStateProps {
     title: string;
     subtitle?: string;
-    variant?: "error" | "not-found";
+    variant?: "error" | "notFound" | "loading" | "noImage";
     image?: ReactElement;
     buttons?: ButtonWithCallback[];
+    className?: string;
 }
 
-function EmptyState({ title, subtitle, image, variant = "error", buttons }: EmptyStateProps) {
-    return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-            {image ? image : variant === "error" ? <ErrorIllustration width={150} height={150} /> : <NotFoundIllustration width={150} height={150} />}
+function EmptyState({ title, subtitle, image, variant = "error", buttons, className }: EmptyStateProps) {
+    const illustrations = {
+        error: <ErrorIllustration width={150} height={150} />,
+        notFound: <NotFoundIllustration width={150} height={150} />,
+        loading: <Spinner size="large" />,
+        noImage: null,
+    };
 
-            <p className="text-2xl">{title}</p>
-            {subtitle ? <p className="text-base">{subtitle}</p> : null}
+    return (
+        <div className={cn("flex h-full w-full flex-col items-center justify-center gap-3", className)}>
+            {image || illustrations[variant] || null}
+
+            <p className="mt-4 text-lg">{title}</p>
+            {subtitle ? <p className="text-sm">{subtitle}</p> : null}
 
             <div className="flex gap-2">
                 {buttons &&

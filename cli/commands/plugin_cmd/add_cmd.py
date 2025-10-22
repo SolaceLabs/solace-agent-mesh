@@ -79,7 +79,6 @@ def add_plugin_component_cmd(
         return error_exit(
             f"Error: config.yaml not found in plugin '{module_name}' at expected path {plugin_config_path}"
         )
-
     try:
         plugin_config_content = plugin_config_path.read_text(encoding="utf-8")
     except Exception as e:
@@ -99,7 +98,7 @@ def add_plugin_component_cmd(
         "__COMPONENT_SPACED_NAME__": component_formats["SPACED_NAME"],
         "__COMPONENT_SPACED_CAPITALIZED_NAME__": component_formats[
             "SPACED_CAPITALIZED_NAME"
-        ],
+        ]
     }
 
     processed_config_content = plugin_config_content

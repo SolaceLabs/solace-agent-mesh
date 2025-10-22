@@ -5,6 +5,7 @@ use state_delta for signaling artifact return requests to the host component.
 Metadata handling is integrated via artifact_helpers.
 """
 
+import logging
 import uuid
 import json
 import re
@@ -16,7 +17,6 @@ from google.adk.tools import ToolContext
 if TYPE_CHECKING:
     from google.adk.agents.invocation_context import InvocationContext
 from google.genai import types as adk_types
-from solace_ai_connector.common.log import log
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
 from ...agent.utils.artifact_helpers import (
@@ -37,6 +37,8 @@ from ...agent.adk.models.lite_llm import LiteLlm
 from google.adk.models import LlmRequest
 from google.adk.models.registry import LLMRegistry
 from ...common.utils.mime_helpers import is_text_based_file
+
+log = logging.getLogger(__name__)
 
 CATEGORY_NAME = "Artifact Management"
 CATEGORY_DESCRIPTION = "List, read, create, update, and delete artifacts."

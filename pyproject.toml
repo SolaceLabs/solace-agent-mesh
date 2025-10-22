@@ -55,7 +55,7 @@ dependencies = [
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
-    "solace_ai_connector==1.2.0",
+    "solace_ai_connector==1.2.1",
     "holidays==0.81.0",
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
@@ -64,41 +64,31 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-gcs = ["google-cloud-storage>=2.0"]
-s3 = ["boto3>=1.35.0,<2.0"]
-vertex = ["google-cloud-aiplatform>=1.38"]
-employee_tools = ["holidays>=0.24"]
-cli = [
-    "click>=8.0",
-    "prompt-toolkit>=3.0",
-    "rich>=13.0",
-]
-
-[tool.hatch.envs.default]
-installer = "pip"
-dependencies = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.20",
-    "ruff",
-    "solace-agent-mesh[database,cli,gcs,vertex,employee_tools,postgresql,s3]",
-    "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
-]
+gcs = ["google-cloud-storage==2.19.0"]
+s3 = ["boto3==1.40.37"]
+vertex = ["google-cloud-aiplatform==1.120.0"]
+employee_tools = ["holidays==0.81.0"]
+postgresql = ["psycopg2-binary==2.9.10"]
 
 [tool.hatch.envs.hatch-test]
 parallel = false
 installer = "pip"
 dependencies = [
-    "pytest_asyncio",
+    "solace-agent-mesh[postgresql,gcs,vertex,employee_tools,s3]",
+    "pytest-asyncio",
     "pytest>=8.0.0",
     "pytest-mock>=3.0.0",
     "pytest-cov>=4.0.0",
     "pytest-xdist>=3.5.0",
     "pytest-httpx>=0.35.0",
     "fastmcp",
-    "jsonschema>=4.0.0"
-]
-extra-dependencies = [
-    "solace-agent-mesh[database,cli,gcs,vertex,employee_tools,s3]",
+    "httpx>=0.25",
+    "respx",
+    "ruff",
+    "testcontainers",
+    "aiosqlite",
+    "psycopg2-binary",
+    "asyncpg",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
 
@@ -106,8 +96,8 @@ extra-dependencies = [
 python = ["3.10", "3.13"]
 
 [tool.hatch.envs.hatch-test.scripts]
-run = "pytest -m \"$(python3 ./tests/test_selector.py)\" {args}"
-run-cov = "coverage run -m pytest -m \"$(python3 ./tests/test_selector.py)\" {args}"
+run = "pytest {args}"
+run-cov = "coverage run -m pytest {args}"
 cov-combine = "coverage combine"
 cov-report = "coverage report"
 
@@ -130,7 +120,7 @@ quote-style = "double"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "--tb=short --strict-markers --disable-warnings -p pytest_asyncio"
+addopts = "--tb=short --strict-markers --disable-warnings -p pytest_asyncio --ignore=tests/system"
 testpaths = ["tests"]
 pythonpath = [".", "src", "tests/sam-test-infrastructure/src"]
 python_files = ["test_*.py", "*_test.py", "tests.py"]
@@ -165,6 +155,9 @@ markers = [
     "mcp: marks tests related to mcp",
     "notification: marks tests related to notifications",
     "task_cancellation: marks tests related to task cancellation",
+    "proxy: marks tests related to the A2A proxy functionality",
+    "streaming: marks tests related to streaming messages",
+    "artifacts: marks tests related to artifact handling and services",
     "api: marks tests related to the API",
     "tasks: marks tests related to task management",
 
@@ -172,6 +165,7 @@ markers = [
     # Markers for the built-in agent tools.
     "tools: marks tests related to the agent tools",
     "audio_tools: marks tests related to the audio_tools",
+    "peer_tool: marks tests for calling peer agents",
     "builtin_artifact_tools: marks tests related to the builtin_artifact_tools",
     "builtin_data_analysis_tools: marks tests related to the builtin_data_analysis_tools",
     "general_agent_tools: marks tests related to the general_agent_tools",
@@ -179,6 +173,10 @@ markers = [
     "peer_agent_tool: marks tests related to the peer_agent_tool",
     "web_tools: marks tests related to the web_tools",
     "dynamic_tools: marks tests related to the dynamic_tools",
+    "auth: marks tests associated with authentication and authorization",
+    "oauth: OAuth specific tests",
+    "error_handling: Tests related to error handling and recovery",
+    "cancellation: Tests related to task cancellation",
 ]
 
 [tool.hatch.metadata]

@@ -2,6 +2,7 @@
 Helpers for creating and consuming A2A Artifact objects.
 """
 
+import logging
 import uuid
 import base64
 from datetime import datetime, timezone
@@ -18,12 +19,12 @@ from a2a.types import (
     Part,
     TextPart,
 )
-from solace_ai_connector.common.log import log
 from .. import a2a
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
 
+log = logging.getLogger(__name__)
 
 # --- Creation Helpers ---
 
@@ -326,3 +327,42 @@ def get_parts_from_artifact(artifact: Artifact) -> List[ContentPart]:
         A list of the unwrapped content parts.
     """
     return [part.root for part in artifact.parts]
+
+
+def is_text_only_artifact(artifact: Artifact) -> bool:
+    """
+    Checks if an artifact contains only TextParts.
+
+    Args:
+        artifact: The Artifact object to check.
+
+    Returns:
+        True if all parts are TextParts, False otherwise.
+    """
+    if not artifact.parts:
+        return False
+    
+    for part in artifact.parts:
+        if not isinstance(part.root, TextPart):
+            return False
+    
+    return True
+
+
+def get_text_content_from_artifact(artifact: Artifact) -> List[str]:
+    """
+    Extracts all text content from TextParts in an artifact.
+
+    Args:
+        artifact: The Artifact object to extract text from.
+
+    Returns:
+        A list of text strings from all TextParts. Returns empty list if no TextParts found.
+    """
+    text_content = []
+    
+    for part in artifact.parts:
+        if isinstance(part.root, TextPart):
+            text_content.append(part.root.text)
+    
+    return text_content

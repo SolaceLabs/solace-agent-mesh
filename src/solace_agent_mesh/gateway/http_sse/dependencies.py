@@ -3,12 +3,12 @@ Defines FastAPI dependency injectors to access shared resources
 managed by the WebUIBackendComponent.
 """
 
+import logging
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends, HTTPException, Request, status
-from solace_ai_connector.common.log import log
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -31,6 +31,8 @@ from .repository.interfaces import ITaskRepository
 from .repository.project_repository import ProjectRepository
 from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
+
+log = logging.getLogger(__name__)
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -243,10 +245,10 @@ def get_people_service(
     return PeopleService(identity_service=identity_service)
 
 
-def get_task_repository(db: Session = Depends(get_db)) -> ITaskRepository:
+def get_task_repository() -> ITaskRepository:
     """FastAPI dependency to get an instance of TaskRepository."""
     log.debug("[Dependencies] get_task_repository called")
-    return TaskRepository(db)
+    return TaskRepository()
 
 
 def get_feedback_service(
@@ -525,9 +527,9 @@ def get_session_validator(
             try:
                 db = SessionLocal()
                 try:
-                    session_repository = SessionRepository(db)
+                    session_repository = SessionRepository()
                     session_domain = session_repository.find_user_session(
-                        session_id, user_id
+                        db, session_id, user_id
                     )
                     return session_domain is not None
                 finally:

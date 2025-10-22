@@ -25,7 +25,7 @@ interface PaginatedSessionsResponse {
 }
 
 export const SessionList: React.FC = () => {
-    const { handleSwitchSession, updateSessionName, openSessionDeleteModal } = useChatContext();
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal } = useChatContext();
     const { configServerUrl } = useConfigContext();
     const { activeProject } = useProjectContext();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -167,7 +167,7 @@ export const SessionList: React.FC = () => {
                     <ul>
                         {sessions.map(session => (
                             <li key={session.id} className="group my-2 pr-4">
-                                <div className="flex items-center justify-between rounded px-4 py-2 hover:bg-gray-200 dark:hover:bg-gray-700">
+                                <div className={`flex items-center justify-between rounded px-4 py-2 ${session.id === sessionId ? "bg-muted" : ""}`}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}
@@ -179,7 +179,7 @@ export const SessionList: React.FC = () => {
                                             className="flex-grow bg-transparent focus:outline-none"
                                         />
                                     ) : (
-                                        <button onClick={() => handleSessionClick(session.id)} className="flex-grow text-left">
+                                        <button onClick={() => handleSessionClick(session.id)} className="flex-grow cursor-pointer text-left">
                                             <div className="flex max-w-50 flex-col">
                                                 <span className="truncate font-semibold" title={getSessionDisplayName(session)}>
                                                     {getSessionDisplayName(session)}

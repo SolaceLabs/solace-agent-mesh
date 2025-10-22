@@ -2,6 +2,7 @@
 Base Component class for Gateway implementations in the Solace AI Connector.
 """
 
+import logging
 import asyncio
 import queue
 import base64
@@ -9,7 +10,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List, Tuple, Union
 
-from solace_ai_connector.common.log import log
 from google.adk.artifacts import BaseArtifactService
 
 from ...common.agent_registry import AgentRegistry
@@ -52,6 +52,8 @@ from solace_ai_connector.common.event import Event, EventType
 from abc import abstractmethod
 
 from ...common.middleware.registry import MiddlewareRegistry
+
+log = logging.getLogger(__name__)
 
 info = {
     "class_name": "BaseGatewayComponent",
@@ -280,6 +282,9 @@ class BaseGatewayComponent(SamComponentBase):
             "user_id_for_a2a", user_identity.get("id")
         )
 
+        system_purpose = self.get_config("system_purpose", "")
+        response_format = self.get_config("response_format", "")
+
         if not a2a_session_id:
             a2a_session_id = f"gdk-session-{uuid.uuid4().hex}"
             log.warning(
@@ -289,7 +294,11 @@ class BaseGatewayComponent(SamComponentBase):
             )
             external_request_context["a2a_session_id"] = a2a_session_id
 
-        a2a_metadata = {"agent_name": target_agent_name}
+        a2a_metadata = {
+            "agent_name": target_agent_name,
+            "system_purpose": system_purpose,
+            "response_format": response_format,
+        }
         invoked_artifacts = external_request_context.get("invoked_with_artifacts")
         if invoked_artifacts:
             a2a_metadata["invoked_with_artifacts"] = invoked_artifacts

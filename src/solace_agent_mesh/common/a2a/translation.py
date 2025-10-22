@@ -3,13 +3,13 @@ Helpers for translating between A2A protocol objects and other domains,
 such as the Google ADK.
 """
 
+import logging
 from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 import json
 import base64
 import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlparse, parse_qs
-from solace_ai_connector.common.log import log
 from google.genai import types as adk_types
 from google.adk.events import Event as ADKEvent
 
@@ -26,6 +26,8 @@ from a2a.types import (
 
 from .. import a2a
 from ...agent.utils.context_helpers import get_original_session_id
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService

@@ -2,6 +2,7 @@
 Helper functions for artifact management, including metadata handling and schema inference.
 """
 
+import logging
 import base64
 import binascii
 import json
@@ -16,15 +17,19 @@ from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
-from solace_ai_connector.common.log import log
 from ...common.a2a.types import ArtifactInfo
 from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file
-from ...common.constants import TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
+from ...common.constants import (
+    TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY,
+    TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH,
+)
 from ...agent.utils.context_helpers import get_original_session_id
 
 if TYPE_CHECKING:
     from google.adk.tools import ToolContext
     from ...agent.sac.component import SamAgentComponent
+
+log = logging.getLogger(__name__)
 
 METADATA_SUFFIX = ".metadata.json"
 DEFAULT_SCHEMA_MAX_KEYS = 20
@@ -88,7 +93,11 @@ def ensure_correct_extension(filename_from_llm: str, desired_extension: str) -> 
 
 
 def format_artifact_uri(
-    app_name: str, user_id: str, session_id: str, filename: str, version: Union[int, str]
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    filename: str,
+    version: Union[int, str],
 ) -> str:
     """Formats the components into a standard artifact:// URI."""
     path = f"/{user_id}/{session_id}/{filename}"
@@ -379,6 +388,134 @@ async def save_artifact_with_metadata(
         "metadata_version": metadata_version,
         "message": status_message,
     }
+
+
+async def process_artifact_upload(
+    artifact_service: BaseArtifactService,
+    component: Any,
+    user_id: str,
+    session_id: str,
+    filename: str,
+    content_bytes: bytes,
+    mime_type: str,
+    metadata_json: Optional[str] = None,
+    log_prefix: str = "[ArtifactUpload]",
+) -> Dict[str, Any]:
+    """
+    Common logic for processing artifact uploads.
+
+    Handles filename validation, metadata parsing, artifact storage, and URI generation.
+
+    Args:
+        artifact_service: The artifact service instance to use for storage.
+        component: The component instance (agent or gateway) for configuration.
+        user_id: The user ID associated with the artifact.
+        session_id: The session ID associated with the artifact.
+        filename: The name of the artifact file.
+        content_bytes: The raw bytes of the artifact content.
+        mime_type: The MIME type of the artifact.
+        metadata_json: Optional JSON string containing artifact metadata.
+        log_prefix: Prefix for log messages.
+
+    Returns:
+        Dict with keys:
+            - status: "success" or "error"
+            - artifact_uri: The URI of the stored artifact (on success)
+            - version: The version number of the stored artifact (on success)
+            - message: Status message
+            - error: Error details (on error)
+    """
+    log.debug("%s Processing artifact upload for '%s'", log_prefix, filename)
+
+    # Validate filename
+    if not is_filename_safe(filename):
+        error_msg = f"Invalid filename: '{filename}'. Filename must not contain path separators or traversal sequences."
+        log.warning("%s %s", log_prefix, error_msg)
+        return {"status": "error", "message": error_msg, "error": "invalid_filename"}
+
+    # Validate content
+    if not content_bytes:
+        error_msg = "Uploaded file cannot be empty."
+        log.warning("%s %s", log_prefix, error_msg)
+        return {"status": "error", "message": error_msg, "error": "empty_file"}
+
+    # Parse metadata JSON if provided
+    metadata_dict = {}
+    if metadata_json and metadata_json.strip():
+        try:
+            metadata_dict = json.loads(metadata_json.strip())
+            if not isinstance(metadata_dict, dict):
+                log.warning(
+                    "%s Metadata JSON did not parse to a dictionary. Ignoring.",
+                    log_prefix,
+                )
+                metadata_dict = {}
+        except json.JSONDecodeError as json_err:
+            log.warning(
+                "%s Failed to parse metadata_json: %s. Proceeding without it.",
+                log_prefix,
+                json_err,
+            )
+            metadata_dict = {}
+
+    # Get app_name from component configuration
+    app_name = component.get_config("name", "A2A_WebUI_App")
+    current_timestamp = datetime.now(timezone.utc)
+
+    # Save artifact with metadata
+    try:
+        save_result = await save_artifact_with_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+            content_bytes=content_bytes,
+            mime_type=mime_type,
+            metadata_dict=metadata_dict,
+            timestamp=current_timestamp,
+            schema_max_keys=component.get_config(
+                "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
+            ),
+        )
+
+        if save_result["status"] == "success":
+            saved_version = save_result.get("data_version")
+            artifact_uri = format_artifact_uri(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                version=saved_version,
+            )
+
+            log.info(
+                "%s Artifact '%s' uploaded successfully. URI: %s, Version: %s",
+                log_prefix,
+                filename,
+                artifact_uri,
+                saved_version,
+            )
+
+            return {
+                "status": "success",
+                "artifact_uri": artifact_uri,
+                "version": saved_version,
+                "message": save_result.get(
+                    "message", "Artifact uploaded successfully."
+                ),
+                "data_version": saved_version,
+                "metadata_version": save_result.get("metadata_version"),
+            }
+        else:
+            error_msg = save_result.get("message", "Failed to save artifact.")
+            log.error("%s %s", log_prefix, error_msg)
+            return {"status": "error", "message": error_msg, "error": "save_failed"}
+
+    except Exception as e:
+        error_msg = f"Unexpected error storing artifact: {str(e)}"
+        log.exception("%s %s", log_prefix, error_msg)
+        return {"status": "error", "message": error_msg, "error": "unexpected_error"}
 
 
 def format_metadata_for_llm(metadata: Dict[str, Any]) -> str:
@@ -996,7 +1133,10 @@ async def load_artifact_content_or_metadata(
                         if len(content_str) > max_content_length:
                             truncated_content = content_str[:max_content_length] + "..."
 
-                            if max_content_length < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY:
+                            if (
+                                max_content_length
+                                < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
+                            ):
                                 message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
                                                 The artifact is larger ({len(content_str)} characters).
                                                 Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact."""

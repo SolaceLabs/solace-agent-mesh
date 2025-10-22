@@ -18,15 +18,22 @@ ENV_DEFAULTS = {
     "FASTAPI_PORT": "8000",
     "FASTAPI_HTTPS_PORT": "8443",
     "ENABLE_EMBED_RESOLUTION": "true",
-    "WEB_UI_GATEWAY_DATABASE_URL": "sqlite:///data/webui_gateway.db",
-    "ORCHESTRATOR_DATABASE_URL": "sqlite:///data/orchestrator.db",
     "SSL_KEYFILE": "",
     "SSL_CERTFILE": "",
     "SSL_KEYFILE_PASSWORD": "",
     "LOGGING_CONFIG_PATH": "configs/logging_config.ini",
     "S3_BUCKET_NAME": "",
     "S3_ENDPOINT_URL": "",
-    "S3_REGION": "us-east-1"
+    "S3_REGION": "us-east-1",
+    "LLM_SERVICE_OAUTH_TOKEN_URL": "YOUR_LLM_SERVICE_OAUTH_TOKEN_URL_HERE",
+    "LLM_SERVICE_OAUTH_CLIENT_ID": "YOUR_LLM_SERVICE_OAUTH_CLIENT_ID_HERE",
+    "LLM_SERVICE_OAUTH_CLIENT_SECRET": "YOUR_LLM_SERVICE_OAUTH_CLIENT_SECRET_HERE",
+    "LLM_SERVICE_OAUTH_SCOPE": "",
+    "LLM_SERVICE_OAUTH_CA_CERT_PATH": "",
+    "LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS": "300",
+    "LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME": "YOUR_LLM_SERVICE_OAUTH_PLANNING_MODEL_NAME_HERE",
+    "LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME": "YOUR_LLM_SERVICE_OAUTH_GENERAL_MODEL_NAME_HERE",
+    "LLM_SERVICE_OAUTH_ENDPOINT": "YOUR_LLM_SERVICE_OAUTH_ENDPOINT_HERE"
 }
 
 
@@ -208,15 +215,6 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
             hide_input=is_secret,
         )
         env_vars_to_write[env_name] = options.get(opt_key)
-
-    if options.get("web_ui_gateway_database_url"):
-        env_vars_to_write["WEB_UI_GATEWAY_DATABASE_URL"] = options[
-            "web_ui_gateway_database_url"
-        ]
-    if options.get("orchestrator_database_url"):
-        env_vars_to_write["ORCHESTRATOR_DATABASE_URL"] = options[
-            "orchestrator_database_url"
-        ]
 
     if (
         env_vars_to_write.get("NAMESPACE")
