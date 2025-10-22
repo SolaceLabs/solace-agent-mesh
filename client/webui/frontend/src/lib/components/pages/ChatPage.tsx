@@ -36,8 +36,12 @@ const PANEL_SIZES_OPEN = {
     sidePanelSizes: { ...PANEL_SIZES_CLOSED.sidePanelSizes, max: 50 },
 };
 
-export function ChatPage() {
-    const { activeProject, setActiveProject } = useProjectContext();
+interface ChatPageProps {
+    onNavigateToProjects?: () => void;
+}
+
+export function ChatPage({ onNavigateToProjects }: ChatPageProps = {}) {
+    const { activeProject, setActiveProject, setSelectedProject } = useProjectContext();
     const { agents, sessionName, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, handleNewSession } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -93,8 +97,10 @@ export function ChatPage() {
     };
 
     const handleEditProject = () => {
-        setActiveProject(null);
-        handleNewSession();
+        if (activeProject) {
+            setSelectedProject(activeProject);
+            onNavigateToProjects?.();
+        }
     };
 
     useEffect(() => {

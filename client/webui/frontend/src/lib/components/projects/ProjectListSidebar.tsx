@@ -1,7 +1,6 @@
 import React from "react";
-import { Plus, FolderOpen } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 
-import { Button } from "@/lib/components/ui";
 import { Spinner } from "@/lib/components/ui/spinner";
 import type { Project } from "@/lib/types/projects";
 import { ProjectListItem } from "./ProjectListItem";
@@ -21,7 +20,6 @@ export const ProjectListSidebar: React.FC<ProjectListSidebarProps> = ({
     isLoading,
     error,
     onProjectSelect,
-    onCreateNew,
 }) => {
     return (
         <div className="flex h-full flex-col bg-background border-r">
@@ -42,13 +40,9 @@ export const ProjectListSidebar: React.FC<ProjectListSidebarProps> = ({
                 {!isLoading && !error && projects.length === 0 && (
                     <div className="flex flex-col items-center justify-center p-8 text-center">
                         <FolderOpen className="h-12 w-12 text-muted-foreground mb-4" />
-                        <p className="text-sm text-muted-foreground mb-4">
+                        <p className="text-sm text-muted-foreground">
                             No projects yet
                         </p>
-                        <Button onClick={onCreateNew} size="sm">
-                            <Plus className="h-4 w-4 mr-2" />
-                            Create Project
-                        </Button>
                     </div>
                 )}
 
