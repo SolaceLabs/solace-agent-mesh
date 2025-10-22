@@ -636,9 +636,8 @@ class EvaluationRunner:
             # Generate reports
             self._generate_reports(config_path, base_results_path)
 
-            # Display verbose summary if enabled
-            if self.verbose:
-                self._display_verbose_summary(base_results_path)
+            # Display summary
+            self._display_summary(base_results_path)
 
         except Exception as e:
             log.error(f"Evaluation failed: {e}")
@@ -797,8 +796,8 @@ class EvaluationRunner:
         if self.report_generator:
             self.report_generator.generate_report(base_results_path)
 
-    def _display_verbose_summary(self, base_results_path: Path):
-        """Display a verbose summary of the evaluation results in the terminal."""
+    def _display_summary(self, base_results_path: Path):
+        """Display a summary of the evaluation results in the terminal."""
 
         # Pre-process data to find column widths
         summary_data = []
@@ -853,17 +852,20 @@ class EvaluationRunner:
             f"{'Model':<{max_model_len}} | {'Test Case':<{max_test_case_len}} | "
             f"{'Tool Match':<12} | {'Response Match':<16} | {'LLM Eval':<10}"
         )
-        log.info(header_line)
-        log.info("-" * len(header_line))
+        click.echo(click.style(header_line, fg="white", bold=True))
+        click.echo(click.style("-" * len(header_line), fg="white", bold=True))
 
         for model_name, test_case_id, scores in summary_data:
             tool_score = scores.get("Tool Match", "N/A")
             response_score = scores.get("Response Match", "N/A")
             llm_score = scores.get("LLM Eval", "N/A")
 
-            log.info(
-                f"{model_name:<{max_model_len}} | {test_case_id:<{max_test_case_len}} | "
-                f"{tool_score:<12} | {response_score:<16} | {llm_score:<10}"
+            click.echo(
+                click.style(
+                    f"{model_name:<{max_model_len}} | {test_case_id:<{max_test_case_len}} | "
+                    f"{tool_score:<12} | {response_score:<16} | {llm_score:<10}",
+                    fg="white",
+                )
             )
 
     def _get_model_stats(self, model_path: Path) -> dict[str, any]:
