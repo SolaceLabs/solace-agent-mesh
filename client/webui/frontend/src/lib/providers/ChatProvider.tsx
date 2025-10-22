@@ -118,10 +118,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState<boolean>(false);
 
     // Preview State
-    const [previewArtifact, setPreviewArtifact] = useState<ArtifactInfo | null>(null);
+    const [previewArtifactFilename, setPreviewArtifactFilename] = useState<string | null>(null);
     const [previewedArtifactAvailableVersions, setPreviewedArtifactAvailableVersions] = useState<number[] | null>(null);
     const [currentPreviewedVersionNumber, setCurrentPreviewedVersionNumber] = useState<number | null>(null);
     const [previewFileContent, setPreviewFileContent] = useState<FileAttachment | null>(null);
+
+    // Derive previewArtifact from artifacts array to ensure it's always up-to-date
+    const previewArtifact = useMemo(() => {
+        if (!previewArtifactFilename) return null;
+        return artifacts.find(a => a.filename === previewArtifactFilename) || null;
+    }, [artifacts, previewArtifactFilename]);
 
     // Artifact Rendering State
     const [artifactRenderingState, setArtifactRenderingState] = useState<ArtifactRenderingState>({
@@ -438,6 +444,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setSelectedArtifactFilenames(new Set());
         setIsArtifactEditMode(false);
     }, [selectedArtifactFilenames, apiPrefix, addNotification, artifactsRefetch]);
+
+    // Wrapper function to set preview artifact by filename
+    const setPreviewArtifact = useCallback((artifact: ArtifactInfo | null) => {
+        setPreviewArtifactFilename(artifact?.filename || null);
+    }, []);
 
     const openArtifactForPreview = useCallback(
         async (artifactFilename: string): Promise<FileAttachment | null> => {
@@ -1780,7 +1791,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         navigateArtifactVersion,
         openMessageAttachmentForPreview,
         previewArtifact,
-        setPreviewArtifact,
+        setPreviewArtifact, // Now uses the wrapper function that sets filename
         updateSessionName,
         deleteSession,
 
