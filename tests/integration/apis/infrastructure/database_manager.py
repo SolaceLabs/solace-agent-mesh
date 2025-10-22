@@ -263,6 +263,17 @@ class PostgreSQLProvider(DatabaseProvider):
     def provider_type(self) -> str:
         return "postgresql"
 
+    def get_gateway_url_with_credentials(self) -> str:
+        """Get the gateway database URL with credentials intact (for test setup)."""
+        if hasattr(self, "_container") and self._container:
+            host = self._container.get_container_host_ip()
+            port = self._container.get_exposed_port(5432)
+            user = self._container.username
+            password = self._container.password
+            database = self._container.dbname
+            return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+        return str(self.get_sync_gateway_engine().url)
+
     def get_sync_gateway_engine(self) -> sa.Engine:
         return self._sync_engines["gateway"]
 

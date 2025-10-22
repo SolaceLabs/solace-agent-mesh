@@ -240,8 +240,11 @@ def db_provider(test_agents_list: list[str], db_provider_type):
     provider = DatabaseProviderFactory.create_provider(db_provider_type)
     provider.setup(agent_names=test_agents_list)
 
-    # Get database URL from the provider
-    db_url = str(provider.get_sync_gateway_engine().url)
+    # Get database URL from the provider (with credentials for PostgreSQL)
+    if hasattr(provider, "get_gateway_url_with_credentials"):
+        db_url = provider.get_gateway_url_with_credentials()
+    else:
+        db_url = str(provider.get_sync_gateway_engine().url)
 
     # Create ONE WebUIBackendFactory for this database (SQLite or PostgreSQL)
     factory = WebUIBackendFactory(db_url=db_url)
