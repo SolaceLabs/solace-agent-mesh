@@ -4,10 +4,10 @@ import { useInView } from "react-intersection-observer";
 import { Trash2, Check, X, Pencil, MessageCircle } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
-import { useProjectContext } from "@/lib/providers";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
+import { Badge } from "@/lib/components/ui/badge";
 import { Spinner } from "@/lib/components/ui/spinner";
 import type { Session } from "@/lib/types";
 
@@ -27,7 +27,6 @@ interface PaginatedSessionsResponse {
 export const SessionList: React.FC = () => {
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal } = useChatContext();
     const { configServerUrl } = useConfigContext();
-    const { activeProject } = useProjectContext();
     const inputRef = useRef<HTMLInputElement>(null);
 
     const [sessions, setSessions] = useState<Session[]>([]);
@@ -46,13 +45,9 @@ export const SessionList: React.FC = () => {
         async (pageNumber: number = 1, append: boolean = false) => {
             setIsLoading(true);
             const pageSize = 20;
-            const projectId = activeProject?.id;
-            
-            let url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=${pageSize}`;
-            if (projectId) {
-                url += `&project_id=${projectId}`;
-            }
-            
+
+            const url = `${configServerUrl}/api/v1/sessions?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+
             try {
                 const response = await authenticatedFetch(url);
                 if (response.ok) {
@@ -76,7 +71,7 @@ export const SessionList: React.FC = () => {
                 setIsLoading(false);
             }
         },
-        [configServerUrl, activeProject]
+        [configServerUrl]
     );
 
     useEffect(() => {
@@ -161,7 +156,7 @@ export const SessionList: React.FC = () => {
     return (
         <div className="flex h-full flex-col gap-4 py-6 pl-6">
             <div className="text-lg">
-                {activeProject ? `Chat History (Project: ${activeProject.name})` : "Chat Session History"}
+                Chat Session History
             </div>
             <div className="flex-1 overflow-y-auto">
                 {sessions.length > 0 && (
@@ -181,10 +176,17 @@ export const SessionList: React.FC = () => {
                                         />
                                     ) : (
                                         <button onClick={() => handleSessionClick(session.id)} className="flex-grow cursor-pointer text-left">
-                                            <div className="flex max-w-50 flex-col">
-                                                <span className="truncate font-semibold" title={getSessionDisplayName(session)}>
-                                                    {getSessionDisplayName(session)}
-                                                </span>
+                                            <div className="flex max-w-50 flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="truncate font-semibold" title={getSessionDisplayName(session)}>
+                                                        {getSessionDisplayName(session)}
+                                                    </span>
+                                                    {session.projectName && (
+                                                        <Badge variant="secondary" className="text-xs">
+                                                            {session.projectName}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                                 <span className="text-muted-foreground text-xs">{formatSessionDate(session.updatedTime)}</span>
                                             </div>
                                         </button>

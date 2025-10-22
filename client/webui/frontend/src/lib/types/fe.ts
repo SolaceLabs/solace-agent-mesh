@@ -196,4 +196,5 @@ export interface Session {
     updatedTime: string;
     name: string | null;
     projectId?: string | null;
+    projectName?: string | null;
 }

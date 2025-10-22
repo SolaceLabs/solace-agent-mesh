@@ -46,22 +46,40 @@ class SessionService:
         project_id: str | None = None
     ) -> PaginatedResponse[Session]:
         """
-        Get paginated sessions for a user with full metadata.
+        Get paginated sessions for a user with full metadata including project names.
         Uses default pagination if none provided (page 1, size 20).
         Returns paginated response with pageNumber, pageSize, nextPage, totalPages, totalCount.
-        Filters by project_id to ensure proper segregation:
-        - When project_id is None, only return sessions with no project_id (general chat)
-        - When project_id is specified, only return sessions with that specific project_id
+
+        Args:
+            db: Database session
+            user_id: User ID to filter sessions by
+            pagination: Pagination parameters
+            project_id: Optional project ID to filter sessions by (for project-specific views)
         """
         if not user_id or user_id.strip() == "":
             raise ValueError("User ID cannot be empty")
-        
+
         pagination = get_pagination_or_default(pagination)
         session_repository = self._get_repositories(db)
 
-        # Pass pagination params directly - repository will handle offset calculation
+        # Fetch sessions with optional project filtering
         sessions = session_repository.find_by_user(db, user_id, pagination, project_id=project_id)
         total_count = session_repository.count_by_user(db, user_id, project_id=project_id)
+
+        # Enrich sessions with project names
+        # Collect unique project IDs
+        project_ids = [s.project_id for s in sessions if s.project_id]
+
+        if project_ids:
+            # Fetch all projects in one query
+            from ..repository.models import ProjectModel
+            projects = db.query(ProjectModel).filter(ProjectModel.id.in_(project_ids)).all()
+            project_map = {p.id: p.name for p in projects}
+
+            # Map project names to sessions
+            for session in sessions:
+                if session.project_id:
+                    session.project_name = project_map.get(session.project_id)
 
         return PaginatedResponse.create(sessions, total_count, pagination)
 

@@ -1,5 +1,5 @@
-from typing import Optional
 import logging
+from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -25,7 +25,7 @@ SESSION_NOT_FOUND_MSG = "Session not found."
 
 @router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
 async def get_all_sessions(
-    project_id: Optional[str] = None,
+    project_id: Optional[str] = Query(default=None, alias="project_id"),
     page_number: int = Query(default=1, ge=1, alias="pageNumber"),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     db: Session = Depends(get_db),
@@ -33,13 +33,11 @@ async def get_all_sessions(
     session_service: SessionService = Depends(get_session_business_service),
 ):
     user_id = user.get("id")
-    log_msg = f"Fetching sessions for user_id: {user_id}"
+    log_msg = f"User '{user_id}' is listing sessions with pagination (page={page_number}, size={page_size})"
     if project_id:
-        log_msg += f" for project_id: {project_id}"
+        log_msg += f" filtered by project_id={project_id}"
     log.info(log_msg)
-    log.info(f"User '{user_id}' is listing sessions with pagination (page={page_number}, size={page_size})")
 
-    log.info(project_id)
     try:
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
         paginated_response = session_service.get_user_sessions(db, user_id, pagination, project_id=project_id)
@@ -52,6 +50,7 @@ async def get_all_sessions(
                 name=session_domain.name,
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
+                project_name=session_domain.project_name,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
             )

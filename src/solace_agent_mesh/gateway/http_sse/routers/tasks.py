@@ -286,7 +286,7 @@ async def _submit_task(
             "%sUsing ClientID: %s, SessionID: %s", log_prefix, client_id, session_id
         )
 
-        # Extract message text and apply project context injection for both streaming and non-streaming
+        # Extract message text and apply project context injection
         message_text = ""
         if payload.params and payload.params.message:
             parts = a2a.get_parts_from_message(payload.params.message)
@@ -331,36 +331,6 @@ async def _submit_task(
                 
                 # Update the message with the new parts
                 modified_message = a2a.update_message_parts(payload.params.message, new_parts)
-                #message_text = modified_message_text  # Update for persistence storage
-
-        # Store message in persistence layer if available
-        if is_streaming and SessionLocal is not None and session_service is not None:
-            db = SessionLocal()
-            try:
-                from ....gateway.http_sse.shared.enums import SenderType
-
-                session_service.add_message_to_session(
-                    db=db,
-                    session_id=session_id,
-                    user_id=user_id,
-                    message=message_text or "Task submitted",
-                    sender_type=SenderType.USER,
-                    sender_name=user_id or "user",
-                    agent_id=agent_name,
-                )
-                db.commit()
-            except Exception as e:
-                db.rollback()
-                log.error(
-                    "%sFailed to store message in session service: %s", log_prefix, e
-                )
-            finally:
-                db.close()
-        else:
-            log.debug(
-                "%sNo persistence available or non-streaming - skipping message storage",
-                log_prefix,
-            )
 
         # Use the helper to get the unwrapped parts from the modified message (with project context if applied).
         a2a_parts = a2a.get_parts_from_message(modified_message)
