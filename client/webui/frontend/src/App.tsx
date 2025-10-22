@@ -38,7 +38,7 @@ function AppContent() {
     const renderMainContent = () => {
         switch (activeNavItem) {
             case "chat":
-                return <ChatPage onExitProject={() => setActiveNavItem("projects")} />;
+                return <ChatPage />;
             case "agentMesh":
                 return <AgentMeshPage />;
             case "projects":

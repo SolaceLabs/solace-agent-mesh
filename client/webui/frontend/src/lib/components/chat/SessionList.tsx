@@ -130,6 +130,7 @@ export const SessionList: React.FC = () => {
         if (editingSessionId) {
             await updateSessionName(editingSessionId, editingSessionName);
             setEditingSessionId(null);
+            fetchSessions();
         }
     };
 

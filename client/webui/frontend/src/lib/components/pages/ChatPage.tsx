@@ -36,11 +36,7 @@ const PANEL_SIZES_OPEN = {
     sidePanelSizes: { ...PANEL_SIZES_CLOSED.sidePanelSizes, max: 50 },
 };
 
-interface ChatPageProps {
-    onExitProject: () => void;
-}
-
-export function ChatPage({ onExitProject }: ChatPageProps) {
+export function ChatPage() {
     const { activeProject, setActiveProject } = useProjectContext();
     const { agents, sessionName, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, handleNewSession } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
@@ -97,7 +93,8 @@ export function ChatPage({ onExitProject }: ChatPageProps) {
     };
 
     const handleEditProject = () => {
-        onExitProject();
+        setActiveProject(null);
+        handleNewSession();
     };
 
     useEffect(() => {
