@@ -1,0 +1,10 @@
+test_case_id: "projects_get_not_found_005"
+description: "Tests GET /api/v1/projects/{id} returns 404 for non-existent project"
+tags: ["projects", "crud", "error"]
+
+expected_http_responses:
+  - description: "GET non-existent project should return 404"
+    request:
+      method: "GET"
+      path: "/api/v1/projects/non-existent-id-12345"
+    expected_status_code: 404

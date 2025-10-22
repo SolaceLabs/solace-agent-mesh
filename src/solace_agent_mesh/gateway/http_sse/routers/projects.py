@@ -452,6 +452,8 @@ async def delete_project(
 
         log.info("Project %s deleted successfully", project_id)
     
+    except HTTPException:
+        raise
     except ValueError as e:
         log.warning("Validation error deleting project %s: %s", project_id, e)
         raise HTTPException(
