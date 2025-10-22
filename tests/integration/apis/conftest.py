@@ -25,10 +25,10 @@ from .infrastructure.gateway_adapter import GatewayAdapter
 
 log = logging.getLogger(__name__)
 
-# Module-level context variable for multi-user testing
-# Allows api_client and secondary_api_client to share the same app/database
-# but authenticate as different users based on request context
-_current_test_user_id: ContextVar[str] = ContextVar('test_user_id', default='sam_dev_user')
+# Module-level state for tracking current test user
+# Used by both clients to determine which user they're authenticated as
+_test_user_lock = None
+_current_test_user = {"user_id": "sam_dev_user"}
 
 
 def _patch_mock_component_config(factory):
@@ -77,22 +77,16 @@ def api_client_factory():
     factory.teardown()
 
 
-@pytest.fixture(scope="session")
-def api_client(db_provider, api_client_factory):
-    """Creates a TestClient that uses the same app instance as the db_provider."""
+@pytest.fixture(scope="session", autouse=True)
+def setup_multi_user_auth(api_client_factory):
+    """Sets up multi-user authentication for all API clients (autouse fixture)."""
     from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
     from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
 
-    # For SQLite, use the original api_client_factory
-    if isinstance(db_provider, SqliteProvider):
-        app = api_client_factory.app
-    else:
-        # For containerized databases, use the WebUIBackendFactory we created
-        app = db_provider._webui_factory.app
+    app = api_client_factory.app
 
-    # Set up context-aware authentication using the module-level context variable
     async def override_get_current_user() -> dict:
-        user_id = _current_test_user_id.get()
+        user_id = _current_test_user.get("user_id", "sam_dev_user")
         if user_id == "secondary_user":
             return {
                 "id": "secondary_user",
@@ -111,25 +105,39 @@ def api_client(db_provider, api_client_factory):
             }
 
     def override_get_user_id() -> str:
-        return _current_test_user_id.get()
+        return _current_test_user.get("user_id", "sam_dev_user")
 
     app.dependency_overrides[get_current_user] = override_get_current_user
     app.dependency_overrides[get_user_id] = override_get_user_id
 
-    # Create a context-aware primary client
-    class ContextAwareTestClient(TestClient):
+    yield
+
+
+@pytest.fixture(scope="session")
+def api_client(db_provider, api_client_factory, setup_multi_user_auth):
+    """Creates a TestClient that uses the same app instance as the db_provider."""
+    # For SQLite, use the original api_client_factory
+    if isinstance(db_provider, SqliteProvider):
+        app = api_client_factory.app
+    else:
+        # For containerized databases, use the WebUIBackendFactory we created
+        app = db_provider._webui_factory.app
+
+    # Create a user-aware primary client
+    class UserAwareTestClient(TestClient):
         def __init__(self, app, user_id: str):
             super().__init__(app)
             self.user_id = user_id
 
         def request(self, method, url, **kwargs):
-            token = _current_test_user_id.set(self.user_id)
+            old_user = _current_test_user.get("user_id")
+            _current_test_user["user_id"] = self.user_id
             try:
                 return super().request(method, url, **kwargs)
             finally:
-                _current_test_user_id.reset(token)
+                _current_test_user["user_id"] = old_user
 
-    client = ContextAwareTestClient(app, "sam_dev_user")
+    client = UserAwareTestClient(app, "sam_dev_user")
     print(
         f"[API Tests] FastAPI TestClient created from {db_provider.provider_type} db_provider"
     )
@@ -138,25 +146,22 @@ def api_client(db_provider, api_client_factory):
 
 
 @pytest.fixture(scope="session")
-def secondary_api_client(api_client_factory):
+def secondary_api_client(api_client_factory, setup_multi_user_auth):
     """Creates a secondary TestClient using the SAME app/database but different user auth."""
-    # Create a context-aware client for the secondary user
-    # Uses the module-level _current_test_user_id context variable
-    # Auth overrides are set up by the api_client fixture
-
-    class ContextAwareTestClient(TestClient):
+    class UserAwareTestClient(TestClient):
         def __init__(self, app, user_id: str):
             super().__init__(app)
             self.user_id = user_id
 
         def request(self, method, url, **kwargs):
-            token = _current_test_user_id.set(self.user_id)
+            old_user = _current_test_user.get("user_id")
+            _current_test_user["user_id"] = self.user_id
             try:
                 return super().request(method, url, **kwargs)
             finally:
-                _current_test_user_id.reset(token)
+                _current_test_user["user_id"] = old_user
 
-    client = ContextAwareTestClient(api_client_factory.app, "secondary_user")
+    client = UserAwareTestClient(api_client_factory.app, "secondary_user")
     print("[API Tests] Secondary FastAPI TestClient created (same database, different user)")
 
     yield client
