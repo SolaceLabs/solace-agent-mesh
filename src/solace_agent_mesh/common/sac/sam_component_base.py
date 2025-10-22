@@ -324,6 +324,10 @@ class SamComponentBase(ComponentBase, abc.ABC):
         """Late initialization hook called after the component is fully set up."""
 
         # Setup the Trust Manager if present (enterprise feature)
+        # NOTE: The Trust Manager should use component.get_broker_username() to retrieve
+        # the actual broker client-username for trust card topic construction. This is
+        # critical because trust cards MUST be published on topics that match the actual
+        # authentication identity (client-username) used to connect to the broker.
         try:
             from solace_agent_mesh_enterprise.common.trust import (
                 initialize_trust_manager,
@@ -543,6 +547,48 @@ class SamComponentBase(ComponentBase, abc.ABC):
     def get_async_loop(self) -> asyncio.AbstractEventLoop | None:
         """Returns the dedicated asyncio event loop for this component's async tasks."""
         return self._async_loop
+
+    def get_broker_username(self) -> Optional[str]:
+        """
+        Returns the broker username (client-username) that this component uses
+        to authenticate with the Solace broker.
+
+        This is critical for trust card publishing and verification, as the
+        trust card topic must match the actual authentication identity.
+
+        Returns:
+            The broker username if available, None otherwise.
+        """
+        try:
+            app = self.get_app()
+            if app and hasattr(app, "app_info"):
+                broker_config = app.app_info.get("broker", {})
+                broker_username = broker_config.get("broker_username")
+                if broker_username:
+                    log.debug(
+                        "%s Retrieved broker username: %s",
+                        self.log_identifier,
+                        broker_username,
+                    )
+                    return broker_username
+                else:
+                    log.warning(
+                        "%s Broker username not found in broker configuration",
+                        self.log_identifier,
+                    )
+            else:
+                log.warning(
+                    "%s Unable to access app or app_info to retrieve broker username",
+                    self.log_identifier,
+                )
+        except Exception as e:
+            log.error(
+                "%s Error retrieving broker username: %s",
+                self.log_identifier,
+                e,
+                exc_info=True,
+            )
+        return None
 
     @abc.abstractmethod
     def _get_component_id(self) -> str:

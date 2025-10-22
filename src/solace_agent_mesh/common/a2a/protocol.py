@@ -200,17 +200,29 @@ def get_sam_events_subscription_topic(namespace: str, category: str) -> str:
 def get_trust_card_topic(namespace: str, component_type: str, component_id: str) -> str:
     """
     Returns the topic for publishing a Trust Card.
-    
+
+    IMPORTANT: The component_id parameter MUST be the exact broker client-username
+    that the component uses to authenticate with the Solace broker. This is critical
+    for trust verification - trust cards are validated against the actual broker
+    authentication identity.
+
     Args:
         namespace: SAM namespace
         component_type: Type of component ("gateway", "agent", etc.)
-        component_id: Unique component identifier (must match client-username)
-    
+        component_id: MUST be the broker client-username (from broker_username config).
+                     DO NOT use arbitrary IDs like agent_name or gateway_id unless they
+                     match the broker_username exactly.
+
     Returns:
         Topic string: {namespace}/a2a/v1/trust/{component_type}/{component_id}
-    
+
     Raises:
         ValueError: If any parameter is empty
+
+    Security Note:
+        Trust card verification relies on matching the topic component_id with the
+        authenticated broker client-username. Using a different value breaks the
+        security model and trust chain verification.
     """
     if not namespace:
         raise ValueError("Namespace cannot be empty.")
