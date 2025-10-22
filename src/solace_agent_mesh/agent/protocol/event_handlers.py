@@ -1458,6 +1458,7 @@ def publish_agent_card(component):
         dynamic_url = f"solace:{agent_request_topic}"
 
         # Define unique URIs for our custom extensions.
+        DEPLOYMENT_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/deployment"
         PEER_TOPOLOGY_EXTENSION_URI = (
             "https://solace.com/a2a/extensions/peer-agent-topology"
         )
@@ -1465,6 +1466,24 @@ def publish_agent_card(component):
         TOOLS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools"
 
         extensions_list = []
+
+        # Create the extension object for deployment tracking.
+        deployment_config = component.get_config("deployment", {})
+        deployment_id = deployment_config.get("id")
+
+        if deployment_id:
+            deployment_extension = AgentExtension(
+                uri=DEPLOYMENT_EXTENSION_URI,
+                description="SAM deployment tracking for rolling updates",
+                required=False,
+                params={"id": deployment_id}
+            )
+            extensions_list.append(deployment_extension)
+            log.debug(
+                "%s Added deployment extension with ID: %s",
+                component.log_identifier,
+                deployment_id
+            )
 
         # Create the extension object for peer agents.
         if peer_agents:
