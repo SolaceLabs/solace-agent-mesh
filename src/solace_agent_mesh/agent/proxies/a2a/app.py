@@ -44,7 +44,8 @@ class A2AProxyApp(BaseProxyApp):
             log.debug("A2A proxy configuration validated successfully.")
         except ValidationError as e:
             message = A2AProxyAppConfig.format_validation_error_message(e, app_info['name'])
-            raise ValueError(message) from e
+            log.error("Invalid A2A Proxy configuration:\n%s", message)
+            raise
         
         super().__init__(app_info, **kwargs)
 

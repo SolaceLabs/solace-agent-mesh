@@ -44,7 +44,8 @@ class BaseProxyApp(App, ABC):
             app_info["app_config"] = app_config
         except ValidationError as e:
             message = BaseProxyAppConfig.format_validation_error_message(e, app_info['name'])
-            raise ValueError(message) from e
+            log.error("Invalid Proxy configuration:\n%s", message)
+            raise
 
         namespace = app_config.get("namespace")
         proxied_agents = app_config.get("proxied_agents", [])

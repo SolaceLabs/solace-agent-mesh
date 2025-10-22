@@ -47,8 +47,7 @@ class SamConfigBase(BaseModel):
             ""
         ]
 
-        if app_name:
-            error_lines.extend([f'   App Name: {app_name}', ''])
+        error_lines.extend([f'   App Name: {app_name or "UNKNOWN"}', ''])
 
         def get_nested_field_description(model_class: Type[BaseModel], path: list) -> str | None:
             """Recursively get field description from nested models"""
@@ -104,8 +103,7 @@ class SamConfigBase(BaseModel):
                     f"   Error: {msg}",
                 ])
             error_lines.append(f"   Location: app_config.{absolute_path}")
-            if description:
-                error_lines.append(f"   Description: {description}")
+            error_lines.append(f"   Description: {description or "UNKNOWN"}")
             error_lines.append("")
 
         error_lines.append('---- Please update your YAML configuration ----')
