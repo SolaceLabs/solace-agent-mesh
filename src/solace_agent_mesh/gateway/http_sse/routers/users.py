@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query
 
 from ..dependencies import get_config_resolver, get_user_config
 from ..shared.auth_utils import get_current_user
-from ...common.middleware.config_resolver import ConfigResolver
+from ....common.middleware.config_resolver import ConfigResolver
 
 log = logging.getLogger(__name__)
 
