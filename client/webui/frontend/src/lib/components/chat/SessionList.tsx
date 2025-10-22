@@ -182,7 +182,10 @@ export const SessionList: React.FC = () => {
                                                         {getSessionDisplayName(session)}
                                                     </span>
                                                     {session.projectName && (
-                                                        <Badge variant="secondary" className="text-xs">
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm"
+                                                        >
                                                             {session.projectName}
                                                         </Badge>
                                                     )}
