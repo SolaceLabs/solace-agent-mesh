@@ -40,7 +40,6 @@ from ....gateway.http_sse.dependencies import (
 )
 from ....gateway.http_sse.repository.entities import Task
 from ....gateway.http_sse.repository.interfaces import ITaskRepository
-from ....gateway.http_sse.services.project_service import GLOBAL_PROJECT_USER_ID
 from ....gateway.http_sse.services.session_service import SessionService
 from ....gateway.http_sse.services.task_service import TaskService
 from ....gateway.http_sse.session_manager import SessionManager
@@ -88,7 +87,7 @@ async def _inject_project_context(
         artifact_service = component.get_shared_artifact_service()
         if artifact_service:
             try:
-                source_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+                source_user_id = project.user_id
                 project_artifacts_session_id = f"project-{project.id}"
                 
                 log.info("%sChecking for artifacts in project %s (storage session: %s)", log_prefix, project.id, project_artifacts_session_id)

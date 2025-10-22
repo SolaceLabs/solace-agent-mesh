@@ -13,29 +13,12 @@ class Project(BaseModel):
     
     id: str
     name: str = Field(..., min_length=1, max_length=255)
-    user_id: Optional[str] = None  # None for global projects
+    user_id: str
     description: Optional[str] = Field(None, max_length=1000)
     system_prompt: Optional[str] = Field(None, max_length=4000)
-    is_global: bool = False
-    template_id: Optional[str] = None  # Links to original template if copied
     created_by_user_id: str
     created_at: int
     updated_at: Optional[int] = None
-    
-    @property
-    def is_template(self) -> bool:
-        """Check if this project is a global template."""
-        return self.is_global and self.template_id is None
-    
-    @property
-    def is_copy(self) -> bool:
-        """Check if this project was copied from a template."""
-        return not self.is_global and self.template_id is not None
-    
-    @property
-    def is_original(self) -> bool:
-        """Check if this is an original user-created project."""
-        return not self.is_global and self.template_id is None
     
     def update_name(self, new_name: str) -> None:
         """Update project name with validation."""
@@ -60,53 +43,18 @@ class Project(BaseModel):
     
     def can_be_accessed_by_user(self, user_id: str) -> bool:
         """Check if project can be accessed by the given user."""
-        # Global projects are accessible by everyone
-        if self.is_global:
-            return True
         # User projects are only accessible by their owner
         return self.user_id == user_id
     
     def can_be_edited_by_user(self, user_id: str) -> bool:
         """Check if project can be edited by the given user."""
-        # Global projects cannot be edited by regular users
-        if self.is_global:
-            return False
         # Users can only edit their own projects
         return self.user_id == user_id
     
     def can_be_deleted_by_user(self, user_id: str) -> bool:
         """Check if project can be deleted by the given user."""
-        # Global projects cannot be deleted by regular users
-        if self.is_global:
-            return False
         # Users can only delete their own projects
         return self.user_id == user_id
-    
-    def can_be_copied_by_user(self, user_id: str) -> bool:
-        """Check if project can be copied by the given user."""
-        # Only global templates can be copied
-        return self.is_template
-    
-    def create_copy_for_user(self, user_id: str, new_name: str, new_description: Optional[str] = None) -> 'Project':
-        """Create a copy of this template for a user."""
-        if not self.can_be_copied_by_user(user_id):
-            raise ValueError("Only global templates can be copied")
-        
-        if not new_name or not new_name.strip():
-            raise ValueError("Copy name cannot be empty")
-        
-        import uuid
-        return Project(
-            id=str(uuid.uuid4()),
-            name=new_name.strip(),
-            user_id=user_id,
-            description=new_description or self.description,
-            system_prompt=self.system_prompt,
-            is_global=False,
-            template_id=self.id,
-            created_by_user_id=user_id,
-            created_at=now_epoch_ms()
-        )
     
     def mark_as_updated(self) -> None:
         """Mark project as updated."""

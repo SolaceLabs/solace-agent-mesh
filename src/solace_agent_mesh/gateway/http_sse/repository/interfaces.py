@@ -144,35 +144,8 @@ class IProjectRepository(ABC):
         pass
 
     @abstractmethod
-    def create_global_project(self, name: str, description: Optional[str] = None,
-                             created_by_user_id: str = None) -> Project:
-        """Create a new global project template."""
-        pass
-
-    @abstractmethod
-    def copy_from_template(self, template_id: str, name: str, user_id: str,
-                          description: Optional[str] = None) -> Optional[Project]:
-        """Create a new project by copying from a template."""
-        pass
-
-    @abstractmethod
     def get_user_projects(self, user_id: str) -> list[Project]:
         """Get all projects owned by a specific user."""
-        pass
-
-    @abstractmethod
-    def get_global_projects(self) -> list[Project]:
-        """Get all global project templates."""
-        pass
-
-    @abstractmethod
-    def get_projects_by_template(self, template_id: str) -> list[Project]:
-        """Get all projects copied from a specific template."""
-        pass
-
-    @abstractmethod
-    def count_template_usage(self, template_id: str) -> int:
-        """Count how many times a template has been copied."""
         pass
 
     @abstractmethod

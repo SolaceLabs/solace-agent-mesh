@@ -17,7 +17,7 @@ from fastapi import (
 from solace_ai_connector.common.log import log
 
 from ..dependencies import get_project_service, get_sac_component, get_shared_artifact_service
-from ..services.project_service import ProjectService, GLOBAL_PROJECT_USER_ID
+from ..services.project_service import ProjectService
 from ..shared.auth_utils import get_current_user
 from ....agent.utils.artifact_helpers import get_artifact_info_list
 from ....common.a2a.types import ArtifactInfo
@@ -30,17 +30,13 @@ except ImportError:
 from .dto.requests.project_requests import (
     CreateProjectRequest,
     UpdateProjectRequest,
-    CopyProjectRequest,
     GetProjectRequest,
     GetProjectsRequest,
     DeleteProjectRequest,
-    ProjectCopyRequest,
 )
 from .dto.responses.project_responses import (
     ProjectResponse,
     ProjectListResponse,
-    GlobalProjectResponse,
-    GlobalProjectListResponse,
 )
 
 router = APIRouter()
@@ -103,8 +99,6 @@ async def create_project(
             user_id=project.user_id,
             description=project.description,
             system_prompt=project.system_prompt,
-            is_global=project.is_global,
-            template_id=project.template_id,
             created_by_user_id=project.created_by_user_id,
             created_at=project.created_at,
             updated_at=project.updated_at,
@@ -147,8 +141,6 @@ async def get_user_projects(
                 user_id=p.user_id,
                 description=p.description,
                 system_prompt=p.system_prompt,
-                is_global=p.is_global,
-                template_id=p.template_id,
                 created_by_user_id=p.created_by_user_id,
                 created_at=p.created_at,
                 updated_at=p.updated_at,
@@ -212,8 +204,6 @@ async def get_project(
             user_id=project.user_id,
             description=project.description,
             system_prompt=project.system_prompt,
-            is_global=project.is_global,
-            template_id=project.template_id,
             created_by_user_id=project.created_by_user_id,
             created_at=project.created_at,
             updated_at=project.updated_at,
@@ -409,8 +399,6 @@ async def update_project(
             user_id=project.user_id,
             description=project.description,
             system_prompt=project.system_prompt,
-            is_global=project.is_global,
-            template_id=project.template_id,
             created_by_user_id=project.created_by_user_id,
             created_at=project.created_at,
             updated_at=project.updated_at,
@@ -479,104 +467,4 @@ async def delete_project(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete project"
-        )
-
-
-@router.get("/projects/templates/global", response_model=GlobalProjectListResponse)
-async def get_global_project_templates(
-    project_service: ProjectService = Depends(get_project_service),
-):
-    """
-    Get all available global project templates.
-    """
-    try:
-        projects = project_service.get_global_projects()
-        
-        # Get usage counts for each template
-        template_responses = []
-        for project in projects:
-            usage_count = project_service.get_template_usage_count(project.id)
-            template_responses.append(
-                GlobalProjectResponse(
-                    id=project.id,
-                    name=project.name,
-                    description=project.description,
-                    system_prompt=project.system_prompt,
-                    created_by_user_id=project.created_by_user_id,
-                    created_at=project.created_at,
-                    updated_at=project.updated_at,
-                    usage_count=usage_count,
-                )
-            )
-        
-        return GlobalProjectListResponse(
-            projects=template_responses,
-            total=len(template_responses)
-        )
-    
-    except Exception as e:
-        log.error("Error retrieving global project templates: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve global project templates"
-        )
-
-
-@router.post("/projects/templates/{template_id}/copy", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
-async def copy_project_from_template(
-    template_id: str,
-    request: CopyProjectRequest,
-    user: dict = Depends(get_current_user),
-    project_service: ProjectService = Depends(get_project_service),
-):
-    """
-    Copy a project from a global template.
-    """
-    user_id = user.get("id")
-    log.info("User %s attempting to copy from template %s", user_id, template_id)
-
-    try:
-        copy_request = ProjectCopyRequest(
-            template_id=template_id,
-            new_name=request.name,
-            new_description=request.description,
-            user_id=user_id
-        )
-        
-        project = project_service.copy_project_from_template(copy_request)
-        
-        if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Template not found or is not a global project"
-            )
-
-        log.info("Project copied successfully from template %s", template_id)
-        
-        return ProjectResponse(
-            id=project.id,
-            name=project.name,
-            user_id=project.user_id,
-            description=project.description,
-            system_prompt=project.system_prompt,
-            is_global=project.is_global,
-            template_id=project.template_id,
-            created_by_user_id=project.created_by_user_id,
-            created_at=project.created_at,
-            updated_at=project.updated_at,
-        )
-    
-    except ValueError as e:
-        log.warning("Validation error copying from template %s: %s", template_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error("Error copying from template %s for user %s: %s", template_id, user_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to copy project from template"
         )

@@ -8,21 +8,9 @@ export interface Project {
     userId: string;
     description?: string | null;
     systemPrompt?: string | null;
-    isGlobal: boolean;
-    templateId?: string | null;
     createdByUserId: string;
     createdAt: string; // ISO string
     updatedAt: string; // ISO string
-}
-
-export interface GlobalProject {
-    id: string;
-    name: string;
-    description?: string | null;
-    createdByUserId: string;
-    createdAt: string; // ISO string
-    updatedAt: string; // ISO string
-    usageCount?: number | null;
 }
 
 
@@ -49,10 +37,6 @@ export interface ProjectListResponse {
     total: number;
 }
 
-export interface GlobalProjectListResponse {
-    projects: GlobalProject[];
-    total: number;
-}
 
 // Frontend-only types
 export interface ProjectFormData {
@@ -71,13 +55,6 @@ export interface UseProjectsReturn {
     refetch: () => Promise<void>;
 }
 
-export interface UseGlobalProjectsReturn {
-    globalProjects: GlobalProject[];
-    isLoading: boolean;
-    error: string | null;
-    copyProject: (templateId: string, data: CopyProjectRequest) => Promise<Project>;
-    refetch: () => Promise<void>;
-}
 
 export interface ProjectContextValue extends UseProjectsReturn {
     currentProject: Project | null;

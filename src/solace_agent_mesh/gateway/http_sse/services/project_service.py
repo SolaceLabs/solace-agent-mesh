@@ -20,12 +20,9 @@ except ImportError:
 from ....common.a2a.types import ArtifactInfo
 from ..repository.interfaces import IProjectRepository
 from ..repository.entities.project import Project
-from ..routers.dto.requests.project_requests import ProjectFilter, ProjectCopyRequest
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
-
-GLOBAL_PROJECT_USER_ID = "_global_"
 
 
 class ProjectService:
@@ -144,17 +141,6 @@ class ProjectService:
         db_projects = self.project_repository.get_user_projects(user_id)
         return db_projects
 
-    def get_global_projects(self) -> List[Project]:
-        """
-        Get all available global project templates.
-        
-        Returns:
-            List[DomainProject]: List of global project templates
-        """
-        self.logger.debug("Retrieving global project templates")
-        db_projects = self.project_repository.get_global_projects()
-        return db_projects
-
     async def get_project_artifacts(self, project_id: str, user_id: str) -> List[ArtifactInfo]:
         """
         Get a list of artifacts for a given project.
@@ -177,7 +163,7 @@ class ProjectService:
             self.logger.warning(f"Attempted to get artifacts for project {project_id} but no artifact service is configured.")
             return []
 
-        storage_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+        storage_user_id = project.user_id
         storage_session_id = f"project-{project.id}"
 
         self.logger.info(f"Fetching artifacts for project {project.id} with storage session {storage_session_id} and user {storage_user_id}")
@@ -215,9 +201,6 @@ class ProjectService:
         project = self.get_project(project_id, user_id)
         if not project:
             raise ValueError("Project not found or access denied")
-        
-        if project.is_global:
-            raise ValueError("Cannot add files to a global project template")
 
         if not self.artifact_service:
             self.logger.warning(f"Attempted to add artifacts to project {project_id} but no artifact service is configured.")
@@ -272,9 +255,6 @@ class ProjectService:
         project = self.get_project(project_id, user_id)
         if not project:
             return False
-            
-        if project.is_global:
-            raise ValueError("Cannot delete files from a global project template")
 
         if not self.artifact_service:
             self.logger.warning(f"Attempted to delete artifact from project {project_id} but no artifact service is configured.")
@@ -348,10 +328,6 @@ class ProjectService:
         if not existing_project:
             return False
         
-        # Additional business rule: Users can only delete their own non-global projects
-        if existing_project.is_global:
-            raise ValueError("Cannot delete global project templates")
-        
         self.logger.info(f"Deleting project {project_id} for user {user_id}")
         success = self.project_repository.delete(project_id, user_id)
         
@@ -359,50 +335,3 @@ class ProjectService:
             self.logger.info(f"Successfully deleted project {project_id}")
         
         return success
-
-    def copy_project_from_template(self, copy_request: ProjectCopyRequest) -> Optional[Project]:
-        """
-        Copy a project from a global template.
-        
-        Args:
-            copy_request: The copy request details
-            
-        Returns:
-            Optional[DomainProject]: The copied project if successful, None otherwise
-        """
-        self.logger.info(f"Copying project from template {copy_request.template_id} for user {copy_request.user_id}")
-        
-        # Validate business rules
-        if not copy_request.new_name or not copy_request.new_name.strip():
-            raise ValueError("Project name cannot be empty")
-        
-        # Verify template exists and is global
-        template = self.project_repository.get_by_id(copy_request.template_id)
-        if not template or not template.is_global:
-            raise ValueError("Template not found or is not a global project")
-        
-        # Create the copy
-        db_project = self.project_repository.copy_from_template(
-            template_id=copy_request.template_id,
-            name=copy_request.new_name.strip(),
-            user_id=copy_request.user_id,
-            description=copy_request.new_description
-        )
-        
-        if db_project:
-            self.logger.info(f"Successfully copied project {db_project.id} from template {copy_request.template_id}")
-        
-        return db_project
-
-    def get_template_usage_count(self, template_id: str) -> int:
-        """
-        Get the number of times a template has been copied.
-        
-        Args:
-            template_id: The template project ID
-            
-        Returns:
-            int: Number of copies made from this template
-        """
-        return self.project_repository.count_template_usage(template_id)
-
