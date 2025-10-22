@@ -130,6 +130,14 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                     </ResizablePanel>
                 </ResizablePanelGroup>
             </div>
+            
+            {/* Simple Create Dialog */}
+            <CreateProjectDialog
+                isOpen={showCreateDialog}
+                onClose={() => setShowCreateDialog(false)}
+                onSubmit={handleCreateProject}
+                isSubmitting={isCreating}
+            />
         </div>
     );
 };
