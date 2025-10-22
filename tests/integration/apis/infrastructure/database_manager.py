@@ -12,9 +12,6 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 from sqlalchemy.orm import declarative_base
 
-# Import testcontainers and database drivers
-from testcontainers.postgres import PostgresContainer
-
 # Define the Agent schema using SQLAlchemy's declarative base
 Base = declarative_base()
 
@@ -171,8 +168,10 @@ class PostgreSQLProvider(DatabaseProvider):
         self._base_url = None
 
     def setup(self, agent_names: list[str], **kwargs):
+        from testcontainers.postgres import PostgresContainer
+
         # Start PostgreSQL container
-        self._container = PostgresContainer("postgres:15")
+        self._container = PostgresContainer("postgres:18")
         self._container.start()
 
         # Get connection details
