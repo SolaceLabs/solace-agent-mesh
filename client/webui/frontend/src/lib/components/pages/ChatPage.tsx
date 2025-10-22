@@ -38,7 +38,7 @@ const PANEL_SIZES_OPEN = {
 
 export function ChatPage() {
     const { activeProject, setActiveProject } = useProjectContext();
-    const { agents, sessionName, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, handleNewSession } = useChatContext();
+    const { agents, sessionName, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, isLoadingSession, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, handleNewSession } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
@@ -216,16 +216,27 @@ export function ChatPage() {
                                     </div>
                                 )}
                                 <div className="flex flex-1 flex-col py-6 min-h-0">
-                                    <ChatMessageList className="text-base" ref={chatMessageListRef}>
-                                        {messages.map((message, index) => {
-                                            const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                            return <ChatMessage message={message} key={`${message.metadata?.sessionId || "session"}-${index}-${message.isUser ? "received" : "sent"}`} isLastWithTaskId={isLastWithTaskId} />;
-                                        })}
-                                    </ChatMessageList>
-                                    <div style={CHAT_STYLES}>
-                                        {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
-                                        <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
-                                    </div>
+                                    {isLoadingSession ? (
+                                        <div className="flex h-full items-center justify-center">
+                                            <div className="flex flex-col items-center gap-4">
+                                                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                                                <p className="text-sm text-muted-foreground">Loading session...</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <ChatMessageList className="text-base" ref={chatMessageListRef}>
+                                                {messages.map((message, index) => {
+                                                    const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
+                                                    return <ChatMessage message={message} key={`${message.metadata?.sessionId || "session"}-${index}-${message.isUser ? "received" : "sent"}`} isLastWithTaskId={isLastWithTaskId} />;
+                                                })}
+                                            </ChatMessageList>
+                                            <div style={CHAT_STYLES}>
+                                                {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
+                                                <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </ResizablePanel>

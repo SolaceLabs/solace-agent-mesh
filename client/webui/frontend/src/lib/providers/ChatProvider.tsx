@@ -1511,6 +1511,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         currentTaskId,
         isCancelling,
         latestStatusText,
+        isLoadingSession,
         agents,
         agentsLoading,
         agentsError,
