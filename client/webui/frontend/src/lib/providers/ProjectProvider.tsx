@@ -33,7 +33,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
 
             const data: ProjectListResponse = await response.json();
-            setProjects(data.projects);
+            // Sort projects by updatedAt (or createdAt if updatedAt is not available) in descending order
+            const sortedProjects = [...data.projects].sort((a, b) => {
+                const dateA = new Date(a.updatedAt || a.createdAt).getTime();
+                const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+                return dateB - dateA; // Descending order (latest first)
+            });
+            setProjects(sortedProjects);
         } catch (err: unknown) {
             console.error("Error fetching projects:", err);
             setError(err instanceof Error ? err.message : "Could not load projects.");
@@ -144,8 +150,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 const updatedProject: Project = await response.json();
 
-                // Update projects list
-                setProjects(prev => prev.map(p => (p.id === updatedProject.id ? updatedProject : p)));
+                // Update projects list and re-sort
+                setProjects(prev => {
+                    const updated = prev.map(p => (p.id === updatedProject.id ? updatedProject : p));
+                    return updated.sort((a, b) => {
+                        const dateA = new Date(a.updatedAt || a.createdAt).getTime();
+                        const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+                        return dateB - dateA; // Descending order (latest first)
+                    });
+                });
                 // Update current project if it's the one being edited
                 setCurrentProject(current => (current?.id === updatedProject.id ? updatedProject : current));
                 // Update active project if it's the one being edited
