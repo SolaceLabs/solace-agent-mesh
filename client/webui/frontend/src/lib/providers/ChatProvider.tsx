@@ -940,11 +940,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         latestStatusText.current = null;
         sseEventSequenceRef.current = 0;
 
-        // Refresh artifacts (should be empty for new session)
-        console.log(`${log_prefix} Refreshing artifacts for new session...`);
-        // Note: artifactsRefetch will be triggered automatically by useArtifacts hook
-        // when sessionId state update takes effect
-
         // Success notification
         addNotification("New session started successfully.");
         console.log(`${log_prefix} New session setup complete - session will be created on first message.`);
@@ -1402,8 +1397,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
         prevProjectIdRef.current = activeProject?.id;
     }, [activeProject, handleNewSession]);
-
-    // Sessions are now fetched by SessionList component
 
     useEffect(() => {
         if (!selectedAgentName && agents.length > 0 && messages.length === 0) {
