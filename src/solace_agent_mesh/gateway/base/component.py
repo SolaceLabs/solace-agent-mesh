@@ -5,7 +5,7 @@ Base Component class for Gateway implementations in the Solace AI Connector.
 import logging
 import asyncio
 import queue
-import base64
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List, Tuple, Union
@@ -32,18 +32,19 @@ from a2a.types import (
     JSONRPCError,
     TextPart,
     FilePart,
-    FileWithBytes,
     Artifact as A2AArtifact,
 )
 from ...common import a2a
-from ...common.utils import is_text_based_mime_type
 from ...common.utils.embeds import (
     resolve_embeds_in_string,
-    resolve_embeds_recursively_in_string,
     evaluate_embed,
     LATE_EMBED_TYPES,
     EARLY_EMBED_TYPES,
-    EMBED_DELIMITER_OPEN,
+)
+from ...common.utils.embeds.types import ResolutionMode
+from ...agent.utils.artifact_helpers import (
+    load_artifact_content_or_metadata,
+    format_artifact_uri,
 )
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,
@@ -413,7 +414,7 @@ class BaseGatewayComponent(SamComponentBase):
     async def _handle_resolved_signals(
         self,
         external_request_context: Dict,
-        signals: List[Tuple[int, Any]],
+        signals: List[Tuple[int, Any, str]],
         original_rpc_id: Optional[str],
         is_finalizing_context: bool = False,
     ):
@@ -421,7 +422,7 @@ class BaseGatewayComponent(SamComponentBase):
         if not signals:
             return
 
-        for _, signal_tuple in signals:
+        for signal_tuple in signals:
             if (
                 isinstance(signal_tuple, tuple)
                 and len(signal_tuple) == 3
@@ -591,17 +592,11 @@ class BaseGatewayComponent(SamComponentBase):
         original_rpc_id: Optional[str],
         is_finalizing_context: bool = False,
     ) -> bool:
-        """
-        Resolves embeds and handles signals for an event containing parts.
-        Modifies event_with_parts in place if text content changes.
-        Manages stream buffer for TaskStatusUpdateEvent.
-        Returns True if the event content was modified or signals were handled, False otherwise.
-        """
         if not self.enable_embed_resolution:
             return False
 
         log_id_prefix = f"{self.log_identifier}[EmbedResolve:{a2a_task_id}]"
-        content_modified_or_signal_handled = False
+        content_modified = False
 
         embed_eval_context = {
             "artifact_service": self.shared_artifact_service,
@@ -619,8 +614,6 @@ class BaseGatewayComponent(SamComponentBase):
         }
 
         parts_owner: Optional[Union[A2AMessage, A2AArtifact]] = None
-        is_streaming_status_update = isinstance(event_with_parts, TaskStatusUpdateEvent)
-
         if isinstance(event_with_parts, (TaskStatusUpdateEvent, Task)):
             if event_with_parts.status and event_with_parts.status.message:
                 parts_owner = event_with_parts.status.message
@@ -628,146 +621,178 @@ class BaseGatewayComponent(SamComponentBase):
             if event_with_parts.artifact:
                 parts_owner = event_with_parts.artifact
 
-        if parts_owner and parts_owner.parts:
-            new_parts: List[ContentPart] = []
-            stream_buffer_key = f"{a2a_task_id}_stream_buffer"
-            current_buffer = ""
+        if not (parts_owner and parts_owner.parts):
+            return False
 
-            if is_streaming_status_update:
-                current_buffer = (
-                    self.task_context_manager.get_context(stream_buffer_key) or ""
+        is_streaming_status_update = isinstance(event_with_parts, TaskStatusUpdateEvent)
+        stream_buffer_key = f"{a2a_task_id}_stream_buffer"
+        current_buffer = ""
+        if is_streaming_status_update:
+            current_buffer = (
+                self.task_context_manager.get_context(stream_buffer_key) or ""
+            )
+
+        original_parts: List[ContentPart] = (
+            a2a.get_parts_from_message(parts_owner)
+            if isinstance(parts_owner, A2AMessage)
+            else a2a.get_parts_from_artifact(parts_owner)
+        )
+
+        new_parts: List[ContentPart] = []
+        other_signals = []
+
+        for part in original_parts:
+            if isinstance(part, TextPart) and part.text:
+                text_to_resolve = current_buffer + part.text
+                current_buffer = ""  # Buffer is now being processed
+
+                (
+                    resolved_text,
+                    processed_idx,
+                    signals_with_placeholders,
+                ) = await resolve_embeds_in_string(
+                    text=text_to_resolve,
+                    context=embed_eval_context,
+                    resolver_func=evaluate_embed,
+                    types_to_resolve=LATE_EMBED_TYPES.union({"status_update"}),
+                    resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
+                    log_identifier=log_id_prefix,
+                    config=embed_eval_config,
                 )
 
-            parts: List[ContentPart] = []
-            if isinstance(parts_owner, A2AMessage):
-                parts = a2a.get_parts_from_message(parts_owner)
-            elif isinstance(parts_owner, A2AArtifact):
-                parts = a2a.get_parts_from_artifact(parts_owner)
-
-            for part in parts:
-                if isinstance(part, TextPart) and part.text is not None:
-                    text_to_resolve = part.text
-                    original_part_text = part.text
-
-                    if is_streaming_status_update:
-                        current_buffer += part.text
-                        text_to_resolve = current_buffer
-
-                    resolved_text, processed_idx, signals = (
-                        await resolve_embeds_in_string(
-                            text=text_to_resolve,
-                            context=embed_eval_context,
-                            resolver_func=evaluate_embed,
-                            types_to_resolve=LATE_EMBED_TYPES.copy(),
-                            log_identifier=log_id_prefix,
-                            config=embed_eval_config,
-                        )
+                if not signals_with_placeholders:
+                    new_parts.append(a2a.create_text_part(text=resolved_text))
+                else:
+                    placeholder_map = {p: s for _, s, p in signals_with_placeholders}
+                    split_pattern = (
+                        f"({'|'.join(re.escape(p) for p in placeholder_map.keys())})"
                     )
+                    text_fragments = re.split(split_pattern, resolved_text)
 
-                    if signals:
-                        await self._handle_resolved_signals(
-                            external_request_context,
-                            signals,
-                            original_rpc_id,
-                            is_finalizing_context,
-                        )
-                        content_modified_or_signal_handled = True
-
-                    if resolved_text is not None:
-                        new_parts.append(a2a.create_text_part(text=resolved_text))
-                        if is_streaming_status_update:
-                            if resolved_text != text_to_resolve[:processed_idx]:
-                                content_modified_or_signal_handled = True
-                        elif resolved_text != original_part_text:
-                            content_modified_or_signal_handled = True
-
-                    if is_streaming_status_update:
-                        current_buffer = text_to_resolve[processed_idx:]
-                    elif (
-                        processed_idx < len(text_to_resolve)
-                        and not content_modified_or_signal_handled
-                    ):
-                        log.warning(
-                            "%s Unclosed embed in non-streaming TextPart. Remainder: '%s'",
-                            log_id_prefix,
-                            text_to_resolve[processed_idx:],
-                        )
-                        content_modified_or_signal_handled = True
-
-                elif isinstance(part, FilePart) and part.file:
-                    if isinstance(part.file, FileWithBytes) and part.file.bytes:
-                        mime_type = part.file.mime_type or ""
-                        is_container = is_text_based_mime_type(mime_type)
-                        try:
-                            decoded_content_for_check = base64.b64decode(
-                                part.file.bytes
-                            ).decode("utf-8", errors="ignore")
-                            if (
-                                is_container
-                                and EMBED_DELIMITER_OPEN in decoded_content_for_check
-                            ):
-                                original_content = decoded_content_for_check
-                                resolved_content = (
-                                    await resolve_embeds_recursively_in_string(
-                                        text=original_content,
-                                        context=embed_eval_context,
-                                        resolver_func=evaluate_embed,
-                                        types_to_resolve=LATE_EMBED_TYPES,
-                                        log_identifier=log_id_prefix,
-                                        config=embed_eval_config,
-                                        max_depth=self.gateway_recursive_embed_depth,
+                    for i, fragment in enumerate(text_fragments):
+                        if not fragment:
+                            continue
+                        if fragment in placeholder_map:
+                            signal_tuple = placeholder_map[fragment]
+                            signal_type, signal_data = signal_tuple[1], signal_tuple[2]
+                            if signal_type == "SIGNAL_ARTIFACT_RETURN":
+                                try:
+                                    filename, version = (
+                                        signal_data["filename"],
+                                        signal_data["version"],
                                     )
-                                )
-                                if resolved_content != original_content:
-                                    new_file_content = part.file.model_copy()
-                                    new_file_content.bytes = base64.b64encode(
-                                        resolved_content.encode("utf-8")
-                                    ).decode("utf-8")
-                                    new_parts.append(
-                                        FilePart(
-                                            file=new_file_content,
-                                            metadata=part.metadata,
+                                    artifact_data = (
+                                        await load_artifact_content_or_metadata(
+                                            self.shared_artifact_service,
+                                            **embed_eval_context["session_context"],
+                                            filename=filename,
+                                            version=version,
+                                            load_metadata_only=True,
                                         )
                                     )
-                                    content_modified_or_signal_handled = True
-                                else:
-                                    new_parts.append(part)
+                                    if artifact_data.get("status") == "success":
+                                        uri = format_artifact_uri(
+                                            **embed_eval_context["session_context"],
+                                            filename=filename,
+                                            version=artifact_data.get("version"),
+                                        )
+                                        new_parts.append(
+                                            a2a.create_file_part_from_uri(
+                                                uri,
+                                                filename,
+                                                artifact_data.get("metadata", {}).get(
+                                                    "mime_type"
+                                                ),
+                                            )
+                                        )
+                                    else:
+                                        new_parts.append(
+                                            a2a.create_text_part(
+                                                f"[Error: Artifact '{filename}' v{version} not found.]"
+                                            )
+                                        )
+                                except Exception as e:
+                                    log.exception(
+                                        "%s Error handling SIGNAL_ARTIFACT_RETURN: %s",
+                                        log_id_prefix,
+                                        e,
+                                    )
+                                    new_parts.append(
+                                        a2a.create_text_part(
+                                            f"[Error: Could not retrieve artifact '{signal_data.get('filename')}'.]"
+                                        )
+                                    )
+                            elif signal_type == "SIGNAL_INLINE_BINARY_CONTENT":
+                                signal_data["content_bytes"] = signal_data.get("bytes")
+                                del signal_data["bytes"]
+                                new_parts.append(
+                                    a2a.create_file_part_from_bytes(**signal_data)
+                                )
                             else:
-                                new_parts.append(part)
-                        except Exception as e:
-                            log.warning(
-                                "%s Error during recursive FilePart resolution for %s: %s. Using original.",
-                                log_id_prefix,
-                                part.file.name,
-                                e,
+                                other_signals.append(signal_tuple)
+                        else:
+                            # Check if the non-placeholder fragment is just whitespace
+                            # and is between two placeholders. If so, drop it.
+                            is_just_whitespace = not fragment.strip()
+                            prev_fragment_was_placeholder = (
+                                i > 0 and text_fragments[i - 1] in placeholder_map
                             )
-                            new_parts.append(part)
-                    else:
-                        # This is a FileWithUri or empty FileWithBytes, which we don't process for embeds here.
-                        new_parts.append(part)
-                else:
-                    new_parts.append(part)
+                            next_fragment_is_placeholder = (
+                                i < len(text_fragments) - 1
+                                and text_fragments[i + 1] in placeholder_map
+                            )
 
+                            if (
+                                is_just_whitespace
+                                and prev_fragment_was_placeholder
+                                and next_fragment_is_placeholder
+                            ):
+                                log.debug(
+                                    "%s Dropping whitespace fragment between two file signals.",
+                                    log_id_prefix,
+                                )
+                                continue
+
+                            new_parts.append(a2a.create_text_part(text=fragment))
+
+                if is_streaming_status_update:
+                    current_buffer = text_to_resolve[processed_idx:]
+
+            elif isinstance(part, FilePart) and part.file:
+                # Handle recursive embeds in text-based FileParts
+                new_parts.append(part)  # Placeholder for now
+            else:
+                new_parts.append(part)
+
+        if other_signals:
+            await self._handle_resolved_signals(
+                external_request_context,
+                other_signals,
+                original_rpc_id,
+                is_finalizing_context,
+            )
+
+        if new_parts != original_parts:
+            content_modified = True
             if isinstance(parts_owner, A2AMessage):
                 if isinstance(event_with_parts, TaskStatusUpdateEvent):
                     event_with_parts.status.message = a2a.update_message_parts(
-                        message=parts_owner, new_parts=new_parts
+                        parts_owner, new_parts
                     )
                 elif isinstance(event_with_parts, Task):
                     event_with_parts.status.message = a2a.update_message_parts(
-                        message=parts_owner, new_parts=new_parts
+                        parts_owner, new_parts
                     )
             elif isinstance(parts_owner, A2AArtifact):
                 event_with_parts.artifact = a2a.update_artifact_parts(
-                    artifact=parts_owner, new_parts=new_parts
+                    parts_owner, new_parts
                 )
 
-            if is_streaming_status_update:
-                self.task_context_manager.store_context(
-                    stream_buffer_key, current_buffer
-                )
+        if is_streaming_status_update:
+            self.task_context_manager.store_context(stream_buffer_key, current_buffer)
 
-        return content_modified_or_signal_handled
+        return content_modified or bool(other_signals)
+
 
     async def _process_parsed_a2a_event(
         self,
@@ -888,6 +913,7 @@ class BaseGatewayComponent(SamComponentBase):
                             context=embed_eval_context,
                             resolver_func=evaluate_embed,
                             types_to_resolve=all_embed_types,
+                            resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
                             log_identifier=log_id_prefix,
                             config=embed_eval_config,
                         )
@@ -949,12 +975,13 @@ class BaseGatewayComponent(SamComponentBase):
                     }
                     resolved_remaining_text, _, signals = (
                         await resolve_embeds_in_string(
-                            remaining_buffer,
-                            embed_eval_context,
-                            evaluate_embed,
-                            LATE_EMBED_TYPES.copy(),
-                            log_id_prefix,
-                            embed_eval_config,
+                            text=remaining_buffer,
+                            context=embed_eval_context,
+                            resolver_func=evaluate_embed,
+                            types_to_resolve=LATE_EMBED_TYPES.copy(),
+                            resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER,
+                            log_identifier=log_id_prefix,
+                            config=embed_eval_config,
                         )
                     )
                     await self._handle_resolved_signals(

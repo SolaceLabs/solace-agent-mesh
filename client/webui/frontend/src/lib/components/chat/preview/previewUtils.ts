@@ -256,6 +256,14 @@ export const getFileContent = (file: FileAttachment | null) => {
         return file.content;
     }
 
+    // Check if content is already plain text (from streaming)
+    // @ts-ignore - Custom property added during streaming
+    if (file.isPlainText) {
+        console.log("Content is plain text from streaming, returning as-is");
+        return file.content;
+    }
+
+    // Otherwise, decode as base64 (from backend API)
     try {
         return decodeBase64Content(file.content);
     } catch (e) {

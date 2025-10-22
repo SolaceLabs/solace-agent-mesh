@@ -3,36 +3,77 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Loader2 } from "lucide-react";
 
 import { useChatContext } from "@/lib/hooks";
-import type { ArtifactInfo } from "@/lib/types";
+import type { ArtifactInfo, FileAttachment } from "@/lib/types";
 
 import { MessageBanner } from "../../common";
 import { ContentRenderer } from "../preview/ContentRenderer";
 import { canPreviewArtifact, getFileContent, getRenderType } from "../preview/previewUtils";
 import { ArtifactPreviewDownload } from "./ArtifactPreviewDownload";
+import { ArtifactTransitionOverlay } from "./ArtifactTransitionOverlay";
 
 const EmptyState: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
     return <div className="text-muted-foreground flex h-[50vh] items-center justify-center">{children || "No preview available"}</div>;
 };
 
 export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ artifact }) => {
-    const { openArtifactForPreview, previewFileContent } = useChatContext();
+    const { openArtifactForPreview, previewFileContent, markArtifactAsDisplayed, downloadAndResolveArtifact } = useChatContext();
     const preview = useMemo(() => canPreviewArtifact(artifact), [artifact]);
 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [cachedContent, setCachedContent] = useState<FileAttachment | null>(null);
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    // Mark artifact as displayed when preview opens
+    useEffect(() => {
+        console.log(`[ArtifactPreviewContent] Marking ${artifact.filename} as displayed`);
+        markArtifactAsDisplayed(artifact.filename, true);
+
+        return () => {
+            console.log(`[ArtifactPreviewContent] Unmarking ${artifact.filename} as displayed`);
+            markArtifactAsDisplayed(artifact.filename, false);
+        };
+    }, [artifact.filename, markArtifactAsDisplayed]);
 
     useEffect(() => {
         setIsLoading(false);
         setError(null);
-    }, [artifact]);
+        setCachedContent(null);
+    }, [artifact.filename]); // Only depend on filename to avoid infinite loops
 
+    // Update cached content when accumulated content changes (for progressive rendering)
+    useEffect(() => {
+        console.log(`[ArtifactPreviewContent] Streaming update effect - hasAccumulated: ${!!artifact.accumulatedContent}, contentLength: ${artifact.accumulatedContent?.length || 0}, isDisplayed: ${artifact.isDisplayed}`);
+        if (artifact.accumulatedContent) {
+            console.log(`[ArtifactPreviewContent] Updating cached content for ${artifact.filename}, plainText: ${artifact.isAccumulatedContentPlainText}, length: ${artifact.accumulatedContent.length}`);
+            const cachedFile: FileAttachment = {
+                name: artifact.filename,
+                mime_type: artifact.mime_type,
+                content: artifact.accumulatedContent,
+                last_modified: artifact.last_modified,
+                // @ts-ignore - Add custom property to track if content is plain text
+                isPlainText: artifact.isAccumulatedContentPlainText,
+            };
+            setCachedContent(cachedFile);
+        }
+    }, [artifact.accumulatedContent, artifact.filename, artifact.mime_type, artifact.last_modified, artifact.isAccumulatedContentPlainText]);
+
+    // Fetch data when preview opens or filename changes
     useEffect(() => {
         async function fetchData() {
             try {
                 setIsLoading(true);
                 setError(null);
 
-                await openArtifactForPreview(artifact.filename);
+                if (!artifact.accumulatedContent) {
+                    // No cached content, fetch from backend
+                    console.log(`[ArtifactPreviewContent] No cached content, fetching from backend for ${artifact.filename}`);
+                    await openArtifactForPreview(artifact.filename);
+                } else {
+                    // Already have cached content from streaming
+                    console.log(`[ArtifactPreviewContent] Already have cached content for ${artifact.filename}, skipping fetch`);
+                    setIsLoading(false);
+                }
             } catch (err) {
                 console.error("Error fetching artifact content:", err);
                 setError(err instanceof Error ? err.message : "Failed to load artifact content");
@@ -44,7 +85,33 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
         if (preview?.canPreview) {
             fetchData();
         }
-    }, [artifact, openArtifactForPreview, preview]);
+    }, [artifact.filename, openArtifactForPreview, preview, artifact.accumulatedContent]);
+
+    // Trigger download for embed resolution when artifact completes
+    useEffect(() => {
+        console.log(`[ArtifactPreviewContent] Download effect check - needsEmbedResolution: ${artifact.needsEmbedResolution}, isDownloading: ${isDownloading}`);
+
+        async function triggerDownload() {
+            if (artifact.needsEmbedResolution && !isDownloading) {
+                console.log(`[ArtifactPreviewContent] Artifact ${artifact.filename} needs embed resolution, triggering download`);
+                setIsDownloading(true);
+                try {
+                    const resolvedContent = await downloadAndResolveArtifact(artifact.filename);
+                    if (resolvedContent) {
+                        console.log(`[ArtifactPreviewContent] Downloaded resolved content for ${artifact.filename}`);
+                        // Add isPlainText: false because downloaded content is base64
+                        setCachedContent({ ...resolvedContent, isPlainText: false } as any);
+                    }
+                } catch (err) {
+                    console.error(`[ArtifactPreviewContent] Error downloading ${artifact.filename}:`, err);
+                } finally {
+                    setIsDownloading(false);
+                }
+            }
+        }
+
+        triggerDownload();
+    }, [artifact.needsEmbedResolution, artifact.filename, downloadAndResolveArtifact, isDownloading]);
 
     if (error) {
         return (
@@ -67,12 +134,19 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
         return <ArtifactPreviewDownload artifact={artifact} message={preview.reason ?? ""} />;
     }
 
+    // Use cached content if available, otherwise fall back to previewFileContent
+    const contentSource = cachedContent || previewFileContent;
     const rendererType = getRenderType(artifact.filename, artifact.mime_type);
-    const content = getFileContent(previewFileContent);
+    const content = getFileContent(contentSource);
 
     if (!rendererType || !content) {
         return <EmptyState>No preview available</EmptyState>;
     }
 
-    return <ContentRenderer content={content} rendererType={rendererType} mime_type={previewFileContent?.mime_type} setRenderError={setError} />;
+    return (
+        <div className="relative h-full w-full">
+            <ContentRenderer content={content} rendererType={rendererType} mime_type={contentSource?.mime_type} setRenderError={setError} />
+            <ArtifactTransitionOverlay isVisible={isDownloading} message="Resolving embeds..." />
+        </div>
+    );
 };

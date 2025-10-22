@@ -397,6 +397,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setIsDeleteModalOpen(false);
     }, []);
 
+    // Wrapper function to set preview artifact by filename
+    // IMPORTANT: Must be defined before confirmDelete to avoid circular dependency
+    const setPreviewArtifact = useCallback((artifact: ArtifactInfo | null) => {
+        setPreviewArtifactFilename(artifact?.filename || null);
+    }, []);
+
     const confirmDelete = useCallback(async () => {
         if (artifactToDelete) {
             // Check if the artifact being deleted is currently being previewed
@@ -444,11 +450,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setSelectedArtifactFilenames(new Set());
         setIsArtifactEditMode(false);
     }, [selectedArtifactFilenames, apiPrefix, addNotification, artifactsRefetch]);
-
-    // Wrapper function to set preview artifact by filename
-    const setPreviewArtifact = useCallback((artifact: ArtifactInfo | null) => {
-        setPreviewArtifactFilename(artifact?.filename || null);
-    }, []);
 
     const openArtifactForPreview = useCallback(
         async (artifactFilename: string): Promise<FileAttachment | null> => {

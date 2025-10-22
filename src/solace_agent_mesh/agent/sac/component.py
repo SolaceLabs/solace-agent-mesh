@@ -3361,6 +3361,7 @@ class SamAgentComponent(SamComponentBase):
                 evaluate_embed,
             )
             from ...common.utils.embeds.constants import EARLY_EMBED_TYPES
+            from ...common.utils.embeds.types import ResolutionMode
 
             resolved_text, processed_until_index, signals_found = (
                 await resolve_embeds_in_string(
@@ -3368,6 +3369,7 @@ class SamAgentComponent(SamComponentBase):
                     context=context_for_embeds,
                     resolver_func=evaluate_embed,
                     types_to_resolve=EARLY_EMBED_TYPES,
+                    resolution_mode=ResolutionMode.TOOL_PARAMETER,
                     log_identifier=method_context_log_identifier,
                     config=resolver_config,
                 )

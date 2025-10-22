@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage, Button } from "@/lib/components/ui
 import { cn } from "@/lib/utils";
 
 // ChatBubble
-const chatBubbleVariant = cva("flex gap-2 max-w-[90%] items-end relative group", {
+const chatBubbleVariant = cva("flex gap-2 max-w-full items-end relative group", {
     variants: {
         variant: {
             received: "self-start",

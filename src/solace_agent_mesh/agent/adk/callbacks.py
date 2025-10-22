@@ -170,12 +170,27 @@ async def process_artifact_blocks_callback(
                             event.params,
                         )
                         filename = event.params.get("filename", "unknown_artifact")
+                        description = event.params.get("description")
                         if a2a_context:
+                            status_text = f"Receiving artifact `{filename}`..."
+                            if description:
+                                status_text = f"Receiving artifact `{filename}`: {description}"
                             progress_data = AgentProgressUpdateData(
-                                status_text=f"Receiving artifact `{filename}`..."
+                                status_text=status_text
                             )
                             await _publish_data_part_status_update(
                                 host_component, a2a_context, progress_data
+                            )
+                            # Also send an initial in-progress event to create the UI bubble
+                            artifact_progress_data = ArtifactCreationProgressData(
+                                filename=filename,
+                                description=description,
+                                status="in-progress",
+                                bytes_transferred=0,
+                                artifact_chunk=None,
+                            )
+                            await _publish_data_part_status_update(
+                                host_component, a2a_context, artifact_progress_data
                             )
                         params_str = " ".join(
                             [f'{k}="{v}"' for k, v in event.params.items()]
@@ -194,7 +209,9 @@ async def process_artifact_blocks_callback(
                         if a2a_context:
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
-                                bytes_saved=event.buffered_size,
+                                description=params.get("description"),
+                                status="in-progress",
+                                bytes_transferred=event.buffered_size,
                                 artifact_chunk=event.chunk,
                             )
                             await _publish_data_part_status_update(
@@ -236,6 +253,16 @@ async def process_artifact_blocks_callback(
                                     "original_text": original_text,
                                 }
                             )
+                            if a2a_context:
+                                progress_data = ArtifactCreationProgressData(
+                                    filename=filename or "unknown_artifact",
+                                    description=params.get("description"),
+                                    status="failed",
+                                    bytes_transferred=0,
+                                )
+                                await _publish_data_part_status_update(
+                                    host_component, a2a_context, progress_data
+                                )
                             continue
 
                         kwargs_for_call = {
@@ -299,9 +326,32 @@ async def process_artifact_blocks_callback(
                                     log_identifier,
                                     e_track,
                                 )
+                            # Publish completion status immediately via SSE
+                            if a2a_context:
+                                progress_data = ArtifactCreationProgressData(
+                                    filename=filename,
+                                    description=params.get("description"),
+                                    status="completed",
+                                    bytes_transferred=len(event.content),
+                                    mime_type=params.get("mime_type"),
+                                )
+                                await _publish_data_part_status_update(
+                                    host_component, a2a_context, progress_data
+                                )
                         else:
                             status_for_tool = "error"
                             version_for_tool = 0
+                            # Publish failure status immediately via SSE
+                            if a2a_context:
+                                progress_data = ArtifactCreationProgressData(
+                                    filename=filename,
+                                    description=params.get("description"),
+                                    status="failed",
+                                    bytes_transferred=len(event.content),
+                                )
+                                await _publish_data_part_status_update(
+                                    host_component, a2a_context, progress_data
+                                )
 
                         session.state["completed_artifact_blocks_list"].append(
                             {
@@ -383,38 +433,16 @@ async def process_artifact_blocks_callback(
                     adk_types.Part(text=final_parser_result.user_facing_text)
                 )
 
-        # Check if any blocks were completed and need to be injected into the final response
+        # Check if any blocks were completed (for metadata tracking)
         completed_blocks_list = session.state.get("completed_artifact_blocks_list")
         if completed_blocks_list:
             log.info(
-                "%s Injecting info for %d saved artifact(s) into final LlmResponse.",
+                "%s Completed %d artifact(s) this turn.",
                 log_identifier,
                 len(completed_blocks_list),
             )
-
-            tool_call_parts = []
-            for block_info in completed_blocks_list:
-                notify_tool_call = adk_types.FunctionCall(
-                    name="_notify_artifact_save",
-                    args={
-                        "filename": block_info["filename"],
-                        "version": block_info["version"],
-                        "status": block_info["status"],
-                    },
-                    id=f"host-notify-{uuid.uuid4()}",
-                )
-                tool_call_parts.append(adk_types.Part(function_call=notify_tool_call))
-
-            existing_parts = llm_response.content.parts if llm_response.content else []
-            final_existing_parts = existing_parts
-
-            if llm_response.content is None:
-                llm_response.content = adk_types.Content(parts=[])
-
-            llm_response.content.parts = tool_call_parts + final_existing_parts
-
-            llm_response.turn_complete = True
-            llm_response.partial = False
+            # Note: Completion notifications are already sent via ArtifactCreationProgressData
+            # in the BlockCompletedEvent handler above. No additional SSE events needed here.
 
         session.state[parser_state_key] = None
         session.state["completed_artifact_blocks_list"] = None
