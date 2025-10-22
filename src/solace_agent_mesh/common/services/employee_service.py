@@ -66,7 +66,7 @@ class BaseEmployeeService(ABC):
         pass
 
     @abstractmethod
-    async def get_time_off_data(self, employee_id: str) -> List[Dict[str, Any]]:
+    async def get_time_off_data(self, employee_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Retrieves a list of raw time-off entries for an employee.
 
