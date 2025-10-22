@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { Plus } from "lucide-react";
 
-import { CreateProjectWizard } from "./CreateProjectWizard";
+import { CreateProjectDialog } from "./CreateProjectDialog";
 import { ProjectListSidebar } from "./ProjectListSidebar";
 import { ProjectDetailPanel } from "./ProjectDetailPanel";
 import { ProjectMetadataSidebar } from "./ProjectMetadataSidebar";
 import { useProjectContext } from "@/lib/providers";
 import { useChatContext } from "@/lib/hooks";
-import type { Project, ProjectFormData } from "@/lib/types/projects";
+import type { Project } from "@/lib/types/projects";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
@@ -17,7 +17,9 @@ interface ProjectsPageProps {
 }
 
 export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }) => {
-    const [showCreateWizard, setShowCreateWizard] = useState(false);
+    const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
+    
     const { 
         projects, 
         isLoading, 
@@ -29,36 +31,22 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     } = useProjectContext();
     const { handleSwitchSession } = useChatContext();
 
-    const handleCreateProject = async (data: ProjectFormData) => {
-        const formData = new FormData();
-        formData.append("name", data.name);
-        if (data.description) {
-            formData.append("description", data.description);
-        }
-        if (data.system_prompt) {
-            formData.append("systemPrompt", data.system_prompt);
-        }
-        if (data.files) {
-            for (let i = 0; i < data.files.length; i++) {
-                formData.append("files", data.files[i]);
+    const handleCreateProject = async (data: { name: string; description: string }) => {
+        setIsCreating(true);
+        try {
+            const formData = new FormData();
+            formData.append("name", data.name);
+            if (data.description) {
+                formData.append("description", data.description);
             }
-        }
-        if (data.fileDescriptions && data.files) {
-            const metadataPayload: Record<string, string> = {};
-            for (const file of Array.from(data.files)) {
-                if (data.fileDescriptions[file.name]) {
-                    metadataPayload[file.name] = data.fileDescriptions[file.name];
-                }
-            }
-            if (Object.keys(metadataPayload).length > 0) {
-                formData.append("fileMetadata", JSON.stringify(metadataPayload));
-            }
-        }
 
-        const newProject = await createProject(formData);
-        setShowCreateWizard(false);
-        // Auto-select the newly created project
-        setSelectedProject(newProject);
+            const newProject = await createProject(formData);
+            setShowCreateDialog(false);
+            // Auto-select the newly created project
+            setSelectedProject(newProject);
+        } finally {
+            setIsCreating(false);
+        }
     };
 
     const handleProjectSelect = (project: Project) => {
@@ -66,16 +54,13 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     };
 
     const handleCreateNew = () => {
-        setShowCreateWizard(true);
+        setShowCreateDialog(true);
     };
 
     const handleChatClick = async (sessionId: string) => {
-        // Activate the project and switch to the chat
-        if (selectedProject) {
-            setActiveProject(selectedProject);
-            await handleSwitchSession(sessionId);
-            onProjectActivated();
-        }
+        // Switch to the session first, which will activate the project automatically
+        await handleSwitchSession(sessionId);
+        onProjectActivated();
     };
 
     const handleStartNewChat = () => {
@@ -87,17 +72,6 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
             onProjectActivated();
         }
     };
-
-    // Show wizard as overlay
-    if (showCreateWizard) {
-        return (
-            <CreateProjectWizard
-                onComplete={() => setShowCreateWizard(false)}
-                onCancel={() => setShowCreateWizard(false)}
-                onSubmit={handleCreateProject}
-            />
-        );
-    }
 
     return (
         <div className="flex h-full w-full flex-col">
@@ -153,6 +127,14 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                     </ResizablePanel>
                 </ResizablePanelGroup>
             </div>
+            
+            {/* Simple Create Dialog */}
+            <CreateProjectDialog
+                isOpen={showCreateDialog}
+                onClose={() => setShowCreateDialog(false)}
+                onSubmit={handleCreateProject}
+                isSubmitting={isCreating}
+            />
         </div>
     );
 };

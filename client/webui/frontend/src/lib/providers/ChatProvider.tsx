@@ -3,6 +3,7 @@ import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
+import type { Project } from "@/lib/types/projects";
 
 // Schema version for data migration purposes
 const CURRENT_SCHEMA_VERSION = 1;
@@ -103,7 +104,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
     const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
-    const { activeProject } = useProjectContext();
+    const { activeProject, setActiveProject, projects } = useProjectContext();
 
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
@@ -157,6 +158,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Session State
     const [sessionName, setSessionName] = useState<string | null>(null);
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
+    const [isLoadingSession, setIsLoadingSession] = useState<boolean>(false);
 
     // Feedback State
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
@@ -953,6 +955,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const log_prefix = "ChatProvider.handleSwitchSession:";
             console.log(`${log_prefix} Switching to session ${newSessionId}...`);
 
+            setIsLoadingSession(true);
+            
+            // Clear messages immediately to prevent showing old session's messages
+            setMessages([]);
+            
             closeCurrentEventSource();
 
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
@@ -984,15 +991,47 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsCancelling(false);
 
             try {
-                // Load session tasks instead of old message history
-                await loadSessionTasks(newSessionId);
-
-                // Load session metadata (name)
+                // Load session metadata first to get project info
                 const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
+                let session = null;
                 if (sessionResponse.ok) {
-                    const session = await sessionResponse.json();
-                    setSessionName(session?.data?.name ?? "N/A");
+                    const sessionData = await sessionResponse.json();
+                    session = sessionData?.data;
+                    setSessionName(session?.name ?? "N/A");
+
+                    // Activate or deactivate project context based on session's project
+                    // Set flag to prevent handleNewSession from being triggered by this project change
+                    isSessionSwitchRef.current = true;
+                    
+                    if (session?.projectId) {
+                        console.log(`${log_prefix} Session belongs to project ${session.projectId}`);
+                        
+                        // Check if we're already in the correct project context
+                        if (activeProject?.id !== session.projectId) {
+                            // Find the full project object from the projects array
+                            const project = projects.find((p: Project) => p.id === session.projectId);
+                            
+                            if (project) {
+                                console.log(`${log_prefix} Activating project context: ${project.name}`);
+                                setActiveProject(project);
+                            } else {
+                                console.warn(`${log_prefix} Project ${session.projectId} not found in projects array`);
+                                // Optionally: fetch project details from API here if needed
+                            }
+                        } else {
+                            console.log(`${log_prefix} Already in correct project context`);
+                        }
+                    } else {
+                        // Session has no project - deactivate project context
+                        if (activeProject !== null) {
+                            console.log(`${log_prefix} Session has no project, deactivating project context`);
+                            setActiveProject(null);
+                        }
+                    }
                 }
+
+                // Load session tasks
+                await loadSessionTasks(newSessionId);
 
                 // Update session state
                 setSessionId(newSessionId);
@@ -1007,9 +1046,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             } catch (error) {
                 console.error(`${log_prefix} Failed to fetch session history:`, error);
                 addNotification("Error switching session. Please try again.", "error");
+            } finally {
+                setIsLoadingSession(false);
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks, activeProject, projects, setActiveProject]
     );
 
     const updateSessionName = useCallback(
@@ -1388,18 +1429,28 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
+    const isSessionSwitchRef = useRef(false);
+
     useEffect(() => {
         // When the active project changes, reset the chat view to a clean slate
-        // and refetch the sessions for that project.
-        if (prevProjectIdRef.current !== activeProject?.id) {
-            console.log("Active project changed, resetting chat view.");
+        // UNLESS the change was triggered by switching to a session (which handles its own state)
+        // Only trigger when activating or switching projects, not when deactivating (going to null)
+        const prevId = prevProjectIdRef.current;
+        const currentId = activeProject?.id;
+        const isActivatingOrSwitching = currentId !== undefined && prevId !== currentId;
+
+        if (isActivatingOrSwitching && !isSessionSwitchRef.current) {
+            console.log("Active project changed explicitly, resetting chat view.");
             handleNewSession();
         }
-        prevProjectIdRef.current = activeProject?.id;
+        prevProjectIdRef.current = currentId;
+        // Reset the flag after processing
+        isSessionSwitchRef.current = false;
     }, [activeProject, handleNewSession]);
 
     useEffect(() => {
-        if (!selectedAgentName && agents.length > 0 && messages.length === 0) {
+        // Don't show welcome message if we're loading a session
+        if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
             const selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
             setSelectedAgentName(selectedAgent.name);
 
@@ -1417,7 +1468,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             ]);
         }
-    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId]);
+    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession]);
 
     useEffect(() => {
         if (currentTaskId && apiPrefix) {
@@ -1465,6 +1516,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         currentTaskId,
         isCancelling,
         latestStatusText,
+        isLoadingSession,
         agents,
         agentsLoading,
         agentsError,

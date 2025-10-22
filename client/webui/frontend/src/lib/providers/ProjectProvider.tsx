@@ -161,6 +161,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 });
                 // Update current project if it's the one being edited
                 setCurrentProject(current => (current?.id === updatedProject.id ? updatedProject : current));
+                // Update selected project if it's the one being edited
+                setSelectedProject(current => (current?.id === updatedProject.id ? updatedProject : current));
                 // Update active project if it's the one being edited
                 setActiveProject(current => (current?.id === updatedProject.id ? updatedProject : current));
 
