@@ -104,7 +104,7 @@ class SamConfigBase(BaseModel):
                     f"   Error: {msg}",
                 ])
             error_lines.append(f"   Location: app_config.{absolute_path}")
-            error_lines.append(f"   Description: {description or "UNKNOWN"}")
+            error_lines.append(f"   Description: {description or 'UNKNOWN'}")
             error_lines.append("")
 
         error_lines.append('---- Please update your YAML configuration ----')
