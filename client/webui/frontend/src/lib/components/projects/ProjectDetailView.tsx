@@ -89,11 +89,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
                     </div>
 
                     <div className="mb-6 space-y-2">
-                        <h4 className="font-semibold text-foreground">System Prompt</h4>
+                        <h4 className="font-semibold text-foreground">Instructions</h4>
                         {isEditing ? (
-                            <Textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} placeholder="No system prompt provided." rows={5} />
+                            <Textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} placeholder="No instructions provided." rows={5} />
                         ) : (
-                            <p className="whitespace-pre-wrap rounded-md bg-muted p-4 text-sm text-muted-foreground min-h-[40px]">{project.systemPrompt || <span className="italic">No system prompt provided.</span>}</p>
+                            <p className="whitespace-pre-wrap rounded-md bg-muted p-4 text-sm text-muted-foreground min-h-[40px]">{project.systemPrompt || <span className="italic">No instructions provided.</span>}</p>
                         )}
                     </div>
 

@@ -47,7 +47,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
                     ) : (
                         <ChevronDown className="h-4 w-4" />
                     )}
-                    <h3 className="text-sm font-semibold text-foreground">System Prompt</h3>
+                    <h3 className="text-sm font-semibold text-foreground">Instructions</h3>
                 </div>
                 {!isCollapsed && !isEditing && (
                     <Button
@@ -70,7 +70,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
                             <Textarea
                                 value={editedPrompt}
                                 onChange={(e) => setEditedPrompt(e.target.value)}
-                                placeholder="Add a system prompt for this project..."
+                                placeholder="Add instructions for this project..."
                                 rows={8}
                                 disabled={isSaving}
                                 className="text-sm"
@@ -97,7 +97,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
                         </div>
                     ) : (
                         <div className="text-sm text-muted-foreground whitespace-pre-wrap rounded-md bg-muted p-3 min-h-[120px]">
-                            {project.systemPrompt || <span className="italic">No system prompt provided.</span>}
+                            {project.systemPrompt || <span className="italic">No instructions provided.</span>}
                         </div>
                     )}
                 </div>
