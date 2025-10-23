@@ -9,7 +9,6 @@ const defaultMockChatContext: DefaultMockContextType = {
     // State
     sessionId: "mock-session-id",
     messages: [],
-    userInput: "",
     isResponding: false,
     currentTaskId: null,
     selectedAgentName: "MockAgent",
@@ -37,7 +36,6 @@ const defaultMockChatContext: DefaultMockContextType = {
 
     // Actions
     setMessages: () => {},
-    setUserInput: () => {},
     setTaskIdInSidePanel: () => {},
     handleNewSession: () => {},
     handleSubmit: async () => {},
