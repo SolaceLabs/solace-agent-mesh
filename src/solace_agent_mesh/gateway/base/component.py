@@ -414,7 +414,7 @@ class BaseGatewayComponent(SamComponentBase):
     async def _handle_resolved_signals(
         self,
         external_request_context: Dict,
-        signals: List[Tuple[int, Any, str]],
+        signals: List[Tuple[None, str, Any]],
         original_rpc_id: Optional[str],
         is_finalizing_context: bool = False,
     ):

@@ -33,6 +33,10 @@
         "mime_type": {
             "type": "string",
             "description": "The MIME type of the artifact. Only present for 'completed' status."
+        },
+        "version": {
+            "type": "integer",
+            "description": "The version number of the artifact being created or updated."
         }
     },
     "required": [

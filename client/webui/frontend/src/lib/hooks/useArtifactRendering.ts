@@ -1,10 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { shouldAutoRender, isUserControllableRendering } from "@/lib/components/chat/file/fileUtils";
 
-interface ArtifactRenderingState {
-    expandedArtifacts: Set<string>;
-}
-
 interface UseArtifactRenderingOptions {
     filename?: string;
     mimeType?: string;
@@ -19,14 +15,14 @@ interface UseArtifactRenderingReturn {
 
 /**
  * Custom hook to manage artifact rendering state and decisions
+ * Uses local component state to ensure each instance has independent expansion
  */
-export const useArtifactRendering = ({ 
-    filename, 
-    mimeType 
+export const useArtifactRendering = ({
+    filename,
+    mimeType
 }: UseArtifactRenderingOptions): UseArtifactRenderingReturn => {
-    const [state, setState] = useState<ArtifactRenderingState>({
-        expandedArtifacts: new Set<string>()
-    });
+    // Use local state for expansion - this persists across re-renders but is unique per component instance
+    const [isExpanded, setIsExpanded] = useState(false);
 
     // Determine if this artifact should auto-render
     const shouldAutoRenderArtifact = useMemo(() => {
@@ -38,24 +34,18 @@ export const useArtifactRendering = ({
         return isUserControllableRendering(filename, mimeType);
     }, [filename, mimeType]);
 
-    // Check if this specific artifact is expanded
-    const isExpanded = useMemo(() => {
-        if (!filename) return false;
-        return state.expandedArtifacts.has(filename);
-    }, [filename, state.expandedArtifacts]);
-
     // Determine final rendering decision
     const shouldRender = useMemo(() => {
         if (shouldAutoRenderArtifact) {
             // Images and audio always render
             return true;
         }
-        
+
         if (isUserControllable) {
             // Text-based files render only when expanded
             return isExpanded;
         }
-        
+
         // Non-renderable files don't render
         return false;
     }, [shouldAutoRenderArtifact, isUserControllable, isExpanded]);
@@ -67,23 +57,23 @@ export const useArtifactRendering = ({
 
     // Toggle expanded state for this artifact
     const toggleExpanded = useCallback(() => {
-        if (!filename || !isExpandable) return;
-        
-        setState(prevState => {
-            const newExpandedArtifacts = new Set(prevState.expandedArtifacts);
-            
-            if (newExpandedArtifacts.has(filename)) {
-                newExpandedArtifacts.delete(filename);
-            } else {
-                newExpandedArtifacts.add(filename);
-            }
-            
-            return {
-                ...prevState,
-                expandedArtifacts: newExpandedArtifacts
-            };
+        console.log(`[useArtifactRendering] toggleExpanded called for ${filename}:`, {
+            filename,
+            isExpandable,
+            currentlyExpanded: isExpanded
         });
-    }, [filename, isExpandable]);
+
+        if (!filename || !isExpandable) {
+            console.log(`[useArtifactRendering] Toggle blocked - filename: ${filename}, isExpandable: ${isExpandable}`);
+            return;
+        }
+
+        setIsExpanded(prev => {
+            const newValue = !prev;
+            console.log(`[useArtifactRendering] ${newValue ? 'Expanding' : 'Collapsing'} ${filename}`);
+            return newValue;
+        });
+    }, [filename, isExpandable, isExpanded]);
 
     return {
         shouldRender,

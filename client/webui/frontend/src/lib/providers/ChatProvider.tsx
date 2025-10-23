@@ -693,9 +693,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     // The content has already been streamed via status_updates.
                     messageToProcess = undefined;
                     currentTaskIdFromResult = result.id;
-                    if (result.artifacts && result.artifacts.length > 0) {
-                        console.log("Final task has artifacts to process:", result.artifacts);
-                    }
                     break;
                 case "status-update":
                     isFinalEvent = result.final;
@@ -728,16 +725,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 }
                                 case "artifact_creation_progress": {
-                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk } = data as {
+                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk, version } = data as {
                                         filename: string;
                                         status: "in-progress" | "completed" | "failed";
                                         bytes_transferred: number;
                                         mime_type?: string;
                                         description?: string;
                                         artifact_chunk?: string;
+                                        version?: number;
                                     };
-                                    console.log(`[ChatProvider] Received artifact_creation_progress:`, { filename, status, bytes_transferred, mime_type, description, artifact_chunk });
-                                    console.log(`[ChatProvider] Updating artifact progress: ${filename}, status: ${status}, bytes: ${bytes_transferred}`);
 
                                     // Track if we need to trigger auto-download after state update
                                     let shouldAutoDownload = false;
@@ -754,7 +750,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             // Check if we should trigger auto-download (before state update)
                                             if (status === "completed" && isDisplayed) {
                                                 shouldAutoDownload = true;
-                                                console.log(`[ChatProvider] Artifact ${filename} completed while displayed, will trigger auto-download`);
                                             }
 
                                             updated[existingIndex] = {
@@ -806,7 +801,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     if (shouldAutoDownload) {
                                         setTimeout(() => {
                                             downloadAndResolveArtifact(filename).catch(err => {
-                                                console.error(`[ChatProvider] Auto-download failed for ${filename}:`, err);
+                                                console.error(`Auto-download failed for ${filename}:`, err);
                                             });
                                         }, 100);
                                     }
@@ -836,7 +831,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         if (status === "in-progress") {
                                             if (artifactPartIndex > -1) {
                                                 const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
-                                                console.log(`[ChatProvider] Updating existing artifact part for ${filename}, old bytes: ${existingPart.bytesTransferred}, new bytes: ${bytes_transferred}`);
                                                 // Create a new part object with immutable update
                                                 const updatedPart: ArtifactPart = {
                                                     ...existingPart,
@@ -844,10 +838,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     status: "in-progress",
                                                 };
                                                 agentMessage.parts[artifactPartIndex] = updatedPart;
-                                                console.log(`[ChatProvider] Updated artifact part:`, updatedPart);
-                                                console.log(`[ChatProvider] Full parts array after update:`, agentMessage.parts);
                                             } else {
-                                                console.log(`[ChatProvider] Creating new artifact part for ${filename} with bytes: ${bytes_transferred}`);
                                                 const newPart: ArtifactPart = {
                                                     kind: "artifact",
                                                     status: "in-progress",
@@ -855,18 +846,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     bytesTransferred: bytes_transferred,
                                                 };
                                                 agentMessage.parts.push(newPart);
-                                                console.log(`[ChatProvider] Created new artifact part:`, newPart);
                                             }
                                         } else if (status === "completed") {
-                                            console.log(`[ChatProvider] Marking artifact ${filename} as completed in message parts`);
                                             const fileAttachment: FileAttachment = {
                                                 name: filename,
                                                 mime_type,
-                                                uri: `artifact://${sessionId}/${filename}`,
+                                                uri: version !== undefined ? `artifact://${sessionId}/${filename}?version=${version}` : `artifact://${sessionId}/${filename}`,
                                             };
                                             if (artifactPartIndex > -1) {
                                                 const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
-                                                console.log(`[ChatProvider] Found existing artifact part at index ${artifactPartIndex}, updating to completed`);
                                                 // Create a new part object with immutable update
                                                 const updatedPart: ArtifactPart = {
                                                     ...existingPart,
@@ -876,7 +864,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 // Remove bytesTransferred for completed artifacts
                                                 delete updatedPart.bytesTransferred;
                                                 agentMessage.parts[artifactPartIndex] = updatedPart;
-                                                console.log(`[ChatProvider] Updated artifact part to completed:`, updatedPart);
                                             } else {
                                                 agentMessage.parts.push({
                                                     kind: "artifact",
@@ -912,10 +899,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         }
 
                                         newMessages[agentMessageIndex] = agentMessage;
-                                        console.log(
-                                            `[ChatProvider] Updated message with artifact parts:`,
-                                            agentMessage.parts.filter(p => p.kind === "artifact")
-                                        );
 
                                         // Filter out OTHER generic status bubbles, but keep our message.
                                         const finalMessages = newMessages.filter(m => !m.isStatusBubble || m.parts.some(p => p.kind === "artifact" || p.kind === "file"));
@@ -932,9 +915,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         } else if (part.metadata?.tool_name === "_notify_artifact_save") {
                             // Handle artifact completion notification
                             const artifactData = data as { filename: string; version: number; status: string };
-                            console.log(`[ChatProvider] Received _notify_artifact_save:`, artifactData);
-                            console.log(`[ChatProvider] Part metadata:`, part.metadata);
-                            console.log(`[ChatProvider] Part data:`, part.data);
 
                             if (artifactData.status === "success") {
                                 // Mark the artifact as completed in the message parts

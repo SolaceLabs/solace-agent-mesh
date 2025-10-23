@@ -16,31 +16,27 @@ import { Spinner } from "../../ui";
 
 type ArtifactMessageProps = (
     | {
-          status: "in-progress";
-          name: string;
-          bytesTransferred: number;
-      }
+        status: "in-progress";
+        name: string;
+        bytesTransferred: number;
+    }
     | {
-          status: "completed";
-          name: string;
-          fileAttachment: FileAttachment;
-      }
+        status: "completed";
+        name: string;
+        fileAttachment: FileAttachment;
+    }
     | {
-          status: "failed";
-          name: string;
-          error?: string;
-      }
+        status: "failed";
+        name: string;
+        error?: string;
+    }
 ) & {
     context?: "chat" | "list";
+    uniqueKey?: string; // Optional unique key for expansion state (e.g., taskId-filename)
 };
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
-    console.log(`[ArtifactMessage] Rendering with props:`, props);
-    console.log(`[ArtifactMessage] Props type check - status: ${props.status}, name: ${props.name}`);
-    if (props.status === "in-progress") {
-        console.log(`[ArtifactMessage] In-progress artifact - bytesTransferred: ${props.bytesTransferred}`);
-    }
-    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact } = useChatContext();
+    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion } = useChatContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [fetchedContent, setFetchedContent] = useState<string | null>(null);
@@ -51,12 +47,28 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const artifact = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
     const context = props.context || "chat";
 
+    // Extract version from URI if available
+    const version = useMemo(() => {
+        const fileAttachment = props.status === "completed" ? props.fileAttachment : undefined;
+        if (fileAttachment?.uri) {
+            const parsed = parseArtifactUri(fileAttachment.uri);
+            return parsed?.version !== null && parsed?.version !== undefined ? parseInt(parsed.version) : undefined;
+        }
+        return undefined;
+    }, [props.status, props.fileAttachment]);
+
     // Get file info for rendering decisions
     const fileAttachment = props.status === "completed" ? props.fileAttachment : undefined;
     const fileName = fileAttachment?.name || props.name;
     const fileMimeType = fileAttachment?.mime_type;
 
+    // Detect if artifact has been deleted: completed but not in artifacts list
+    const isDeleted = useMemo(() => {
+        return props.status === "completed" && !artifact;
+    }, [props.status, artifact]);
+
     // Use the artifact rendering hook to determine rendering behavior
+    // This uses local state, so each component instance has its own expansion state
     const { shouldRender, isExpandable, isExpanded, toggleExpanded } = useArtifactRendering({
         filename: fileName,
         mimeType: fileMimeType,
@@ -68,18 +80,22 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         return renderType === "image" || renderType === "audio";
     }, [fileName, fileMimeType]);
 
-    const handlePreviewClick = useCallback(() => {
+    const handlePreviewClick = useCallback(async () => {
         if (artifact) {
             openSidePanelTab("files");
             setPreviewArtifact(artifact);
+
+            // If this artifact has a specific version from the chat message, navigate to it
+            if (version !== undefined) {
+                // Wait a bit for the preview to open, then navigate to the specific version
+                setTimeout(async () => {
+                    await navigateArtifactVersion(artifact.filename, version);
+                }, 100);
+            }
         }
-    }, [artifact, openSidePanelTab, setPreviewArtifact]);
+    }, [artifact, openSidePanelTab, setPreviewArtifact, version, navigateArtifactVersion]);
 
     const handleDownloadClick = useCallback(() => {
-        console.log(`[ArtifactMessage] Download clicked - artifact:`, artifact);
-        console.log(`[ArtifactMessage] Download clicked - fileAttachment:`, fileAttachment);
-        console.log(`[ArtifactMessage] Download clicked - sessionId:`, sessionId);
-
         // Build the file to download from available sources
         let fileToDownload: FileAttachment | null = null;
 
@@ -101,10 +117,9 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
 
         if (fileToDownload) {
-            console.log(`[ArtifactMessage] Downloading file:`, fileToDownload);
             downloadFile(fileToDownload, sessionId);
         } else {
-            console.error(`[ArtifactMessage] No file to download`);
+            console.error(`No file to download for artifact: ${props.name}`);
         }
     }, [artifact, fileAttachment, sessionId]);
 
@@ -121,7 +136,6 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // Auto-expand for images and audio when completed
     useEffect(() => {
         if (props.status === "completed" && shouldAutoRender && !isExpanded) {
-            console.log(`[ArtifactMessage] Auto-expanding ${fileName} for auto-render`);
             toggleExpanded();
         }
     }, [props.status, shouldAutoRender, isExpanded, fileName, toggleExpanded]);
@@ -129,14 +143,12 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // Mark artifact as displayed when rendered
     useEffect(() => {
         if (shouldRender && artifact) {
-            console.log(`[ArtifactMessage] Marking ${fileName} as displayed`);
             markArtifactAsDisplayed(artifact.filename, true);
         }
 
         return () => {
             // Unmark when component unmounts or stops rendering
             if (artifact) {
-                console.log(`[ArtifactMessage] Unmarking ${fileName} as displayed`);
                 markArtifactAsDisplayed(artifact.filename, false);
             }
         };
@@ -156,29 +168,23 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     // Update fetched content when accumulated content changes (for progressive rendering during streaming)
     useEffect(() => {
-        console.log(`[ArtifactMessage] Streaming update effect - status: ${props.status}, hasAccumulated: ${!!artifact?.accumulatedContent}, shouldRender: ${shouldRender}, contentLength: ${artifact?.accumulatedContent?.length || 0}`);
         if (props.status === "in-progress" && artifact?.accumulatedContent && shouldRender) {
-            console.log(`[ArtifactMessage] Updating accumulated content for in-progress ${fileName}, length: ${artifact.accumulatedContent.length}`);
             setFetchedContent(artifact.accumulatedContent);
         }
-    }, [artifact?.accumulatedContent, props.status, fileName, shouldRender]);
+    }, [artifact?.accumulatedContent, props.status, fileName, shouldRender, isExpanded]);
 
     // Trigger download when artifact completes and needs embed resolution
     useEffect(() => {
-        console.log(`[ArtifactMessage] Download effect check - needsEmbedResolution: ${artifact?.needsEmbedResolution}, status: ${props.status}, shouldRender: ${shouldRender}, isDownloading: ${isDownloading}`);
-
         const triggerDownload = async () => {
             if (artifact?.needsEmbedResolution && props.status === "completed" && shouldRender && !isDownloading) {
-                console.log(`[ArtifactMessage] Artifact ${fileName} needs embed resolution, triggering download`);
                 setIsDownloading(true);
                 try {
                     const fileData = await downloadAndResolveArtifact(artifact.filename);
                     if (fileData?.content) {
-                        console.log(`[ArtifactMessage] Downloaded resolved content for ${fileName}`);
                         setFetchedContent(fileData.content);
                     }
                 } catch (err) {
-                    console.error(`[ArtifactMessage] Error downloading ${fileName}:`, err);
+                    console.error(`Error downloading ${fileName}:`, err);
                 } finally {
                     setIsDownloading(false);
                 }
@@ -191,13 +197,25 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // Fetch content from URI for completed artifacts when needed for rendering
     useEffect(() => {
         const fetchContentFromUri = async () => {
-            if (isLoading || !shouldRender || props.status !== "completed") {
+            if (isLoading || !shouldRender) {
+                return;
+            }
+
+            // For in-progress artifacts, only use accumulated content if available
+            if (props.status === "in-progress") {
+                if (artifact?.accumulatedContent) {
+                    setFetchedContent(artifact.accumulatedContent);
+                }
+                return;
+            }
+
+            // For completed artifacts, proceed with full content fetching
+            if (props.status !== "completed") {
                 return;
             }
 
             // If we have accumulated content, use it (download will happen separately)
             if (artifact?.accumulatedContent) {
-                console.log(`[ArtifactMessage] Using accumulated content for completed ${fileName}`);
                 setFetchedContent(artifact.accumulatedContent);
                 return;
             }
@@ -255,7 +273,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         };
 
         fetchContentFromUri();
-    }, [props.status, shouldRender, fileAttachment, sessionId, isLoading, fetchedContent, artifact?.accumulatedContent, fileName]);
+    }, [props.status, shouldRender, fileAttachment, sessionId, isLoading, fetchedContent, artifact?.accumulatedContent, fileName, isExpanded, artifact]);
 
     // Generate content preview for the file icon
     const contentPreview = useMemo(() => {
@@ -320,12 +338,19 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         expandedContent = <MessageBanner variant="error" message={error} />;
     } else if (contentToRender && renderType) {
         try {
+            // For in-progress artifacts, fileAttachment may be undefined, so create a minimal one
+            const fileForRendering: FileAttachment = fileAttachment || {
+                name: fileName,
+                mime_type: fileMimeType,
+            };
+
             const finalContent = getFileContent({
-                ...fileAttachment!,
+                ...fileForRendering,
                 content: contentToRender,
                 // @ts-ignore - Add flag to indicate if content is plain text from streaming
                 isPlainText: artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent
             });
+
             if (finalContent) {
                 expandedContent = (
                     <div className="group relative max-w-full overflow-hidden">
@@ -414,7 +439,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
 
         return undefined;
-    }, [isInfoExpanded, infoContent, shouldShowContent, expandedContent]);
+    }, [isInfoExpanded, infoContent, shouldShowContent, expandedContent, fileName]);
 
     // Render the bar with expanded content inside
     return (
@@ -433,6 +458,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             content={contentPreview}
             expandedContent={finalExpandedContent}
             context={context}
+            isDeleted={isDeleted}
+            version={version}
         />
     );
 };

@@ -35,9 +35,11 @@ export interface ArtifactBarProps {
     // For rendered content when expanded
     expandedContent?: React.ReactNode;
     context?: "chat" | "list";
+    isDeleted?: boolean; // If true, show as deleted
+    version?: number; // Version number to display (e.g., 1, 2, 3)
 }
 
-export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description, mimeType, size, status, expandable = false, expanded = false, onToggleExpand, actions, bytesTransferred, error, content, expandedContent, context = "chat" }) => {
+export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description, mimeType, size, status, expandable = false, expanded = false, onToggleExpand, actions, bytesTransferred, error, content, expandedContent, context = "chat", isDeleted = false, version }) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
 
     useEffect(() => {
@@ -52,8 +54,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
         }
     }, [expandedContent]);
 
-    console.log(`[ArtifactBar] Rendering ${filename} with status: ${status}, bytesTransferred: ${bytesTransferred}`);
-
     // Validate required props
     if (!filename || typeof filename !== "string") {
         console.error("ArtifactBar: filename is required and must be a string");
@@ -66,6 +66,14 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
     }
 
     const getStatusDisplay = () => {
+        // If deleted, override the status display
+        if (isDeleted) {
+            return {
+                text: "Deleted",
+                className: "text-[var(--color-secondary-foreground)]",
+            };
+        }
+
         switch (status) {
             case "in-progress":
                 return {
@@ -130,8 +138,8 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
 
     return (
         <div
-            className={`dark:bg-muted/30 w-full ${status === "completed" && actions?.onPreview ? "cursor-pointer transition-all duration-200 ease-in-out hover:shadow-md" : ""} ${context === "list" ? "border-b" : "border-border rounded-md border"}`}
-            onClick={handleBarClick}
+            className={`dark:bg-muted/30 w-full ${status === "completed" && actions?.onPreview && !isDeleted ? "cursor-pointer transition-all duration-200 ease-in-out hover:shadow-md" : ""} ${context === "list" ? "border-b" : "border-border rounded-md border"} ${isDeleted ? "opacity-60" : ""}`}
+            onClick={isDeleted ? undefined : handleBarClick}
         >
             <div className="flex min-h-[60px] items-center gap-3 p-3">
                 {/* File Icon with Preview */}
@@ -142,11 +150,19 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                     {/*Primary line: Description (if available) or Filename */}
                     <div className="truncate text-sm leading-tight font-semibold" title={hasDescription ? description : filename}>
                         {hasDescription ? displayDescription : filename.length > 50 ? `${filename.substring(0, 47)}...` : filename}
+                        {version !== undefined && context === "chat" && <span className="text-secondary-foreground ml-1.5 text-xs font-normal">(v{version})</span>}
                     </div>
 
                     {/* Secondary line: Filename (if description shown) or status */}
                     <div className="text-secondary-foreground mt-1 truncate text-xs leading-tight" title={hasDescription ? filename : statusDisplay.text}>
-                        {hasDescription ? (filename.length > 60 ? `${filename.substring(0, 57)}...` : filename) : statusDisplay.text}
+                        {hasDescription ? (
+                            <>
+                                {filename.length > 60 ? `${filename.substring(0, 57)}...` : filename}
+                                {version !== undefined && context === "chat" && <span className="ml-1.5">(v{version})</span>}
+                            </>
+                        ) : (
+                            statusDisplay.text
+                        )}
                     </div>
 
                     {/* Tertiary line: Status when description is shown */}
@@ -155,7 +171,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
 
                 {/* Actions Section */}
                 <div className="flex flex-shrink-0 items-center gap-1">
-                    {status === "completed" && actions?.onInfo && (
+                    {status === "completed" && actions?.onInfo && !isDeleted && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -173,7 +189,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onDownload && (
+                    {status === "completed" && actions?.onDownload && !isDeleted && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -191,7 +207,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onPreview && (
+                    {status === "completed" && actions?.onPreview && !isDeleted && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -209,7 +225,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onExpand && (
+                    {status === "completed" && actions?.onExpand && !isDeleted && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -227,7 +243,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                         </Button>
                     )}
 
-                    {status === "completed" && actions?.onDelete && (
+                    {status === "completed" && actions?.onDelete && !isDeleted && (
                         <Button
                             variant="ghost"
                             size="icon"
@@ -257,7 +273,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                 </div>
 
                 {/* Expand/Collapse Toggle */}
-                {expandable && onToggleExpand && (
+                {expandable && onToggleExpand && !isDeleted && (
                     <Button
                         variant="ghost"
                         size="icon"

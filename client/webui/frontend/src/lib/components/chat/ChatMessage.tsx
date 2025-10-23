@@ -202,6 +202,13 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     // Helper function to render artifact/file parts
     const renderArtifactOrFilePart = (part: ArtifactPart | FilePart, index: number) => {
+        // Create unique key for expansion state using taskId (or messageId) + filename
+        const uniqueKey = message.taskId
+            ? `${message.taskId}-${part.kind === 'file' ? (part as FilePart).file.name : (part as ArtifactPart).name}`
+            : message.metadata?.messageId
+                ? `${message.metadata.messageId}-${part.kind === 'file' ? (part as FilePart).file.name : (part as ArtifactPart).name}`
+                : undefined;
+
         if (part.kind === "file") {
             const filePart = part as FilePart;
             const fileInfo = filePart.file;
@@ -214,17 +221,17 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
             } else if ("uri" in fileInfo && fileInfo.uri) {
                 attachment.uri = fileInfo.uri;
             }
-            return <ArtifactMessage key={`part-file-${index}`} status="completed" name={attachment.name} fileAttachment={attachment} />;
+            return <ArtifactMessage key={`part-file-${index}`} status="completed" name={attachment.name} fileAttachment={attachment} uniqueKey={uniqueKey} />;
         }
         if (part.kind === "artifact") {
             const artifactPart = part as ArtifactPart;
             switch (artifactPart.status) {
                 case "completed":
-                    return <ArtifactMessage key={`part-artifact-${index}`} status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} />;
+                    return <ArtifactMessage key={`part-artifact-${index}`} status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} uniqueKey={uniqueKey} />;
                 case "in-progress":
-                    return <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} />;
+                    return <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} uniqueKey={uniqueKey} />;
                 case "failed":
-                    return <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} />;
+                    return <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} uniqueKey={uniqueKey} />;
                 default:
                     return null;
             }

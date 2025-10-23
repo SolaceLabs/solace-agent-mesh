@@ -88,6 +88,10 @@ class ArtifactCreationProgressData(BaseModel):
         None,
         description="The MIME type of the artifact. Only present for 'completed' status.",
     )
+    version: Optional[int] = Field(
+        None,
+        description="The version number of the artifact being created or updated.",
+    )
 
 
 class ToolResultData(BaseModel):
