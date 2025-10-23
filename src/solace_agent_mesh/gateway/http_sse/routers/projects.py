@@ -3,7 +3,7 @@ Project API controller using 3-tiered architecture.
 """
 
 import json
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import (
     APIRouter,
     Depends,
@@ -16,11 +16,15 @@ from fastapi import (
 )
 from solace_ai_connector.common.log import log
 
-from ..dependencies import get_project_service, get_sac_component, get_shared_artifact_service
+from ..dependencies import get_project_service, get_sac_component, get_shared_artifact_service, get_api_config
 from ..services.project_service import ProjectService
 from ..shared.auth_utils import get_current_user
 from ....agent.utils.artifact_helpers import get_artifact_info_list
 from ....common.a2a.types import ArtifactInfo
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..component import WebUIBackendComponent
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -42,6 +46,46 @@ from .dto.responses.project_responses import (
 router = APIRouter()
 
 
+def check_projects_enabled(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    api_config: Dict[str, Any] = Depends(get_api_config),
+) -> None:
+    """
+    Dependency to check if projects feature is enabled.
+    Raises HTTPException if projects are disabled.
+    """
+    # Check if persistence is enabled (required for projects)
+    persistence_enabled = api_config.get("persistence_enabled", False)
+    if not persistence_enabled:
+        log.warning("Projects API called but persistence is not enabled")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Projects feature requires persistence to be enabled. Please configure session_service.type as 'sql'."
+        )
+    
+    # Check explicit projects config
+    projects_config = component.get_config("projects", {})
+    if isinstance(projects_config, dict):
+        projects_explicitly_enabled = projects_config.get("enabled", True)
+        if not projects_explicitly_enabled:
+            log.warning("Projects API called but projects are explicitly disabled in config")
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Projects feature is disabled. Please enable it in the configuration."
+            )
+    
+    # Check frontend_feature_enablement override
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    if "projects" in feature_flags:
+        projects_flag = feature_flags.get("projects", True)
+        if not projects_flag:
+            log.warning("Projects API called but projects are disabled via feature flag")
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Projects feature is disabled via feature flag."
+            )
+
+
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     name: str = Form(...),
@@ -51,6 +95,7 @@ async def create_project(
     files: Optional[List[UploadFile]] = File(None),
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
 ):
     """
     Create a new project for the authenticated user.
@@ -122,6 +167,7 @@ async def create_project(
 async def get_user_projects(
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
 ):
     """
     Get all projects owned by the authenticated user.
@@ -166,6 +212,7 @@ async def get_project(
     project_id: str,
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
 ):
     """
     Get a specific project by ID.
@@ -229,6 +276,7 @@ async def get_project_artifacts(
     project_id: str,
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
 ):
     """
     Get all artifacts for a specific project.
@@ -267,6 +315,7 @@ async def add_project_artifacts(
     file_metadata: Optional[str] = Form(None, alias="fileMetadata"),
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
 ):
     """
     Add one or more artifacts to a project.
@@ -315,6 +364,7 @@ async def delete_project_artifact(
     filename: str,
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
 ):
     """
     Delete an artifact from a project.
@@ -360,6 +410,7 @@ async def update_project(
     request: UpdateProjectRequest,
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
 ):
     """
     Update a project's details.
@@ -429,6 +480,7 @@ async def delete_project(
     project_id: str,
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    _: None = Depends(check_projects_enabled),
 ):
     """
     Delete a project.

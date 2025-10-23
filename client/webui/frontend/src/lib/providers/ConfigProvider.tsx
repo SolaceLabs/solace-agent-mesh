@@ -87,6 +87,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     await fetchCsrfToken();
                 }
 
+                // Compute projectsEnabled from feature flags
+                const projectsEnabled = data.frontend_feature_enablement?.projects ?? false;
+
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
                     configServerUrl: data.frontend_server_url,
@@ -99,6 +102,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     configFeatureEnablement: data.frontend_feature_enablement ?? {},
                     frontend_use_authorization: data.frontend_use_authorization,
                     persistenceEnabled: data.persistence_enabled ?? false,
+                    projectsEnabled,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

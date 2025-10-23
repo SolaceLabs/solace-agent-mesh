@@ -17,6 +17,49 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _determine_projects_enabled(
+    component: "WebUIBackendComponent",
+    api_config: Dict[str, Any],
+    log_prefix: str
+) -> bool:
+    """
+    Determines if projects feature should be enabled.
+    
+    Logic:
+    1. Check if persistence is enabled (required for projects)
+    2. Check explicit projects.enabled config
+    3. Check frontend_feature_enablement.projects override
+    
+    Returns:
+        bool: True if projects should be enabled
+    """
+    # Projects require persistence
+    persistence_enabled = api_config.get("persistence_enabled", False)
+    if not persistence_enabled:
+        log.debug("%s Projects disabled: persistence is not enabled", log_prefix)
+        return False
+    
+    # Check explicit projects config
+    projects_config = component.get_config("projects", {})
+    if isinstance(projects_config, dict):
+        projects_explicitly_enabled = projects_config.get("enabled", True)
+        if not projects_explicitly_enabled:
+            log.debug("%s Projects disabled: explicitly disabled in config", log_prefix)
+            return False
+    
+    # Check frontend_feature_enablement override
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    if "projects" in feature_flags:
+        projects_flag = feature_flags.get("projects", True)
+        if not projects_flag:
+            log.debug("%s Projects disabled: disabled in frontend_feature_enablement", log_prefix)
+            return False
+    
+    # All checks passed
+    log.debug("%s Projects enabled: persistence enabled and no explicit disable", log_prefix)
+    return True
+
+
 @router.get("/config", response_model=Dict[str, Any])
 async def get_app_config(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
@@ -51,6 +94,15 @@ async def get_app_config(
                     session_type
                 )
                 feedback_enabled = False
+        
+        # Determine if projects should be enabled
+        # Projects require SQL session storage for persistence
+        projects_enabled = _determine_projects_enabled(component, api_config, log_prefix)
+        feature_enablement["projects"] = projects_enabled
+        if projects_enabled:
+            log.debug("%s Projects feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Projects feature flag is disabled.", log_prefix)
 
         config_data = {
             "frontend_server_url": "",

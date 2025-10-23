@@ -7,7 +7,7 @@ import { authenticatedFetch } from "@/lib/utils/api";
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { configServerUrl } = useConfigContext();
+    const { configServerUrl, projectsEnabled } = useConfigContext();
     const [projects, setProjects] = useState<Project[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -18,6 +18,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const apiPrefix = `${configServerUrl}/api/v1`;
 
     const fetchProjects = useCallback(async () => {
+        if (!projectsEnabled) {
+            setIsLoading(false);
+            setProjects([]);
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
         try {
@@ -47,10 +53,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         } finally {
             setIsLoading(false);
         }
-    }, [apiPrefix]);
+    }, [apiPrefix, projectsEnabled]);
 
     const createProject = useCallback(
         async (projectData: FormData): Promise<Project> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/projects`, {
                     method: "POST",
@@ -79,11 +89,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix]
+        [apiPrefix, projectsEnabled]
     );
 
     const addFilesToProject = useCallback(
         async (projectId: string, formData: FormData): Promise<void> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts`, {
                     method: "POST",
@@ -104,11 +118,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix]
+        [apiPrefix, projectsEnabled]
     );
 
     const removeFileFromProject = useCallback(
         async (projectId: string, filename: string): Promise<void> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
@@ -128,11 +146,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix]
+        [apiPrefix, projectsEnabled]
     );
 
     const updateProject = useCallback(
         async (projectId: string, data: UpdateProjectData): Promise<Project> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}`, {
                     method: "PUT",
@@ -174,7 +196,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix]
+        [apiPrefix, projectsEnabled]
     );
 
     useEffect(() => {
