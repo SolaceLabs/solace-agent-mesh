@@ -7,8 +7,7 @@ setup_projects:
     name: "Specific Test Project"
     user_id: "sam_dev_user"
     description: "A specific project for testing"
-    system_prompt: "You are a specialized assistant"    
-    created_by_user_id: "sam_dev_user"
+    system_prompt: "You are a specialized assistant"
     created_at_iso: "2024-01-15T10:00:00+00:00"
     updated_at_iso: "2024-01-16T15:30:00+00:00"
 
@@ -26,4 +25,3 @@ expected_http_responses:
       - '"userId":"sam_dev_user"'
       - '"description":"A specific project for testing"'
       - '"systemPrompt":"You are a specialized assistant"'
-      - '"createdByUserId":"sam_dev_user"'

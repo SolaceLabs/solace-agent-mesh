@@ -79,7 +79,6 @@ class ProjectService:
             user_id=user_id,
             description=description.strip() if description else None,
             system_prompt=system_prompt.strip() if system_prompt else None,
-            created_by_user_id=user_id,
         )
 
         if files and self.artifact_service:

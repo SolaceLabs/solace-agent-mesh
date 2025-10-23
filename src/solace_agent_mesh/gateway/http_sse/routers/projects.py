@@ -144,7 +144,6 @@ async def create_project(
             user_id=project.user_id,
             description=project.description,
             system_prompt=project.system_prompt,
-            created_by_user_id=project.created_by_user_id,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -187,7 +186,6 @@ async def get_user_projects(
                 user_id=p.user_id,
                 description=p.description,
                 system_prompt=p.system_prompt,
-                created_by_user_id=p.created_by_user_id,
                 created_at=p.created_at,
                 updated_at=p.updated_at,
             )
@@ -251,7 +249,6 @@ async def get_project(
             user_id=project.user_id,
             description=project.description,
             system_prompt=project.system_prompt,
-            created_by_user_id=project.created_by_user_id,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -450,7 +447,6 @@ async def update_project(
             user_id=project.user_id,
             description=project.description,
             system_prompt=project.system_prompt,
-            created_by_user_id=project.created_by_user_id,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )

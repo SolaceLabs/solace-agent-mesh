@@ -7,8 +7,7 @@ setup_projects:
     name: "User 1 Project"
     user_id: "user1"
     description: "Private project for user1"
-    system_prompt: "Original prompt"    
-    created_by_user_id: "user1"
+    system_prompt: "Original prompt"
     created_at_iso: "2024-01-01T10:00:00+00:00"
 
 expected_http_responses:

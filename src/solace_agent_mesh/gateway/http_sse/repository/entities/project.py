@@ -16,7 +16,6 @@ class Project(BaseModel):
     user_id: str
     description: Optional[str] = Field(None, max_length=1000)
     system_prompt: Optional[str] = Field(None, max_length=4000)
-    created_by_user_id: str
     created_at: int
     updated_at: Optional[int] = None
     

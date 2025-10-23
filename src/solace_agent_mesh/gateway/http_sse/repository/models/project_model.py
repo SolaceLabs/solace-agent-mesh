@@ -19,7 +19,6 @@ class ProjectModel(Base):
     user_id = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
-    created_by_user_id = Column(String, nullable=False)
     created_at = Column(BigInteger, nullable=False)  # Epoch timestamp in milliseconds
     updated_at = Column(BigInteger, nullable=True)   # Epoch timestamp in milliseconds
     
@@ -34,7 +33,6 @@ class CreateProjectModel(BaseModel):
     user_id: str | None = None
     description: str | None = None
     system_prompt: str | None = None
-    created_by_user_id: str
     created_at: int
     updated_at: int | None = None
 

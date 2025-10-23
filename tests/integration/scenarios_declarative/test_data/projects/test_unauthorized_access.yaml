@@ -8,8 +8,6 @@ setup_projects:
     user_id: "user1"
     description: "Private project for user1"
     system_prompt: "Test prompt"
-    
-    created_by_user_id: "user1"
     created_at_iso: "2024-01-01T10:00:00+00:00"
 
 expected_http_responses:

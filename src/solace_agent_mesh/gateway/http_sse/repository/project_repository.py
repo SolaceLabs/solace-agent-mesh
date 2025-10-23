@@ -20,8 +20,7 @@ class ProjectRepository(IProjectRepository):
         self.db = db
 
     def create_project(self, name: str, user_id: str, description: Optional[str] = None,
-                      system_prompt: Optional[str] = None,
-                      created_by_user_id: Optional[str] = None) -> Project:
+                      system_prompt: Optional[str] = None) -> Project:
         """Create a new user project."""
         model = ProjectModel(
             id=str(uuid.uuid4()),
@@ -29,7 +28,6 @@ class ProjectRepository(IProjectRepository):
             user_id=user_id,
             description=description,
             system_prompt=system_prompt,
-            created_by_user_id=created_by_user_id or user_id,
             created_at=now_epoch_ms(),
         )
         self.db.add(model)
@@ -48,9 +46,6 @@ class ProjectRepository(IProjectRepository):
         
         if project_filter.user_id is not None:
             query = query.filter(ProjectModel.user_id == project_filter.user_id)
-        
-        if project_filter.created_by_user_id is not None:
-            query = query.filter(ProjectModel.created_by_user_id == project_filter.created_by_user_id)
 
         models = query.all()
         return [self._model_to_entity(model) for model in models]
@@ -100,7 +95,6 @@ class ProjectRepository(IProjectRepository):
             user_id=model.user_id,
             description=model.description,
             system_prompt=model.system_prompt,
-            created_by_user_id=model.created_by_user_id,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
