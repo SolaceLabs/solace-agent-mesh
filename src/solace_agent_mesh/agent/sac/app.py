@@ -23,13 +23,27 @@ from ...common.a2a import (
     get_agent_status_subscription_topic,
     get_sam_events_subscription_topic,
 )
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT, TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH, HEALTH_CHECK_TTL_SECONDS, HEALTH_CHECK_INTERVAL_SECONDS
+from ...common.constants import (
+    DEFAULT_COMMUNICATION_TIMEOUT,
+    TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY,
+    TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH,
+    HEALTH_CHECK_TTL_SECONDS,
+    HEALTH_CHECK_INTERVAL_SECONDS,
+)
 from ...agent.sac.component import SamAgentComponent
 from ...agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
 from ...common.utils.pydantic_utils import SamConfigBase
 from ..tools.tool_config_types import AnyToolConfig
 
 log = logging.getLogger(__name__)
+
+# Try to import TrustManagerConfig from enterprise repo
+try:
+    from solace_agent_mesh_enterprise.common.trust.config import TrustManagerConfig
+
+except ImportError:
+    # Enterprise features not available - create a placeholder type
+    TrustManagerConfig = Dict[str, Any]  # type: ignore
 
 info = {
     "class_name": "SamAgentApp",
@@ -80,10 +94,12 @@ class AgentDiscoveryConfig(SamConfigBase):
         default=True, description="Enable discovery and instruction injection."
     )
     health_check_ttl_seconds: int = Field(
-        default=HEALTH_CHECK_TTL_SECONDS, description="Time-to-live in seconds after which an unresponsive agent is de-registered."
+        default=HEALTH_CHECK_TTL_SECONDS,
+        description="Time-to-live in seconds after which an unresponsive agent is de-registered.",
     )
     health_check_interval_seconds: int = Field(
-        default=HEALTH_CHECK_INTERVAL_SECONDS, description="Interval in seconds between health checks."
+        default=HEALTH_CHECK_INTERVAL_SECONDS,
+        description="Interval in seconds between health checks.",
     )
 
 
@@ -244,7 +260,9 @@ class AgentIdentityConfig(SamConfigBase):
 class SessionServiceConfig(SamConfigBase):
     """Configuration for the ADK Session Service."""
 
-    type: str = Field(..., description="Service type (e.g., 'memory', 'sql', 'vertex_rag').")
+    type: str = Field(
+        ..., description="Service type (e.g., 'memory', 'sql', 'vertex_rag')."
+    )
     default_behavior: Literal["PERSISTENT", "RUN_BASED"] = Field(
         default="PERSISTENT", description="Default behavior for session service."
     )
@@ -267,13 +285,20 @@ class SamAgentAppConfig(SamConfigBase):
         description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",
     )
     agent_name: str = Field(..., description="Unique name for this ADK agent instance.")
-    display_name: str = Field(default=None, description="Human-friendly display name for this ADK agent instance.")
+    display_name: str = Field(
+        default=None,
+        description="Human-friendly display name for this ADK agent instance.",
+    )
     model: Union[str, Dict[str, Any]] = Field(
         ..., description="ADK model name (string) or BaseLlm config dict."
     )
     agent_identity: Optional[AgentIdentityConfig] = Field(
         default_factory=lambda: AgentIdentityConfig(key_mode="auto"),
         description="Configuration for agent identity and key management."
+    )
+    trust_manager: Optional[Union[TrustManagerConfig, Dict[str, Any]]] = Field(
+        default=None,
+        description="Configuration for the Trust Manager (enterprise feature)",
     )
     instruction: Any = Field(
         default="",
@@ -469,6 +494,20 @@ class SamAgentApp(App):
             get_agent_status_subscription_topic(namespace, agent_name),
             get_sam_events_subscription_topic(namespace, "session"),
         ]
+
+        # Add trust card subscription if trust manager is enabled
+        trust_config = app_config.get("trust_manager")
+        if trust_config and trust_config.get("enabled", False):
+            from ...common.a2a.protocol import get_trust_card_subscription_topic
+
+            trust_card_topic = get_trust_card_subscription_topic(namespace)
+            required_topics.append(trust_card_topic)
+            log.info(
+                "Trust Manager enabled for agent '%s', added trust card subscription: %s",
+                agent_name,
+                trust_card_topic,
+            )
+
         generated_subs = [{"topic": topic} for topic in required_topics]
         log.info(
             "Automatically generated subscriptions for Agent '%s': %s",
@@ -498,8 +537,12 @@ class SamAgentApp(App):
         broker_config["queue_name"] = generated_queue_name
         log.debug("Injected generated broker.queue_name: %s", generated_queue_name)
 
-        broker_config["temporary_queue"] = app_info.get("broker", {}).get("temporary_queue", True)
-        log.debug("Set broker_config.temporary_queue = %s", broker_config["temporary_queue"])
+        broker_config["temporary_queue"] = app_info.get("broker", {}).get(
+            "temporary_queue", True
+        )
+        log.debug(
+            "Set broker_config.temporary_queue = %s", broker_config["temporary_queue"]
+        )
 
         super().__init__(app_info, **kwargs)
         log.debug("%s Agent initialization complete.", agent_name)

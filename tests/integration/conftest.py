@@ -9,7 +9,6 @@ import tempfile
 from pathlib import Path
 
 import httpx
-import respx
 import sqlalchemy as sa
 from a2a.types import (
     AgentCard,
@@ -28,7 +27,6 @@ from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifac
 from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
 from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
 from sam_test_infrastructure.llm_server.server import TestLLMServer
-from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
 from sam_test_infrastructure.a2a_agent_server.server import TestA2AAgentServer
 from sam_test_infrastructure.static_file_server.server import TestStaticFileServer
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
@@ -132,6 +130,7 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
     Yields:
         A dictionary containing the `connection_params` for both stdio and http.
     """
+    from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
 
     process = None
     port = 0
@@ -277,6 +276,8 @@ def mock_oauth_server():
 
     class MockOAuthServer:
         def __init__(self):
+            import respx
+
             # Allow unmocked requests to pass through to support real HTTP calls
             # to TestA2AAgentServer while mocking OAuth token endpoints
             self.mock = respx.mock(assert_all_called=False, assert_all_mocked=False)

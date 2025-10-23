@@ -12,9 +12,6 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 from sqlalchemy.orm import declarative_base
 
-# Import testcontainers and database drivers
-from testcontainers.postgres import PostgresContainer
-
 # Define the Agent schema using SQLAlchemy's declarative base
 Base = declarative_base()
 
@@ -101,9 +98,8 @@ class SqliteProvider(DatabaseProvider):
         if engine is not None and db_url is not None:
             # Legacy mode - use provided engine and URL
             self._sync_engines["gateway"] = engine
-            self._async_engines["gateway"] = create_async_engine(
-                db_url.replace("sqlite:", "sqlite+aiosqlite:")
-            )
+            # Don't create async engine here - it will be created on-demand if needed
+            self._gateway_async_url = db_url.replace("sqlite:", "sqlite+aiosqlite:")
         else:
             # New mode - create our own temporary SQLite
             temp_path = Path(self._agent_temp_dir.name) / "gateway.db"
@@ -111,9 +107,8 @@ class SqliteProvider(DatabaseProvider):
             self._sync_engines["gateway"] = sa.create_engine(
                 gateway_url, connect_args={"check_same_thread": False}
             )
-            self._async_engines["gateway"] = create_async_engine(
-                f"sqlite+aiosqlite:///{temp_path}"
-            )
+            # Don't create async engine here - it will be created on-demand if needed
+            self._gateway_async_url = f"sqlite+aiosqlite:///{temp_path}"
             Base.metadata.create_all(self._sync_engines["gateway"])
 
         # Setup Agents
@@ -125,9 +120,7 @@ class SqliteProvider(DatabaseProvider):
             )
             Base.metadata.create_all(agent_sync_engine)
             self._sync_engines[name] = agent_sync_engine
-            self._async_engines[name] = create_async_engine(
-                f"sqlite+aiosqlite:///{agent_path}"
-            )
+            # Async engines will be created on-demand
 
     def teardown(self):
         for engine in self._sync_engines.values():
@@ -151,9 +144,20 @@ class SqliteProvider(DatabaseProvider):
         return self._sync_engines[agent_name]
 
     def get_async_gateway_engine(self) -> AsyncEngine:
+        if "gateway" not in self._async_engines:
+            if hasattr(self, "_gateway_async_url"):
+                self._async_engines["gateway"] = create_async_engine(self._gateway_async_url)
+            else:
+                raise ValueError("Async gateway engine not configured")
         return self._async_engines["gateway"]
 
     def get_async_agent_engine(self, agent_name: str) -> AsyncEngine:
+        if agent_name not in self._async_engines:
+            agent_temp_path = Path(self._agent_temp_dir.name)
+            agent_path = agent_temp_path / f"agent_{agent_name}.db"
+            self._async_engines[agent_name] = create_async_engine(
+                f"sqlite+aiosqlite:///{agent_path}"
+            )
         return self._async_engines[agent_name]
 
     @property
@@ -171,8 +175,10 @@ class PostgreSQLProvider(DatabaseProvider):
         self._base_url = None
 
     def setup(self, agent_names: list[str], **kwargs):
+        from testcontainers.postgres import PostgresContainer
+
         # Start PostgreSQL container
-        self._container = PostgresContainer("postgres:15")
+        self._container = PostgresContainer("postgres:18")
         self._container.start()
 
         # Get connection details
@@ -256,6 +262,17 @@ class PostgreSQLProvider(DatabaseProvider):
     @property
     def provider_type(self) -> str:
         return "postgresql"
+
+    def get_gateway_url_with_credentials(self) -> str:
+        """Get the gateway database URL with credentials intact (for test setup)."""
+        if hasattr(self, "_container") and self._container:
+            host = self._container.get_container_host_ip()
+            port = self._container.get_exposed_port(5432)
+            user = self._container.username
+            password = self._container.password
+            database = self._container.dbname
+            return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+        return str(self.get_sync_gateway_engine().url)
 
     def get_sync_gateway_engine(self) -> sa.Engine:
         return self._sync_engines["gateway"]
