@@ -21,7 +21,7 @@ const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo)
 };
 
 export const ArtifactPanel: React.FC = () => {
-    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact } = useChatContext();
+    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact, artifactsRefetch } = useChatContext();
 
     const [sortOption, setSortOption] = useState<SortOptionType>(SortOption.DateDesc);
     const sortedArtifacts = useMemo(() => {
@@ -79,6 +79,9 @@ export const ArtifactPanel: React.FC = () => {
                                             <FileText className="mx-auto mb-4 h-12 w-12" />
                                             <div className="text-lg font-medium">Files</div>
                                             <div className="mt-2 text-sm">No files available</div>
+                                            <Button className="mt-4" variant="default" onClick={artifactsRefetch} data-testid="refreshFiles" title="Refresh Files">
+                                                Refresh
+                                            </Button>
                                         </>
                                     )}
                                 </div>

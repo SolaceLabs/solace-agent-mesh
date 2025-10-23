@@ -5,10 +5,10 @@ This module processes test run messages and generates comprehensive summaries.
 
 import json
 import logging
-import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 
 import requests
 import yaml
@@ -143,11 +143,12 @@ class ConfigService:
     def _process_includes(content: str, base_file_path: str) -> str:
         """Process !include directives in YAML content."""
         include_pattern = re.compile(r"^\s*!include\s+(.*)$", re.MULTILINE)
+        base_dir = Path(base_file_path).parent
 
         def replacer(match):
-            include_path = match.group(1).strip()
-            include_path = os.path.join(os.path.dirname(base_file_path), include_path)
-            with open(include_path) as inc_f:
+            include_path_str = match.group(1).strip()
+            include_path = base_dir / include_path_str
+            with include_path.open() as inc_f:
                 return inc_f.read()
 
         # Repeatedly replace includes until none are left
@@ -182,19 +183,20 @@ class FileService:
     """Handles file operations and path management."""
 
     @staticmethod
-    def load_json(filepath: str) -> any:
+    def load_json(filepath: Path) -> any:
         """Load JSON data from file."""
         try:
-            with open(filepath) as f:
+            with filepath.open() as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             raise ValueError(f"Failed to load JSON from {filepath}: {e}") from e
 
     @staticmethod
-    def save_json(data: any, filepath: str):
+    def save_json(data: any, filepath: Path):
         """Save data as JSON to file."""
         try:
-            with open(filepath, "w") as f:
+            filepath.parent.mkdir(parents=True, exist_ok=True)
+            with filepath.open("w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
             raise ValueError(f"Failed to save JSON to {filepath}: {e}") from e
@@ -220,7 +222,7 @@ class TestCaseService:
         for tc_artifact in test_case_artifacts:
             if tc_artifact.get("type") == "file" and "path" in tc_artifact:
                 # Extract filename from path (e.g., "artifacts/sample.csv" -> "sample.csv")
-                artifact_name = os.path.basename(tc_artifact["path"])
+                artifact_name = Path(tc_artifact["path"]).name
                 input_artifact_names.add(artifact_name)
 
         return input_artifact_names
@@ -487,45 +489,46 @@ class ArtifactService:
     ) -> list[ArtifactInfo]:
         """Retrieve information about artifacts from the local session directory."""
         artifact_info = []
-        session_dir = os.path.join(
-            self.base_path, namespace, self.user_identity, context_id
+        session_dir = (
+            Path(self.base_path) / namespace / self.user_identity / context_id
         )
 
-        if not os.path.isdir(session_dir):
+        if not session_dir.is_dir():
             return artifact_info
 
-        for item in os.listdir(session_dir):
-            item_path = os.path.join(session_dir, item)
-            if os.path.isdir(item_path) and not item.endswith(".metadata.json"):
+        for item_path in session_dir.iterdir():
+            if item_path.is_dir() and not item_path.name.endswith(".metadata.json"):
                 artifact_info.append(
-                    self._process_artifact_directory(session_dir, item, item_path)
+                    self._process_artifact_directory(
+                        session_dir, item_path.name, item_path
+                    )
                 )
 
         return artifact_info
 
     def _process_artifact_directory(
-        self, session_dir: str, artifact_name: str, item_path: str
+        self, session_dir: Path, artifact_name: str, item_path: Path
     ) -> ArtifactInfo:
         """Process a single artifact directory and extract metadata."""
-        metadata_dir = os.path.join(session_dir, f"{artifact_name}.metadata.json")
+        metadata_dir = session_dir / f"{artifact_name}.metadata.json"
         versions = []
 
-        if os.path.isdir(metadata_dir):
-            for version_file in os.listdir(item_path):
-                if not version_file.endswith(".meta"):
-                    version_metadata_path = os.path.join(metadata_dir, version_file)
-                    if os.path.exists(version_metadata_path):
+        if metadata_dir.is_dir():
+            for version_path in item_path.iterdir():
+                if not version_path.name.endswith(".meta"):
+                    version_metadata_path = metadata_dir / version_path.name
+                    if version_metadata_path.exists():
                         try:
-                            with open(version_metadata_path) as f:
+                            with version_metadata_path.open() as f:
                                 metadata = json.load(f)
                             versions.append(
-                                {"version": version_file, "metadata": metadata}
+                                {"version": version_path.name, "metadata": metadata}
                             )
                         except (json.JSONDecodeError, FileNotFoundError):
                             continue
 
         return ArtifactInfo(
-            artifact_name=artifact_name, directory=item_path, versions=versions
+            artifact_name=artifact_name, directory=str(item_path), versions=versions
         )
 
     def categorize_artifacts(
@@ -599,7 +602,7 @@ class ArtifactService:
         for tc_artifact in test_case_artifacts:
             if (
                 tc_artifact.get("type") == "file"
-                and os.path.basename(tc_artifact["path"]) == artifact.artifact_name
+                and Path(tc_artifact["path"]).name == artifact.artifact_name
             ):
                 enhanced_artifact.artifact_type = tc_artifact["type"]
                 enhanced_artifact.source_path = tc_artifact["path"]
@@ -654,8 +657,8 @@ class SummaryBuilder:
             if not messages:
                 return {}
 
-            run_path = os.path.dirname(messages_file_path)
-            test_case_info_path = os.path.join(run_path, "test_case_info.json")
+            run_path = Path(messages_file_path).parent
+            test_case_info_path = run_path / "test_case_info.json"
             test_case_info = self.file_service.load_json(test_case_info_path)
             test_case_path = test_case_info["path"]
 
@@ -675,10 +678,10 @@ class SummaryBuilder:
 
         except Exception as e:
             # Return minimal summary with error information
-            run_path = os.path.dirname(messages_file_path)
+            run_path = Path(messages_file_path).parent
             return {
-                "test_case_id": os.path.basename(os.path.dirname(run_path)),
-                "run_id": os.path.basename(run_path),
+                "test_case_id": run_path.parent.name,
+                "run_id": run_path.name,
                 "errors": [f"Failed to process summary: {str(e)}"],
             }
 
@@ -687,7 +690,7 @@ class SummaryBuilder:
     ) -> list[dict[str, any]]:
         """Load and validate messages from file."""
         try:
-            messages = self.file_service.load_json(messages_file_path)
+            messages = self.file_service.load_json(Path(messages_file_path))
             return messages if isinstance(messages, list) else []
         except Exception:
             return []
@@ -696,11 +699,9 @@ class SummaryBuilder:
         self, messages_file_path: str, test_case_path: str
     ) -> RunSummary:
         """Initialize summary with basic path-derived information."""
-        run_path = os.path.dirname(messages_file_path)
-        run_id = os.path.basename(run_path)
-        test_case_id = os.path.splitext(os.path.basename(test_case_path))[0].replace(
-            ".test", ""
-        )
+        run_path = Path(messages_file_path).parent
+        run_id = run_path.name
+        test_case_id = Path(test_case_path).stem.replace(".test", "")
 
         return RunSummary(test_case_id=test_case_id, run_id=run_id)
 
@@ -838,23 +839,34 @@ def main():
     """Main entry point for command-line usage."""
     import sys
 
+    from .shared import EvaluationConfigLoader
+
     if len(sys.argv) != 2:
         log.info("Usage: python summarize_refactored.py <messages_file_path>")
         sys.exit(1)
 
-    messages_file_path = sys.argv[1]
+    messages_file_path = Path(sys.argv[1])
 
-    if not os.path.exists(messages_file_path):
+    if not messages_file_path.exists():
         log.info(f"Error: Messages file not found at: {messages_file_path}")
         sys.exit(1)
 
     try:
+        # This main function is for standalone testing. It needs a config.
+        # We'll assume a default config for this purpose.
+        config_path = Path.cwd() / "tests" / "evaluation" / "config.json"
+        if not config_path.exists():
+            log.error(f"Default test config not found at {config_path}")
+            return
+        config_loader = EvaluationConfigLoader(str(config_path))
+        config = config_loader.load_configuration()
+
         # Generate summary
-        summary_data = summarize_run(messages_file_path)
+        summary_data = summarize_run(str(messages_file_path), config)
 
         # Save summary file
-        output_dir = os.path.dirname(messages_file_path)
-        summary_file_path = os.path.join(output_dir, "summary.json")
+        output_dir = messages_file_path.parent
+        summary_file_path = output_dir / "summary.json"
 
         FileService.save_json(summary_data, summary_file_path)
         log.info(f"Summary file created at: {summary_file_path}")

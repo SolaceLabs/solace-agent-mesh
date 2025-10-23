@@ -4,14 +4,15 @@ Pytest fixtures for high-level FastAPI functional testing.
 Provides FastAPI TestClient and HTTP-based testing infrastructure.
 """
 
+import logging
+from unittest.mock import AsyncMock
+
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock
 from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
     WebUIBackendFactory,
 )
-import logging
 from sqlalchemy import text
 
 from .infrastructure.database_inspector import DatabaseInspector
@@ -23,6 +24,47 @@ from .infrastructure.database_manager import (
 from .infrastructure.gateway_adapter import GatewayAdapter
 
 log = logging.getLogger(__name__)
+
+# Custom header for test user identification
+# Each TestClient injects this header with their user ID
+# Auth overrides read this header to determine which user made the request
+TEST_USER_HEADER = "X-Test-User-Id"
+
+
+def _patch_mock_auth_header_aware(factory):
+    """
+    Patches the mock component's authenticate_and_enrich_user to be header-aware.
+    This enables multi-user testing by reading X-Test-User-Id header.
+    """
+    if not hasattr(factory, "mock_component"):
+        return
+
+    from unittest.mock import AsyncMock
+
+    async def mock_authenticate_from_header(request):
+        # Check for test header first (for multi-user tests)
+        test_user_id = request.headers.get(TEST_USER_HEADER, "sam_dev_user")
+        if test_user_id == "secondary_user":
+            return {
+                "id": "secondary_user",
+                "name": "Secondary User",
+                "email": "secondary@dev.local",
+                "authenticated": True,
+                "auth_method": "development",
+            }
+        # Default to primary user
+        return {
+            "id": "sam_dev_user",
+            "name": "Sam Dev User",
+            "email": "sam@dev.local",
+            "authenticated": True,
+            "auth_method": "development",
+        }
+
+    factory.mock_component.authenticate_and_enrich_user = AsyncMock(
+        side_effect=mock_authenticate_from_header
+    )
+    log.info("Patched mock_component.authenticate_and_enrich_user to be header-aware.")
 
 
 def _patch_mock_component_config(factory):
@@ -64,128 +106,80 @@ def _patch_mock_artifact_service(factory):
 
 
 @pytest.fixture(scope="session")
-def api_client_factory():
-    """Creates a factory for the main API client."""
-    factory = WebUIBackendFactory()
-    yield factory
-    factory.teardown()
+def api_client_factory(db_provider):
+    """Returns the WebUIBackendFactory created by db_provider."""
+    # The factory is created by db_provider using the correct database
+    return db_provider.factory
 
 
 @pytest.fixture(scope="session")
 def api_client(db_provider, api_client_factory):
-    """Creates a TestClient that uses the same app instance as the db_provider."""
+    """Creates a TestClient using the api_client_factory app (works for both SQLite and PostgreSQL)."""
+    app = api_client_factory.app
 
-    # For SQLite, use the original api_client_factory
-    if isinstance(db_provider, SqliteProvider):
-        app = api_client_factory.app
-    else:
-        # For containerized databases, use the WebUIBackendFactory we created
-        app = db_provider._webui_factory.app
+    # Create a header-based client that injects user ID via custom header
+    class HeaderBasedTestClient(TestClient):
+        def __init__(self, app, user_id: str):
+            super().__init__(app)
+            self.test_user_id = user_id
 
-    from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+        def request(self, method, url, **kwargs):
+            # Inject user ID via custom header for every request
+            if "headers" not in kwargs or kwargs["headers"] is None:
+                kwargs["headers"] = {}
+            kwargs["headers"][TEST_USER_HEADER] = self.test_user_id
+            return super().request(method, url, **kwargs)
 
-    async def override_get_current_user() -> dict:
-        return {
-            "id": "sam_dev_user",
-            "name": "Sam Dev User",
-            "email": "sam@dev.local",
-            "authenticated": True,
-            "auth_method": "development",
-        }
-
-    app.dependency_overrides[get_current_user] = override_get_current_user
-    client = TestClient(app)
+    client = HeaderBasedTestClient(app, "sam_dev_user")
     print(
         f"[API Tests] FastAPI TestClient created from {db_provider.provider_type} db_provider"
     )
-    try:
-        yield client
-    finally:
-        app.dependency_overrides = {}
+
+    yield client
 
 
 @pytest.fixture(scope="session")
-def secondary_api_client_factory():
-    """Creates a factory for the secondary API client."""
-    secondary_user = {
-        "id": "secondary_user",
-        "name": "Secondary User",
-        "email": "secondary@dev.local",
-        "authenticated": True,
-        "auth_method": "development",
-    }
-    factory = WebUIBackendFactory(user=secondary_user)
-    yield factory
-    factory.teardown()
+def secondary_api_client(api_client_factory):
+    """Creates a secondary TestClient using the SAME app/database but different user auth."""
+    class HeaderBasedTestClient(TestClient):
+        def __init__(self, app, user_id: str):
+            super().__init__(app)
+            self.test_user_id = user_id
 
+        def request(self, method, url, **kwargs):
+            # Inject user ID via custom header for every request
+            if "headers" not in kwargs or kwargs["headers"] is None:
+                kwargs["headers"] = {}
+            kwargs["headers"][TEST_USER_HEADER] = self.test_user_id
+            return super().request(method, url, **kwargs)
 
-@pytest.fixture(scope="session")
-def secondary_api_client(secondary_db_provider, secondary_api_client_factory):
-    """Creates a secondary TestClient that uses the secondary_db_provider."""
-
-    # For SQLite, use the original secondary_api_client_factory
-    if isinstance(secondary_db_provider, SqliteProvider):
-        app = secondary_api_client_factory.app
-    else:
-        # For containerized databases, use the WebUIBackendFactory we created
-        app = secondary_db_provider._webui_factory.app
-
-    from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
-
-    async def override_get_current_user() -> dict:
-        return {
-            "id": "secondary_user",
-            "name": "Secondary User",
-            "email": "secondary@dev.local",
-            "authenticated": True,
-            "auth_method": "development",
-        }
-
-    app.dependency_overrides[get_current_user] = override_get_current_user
-    client = TestClient(app)
+    client = HeaderBasedTestClient(api_client_factory.app, "secondary_user")
     print(
-        f"[API Tests] Secondary FastAPI TestClient created from {secondary_db_provider.provider_type} secondary_db_provider."
+        "[API Tests] Secondary FastAPI TestClient created (same database, different user)"
     )
-    try:
-        yield client
-    finally:
-        app.dependency_overrides = {}
+
+    yield client
 
 
 @pytest.fixture(scope="session")
-def secondary_database_manager(secondary_db_provider):
-    """Creates a new unified DatabaseManager for the secondary provider."""
-    return DatabaseManager(secondary_db_provider)
+def secondary_gateway_adapter(database_manager: DatabaseManager):
+    """Creates a GatewayAdapter for secondary user (same database)."""
+    return GatewayAdapter(database_manager)
 
 
 @pytest.fixture(scope="session")
-def secondary_gateway_adapter(secondary_database_manager: DatabaseManager):
-    """Creates a new GatewayAdapter for the secondary provider."""
-    return GatewayAdapter(secondary_database_manager)
-
-
-@pytest.fixture(scope="session")
-def secondary_database_inspector(secondary_database_manager):
-    """Creates a new DatabaseInspector for the secondary provider."""
-    return DatabaseInspector(secondary_database_manager)
+def secondary_database_inspector(database_manager):
+    """Creates a DatabaseInspector for secondary user (same database)."""
+    return DatabaseInspector(database_manager)
 
 
 @pytest.fixture(autouse=True)
 def clean_database_between_tests(database_manager: DatabaseManager):
-    """Cleans database state between tests"""
+    """Cleans database state between tests (used by both primary and secondary clients)"""
     _clean_main_database(database_manager.provider.get_sync_gateway_engine())
     yield
     _clean_main_database(database_manager.provider.get_sync_gateway_engine())
     print("[API Tests] Database cleaned between tests")
-
-
-@pytest.fixture(autouse=True)
-def clean_secondary_database_between_tests(secondary_database_manager: DatabaseManager):
-    """Cleans the secondary database state between tests"""
-    _clean_main_database(secondary_database_manager.provider.get_sync_gateway_engine())
-    yield
-    _clean_main_database(secondary_database_manager.provider.get_sync_gateway_engine())
-    print("[API Tests] Secondary database cleaned between tests")
 
 
 def _clean_main_database(engine):
@@ -240,116 +234,64 @@ def multi_db_provider_type(request):
 
 # Simple infrastructure fixtures for infrastructure tests
 @pytest.fixture(scope="session")
-def db_provider(test_agents_list: list[str], api_client_factory, db_provider_type):
-    """Database provider fixture that creates the app and all databases."""
-
-    # Create provider based on type
+def db_provider(test_agents_list: list[str], db_provider_type):
+    """Database provider fixture - creates the database AND the WebUIBackendFactory."""
+    # Create provider based on type and let it create its own database
     provider = DatabaseProviderFactory.create_provider(db_provider_type)
+    provider.setup(agent_names=test_agents_list)
 
-    # All providers now use WebUIBackendFactory integration for proper schema setup
-    if isinstance(provider, SqliteProvider):
-        # SQLite: Use WebUIBackendFactory's engine and URL
-        provider.setup(
-            agent_names=test_agents_list,
-            db_url=api_client_factory.db_url,
-            engine=api_client_factory.engine,
-        )
-        _patch_mock_artifact_service(api_client_factory)
-        _patch_mock_component_config(api_client_factory)
+    # Get database URL from the provider (with credentials for PostgreSQL)
+    if hasattr(provider, "get_gateway_url_with_credentials"):
+        db_url = provider.get_gateway_url_with_credentials()
     else:
-        # PostgreSQL: Setup container first, then create WebUIBackendFactory with container URL
-        provider.setup(agent_names=test_agents_list)
+        db_url = str(provider.get_sync_gateway_engine().url)
 
-        # Create a WebUIBackendFactory using the container's gateway database
-        # Get the URL directly from the provider to ensure proper credentials
-        if hasattr(provider, "_container") and provider._container:
-            # For testcontainer providers, build URL with correct credentials
-            host = provider._container.get_container_host_ip()
-            port = provider._container.get_exposed_port(5432)
-            user = provider._container.username
-            password = provider._container.password
-            database = provider._container.dbname
+    # Create ONE WebUIBackendFactory for this database (SQLite or PostgreSQL)
+    factory = WebUIBackendFactory(db_url=db_url)
 
-            gateway_url = f"postgresql://{user}:{password}@{host}:{port}/{database}"
+    # Apply all patches to make it test-ready
+    _patch_mock_auth_header_aware(factory)
+    _patch_mock_artifact_service(factory)
+    _patch_mock_component_config(factory)
+
+    # Set up multi-user auth overrides
+    from fastapi import Request
+    from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
+    from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+
+    async def override_get_current_user(request: Request) -> dict:
+        user_id = request.headers.get(TEST_USER_HEADER, "sam_dev_user")
+        if user_id == "secondary_user":
+            return {
+                "id": "secondary_user",
+                "name": "Secondary User",
+                "email": "secondary@dev.local",
+                "authenticated": True,
+                "auth_method": "development",
+            }
         else:
-            # Fallback to engine URL
-            gateway_url = str(provider.get_sync_gateway_engine().url)
+            return {
+                "id": "sam_dev_user",
+                "name": "Sam Dev User",
+                "email": "sam@dev.local",
+                "authenticated": True,
+                "auth_method": "development",
+            }
 
-        # Use the same gateway_id as the original factory to ensure component compatibility
-        factory = WebUIBackendFactory(
-            db_url=gateway_url, gateway_id=api_client_factory.mock_component.gateway_id
-        )
-        _patch_mock_artifact_service(factory)
-        _patch_mock_component_config(factory)
+    def override_get_user_id(request: Request) -> str:
+        return request.headers.get(TEST_USER_HEADER, "sam_dev_user")
 
-        # Store factory for cleanup
-        provider._webui_factory = factory
+    factory.app.dependency_overrides[get_current_user] = override_get_current_user
+    factory.app.dependency_overrides[get_user_id] = override_get_user_id
 
-        # Force update the global dependencies to use the new component for tests to work
-        from solace_agent_mesh.gateway.http_sse import dependencies
+    # Store factory on provider so api_client_factory can access it
+    provider.factory = factory
 
-        # Force set the component instance (bypass the None check)
-        dependencies.sac_component_instance = factory.mock_component
-        dependencies.SessionLocal = None  # Reset session factory
-        dependencies.init_database(gateway_url)  # Re-initialize with new database
+    log.info(f"[API Tests] Created unified WebUIBackendFactory with {provider.provider_type} database")
 
     yield provider
-    provider.teardown()
 
-
-@pytest.fixture(scope="session")
-def secondary_db_provider(
-    test_agents_list: list[str], secondary_api_client_factory, db_provider_type
-):
-    """A second, isolated database provider for multi-user tests."""
-
-    # Create provider based on type
-    provider = DatabaseProviderFactory.create_provider(db_provider_type)
-
-    # All providers now use WebUIBackendFactory integration for proper schema setup
-    if isinstance(provider, SqliteProvider):
-        # SQLite: Use WebUIBackendFactory's engine and URL
-        provider.setup(
-            agent_names=test_agents_list,
-            db_url=secondary_api_client_factory.db_url,
-            engine=secondary_api_client_factory.engine,
-        )
-        _patch_mock_artifact_service(secondary_api_client_factory)
-        _patch_mock_component_config(secondary_api_client_factory)
-    else:
-        # PostgreSQL: Setup container first, then create WebUIBackendFactory with container URL
-        provider.setup(agent_names=test_agents_list)
-
-        # Create a WebUIBackendFactory using the container's gateway database
-        # Get the URL directly from the provider to ensure proper credentials
-        if hasattr(provider, "_container") and provider._container:
-            # For testcontainer providers, build URL with correct credentials
-            host = provider._container.get_container_host_ip()
-            port = provider._container.get_exposed_port(5432)
-            user = provider._container.username
-            password = provider._container.password
-            database = provider._container.dbname
-
-            gateway_url = f"postgresql://{user}:{password}@{host}:{port}/{database}"
-        else:
-            # Fallback to engine URL
-            gateway_url = str(provider.get_sync_gateway_engine().url)
-
-        secondary_user = {
-            "id": "secondary_user",
-            "name": "Secondary User",
-            "email": "secondary@dev.local",
-            "authenticated": True,
-            "auth_method": "development",
-        }
-        factory = WebUIBackendFactory(db_url=gateway_url, user=secondary_user)
-        _patch_mock_artifact_service(factory)
-        _patch_mock_component_config(factory)
-
-        # Store factory for cleanup
-        provider._webui_factory = factory
-
-    yield provider
+    factory.teardown()
     provider.teardown()
 
 
@@ -396,18 +338,14 @@ __all__ = [
     "api_client",
     "api_client_factory",
     "secondary_api_client",
-    "secondary_api_client_factory",
     "clean_database_between_tests",
-    "clean_secondary_database_between_tests",
     "test_agents_list",
     "db_provider_type",
     "multi_db_provider_type",
     "db_provider",
-    "secondary_db_provider",
     "database_manager",
     "gateway_adapter",
     "database_inspector",
-    "secondary_database_manager",
     "secondary_gateway_adapter",
     "secondary_database_inspector",
     "multi_db_provider",

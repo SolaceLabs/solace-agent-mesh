@@ -262,17 +262,28 @@ async def test_metadata_injection_with_config_values(
 
     assert system_message is not None, f"Scenario {scenario_id}: No system message found in LLM request"
 
+    # Extract text from system message (which might be a list of dicts or a string)
+    system_text = ""
+    if isinstance(system_message, list):
+        for part in system_message:
+            if isinstance(part, dict) and "text" in part:
+                system_text += part["text"]
+    elif isinstance(system_message, str):
+        system_text = system_message
+    else:
+        system_text = str(system_message)
+
     # Verify that the actual values from gateway config were injected
     expected_system_purpose = "Test gateway system purpose for metadata validation"
     expected_response_format = "Test gateway response format for metadata validation"
 
-    assert expected_system_purpose in system_message, (
+    assert expected_system_purpose in system_text, (
         f"Scenario {scenario_id}: Expected system_purpose value '{expected_system_purpose}' in system instruction, "
-        f"got: {system_message}"
+        f"got: {system_text[:500]}..."
     )
-    assert expected_response_format in system_message, (
+    assert expected_response_format in system_text, (
         f"Scenario {scenario_id}: Expected response_format value '{expected_response_format}' in system instruction, "
-        f"got: {system_message}"
+        f"got: {system_text[:500]}..."
     )
 
     print(f"Scenario {scenario_id}: System instruction injection verified successfully.")

@@ -140,12 +140,23 @@ class BaseProxyComponent(ComponentBase, ABC):
         future = asyncio.run_coroutine_threadsafe(
             self._process_event_async(event), self._async_loop
         )
-        future.add_done_callback(self._handle_scheduled_task_completion)
+        # Pass the event to the completion handler so it can NACK on failure
+        future.add_done_callback(
+            lambda f: self._handle_scheduled_task_completion(f, event)
+        )
 
     async def _process_event_async(self, event: Event):
         """Asynchronous event processing logic."""
         if event.event_type == EventType.MESSAGE:
-            await self._handle_a2a_request(event.data)
+            message_handled = False
+            try:
+                await self._handle_a2a_request(event.data)
+                message_handled = True
+            finally:
+                # Mark that we attempted to handle the message
+                # (success/failure ack/nack is done inside _handle_a2a_request)
+                if not hasattr(event, "_proxy_message_handled"):
+                    event._proxy_message_handled = message_handled
         elif event.event_type == EventType.TIMER:
             if event.data.get("timer_id") == self._discovery_timer_id:
                 await self._discover_and_publish_agents()
@@ -510,8 +521,10 @@ class BaseProxyComponent(ComponentBase, ABC):
                     self._async_init_future.set_exception, e
                 )
 
-    def _handle_scheduled_task_completion(self, future: concurrent.futures.Future):
-        """Callback to log exceptions from tasks scheduled on the async loop."""
+    def _handle_scheduled_task_completion(
+        self, future: concurrent.futures.Future, event: Event
+    ):
+        """Callback to log exceptions from tasks scheduled on the async loop and NACK messages on failure."""
         if future.done() and future.exception():
             log.error(
                 "%s Coroutine scheduled on async loop failed: %s",
@@ -519,6 +532,24 @@ class BaseProxyComponent(ComponentBase, ABC):
                 future.exception(),
                 exc_info=future.exception(),
             )
+            # NACK the message if this was a MESSAGE event that failed before being handled
+            # The _proxy_message_handled flag is set in _process_event_async to track
+            # whether _handle_a2a_request was entered (where ack/nack is normally done)
+            if event.event_type == EventType.MESSAGE:
+                message_handled = getattr(event, "_proxy_message_handled", False)
+                if not message_handled:
+                    try:
+                        event.data.call_negative_acknowledgements()
+                        log.warning(
+                            "%s NACKed message due to async processing failure before entering request handler.",
+                            self.log_identifier,
+                        )
+                    except Exception as nack_e:
+                        log.error(
+                            "%s Failed to NACK message after async processing failure: %s",
+                            self.log_identifier,
+                            nack_e,
+                        )
 
     def _publish_discovered_cards(self):
         """Publishes all agent cards currently in the registry."""

@@ -169,12 +169,14 @@ class WebUIBackendFactory:
             description="Independent test instance for the A2A Web UI Backend",
         )
 
-        # Set up the independent app with all necessary components
-        self._setup_independent_app(mock_component, db_url)
-
+        # Store references before setting up the app
         self.mock_component = mock_component
         self.db_url = db_url
         self.engine = engine
+        self.Session = Session
+
+        # Set up the independent app with all necessary components
+        self._setup_independent_app(mock_component, db_url)
 
     def _setup_independent_app(self, component, database_url: str):
         """Set up the FastAPI app by importing and reusing functions from main.py."""
@@ -184,7 +186,8 @@ class WebUIBackendFactory:
         from solace_agent_mesh.gateway.http_sse.main import (
             _create_api_config,
             _get_app_config,
-            _setup_database,
+            _run_community_migrations,
+            _run_enterprise_migrations,
             _setup_middleware,
             _setup_routers,
             generic_exception_handler,
@@ -192,8 +195,14 @@ class WebUIBackendFactory:
             validation_exception_handler,
         )
 
-        # Set up database
-        _setup_database(component, database_url)
+        # Set up database - use the engine and Session we already created
+        # instead of having _setup_database create a new one
+        dependencies.SessionLocal = self.Session
+        dependencies.sac_component_instance = component
+        log.info("[WebUIBackendFactory] Database initialized with shared engine")
+        log.info("Running database migrations...")
+        _run_community_migrations(database_url)
+        _run_enterprise_migrations(component, database_url)
 
         # Set up API config
         app_config = _get_app_config(component)
@@ -252,8 +261,21 @@ class WebUIBackendFactory:
         def override_get_session_service() -> SessionService:
             return component.session_service
 
+        def override_get_db():
+            # Return a database session from THIS factory's Session, not the global one
+            db = self.Session()
+            try:
+                yield db
+                db.commit()
+            except Exception:
+                db.rollback()
+                raise
+            finally:
+                db.close()
+
         # Import the dependency functions and override them on our specific app
         from solace_agent_mesh.gateway.http_sse.dependencies import (
+            get_db,
             get_sac_component,
             get_user_id,
         )
@@ -267,6 +289,7 @@ class WebUIBackendFactory:
         self.app.dependency_overrides[get_session_business_service] = (
             override_get_session_service
         )
+        self.app.dependency_overrides[get_db] = override_get_db
 
         # Set up exception handlers using the imported handlers
         self.app.add_exception_handler(HTTPException, http_exception_handler)

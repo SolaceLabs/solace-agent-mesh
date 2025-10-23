@@ -5,8 +5,8 @@ This module categorizes evaluation messages into appropriate run directories.
 
 import json
 import logging
-import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from .shared import (
     CategorizationError,
@@ -172,13 +172,13 @@ class FileOperations:
     """Handles file I/O operations with comprehensive error handling."""
 
     @staticmethod
-    def load_json(filepath: str) -> any:
+    def load_json(filepath: Path) -> any:
         """Load JSON file with error handling and validation."""
         try:
-            if not os.path.exists(filepath):
+            if not filepath.exists():
                 raise MissingFileError(f"File not found: {filepath}")
 
-            with open(filepath) as f:
+            with filepath.open() as f:
                 data = json.load(f)
 
             log.debug(f"Successfully loaded JSON from {filepath}")
@@ -190,13 +190,13 @@ class FileOperations:
             raise CategorizationError(f"Error loading file {filepath}: {e}") from e
 
     @staticmethod
-    def save_json(data: any, filepath: str) -> None:
+    def save_json(data: any, filepath: Path) -> None:
         """Save data as JSON with error handling."""
         try:
             # Ensure directory exists
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            filepath.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(filepath, "w") as f:
+            with filepath.open("w") as f:
                 json.dump(data, f, indent=4)
 
             log.debug(f"Successfully saved JSON to {filepath}")
@@ -205,14 +205,14 @@ class FileOperations:
             raise CategorizationError(f"Error saving file {filepath}: {e}") from e
 
     @staticmethod
-    def file_exists(filepath: str) -> bool:
+    def file_exists(filepath: Path) -> bool:
         """Check if file exists."""
-        return os.path.exists(filepath)
+        return filepath.exists()
 
     @staticmethod
-    def is_directory(path: str) -> bool:
+    def is_directory(path: Path) -> bool:
         """Check if path is a directory."""
-        return os.path.isdir(path)
+        return path.is_dir()
 
 
 class MessageCategorizer:
@@ -223,7 +223,7 @@ class MessageCategorizer:
         self.file_ops = file_ops
 
     def categorize_messages_for_model(
-        self, model_path: str, model_name: str
+        self, model_path: Path, model_name: str
     ) -> CategorizationResult:
         """Categorize messages for a single model with comprehensive error handling."""
         log.info(f"Starting message categorization for model: {model_name}")
@@ -272,10 +272,10 @@ class MessageCategorizer:
             log.error(f"Error categorizing messages for model {model_name}: {e}")
             raise
 
-    def _validate_required_files(self, model_path: str, model_name: str) -> None:
+    def _validate_required_files(self, model_path: Path, model_name: str) -> None:
         """Validate that required files exist for processing."""
-        mappings_file = os.path.join(model_path, "task_mappings.json")
-        messages_file = os.path.join(model_path, "full_messages.json")
+        mappings_file = model_path / "task_mappings.json"
+        messages_file = model_path / "full_messages.json"
 
         if not self.file_ops.file_exists(mappings_file):
             raise MissingFileError(
@@ -287,9 +287,9 @@ class MessageCategorizer:
                 f"Missing messages file for model {model_name}: {messages_file}"
             )
 
-    def _load_task_mappings(self, model_path: str) -> TaskMapping:
+    def _load_task_mappings(self, model_path: Path) -> TaskMapping:
         """Load task mappings from file with validation."""
-        mappings_file = os.path.join(model_path, "task_mappings.json")
+        mappings_file = model_path / "task_mappings.json"
         mappings_data = self.file_ops.load_json(mappings_file)
 
         if not isinstance(mappings_data, dict):
@@ -299,9 +299,9 @@ class MessageCategorizer:
 
         return TaskMapping(mappings=mappings_data)
 
-    def _load_messages(self, model_path: str) -> list[TaskMessage]:
+    def _load_messages(self, model_path: Path) -> list[TaskMessage]:
         """Load and parse messages from file with validation."""
-        messages_file = os.path.join(model_path, "full_messages.json")
+        messages_file = model_path / "full_messages.json"
         messages_data = self.file_ops.load_json(messages_file)
 
         if not isinstance(messages_data, list):
@@ -383,7 +383,7 @@ class MessageCategorizer:
 
         for run_directory, messages in categorized_messages.items():
             try:
-                output_file = os.path.join(run_directory, "messages.json")
+                output_file = Path(run_directory) / "messages.json"
 
                 # Convert TaskMessage objects back to dictionaries
                 message_dicts = [msg.to_dict() for msg in messages]
@@ -399,9 +399,9 @@ class MessageCategorizer:
 
         return total_saved
 
-    def _save_task_mappings(self, task_mappings: TaskMapping, model_path: str) -> None:
+    def _save_task_mappings(self, task_mappings: TaskMapping, model_path: Path) -> None:
         """Save updated task mappings back to file."""
-        mappings_file = os.path.join(model_path, "task_mappings.json")
+        mappings_file = model_path / "task_mappings.json"
         self.file_ops.save_json(task_mappings.mappings, mappings_file)
         log.info(f"Updated task mappings saved to {mappings_file}")
 
@@ -421,6 +421,7 @@ class MessageOrganizer:
         Main entry point for categorizing all messages across all models.
         Returns a dictionary mapping model names to their categorization results.
         """
+        base_results_path = Path(base_results_path)
         log.info(
             f"Starting message categorization for all models in: {base_results_path}"
         )
@@ -432,12 +433,12 @@ class MessageOrganizer:
         processed_models = 0
 
         try:
-            for model_name in os.listdir(base_results_path):
-                model_path = os.path.join(base_results_path, model_name)
-
+            for model_path in base_results_path.iterdir():
                 if not self.file_ops.is_directory(model_path):
-                    log.debug(f"Skipping non-directory: {model_name}")
+                    log.debug(f"Skipping non-directory: {model_path.name}")
                     continue
+
+                model_name = model_path.name
 
                 try:
                     result = self._process_model_directory(model_path, model_name)
@@ -463,7 +464,7 @@ class MessageOrganizer:
             raise
 
     def _process_model_directory(
-        self, model_path: str, model_name: str
+        self, model_path: Path, model_name: str
     ) -> CategorizationResult:
         """Process a single model directory and return categorization results."""
         log.info(f"Processing model directory: {model_name}")
@@ -514,18 +515,21 @@ def main(config_path: str = None):
 
         # Use default config path if none provided
         if config_path is None:
-            SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-            config_path = os.path.join(SCRIPT_DIR, "..", "tests", "evaluation", "config.json")
+            # This default path is for standalone testing purposes
+            config_path = Path.cwd() / "tests" / "evaluation" / "config.json"
+            if not config_path.exists():
+                log.error(f"Default test config not found at {config_path}")
+                return
 
         config_loader = EvaluationConfigLoader(config_path)
         config = config_loader.load_configuration()
         results_dir_name = config.results_directory
 
-        SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-        base_results_path = os.path.join(SCRIPT_DIR, "..", "results", results_dir_name)
+        # Results path should be based on the current working directory
+        base_results_path = Path.cwd() / "results" / results_dir_name
 
         orchestrator = MessageOrganizer()
-        results = orchestrator.categorize_all_messages(base_results_path)
+        results = orchestrator.categorize_all_messages(str(base_results_path))
 
         log.info("Message categorization completed successfully!")
         log.info(f"Processed {len(results)} models")

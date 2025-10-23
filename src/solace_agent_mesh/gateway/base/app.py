@@ -19,6 +19,7 @@ from ...common.a2a import (
 
 log = logging.getLogger(__name__)
 
+
 class BaseGatewayComponent(ComponentBase):
     pass
 
@@ -244,6 +245,20 @@ class BaseGatewayApp(App):
                 )
             },
         ]
+
+        # Add trust card subscription if trust manager is enabled
+        trust_config = resolved_app_config_block.get("trust_manager")
+        if trust_config and trust_config.get("enabled", False):
+            from ...common.a2a.protocol import get_trust_card_subscription_topic
+
+            trust_card_topic = get_trust_card_subscription_topic(self.namespace)
+            subscriptions.append({"topic": trust_card_topic})
+            log.info(
+                "Trust Manager enabled for gateway '%s', added trust card subscription: %s",
+                self.gateway_id,
+                trust_card_topic,
+            )
+
         log.info(
             "Generated Solace subscriptions for gateway '%s': %s",
             self.gateway_id,

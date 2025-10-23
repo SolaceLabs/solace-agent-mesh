@@ -135,26 +135,32 @@ from sse_starlette.sse import EventSourceResponse
 
 def _generate_sse_url(fastapi_request: FastAPIRequest, stream_id: str) -> str:
     """
-    Generate SSE endpoint URL with proper scheme detection for reverse proxy scenarios.
+    Generate SSE endpoint URL with proper scheme and host detection for reverse proxy scenarios.
 
     Args:
         fastapi_request: The FastAPI request object
         stream_id: The stream ID for the SSE endpoint
 
     Returns:
-        Complete SSE URL with correct scheme (http/https)
+        Complete SSE URL with correct scheme (http/https) and host.
     """
-    forwarded_proto = fastapi_request.headers.get("x-forwarded-proto")
-    if forwarded_proto and forwarded_proto.lower() == "https":
-        scheme = "https"
-    else:
-        scheme = fastapi_request.url.scheme
-
-    return str(
-        fastapi_request.url_for(
-            "get_visualization_stream_events", stream_id=stream_id
-        ).replace(scheme=scheme)
+    base_url = fastapi_request.url_for(
+        "get_visualization_stream_events", stream_id=stream_id
     )
+
+    forwarded_proto = fastapi_request.headers.get("x-forwarded-proto")
+    forwarded_host = fastapi_request.headers.get("x-forwarded-host")
+
+    if forwarded_proto and forwarded_host:
+        # In a reverse proxy environment like GitHub Codespaces, reconstruct the URL
+        # using the forwarded headers to ensure it's publicly accessible.
+        return str(base_url.replace(scheme=forwarded_proto, netloc=forwarded_host))
+    elif forwarded_proto:
+        # Handle cases with only a forwarded protocol (standard reverse proxy)
+        return str(base_url.replace(scheme=forwarded_proto))
+    else:
+        # Default behavior when not behind a reverse proxy
+        return str(base_url)
 
 
 def _translate_target_to_solace_topics(

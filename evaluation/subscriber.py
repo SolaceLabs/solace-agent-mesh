@@ -9,6 +9,7 @@ import os
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from dotenv import load_dotenv
 from solace.messaging.messaging_service import MessagingService
@@ -343,8 +344,8 @@ class TaskTracker:
 class MessageStorage:
     """Handles message storage and file operations."""
 
-    def __init__(self, results_path: str):
-        self.results_path = results_path
+    def __init__(self, results_path: str | Path):
+        self.results_path = Path(results_path)
         self.messages: list[ProcessedMessage] = []
         self._lock = threading.Lock()
 
@@ -368,21 +369,21 @@ class MessageStorage:
         Returns:
             The full path to the saved file
         """
-        output_file = os.path.join(self.results_path, filename)
+        output_file = self.results_path / filename
 
         try:
             # Ensure directory exists
-            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+            output_file.parent.mkdir(parents=True, exist_ok=True)
 
             with self._lock:
                 # Convert messages to dictionaries for JSON serialization
                 message_dicts = [msg.to_dict() for msg in self.messages]
 
-            with open(output_file, "w") as f:
+            with output_file.open("w") as f:
                 json.dump(message_dicts, f, indent=4)
 
             log.info(f"Saved {len(message_dicts)} messages to {output_file}")
-            return output_file
+            return str(output_file)
 
         except Exception as e:
             log.error(f"Error saving messages: {e}")
