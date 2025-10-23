@@ -127,10 +127,10 @@
 ## 7. Signal Tuple Structure
 
 ### 7.1 Consistent Signal Format
-- [ ] All signal returns use format: `(None, "SIGNAL_TYPE", data_dict)`
-- [ ] `SIGNAL_ARTIFACT_RETURN` data: `{"filename": str, "version": str}`
-- [ ] `SIGNAL_INLINE_BINARY_CONTENT` data: `{"bytes": bytes, "mime_type": str, "name": str}`
-- [ ] `SIGNAL_STATUS_UPDATE` data: `str` (status text)
+- [x] All signal returns use format: `(None, "SIGNAL_TYPE", data_dict)`
+- [x] `SIGNAL_ARTIFACT_RETURN` data: `{"filename": str, "version": str}`
+- [x] `SIGNAL_INLINE_BINARY_CONTENT` data: `{"bytes": bytes, "mime_type": str, "name": str}`
+- [x] `SIGNAL_STATUS_UPDATE` data: `str` (status text)
 
 ## 8. Edge Cases & Error Handling
 
