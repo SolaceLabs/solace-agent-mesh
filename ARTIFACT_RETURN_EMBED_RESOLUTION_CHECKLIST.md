@@ -150,18 +150,18 @@
 ## 9. Integration Points
 
 ### 9.1 All resolve_embeds_in_string Calls
-- [ ] Every call includes `resolution_mode` parameter
-- [ ] Mode matches the calling context (gateway/tool/recursive)
+- [x] Every call includes `resolution_mode` parameter
+- [x] Mode matches the calling context (gateway/tool/recursive)
 
 ### 9.2 All evaluate_embed Calls
-- [ ] Every call includes `resolution_mode` parameter
-- [ ] Parameter passed through from parent resolver
+- [x] Every call includes `resolution_mode` parameter
+- [x] Parameter passed through from parent resolver
 
 ### 9.3 Signal Handling Chain
-- [ ] Signals captured at resolution point
-- [ ] Placeholders preserve position in text
-- [ ] Final processing converts to appropriate parts
-- [ ] Non-file signals delegated to `_handle_resolved_signals()`
+- [x] Signals captured at resolution point
+- [x] Placeholders preserve position in text
+- [x] Final processing converts to appropriate parts
+- [x] Non-file signals delegated to `_handle_resolved_signals()`
 
 ---
 
