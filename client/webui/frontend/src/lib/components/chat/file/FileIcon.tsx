@@ -5,7 +5,6 @@ import { FileImage, FileVideo, FileAudio, FileText, Archive, FileSpreadsheet, Pr
 interface FileIconProps {
     filename: string;
     mimeType?: string;
-    content?: string;
     size?: number;
     className?: string;
 }
@@ -183,28 +182,7 @@ const getFileTypeColor = (mimeType?: string, filename?: string): string => {
     }
 };
 
-const truncateContent = (content: string, maxLength: number = 200): string => {
-    if (!content || typeof content !== "string") {
-        return "";
-    }
-    if (content.length <= maxLength) {
-        return content;
-    }
-    // Truncate at word boundary if possible
-    const truncated = content.substring(0, maxLength);
-    const lastSpaceIndex = truncated.lastIndexOf(" ");
-    const lastNewlineIndex = truncated.lastIndexOf("\n");
-
-    // Use the latest boundary that's not too close to the start
-    const boundaryIndex = Math.max(lastSpaceIndex, lastNewlineIndex);
-    if (boundaryIndex > maxLength * 0.7) {
-        return truncated.substring(0, boundaryIndex) + "...";
-    }
-
-    return truncated + "...";
-};
-
-export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, content, className }) => {
+export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, className }) => {
     // Validate required props
     if (!filename || typeof filename !== "string") {
         console.warn("FileIcon: filename is required and must be a string");
@@ -214,18 +192,15 @@ export const FileIcon: React.FC<FileIconProps> = ({ filename, mimeType, content,
     const extension = getFileExtension(filename);
     const typeColor = getFileTypeColor(mimeType, filename);
     const fileIcon = getFileTypeIcon(mimeType, filename);
-    const previewContent = content ? truncateContent(content) : "";
 
     return (
         <div className={cn("relative flex-shrink-0", className)}>
             {/* Main document icon with square corners */}
             <div className="bg-muted/50 relative h-[75px] w-[60px] border">
-                {/* Content preview or icon */}
+                {/* Icon */}
                 <div className="absolute top-[4px] right-[4px] bottom-[24px] left-[4px] overflow-hidden font-mono text-[3.5px] leading-[1.4]">
                     {fileIcon ? (
                         <div className="flex h-full items-center justify-center">{fileIcon}</div>
-                    ) : previewContent ? (
-                        <div className="text-secondary-foreground text-[8px] break-words whitespace-pre-wrap select-none">{previewContent}</div>
                     ) : (
                         <div className="text-secondary-foreground flex h-full text-[8px] select-none">
                             <div className="flex h-full w-full items-center justify-center">{<File className="text-secondary-foreground/60" />}</div>

@@ -4,7 +4,6 @@ import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import type { FileAttachment } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
-import { generateFileTypePreview } from "./fileUtils";
 import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
 
 import { MessageBanner } from "../../common";
@@ -275,26 +274,6 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         fetchContentFromUri();
     }, [props.status, shouldRender, fileAttachment, sessionId, isLoading, fetchedContent, artifact?.accumulatedContent, fileName, isExpanded, artifact]);
 
-    // Generate content preview for the file icon
-    const contentPreview = useMemo(() => {
-        if (props.status === "completed" && fileAttachment) {
-            try {
-                const contentToUse = fetchedContent || fileAttachment.content;
-                if (contentToUse) {
-                    const decodedContent = getFileContent({ ...fileAttachment, content: contentToUse });
-                    if (decodedContent) {
-                        return generateFileTypePreview(decodedContent, fileName, fileMimeType);
-                    }
-                }
-            } catch (error) {
-                console.warn("Failed to generate content preview:", error);
-                // Return fallback preview
-                return `${fileName}\n${fileMimeType || "Unknown type"}`;
-            }
-        }
-        return undefined;
-    }, [props.status, fileAttachment, fetchedContent, fileName, fileMimeType]);
-
     // Prepare actions for the artifact bar
     const actions = useMemo(() => {
         if (props.status === "failed") return undefined;
@@ -348,7 +327,9 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 ...fileForRendering,
                 content: contentToRender,
                 // @ts-ignore - Add flag to indicate if content is plain text from streaming
-                isPlainText: artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent
+                // Content is plain text if: (1) it's from accumulated content during streaming, OR (2) we're in progress state
+                isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) ||
+                             (props.status === "in-progress" && !!fetchedContent)
             });
 
             if (finalContent) {
@@ -455,7 +436,6 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             actions={actions}
             bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}
             error={props.status === "failed" ? props.error : undefined}
-            content={contentPreview}
             expandedContent={finalExpandedContent}
             context={context}
             isDeleted={isDeleted}

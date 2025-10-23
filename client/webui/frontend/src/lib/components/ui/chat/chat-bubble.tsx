@@ -74,7 +74,7 @@ interface ChatBubbleMessageProps extends React.HTMLAttributes<HTMLDivElement>, V
 }
 
 const ChatBubbleMessage = React.forwardRef<HTMLDivElement, ChatBubbleMessageProps>(({ className, variant, layout, children, ...props }, ref) => (
-    <div className={cn(chatBubbleMessageVariants({ variant, layout, className }), "relative max-w-full break-words whitespace-pre-wrap")} ref={ref} {...props}>
+    <div className={cn(chatBubbleMessageVariants({ variant, layout, className }), "relative max-w-full break-words")} ref={ref} {...props}>
         <>{children}</>
     </div>
 ));

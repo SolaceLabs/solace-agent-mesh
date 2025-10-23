@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Download, Eye, ChevronDown, Trash, Info, ChevronUp, CircleAlert } from "lucide-react";
 
-import { Button, MessageLoading } from "@/lib/components/ui";
+import { Button, Spinner } from "@/lib/components/ui";
 import { FileIcon } from "../file/FileIcon";
 import { cn } from "@/lib/utils";
 
@@ -30,8 +30,6 @@ export interface ArtifactBarProps {
     // For creation progress
     bytesTransferred?: number;
     error?: string;
-    // For content preview in file icon
-    content?: string;
     // For rendered content when expanded
     expandedContent?: React.ReactNode;
     context?: "chat" | "list";
@@ -39,7 +37,7 @@ export interface ArtifactBarProps {
     version?: number; // Version number to display (e.g., 1, 2, 3)
 }
 
-export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description, mimeType, size, status, expandable = false, expanded = false, onToggleExpand, actions, bytesTransferred, error, content, expandedContent, context = "chat", isDeleted = false, version }) => {
+export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description, mimeType, size, status, expandable = false, expanded = false, onToggleExpand, actions, bytesTransferred, error, expandedContent, context = "chat", isDeleted = false, version }) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
 
     useEffect(() => {
@@ -142,8 +140,8 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
             onClick={isDeleted ? undefined : handleBarClick}
         >
             <div className="flex min-h-[60px] items-center gap-3 p-3">
-                {/* File Icon with Preview */}
-                <FileIcon filename={filename} mimeType={mimeType} content={content} size={size} className="flex-shrink-0" />
+                {/* File Icon */}
+                <FileIcon filename={filename} mimeType={mimeType} size={size} className="flex-shrink-0" />
 
                 {/* File Info Section */}
                 <div className="min-w-0 flex-1 py-1">
@@ -153,19 +151,27 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                     </div>
 
                     {/* Secondary line: Filename (if description shown) or status */}
-                    <div className="text-secondary-foreground mt-1 truncate text-xs leading-tight" title={hasDescription ? filename : statusDisplay.text}>
+                    <div className="text-secondary-foreground mt-1 flex items-center gap-2 text-xs leading-tight" title={hasDescription ? filename : statusDisplay.text}>
                         {hasDescription ? (
-                            <>
+                            <div className="truncate">
                                 {filename.length > 60 ? `${filename.substring(0, 57)}...` : filename}
                                 {version !== undefined && context === "chat" && <span className="ml-1.5">(v{version})</span>}
-                            </>
+                            </div>
                         ) : (
-                            statusDisplay.text
+                            <>
+                                {status === "in-progress" && <Spinner size="small" variant="primary" />}
+                                <span className={statusDisplay.className}>{statusDisplay.text}</span>
+                            </>
                         )}
                     </div>
 
                     {/* Tertiary line: Status when description is shown */}
-                    {hasDescription && <div className={cn("mt-0.5 text-xs leading-tight", statusDisplay.className)}>{statusDisplay.text}</div>}
+                    {hasDescription && (
+                        <div className={cn("mt-0.5 flex items-center gap-2 text-xs leading-tight", statusDisplay.className)}>
+                            {status === "in-progress" && <Spinner size="small" variant="primary" />}
+                            <span>{statusDisplay.text}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Actions Section */}
@@ -259,9 +265,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                             <Trash className="h-4 w-4" />
                         </Button>
                     )}
-
-                    {/* Progress indicator for in-progress status */}
-                    {status === "in-progress" && <MessageLoading className="pr-2" />}
 
                     {/* Error indicator for failed status */}
                     {status === "failed" && (
