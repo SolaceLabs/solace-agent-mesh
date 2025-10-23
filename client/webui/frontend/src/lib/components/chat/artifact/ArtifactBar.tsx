@@ -150,7 +150,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                     {/*Primary line: Description (if available) or Filename */}
                     <div className="truncate text-sm leading-tight font-semibold" title={hasDescription ? description : filename}>
                         {hasDescription ? displayDescription : filename.length > 50 ? `${filename.substring(0, 47)}...` : filename}
-                        {version !== undefined && context === "chat" && <span className="text-secondary-foreground ml-1.5 text-xs font-normal">(v{version})</span>}
                     </div>
 
                     {/* Secondary line: Filename (if description shown) or status */}

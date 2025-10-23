@@ -793,7 +793,6 @@ class BaseGatewayComponent(SamComponentBase):
 
         return content_modified or bool(other_signals)
 
-
     async def _process_parsed_a2a_event(
         self,
         parsed_event: Union[

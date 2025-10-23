@@ -640,7 +640,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             let rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
 
             try {
-                console.log("TEST-SSE ChatProvider Raw Message:", event.data);
                 rpcResponse = JSON.parse(event.data) as SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
             } catch (error: unknown) {
                 console.error("Failed to parse SSE message:", error);
@@ -1678,35 +1677,56 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
     }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId]);
 
+    // Store the latest handlers in refs so they can be accessed without triggering effect re-runs
+    const handleSseMessageRef = useRef(handleSseMessage);
+    const handleSseOpenRef = useRef(handleSseOpen);
+    const handleSseErrorRef = useRef(handleSseError);
+
+    // Update refs whenever handlers change (but this won't trigger the effect)
+    useEffect(() => {
+        handleSseMessageRef.current = handleSseMessage;
+        handleSseOpenRef.current = handleSseOpen;
+        handleSseErrorRef.current = handleSseError;
+    }, [handleSseMessage, handleSseOpen, handleSseError]);
+
     useEffect(() => {
         if (currentTaskId && apiPrefix) {
-            console.log(`ChatProvider Effect: currentTaskId is ${currentTaskId}. Setting up EventSource.`);
             const accessToken = getAccessToken();
             const eventSourceUrl = `${apiPrefix}/sse/subscribe/${currentTaskId}${accessToken ? `?token=${accessToken}` : ""}`;
             const eventSource = new EventSource(eventSourceUrl, { withCredentials: true });
             currentEventSource.current = eventSource;
 
-            eventSource.onopen = handleSseOpen;
-            eventSource.onerror = handleSseError;
-            eventSource.addEventListener("status_update", handleSseMessage);
-            eventSource.addEventListener("artifact_update", handleSseMessage);
-            eventSource.addEventListener("final_response", handleSseMessage);
-            eventSource.addEventListener("error", handleSseMessage);
+            const wrappedHandleSseOpen = () => {
+                handleSseOpenRef.current();
+            };
+
+            const wrappedHandleSseError = (event: Event) => {
+                handleSseErrorRef.current();
+            };
+
+            const wrappedHandleSseMessage = (event: MessageEvent) => {
+                handleSseMessageRef.current(event);
+            };
+
+            eventSource.onopen = wrappedHandleSseOpen;
+            eventSource.onerror = wrappedHandleSseError;
+            eventSource.addEventListener("status_update", wrappedHandleSseMessage);
+            eventSource.addEventListener("artifact_update", wrappedHandleSseMessage);
+            eventSource.addEventListener("final_response", wrappedHandleSseMessage);
+            eventSource.addEventListener("error", wrappedHandleSseMessage);
 
             return () => {
-                console.log(`ChatProvider Effect Cleanup: currentTaskId was ${currentTaskId}. Closing EventSource.`);
                 // Explicitly remove listeners before closing
-                eventSource.removeEventListener("status_update", handleSseMessage);
-                eventSource.removeEventListener("artifact_update", handleSseMessage);
-                eventSource.removeEventListener("final_response", handleSseMessage);
-                eventSource.removeEventListener("error", handleSseMessage);
-                closeCurrentEventSource();
+                eventSource.removeEventListener("status_update", wrappedHandleSseMessage);
+                eventSource.removeEventListener("artifact_update", wrappedHandleSseMessage);
+                eventSource.removeEventListener("final_response", wrappedHandleSseMessage);
+                eventSource.removeEventListener("error", wrappedHandleSseMessage);
+                eventSource.close();
             };
         } else {
-            console.log(`ChatProvider Effect: currentTaskId is null or apiPrefix missing. Ensuring EventSource is closed.`);
             closeCurrentEventSource();
         }
-    }, [currentTaskId, apiPrefix, handleSseMessage, handleSseOpen, handleSseError, closeCurrentEventSource]);
+    }, [currentTaskId, apiPrefix, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
         configCollectFeedback,

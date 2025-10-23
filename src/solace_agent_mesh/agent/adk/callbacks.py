@@ -980,7 +980,7 @@ Simple, direct requests like 'create an image of a dog' or 'write an email to th
 
 If a plan is created:
 1. It should be a terse, hierarchical list describing the steps needed, with each checkbox item on its own line.
-2. Use '☐' (empty checkbox emoji) for pending items and '☑' (checked checkbox emoji) for completed items.
+2. Use '⬜' for pending items, '✅' for completed items, and '❌' for cancelled items.
 3. If the plan changes significantly during execution, restate the updated plan.
 4. As items are completed, update the plan to check them off.
 
