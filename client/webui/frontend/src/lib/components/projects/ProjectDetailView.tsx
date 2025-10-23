@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, CheckCircle, Edit } from "lucide-react";
+import { ArrowLeft, CheckCircle, Pencil } from "lucide-react";
 
 import { Button, Input, Textarea } from "@/lib/components/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@/lib/components/ui/card";
@@ -114,7 +114,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, i
                         ) : (
                             <>
                                 <Button variant="outline" onClick={handleEditToggle} className="flex items-center gap-2">
-                                    <Edit className="h-4 w-4" />
+                                    <Pencil className="h-4 w-4 mr-2" />
                                     Edit Project
                                 </Button>
 

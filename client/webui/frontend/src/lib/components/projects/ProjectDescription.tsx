@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Edit, Save, X } from "lucide-react";
+import { Pencil, Save, X } from "lucide-react";
 
 import { Button, Textarea } from "@/lib/components/ui";
 import type { Project } from "@/lib/types/projects";
@@ -44,7 +44,8 @@ export const ProjectDescription: React.FC<ProjectDescriptionProps> = ({
                 <h3 className="text-sm font-semibold text-foreground">Description</h3>
                 {!isEditing && (
                     <Button variant="ghost" size="sm" onClick={onToggleEdit}>
-                        <Edit className="h-4 w-4" />
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit
                     </Button>
                 )}
             </div>

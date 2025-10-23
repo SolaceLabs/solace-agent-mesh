@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Edit, Save, X } from "lucide-react";
+import { Pencil, Save, X } from "lucide-react";
 
 import { Button, Input } from "@/lib/components/ui";
 import type { Project } from "@/lib/types/projects";
@@ -77,7 +77,7 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
                     <>
                         <h1 className="text-2xl font-bold text-foreground">{project.name}</h1>
                         <Button variant="ghost" size="sm" onClick={onToggleEdit}>
-                            <Edit className="h-4 w-4 mr-2" />
+                            <Pencil className="h-4 w-4 mr-2" />
                             Edit
                         </Button>
                     </>

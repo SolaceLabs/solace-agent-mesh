@@ -931,6 +931,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setSessionId("");
         setSessionName(null);
 
+        // Clear project context when starting a new chat outside of a project
+        if (activeProject) {
+            console.log(`${log_prefix} Clearing project context`);
+            setActiveProject(null);
+        }
+
         setSelectedAgentName("");
         setMessages([]);
         setUserInput("");
@@ -948,7 +954,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         // Note: No session events dispatched here since no session exists yet.
         // Session creation event will be dispatched when first message creates the actual session.
-    }, [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, artifactsRefetch, closeCurrentEventSource]);
+    }, [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, artifactsRefetch, closeCurrentEventSource, activeProject, setActiveProject]);
 
     const handleSwitchSession = useCallback(
         async (newSessionId: string) => {
