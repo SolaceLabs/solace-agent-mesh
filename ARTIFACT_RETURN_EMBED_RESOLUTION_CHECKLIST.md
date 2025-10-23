@@ -46,49 +46,49 @@
 ## 3. Gateway-Side Resolution
 
 ### 3.1 Main Signal Processing
-- [ ] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
-  - [ ] Calls `resolve_embeds_in_string()` with `resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER`
-  - [ ] Extracts `signals_with_placeholders` from resolution result
-  - [ ] Creates `placeholder_map` from signals
-  - [ ] Uses regex to split text by placeholders: `re.split(split_pattern, resolved_text)`
+- [x] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
+  - [x] Calls `resolve_embeds_in_string()` with `resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER`
+  - [x] Extracts `signals_with_placeholders` from resolution result
+  - [x] Creates `placeholder_map` from signals
+  - [x] Uses regex to split text by placeholders: `re.split(split_pattern, resolved_text)`
 
 ### 3.2 SIGNAL_ARTIFACT_RETURN Handler
-- [ ] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
-  - [ ] Detects `signal_type == "SIGNAL_ARTIFACT_RETURN"`
-  - [ ] Extracts `filename` and `version` from `signal_data`
-  - [ ] Calls `load_artifact_content_or_metadata()` with `load_metadata_only=True`
-  - [ ] On success: creates `FilePart` using `a2a.create_file_part_from_uri()`
-  - [ ] On error: creates error `TextPart`
-  - [ ] Appends result to `new_parts`
+- [x] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
+  - [x] Detects `signal_type == "SIGNAL_ARTIFACT_RETURN"`
+  - [x] Extracts `filename` and `version` from `signal_data`
+  - [x] Calls `load_artifact_content_or_metadata()` with `load_metadata_only=True`
+  - [x] On success: creates `FilePart` using `a2a.create_file_part_from_uri()`
+  - [x] On error: creates error `TextPart`
+  - [x] Appends result to `new_parts`
 
 ### 3.3 SIGNAL_INLINE_BINARY_CONTENT Handler
-- [ ] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
-  - [ ] Detects `signal_type == "SIGNAL_INLINE_BINARY_CONTENT"`
-  - [ ] Renames `signal_data["bytes"]` to `signal_data["content_bytes"]`
-  - [ ] Creates `FilePart` using `a2a.create_file_part_from_bytes()`
-  - [ ] Appends to `new_parts`
+- [x] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
+  - [x] Detects `signal_type == "SIGNAL_INLINE_BINARY_CONTENT"`
+  - [x] Renames `signal_data["bytes"]` to `signal_data["content_bytes"]`
+  - [x] Creates `FilePart` using `a2a.create_file_part_from_bytes()`
+  - [x] Appends to `new_parts`
 
 ### 3.4 Whitespace Cleanup
-- [ ] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
-  - [ ] Checks if fragment is whitespace-only
-  - [ ] Checks if previous fragment was placeholder
-  - [ ] Checks if next fragment is placeholder
-  - [ ] Drops fragment if all three conditions true
+- [x] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
+  - [x] Checks if fragment is whitespace-only
+  - [x] Checks if previous fragment was placeholder
+  - [x] Checks if next fragment is placeholder
+  - [x] Drops fragment if all three conditions true
 
 ### 3.5 Other Signals Handler
-- [ ] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
-  - [ ] Non-file signals added to `other_signals` list
-  - [ ] Calls `_handle_resolved_signals()` for `other_signals`
+- [x] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
+  - [x] Non-file signals added to `other_signals` list
+  - [x] Calls `_handle_resolved_signals()` for `other_signals`
 
 ### 3.6 Content Modification Detection
-- [ ] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
-  - [ ] Compares `new_parts != original_parts`
-  - [ ] Updates message/artifact parts if changed
-  - [ ] Returns `content_modified or bool(other_signals)`
+- [x] `src/solace_agent_mesh/gateway/base/component.py` - `_resolve_embeds_and_handle_signals()`
+  - [x] Compares `new_parts != original_parts`
+  - [x] Updates message/artifact parts if changed
+  - [x] Returns `content_modified or bool(other_signals)`
 
 ### 3.7 Event Processing Integration
-- [ ] `src/solace_agent_mesh/gateway/base/component.py` - `_process_parsed_a2a_event()`
-  - [ ] Passes `resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER` to embed resolution
+- [x] `src/solace_agent_mesh/gateway/base/component.py` - `_process_parsed_a2a_event()`
+  - [x] Passes `resolution_mode=ResolutionMode.A2A_MESSAGE_TO_USER` to embed resolution
 
 ## 4. Tool Parameter Resolution
 
