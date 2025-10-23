@@ -93,13 +93,13 @@
 ## 4. Tool Parameter Resolution
 
 ### 4.1 ADK Tool Wrapper
-- [ ] `src/solace_agent_mesh/agent/adk/tool_wrapper.py` - `ADKToolWrapper.__call__()`
-  - [ ] Passes `resolution_mode=ResolutionMode.TOOL_PARAMETER` to `resolve_embeds_in_string()`
-  - [ ] Applied to both positional args and kwargs resolution
+- [x] `src/solace_agent_mesh/agent/adk/tool_wrapper.py` - `ADKToolWrapper.__call__()`
+  - [x] Passes `resolution_mode=ResolutionMode.TOOL_PARAMETER` to `resolve_embeds_in_string()`
+  - [x] Applied to both positional args and kwargs resolution
 
 ### 4.2 MCP Tool Wrapper
-- [ ] `src/solace_agent_mesh/agent/adk/embed_resolving_mcp_toolset.py` - `EmbedResolvingMCPTool._resolve_embeds_recursively()`
-  - [ ] Passes `resolution_mode=ResolutionMode.TOOL_PARAMETER` to `resolve_embeds_in_string()`
+- [x] `src/solace_agent_mesh/agent/adk/embed_resolving_mcp_toolset.py` - `EmbedResolvingMCPTool._resolve_embeds_recursively()`
+  - [x] Passes `resolution_mode=ResolutionMode.TOOL_PARAMETER` to `resolve_embeds_in_string()`
 
 ## 5. Agent-Side Early Resolution
 
