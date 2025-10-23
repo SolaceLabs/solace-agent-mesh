@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 
-import { Trash2, Check, X, Pencil, MessageCircle } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, Filter } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
@@ -35,6 +35,7 @@ export const SessionList: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
+    const [selectedProject, setSelectedProject] = useState<string | null>(null);
 
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
@@ -167,15 +168,61 @@ export const SessionList: React.FC = () => {
         return `Session ${sessionId.substring(0, 8)}`;
     };
 
+    // Get unique project names from sessions
+    const projectNames = useMemo(() => {
+        const names = new Set<string>();
+        sessions.forEach(session => {
+            if (session.projectName) {
+                names.add(session.projectName);
+            }
+        });
+        return Array.from(names).sort();
+    }, [sessions]);
+
+    // Filter sessions by selected project
+    const filteredSessions = useMemo(() => {
+        if (!selectedProject) {
+            return sessions;
+        }
+        return sessions.filter(session => session.projectName === selectedProject);
+    }, [sessions, selectedProject]);
+
     return (
         <div className="flex h-full flex-col gap-4 py-6 pl-6">
-            <div className="text-lg">
-                Chat Session History
+            <div className="flex flex-col gap-3">
+                <div className="text-lg">
+                    Chat Session History
+                </div>
+                
+                {/* Project Filter */}
+                {projectNames.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pr-4">
+                        <Badge
+                            variant={selectedProject === null ? "default" : "outline"}
+                            className="cursor-pointer hover:bg-accent transition-colors"
+                            onClick={() => setSelectedProject(null)}
+                        >
+                            <Filter className="mr-1" size={12} />
+                            All Chats
+                        </Badge>
+                        {projectNames.map(projectName => (
+                            <Badge
+                                key={projectName}
+                                variant={selectedProject === projectName ? "default" : "outline"}
+                                className="cursor-pointer hover:bg-accent transition-colors"
+                                onClick={() => setSelectedProject(projectName)}
+                            >
+                                {projectName}
+                            </Badge>
+                        ))}
+                    </div>
+                )}
             </div>
+            
             <div className="flex-1 overflow-y-auto">
-                {sessions.length > 0 && (
+                {filteredSessions.length > 0 && (
                     <ul>
-                        {sessions.map(session => (
+                        {filteredSessions.map(session => (
                             <li key={session.id} className="group my-2 pr-4">
                                 <div className={`flex items-center justify-between rounded px-4 py-2 ${session.id === sessionId ? "bg-muted" : ""}`}>
                                     {editingSessionId === session.id ? (
@@ -237,6 +284,12 @@ export const SessionList: React.FC = () => {
                             </li>
                         ))}
                     </ul>
+                )}
+                {filteredSessions.length === 0 && sessions.length > 0 && !isLoading && (
+                    <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
+                        <Filter className="mx-auto mb-4 h-12 w-12" />
+                        No sessions found for this project
+                    </div>
                 )}
                 {sessions.length === 0 && !isLoading && (
                     <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
