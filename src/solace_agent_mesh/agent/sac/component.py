@@ -128,7 +128,7 @@ class SamAgentComponent(SamComponentBase):
 
         super().__init__(info, **kwargs)
         self.agent_name = self.get_config("agent_name")
-        log.info("%s Initializing A2A ADK Host Component...", self.log_identifier)
+        log.info("%s Initializing agent: %s (A2A ADK Host Component)...", self.log_identifier, self.agent_name)
         
         # Initialize the agent registry for health tracking
         self.agent_registry = AgentRegistry()
@@ -226,7 +226,6 @@ class SamAgentComponent(SamComponentBase):
                 "max_message_size_bytes", 10_000_000
             )
 
-            log.info("%s Configuration retrieved successfully.", self.log_identifier)
         except Exception as e:
             log.error(
                 "%s Failed to retrieve configuration via get_config: %s",
@@ -267,7 +266,7 @@ class SamAgentComponent(SamComponentBase):
                 self.memory_service = initialize_memory_service(self)
 
                 log.info(
-                    "%s Synchronous ADK services initialized.", self.log_identifier
+                    "%s Initialized Synchronous ADK services.", self.log_identifier
                 )
             except Exception as service_err:
                 log.exception(
@@ -446,7 +445,7 @@ class SamAgentComponent(SamComponentBase):
                 )
                 
             log.info(
-                "%s Initialization complete for agent: %s",
+                "%s Initialized agent: %s",
                 self.log_identifier,
                 self.agent_name,
             )

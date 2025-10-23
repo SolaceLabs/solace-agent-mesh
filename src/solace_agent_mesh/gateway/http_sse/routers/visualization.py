@@ -1135,4 +1135,4 @@ async def unsubscribe_from_visualization_stream(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-log.info("Router for A2A Message Visualization initialized.")
+log.info("Initialized Router for A2A Message Visualization.")

@@ -891,7 +891,7 @@ def initialize_adk_agent(
         callbacks_in_order_for_before_model.append(
             adk_callbacks.repair_history_callback
         )
-        log.info(
+        log.debug(
             "%s Added repair_history_callback to before_model chain.",
             component.log_identifier,
         )
@@ -900,7 +900,7 @@ def initialize_adk_agent(
             callbacks_in_order_for_before_model.append(
                 component._inject_peer_tools_callback
             )
-            log.info(
+            log.debug(
                 "%s Added _inject_peer_tools_callback to before_model chain.",
                 component.log_identifier,
             )
@@ -909,7 +909,7 @@ def initialize_adk_agent(
             callbacks_in_order_for_before_model.append(
                 component._filter_tools_by_capability_callback
             )
-            log.info(
+            log.debug(
                 "%s Added _filter_tools_by_capability_callback to before_model chain.",
                 component.log_identifier,
             )
@@ -917,7 +917,7 @@ def initialize_adk_agent(
             callbacks_in_order_for_before_model.append(
                 component._inject_gateway_instructions_callback
             )
-            log.info(
+            log.debug(
                 "%s Added _inject_gateway_instructions_callback to before_model chain.",
                 component.log_identifier,
             )
@@ -930,7 +930,7 @@ def initialize_adk_agent(
         callbacks_in_order_for_before_model.append(
             dynamic_instruction_callback_with_component
         )
-        log.info(
+        log.debug(
             "%s Added inject_dynamic_instructions_callback to before_model chain.",
             component.log_identifier,
         )
@@ -957,7 +957,7 @@ def initialize_adk_agent(
             return None
 
         agent.before_model_callback = final_before_model_wrapper
-        log.info(
+        log.debug(
             "%s Final before_model_callback chain (Solace logging now occurs last) assigned to agent.",
             component.log_identifier,
         )
@@ -967,7 +967,7 @@ def initialize_adk_agent(
             host_component=component,
         )
         agent.before_tool_callback = tool_invocation_start_cb_with_component
-        log.info(
+        log.debug(
             "%s Assigned notify_tool_invocation_start_callback as before_tool_callback.",
             component.log_identifier,
         )
@@ -1053,7 +1053,7 @@ def initialize_adk_agent(
                 return tool_response
 
         agent.after_tool_callback = chained_after_tool_callback
-        log.info(
+        log.debug(
             "%s Chained 'manage_large_mcp_tool_responses_callback' and 'after_tool_callback_inject_metadata' as after_tool_callback.",
             component.log_identifier,
         )
@@ -1067,7 +1067,7 @@ def initialize_adk_agent(
             adk_callbacks.process_artifact_blocks_callback, host_component=component
         )
         callbacks_in_order_for_after_model.append(artifact_block_cb)
-        log.info(
+        log.debug(
             "%s Added process_artifact_blocks_callback to after_model chain.",
             component.log_identifier,
         )
@@ -1077,7 +1077,7 @@ def initialize_adk_agent(
             adk_callbacks.auto_continue_on_max_tokens_callback, host_component=component
         )
         callbacks_in_order_for_after_model.append(auto_continue_cb)
-        log.info(
+        log.debug(
             "%s Added auto_continue_on_max_tokens_callback to after_model chain.",
             component.log_identifier,
         )
@@ -1110,7 +1110,7 @@ def initialize_adk_agent(
             return None
 
         agent.after_model_callback = final_after_model_wrapper
-        log.info(
+        log.debug(
             "%s Chained all after_model_callbacks and assigned to agent.",
             component.log_identifier,
         )

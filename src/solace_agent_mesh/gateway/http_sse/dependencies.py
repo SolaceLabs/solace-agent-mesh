@@ -77,7 +77,7 @@ def init_database(database_url: str):
                 cursor.close()
 
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        log.info("[Dependencies] Database initialized with foreign key support.")
+        log.info("[Dependencies] Initialized Database with foreign key support.")
     else:
         log.warning("[Dependencies] Database already initialized.")
 
@@ -87,7 +87,7 @@ def set_api_config(config: dict[str, Any]):
     global api_config
     if api_config is None:
         api_config = config
-        log.info("[Dependencies] API configuration provided.")
+        log.debug("[Dependencies] API configuration provided.")
     else:
         log.warning("[Dependencies] API configuration already set.")
 

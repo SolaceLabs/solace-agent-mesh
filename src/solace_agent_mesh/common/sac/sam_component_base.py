@@ -65,7 +65,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
         # Trust Manager integration (enterprise feature) - initialized as part of _late_init
         self.trust_manager: Optional[Any] = None
 
-        log.info("%s SamComponentBase initialized successfully.", self.log_identifier)
+        log.info("%s Initialized SamComponentBase", self.log_identifier)
 
     def add_timer(
         self,
@@ -450,15 +450,11 @@ class SamComponentBase(ComponentBase, abc.ABC):
         main_task = None
         try:
             log.info(
-                "%s Starting _async_setup_and_run as an asyncio task.",
+                "%s Starting _async_setup_and_run as an asyncio task. Will run event loop forever (or until stop_signal).",
                 self.log_identifier,
             )
             main_task = self._async_loop.create_task(self._async_setup_and_run())
 
-            log.info(
-                "%s Running asyncio event loop forever (or until stop_signal).",
-                self.log_identifier,
-            )
             self._async_loop.run_forever()
 
         except Exception as e:
@@ -646,7 +642,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     event_loop=self.get_async_loop(),
                 )
                 log.info(
-                    "%s Trust Manager initialized successfully", self.log_identifier
+                    "%s Initialized Trust Manager", self.log_identifier
                 )
             except Exception as e:
                 log.error(
