@@ -24,6 +24,7 @@ class ProjectModel(Base):
     
     # Relationships
     sessions = relationship("SessionModel", back_populates="project")
+    project_users = relationship("ProjectUserModel", back_populates="project", cascade="all, delete-orphan")
 
 
 class CreateProjectModel(BaseModel):
