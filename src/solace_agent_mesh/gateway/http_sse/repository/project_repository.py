@@ -29,52 +29,7 @@ class ProjectRepository(IProjectRepository):
             user_id=user_id,
             description=description,
             system_prompt=system_prompt,
-            is_global=False,
-            template_id=None,
             created_by_user_id=created_by_user_id or user_id,
-            created_at=now_epoch_ms(),
-        )
-        self.db.add(model)
-        self.db.commit()
-        self.db.refresh(model)
-        return self._model_to_entity(model)
-
-    def create_global_project(self, name: str, description: Optional[str] = None,
-                             created_by_user_id: str = None) -> Project:
-        """Create a new global project template."""
-        model = ProjectModel(
-            id=str(uuid.uuid4()),
-            name=name,
-            user_id=None,  # Global projects have no owner
-            description=description,
-            system_prompt=None,
-            is_global=True,
-            template_id=None,
-            created_by_user_id=created_by_user_id,
-            created_at=now_epoch_ms(),
-        )
-        self.db.add(model)
-        self.db.commit()
-        self.db.refresh(model)
-        return self._model_to_entity(model)
-
-    def copy_from_template(self, template_id: str, name: str, user_id: str,
-                          description: Optional[str] = None) -> Optional[Project]:
-        """Create a new project by copying from a template."""
-        # First verify template exists and is global
-        template = self.get_by_id(template_id)
-        if not template or not template.is_global:
-            return None
-
-        model = ProjectModel(
-            id=str(uuid.uuid4()),
-            name=name,
-            user_id=user_id,
-            description=description or template.description,
-            system_prompt=template.system_prompt,
-            is_global=False,
-            template_id=template_id,
-            created_by_user_id=user_id,
             created_at=now_epoch_ms(),
         )
         self.db.add(model)
@@ -87,33 +42,12 @@ class ProjectRepository(IProjectRepository):
         models = self.db.query(ProjectModel).filter(ProjectModel.user_id == user_id).all()
         return [self._model_to_entity(model) for model in models]
 
-    def get_global_projects(self) -> List[Project]:
-        """Get all global project templates."""
-        models = self.db.query(ProjectModel).filter(ProjectModel.is_global == True).all()
-        return [self._model_to_entity(model) for model in models]
-
-    def get_projects_by_template(self, template_id: str) -> List[Project]:
-        """Get all projects copied from a specific template."""
-        models = self.db.query(ProjectModel).filter(ProjectModel.template_id == template_id).all()
-        return [self._model_to_entity(model) for model in models]
-
-    def count_template_usage(self, template_id: str) -> int:
-        """Count how many times a template has been copied."""
-        count = self.db.query(ProjectModel).filter(ProjectModel.template_id == template_id).count()
-        return count
-
     def get_filtered_projects(self, project_filter: ProjectFilter) -> List[Project]:
         """Get projects based on filter criteria."""
         query = self.db.query(ProjectModel)
         
         if project_filter.user_id is not None:
             query = query.filter(ProjectModel.user_id == project_filter.user_id)
-        
-        if project_filter.is_global is not None:
-            query = query.filter(ProjectModel.is_global == project_filter.is_global)
-        
-        if project_filter.template_id is not None:
-            query = query.filter(ProjectModel.template_id == project_filter.template_id)
         
         if project_filter.created_by_user_id is not None:
             query = query.filter(ProjectModel.created_by_user_id == project_filter.created_by_user_id)
@@ -123,14 +57,11 @@ class ProjectRepository(IProjectRepository):
 
     def get_by_id(self, project_id: str, user_id: str) -> Optional[Project]:
         """Get a project by its ID, ensuring user access."""
-        query = self.db.query(ProjectModel).filter(ProjectModel.id == project_id)
+        model = self.db.query(ProjectModel).filter(
+            ProjectModel.id == project_id,
+            ProjectModel.user_id == user_id
+        ).first()
         
-        # Add user access filter: either user owns the project or it's a global project
-        query = query.filter(
-            (ProjectModel.user_id == user_id) | (ProjectModel.is_global == True)
-        )
-        
-        model = query.first()
         return self._model_to_entity(model) if model else None
 
     def update(self, project_id: str, user_id: str, update_data: dict) -> Optional[Project]:
@@ -169,8 +100,6 @@ class ProjectRepository(IProjectRepository):
             user_id=model.user_id,
             description=model.description,
             system_prompt=model.system_prompt,
-            is_global=model.is_global,
-            template_id=model.template_id,
             created_by_user_id=model.created_by_user_id,
             created_at=model.created_at,
             updated_at=model.updated_at,

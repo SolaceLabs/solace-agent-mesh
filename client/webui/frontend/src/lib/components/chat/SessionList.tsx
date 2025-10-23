@@ -123,9 +123,23 @@ export const SessionList: React.FC = () => {
 
     const handleRename = async () => {
         if (editingSessionId) {
-            await updateSessionName(editingSessionId, editingSessionName);
+            const sessionIdToUpdate = editingSessionId;
+            const newName = editingSessionName;
+            
+            // Update local state immediately for instant UI feedback
+            setSessions(prevSessions =>
+                prevSessions.map(s =>
+                    s.id === sessionIdToUpdate
+                        ? { ...s, name: newName }
+                        : s
+                )
+            );
+            
+            // Clear editing state
             setEditingSessionId(null);
-            fetchSessions();
+            
+            // Update backend (this will trigger new-chat-session event which refetches)
+            await updateSessionName(sessionIdToUpdate, newName);
         }
     };
 
@@ -170,8 +184,12 @@ export const SessionList: React.FC = () => {
                                             type="text"
                                             value={editingSessionName}
                                             onChange={e => setEditingSessionName(e.target.value)}
-                                            onKeyDown={e => e.key === "Enter" && handleRename()}
-                                            onBlur={handleRename}
+                                            onKeyDown={e => {
+                                                if (e.key === "Enter") {
+                                                    e.preventDefault();
+                                                    handleRename();
+                                                }
+                                            }}
                                             className="flex-grow bg-transparent focus:outline-none"
                                         />
                                     ) : (
@@ -182,7 +200,10 @@ export const SessionList: React.FC = () => {
                                                         {getSessionDisplayName(session)}
                                                     </span>
                                                     {session.projectName && (
-                                                        <Badge variant="secondary" className="text-xs">
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm"
+                                                        >
                                                             {session.projectName}
                                                         </Badge>
                                                     )}

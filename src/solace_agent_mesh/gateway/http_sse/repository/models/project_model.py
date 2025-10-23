@@ -16,12 +16,10 @@ class ProjectModel(Base):
     
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
-    user_id = Column(String, nullable=True)  # Null for global projects
+    user_id = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
-    is_global = Column(Boolean, default=False, nullable=False)
-    template_id = Column(String, nullable=True)  # Reference to template project
-    created_by_user_id = Column(String, nullable=True)
+    created_by_user_id = Column(String, nullable=False)
     created_at = Column(BigInteger, nullable=False)  # Epoch timestamp in milliseconds
     updated_at = Column(BigInteger, nullable=True)   # Epoch timestamp in milliseconds
     
@@ -36,9 +34,7 @@ class CreateProjectModel(BaseModel):
     user_id: str | None = None
     description: str | None = None
     system_prompt: str | None = None
-    is_global: bool = False
-    template_id: str | None = None
-    created_by_user_id: str | None = None
+    created_by_user_id: str
     created_at: int
     updated_at: int | None = None
 
@@ -48,6 +44,4 @@ class UpdateProjectModel(BaseModel):
     name: str | None = None
     description: str | None = None
     system_prompt: str | None = None
-    is_global: bool | None = None
-    template_id: str | None = None
     updated_at: int

@@ -24,13 +24,6 @@ class UpdateProjectRequest(BaseModel):
     system_prompt: Optional[str] = Field(None, alias="systemPrompt", max_length=4000, description="System prompt for the project")
 
 
-class CopyProjectRequest(BaseModel):
-    """Request to copy a project from a template."""
-    
-    name: str = Field(..., min_length=1, max_length=255, description="Name for the copied project")
-    description: Optional[str] = Field(None, max_length=1000, description="Description for the copied project")
-
-
 class GetProjectsRequest(BaseModel):
     """Request DTO for retrieving projects."""
     user_id: str
@@ -48,19 +41,6 @@ class DeleteProjectRequest(BaseModel):
     user_id: str
 
 
-class ProjectCopyRequest(BaseModel):
-    """Domain model for copying a project from a template."""
-    
-    template_id: str
-    new_name: str = Field(..., min_length=1, max_length=255)
-    new_description: Optional[str] = Field(None, max_length=1000)
-    user_id: str
-
-
 class ProjectFilter(BaseModel):
-    """Domain model for filtering projects."""
-    
+    """Filter criteria for retrieving projects."""
     user_id: Optional[str] = None
-    is_global: Optional[bool] = None
-    template_id: Optional[str] = None
-    created_by_user_id: Optional[str] = None

@@ -1,7 +1,7 @@
 import React from "react";
-import { Calendar, User, Copy } from "lucide-react";
+import { Calendar, User } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge } from "@/lib/components/ui";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/components/ui";
 import type { Project } from "@/lib/types/projects";
 import { formatTimestamp } from "@/lib/utils/format";
 
@@ -32,24 +32,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) =>
                         <CardTitle className="truncate text-lg font-semibold text-foreground" title={project.name}>
                             {project.name}
                         </CardTitle>
-                        <div className="flex items-center gap-2 mt-1">
-                            {project.isGlobal && (
-                                <Badge variant="secondary" className="text-xs">
-                                    Template
-                                </Badge>
-                            )}
-                            {project.templateId && (
-                                <Badge variant="outline" className="text-xs flex items-center gap-1">
-                                    <Copy className="h-3 w-3" />
-                                    Copy
-                                </Badge>
-                            )}
-                            {!project.isGlobal && !project.templateId && (
-                                <Badge variant="default" className="text-xs">
-                                    Owned by user
-                                </Badge>
-                            )}
-                        </div>
                     </div>
                 </div>
             </CardHeader>
@@ -75,14 +57,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) =>
                             <span>Created {formatTimestamp(project.createdAt)}</span>
                         </div>
                         
-                        {!project.isGlobal && (
-                            <div className="flex items-center gap-1">
-                                <User className="h-3 w-3" />
-                                <span className="truncate max-w-[80px]" title={project.userId}>
-                                    {project.userId}
-                                </span>
-                            </div>
-                        )}
+                        <div className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            <span className="truncate max-w-[80px]" title={project.userId}>
+                                {project.userId}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </CardContent>

@@ -52,7 +52,7 @@ from ..dependencies import (
     get_session_business_service_optional,
     get_db_optional,
 )
-from ..services.project_service import ProjectService, GLOBAL_PROJECT_USER_ID
+from ..services.project_service import ProjectService
 
 
 from ..session_manager import SessionManager
@@ -359,7 +359,7 @@ async def list_artifact_versions(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Project not found or access denied.",
                 )
-            storage_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+            storage_user_id = project.user_id
             storage_session_id = f"project-{project_id}"
             context_type = "project"
         except HTTPException:
@@ -483,7 +483,7 @@ async def list_artifacts(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Project not found or access denied.",
                 )
-            storage_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+            storage_user_id = project.user_id
             storage_session_id = f"project-{project_id}"
             context_type = "project"
         except HTTPException:
@@ -585,7 +585,7 @@ async def get_latest_artifact(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Project not found or access denied.",
                 )
-            storage_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+            storage_user_id = project.user_id
             storage_session_id = f"project-{project_id}"
             context_type = "project"
         except HTTPException:
@@ -774,7 +774,7 @@ async def get_specific_artifact_version(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Project not found or access denied.",
                 )
-            storage_user_id = GLOBAL_PROJECT_USER_ID if project.is_global else project.user_id
+            storage_user_id = project.user_id
             storage_session_id = f"project-{project_id}"
             context_type = "project"
         except HTTPException:
