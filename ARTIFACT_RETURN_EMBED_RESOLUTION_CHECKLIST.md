@@ -16,32 +16,32 @@
 ## 2. Core Embed Resolution Logic
 
 ### 2.1 Main evaluate_embed Function
-- [ ] `src/solace_agent_mesh/common/utils/embeds/resolver.py` - `evaluate_embed()`
-  - [ ] Added `resolution_mode: "ResolutionMode"` parameter
-  - [ ] `artifact_return` handler checks `resolution_mode == ResolutionMode.A2A_MESSAGE_TO_USER`
-  - [ ] Returns signal tuple: `(None, "SIGNAL_ARTIFACT_RETURN", {"filename": filename, "version": version})`
-  - [ ] In non-A2A_MESSAGE_TO_USER modes, returns original embed text unchanged
-  - [ ] Parses expression as `filename:version` format
+- [x] `src/solace_agent_mesh/common/utils/embeds/resolver.py` - `evaluate_embed()`
+  - [x] Added `resolution_mode: "ResolutionMode"` parameter
+  - [x] `artifact_return` handler checks `resolution_mode == ResolutionMode.A2A_MESSAGE_TO_USER`
+  - [x] Returns signal tuple: `(None, "SIGNAL_ARTIFACT_RETURN", {"filename": filename, "version": version})`
+  - [x] In non-A2A_MESSAGE_TO_USER modes, returns original embed text unchanged
+  - [x] Parses expression as `filename:version` format
 
 ### 2.2 resolve_embeds_in_string Function
-- [ ] `src/solace_agent_mesh/common/utils/embeds/resolver.py` - `resolve_embeds_in_string()`
-  - [ ] Added `resolution_mode: "ResolutionMode"` parameter to signature
-  - [ ] Return type includes placeholder: `List[Tuple[int, Any, str]]`
-  - [ ] Creates unique placeholder: `f"__EMBED_SIGNAL_{uuid.uuid4().hex}__"`
-  - [ ] Appends placeholder to `resolved_parts`
-  - [ ] Stores `(start, resolved_value, placeholder)` in `signals_found`
+- [x] `src/solace_agent_mesh/common/utils/embeds/resolver.py` - `resolve_embeds_in_string()`
+  - [x] Added `resolution_mode: "ResolutionMode"` parameter to signature
+  - [x] Return type includes placeholder: `List[Tuple[int, Any, str]]`
+  - [x] Creates unique placeholder: `f"__EMBED_SIGNAL_{uuid.uuid4().hex}__"`
+  - [x] Appends placeholder to `resolved_parts`
+  - [x] Stores `(start, resolved_value, placeholder)` in `signals_found`
 
 ### 2.3 resolve_embeds_recursively_in_string Function
-- [ ] `src/solace_agent_mesh/common/utils/embeds/resolver.py` - `resolve_embeds_recursively_in_string()`
-  - [ ] Added `resolution_mode: "ResolutionMode"` parameter
-  - [ ] Passes `resolution_mode` to recursive `resolver_func` calls
+- [x] `src/solace_agent_mesh/common/utils/embeds/resolver.py` - `resolve_embeds_recursively_in_string()`
+  - [x] Added `resolution_mode: "ResolutionMode"` parameter
+  - [x] Passes `resolution_mode` to recursive `resolver_func` calls
 
 ### 2.4 Artifact Content Chain Handler
-- [ ] `src/solace_agent_mesh/common/utils/embeds/resolver.py` - `_evaluate_artifact_content_embed_with_chain()`
-  - [ ] Added `resolution_mode: "ResolutionMode"` parameter
-  - [ ] Binary content signal handling when `current_format == DataFormat.BYTES` and `resolution_mode == ResolutionMode.A2A_MESSAGE_TO_USER`
-  - [ ] Returns `(None, "SIGNAL_INLINE_BINARY_CONTENT", {bytes, mime_type, name})`
-  - [ ] Passes `resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT` to recursive calls
+- [x] `src/solace_agent_mesh/common/utils/embeds/resolver.py` - `_evaluate_artifact_content_embed_with_chain()`
+  - [x] Added `resolution_mode: "ResolutionMode"` parameter
+  - [x] Binary content signal handling when `current_format == DataFormat.BYTES` and `resolution_mode == ResolutionMode.A2A_MESSAGE_TO_USER`
+  - [x] Returns `(None, "SIGNAL_INLINE_BINARY_CONTENT", {bytes, mime_type, name})`
+  - [x] Passes `resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT` to recursive calls
 
 ## 3. Gateway-Side Resolution
 
