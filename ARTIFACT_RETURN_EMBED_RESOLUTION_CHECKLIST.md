@@ -111,18 +111,18 @@
 ## 6. Recursive Artifact Content Resolution
 
 ### 6.1 Template Modifier
-- [ ] `src/solace_agent_mesh/common/utils/embeds/modifiers.py` - `_apply_template()`
-  - [ ] Passes `resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT` to `resolve_embeds_recursively_in_string()`
+- [x] `src/solace_agent_mesh/common/utils/embeds/modifiers.py` - `_apply_template()`
+  - [x] Passes `resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT` to `resolve_embeds_recursively_in_string()`
 
 ### 6.2 Artifact Router
-- [ ] `src/solace_agent_mesh/gateway/http_sse/routers/artifacts.py` - `get_latest_artifact()`
-  - [ ] Passes `resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT` to `resolve_embeds_recursively_in_string()`
-- [ ] `src/solace_agent_mesh/gateway/http_sse/routers/artifacts.py` - `get_specific_artifact_version()`
-  - [ ] Passes `resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT` to `resolve_embeds_recursively_in_string()`
+- [x] `src/solace_agent_mesh/gateway/http_sse/routers/artifacts.py` - `get_latest_artifact()`
+  - [x] Passes `resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT` to `resolve_embeds_recursively_in_string()`
+- [x] `src/solace_agent_mesh/gateway/http_sse/routers/artifacts.py` - `get_specific_artifact_version()`
+  - [x] Passes `resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT` to `resolve_embeds_recursively_in_string()`
 
 ### 6.3 WebUI Component
-- [ ] `src/solace_agent_mesh/gateway/http_sse/component.py` - early embed resolution
-  - [ ] Passes `resolution_mode=ResolutionMode.TOOL_PARAMETER` to `resolve_embeds_in_string()`
+- [x] `src/solace_agent_mesh/gateway/http_sse/component.py` - early embed resolution
+  - [x] Passes `resolution_mode=ResolutionMode.TOOL_PARAMETER` to `resolve_embeds_in_string()`
 
 ## 7. Signal Tuple Structure
 
