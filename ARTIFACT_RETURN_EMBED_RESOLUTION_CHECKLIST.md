@@ -104,9 +104,9 @@
 ## 5. Agent-Side Early Resolution
 
 ### 5.1 Agent Component
-- [ ] `src/solace_agent_mesh/agent/sac/component.py` - `_resolve_early_embeds_and_handle_signals()`
-  - [ ] Passes `resolution_mode=ResolutionMode.TOOL_PARAMETER` to `resolve_embeds_in_string()`
-  - [ ] Removes placeholder from resolved text: `resolved_text.replace(placeholder, "")`
+- [x] `src/solace_agent_mesh/agent/sac/component.py` - `_resolve_early_embeds_and_handle_signals()`
+  - [x] Passes `resolution_mode=ResolutionMode.TOOL_PARAMETER` to `resolve_embeds_in_string()`
+  - [x] Removes placeholder from resolved text: `resolved_text.replace(placeholder, "")`
 
 ## 6. Recursive Artifact Content Resolution
 
