@@ -7,6 +7,7 @@ export interface ChatState {
     sessionId: string;
     sessionName: string | null;
     messages: MessageFE[];
+    userInput: string;
     isResponding: boolean;
     currentTaskId: string | null;
     selectedAgentName: string;
