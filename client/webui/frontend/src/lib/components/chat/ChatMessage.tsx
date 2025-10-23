@@ -156,7 +156,7 @@ const getUploadedFiles = (message: MessageFE) => {
 
 const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
     console.log(`[ChatMessage] Rendering bubble for message:`, message);
-    const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
+    const { openSidePanelTab, setTaskIdInSidePanel, artifacts } = chatContext;
 
     if (message.isStatusBubble) {
         return null;
@@ -220,8 +220,20 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
             switch (artifactPart.status) {
                 case "completed":
                     return <ArtifactMessage key={`part-artifact-${index}`} status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} />;
-                case "in-progress":
-                    return <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} />;
+                case "in-progress": {
+                    // Get mimeType from global artifacts state for in-progress artifacts
+                    const artifactInfo = artifacts.find(a => a.filename === artifactPart.name);
+                    return (
+                        <ArtifactMessage
+                            key={`part-artifact-${index}`}
+                            status="in-progress"
+                            name={artifactPart.name}
+                            bytesTransferred={artifactPart.bytesTransferred!}
+                            accumulatedContent={artifactPart.accumulatedContent}
+                            mimeType={artifactInfo?.mime_type}
+                        />
+                    );
+                }
                 case "failed":
                     return <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} />;
                 default:

@@ -721,6 +721,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         const artifactPartIndex = agentMessage.parts.findIndex(p => p.kind === "artifact" && p.name === filename);
 
                                         if (status === "in-progress") {
+                                            // Get accumulated content from global artifacts state
+                                            const artifactInfo = artifacts.find(a => a.filename === filename);
+                                            const accumulatedContent = artifactInfo?.accumulatedContent;
+
                                             if (artifactPartIndex > -1) {
                                                 const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
                                                 console.log(`[ChatProvider] Updating existing artifact part for ${filename}, old bytes: ${existingPart.bytesTransferred}, new bytes: ${bytes_transferred}`);
@@ -728,6 +732,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 const updatedPart: ArtifactPart = {
                                                     ...existingPart,
                                                     bytesTransferred: bytes_transferred,
+                                                    accumulatedContent,
                                                     status: "in-progress",
                                                 };
                                                 agentMessage.parts[artifactPartIndex] = updatedPart;
@@ -740,6 +745,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     status: "in-progress",
                                                     name: filename,
                                                     bytesTransferred: bytes_transferred,
+                                                    accumulatedContent,
                                                 };
                                                 agentMessage.parts.push(newPart);
                                                 console.log(`[ChatProvider] Created new artifact part:`, newPart);

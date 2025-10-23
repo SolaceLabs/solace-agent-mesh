@@ -105,6 +105,7 @@ export interface ArtifactPart {
     name: string;
     description?: string;
     bytesTransferred?: number;
+    accumulatedContent?: string; // Streaming content for in-progress artifacts
     file?: FileAttachment; // The completed file info
     error?: string;
 }

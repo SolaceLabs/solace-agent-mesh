@@ -18,6 +18,8 @@ type ArtifactMessageProps = (
           status: "in-progress";
           name: string;
           bytesTransferred: number;
+          accumulatedContent?: string;
+          mimeType?: string;
       }
     | {
           status: "completed";
@@ -52,7 +54,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     // Get file info for rendering decisions
     const fileAttachment = props.status === "completed" ? props.fileAttachment : undefined;
     const fileName = fileAttachment?.name || props.name;
-    const fileMimeType = fileAttachment?.mime_type;
+    // For in-progress artifacts, use mimeType from props (passed from global artifacts state)
+    const fileMimeType = fileAttachment?.mime_type || (props.status === "in-progress" ? props.mimeType : undefined);
 
     // Use the artifact rendering hook to determine rendering behavior
     const { shouldRender, isExpandable, isExpanded, toggleExpanded } = useArtifactRendering({
@@ -168,8 +171,13 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     // Generate content preview for the file icon
     const contentPreview = useMemo(() => {
-        if (props.status === "completed" && fileAttachment) {
-            try {
+        try {
+            // For in-progress artifacts with accumulated content, generate preview from plain text
+            if (props.status === "in-progress" && props.accumulatedContent) {
+                return generateFileTypePreview(props.accumulatedContent, fileName, fileMimeType);
+            }
+            // For completed artifacts, decode from base64 first
+            if (props.status === "completed" && fileAttachment) {
                 const contentToUse = fetchedContent || fileAttachment.content;
                 if (contentToUse) {
                     const decodedContent = getFileContent({ ...fileAttachment, content: contentToUse });
@@ -177,14 +185,14 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                         return generateFileTypePreview(decodedContent, fileName, fileMimeType);
                     }
                 }
-            } catch (error) {
-                console.warn("Failed to generate content preview:", error);
-                // Return fallback preview
-                return `${fileName}\n${fileMimeType || "Unknown type"}`;
             }
+        } catch (error) {
+            console.warn("Failed to generate content preview:", error);
+            // Return fallback preview
+            return `${fileName}\n${fileMimeType || "Unknown type"}`;
         }
         return undefined;
-    }, [props.status, fileAttachment, fetchedContent, fileName, fileMimeType]);
+    }, [props.status, props.accumulatedContent, fileAttachment, fetchedContent, fileName, fileMimeType]);
 
     // Prepare actions for the artifact bar
     const actions = useMemo(() => {
@@ -213,7 +221,11 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const description = artifactFromGlobal?.description;
 
     // For rendering content, we need the actual content
-    const contentToRender = fetchedContent || fileAttachment?.content;
+    // For in-progress artifacts, use accumulated content; for completed, use fetched or attachment content
+    const contentToRender =
+        props.status === "in-progress" && props.accumulatedContent
+            ? props.accumulatedContent
+            : fetchedContent || fileAttachment?.content;
     const renderType = getRenderType(fileName, fileMimeType);
 
     // Prepare expanded content if we have content to render
@@ -229,7 +241,16 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         expandedContent = <MessageBanner variant="error" message={error} />;
     } else if (contentToRender && renderType) {
         try {
-            const finalContent = getFileContent({ ...fileAttachment!, content: contentToRender });
+            let finalContent: string;
+
+            // For in-progress artifacts with accumulated content, it's already plain text
+            if (props.status === "in-progress" && props.accumulatedContent) {
+                finalContent = contentToRender;
+            } else {
+                // For completed artifacts, decode from base64
+                finalContent = getFileContent({ ...fileAttachment!, content: contentToRender });
+            }
+
             if (finalContent) {
                 expandedContent = (
                     <div className="group relative max-w-full overflow-hidden">
@@ -241,7 +262,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                             }}
                             className={isImage ? "drop-shadow-md" : ""}
                         >
-                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} />
+                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileMimeType} setRenderError={setRenderError} />
                         </div>
                     </div>
                 );
