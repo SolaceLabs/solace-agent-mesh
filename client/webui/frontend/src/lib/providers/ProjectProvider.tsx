@@ -6,6 +6,13 @@ import { authenticatedFetch } from "@/lib/utils/api";
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
 
+type OnProjectDeletedCallback = (projectId: string) => void;
+let onProjectDeletedCallback: OnProjectDeletedCallback | null = null;
+
+export const registerProjectDeletedCallback = (callback: OnProjectDeletedCallback) => {
+    onProjectDeletedCallback = callback;
+};
+
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { configServerUrl, projectsEnabled } = useConfigContext();
     const [projects, setProjects] = useState<Project[]>([]);
@@ -199,6 +206,44 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         [apiPrefix, projectsEnabled]
     );
 
+    const deleteProject = useCallback(
+        async (projectId: string): Promise<void> => {
+            if (!projectsEnabled) {
+                throw new Error("Projects feature is disabled");
+            }
+
+            try {
+                const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}`, {
+                    method: "DELETE",
+                    credentials: "include",
+                });
+
+                if (!response.ok && response.status !== 204) {
+                    const errorData = await response.json().catch(() => ({
+                        detail: `Failed to delete project: ${response.statusText}`,
+                    }));
+                    throw new Error(errorData.detail || `Failed to delete project: ${response.statusText}`);
+                }
+
+                setProjects(prev => prev.filter(p => p.id !== projectId));
+                
+                setCurrentProject(current => (current?.id === projectId ? null : current));
+                setSelectedProject(selected => (selected?.id === projectId ? null : selected));
+                setActiveProject(active => (active?.id === projectId ? null : active));
+                
+                if (onProjectDeletedCallback) {
+                    onProjectDeletedCallback(projectId);
+                }
+            } catch (err: unknown) {
+                console.error("Error deleting project:", err);
+                const errorMessage = err instanceof Error ? err.message : "Could not delete project.";
+                setError(errorMessage);
+                throw new Error(errorMessage);
+            }
+        },
+        [apiPrefix, projectsEnabled]
+    );
+
     useEffect(() => {
         fetchProjects();
     }, [fetchProjects]);
@@ -218,6 +263,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addFilesToProject,
         removeFileFromProject,
         updateProject,
+        deleteProject,
     };
 
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;

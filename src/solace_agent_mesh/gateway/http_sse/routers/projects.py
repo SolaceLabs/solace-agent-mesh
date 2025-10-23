@@ -479,16 +479,16 @@ async def delete_project(
     _: None = Depends(check_projects_enabled),
 ):
     """
-    Delete a project.
+    Soft delete a project (marks as deleted without removing from database).
     """
     user_id = user.get("id")
-    log.info("User %s attempting to delete project %s", user_id, project_id)
+    log.info("User %s attempting to soft delete project %s", user_id, project_id)
 
     try:
         request_dto = DeleteProjectRequest(project_id=project_id, user_id=user_id)
 
-        success = project_service.delete_project(
-            project_id=request_dto.project_id, 
+        success = project_service.soft_delete_project(
+            project_id=request_dto.project_id,
             user_id=request_dto.user_id
         )
         
@@ -498,7 +498,7 @@ async def delete_project(
                 detail="Project not found."
             )
 
-        log.info("Project %s deleted successfully", project_id)
+        log.info("Project %s soft deleted successfully", project_id)
     
     except HTTPException:
         raise

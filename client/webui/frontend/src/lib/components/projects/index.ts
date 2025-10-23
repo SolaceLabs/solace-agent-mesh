@@ -15,3 +15,4 @@ export { SystemPromptSection } from "./SystemPromptSection";
 export { KnowledgeSection } from "./KnowledgeSection";
 export { DocumentListItem } from "./DocumentListItem";
 export { ProjectMetadataSidebar } from "./ProjectMetadataSidebar";
+export { DeleteProjectDialog } from "./DeleteProjectDialog";

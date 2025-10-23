@@ -2,14 +2,17 @@
 Session repository implementation using SQLAlchemy.
 """
 
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session as DBSession, joinedload
 
 from ..shared.base_repository import PaginatedRepository
 from ..shared.pagination import PaginationParams
 from ..shared.types import SessionId, UserId
+from ..shared import now_epoch_ms
 from .entities import Session
 from .interfaces import ISessionRepository
 from .models import CreateSessionModel, SessionModel, UpdateSessionModel
+from .models.chat_task_model import ChatTaskModel
 
 
 class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepository):
@@ -27,7 +30,10 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         self, session: DBSession, user_id: UserId, pagination: PaginationParams | None = None, project_id: str | None = None
     ) -> list[Session]:
         """Find all sessions for a specific user with optional project filtering."""
-        query = session.query(SessionModel).filter(SessionModel.user_id == user_id)
+        query = session.query(SessionModel).filter(
+            SessionModel.user_id == user_id,
+            SessionModel.deleted_at.is_(None)  # Exclude soft-deleted sessions
+        )
 
         # Optional project filtering for project-specific views
         if project_id is not None:
@@ -45,7 +51,10 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
 
     def count_by_user(self, session: DBSession, user_id: UserId, project_id: str | None = None) -> int:
         """Count total sessions for a specific user with optional project filtering."""
-        query = session.query(SessionModel).filter(SessionModel.user_id == user_id)
+        query = session.query(SessionModel).filter(
+            SessionModel.user_id == user_id,
+            SessionModel.deleted_at.is_(None)  # Exclude soft-deleted sessions
+        )
 
         # Optional project filtering for project-specific views
         if project_id is not None:
@@ -62,6 +71,7 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
             .filter(
                 SessionModel.id == session_id,
                 SessionModel.user_id == user_id,
+                SessionModel.deleted_at.is_(None)  # Exclude soft-deleted sessions
             )
             .first()
         )
@@ -113,3 +123,174 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         # Use BaseRepository delete method
         super().delete(db_session, session_id)
         return True
+
+    def soft_delete(self, db_session: DBSession, session_id: SessionId, user_id: UserId) -> bool:
+        """Soft delete a session belonging to a user."""
+        session_model = (
+            db_session.query(SessionModel)
+            .filter(
+                SessionModel.id == session_id,
+                SessionModel.user_id == user_id,
+                SessionModel.deleted_at.is_(None)
+            )
+            .first()
+        )
+
+        if not session_model:
+            return False
+
+        # Perform soft delete
+        session_model.deleted_at = now_epoch_ms()
+        session_model.deleted_by = user_id
+        session_model.updated_time = now_epoch_ms()
+        
+        db_session.flush()
+        return True
+
+    def soft_delete_by_project(self, db_session: DBSession, project_id: str, user_id: UserId) -> int:
+        """
+        Soft delete all sessions belonging to a specific project.
+        Used when cascading project deletion.
+        
+        Args:
+            db_session: Database session
+            project_id: The project ID
+            user_id: The user ID (for deleted_by tracking)
+            
+        Returns:
+            int: Number of sessions soft deleted
+        """
+        now = now_epoch_ms()
+        
+        # Find all non-deleted sessions for this project
+        sessions_to_delete = (
+            db_session.query(SessionModel)
+            .filter(
+                SessionModel.project_id == project_id,
+                SessionModel.user_id == user_id,
+                SessionModel.deleted_at.is_(None)
+            )
+            .all()
+        )
+        
+        # Soft delete each session
+        for session_model in sessions_to_delete:
+            session_model.deleted_at = now
+            session_model.deleted_by = user_id
+            session_model.updated_time = now
+        
+        db_session.flush()
+        return len(sessions_to_delete)
+
+    def move_to_project(
+        self, db_session: DBSession, session_id: SessionId, user_id: UserId, new_project_id: str | None
+    ) -> Session | None:
+        """Move a session to a different project."""
+        session_model = (
+            db_session.query(SessionModel)
+            .filter(
+                SessionModel.id == session_id,
+                SessionModel.user_id == user_id,
+                SessionModel.deleted_at.is_(None)
+            )
+            .first()
+        )
+
+        if not session_model:
+            return None
+
+        # Update project_id
+        session_model.project_id = new_project_id
+        session_model.updated_time = now_epoch_ms()
+        
+        db_session.flush()
+        db_session.refresh(session_model)
+        
+        return Session.model_validate(session_model)
+
+    def search(
+        self,
+        db_session: DBSession,
+        user_id: UserId,
+        query: str,
+        pagination: PaginationParams | None = None,
+        project_id: str | None = None
+    ) -> list[Session]:
+        """Search sessions by name or content using fuzzy matching."""
+        # Base query - only non-deleted sessions for the user
+        base_query = db_session.query(SessionModel).filter(
+            SessionModel.user_id == user_id,
+            SessionModel.deleted_at.is_(None)
+        )
+
+        # Optional project filtering
+        if project_id is not None:
+            base_query = base_query.filter(SessionModel.project_id == project_id)
+
+        # Search in session name and chat task messages
+        search_pattern = f"%{query}%"
+        
+        # Subquery to find sessions with matching chat tasks
+        matching_chat_tasks = (
+            db_session.query(ChatTaskModel.session_id)
+            .filter(ChatTaskModel.user_message.ilike(search_pattern))
+            .distinct()
+            .subquery()
+        )
+
+        # Combine session name search with chat task content search
+        search_query = base_query.filter(
+            or_(
+                SessionModel.name.ilike(search_pattern),
+                SessionModel.id.in_(matching_chat_tasks)
+            )
+        )
+
+        # Eager load project relationship
+        search_query = search_query.options(joinedload(SessionModel.project))
+        search_query = search_query.order_by(SessionModel.updated_time.desc())
+
+        if pagination:
+            search_query = search_query.offset(pagination.offset).limit(pagination.page_size)
+
+        models = search_query.all()
+        return [Session.model_validate(model) for model in models]
+
+    def count_search_results(
+        self,
+        db_session: DBSession,
+        user_id: UserId,
+        query: str,
+        project_id: str | None = None
+    ) -> int:
+        """Count search results for pagination."""
+        # Base query - only non-deleted sessions for the user
+        base_query = db_session.query(SessionModel).filter(
+            SessionModel.user_id == user_id,
+            SessionModel.deleted_at.is_(None)
+        )
+
+        # Optional project filtering
+        if project_id is not None:
+            base_query = base_query.filter(SessionModel.project_id == project_id)
+
+        # Search pattern
+        search_pattern = f"%{query}%"
+        
+        # Subquery to find sessions with matching chat tasks
+        matching_chat_tasks = (
+            db_session.query(ChatTaskModel.session_id)
+            .filter(ChatTaskModel.user_message.ilike(search_pattern))
+            .distinct()
+            .subquery()
+        )
+
+        # Combine session name search with chat task content search
+        search_query = base_query.filter(
+            or_(
+                SessionModel.name.ilike(search_pattern),
+                SessionModel.id.in_(matching_chat_tasks)
+            )
+        )
+
+        return search_query.count()

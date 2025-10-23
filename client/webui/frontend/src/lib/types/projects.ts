@@ -65,4 +65,5 @@ export interface ProjectContextValue extends UseProjectsReturn {
     addFilesToProject: (projectId: string, formData: FormData) => Promise<void>;
     removeFileFromProject: (projectId: string, filename: string) => Promise<void>;
     updateProject: (projectId: string, data: UpdateProjectData) => Promise<Project>;
+    deleteProject: (projectId: string) => Promise<void>;
 }

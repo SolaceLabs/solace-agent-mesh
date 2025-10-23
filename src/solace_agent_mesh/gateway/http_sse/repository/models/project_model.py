@@ -19,8 +19,10 @@ class ProjectModel(Base):
     user_id = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
-    created_at = Column(BigInteger, nullable=False)  # Epoch timestamp in milliseconds
-    updated_at = Column(BigInteger, nullable=True)   # Epoch timestamp in milliseconds
+    created_at = Column(BigInteger, nullable=False) 
+    updated_at = Column(BigInteger, nullable=True)  
+    deleted_at = Column(BigInteger, nullable=True)   
+    deleted_by = Column(String, nullable=True)       
     
     # Relationships
     sessions = relationship("SessionModel", back_populates="project")

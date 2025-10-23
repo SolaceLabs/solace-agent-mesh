@@ -43,7 +43,10 @@ class ProjectRepository(IProjectRepository):
         Note: This returns only projects where the user is the owner (user_id matches).
         For projects the user has access to via project_users table, use get_accessible_projects().
         """
-        models = self.db.query(ProjectModel).filter(ProjectModel.user_id == user_id).all()
+        models = self.db.query(ProjectModel).filter(
+            ProjectModel.user_id == user_id,
+            ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
+        ).all()
         return [self._model_to_entity(model) for model in models]
     
     def get_accessible_projects(self, user_id: str) -> List[Project]:
@@ -65,6 +68,7 @@ class ProjectRepository(IProjectRepository):
             ProjectUserModel,
             ProjectModel.id == ProjectUserModel.project_id
         ).filter(
+            ProjectModel.deleted_at.is_(None),  # Exclude soft-deleted projects
             or_(
                 ProjectModel.user_id == user_id,
                 ProjectUserModel.user_id == user_id
@@ -75,7 +79,9 @@ class ProjectRepository(IProjectRepository):
 
     def get_filtered_projects(self, project_filter: ProjectFilter) -> List[Project]:
         """Get projects based on filter criteria."""
-        query = self.db.query(ProjectModel)
+        query = self.db.query(ProjectModel).filter(
+            ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
+        )
         
         if project_filter.user_id is not None:
             query = query.filter(ProjectModel.user_id == project_filter.user_id)
@@ -94,6 +100,7 @@ class ProjectRepository(IProjectRepository):
             ProjectModel.id == ProjectUserModel.project_id
         ).filter(
             ProjectModel.id == project_id,
+            ProjectModel.deleted_at.is_(None),  # Exclude soft-deleted projects
             or_(
                 ProjectModel.user_id == user_id,
                 ProjectUserModel.user_id == user_id
@@ -106,7 +113,8 @@ class ProjectRepository(IProjectRepository):
         """Update a project with the given data, ensuring user access."""
         model = self.db.query(ProjectModel).filter(
             ProjectModel.id == project_id,
-            ProjectModel.user_id == user_id  # Only allow updates to user's own projects
+            ProjectModel.user_id == user_id,  # Only allow updates to user's own projects
+            ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
         ).first()
         
         if not model:
@@ -130,6 +138,23 @@ class ProjectRepository(IProjectRepository):
         self.db.commit()
         return result > 0
 
+    def soft_delete(self, project_id: str, user_id: str) -> bool:
+        """Soft delete a project by its ID, ensuring user access."""
+        model = self.db.query(ProjectModel).filter(
+            ProjectModel.id == project_id,
+            ProjectModel.user_id == user_id,  # Only allow deletion of user's own projects
+            ProjectModel.deleted_at.is_(None)  # Only delete if not already deleted
+        ).first()
+        
+        if not model:
+            return False
+        
+        model.deleted_at = now_epoch_ms()
+        model.deleted_by = user_id
+        model.updated_at = now_epoch_ms()
+        self.db.commit()
+        return True
+
     def _model_to_entity(self, model: ProjectModel) -> Project:
         """Convert SQLAlchemy model to domain entity."""
         return Project(
@@ -140,4 +165,6 @@ class ProjectRepository(IProjectRepository):
             system_prompt=model.system_prompt,
             created_at=model.created_at,
             updated_at=model.updated_at,
+            deleted_at=model.deleted_at,
+            deleted_by=model.deleted_by,
         )

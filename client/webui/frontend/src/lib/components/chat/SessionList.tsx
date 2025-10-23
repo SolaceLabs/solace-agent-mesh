@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 
-import { Trash2, Check, X, Pencil, MessageCircle, Filter } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, Filter, FolderInput } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
@@ -9,7 +9,9 @@ import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
 import { Spinner } from "@/lib/components/ui/spinner";
+import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import type { Session } from "@/lib/types";
+import type { Project } from "@/lib/types/projects";
 
 interface PaginatedSessionsResponse {
     data: Session[];
@@ -24,8 +26,12 @@ interface PaginatedSessionsResponse {
     };
 }
 
-export const SessionList: React.FC = () => {
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal } = useChatContext();
+interface SessionListProps {
+    projects?: Project[];
+}
+
+export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification } = useChatContext();
     const { configServerUrl } = useConfigContext();
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -36,6 +42,8 @@ export const SessionList: React.FC = () => {
     const [hasMore, setHasMore] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedProject, setSelectedProject] = useState<string | null>(null);
+    const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+    const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
 
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
@@ -146,6 +154,65 @@ export const SessionList: React.FC = () => {
 
     const handleDeleteClick = (session: Session) => {
         openSessionDeleteModal(session);
+    };
+
+    const handleMoveClick = (session: Session) => {
+        setSessionToMove(session);
+        setIsMoveDialogOpen(true);
+    };
+
+    const handleMoveConfirm = async (targetProjectId: string | null) => {
+        if (!sessionToMove) return;
+
+        try {
+            const response = await authenticatedFetch(
+                `${configServerUrl}/api/v1/sessions/${sessionToMove.id}/project`,
+                {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ projectId: targetProjectId }),
+                    credentials: "include",
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Failed to move session");
+            }
+
+            // Update local state
+            setSessions(prevSessions =>
+                prevSessions.map(s =>
+                    s.id === sessionToMove.id
+                        ? {
+                              ...s,
+                              projectId: targetProjectId,
+                              projectName: targetProjectId
+                                  ? projects.find(p => p.id === targetProjectId)?.name || null
+                                  : null,
+                          }
+                        : s
+                )
+            );
+
+            // Dispatch event to notify other components (like ProjectChatsSection) to refresh
+            if (typeof window !== "undefined") {
+                window.dispatchEvent(
+                    new CustomEvent("session-moved", {
+                        detail: {
+                            sessionId: sessionToMove.id,
+                            projectId: targetProjectId,
+                        },
+                    })
+                );
+            }
+
+            addNotification?.("Session moved successfully", "success");
+            setIsMoveDialogOpen(false);
+            setSessionToMove(null);
+        } catch (error) {
+            console.error("Failed to move session:", error);
+            addNotification?.("Failed to move session", "error");
+        }
     };
 
     const formatSessionDate = (dateString: string) => {
@@ -271,10 +338,13 @@ export const SessionList: React.FC = () => {
                                             </>
                                         ) : (
                                             <>
-                                                <Button variant="ghost" onClick={() => handleEditClick(session)}>
+                                                <Button variant="ghost" onClick={() => handleEditClick(session)} title="Rename">
                                                     <Pencil size={16} />
                                                 </Button>
-                                                <Button variant="ghost" onClick={() => handleDeleteClick(session)}>
+                                                <Button variant="ghost" onClick={() => handleMoveClick(session)} title="Move to project">
+                                                    <FolderInput size={16} />
+                                                </Button>
+                                                <Button variant="ghost" onClick={() => handleDeleteClick(session)} title="Delete">
                                                     <Trash2 size={16} />
                                                 </Button>
                                             </>
@@ -303,6 +373,18 @@ export const SessionList: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            <MoveSessionDialog
+                isOpen={isMoveDialogOpen}
+                onClose={() => {
+                    setIsMoveDialogOpen(false);
+                    setSessionToMove(null);
+                }}
+                onConfirm={handleMoveConfirm}
+                session={sessionToMove}
+                projects={projects}
+                currentProjectId={sessionToMove?.projectId}
+            />
         </div>
     );
 };

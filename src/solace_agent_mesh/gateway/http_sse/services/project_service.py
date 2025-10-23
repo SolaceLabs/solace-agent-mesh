@@ -334,3 +334,34 @@ class ProjectService:
             self.logger.info(f"Successfully deleted project {project_id}")
         
         return success
+
+    def soft_delete_project(self, project_id: str, user_id: str) -> bool:
+        """
+        Soft delete a project (mark as deleted without removing from database).
+        Also cascades soft delete to all sessions associated with this project.
+        
+        Args:
+            project_id: The project ID
+            user_id: The requesting user ID
+            
+        Returns:
+            bool: True if soft deleted successfully, False otherwise
+        """
+        # First verify the project exists and user has access
+        existing_project = self.get_project(project_id, user_id)
+        if not existing_project:
+            self.logger.warning(f"Attempted to soft delete non-existent project {project_id} by user {user_id}")
+            return False
+        
+        self.logger.info(f"Soft deleting project {project_id} and its associated sessions for user {user_id}")
+        
+        # Soft delete the project
+        success = self.project_repository.soft_delete(project_id, user_id)
+        
+        if success:
+            from ..repository.session_repository import SessionRepository
+            session_repo = SessionRepository()
+            deleted_count = session_repo.soft_delete_by_project(self.project_repository.db, project_id, user_id)
+            self.logger.info(f"Successfully soft deleted project {project_id} and {deleted_count} associated sessions")
+        
+        return success
