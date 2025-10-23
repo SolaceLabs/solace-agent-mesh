@@ -135,17 +135,17 @@
 ## 8. Edge Cases & Error Handling
 
 ### 8.1 artifact_return in Wrong Mode
-- [ ] Returns original embed text unchanged when not in `A2A_MESSAGE_TO_USER` mode
-- [ ] Logs warning about unsupported context
+- [x] Returns original embed text unchanged when not in `A2A_MESSAGE_TO_USER` mode
+- [x] Logs warning about unsupported context
 
 ### 8.2 Artifact Not Found
-- [ ] Creates error `TextPart` with descriptive message
-- [ ] Logs exception details
+- [x] Creates error `TextPart` with descriptive message
+- [x] Logs exception details
 
 ### 8.3 Placeholder Preservation
-- [ ] Placeholders remain in text until final processing
-- [ ] Unique UUIDs prevent collisions
-- [ ] Placeholders removed/replaced in final step
+- [x] Placeholders remain in text until final processing
+- [x] Unique UUIDs prevent collisions
+- [x] Placeholders removed/replaced in final step
 
 ## 9. Integration Points
 
