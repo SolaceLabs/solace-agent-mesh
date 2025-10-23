@@ -3,15 +3,15 @@
 ## 1. Type Definitions & Constants
 
 ### 1.1 ResolutionMode Enum
-- [ ] `src/solace_agent_mesh/common/utils/embeds/types.py`
-  - [ ] `ResolutionMode` enum exists with three values
-  - [ ] `A2A_MESSAGE_TO_USER = auto()`
-  - [ ] `TOOL_PARAMETER = auto()`
-  - [ ] `RECURSIVE_ARTIFACT_CONTENT = auto()`
+- [x] `src/solace_agent_mesh/common/utils/embeds/types.py`
+  - [x] `ResolutionMode` enum exists with three values
+  - [x] `A2A_MESSAGE_TO_USER = auto()`
+  - [x] `TOOL_PARAMETER = auto()`
+  - [x] `RECURSIVE_ARTIFACT_CONTENT = auto()`
 
 ### 1.2 Embed Type Registration
-- [ ] `src/solace_agent_mesh/common/utils/embeds/constants.py`
-  - [ ] `"artifact_return"` added to `LATE_EMBED_TYPES` set
+- [x] `src/solace_agent_mesh/common/utils/embeds/constants.py`
+  - [x] `"artifact_return"` added to `LATE_EMBED_TYPES` set
 
 ## 2. Core Embed Resolution Logic
 
