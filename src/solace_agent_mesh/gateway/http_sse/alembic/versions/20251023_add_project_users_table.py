@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '20251023_add_project_users'
-down_revision: Union[str, None] = '20251023_remove_created_by_user_id'
+revision: str = 'add_project_users_001'
+down_revision: Union[str, None] = 'remove_created_by_user_id_001'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

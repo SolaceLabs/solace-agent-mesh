@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '20251023_remove_created_by_user_id'
+revision: str = 'remove_created_by_user_id_001'
 down_revision: Union[str, None] = 'remove_is_global_001'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

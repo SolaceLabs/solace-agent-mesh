@@ -68,6 +68,63 @@ async def get_all_sessions(
         ) from e
 
 
+@router.get("/sessions/search", response_model=PaginatedResponse[SessionResponse])
+async def search_sessions(
+    query: str = Query(..., min_length=1, description="Search query"),
+    project_id: Optional[str] = Query(default=None, alias="projectId"),
+    page_number: int = Query(default=1, ge=1, alias="pageNumber"),
+    page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """
+    Search sessions by name or content.
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s searching sessions with query '%s' (page=%d, size=%d)",
+        user_id,
+        query,
+        page_number,
+        page_size,
+    )
+
+    try:
+        pagination = PaginationParams(page_number=page_number, page_size=page_size)
+        paginated_response = session_service.search_sessions(
+            db, user_id, query, pagination, project_id=project_id
+        )
+
+        session_responses = []
+        for session_domain in paginated_response.data:
+            session_response = SessionResponse(
+                id=session_domain.id,
+                user_id=session_domain.user_id,
+                name=session_domain.name,
+                agent_id=session_domain.agent_id,
+                project_id=session_domain.project_id,
+                project_name=session_domain.project_name,
+                created_time=session_domain.created_time,
+                updated_time=session_domain.updated_time,
+            )
+            session_responses.append(session_response)
+
+        return PaginatedResponse(data=session_responses, meta=paginated_response.meta)
+
+    except ValueError as e:
+        log.warning("Validation error searching sessions: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    except Exception as e:
+        log.error("Error searching sessions for user %s: %s", user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to search sessions",
+        ) from e
+
+
 @router.get("/sessions/{session_id}", response_model=DataResponse[SessionResponse])
 async def get_session(
     session_id: str,
@@ -566,58 +623,3 @@ async def move_session_to_project(
         ) from e
 
 
-@router.get("/sessions/search", response_model=PaginatedResponse[SessionResponse])
-async def search_sessions(
-    query: str = Query(..., min_length=1, description="Search query"),
-    project_id: Optional[str] = Query(default=None, alias="projectId"),
-    page_number: int = Query(default=1, ge=1, alias="pageNumber"),
-    page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
-    db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user),
-    session_service: SessionService = Depends(get_session_business_service),
-):
-    """
-    Search sessions by name or content.
-    """
-    user_id = user.get("id")
-    log.info(
-        "User %s searching sessions with query '%s' (page=%d, size=%d)",
-        user_id,
-        query,
-        page_number,
-        page_size,
-    )
-
-    try:
-        pagination = PaginationParams(page_number=page_number, page_size=page_size)
-        paginated_response = session_service.search_sessions(
-            db, user_id, query, pagination, project_id=project_id
-        )
-
-        session_responses = []
-        for session_domain in paginated_response.data:
-            session_response = SessionResponse(
-                id=session_domain.id,
-                user_id=session_domain.user_id,
-                name=session_domain.name,
-                agent_id=session_domain.agent_id,
-                project_id=session_domain.project_id,
-                project_name=session_domain.project_name,
-                created_time=session_domain.created_time,
-                updated_time=session_domain.updated_time,
-            )
-            session_responses.append(session_response)
-
-        return PaginatedResponse(data=session_responses, meta=paginated_response.meta)
-
-    except ValueError as e:
-        log.warning("Validation error searching sessions: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
-        ) from e
-    except Exception as e:
-        log.error("Error searching sessions for user %s: %s", user_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to search sessions",
-        ) from e

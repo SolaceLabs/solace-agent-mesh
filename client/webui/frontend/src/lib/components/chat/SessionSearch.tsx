@@ -13,8 +13,13 @@ interface SessionSearchProps {
 }
 
 interface SearchResult {
-    sessions: Session[];
-    total: number;
+    data: Session[];
+    meta: {
+        total: number;
+        page: number;
+        pageSize: number;
+        totalPages: number;
+    };
 }
 
 export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps) => {
@@ -56,7 +61,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
             }
 
             const data: SearchResult = await response.json();
-            setSearchResults(data.sessions || []);
+            setSearchResults(data.data || []);
             setShowResults(true);
         } catch (error) {
             console.error("Search error:", error);
