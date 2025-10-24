@@ -51,9 +51,9 @@ function MessageBanner({ className, variant = "error", message, action, buttonTe
     return (
         <div className={cn(messageBannerVariants({ variant, className }), "items-start")} role="alert" aria-live="polite" {...props}>
             <IconComponent className="size-5 shrink-0" />
-            <span className="">{message}</span>
+            <span>{message}</span>
             {dismissible && onDismiss && (
-                <Button variant="ghost" onClick={onDismiss} aria-label="Dismiss">
+                <Button variant="link" className="ml-auto h-min self-center p-0" onClick={onDismiss} aria-label="Dismiss">
                     <X className="size-3" />
                 </Button>
             )}
