@@ -33,6 +33,7 @@ from ..adapter.types import (
     SamFeedback,
     SamFilePart,
     SamTask,
+    SamTextPart,
     SamUpdate,
 )
 from . import handlers, utils
