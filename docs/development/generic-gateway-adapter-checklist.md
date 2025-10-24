@@ -31,13 +31,13 @@ This checklist tracks the implementation of the Generic Gateway Adapter Framewor
     - [x] Add `gateway_adapter` and `adapter_config` to schema.
     - [x] Implement `_get_gateway_component_class`.
 
-- [ ] 5. **Implement GenericGatewayComponent** (`src/solace_agent_mesh/gateway/generic/component.py`):
-    - [ ] Extend `BaseGatewayComponent` and implement `GatewayContext`.
-    - [ ] Dynamically load adapter in `__init__`.
-    - [ ] Implement `_start_listener` and `_stop_listener` to call adapter.
-    - [ ] Implement `_send_*_to_external` methods to translate A2A events to SAM types and call adapter handlers.
-    - [ ] Implement `handle_external_input` to orchestrate the inbound flow.
-    - [ ] Implement state management methods using `self.cache_service`.
+- [x] 5. **Implement GenericGatewayComponent** (`src/solace_agent_mesh/gateway/generic/component.py`):
+    - [x] Extend `BaseGatewayComponent` and implement `GatewayContext`.
+    - [x] Dynamically load adapter in `__init__`.
+    - [x] Implement `_start_listener` and `_stop_listener` to call adapter.
+    - [x] Implement `_send_*_to_external` methods to translate A2A events to SAM types and call adapter handlers.
+    - [x] Implement `handle_external_input` to orchestrate the inbound flow.
+    - [x] Implement state management methods using `self.cache_service`.
 
 ---
 
