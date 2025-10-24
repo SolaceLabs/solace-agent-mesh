@@ -2,7 +2,7 @@ import React from "react";
 import { Download, Trash } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
-import { formatBytes } from "@/lib/utils/format";
+import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
 import type { ArtifactInfo } from "@/lib/types";
 import { getFileIcon } from "../chat/file/fileUtils";
 
@@ -25,9 +25,19 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({
                     <p className="text-sm font-medium text-foreground truncate" title={artifact.filename}>
                         {artifact.filename}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                        {formatBytes(artifact.size)}
-                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {artifact.last_modified && (
+                            <span className="truncate" title={formatRelativeTime(artifact.last_modified)}>
+                                {formatRelativeTime(artifact.last_modified)}
+                            </span>
+                        )}
+                        {artifact.size !== undefined && (
+                            <>
+                                {artifact.last_modified && <span>•</span>}
+                                <span>{formatBytes(artifact.size)}</span>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

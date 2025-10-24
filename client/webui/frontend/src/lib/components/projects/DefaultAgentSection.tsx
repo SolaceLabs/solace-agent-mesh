@@ -99,7 +99,7 @@ export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({
                         </div>
                     </div>
                 ) : (
-                    <div className="text-sm text-muted-foreground rounded-md bg-muted p-3 min-h-[60px] flex items-center">
+                    <div className="text-sm text-muted-foreground rounded-md bg-muted p-2.5 flex items-center">
                         {project.defaultAgentId ? (
                             <div className="flex items-center gap-2">
                                 <Bot className="h-4 w-4" />
