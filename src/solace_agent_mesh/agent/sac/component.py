@@ -128,7 +128,7 @@ class SamAgentComponent(SamComponentBase):
 
         super().__init__(info, **kwargs)
         self.agent_name = self.get_config("agent_name")
-        log.info("%s Initializing A2A ADK Host Component...", self.log_identifier)
+        log.info("%s Initializing agent: %s (A2A ADK Host Component)...", self.log_identifier, self.agent_name)
         
         # Initialize the agent registry for health tracking
         self.agent_registry = AgentRegistry()
@@ -226,7 +226,6 @@ class SamAgentComponent(SamComponentBase):
                 "max_message_size_bytes", 10_000_000
             )
 
-            log.info("%s Configuration retrieved successfully.", self.log_identifier)
         except Exception as e:
             log.error(
                 "%s Failed to retrieve configuration via get_config: %s",
@@ -267,7 +266,7 @@ class SamAgentComponent(SamComponentBase):
                 self.memory_service = initialize_memory_service(self)
 
                 log.info(
-                    "%s Synchronous ADK services initialized.", self.log_identifier
+                    "%s Initialized Synchronous ADK services.", self.log_identifier
                 )
             except Exception as service_err:
                 log.exception(
@@ -446,7 +445,7 @@ class SamAgentComponent(SamComponentBase):
                 )
                 
             log.info(
-                "%s Initialization complete for agent: %s",
+                "%s Initialized agent: %s",
                 self.log_identifier,
                 self.agent_name,
             )
@@ -1514,7 +1513,7 @@ class SamAgentComponent(SamComponentBase):
                 payload_to_publish, target_topic, a2a_context, user_properties
             )
 
-            log.info(
+            log.debug(
                 "%s Published %s status update to %s.",
                 log_identifier,
                 status_type,
@@ -1655,7 +1654,7 @@ class SamAgentComponent(SamComponentBase):
             )
 
             if buffer_has_content and (batching_disabled or threshold_met):
-                log.info(
+                log.debug(
                     "%s Partial event triggered buffer flush due to size/batching config.",
                     log_id_main,
                 )
@@ -1678,7 +1677,7 @@ class SamAgentComponent(SamComponentBase):
         else:
             buffer_content = task_context.get_streaming_buffer_content()
             if buffer_content:
-                log.info(
+                log.debug(
                     "%s Final event triggered flush of remaining buffer content.",
                     log_id_main,
                 )
@@ -1712,7 +1711,7 @@ class SamAgentComponent(SamComponentBase):
 
             if a2a_payload and target_topic:
                 self._publish_a2a_event(a2a_payload, target_topic, a2a_context)
-                log.info(
+                log.debug(
                     "%s Published final turn event (e.g., tool call) to %s.",
                     log_id_main,
                     target_topic,

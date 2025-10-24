@@ -45,7 +45,7 @@ class FilesystemArtifactService(BaseArtifactService):
         try:
             os.makedirs(self.base_path, exist_ok=True)
             logger.info(
-                "FilesystemArtifactService initialized. Base path: %s",
+                "Initialized FilesystemArtifactService. Base path: %s",
                 self.base_path,
             )
         except OSError as e:

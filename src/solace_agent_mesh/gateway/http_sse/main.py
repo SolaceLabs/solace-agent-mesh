@@ -526,14 +526,14 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
     api_config_dict = _create_api_config(app_config, database_url)
 
     dependencies.set_api_config(api_config_dict)
-    log.info("API configuration extracted and stored.")
+    log.debug("API configuration extracted and stored.")
 
     _setup_middleware(component)
     _setup_routers()
     _setup_static_files()
 
     _dependencies_initialized = True
-    log.info("[setup_dependencies] Dependencies initialization complete")
+    log.debug("[setup_dependencies] Dependencies initialization complete")
 
 
 def _setup_middleware(component: "WebUIBackendComponent") -> None:

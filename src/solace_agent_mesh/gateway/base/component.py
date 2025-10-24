@@ -160,7 +160,7 @@ class BaseGatewayComponent(SamComponentBase):
         )
 
         log.info(
-            "%s Base Gateway Component initialized successfully.", self.log_identifier
+            "%s Initialized Base Gateway Component.", self.log_identifier
         )
 
     async def authenticate_and_enrich_user(
@@ -241,7 +241,7 @@ class BaseGatewayComponent(SamComponentBase):
             user_config = await config_resolver.resolve_user_config(
                 user_identity, gateway_context, {}
             )
-            log.info(
+            log.debug(
                 "%s Resolved user configuration for user_identity '%s': %s",
                 log_id_prefix,
                 user_identity.get("id"),
@@ -1166,10 +1166,6 @@ class BaseGatewayComponent(SamComponentBase):
         )
         self._start_listener()
 
-        log.info(
-            "%s Starting _message_processor_loop as an asyncio task.",
-            self.log_identifier,
-        )
         await self._message_processor_loop()
 
     def _pre_async_cleanup(self) -> None:
@@ -1197,7 +1193,7 @@ class BaseGatewayComponent(SamComponentBase):
             self.internal_event_queue.put(None)
 
     async def _message_processor_loop(self):
-        log.info("%s Starting message processor loop...", self.log_identifier)
+        log.debug("%s Starting message processor loop as an asyncio task...", self.log_identifier)
         loop = self.get_async_loop()
 
         while not self.stop_signal.is_set():

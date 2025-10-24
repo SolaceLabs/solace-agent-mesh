@@ -490,7 +490,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     )
             else:
                 session_behavior = component.default_session_behavior
-                log.info(
+                log.debug(
                     "%s No 'sessionBehavior' in task metadata. Using component default: '%s'.",
                     component.log_identifier,
                     session_behavior,
@@ -760,7 +760,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
             streaming_mode = StreamingMode.SSE
 
             max_llm_calls_per_task = component.get_config("max_llm_calls_per_task", 20)
-            log.info(
+            log.debug(
                 "%s Using max_llm_calls_per_task: %s",
                 component.log_identifier,
                 max_llm_calls_per_task,

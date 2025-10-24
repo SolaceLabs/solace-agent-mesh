@@ -437,7 +437,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     raise RuntimeError(
                         "Visualization flow setup error: BrokerInput not found."
                     )
-                log.info(
+                log.debug(
                     "%s Obtained reference to internal BrokerInput component.",
                     log_id_prefix,
                 )
@@ -883,7 +883,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         Manages global subscription reference counts.
         """
         log_id_prefix = f"{self.log_identifier}[AddVizSub:{stream_id}]"
-        log.info(
+        log.debug(
             "%s Attempting to add subscription to topic: %s", log_id_prefix, topic_str
         )
 
@@ -1207,7 +1207,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.task_logger_service = TaskLoggerService(
                 session_factory=session_factory, config=task_logging_config
             )
-            log.info(
+            log.debug(
                 "%s Services dependent on database session factory have been initialized.",
                 self.log_identifier,
             )
@@ -1238,14 +1238,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 )
                 try:
                     self.fastapi_event_loop = asyncio.get_running_loop()
-                    log.info(
+                    log.debug(
                         "%s [_start_listener] Captured FastAPI event loop via startup event: %s",
                         self.log_identifier,
                         self.fastapi_event_loop,
                     )
 
                     if self.fastapi_event_loop:
-                        log.info(
+                        log.debug(
                             "%s Ensuring visualization flow is running...",
                             self.log_identifier,
                         )
@@ -1255,7 +1255,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             self._visualization_processor_task is None
                             or self._visualization_processor_task.done()
                         ):
-                            log.info(
+                            log.debug(
                                 "%s Starting visualization message processor task.",
                                 self.log_identifier,
                             )
@@ -1265,7 +1265,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 )
                             )
                         else:
-                            log.info(
+                            log.debug(
                                 "%s Visualization message processor task already running.",
                                 self.log_identifier,
                             )
@@ -1812,7 +1812,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         for agent_name in agents_to_deregister:
             self._deregister_agent(agent_name)
             
-        log.info(
+        log.debug(
             "%s Agent health check completed. Total agents: %d, De-registered: %d",
             self.log_identifier,
             total_agents,
@@ -2073,7 +2073,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             await self.sse_manager.send_event(
                 task_id=sse_task_id, event_data=sse_payload, event_type=sse_event_type
             )
-            log.info(
+            log.debug(
                 "%s Successfully sent %s via SSE for A2A Task ID %s.",
                 log_id_prefix,
                 sse_event_type,

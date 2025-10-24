@@ -77,7 +77,7 @@ async def _submit_task(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User authentication failed or identity not found.",
             )
-        log.info(
+        log.debug(
             "%sAuthenticated user identity: %s",
             log_prefix,
             user_identity.get("id", "unknown"),
@@ -107,7 +107,7 @@ async def _submit_task(
         else:
             # Create new session when frontend doesn't provide one
             session_id = session_manager.create_new_session_id(request)
-            log.info(
+            log.debug(
                 "%sNo valid session ID from frontend, created new session: %s",
                 log_prefix,
                 session_id,
@@ -125,7 +125,7 @@ async def _submit_task(
                         session_id=session_id,
                     )
                     db.commit()
-                    log.info(
+                    log.debug(
                         "%sCreated session in database: %s", log_prefix, session_id
                     )
                 except Exception as e:
