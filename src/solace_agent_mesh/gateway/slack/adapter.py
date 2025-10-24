@@ -1,0 +1,443 @@
+"""
+Slack Gateway Adapter for the Generic Gateway Framework.
+"""
+
+import asyncio
+import base64
+import json
+import logging
+import re
+from typing import Any, Dict, List, Optional
+
+try:
+    import requests
+    from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
+    from slack_bolt.async_app import AsyncApp
+    from slack_sdk.errors import SlackApiError
+
+    SLACK_BOLT_AVAILABLE = True
+except ImportError:
+    SLACK_BOLT_AVAILABLE = False
+    requests = None
+    AsyncApp = None
+    AsyncSocketModeHandler = None
+    SlackApiError = None
+
+from ..adapter.base import GatewayAdapter
+from ..adapter.types import (
+    AuthClaims,
+    GatewayContext,
+    ResponseContext,
+    SamDataPart,
+    SamError,
+    SamFeedback,
+    SamFilePart,
+    SamTask,
+    SamUpdate,
+)
+from . import handlers, utils
+
+log = logging.getLogger(__name__)
+
+_NO_EMAIL_MARKER = "_NO_EMAIL_"
+
+
+class SlackAdapter(GatewayAdapter):
+    """A feature-complete Slack Gateway implementation using the adapter pattern."""
+
+    def __init__(self):
+        if not SLACK_BOLT_AVAILABLE:
+            raise ImportError(
+                "Slack dependencies not found. Please install 'slack_bolt' and 'requests'."
+            )
+        self.context: Optional[GatewayContext] = None
+        self.slack_app: Optional[AsyncApp] = None
+        self.slack_handler: Optional[AsyncSocketModeHandler] = None
+
+    async def init(self, context: GatewayContext) -> None:
+        """Initialize the Slack app, handlers, and start the listener."""
+        self.context = context
+        log.info("Initializing Slack Adapter...")
+
+        bot_token = self.context.adapter_config.get("slack_bot_token")
+        app_token = self.context.adapter_config.get("slack_app_token")
+        if not bot_token or not app_token:
+            raise ValueError("slack_bot_token and slack_app_token are required.")
+
+        self.slack_app = AsyncApp(token=bot_token)
+
+        # --- Register Event and Action Handlers ---
+        self._register_handlers()
+
+        # --- Start Socket Mode Handler ---
+        self.slack_handler = AsyncSocketModeHandler(self.slack_app, app_token)
+        asyncio.create_task(self.slack_handler.start_async())
+        log.info("Slack Adapter initialized and listener started.")
+
+    async def cleanup(self) -> None:
+        """Stop the Slack listener."""
+        if self.slack_handler:
+            log.info("Stopping Slack listener...")
+            self.slack_handler.close()
+
+    def _register_handlers(self):
+        """Registers all Slack event and action handlers."""
+
+        # Wrapper to inject `self` (the adapter instance) into the handlers
+        def create_handler(handler_func):
+            async def wrapper(*args, **kwargs):
+                # The `say` and `client` objects are passed by slack_bolt
+                await handler_func(self, *args, **kwargs)
+
+            return wrapper
+
+        # Event handlers for messages and mentions
+        self.slack_app.event("message")(create_handler(handlers.handle_slack_message))
+        self.slack_app.event("app_mention")(
+            create_handler(handlers.handle_slack_mention)
+        )
+
+        # Action handler for the cancel button
+        @self.slack_app.action(utils.CANCEL_BUTTON_ACTION_ID)
+        async def handle_cancel_action(ack, body, logger):
+            await ack()
+            task_id = body["actions"][0]["value"]
+            logger.info(f"Cancel button clicked for task: {task_id}")
+            await self.context.cancel_task(task_id)
+
+        # Action handlers for feedback
+        @self.slack_app.action(utils.THUMBS_UP_ACTION_ID)
+        async def handle_thumbs_up(ack, body, say, logger):
+            await ack()
+            payload = json.loads(body["actions"][0]["value"])
+            logger.info(f"Positive feedback received for task: {payload['task_id']}")
+            feedback = SamFeedback(
+                task_id=payload["task_id"],
+                feedback_type="positive",
+                user_id=payload["user_id"],
+                platform_context=payload,
+            )
+            await self.context.submit_feedback(feedback)
+            await say(
+                text="Thanks for your feedback!",
+                thread_ts=body["container"]["thread_ts"],
+            )
+
+        @self.slack_app.action(utils.THUMBS_DOWN_ACTION_ID)
+        async def handle_thumbs_down(ack, body, say, logger):
+            await ack()
+            payload = json.loads(body["actions"][0]["value"])
+            logger.info(f"Negative feedback received for task: {payload['task_id']}")
+            feedback = SamFeedback(
+                task_id=payload["task_id"],
+                feedback_type="negative",
+                user_id=payload["user_id"],
+                platform_context=payload,
+            )
+            await self.context.submit_feedback(feedback)
+            await say(
+                text="Thanks for your feedback! We'll use it to improve.",
+                thread_ts=body["container"]["thread_ts"],
+            )
+
+    async def extract_auth_claims(self, event: Dict) -> Optional[AuthClaims]:
+        """Extract user identity from a Slack event."""
+        slack_user_id = event.get("user")
+        slack_team_id = event.get("team") or event.get("team_id")
+
+        if not slack_user_id or not slack_team_id:
+            log.warning("Could not determine Slack user_id or team_id from event.")
+            return None
+
+        cache_key = f"slack_email_cache:{slack_user_id}"
+        ttl = self.context.adapter_config.get("slack_email_cache_ttl_seconds", 3600)
+
+        if self.context.cache_service and ttl > 0:
+            cached_claim = self.context.cache_service.get_data(cache_key)
+            if cached_claim:
+                if cached_claim == _NO_EMAIL_MARKER:
+                    return AuthClaims(
+                        id=f"slack:{slack_team_id}:{slack_user_id}",
+                        source="slack_fallback",
+                    )
+                else:
+                    return AuthClaims(
+                        id=cached_claim, email=cached_claim, source="slack_api"
+                    )
+
+        try:
+            profile_response = await self.slack_app.client.users_profile_get(
+                user=slack_user_id
+            )
+            user_email = profile_response.get("profile", {}).get("email")
+
+            if user_email:
+                if self.context.cache_service and ttl > 0:
+                    self.context.cache_service.add_data(
+                        cache_key, user_email, expiry=ttl
+                    )
+                return AuthClaims(id=user_email, email=user_email, source="slack_api")
+            else:
+                raise ValueError("Email not found in profile")
+        except Exception as e:
+            log.warning(
+                "Could not fetch email for Slack user %s: %s. Using fallback ID.",
+                slack_user_id,
+                e,
+            )
+            if self.context.cache_service and ttl > 0:
+                self.context.cache_service.add_data(
+                    cache_key, _NO_EMAIL_MARKER, expiry=ttl
+                )
+            return AuthClaims(
+                id=f"slack:{slack_team_id}:{slack_user_id}", source="slack_fallback"
+            )
+
+    async def prepare_task(self, event: Dict) -> SamTask:
+        """Convert a Slack event into a SamTask."""
+        if event.get("bot_id") or event.get("subtype") == "bot_message":
+            raise ValueError("Ignoring bot message")
+
+        channel_id = event.get("channel")
+        thread_ts = event.get("thread_ts") or event.get("ts")
+        text = event.get("text", "")
+        files_info = event.get("files", [])
+
+        # Resolve @mentions in the text
+        resolved_text = await self._resolve_mentions_in_text(text)
+
+        parts = [self.context.create_text_part(resolved_text)]
+
+        # Handle file uploads
+        if files_info:
+            for file_info in files_info:
+                try:
+                    file_bytes = await self._download_file(file_info)
+                    parts.append(
+                        self.context.create_file_part_from_bytes(
+                            name=file_info["name"],
+                            content_bytes=file_bytes,
+                            mime_type=file_info.get(
+                                "mimetype", "application/octet-stream"
+                            ),
+                        )
+                    )
+                except Exception as e:
+                    log.error(
+                        "Failed to download and attach file %s: %s",
+                        file_info.get("name"),
+                        e,
+                    )
+
+        if not any(
+            p.text.strip() for p in parts if isinstance(p, SamTextPart)
+        ) and not any(isinstance(p, SamFilePart) for p in parts):
+            raise ValueError("No content to send to agent")
+
+        return SamTask(
+            parts=parts,
+            conversation_id=f"slack:{channel_id}:{thread_ts}",
+            target_agent=self.context.adapter_config.get(
+                "default_agent_name", "default"
+            ),
+            platform_context={
+                "channel_id": channel_id,
+                "thread_ts": thread_ts,
+            },
+        )
+
+    async def handle_update(self, update: SamUpdate, context: ResponseContext) -> None:
+        """Handle a streaming update from the agent."""
+        task_id = context.task_id
+        channel_id = context.platform_context["channel_id"]
+        thread_ts = context.platform_context["thread_ts"]
+
+        # Get or create message timestamps
+        status_ts = self.context.get_task_state(task_id, "status_ts")
+        content_ts = self.context.get_task_state(task_id, "content_ts")
+
+        # If this is the first update, post the initial status message
+        if not status_ts:
+            initial_status_msg = self.context.adapter_config.get(
+                "slack_initial_status_message"
+            )
+            if initial_status_msg:
+                status_blocks = utils.build_slack_blocks(status_text=initial_status_msg)
+                new_status_ts = await utils.send_slack_message(
+                    self, channel_id, thread_ts, initial_status_msg, status_blocks
+                )
+                if new_status_ts:
+                    self.context.set_task_state(task_id, "status_ts", new_status_ts)
+                    self.context.set_task_state(
+                        task_id, "current_status", initial_status_msg
+                    )
+                    status_ts = new_status_ts
+
+        # Process parts
+        text_to_display = ""
+        for part in update.parts:
+            if isinstance(part, SamTextPart):
+                text_to_display += part.text
+            elif isinstance(part, SamFilePart):
+                await self._handle_file_part(part, channel_id, thread_ts)
+            elif isinstance(part, SamDataPart):
+                await self._handle_data_part(part, channel_id, thread_ts, context)
+
+        # Update content message
+        if text_to_display:
+            buffer = self.context.get_task_state(task_id, "content_buffer", "")
+            buffer += text_to_display
+            self.context.set_task_state(task_id, "content_buffer", buffer)
+
+            formatted_text = self._format_text(buffer)
+            content_blocks = utils.build_slack_blocks(content_text=formatted_text)
+
+            if content_ts:
+                await utils.update_slack_message(
+                    self, channel_id, content_ts, formatted_text, content_blocks
+                )
+            else:
+                new_content_ts = await utils.send_slack_message(
+                    self, channel_id, thread_ts, formatted_text, content_blocks
+                )
+                if new_content_ts:
+                    self.context.set_task_state(task_id, "content_ts", new_content_ts)
+
+    async def handle_text_chunk(self, text: str, context: ResponseContext) -> None:
+        # This is not called because we override handle_update, but must be implemented.
+        pass
+
+    async def handle_task_complete(self, context: ResponseContext) -> None:
+        """Update UI to show task is complete and add feedback buttons."""
+        task_id = context.task_id
+        channel_id = context.platform_context["channel_id"]
+        status_ts = self.context.get_task_state(task_id, "status_ts")
+
+        if status_ts:
+            final_status_text = "✅ Task complete."
+            feedback_elements = None
+            if self.context.adapter_config.get("feedback_enabled"):
+                feedback_elements = utils.create_feedback_blocks(
+                    task_id, context.user_id, context.conversation_id
+                )
+
+            content_buffer = self.context.get_task_state(task_id, "content_buffer", " ")
+            final_blocks = utils.build_slack_blocks(
+                status_text=final_status_text,
+                content_text=self._format_text(content_buffer),
+                feedback_elements=feedback_elements,
+            )
+            await utils.update_slack_message(
+                self, channel_id, status_ts, final_status_text, final_blocks
+            )
+
+    async def handle_error(self, error: SamError, context: ResponseContext) -> None:
+        """Display an error message in Slack."""
+        task_id = context.task_id
+        channel_id = context.platform_context["channel_id"]
+        status_ts = self.context.get_task_state(task_id, "status_ts")
+
+        if status_ts:
+            error_text = f"❌ Error: {error.message}"
+            if error.category == "CANCELED":
+                error_text = "🛑 Task canceled."
+
+            content_buffer = self.context.get_task_state(task_id, "content_buffer", " ")
+            error_blocks = utils.build_slack_blocks(
+                status_text=error_text,
+                content_text=self._format_text(content_buffer),
+            )
+            await utils.update_slack_message(
+                self, channel_id, status_ts, error_text, error_blocks
+            )
+
+    # --- Private Helper Methods ---
+
+    def _format_text(self, text: str) -> str:
+        """Applies markdown correction if enabled."""
+        if self.context.adapter_config.get("correct_markdown_formatting", True):
+            return utils.correct_slack_markdown(text)
+        return text
+
+    async def _handle_file_part(
+        self, part: SamFilePart, channel_id: str, thread_ts: str
+    ):
+        """Handles sending a file to Slack."""
+        if part.content_bytes:
+            await utils.upload_slack_file(
+                self, channel_id, thread_ts, part.name, part.content_bytes
+            )
+        elif part.uri:
+            uri_text = f":link: Artifact available: {part.name} - {part.uri}"
+            await utils.send_slack_message(self, channel_id, thread_ts, uri_text)
+
+    async def _handle_data_part(
+        self, part: SamDataPart, channel_id: str, thread_ts: str, context: ResponseContext
+    ):
+        """Handles structured data, checking for status updates."""
+        if part.data.get("type") == "agent_progress_update":
+            status_text = part.data.get("status_text")
+            if status_text:
+                await self.handle_status_update(status_text, context)
+        else:
+            # For other data parts, format as JSON and post
+            formatted_data = utils.format_data_part_for_slack(part)
+            await utils.send_slack_message(self, channel_id, thread_ts, formatted_data)
+
+    async def handle_status_update(
+        self, status_text: str, context: ResponseContext
+    ) -> None:
+        """Update the status message in Slack."""
+        task_id = context.task_id
+        channel_id = context.platform_context["channel_id"]
+        status_ts = self.context.get_task_state(task_id, "status_ts")
+        if status_ts:
+            current_status = self.context.get_task_state(task_id, "current_status", "")
+            new_status = f"⏳ {status_text}"
+            if new_status != current_status:
+                status_blocks = utils.build_slack_blocks(status_text=new_status)
+                await utils.update_slack_message(
+                    self, channel_id, status_ts, new_status, status_blocks
+                )
+                self.context.set_task_state(task_id, "current_status", new_status)
+
+    async def _resolve_mentions_in_text(self, text: str) -> str:
+        """Finds all Slack user mentions (<@U...>) and replaces them with email/name."""
+        mention_pattern = re.compile(r"<@([UW][A-Z0-9]+)>")
+        user_ids_found = set(mention_pattern.findall(text))
+        if not user_ids_found:
+            return text
+
+        modified_text = text
+        for user_id in user_ids_found:
+            try:
+                user_info_response = await self.slack_app.client.users_info(
+                    user=user_id
+                )
+                profile = user_info_response.get("user", {}).get("profile", {})
+                replacement = profile.get("email") or profile.get(
+                    "real_name_normalized"
+                )
+                if replacement:
+                    modified_text = modified_text.replace(f"<@{user_id}>", replacement)
+            except SlackApiError as e:
+                log.warning(
+                    "Slack API error resolving mention for user ID %s: %s", user_id, e
+                )
+        return modified_text
+
+    async def _download_file(self, file_info: Dict) -> bytes:
+        """Downloads a file from Slack given its private URL."""
+        file_url = file_info.get("url_private_download") or file_info.get("url_private")
+        if not file_url:
+            raise ValueError("File info is missing a download URL.")
+
+        bot_token = self.context.adapter_config.get("slack_bot_token")
+        headers = {"Authorization": f"Bearer {bot_token}"}
+
+        # Use to_thread to avoid blocking the event loop
+        response = await asyncio.to_thread(
+            requests.get, file_url, headers=headers, timeout=30
+        )
+        response.raise_for_status()
+        return response.content

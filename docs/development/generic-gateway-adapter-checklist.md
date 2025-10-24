@@ -43,14 +43,13 @@ This checklist tracks the implementation of the Generic Gateway Adapter Framewor
 
 ### **Phase 3: Refactor an Existing Gateway (Slack)**
 
-- [ ] 6. **Create SlackAdapter** (`../solace-agent-mesh-core-plugins-1/sam-slack/src/sam_slack/adapter.py`):
-    - [ ] Create new `adapter.py` file.
-    - [ ] Implement `SlackAdapter` by migrating logic from `SlackGatewayComponent`.
+- [x] 6. **Create SlackAdapter** (`src/solace_agent_mesh/gateway/slack/adapter.py`):
+    - [x] Create new `adapter.py` file.
+    - [x] Implement `SlackAdapter` by migrating logic from `SlackGatewayComponent`.
 
-- [ ] 7. **Update SlackGatewayApp and Handlers**:
-    - [ ] Modify `SlackGatewayApp` to inherit from `GenericGatewayApp`.
-    - [ ] Simplify `_process_slack_event` in `handlers.py` to call `handle_external_input`.
-    - [ ] Delete `../solace-agent-mesh-core-plugins-1/sam-slack/src/sam_slack/component.py`.
+- [x] 7. **Update SlackGatewayApp and Handlers**:
+    - [x] Create `src/solace_agent_mesh/gateway/slack/app.py` inheriting from `GenericGatewayApp`.
+    - [x] Create `src/solace_agent_mesh/gateway/slack/handlers.py` to call `handle_external_input`.
 
 - [ ] 8. **Update Slack Example Configuration**:
     - [ ] Modify `slack_gateway_example.yaml` to use `GenericGatewayApp` and the new `gateway_adapter` and `adapter_config` structure.
