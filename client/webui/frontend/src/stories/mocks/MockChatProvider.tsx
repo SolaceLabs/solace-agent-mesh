@@ -33,6 +33,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     previewedArtifactAvailableVersions: null,
     currentPreviewedVersionNumber: null,
     previewFileContent: null,
+    isLoadingSession: false,
 
     // Actions
     setMessages: () => {},
