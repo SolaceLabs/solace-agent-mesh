@@ -59,7 +59,7 @@ export const SuccessBanner: Story = {
     },
 };
 
-export const DismissableBanner: Story = {
+export const DismissibleBanner: Story = {
     args: {
         variant: "info",
         dismissible: true,
@@ -77,7 +77,7 @@ export const BannerWithAction: Story = {
     },
 };
 
-export const DismissableBannerWithAction: Story = {
+export const DismissibleBannerWithAction: Story = {
     args: {
         variant: "info",
         dismissible: true,
