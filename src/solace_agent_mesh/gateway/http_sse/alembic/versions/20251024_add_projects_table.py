@@ -1,8 +1,8 @@
-"""Safe projects migration with existence checks
+"""Add projects table and project_id to sessions
 
-Revision ID: safe_projects_001
+Revision ID: add_projects_table_001
 Revises: 20251015_session_idx
-Create Date: 2025-10-08 15:00:00.000000
+Create Date: 2025-10-24 10:00:00.000000
 
 """
 from typing import Sequence, Union
@@ -11,19 +11,21 @@ import sqlalchemy as sa
 from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
-revision: str = 'safe_projects_001'
+revision: str = 'add_projects_table_001'
 down_revision: Union[str, Sequence[str], None] = '20251015_session_idx'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Safe upgrade that checks for existing tables and columns."""
+    """Create projects table and add project_id to sessions."""
     bind = op.get_bind()
     inspector = inspect(bind)
     existing_tables = inspector.get_table_names()
     
     # Create projects table if it doesn't exist
+    # Note: This table is created without is_global and created_by_user_id columns
+    # as those were removed in the squashed migration
     if 'projects' not in existing_tables:
         op.create_table('projects',
             sa.Column('id', sa.String(), nullable=False),
@@ -31,7 +33,6 @@ def upgrade() -> None:
             sa.Column('user_id', sa.String(), nullable=False),
             sa.Column('description', sa.Text(), nullable=True),
             sa.Column('system_prompt', sa.Text(), nullable=True),
-            sa.Column('created_by_user_id', sa.String(), nullable=False),
             sa.Column('created_at', sa.BigInteger(), nullable=False),
             sa.Column('updated_at', sa.BigInteger(), nullable=True),
             sa.PrimaryKeyConstraint('id')

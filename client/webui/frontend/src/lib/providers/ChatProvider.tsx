@@ -930,7 +930,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setSessionName(null);
 
         // Clear project context when starting a new chat outside of a project
-        // Unless explicitly told to preserve it (e.g., when starting a new chat from projects page)
         if (activeProject && !preserveProjectContext) {
             setActiveProject(null);
         } else if (activeProject && preserveProjectContext) {

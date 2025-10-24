@@ -1,7 +1,7 @@
 """Add full-text search indexes for chat search optimization (PostgreSQL only)
 
-Revision ID: add_fulltext_search_indexes
-Revises: 20251023_remove_is_global_column
+Revision ID: fts_indexes_001
+Revises: soft_del_search_001
 Create Date: 2025-10-23
 
 This migration adds PostgreSQL full-text search (FTS) indexes to optimize

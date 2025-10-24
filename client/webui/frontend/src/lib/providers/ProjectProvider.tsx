@@ -31,6 +31,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             return;
         }
 
+        if (!projectsEnabled) {
+            setIsLoading(false);
+            setProjects([]);
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
         try {
@@ -105,6 +111,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts`, {
                     method: "POST",
@@ -133,6 +140,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (!projectsEnabled) {
                 throw new Error("Projects feature is disabled");
             }
+
 
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
