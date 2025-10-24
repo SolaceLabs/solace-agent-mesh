@@ -540,7 +540,8 @@ def _setup_middleware(component: "WebUIBackendComponent") -> None:
     allowed_origins = component.get_cors_origins()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=allowed_origins,
+        # allow_origins=allowed_origins,
+        allow_origins=["*"],  # Allow all origins for development
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
