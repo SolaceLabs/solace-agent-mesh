@@ -8,7 +8,6 @@ export interface Project {
     userId: string;
     description?: string | null;
     systemPrompt?: string | null;
-    createdByUserId: string;
     createdAt: string; // ISO string
     updatedAt: string; // ISO string
 }

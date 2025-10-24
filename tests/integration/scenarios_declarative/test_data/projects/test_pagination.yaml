@@ -6,36 +6,26 @@ setup_projects:
   - id: "project-1"
     name: "Project 1"
     user_id: "sam_dev_user"
-    
-    created_by_user_id: "sam_dev_user"
     created_at_iso: "2024-01-01T10:00:00+00:00"
   
   - id: "project-2"
     name: "Project 2"
     user_id: "sam_dev_user"
-    
-    created_by_user_id: "sam_dev_user"
     created_at_iso: "2024-01-02T10:00:00+00:00"
   
   - id: "project-3"
     name: "Project 3"
     user_id: "sam_dev_user"
-    
-    created_by_user_id: "sam_dev_user"
     created_at_iso: "2024-01-03T10:00:00+00:00"
   
   - id: "project-4"
     name: "Project 4"
     user_id: "sam_dev_user"
-    
-    created_by_user_id: "sam_dev_user"
     created_at_iso: "2024-01-04T10:00:00+00:00"
   
   - id: "project-5"
     name: "Project 5"
     user_id: "sam_dev_user"
-    
-    created_by_user_id: "sam_dev_user"
     created_at_iso: "2024-01-05T10:00:00+00:00"
 
 expected_http_responses:

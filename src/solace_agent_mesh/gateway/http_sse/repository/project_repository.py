@@ -5,9 +5,10 @@ from typing import List, Optional
 import uuid
 
 from sqlalchemy.orm import Session as DBSession
+from sqlalchemy import or_
 
 from .interfaces import IProjectRepository
-from .models import ProjectModel
+from .models import ProjectModel, ProjectUserModel
 from .entities.project import Project
 from ..routers.dto.requests.project_requests import ProjectFilter
 from ..shared import now_epoch_ms
@@ -20,8 +21,7 @@ class ProjectRepository(IProjectRepository):
         self.db = db
 
     def create_project(self, name: str, user_id: str, description: Optional[str] = None,
-                      system_prompt: Optional[str] = None,
-                      created_by_user_id: Optional[str] = None) -> Project:
+                      system_prompt: Optional[str] = None) -> Project:
         """Create a new user project."""
         model = ProjectModel(
             id=str(uuid.uuid4()),
@@ -29,7 +29,6 @@ class ProjectRepository(IProjectRepository):
             user_id=user_id,
             description=description,
             system_prompt=system_prompt,
-            created_by_user_id=created_by_user_id or user_id,
             created_at=now_epoch_ms(),
         )
         self.db.add(model)
@@ -38,8 +37,40 @@ class ProjectRepository(IProjectRepository):
         return self._model_to_entity(model)
 
     def get_user_projects(self, user_id: str) -> List[Project]:
-        """Get all projects owned by a specific user."""
+        """
+        Get all projects owned by a specific user.
+        
+        Note: This returns only projects where the user is the owner (user_id matches).
+        For projects the user has access to via project_users table, use get_accessible_projects().
+        """
         models = self.db.query(ProjectModel).filter(ProjectModel.user_id == user_id).all()
+        return [self._model_to_entity(model) for model in models]
+    
+    def get_accessible_projects(self, user_id: str) -> List[Project]:
+        """
+        Get all projects accessible by a user (owned or shared).
+        
+        This includes:
+        - Projects owned by the user (user_id matches)
+        - Projects shared with the user (via project_users table)
+        
+        Args:
+            user_id: The user ID
+            
+        Returns:
+            List[Project]: List of accessible projects
+        """
+        # Query for projects where user is owner OR has access via project_users
+        models = self.db.query(ProjectModel).outerjoin(
+            ProjectUserModel,
+            ProjectModel.id == ProjectUserModel.project_id
+        ).filter(
+            or_(
+                ProjectModel.user_id == user_id,
+                ProjectUserModel.user_id == user_id
+            )
+        ).distinct().all()
+        
         return [self._model_to_entity(model) for model in models]
 
     def get_filtered_projects(self, project_filter: ProjectFilter) -> List[Project]:
@@ -48,18 +79,25 @@ class ProjectRepository(IProjectRepository):
         
         if project_filter.user_id is not None:
             query = query.filter(ProjectModel.user_id == project_filter.user_id)
-        
-        if project_filter.created_by_user_id is not None:
-            query = query.filter(ProjectModel.created_by_user_id == project_filter.created_by_user_id)
 
         models = query.all()
         return [self._model_to_entity(model) for model in models]
 
     def get_by_id(self, project_id: str, user_id: str) -> Optional[Project]:
-        """Get a project by its ID, ensuring user access."""
-        model = self.db.query(ProjectModel).filter(
+        """
+        Get a project by its ID, ensuring user access.
+        
+        This checks if the user is the owner OR has access via project_users table.
+        """
+        model = self.db.query(ProjectModel).outerjoin(
+            ProjectUserModel,
+            ProjectModel.id == ProjectUserModel.project_id
+        ).filter(
             ProjectModel.id == project_id,
-            ProjectModel.user_id == user_id
+            or_(
+                ProjectModel.user_id == user_id,
+                ProjectUserModel.user_id == user_id
+            )
         ).first()
         
         return self._model_to_entity(model) if model else None
@@ -100,7 +138,6 @@ class ProjectRepository(IProjectRepository):
             user_id=model.user_id,
             description=model.description,
             system_prompt=model.system_prompt,
-            created_by_user_id=model.created_by_user_id,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )

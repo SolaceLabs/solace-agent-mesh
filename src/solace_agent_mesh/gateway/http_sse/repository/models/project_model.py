@@ -19,12 +19,12 @@ class ProjectModel(Base):
     user_id = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
-    created_by_user_id = Column(String, nullable=False)
     created_at = Column(BigInteger, nullable=False)  # Epoch timestamp in milliseconds
     updated_at = Column(BigInteger, nullable=True)   # Epoch timestamp in milliseconds
     
     # Relationships
     sessions = relationship("SessionModel", back_populates="project")
+    project_users = relationship("ProjectUserModel", back_populates="project", cascade="all, delete-orphan")
 
 
 class CreateProjectModel(BaseModel):
@@ -34,7 +34,6 @@ class CreateProjectModel(BaseModel):
     user_id: str | None = None
     description: str | None = None
     system_prompt: str | None = None
-    created_by_user_id: str
     created_at: int
     updated_at: int | None = None
 

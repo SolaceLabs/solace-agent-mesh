@@ -16,7 +16,6 @@ class ProjectResponse(BaseTimestampResponse):
     user_id: str = Field(alias="userId")
     description: Optional[str] = None
     system_prompt: Optional[str] = Field(default=None, alias="systemPrompt")
-    created_by_user_id: str = Field(alias="createdByUserId")
     created_at: int = Field(alias="createdAt")
     updated_at: Optional[int] = Field(default=None, alias="updatedAt")
 

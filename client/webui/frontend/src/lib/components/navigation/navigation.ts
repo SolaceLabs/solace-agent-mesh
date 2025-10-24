@@ -2,7 +2,7 @@ import { MessageCircle, Bot, SunMoon, PanelsTopLeft } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
-export const topNavigationItems: NavigationItem[] = [
+const allTopNavigationItems: NavigationItem[] = [
     {
         id: "chat",
         label: "Chat",
@@ -28,3 +28,21 @@ export const bottomNavigationItems: NavigationItem[] = [
         onClick: () => {}, // Will be handled in NavigationList
     },
 ];
+
+/**
+ * Get filtered top navigation items based on feature flags
+ * @param projectsEnabled - Whether projects feature is enabled
+ * @returns Filtered navigation items
+ */
+export function getTopNavigationItems(projectsEnabled: boolean = true): NavigationItem[] {
+    return allTopNavigationItems.filter(item => {
+        // Filter out projects item if projects are disabled
+        if (item.id === "projects" && !projectsEnabled) {
+            return false;
+        }
+        return true;
+    });
+}
+
+// Export default items for backward compatibility (with projects enabled)
+export const topNavigationItems = getTopNavigationItems(true);

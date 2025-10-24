@@ -31,7 +31,7 @@ export const ProjectMetadataSidebar: React.FC<ProjectMetadataSidebarProps> = ({
             const updateData: UpdateProjectData = { systemPrompt };
             await updateProject(selectedProject.id, updateData);
         } catch (error) {
-            console.error("Failed to update system prompt:", error);
+            console.error("Failed to update instructions:", error);
         } finally {
             setIsSaving(false);
         }

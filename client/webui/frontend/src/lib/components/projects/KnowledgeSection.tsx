@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Upload, FileText, ChevronDown, ChevronRight } from "lucide-react";
+import { Upload } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
 import { Spinner } from "@/lib/components/ui/spinner";
@@ -20,9 +20,9 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const { onDownload } = useDownload(project.id);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const [isCollapsed, setIsCollapsed] = useState(false);
     const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
 
     const handleUploadClick = () => {
         fileInputRef.current?.click();
@@ -37,6 +37,31 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         }
         if (event.target) {
             event.target.value = "";
+        }
+    };
+
+    const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragging(false);
+
+        const files = event.dataTransfer.files;
+        if (files && files.length > 0) {
+            const dataTransfer = new DataTransfer();
+            Array.from(files).forEach(file => dataTransfer.items.add(file));
+            setFilesToUpload(dataTransfer.files);
         }
     };
 
@@ -66,61 +91,68 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
 
     return (
         <div className="border-b">
-            <div
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-accent/50"
-                onClick={() => setIsCollapsed(!isCollapsed)}
-            >
+            <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
-                    {isCollapsed ? (
-                        <ChevronRight className="h-4 w-4" />
-                    ) : (
-                        <ChevronDown className="h-4 w-4" />
-                    )}
                     <h3 className="text-sm font-semibold text-foreground">Knowledge</h3>
                     {!isLoading && artifacts.length > 0 && (
                         <span className="text-xs text-muted-foreground">({artifacts.length})</span>
                     )}
                 </div>
-                {!isCollapsed && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleUploadClick();
-                        }}
-                    >
-                        <Upload className="h-4 w-4 mr-2" />
-                        Upload
-                    </Button>
-                )}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleUploadClick}
+                >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload
+                </Button>
             </div>
 
-            {!isCollapsed && (
-                <div className="px-4 pb-3">
-                    {isLoading && (
-                        <div className="flex items-center justify-center p-4">
-                            <Spinner size="small" />
-                        </div>
-                    )}
+            <div
+                className="px-4 pb-3"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
+                {isLoading && (
+                    <div className="flex items-center justify-center p-4">
+                        <Spinner size="small" />
+                    </div>
+                )}
 
-                    {error && (
-                        <div className="text-sm text-destructive p-3 border border-destructive/50 rounded-md">
-                            Error loading files: {error}
-                        </div>
-                    )}
+                {error && (
+                    <div className="text-sm text-destructive p-3 border border-destructive/50 rounded-md">
+                        Error loading files: {error}
+                    </div>
+                )}
 
-                    {!isLoading && !error && artifacts.length === 0 && (
-                        <div className="flex flex-col items-center justify-center p-6 text-center border border-dashed rounded-md">
-                            <FileText className="h-8 w-8 text-muted-foreground mb-2" />
-                            <p className="text-sm text-muted-foreground">
-                                No files uploaded yet
+                {!isLoading && !error && artifacts.length === 0 && (
+                    <div className={`flex flex-col items-center justify-center p-6 text-center border-2 border-dashed rounded-md transition-all ${
+                        isDragging ? "border-primary bg-primary/10 scale-[1.02]" : "border-muted-foreground/30"
+                    }`}>
+                        <Upload className={`h-10 w-10 mb-3 transition-colors ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
+                        <p className={`text-sm font-medium mb-1 transition-colors ${isDragging ? "text-primary" : "text-foreground"}`}>
+                            {isDragging ? "Drop files here to upload" : "Drag and drop files here"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            or click the Upload button above
+                        </p>
+                    </div>
+                )}
+
+                {!isLoading && !error && artifacts.length > 0 && (
+                    <>
+                        <div className={`mb-2 p-3 border-2 border-dashed rounded-md text-center transition-all ${
+                            isDragging
+                                ? "border-primary bg-primary/10 scale-[1.02]"
+                                : "border-muted-foreground/20 bg-muted/30"
+                        }`}>
+                            <Upload className={`h-5 w-5 mx-auto mb-1 transition-colors ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
+                            <p className={`text-xs transition-colors ${isDragging ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                                {isDragging ? "Drop files here to upload" : "Drag and drop files here to upload"}
                             </p>
                         </div>
-                    )}
-
-                    {!isLoading && !error && artifacts.length > 0 && (
-                        <div className="space-y-1 max-h-[400px] overflow-y-auto">
+                        <div className="space-y-1 max-h-[400px] overflow-y-auto rounded-md">
                             {artifacts.map((artifact) => (
                                 <DocumentListItem
                                     key={artifact.filename}
@@ -130,17 +162,17 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                                 />
                             ))}
                         </div>
-                    )}
+                    </>
+                )}
 
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        className="hidden"
-                        multiple
-                    />
-                </div>
-            )}
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    multiple
+                />
+            </div>
 
             <AddProjectFilesDialog
                 isOpen={!!filesToUpload}

@@ -7,16 +7,13 @@ setup_projects:
     name: "Test Project 1"
     user_id: "sam_dev_user"
     description: "First test project"
-    system_prompt: "You are a helpful assistant for project 1"    
-    created_by_user_id: "sam_dev_user"
+    system_prompt: "You are a helpful assistant for project 1"
     created_at_iso: "2024-01-01T10:00:00+00:00"
   
   - id: "test-project-unique-002"
     name: "Test Project 2"
     user_id: "sam_dev_user"
     description: "Second test project"
-    
-    created_by_user_id: "sam_dev_user"
     created_at_iso: "2024-01-02T10:00:00+00:00"
 
 expected_http_responses:
