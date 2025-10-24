@@ -210,10 +210,10 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             <div className="mb-1.5 flex items-center">
                 {getStepIcon()}
                 <div className="flex w-full flex-wrap justify-between gap-2">
-                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-200" title={step.title}>
+                    <h4 className="text-sm font-semibold" title={step.title}>
                         {step.title}
                     </h4>
-                    <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{displayTimestamp}</span>
+                    <span className="text-muted-foreground font-mono text-xs">{displayTimestamp}</span>
                 </div>
             </div>
             {step.delegationInfo && step.delegationInfo.length > 0 && (
