@@ -208,8 +208,8 @@ class BaseGatewayComponent(SamComponentBase):
         user_identity: Any,
         is_streaming: bool = True,
         api_version: str = "v2",
-        task_id_override: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        task_id_override: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         log_id_prefix = f"{self.log_identifier}[SubmitA2ATask]"
         log.info(

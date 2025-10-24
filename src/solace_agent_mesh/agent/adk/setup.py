@@ -2,40 +2,31 @@
 Handles ADK Agent and Runner initialization, including tool loading and callback assignment.
 """
 
-import logging
-from typing import Dict, List, Optional, Union, Callable, Tuple, Set, Any, TYPE_CHECKING, Type
 import functools
 import inspect
-from solace_ai_connector.common.utils import import_module
-from ...common.utils.type_utils import is_subclass_by_name
-from ...common.middleware.registry import MiddlewareRegistry
+import logging
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
-
-from .app_llm_agent import AppLlmAgent
-from .tool_wrapper import ADKToolWrapper
-from .embed_resolving_mcp_toolset import EmbedResolvingMCPToolset
-from google.adk.runners import Runner
-from google.adk.models import BaseLlm
-from google.adk.tools import BaseTool, ToolContext
 from google.adk import tools as adk_tools_module
 from google.adk.agents.callback_context import CallbackContext
+from google.adk.models import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
+from google.adk.runners import Runner
+from google.adk.tools import BaseTool, ToolContext
 from google.adk.tools.mcp_tool.mcp_session_manager import (
     SseServerParams,
     StdioConnectionParams,
     StreamableHTTPServerParams,
-
 )
-
 from mcp import StdioServerParameters
+from solace_ai_connector.common.utils import import_module
 
-if TYPE_CHECKING:
-    from ..sac.component import SamAgentComponent
-
-from ..tools.registry import tool_registry
-from ..tools.tool_definition import BuiltinTool
+from ...agent.adk import callbacks as adk_callbacks
+from ...agent.adk.models.lite_llm import LiteLlm
+from ...common.utils.type_utils import is_subclass_by_name
 from ..tools.dynamic_tool import DynamicTool, DynamicToolProvider
+from ..tools.registry import tool_registry
 from ..tools.tool_config_types import (
     AnyToolConfig,
     BuiltinToolConfig,
@@ -43,10 +34,13 @@ from ..tools.tool_config_types import (
     McpToolConfig,
     PythonToolConfig,
 )
+from ..tools.tool_definition import BuiltinTool
+from .app_llm_agent import AppLlmAgent
+from .embed_resolving_mcp_toolset import EmbedResolvingMCPToolset
+from .tool_wrapper import ADKToolWrapper
 
-
-from ...agent.adk import callbacks as adk_callbacks
-from ...agent.adk.models.lite_llm import LiteLlm
+if TYPE_CHECKING:
+    from ..sac.component import SamAgentComponent
 
 log = logging.getLogger(__name__)
 

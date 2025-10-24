@@ -2,51 +2,51 @@
 Contains event handling logic for the A2A_ADK_HostComponent.
 """
 
-import logging
-import json
 import asyncio
-from typing import TYPE_CHECKING, Dict, Any
 import fnmatch
-from solace_ai_connector.common.message import Message as SolaceMessage
-from ...agent.adk.callbacks import _publish_data_part_status_update
-from ...common.data_parts import ToolResultData
-from ...common.a2a.types import ToolsExtensionParams
-from solace_ai_connector.common.event import Event, EventType
+import json
+import logging
+from typing import TYPE_CHECKING, Any, Dict
+
 from a2a.types import (
     A2ARequest,
-    AgentCard,
     AgentCapabilities,
+    AgentCard,
     AgentExtension,
     DataPart,
     JSONRPCResponse,
     Task,
     TaskArtifactUpdateEvent,
-    TaskStatusUpdateEvent,
     TaskState,
+    TaskStatusUpdateEvent,
     TextPart,
 )
+from google.adk.agents import RunConfig
+from google.adk.agents.run_config import StreamingMode
+from solace_ai_connector.common.event import Event, EventType
+from solace_ai_connector.common.message import Message as SolaceMessage
+
+from ...agent.adk.callbacks import _publish_data_part_status_update
+from ...agent.adk.runner import run_adk_async_task_thread_wrapper
+from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
 from ...common.a2a import (
     get_agent_request_topic,
-    get_discovery_topic,
-    translate_a2a_to_adk_content,
-    get_client_response_topic,
     get_agent_response_subscription_topic,
     get_agent_status_subscription_topic,
+    get_client_response_topic,
+    get_discovery_topic,
     get_sam_events_subscription_topic,
     get_text_from_message,
     topic_matches_subscription,
+    translate_a2a_to_adk_content,
 )
-from ...agent.utils.artifact_helpers import (
-    generate_artifact_metadata_summary,
-)
-from ...agent.adk.runner import run_adk_async_task_thread_wrapper
+from ...common.a2a.types import ToolsExtensionParams
+from ...common.data_parts import ToolResultData
 from ..sac.task_execution_context import TaskExecutionContext
-from google.adk.agents import RunConfig
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
-from google.adk.agents.run_config import StreamingMode
 
 log = logging.getLogger(__name__)
 
@@ -247,7 +247,7 @@ async def process_event(component, event: Event):
 
 async def _publish_peer_tool_result_notification(
     component: "SamAgentComponent",
-    correlation_data: Dict[str, Any],
+    correlation_data: dict[str, Any],
     payload_to_queue: Any,
     log_identifier: str,
 ):
@@ -1006,13 +1006,13 @@ def handle_agent_card_message(component, message: SolaceMessage):
                     break
 
         if is_allowed:
-            
+
             # Also store in peer_agents for backward compatibility
             component.peer_agents[agent_name] = agent_card
 
             # Store the agent card in the registry for health tracking
             is_new = component.agent_registry.add_or_update_agent(agent_card)
-            
+
             if is_new:
                 log.info(
                     "%s Registered new agent '%s' in registry.",

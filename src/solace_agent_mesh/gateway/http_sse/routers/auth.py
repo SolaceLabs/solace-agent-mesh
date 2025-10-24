@@ -3,19 +3,20 @@ Router for handling authentication-related endpoints.
 """
 
 import logging
-from fastapi import (
-    APIRouter,
-    Request as FastAPIRequest,
-    Depends,
-    HTTPException,
-    Response,
-)
-from fastapi.responses import RedirectResponse, HTMLResponse
-import httpx
 import secrets
 from urllib.parse import urlencode
 
-from ...http_sse.dependencies import get_sac_component, get_api_config
+import httpx
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request as FastAPIRequest,
+    Response,
+)
+from fastapi.responses import HTMLResponse, RedirectResponse
+
+from ...http_sse.dependencies import get_api_config, get_sac_component
 
 log = logging.getLogger(__name__)
 
@@ -248,7 +249,7 @@ async def auth_tool_callback(
 
     # Get the current request URL for logging/debugging
     url = str(request.url)
-    
+
 
     if not code:
         log.warning("OAuth2 tool callback received without authorization code")
@@ -266,9 +267,9 @@ async def auth_tool_callback(
             """,
             status_code=400
         )
-    
+
     log.info(f"OAuth2 tool callback received authorization code: {code}")
-    
+
     try:
         from solace_agent_mesh_enterprise.auth.input_required import process_auth_grant_response
         await process_auth_grant_response(component, code, state, url)

@@ -10,32 +10,24 @@ The base class is determined at import time based on enterprise package availabi
 """
 
 import logging
-import asyncio
-from typing import Dict, List, Optional, Any, Tuple, Type
+from typing import Any
 
-from google.adk.tools.mcp_tool import MCPToolset, MCPTool
-from google.adk.tools.mcp_tool.mcp_session_manager import (
-    SseConnectionParams,
-    StdioConnectionParams,
-    StreamableHTTPConnectionParams,
-)
 from google.adk.auth.credential_manager import CredentialManager
-
+from google.adk.tools.mcp_tool import MCPTool, MCPToolset
 from google.adk.tools.tool_context import ToolContext
 
-
-from ..utils.context_helpers import get_original_session_id
 from ...common.utils.embeds import (
-    resolve_embeds_in_string,
-    evaluate_embed,
     EARLY_EMBED_TYPES,
-    LATE_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
+    LATE_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
 )
+from ..utils.context_helpers import get_original_session_id
 
 log = logging.getLogger(__name__)
 
-def _get_base_mcp_toolset_class() -> Tuple[Type[MCPToolset], bool]:
+def _get_base_mcp_toolset_class() -> tuple[type[MCPToolset], bool]:
     """
     Factory function to determine which base MCP toolset class to use for inheritance.
 
@@ -57,7 +49,7 @@ def _get_base_mcp_toolset_class() -> Tuple[Type[MCPToolset], bool]:
         return (MCPToolset, False)
 
 
-def _get_base_mcp_tool_class() -> Tuple[Type[MCPTool], bool]:
+def _get_base_mcp_tool_class() -> tuple[type[MCPTool], bool]:
     """
     Factory function to determine which base MCP tool class to use for inheritance.
 
@@ -93,8 +85,8 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
     def __init__(
         self,
         original_mcp_tool: MCPTool,
-        tool_config: Optional[Dict] = None,
-        credential_manager: Optional[CredentialManager] = None,
+        tool_config: dict | None = None,
+        credential_manager: CredentialManager | None = None,
     ):
         # Copy all attributes from the original tool
         if _base_supports_tool_config:
@@ -352,8 +344,8 @@ class EmbedResolvingMCPToolset(_BaseMcpToolsetClass):
         auth_scheme=None,
         auth_credential=None,
         auth_discovery=None,
-        tool_config: Optional[Dict] = None,
-        credential_manager: Optional[CredentialManager] = None,
+        tool_config: dict | None = None,
+        credential_manager: CredentialManager | None = None,
     ):
         # Store tool_config for later use
         self._tool_config = tool_config or {}
@@ -380,7 +372,7 @@ class EmbedResolvingMCPToolset(_BaseMcpToolsetClass):
         self._tool_cache = []
         self._credential_manager = credential_manager
 
-    async def get_tools(self, readonly_context=None) -> List[MCPTool]:
+    async def get_tools(self, readonly_context=None) -> list[MCPTool]:
         """
         Override get_tools to return EmbedResolvingMCPTool instances.
         """
@@ -409,3 +401,4 @@ class EmbedResolvingMCPToolset(_BaseMcpToolsetClass):
 
         self._tool_cache = embed_resolving_tools
         return embed_resolving_tools
+

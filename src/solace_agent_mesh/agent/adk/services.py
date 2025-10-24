@@ -5,22 +5,12 @@ Initializes ADK Services based on configuration.
 import logging
 import os
 import re
-from typing import Dict, Optional, List, Any
-from typing_extensions import override
+from typing import Any, Dict, List, Optional
 
-from google.genai import types as adk_types
-
-
-from google.adk.sessions import (
-    BaseSessionService,
-    InMemorySessionService,
-    DatabaseSessionService,
-    VertexAiSessionService,
-)
 from google.adk.artifacts import (
     BaseArtifactService,
-    InMemoryArtifactService,
     GcsArtifactService,
+    InMemoryArtifactService,
 )
 from google.adk.auth.credential_service.base_credential_service import (
     BaseCredentialService,
@@ -33,6 +23,14 @@ from google.adk.memory import (
     InMemoryMemoryService,
     VertexAiRagMemoryService,
 )
+from google.adk.sessions import (
+    BaseSessionService,
+    DatabaseSessionService,
+    InMemorySessionService,
+    VertexAiSessionService,
+)
+from google.genai import types as adk_types
+from typing_extensions import override
 
 from .artifacts.filesystem_artifact_service import FilesystemArtifactService
 
@@ -398,7 +396,7 @@ def initialize_memory_service(component) -> BaseMemoryService:
         )
 
 
-def initialize_credential_service(component) -> Optional[BaseCredentialService]:
+def initialize_credential_service(component) -> BaseCredentialService | None:
     """Initializes the ADK Credential Service based on configuration."""
     config = component.get_config("credential_service", None)
 

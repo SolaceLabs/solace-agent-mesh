@@ -24,7 +24,6 @@ from google.adk.sessions import Session as ADKSession
 from google.genai import types as adk_types
 
 from ...common import a2a
-from ...common.middleware.registry import MiddlewareRegistry
 
 log = logging.getLogger(__name__)
 
