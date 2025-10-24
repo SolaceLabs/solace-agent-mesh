@@ -38,6 +38,7 @@ async def run_adk_async_task_thread_wrapper(
     adk_content: adk_types.Content,
     run_config: RunConfig,
     a2a_context: dict[str, Any],
+    append_context_event: bool = True,
 ):
     """
     Wrapper to run the async ADK task.
@@ -73,7 +74,7 @@ async def run_adk_async_task_thread_wrapper(
             logical_task_id,
         )
 
-        if adk_session and component.session_service:
+        if adk_session and component.session_service and append_context_event:
             context_setting_invocation_id = logical_task_id
             original_message = a2a_context.pop("original_solace_message", None)
             try:
@@ -111,11 +112,12 @@ async def run_adk_async_task_thread_wrapper(
                 if original_message:
                     a2a_context["original_solace_message"] = original_message
         else:
-            log.warning(
-                "%s Could not inject a2a_context into ADK session state via event for task %s (session or session_service invalid). Tool scope filtering might not work.",
-                component.log_identifier,
-                logical_task_id,
-            )
+            if append_context_event:
+                log.warning(
+                    "%s Could not inject a2a_context into ADK session state via event for task %s (session or session_service invalid). Tool scope filtering might not work.",
+                    component.log_identifier,
+                    logical_task_id,
+                )
 
         is_paused = await run_adk_async_task(
             component,

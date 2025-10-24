@@ -66,6 +66,7 @@ def create_status_update(
     message: Message,
     is_final: bool = False,
     metadata: Optional[Dict[str, Any]] = None,
+    state: TaskState = TaskState.working,
 ) -> TaskStatusUpdateEvent:
     """
     Creates a new TaskStatusUpdateEvent.
@@ -81,7 +82,7 @@ def create_status_update(
         A new `TaskStatusUpdateEvent` object.
     """
     task_status = task_helpers.create_task_status(
-        state=TaskState.working,
+        state=state,
         message=message,
     )
     return TaskStatusUpdateEvent(

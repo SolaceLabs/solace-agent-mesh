@@ -208,6 +208,8 @@ class BaseGatewayComponent(SamComponentBase):
         user_identity: Any,
         is_streaming: bool = True,
         api_version: str = "v2",
+        task_id_override: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         log_id_prefix = f"{self.log_identifier}[SubmitA2ATask]"
         log.info(
@@ -307,9 +309,15 @@ class BaseGatewayComponent(SamComponentBase):
                 log_id_prefix,
                 len(invoked_artifacts),
             )
+        
+        if metadata:
+            a2a_metadata.update(metadata)
 
         # This correlation ID is used by the gateway to track the task
-        task_id = f"gdk-task-{uuid.uuid4().hex}"
+        if task_id_override:
+            task_id = task_id_override
+        else:
+            task_id = f"gdk-task-{uuid.uuid4().hex}"
 
         prepared_a2a_parts = await self._prepare_parts_for_publishing(
             parts=a2a_parts,

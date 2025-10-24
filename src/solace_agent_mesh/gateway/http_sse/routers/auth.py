@@ -3,19 +3,20 @@ Router for handling authentication-related endpoints.
 """
 
 import logging
-from fastapi import (
-    APIRouter,
-    Request as FastAPIRequest,
-    Depends,
-    HTTPException,
-    Response,
-)
-from fastapi.responses import RedirectResponse
-import httpx
 import secrets
 from urllib.parse import urlencode
 
-from ...http_sse.dependencies import get_sac_component, get_api_config
+import httpx
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request as FastAPIRequest,
+    Response,
+)
+from fastapi.responses import HTMLResponse, RedirectResponse
+
+from ...http_sse.dependencies import get_api_config, get_sac_component
 
 log = logging.getLogger(__name__)
 
@@ -212,3 +213,99 @@ async def refresh_token(
         "access_token": access_token,
         "refresh_token": new_refresh_token,
     }
+
+
+@router.get("/auth/tool/callback")
+async def auth_tool_callback(
+    request: FastAPIRequest,
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+):
+    """
+    Handles OAuth2 authorization code grant response for tool authentication.
+    """
+    code = request.query_params.get("code")
+    state = request.query_params.get("state")
+    error = request.query_params.get("error")
+    error_description = request.query_params.get("error_description")
+
+    if error:
+        log.error(f"OAuth2 tool callback received error: {error} - {error_description}")
+        return HTMLResponse(
+            content=f"""
+            <html>
+                <head>
+                    <title>Authorization Error</title>
+                </head>
+                <body>
+                    <h2>Authorization Error</h2>
+                    <p>Error: {error}</p>
+                    <p>Description: {error_description or 'No description provided'}</p>
+                    <p>Please close this window and try again.</p>
+                </body>
+            </html>
+            """,
+            status_code=400
+        )
+
+    # Get the current request URL for logging/debugging
+    url = str(request.url)
+
+
+    if not code:
+        log.warning("OAuth2 tool callback received without authorization code")
+        return HTMLResponse(
+            content="""
+            <html>
+                <head>
+                    <title>Authorization Error</title>
+                </head>
+                <body>
+                    <h2>Authorization Error</h2>
+                    <p>No authorization code received. Please close this window and try again.</p>
+                </body>
+            </html>
+            """,
+            status_code=400
+        )
+
+    log.info(f"OAuth2 tool callback received authorization code: {code}")
+
+    try:
+        from solace_agent_mesh_enterprise.auth.input_required import process_auth_grant_response
+        await process_auth_grant_response(component, code, state, url)
+    except ImportError:
+        pass
+
+    # Return simple HTML page instructing user to close the window
+    return HTMLResponse(
+        content="""
+        <html>
+            <head>
+                <title>Authorization Complete</title>
+                <style>
+                    body {
+                        font-family: Arial, sans-serif;
+                        text-align: center;
+                        padding: 50px;
+                        background-color: #f5f5f5;
+                    }
+                    .container {
+                        background: white;
+                        padding: 30px;
+                        border-radius: 8px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                        display: inline-block;
+                    }
+                    h2 { color: #28a745; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h2>✓ Authorization Complete</h2>
+                    <p>You have successfully authorized the tool access.</p>
+                    <p><strong>Please close this window.</strong></p>
+                </div>
+            </body>
+        </html>
+        """
+    )

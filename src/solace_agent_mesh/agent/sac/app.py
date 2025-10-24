@@ -230,6 +230,32 @@ class ArtifactServiceConfig(SamConfigBase):
             )
         return self
 
+class AgentIdentityConfig(SamConfigBase):
+    """Configuration for agent identity and key management."""
+    key_mode: Literal["auto", "manual"] = Field(
+        default="auto",
+        description="Key mode for agent identity: 'auto' for automatic generation, 'manual' for user-provided."
+    )
+    key_identity: Optional[str] = Field(
+        default=None,
+        description="Actual key value when key_mode is 'manual'."
+    )
+    key_persistence: Optional[str] = Field(
+        default=None,
+        description="Path to the key file, e.g. '/path/to/keys/agent_{name}.key'."
+    )
+
+    @model_validator(mode="after")
+    def check_key_mode_and_identity(self) -> "AgentIdentityConfig":
+        if self.key_mode == "manual" and not self.key_identity:
+            raise ValueError(
+                "'key_identity' is required when 'key_mode' is 'manual'."
+            )
+        if self.key_mode == "auto" and self.key_identity:
+            log.warning(
+                "Configuration Warning: 'key_identity' is ignored when 'key_mode' is 'auto'."
+            )
+        return self
 
 class SessionServiceConfig(SamConfigBase):
     """Configuration for the ADK Session Service."""
@@ -243,6 +269,12 @@ class SessionServiceConfig(SamConfigBase):
     database_url: Optional[str] = Field(
         default=None, description="Database URL for SQL session services."
     )
+
+
+class CredentialServiceConfig(SamConfigBase):
+    """Configuration for the ADK Credential Service."""
+
+    type: str = Field(..., description="Service type (e.g., 'memory').")
 
 
 class SamAgentAppConfig(SamConfigBase):
@@ -263,6 +295,10 @@ class SamAgentAppConfig(SamConfigBase):
     )
     model: Union[str, Dict[str, Any]] = Field(
         ..., description="ADK model name (string) or BaseLlm config dict."
+    )
+    agent_identity: Optional[AgentIdentityConfig] = Field(
+        default_factory=lambda: AgentIdentityConfig(key_mode="auto"),
+        description="Configuration for agent identity and key management."
     )
     trust_manager: Optional[Union[TrustManagerConfig, Dict[str, Any]]] = Field(
         default=None,
@@ -305,6 +341,10 @@ class SamAgentAppConfig(SamConfigBase):
     memory_service: Dict[str, Any] = Field(
         default={"type": "memory"},
         description="Configuration for ADK Memory Service (defaults to memory).",
+    )
+    credential_service: Optional[CredentialServiceConfig] = Field(
+        default=None,
+        description="Configuration for ADK Credential Service (optional).",
     )
     multi_session_request_response: Dict[str, Any] = Field(
         default_factory=lambda: {"enabled": True},
