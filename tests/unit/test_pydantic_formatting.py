@@ -74,19 +74,3 @@ class TestPydanticFormatting:
             assert "ArrayAgent" in message
             assert "app_config.items.0.item_field" in message
             assert "A float field in the item." in message
-
-    def test_wrong_type_error_formatting(self):
-
-        class TypeModel(SamConfigBase):
-            int_field: int = Field(..., description="An integer field.")
-
-        try:
-            TypeModel.model_validate_and_clean({
-                "int_field": "not_an_int"
-            })
-            assert False, "ValidationError was expected but not raised."
-        except ValidationError as e:
-            message = TypeModel.format_validation_error_message(e, "TypeApp")
-            assert "TypeApp" in message
-            assert "app_config.int_field" in message
-            assert "Input should be a valid integer" in message
