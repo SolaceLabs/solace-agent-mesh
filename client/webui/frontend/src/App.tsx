@@ -14,6 +14,11 @@ function AppContent() {
     // Enable beforeunload warning when chat data is present
     useBeforeUnload();
 
+    // Get filtered navigation items based on feature flags
+    const topNavigationItems = useMemo(() => {
+        return getTopNavigationItems(projectsEnabled ?? false);
+    }, [projectsEnabled]);
+
     if (useAuthorization && !isAuthenticated) {
         return (
             <div className="bg-background flex h-screen items-center justify-center">
@@ -21,11 +26,6 @@ function AppContent() {
             </div>
         );
     }
-
-    // Get filtered navigation items based on feature flags
-    const topNavigationItems = useMemo(() => {
-        return getTopNavigationItems(projectsEnabled ?? false);
-    }, [projectsEnabled]);
 
     const handleNavItemChange = (itemId: string) => {
         const item = topNavigationItems.find(item => item.id === itemId) || bottomNavigationItems.find(item => item.id === itemId);
