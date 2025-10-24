@@ -67,3 +67,23 @@ export const DismissableBanner: Story = {
         onDismiss: () => alert("Banner will be dismissed"),
     },
 };
+
+export const BannerWithAction: Story = {
+    args: {
+        variant: "warning",
+        message: "Dissms me",
+        buttonText: "Click here",
+        action: () => alert("This action will do something"),
+    },
+};
+
+export const DismissableBannerWithAction: Story = {
+    args: {
+        variant: "info",
+        dismissible: true,
+        message: "Dissms me",
+        buttonText: "Click here",
+        action: () => alert("This action will do something"),
+        onDismiss: () => alert("Banner will be dismissed"),
+    },
+};
