@@ -1,8 +1,8 @@
 """Add project_users table for multi-user project access
 
-Revision ID: 20251023_add_project_users
-Revises: 20251023_remove_created_by_user_id
-Create Date: 2025-10-23
+Revision ID: add_project_users_table_001
+Revises: add_projects_table_001
+Create Date: 2025-10-24 10:01:00.000000
 
 """
 from typing import Sequence, Union
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '20251023_add_project_users'
-down_revision: Union[str, None] = '20251023_remove_created_by_user_id'
+revision: str = 'add_project_users_table_001'
+down_revision: Union[str, None] = 'add_projects_table_001'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
