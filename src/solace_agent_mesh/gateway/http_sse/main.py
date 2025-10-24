@@ -1,6 +1,12 @@
 import logging
 import os
 from pathlib import Path
+
+import httpx
+import sqlalchemy as sa
+from fastapi import FastAPI, HTTPException
+from fastapi import Request as FastAPIRequest
+from fastapi import status
 from typing import TYPE_CHECKING
 
 import httpx
@@ -18,10 +24,33 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
+from .routers.sessions import router as session_router
+from .routers.tasks import router as task_router
+from .routers.users import router as user_router
+from ...common import a2a
+from ...gateway.http_sse import dependencies
+from .routers import (
+    agent_cards,
+    artifacts,
+    auth,
+    config,
+    people,
+    sse,
+    visualization,
+    projects
+)
+from .routers.sessions import router as session_router
+from .routers.tasks import router as task_router
+from .routers.users import router as user_router
+
+from alembic import command
+from alembic.config import Config
+
+from a2a.types import InternalError, InvalidRequestError, JSONRPCError
+from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
 from ...common import a2a
 from ...gateway.http_sse import dependencies
 from ...gateway.http_sse.routers import (
-    agent_cards,
     artifacts,
     auth,
     config,
@@ -31,9 +60,8 @@ from ...gateway.http_sse.routers import (
     visualization,
     feedback,
 )
-from .routers.sessions import router as session_router
-from .routers.tasks import router as task_router
-from .routers.users import router as user_router
+
+# from .infrastructure.persistence import DatabaseService  # Removed with infrastructure
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -575,6 +603,7 @@ def _setup_routers() -> None:
     )
     app.include_router(people.router, prefix=api_prefix, tags=["People"])
     app.include_router(auth.router, prefix=api_prefix, tags=["Auth"])
+    app.include_router(projects.router, prefix=api_prefix, tags=["Projects"])
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 

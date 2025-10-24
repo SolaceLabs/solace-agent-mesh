@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 
+import { FolderOpen } from "lucide-react";
+
 import { useChatContext, useDownload } from "@/lib/hooks";
 import { formatBytes } from "@/lib/utils/format";
 import type { ArtifactInfo } from "@/lib/types";
@@ -10,19 +12,40 @@ import { getFileIcon } from "../file/fileUtils";
 interface ArtifactCardProps {
     artifact: ArtifactInfo;
     isPreview?: boolean;
+    isProjectManagementContext?: boolean;
+    onDelete?: () => void;
 }
 
-export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview }) => {
+export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview, isProjectManagementContext = false, onDelete: onDeleteProp }) => {
     const { openDeleteModal, setPreviewArtifact } = useChatContext();
     const { onDownload } = useDownload();
 
     const [isExpanded, setIsExpanded] = useState(false);
 
-    const onDelete = () => {
-        if (isPreview) {
-            setPreviewArtifact(null);
+    const getArtifactBadge = (artifact: ArtifactInfo) => {
+        console.log("arttifact",artifact)
+        if (artifact.source === 'project') {
+            return {
+                label: 'Project',
+                icon: <FolderOpen className="h-3 w-3" />,
+                className: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+                readonly: !isProjectManagementContext
+            };
         }
-        openDeleteModal(artifact);
+        return null;
+    };
+
+    const badge = getArtifactBadge(artifact);
+
+    const handleDelete = () => {
+        if (onDeleteProp) {
+            onDeleteProp();
+        } else {
+            if (isPreview) {
+                setPreviewArtifact(null);
+            }
+            openDeleteModal(artifact);
+        }
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,8 +110,9 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
 
     return (
         <div
-            className={`group relative w-full border-b px-4 py-3 transition-all duration-150 ${isPreview ? "" : "cursor-pointer hover:bg-[var(--accent-background)]"}`}
+            className={`group relative w-full border-b px-4 py-3 transition-all duration-150 ${isPreview || isProjectManagementContext ? "" : "cursor-pointer hover:bg-[var(--accent-background)]"}`}
             onClick={e => {
+                if (isProjectManagementContext && isExpanded) return;
                 e.stopPropagation();
                 setPreviewArtifact(artifact);
             }}
@@ -104,9 +128,11 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
             aria-expanded={isExpanded}
         >
             <div className="flex items-start space-x-2">
-                <div className="flex-shrink-0 pt-0.5">{getFileIcon(artifact, "h-4 w-4 flex-shrink-0")}</div>
+                <div className="flex-shrink-0 pt-0.5">
+                    {getFileIcon(artifact, "h-4 w-4 flex-shrink-0")}
+                </div>
                 <div className="min-w-0 flex-grow">
-                    <ArtifactDetails artifactInfo={artifact} isExpanded={isExpanded} onDelete={onDelete} onDownload={onDownload} setIsExpanded={setIsExpanded} isPreview={isPreview} />
+                    <ArtifactDetails artifactInfo={artifact} isExpanded={isExpanded} onDelete={badge?.readonly ? undefined : handleDelete} onDownload={onDownload} setIsExpanded={setIsExpanded} isPreview={isPreview} badge={badge} />
                     {isExpanded && (
                         <div className={`text-xs`}>
                             <div className="mt-1 text-xs break-words whitespace-pre-wrap italic">{artifact.description || "No description."}</div>

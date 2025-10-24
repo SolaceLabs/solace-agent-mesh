@@ -1,0 +1,41 @@
+test_case_id: test_update_project
+description: Test PUT /api/v1/projects/{id} updates project successfully
+tags: [projects, api]
+
+setup_projects:
+  - id: "project-to-update"
+    name: "Original Name"
+    user_id: "sam_dev_user"
+    description: "Original description"
+    system_prompt: "Original prompt"
+    created_at_iso: "2024-01-10T10:00:00+00:00"
+
+expected_http_responses:
+  - description: "Update project name and description"
+    request:
+      method: PUT
+      path: /api/v1/projects/project-to-update
+      query_params:
+        user_id: "sam_dev_user"
+      json_body:
+        name: "Updated Name"
+        description: "Updated description"
+        system_prompt: "Updated prompt"
+    expected_status_code: 200
+    text_contains:
+      - '"id":"project-to-update"'
+      - '"name":"Updated Name"'
+      - '"description":"Updated description"'
+      - '"userId":"sam_dev_user"'
+  
+  - description: "Verify update persisted"
+    request:
+      method: GET
+      path: /api/v1/projects/project-to-update
+      query_params:
+        user_id: "sam_dev_user"
+    expected_status_code: 200
+    text_contains:
+      - '"id":"project-to-update"'
+      - '"name":"Updated Name"'
+      - '"description":"Updated description"'

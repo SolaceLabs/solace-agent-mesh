@@ -1,0 +1,75 @@
+test_case_id: test_pagination
+description: Test pagination works correctly for GET /api/v1/projects
+tags: [projects, api, pagination]
+
+setup_projects:
+  - id: "project-1"
+    name: "Project 1"
+    user_id: "sam_dev_user"
+    created_at_iso: "2024-01-01T10:00:00+00:00"
+  
+  - id: "project-2"
+    name: "Project 2"
+    user_id: "sam_dev_user"
+    created_at_iso: "2024-01-02T10:00:00+00:00"
+  
+  - id: "project-3"
+    name: "Project 3"
+    user_id: "sam_dev_user"
+    created_at_iso: "2024-01-03T10:00:00+00:00"
+  
+  - id: "project-4"
+    name: "Project 4"
+    user_id: "sam_dev_user"
+    created_at_iso: "2024-01-04T10:00:00+00:00"
+  
+  - id: "project-5"
+    name: "Project 5"
+    user_id: "sam_dev_user"
+    created_at_iso: "2024-01-05T10:00:00+00:00"
+
+expected_http_responses:
+  - description: "Get first page (limit 2)"
+    request:
+      method: GET
+      path: /api/v1/projects
+      query_params:
+        user_id: "sam_dev_user"
+        limit: 2
+        offset: 0
+    expected_status_code: 200
+    text_contains:
+      - '"projects":'
+      - '"total":'
+      - '"id":"project-1"'
+      - '"name":"Project 1"'
+  
+  - description: "Get second page (limit 2, offset 2)"
+    request:
+      method: GET
+      path: /api/v1/projects
+      query_params:
+        user_id: "sam_dev_user"
+        limit: 2
+        offset: 2
+    expected_status_code: 200
+    text_contains:
+      - '"projects":'
+      - '"total":'
+      - '"id":"project-3"'
+      - '"name":"Project 3"'
+  
+  - description: "Get last page (limit 2, offset 4)"
+    request:
+      method: GET
+      path: /api/v1/projects
+      query_params:
+        user_id: "sam_dev_user"
+        limit: 2
+        offset: 4
+    expected_status_code: 200
+    text_contains:
+      - '"projects":'
+      - '"total":'
+      - '"id":"project-5"'
+      - '"name":"Project 5"'

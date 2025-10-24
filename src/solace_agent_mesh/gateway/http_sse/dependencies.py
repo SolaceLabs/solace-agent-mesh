@@ -19,6 +19,7 @@ from ...core_a2a.service import CoreA2AService
 from ...gateway.base.task_context import TaskContextManager
 from ...gateway.http_sse.services.agent_card_service import AgentCardService
 from ...gateway.http_sse.services.people_service import PeopleService
+from ...gateway.http_sse.services.project_service import ProjectService
 from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.services.feedback_service import FeedbackService
 from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
@@ -27,6 +28,7 @@ from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .repository import SessionRepository
 from .repository.interfaces import ITaskRepository
+from .repository.project_repository import ProjectRepository
 from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
 
@@ -547,6 +549,13 @@ def get_session_validator(
         return validate_without_database
 
 
+def get_project_service(
+    db: Session = Depends(get_db),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> ProjectService:
+    """Dependency factory for ProjectService."""
+    project_repository = ProjectRepository(db)
+    return ProjectService(project_repository, component)
 def get_db_optional() -> Generator[Session | None, None, None]:
     """Optional database dependency that returns None if database is not configured."""
     if SessionLocal is None:

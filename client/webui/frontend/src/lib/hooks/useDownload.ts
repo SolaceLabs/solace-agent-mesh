@@ -4,15 +4,33 @@ import { downloadBlob } from "../utils/download";
 
 import { useChatContext } from "./useChatContext";
 import { useConfigContext } from "./useConfigContext";
+import { useProjectContext } from "../providers/ProjectProvider";
 
 /**
  * Downloads an artifact file from the server
  * @param apiPrefix - The API prefix URL
  * @param sessionId - The session ID to download artifacts from
+ * @param activeProjectId - The active project ID (for project context)
  * @param artifact - The artifact to download
  */
-const downloadArtifactFile = async (apiPrefix: string, sessionId: string, artifact: ArtifactInfo) => {
-    const response = await authenticatedFetch(`${apiPrefix}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifact.filename)}`, {
+const downloadArtifactFile = async (
+    apiPrefix: string, 
+    sessionId: string | null, 
+    activeProjectId: string | null, 
+    artifact: ArtifactInfo
+) => {
+    let url: string;
+    
+    // Determine the correct URL based on context
+    if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+        url = `${apiPrefix}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifact.filename)}`;
+    } else if (activeProjectId) {
+        url = `${apiPrefix}/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${activeProjectId}`;
+    } else {
+        throw new Error("No valid context for artifact download");
+    }
+
+    const response = await authenticatedFetch(url, {
         credentials: "include",
     });
 
@@ -28,18 +46,24 @@ const downloadArtifactFile = async (apiPrefix: string, sessionId: string, artifa
  * Custom hook to handle artifact downloads
  * @returns Object containing download handler function
  */
-export const useDownload = () => {
+export const useDownload = (projectIdOverride?: string | null) => {
     const { configServerUrl } = useConfigContext();
     const { addNotification, sessionId } = useChatContext();
+    const { activeProject } = useProjectContext();
 
     const onDownload = async (artifact: ArtifactInfo) => {
-        if (!sessionId) {
-            addNotification(`Cannot download artifact: No active session.`, "error");
+        // Check if we have a valid context
+        const hasSessionContext = sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined";
+        const effectiveProjectId = projectIdOverride || activeProject?.id;
+        const hasProjectContext = !!effectiveProjectId;
+        
+        if (!hasSessionContext && !hasProjectContext) {
+            addNotification(`Cannot download artifact: No active session or project.`, "error");
             return;
         }
 
         try {
-            await downloadArtifactFile(configServerUrl, sessionId, artifact);
+            await downloadArtifactFile(configServerUrl, sessionId, effectiveProjectId || null, artifact);
             addNotification(`Downloaded artifact: ${artifact.filename}.`);
         } catch {
             addNotification(`Failed to download artifact: ${artifact.filename}.`, "error");

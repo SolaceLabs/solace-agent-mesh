@@ -1,16 +1,23 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
-import { AgentMeshPage, ChatPage, bottomNavigationItems, topNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
-import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
+import { AgentMeshPage, ChatPage, bottomNavigationItems, getTopNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
+import { ProjectsPage } from "@/lib/components/projects";
+import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
 
-import { useAuthContext, useBeforeUnload } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
 
 function AppContent() {
     const [activeNavItem, setActiveNavItem] = useState<string>("chat");
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
+    const { projectsEnabled } = useConfigContext();
 
     // Enable beforeunload warning when chat data is present
     useBeforeUnload();
+
+    // Get filtered navigation items based on feature flags
+    const topNavigationItems = useMemo(() => {
+        return getTopNavigationItems(projectsEnabled ?? false);
+    }, [projectsEnabled]);
 
     if (useAuthorization && !isAuthenticated) {
         return (
@@ -37,9 +44,16 @@ function AppContent() {
     const renderMainContent = () => {
         switch (activeNavItem) {
             case "chat":
-                return <ChatPage />;
+                return <ChatPage onNavigateToProjects={projectsEnabled ? () => setActiveNavItem("projects") : undefined} />;
             case "agentMesh":
                 return <AgentMeshPage />;
+            case "projects":
+                // Only render ProjectsPage if projects are enabled
+                if (projectsEnabled) {
+                    return <ProjectsPage onProjectActivated={() => setActiveNavItem("chat")} />;
+                }
+                // Fallback to chat if projects are disabled but somehow navigated here
+                return <ChatPage onNavigateToProjects={undefined} />;
         }
     };
 
@@ -58,11 +72,13 @@ function App() {
             <CsrfProvider>
                 <ConfigProvider>
                     <AuthProvider>
-                        <ChatProvider>
-                            <TaskProvider>
-                                <AppContent />
-                            </TaskProvider>
-                        </ChatProvider>
+                        <ProjectProvider>
+                            <ChatProvider>
+                                <TaskProvider>
+                                    <AppContent />
+                                </TaskProvider>
+                            </ChatProvider>
+                        </ProjectProvider>
                     </AuthProvider>
                 </ConfigProvider>
             </CsrfProvider>
