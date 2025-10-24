@@ -24,14 +24,24 @@ class TestPydanticFormatting:
             assert False, "ValidationError was expected but not raised."
         except ValidationError as e:
             message = DummyModel.format_validation_error_message(e, "TestApp", "TestAgent")
-            assert "TestApp" in message
-            assert "TestAgent" in message
-            assert "app_config.required_field" in message
-            assert "A required field for testing." in message
-            assert "app_config.optional_field" not in message
-            assert "app_config.wrong_type_field" in message
-            assert "An integer field for testing." in message
-            assert "Input should be a valid integer" in message
+            print(message)
+            assert message == """
+---- Configuration validation failed for TestApp ----
+
+   Agent Name: TestAgent
+
+ERROR 1:
+   Missing required field: 'required_field'
+   Location: app_config.required_field
+   Description: A required field for testing.
+
+ERROR 2:
+   Error: Input should be a valid integer, unable to parse string as an integer
+   Location: app_config.wrong_type_field
+   Description: An integer field for testing.
+
+---- Please update your YAML configuration ----
+"""
 
     def test_nested_model_error_formatting(self):
 
@@ -50,10 +60,16 @@ class TestPydanticFormatting:
             assert False, "ValidationError was expected but not raised."
         except ValidationError as e:
             message = ParentModel.format_validation_error_message(e, "ParentApp")
-            assert "Agent Name" not in message
-            assert "ParentApp" in message
-            assert "app_config.nested.nested_field" in message
-            assert "A nested integer field." in message
+            assert message == """
+---- Configuration validation failed for ParentApp ----
+
+ERROR 1:
+   Missing required field: 'nested_field'
+   Location: app_config.nested.nested_field
+   Description: A nested integer field.
+
+---- Please update your YAML configuration ----
+"""
 
     def test_array_model_error_formatting(self):
 
@@ -70,7 +86,16 @@ class TestPydanticFormatting:
             assert False, "ValidationError was expected but not raised."
         except ValidationError as e:
             message = ArrayModel.format_validation_error_message(e, None, "ArrayAgent")
-            assert "UNKNOWN" in message
-            assert "ArrayAgent" in message
-            assert "app_config.items.0.item_field" in message
-            assert "A float field in the item." in message
+            assert message == """
+---- Configuration validation failed for UNKNOWN ----
+
+   Agent Name: ArrayAgent
+
+ERROR 1:
+   Missing required field: 'item_field'
+   Location: app_config.items.0.item_field
+   Description: A float field in the item.
+
+---- Please update your YAML configuration ----
+"""
+
