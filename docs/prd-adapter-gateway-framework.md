@@ -446,3 +446,84 @@ class SlackGatewayAdapter(BaseGatewayAdapter):
         # ... logic to post an error message to the Slack thread ...
         pass
 ```
+
+### Slack Gateway Adapter Configuration
+
+**File:** `examples/gateways/slack_gateway_v2_example.yaml`
+
+```yaml
+# Solace AI Connector Example: Slack Gateway using the Adapter Framework
+# This file demonstrates how to configure the generic AdapterGatewayApp
+# to host the SlackGatewayAdapter.
+
+# Required Environment Variables:
+# - NAMESPACE: The A2A topic namespace (e.g., "myorg/dev").
+# - SOLACE_BROKER_URL: URL of the Solace broker.
+# - SOLACE_BROKER_USERNAME: Username for the Solace broker.
+# - SOLACE_BROKER_PASSWORD: Password for the Solace broker.
+# - SOLACE_BROKER_VPN: VPN name for the Solace broker.
+# - SLACK_BOT_TOKEN: Your Slack Bot Token (starts with 'xoxb-').
+# - SLACK_APP_TOKEN: Your Slack App Token for Socket Mode (starts with 'xapp-').
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: slack_gateway_v2.log
+
+apps:
+  - name: slack_gateway_app_v2
+    app_base_path: .
+
+    broker:
+      broker_url: ${SOLACE_BROKER_URL}
+      broker_username: ${SOLACE_BROKER_USERNAME}
+      broker_password: ${SOLACE_BROKER_PASSWORD}
+      broker_vpn: ${SOLACE_BROKER_VPN}
+
+    # Use the generic AdapterGatewayApp
+    app:
+      class_name: solace_agent_mesh.gateway.adapter.app.AdapterGatewayApp
+      app_config:
+        # --- Core Gateway Config ---
+        namespace: ${NAMESPACE}
+        default_agent_name: "OrchestratorAgent"
+
+        # --- Adapter Implementation ---
+        adapter_class: "sam_slack.adapter.SlackGatewayAdapter"
+
+        # --- Adapter-Specific Config ---
+        # This block is passed to the adapter via context.get_adapter_config()
+        adapter_config:
+          slack_bot_token: ${SLACK_BOT_TOKEN}
+          slack_app_token: ${SLACK_APP_TOKEN}
+          initial_status_message: ":thinking_face: Thinking..."
+          correct_markdown_formatting: true
+          feedback_enabled: false
+          slack_email_cache_ttl_seconds: 0
+
+        # --- Standard Gateway Services & Settings ---
+        artifact_service:
+          type: "filesystem"
+          base_path: "/tmp/sam_artifacts"
+          artifact_scope: "namespace"
+
+        enable_embed_resolution: true
+        gateway_max_artifact_resolve_size_bytes: 10000000 # 10MB
+        gateway_recursive_embed_depth: 3
+
+        # --- System-wide instructions for the agent ---
+        system_purpose: >
+          The system is an AI Chatbot with agentic capabilities.
+          It will use the agents available to provide information,
+          reasoning and general assistance for the users in this system.
+          **Always return useful artifacts and files that you create to the user.**
+          Provide a status update before each tool call.
+          Your external name is Agent Mesh.
+
+        response_format: >
+          Responses should be clear, concise, and professionally toned.
+          Format responses to the user in Markdown using appropriate formatting.
+          Note that the user is not able to access the internal artifacts of the system. You
+          must return them, so if you create any files or artifacts, provide them to the user
+          via the artifact_return embed.
+```
