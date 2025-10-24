@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 const messageBannerVariants = cva("flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all border-l-4 border-solid ", {
     variants: {
         variant: {
-            error: "bg-[var(--color-error-w10)] text-[var(--color-error-wMain)] border-[var(--color-error-wMain)] dark:bg-[var(--color-error-wMain)] dark:text-[var(--color-primary-text-w10)] dark:border-[var(--color-error-w10)]",
+            error: "bg-[var(--color-error-w20)] text-[var(--color-error-wMain)] border-[var(--color-error-wMain)] dark:bg-[var(--color-error-w100)]/60 dark:text-[var(--color-white)] dark:border-[var(--color-error-wMain)]",
             warning: "bg-[var(--color-warning-w10)] text-[var(--color-warning-wMain)] border-[var(--color-warning-wMain)] dark:bg-[var(--color-warning-wMain)] dark:text-[var(--color-primary-text-w10)] dark:border-[var(--color-warning-w10)]",
             info: "bg-[var(--color-info-w10)] text-[var(--color-info-wMain)] border-[var(--color-info-w10)] dark:bg-[var(--color-info-wMain)] dark:text-[var(--color-primary-text-w10)] dark:border-[var(--color-info-w10)]",
             success: "bg-[var(--color-success-w20)] text-[var(--color-success-wMain)] border-l-[var(--color-success-w40)] dark:bg-[var(--color-success-w100)] dark:text-[var(--color-white)] dark:border-l-[var(--color-success-w70)]",
