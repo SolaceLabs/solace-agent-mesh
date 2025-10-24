@@ -48,6 +48,41 @@ class ISessionRepository(ABC):
         """Delete a session belonging to a user."""
         pass
 
+    @abstractmethod
+    def soft_delete(self, session: DBSession, session_id: SessionId, user_id: UserId) -> bool:
+        """Soft delete a session belonging to a user."""
+        pass
+
+    @abstractmethod
+    def move_to_project(
+        self, session: DBSession, session_id: SessionId, user_id: UserId, new_project_id: str | None
+    ) -> Session | None:
+        """Move a session to a different project."""
+        pass
+
+    @abstractmethod
+    def search(
+        self,
+        session: DBSession,
+        user_id: UserId,
+        query: str,
+        pagination: PaginationParams | None = None,
+        project_id: str | None = None
+    ) -> list[Session]:
+        """Search sessions by name or content."""
+        pass
+
+    @abstractmethod
+    def count_search_results(
+        self,
+        session: DBSession,
+        user_id: UserId,
+        query: str,
+        project_id: str | None = None
+    ) -> int:
+        """Count search results for pagination."""
+        pass
+
 
 class ITaskRepository(ABC):
     """Interface for task data access operations."""
@@ -165,4 +200,9 @@ class IProjectRepository(ABC):
     @abstractmethod
     def delete(self, project_id: str, user_id: str) -> bool:
         """Delete a project by its ID, ensuring user access."""
+        pass
+
+    @abstractmethod
+    def soft_delete(self, project_id: str, user_id: str) -> bool:
+        """Soft delete a project by its ID, ensuring user access."""
         pass

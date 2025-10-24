@@ -8,6 +8,7 @@ export interface Project {
     userId: string;
     description?: string | null;
     systemPrompt?: string | null;
+    defaultAgentId?: string | null;
     createdAt: string; // ISO string
     updatedAt: string; // ISO string
 }
@@ -29,6 +30,7 @@ export interface UpdateProjectData {
     name?: string;
     description?: string;
     systemPrompt?: string;
+    defaultAgentId?: string | null;
 }
 
 export interface ProjectListResponse {
@@ -42,6 +44,7 @@ export interface ProjectFormData {
     name: string;
     description: string;
     system_prompt: string;
+    defaultAgentId?: string;
     files?: FileList | null;
     fileDescriptions?: Record<string, string>;
 }
@@ -65,4 +68,5 @@ export interface ProjectContextValue extends UseProjectsReturn {
     addFilesToProject: (projectId: string, formData: FormData) => Promise<void>;
     removeFileFromProject: (projectId: string, filename: string) => Promise<void>;
     updateProject: (projectId: string, data: UpdateProjectData) => Promise<Project>;
+    deleteProject: (projectId: string) => Promise<void>;
 }

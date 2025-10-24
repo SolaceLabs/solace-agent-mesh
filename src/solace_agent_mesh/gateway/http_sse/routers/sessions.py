@@ -11,6 +11,8 @@ from ..shared.response_utils import create_data_response
 from .dto.requests.session_requests import (
     GetSessionRequest,
     UpdateSessionRequest,
+    MoveSessionRequest,
+    SearchSessionsRequest,
 )
 from .dto.requests.task_requests import SaveTaskRequest
 from .dto.responses.session_responses import SessionResponse
@@ -63,6 +65,63 @@ async def get_all_sessions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve sessions",
+        ) from e
+
+
+@router.get("/sessions/search", response_model=PaginatedResponse[SessionResponse])
+async def search_sessions(
+    query: str = Query(..., min_length=1, description="Search query"),
+    project_id: Optional[str] = Query(default=None, alias="projectId"),
+    page_number: int = Query(default=1, ge=1, alias="pageNumber"),
+    page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """
+    Search sessions by name or content.
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s searching sessions with query '%s' (page=%d, size=%d)",
+        user_id,
+        query,
+        page_number,
+        page_size,
+    )
+
+    try:
+        pagination = PaginationParams(page_number=page_number, page_size=page_size)
+        paginated_response = session_service.search_sessions(
+            db, user_id, query, pagination, project_id=project_id
+        )
+
+        session_responses = []
+        for session_domain in paginated_response.data:
+            session_response = SessionResponse(
+                id=session_domain.id,
+                user_id=session_domain.user_id,
+                name=session_domain.name,
+                agent_id=session_domain.agent_id,
+                project_id=session_domain.project_id,
+                project_name=session_domain.project_name,
+                created_time=session_domain.created_time,
+                updated_time=session_domain.updated_time,
+            )
+            session_responses.append(session_response)
+
+        return PaginatedResponse(data=session_responses, meta=paginated_response.meta)
+
+    except ValueError as e:
+        log.warning("Validation error searching sessions: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    except Exception as e:
+        log.error("Error searching sessions for user %s: %s", user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to search sessions",
         ) from e
 
 
@@ -440,8 +499,11 @@ async def delete_session(
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
 ):
+    """
+    Soft delete a session (marks as deleted without removing from database).
+    """
     user_id = user.get("id")
-    log.info("User %s attempting to delete session %s", user_id, session_id)
+    log.info("User %s attempting to soft delete session %s", user_id, session_id)
 
     try:
         if (
@@ -453,7 +515,7 @@ async def delete_session(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
-        deleted = session_service.delete_session_with_notifications(
+        deleted = session_service.soft_delete_session(
             db=db, session_id=session_id, user_id=user_id
         )
 
@@ -462,7 +524,7 @@ async def delete_session(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
-        log.info("Session %s deleted successfully", session_id)
+        log.info("Session %s soft deleted successfully", session_id)
 
     except HTTPException:
         raise
@@ -482,3 +544,82 @@ async def delete_session(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete session",
         ) from e
+
+
+@router.patch("/sessions/{session_id}/project", response_model=SessionResponse)
+async def move_session_to_project(
+    session_id: str,
+    request: MoveSessionRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """
+    Move a session to a different project or remove from project.
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s attempting to move session %s to project %s",
+        user_id,
+        session_id,
+        request.project_id,
+    )
+
+    try:
+        if (
+            not session_id
+            or session_id.strip() == ""
+            or session_id in ["null", "undefined"]
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+            )
+
+        updated_session = session_service.move_session_to_project(
+            db=db,
+            session_id=session_id,
+            user_id=user_id,
+            new_project_id=request.project_id,
+        )
+
+        if not updated_session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+            )
+
+        log.info(
+            "Session %s moved to project %s successfully",
+            session_id,
+            request.project_id or "None",
+        )
+
+        return SessionResponse(
+            id=updated_session.id,
+            user_id=updated_session.user_id,
+            name=updated_session.name,
+            agent_id=updated_session.agent_id,
+            project_id=updated_session.project_id,
+            created_time=updated_session.created_time,
+            updated_time=updated_session.updated_time,
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        log.warning("Validation error moving session %s: %s", session_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    except Exception as e:
+        log.error(
+            "Error moving session %s for user %s: %s",
+            session_id,
+            user_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to move session",
+        ) from e
+
+

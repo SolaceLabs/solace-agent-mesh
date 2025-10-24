@@ -24,6 +24,8 @@ class SessionModel(Base):
     updated_time = Column(
         BigInteger, nullable=False, default=now_epoch_ms, onupdate=now_epoch_ms
     )
+    deleted_at = Column(BigInteger, nullable=True)
+    deleted_by = Column(String, nullable=True)
 
     # Relationship to chat tasks
     chat_tasks = relationship(

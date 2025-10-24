@@ -59,6 +59,24 @@ export const useProjectSessions = (projectId?: string | null): UseProjectSession
 
     useEffect(() => {
         fetchSessions();
+        
+        // Listen for session-moved events to refresh the list
+        const handleSessionMoved = () => {
+            fetchSessions();
+        };
+        
+        // Listen for new-chat-session events to refresh the list
+        const handleNewSession = () => {
+            fetchSessions();
+        };
+        
+        window.addEventListener("session-moved", handleSessionMoved);
+        window.addEventListener("new-chat-session", handleNewSession);
+        
+        return () => {
+            window.removeEventListener("session-moved", handleSessionMoved);
+            window.removeEventListener("new-chat-session", handleNewSession);
+        };
     }, [fetchSessions]);
 
     return {

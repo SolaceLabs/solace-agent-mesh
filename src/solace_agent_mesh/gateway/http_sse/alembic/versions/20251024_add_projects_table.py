@@ -24,6 +24,8 @@ def upgrade() -> None:
     existing_tables = inspector.get_table_names()
     
     # Create projects table if it doesn't exist
+    # Note: This table is created without is_global and created_by_user_id columns
+    # as those were removed in the squashed migration
     if 'projects' not in existing_tables:
         op.create_table('projects',
             sa.Column('id', sa.String(), nullable=False),

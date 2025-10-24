@@ -45,6 +45,7 @@ class ProjectService:
         user_id: str,
         description: Optional[str] = None,
         system_prompt: Optional[str] = None,
+        default_agent_id: Optional[str] = None,
         files: Optional[List[UploadFile]] = None,
         file_metadata: Optional[dict] = None,
     ) -> Project:
@@ -56,6 +57,7 @@ class ProjectService:
             user_id: ID of the user creating the project
             description: Optional project description
             system_prompt: Optional system prompt
+            default_agent_id: Optional default agent ID for new chats
             files: Optional list of files to associate with the project
             
         Returns:
@@ -79,6 +81,7 @@ class ProjectService:
             user_id=user_id,
             description=description.strip() if description else None,
             system_prompt=system_prompt.strip() if system_prompt else None,
+            default_agent_id=default_agent_id,
         )
 
         if files and self.artifact_service:
@@ -162,6 +165,7 @@ class ProjectService:
             self.logger.warning(f"Attempted to get artifacts for project {project_id} but no artifact service is configured.")
             return []
 
+        storage_user_id = project.user_id
         storage_user_id = project.user_id
         storage_session_id = f"project-{project.id}"
 
@@ -272,7 +276,8 @@ class ProjectService:
         return True
 
     def update_project(self, project_id: str, user_id: str,
-                           name: Optional[str] = None, description: Optional[str] = None, system_prompt: Optional[str] = None) -> Optional[Project]:
+                           name: Optional[str] = None, description: Optional[str] = None,
+                           system_prompt: Optional[str] = None, default_agent_id: Optional[str] = ...) -> Optional[Project]:
         """
         Update a project's details.
         
@@ -282,22 +287,25 @@ class ProjectService:
             name: New project name (optional)
             description: New project description (optional)
             system_prompt: New system prompt (optional)
+            default_agent_id: New default agent ID (optional, use ... sentinel to indicate not provided)
             
         Returns:
             Optional[Project]: The updated project if successful, None otherwise
         """
         # Validate business rules
-        if name is not None and not name.strip():
+        if name is not None and name is not ... and not name.strip():
             raise ValueError("Project name cannot be empty")
         
         # Build update data
         update_data = {}
-        if name is not None:
+        if name is not None and name is not ...:
             update_data["name"] = name.strip()
-        if description is not None:
+        if description is not None and description is not ...:
             update_data["description"] = description.strip() if description else None
-        if system_prompt is not None:
+        if system_prompt is not None and system_prompt is not ...:
             update_data["system_prompt"] = system_prompt.strip() if system_prompt else None
+        if default_agent_id is not ...:
+            update_data["default_agent_id"] = default_agent_id
         
         if not update_data:
             # Nothing to update - get existing project
@@ -332,5 +340,36 @@ class ProjectService:
         
         if success:
             self.logger.info(f"Successfully deleted project {project_id}")
+        
+        return success
+
+    def soft_delete_project(self, project_id: str, user_id: str) -> bool:
+        """
+        Soft delete a project (mark as deleted without removing from database).
+        Also cascades soft delete to all sessions associated with this project.
+        
+        Args:
+            project_id: The project ID
+            user_id: The requesting user ID
+            
+        Returns:
+            bool: True if soft deleted successfully, False otherwise
+        """
+        # First verify the project exists and user has access
+        existing_project = self.get_project(project_id, user_id)
+        if not existing_project:
+            self.logger.warning(f"Attempted to soft delete non-existent project {project_id} by user {user_id}")
+            return False
+        
+        self.logger.info(f"Soft deleting project {project_id} and its associated sessions for user {user_id}")
+        
+        # Soft delete the project
+        success = self.project_repository.soft_delete(project_id, user_id)
+        
+        if success:
+            from ..repository.session_repository import SessionRepository
+            session_repo = SessionRepository()
+            deleted_count = session_repo.soft_delete_by_project(self.project_repository.db, project_id, user_id)
+            self.logger.info(f"Successfully soft deleted project {project_id} and {deleted_count} associated sessions")
         
         return success

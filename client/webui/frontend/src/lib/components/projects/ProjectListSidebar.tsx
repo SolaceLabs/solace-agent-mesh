@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { FolderOpen } from "lucide-react";
 
 import { Spinner } from "@/lib/components/ui/spinner";
 import type { Project } from "@/lib/types/projects";
 import { ProjectListItem } from "./ProjectListItem";
+import { DeleteProjectDialog } from "./DeleteProjectDialog";
 
 interface ProjectListSidebarProps {
     projects: Project[];
@@ -12,6 +13,7 @@ interface ProjectListSidebarProps {
     error: string | null;
     onProjectSelect: (project: Project) => void;
     onCreateNew: () => void;
+    onProjectDelete?: (projectId: string) => Promise<void>;
 }
 
 export const ProjectListSidebar: React.FC<ProjectListSidebarProps> = ({
@@ -20,7 +22,32 @@ export const ProjectListSidebar: React.FC<ProjectListSidebarProps> = ({
     isLoading,
     error,
     onProjectSelect,
+    onProjectDelete,
 }) => {
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDeleteClick = (project: Project) => {
+        setProjectToDelete(project);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!projectToDelete || !onProjectDelete) return;
+
+        setIsDeleting(true);
+        try {
+            await onProjectDelete(projectToDelete.id);
+            setIsDeleteDialogOpen(false);
+            setProjectToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete project:", error);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     return (
         <div className="flex h-full flex-col bg-background border-r">
             {/* Project List */}
@@ -54,11 +81,23 @@ export const ProjectListSidebar: React.FC<ProjectListSidebarProps> = ({
                                 project={project}
                                 isSelected={selectedProject?.id === project.id}
                                 onClick={() => onProjectSelect(project)}
+                                onDelete={onProjectDelete ? handleDeleteClick : undefined}
                             />
                         ))}
                     </div>
                 )}
             </div>
+
+            <DeleteProjectDialog
+                isOpen={isDeleteDialogOpen}
+                onClose={() => {
+                    setIsDeleteDialogOpen(false);
+                    setProjectToDelete(null);
+                }}
+                onConfirm={handleDeleteConfirm}
+                project={projectToDelete}
+                isDeleting={isDeleting}
+            />
         </div>
     );
 };

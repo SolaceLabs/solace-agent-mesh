@@ -19,8 +19,11 @@ class ProjectModel(Base):
     user_id = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
-    created_at = Column(BigInteger, nullable=False)  # Epoch timestamp in milliseconds
-    updated_at = Column(BigInteger, nullable=True)   # Epoch timestamp in milliseconds
+    default_agent_id = Column(String, nullable=True)
+    created_at = Column(BigInteger, nullable=False)
+    updated_at = Column(BigInteger, nullable=True)  
+    deleted_at = Column(BigInteger, nullable=True)   
+    deleted_by = Column(String, nullable=True)       
     
     # Relationships
     sessions = relationship("SessionModel", back_populates="project")
@@ -34,6 +37,7 @@ class CreateProjectModel(BaseModel):
     user_id: str | None = None
     description: str | None = None
     system_prompt: str | None = None
+    default_agent_id: str | None = None
     created_at: int
     updated_at: int | None = None
 
@@ -43,4 +47,5 @@ class UpdateProjectModel(BaseModel):
     name: str | None = None
     description: str | None = None
     system_prompt: str | None = None
+    default_agent_id: str | None = None
     updated_at: int

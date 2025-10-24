@@ -325,6 +325,7 @@ async def _setup_scenario_environment(
                     user_id=project_spec.get("user_id"),
                     description=project_spec.get("description"),
                     system_prompt=project_spec.get("system_prompt"),
+                    default_agent_id=project_spec.get("default_agent_id"),
                     created_at=created_at_ms,
                     updated_at=updated_at_ms,
                 )

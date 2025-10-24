@@ -91,6 +91,7 @@ async def create_project(
     name: str = Form(...),
     description: Optional[str] = Form(None),
     system_prompt: Optional[str] = Form(None, alias="systemPrompt"),
+    default_agent_id: Optional[str] = Form(None, alias="defaultAgentId"),
     file_metadata: Optional[str] = Form(None, alias="fileMetadata"),
     files: Optional[List[UploadFile]] = File(None),
     user: dict = Depends(get_current_user),
@@ -117,6 +118,7 @@ async def create_project(
             name=name,
             description=description,
             system_prompt=system_prompt,
+            default_agent_id=default_agent_id,
             file_metadata=file_metadata,
             user_id=user_id
         )
@@ -134,6 +136,7 @@ async def create_project(
             user_id=request_dto.user_id,
             description=request_dto.description,
             system_prompt=request_dto.system_prompt,
+            default_agent_id=request_dto.default_agent_id,
             files=files,
             file_metadata=parsed_file_metadata,
         )
@@ -144,6 +147,7 @@ async def create_project(
             user_id=project.user_id,
             description=project.description,
             system_prompt=project.system_prompt,
+            default_agent_id=project.default_agent_id,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -186,6 +190,7 @@ async def get_user_projects(
                 user_id=p.user_id,
                 description=p.description,
                 system_prompt=p.system_prompt,
+                default_agent_id=p.default_agent_id,
                 created_at=p.created_at,
                 updated_at=p.updated_at,
             )
@@ -249,6 +254,7 @@ async def get_project(
             user_id=project.user_id,
             description=project.description,
             system_prompt=project.system_prompt,
+            default_agent_id=project.default_agent_id,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -425,13 +431,22 @@ async def update_project(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Project not found."
             )
 
-        project = project_service.update_project(
-            project_id=project_id,
-            user_id=user_id,
-            name=request.name,
-            description=request.description,
-            system_prompt=request.system_prompt
-        )
+        # Get only the fields that were explicitly set in the request
+        # Use by_alias=False to get snake_case field names
+        update_fields = request.model_dump(exclude_unset=True, by_alias=False)
+        
+        # Pass only explicitly set fields to the service
+        # Use ... sentinel for fields not provided, allowing None to be set explicitly
+        kwargs = {
+            'project_id': project_id,
+            'user_id': user_id,
+            'name': update_fields.get('name', ...),
+            'description': update_fields.get('description', ...),
+            'system_prompt': update_fields.get('system_prompt', ...),
+            'default_agent_id': update_fields.get('default_agent_id', ...),
+        }
+        
+        project = project_service.update_project(**kwargs)
         
         if not project:
             raise HTTPException(
@@ -447,6 +462,7 @@ async def update_project(
             user_id=project.user_id,
             description=project.description,
             system_prompt=project.system_prompt,
+            default_agent_id=project.default_agent_id,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -479,16 +495,16 @@ async def delete_project(
     _: None = Depends(check_projects_enabled),
 ):
     """
-    Delete a project.
+    Soft delete a project (marks as deleted without removing from database).
     """
     user_id = user.get("id")
-    log.info("User %s attempting to delete project %s", user_id, project_id)
+    log.info("User %s attempting to soft delete project %s", user_id, project_id)
 
     try:
         request_dto = DeleteProjectRequest(project_id=project_id, user_id=user_id)
 
-        success = project_service.delete_project(
-            project_id=request_dto.project_id, 
+        success = project_service.soft_delete_project(
+            project_id=request_dto.project_id,
             user_id=request_dto.user_id
         )
         
@@ -498,7 +514,7 @@ async def delete_project(
                 detail="Project not found."
             )
 
-        log.info("Project %s deleted successfully", project_id)
+        log.info("Project %s soft deleted successfully", project_id)
     
     except HTTPException:
         raise

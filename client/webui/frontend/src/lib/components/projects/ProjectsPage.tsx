@@ -20,16 +20,17 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     
-    const { 
-        projects, 
-        isLoading, 
-        error, 
-        createProject, 
-        selectedProject, 
+    const {
+        projects,
+        isLoading,
+        error,
+        createProject,
+        deleteProject,
+        selectedProject,
         setSelectedProject,
         setActiveProject,
     } = useProjectContext();
-    const { handleSwitchSession } = useChatContext();
+    const { handleSwitchSession, handleNewSession } = useChatContext();
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
         setIsCreating(true);
@@ -63,12 +64,13 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         onProjectActivated();
     };
 
-    const handleStartNewChat = () => {
+    const handleStartNewChat = async () => {
         // Activate the project and start a new chat session
         if (selectedProject) {
             setActiveProject(selectedProject);
-            // Note: handleNewSession is not available in ProjectsPage context
-            // We'll navigate to chat page and let ChatPage handle the new session
+            // Start a new session while preserving the active project context
+            await handleNewSession(true);
+            // Navigate to chat page
             onProjectActivated();
         }
     };
@@ -104,6 +106,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                             error={error}
                             onProjectSelect={handleProjectSelect}
                             onCreateNew={handleCreateNew}
+                            onProjectDelete={deleteProject}
                         />
                     </ResizablePanel>
 
