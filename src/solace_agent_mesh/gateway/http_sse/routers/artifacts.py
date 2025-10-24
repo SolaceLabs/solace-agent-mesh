@@ -88,6 +88,61 @@ class ArtifactUploadResponse(BaseModel):
 router = APIRouter()
 
 
+def _resolve_storage_context(
+    session_id: str,
+    project_id: str | None,
+    user_id: str,
+    validate_session: Callable[[str, str], bool],
+    project_service: ProjectService,
+    log_prefix: str
+) -> tuple[str, str, str]:
+    """
+    Resolve storage context from session or project parameters.
+
+    Returns:
+        tuple: (storage_user_id, storage_session_id, context_type)
+
+    Raises:
+        HTTPException: If no valid context found
+    """
+    # Priority 1: Session context
+    if session_id and session_id.strip() and session_id not in ["null", "undefined"]:
+        if not validate_session(session_id, user_id):
+            log.warning("%s Session validation failed", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found or access denied.",
+            )
+        return user_id, session_id, "session"
+
+    # Priority 2: Project context
+    elif project_id and project_id.strip() and project_id not in ["null", "undefined"]:
+        try:
+            project = project_service.get_project(project_id, user_id)
+            if not project:
+                log.warning("%s Project not found or access denied", log_prefix)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Project not found or access denied.",
+                )
+            return project.user_id, f"project-{project_id}", "project"
+        except HTTPException:
+            raise
+        except Exception as e:
+            log.error("%s Error resolving project context: %s", log_prefix, e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to resolve project context"
+            )
+
+    # No valid context
+    log.warning("%s No valid context found", log_prefix)
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="No valid context provided.",
+    )
+
+
 @router.post(
     "/upload",
     status_code=status.HTTP_201_CREATED,
@@ -329,53 +384,13 @@ async def list_artifact_versions(
     associated with the specified context (session or project).
     """
 
-    log_prefix = f"[ArtifactRouter:ListVersions:{filename}] User={user_id}, Session={session_id}, Project={project_id} -"
+    log_prefix = f"[ArtifactRouter:ListVersions:{filename}] -"
     log.info("%s Request received.", log_prefix)
 
-    # Resolve storage context based on parameters
-    storage_user_id = None
-    storage_session_id = None
-    context_type = None
-
-    # Priority 1: Session context
-    if session_id and session_id.strip() and session_id not in ["null", "undefined"]:
-        if not validate_session(session_id, user_id):
-            log.warning("%s Session validation failed", log_prefix)
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Session not found or access denied.",
-            )
-        storage_user_id = user_id
-        storage_session_id = session_id
-        context_type = "session"
-        
-    # Priority 2: Project context
-    elif project_id and project_id.strip() and project_id not in ["null", "undefined"]:
-        try:
-            project = project_service.get_project(project_id, user_id)
-            if not project:
-                log.warning("%s Project not found or access denied", log_prefix)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Project not found or access denied.",
-                )
-            storage_user_id = project.user_id
-            storage_session_id = f"project-{project_id}"
-            context_type = "project"
-        except HTTPException:
-            raise
-        except Exception as e:
-            log.error("%s Error resolving project context: %s", log_prefix, e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to resolve project context"
-            )
-    else:
-        log.warning("%s No valid context found", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No valid context provided.",
-        )
+    # Resolve storage context
+    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+        session_id, project_id, user_id, validate_session, project_service, log_prefix
+    )
 
     if artifact_service is None:
         log.error("%s Artifact service not available.", log_prefix)
@@ -452,51 +467,15 @@ async def list_artifacts(
     for all artifacts associated with the specified context (session or project).
     """
 
-    log_prefix = f"[ArtifactRouter:ListInfo] User={user_id}, Session={session_id}, Project={project_id} -"
+    log_prefix = f"[ArtifactRouter:ListInfo] -"
     log.info("%s Request received.", log_prefix)
 
-    # Resolve storage context based on parameters
-    storage_user_id = None
-    storage_session_id = None
-    context_type = None
-
-    # Priority 1: Session context
-    if session_id and session_id.strip() and session_id not in ["null", "undefined"]:
-        # Validate session exists and belongs to user
-        if not validate_session(session_id, user_id):
-            log.warning("%s Session validation failed", log_prefix)
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Session not found or access denied.",
-            )
-        storage_user_id = user_id
-        storage_session_id = session_id
-        context_type = "session"
-        
-    # Priority 2: Project context
-    elif project_id and project_id.strip() and project_id not in ["null", "undefined"]:
-        try:
-            project = project_service.get_project(project_id, user_id)
-            if not project:
-                log.warning("%s Project not found or access denied", log_prefix)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Project not found or access denied.",
-                )
-            storage_user_id = project.user_id
-            storage_session_id = f"project-{project_id}"
-            context_type = "project"
-        except HTTPException:
-            raise
-        except Exception as e:
-            log.error("%s Error resolving project context: %s", log_prefix, e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to resolve project context"
-            )
-    
-    # No valid context
-    else:
+    # Resolve storage context (returns empty list if no context - special case for list)
+    try:
+        storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+            session_id, project_id, user_id, validate_session, project_service, log_prefix
+        )
+    except HTTPException:
         log.info("%s No valid context found, returning empty list", log_prefix)
         return []
 
@@ -553,55 +532,13 @@ async def get_latest_artifact(
     Retrieves the content of the latest version of the specified artifact
     associated with the specified context (session or project).
     """
-    log_prefix = (
-        f"[ArtifactRouter:GetLatest:{filename}] User={user_id}, Session={session_id} -"
-    )
+    log_prefix = f"[ArtifactRouter:GetLatest:{filename}] -"
     log.info("%s Request received.", log_prefix)
 
-    # Resolve storage context based on parameters
-    storage_user_id = None
-    storage_session_id = None
-    context_type = None
-
-    # Priority 1: Session context
-    if session_id and session_id.strip() and session_id not in ["null", "undefined"]:
-        if not validate_session(session_id, user_id):
-            log.warning("%s Session validation failed", log_prefix)
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Session not found or access denied.",
-            )
-        storage_user_id = user_id
-        storage_session_id = session_id
-        context_type = "session"
-        
-    # Priority 2: Project context
-    elif project_id and project_id.strip() and project_id not in ["null", "undefined"]:
-        try:
-            project = project_service.get_project(project_id, user_id)
-            if not project:
-                log.warning("%s Project not found or access denied", log_prefix)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Project not found or access denied.",
-                )
-            storage_user_id = project.user_id
-            storage_session_id = f"project-{project_id}"
-            context_type = "project"
-        except HTTPException:
-            raise
-        except Exception as e:
-            log.error("%s Error resolving project context: %s", log_prefix, e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to resolve project context"
-            )
-    else:
-        log.warning("%s No valid context found", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No valid context provided.",
-        )
+    # Resolve storage context
+    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+        session_id, project_id, user_id, validate_session, project_service, log_prefix
+    )
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -744,53 +681,13 @@ async def get_specific_artifact_version(
     Retrieves the content of a specific version of the specified artifact
     associated with the specified context (session or project).
     """
-    log_prefix = f"[ArtifactRouter:GetVersion:{filename} v{version}] User={user_id}, Session={session_id} -"
+    log_prefix = f"[ArtifactRouter:GetVersion:{filename} v{version}] -"
     log.info("%s Request received.", log_prefix)
 
-    # Resolve storage context based on parameters
-    storage_user_id = None
-    storage_session_id = None
-    context_type = None
-
-    # Priority 1: Session context
-    if session_id and session_id.strip() and session_id not in ["null", "undefined"]:
-        if not validate_session(session_id, user_id):
-            log.warning("%s Session validation failed", log_prefix)
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Session not found or access denied.",
-            )
-        storage_user_id = user_id
-        storage_session_id = session_id
-        context_type = "session"
-        
-    # Priority 2: Project context
-    elif project_id and project_id.strip() and project_id not in ["null", "undefined"]:
-        try:
-            project = project_service.get_project(project_id, user_id)
-            if not project:
-                log.warning("%s Project not found or access denied", log_prefix)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Project not found or access denied.",
-                )
-            storage_user_id = project.user_id
-            storage_session_id = f"project-{project_id}"
-            context_type = "project"
-        except HTTPException:
-            raise
-        except Exception as e:
-            log.error("%s Error resolving project context: %s", log_prefix, e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to resolve project context"
-            )
-    else:
-        log.warning("%s No valid context found", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No valid context provided.",
-        )
+    # Resolve storage context
+    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+        session_id, project_id, user_id, validate_session, project_service, log_prefix
+    )
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)

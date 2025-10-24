@@ -32,7 +32,7 @@ interface SessionListProps {
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification } = useChatContext();
-    const { configServerUrl } = useConfigContext();
+    const { configServerUrl, persistenceEnabled } = useConfigContext();
     const inputRef = useRef<HTMLInputElement>(null);
 
     const [sessions, setSessions] = useState<Session[]>([]);
@@ -294,16 +294,17 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 <div className="text-lg">
                     Chat Session History
                 </div>
-                
-                {/* Project Filter */}
-                {projectNames.length > 0 && (
+
+                {/* Project Filter - Only show when persistence is enabled */}
+                {persistenceEnabled && projectNames.length > 0 && (
                     <div className="flex flex-wrap gap-2 pr-4">
-                        <Badge
-                            variant={selectedProject === null ? "default" : "outline"}
-                            className="cursor-pointer hover:bg-accent transition-colors"
+                        <Button
+                            variant={selectedProject === null ? "default" : "secondary"}
+                            size="sm"
+                            className="h-7 px-2.5 py-1 text-xs"
                             onClick={() => setSelectedProject(null)}
                         >
-                            <Filter className="mr-1" size={12} />
+                            <Filter size={12} />
                             All Chats
                         </Badge>
                         {visibleProjectNames.map(projectName => (

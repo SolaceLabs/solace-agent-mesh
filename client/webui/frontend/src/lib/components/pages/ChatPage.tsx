@@ -205,7 +205,7 @@ export function ChatPage({ onNavigateToProjects }: ChatPageProps) {
                     leadingAction={
                         isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
-                                <Button variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
+                                <Button data-testid="showSessionsPanel" variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
                                     <PanelLeftIcon className="size-5" />
                                 </Button>
                                 <div className="h-6 border-r"></div>
@@ -233,7 +233,8 @@ export function ChatPage({ onNavigateToProjects }: ChatPageProps) {
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>
                                                 {messages.map((message, index) => {
                                                     const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                                    return <ChatMessage message={message} key={`${message.metadata?.sessionId || "session"}-${index}-${message.isUser ? "received" : "sent"}`} isLastWithTaskId={isLastWithTaskId} />;
+                                                    const messageKey = message.metadata?.messageId || `temp-${index}`;
+                                                    return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} />;
                                                 })}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>

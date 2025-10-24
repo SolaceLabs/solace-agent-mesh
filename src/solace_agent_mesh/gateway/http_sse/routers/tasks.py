@@ -75,13 +75,18 @@ async def _inject_project_context(
         project = project_service.get_project(project_id, user_id)
         if not project:
             return message_text
-            
-        # 1. Gather context parts (system prompt, description, artifacts)
         context_parts = []
+
+        # Start with clear workspace framing
+        context_parts.append(f'You are working in the project workspace: "{project.name}"')
+
+        # Add system prompt if exists
         if project.system_prompt and project.system_prompt.strip():
-            context_parts.append(project.system_prompt.strip())
+            context_parts.append(f"\n{project.system_prompt.strip()}")
+
+        # Add project description if exists
         if project.description and project.description.strip():
-            context_parts.append(f"Project Context: {project.description.strip()}")
+            context_parts.append(f"\nProject Description: {project.description.strip()}")
         
         # 2. Copy project artifacts to session and gather their descriptions for injection
         artifact_service = component.get_shared_artifact_service()
@@ -152,7 +157,8 @@ async def _inject_project_context(
 
                     if artifact_descriptions:
                         artifacts_context = (
-                            "This project workspace contains the following artifacts.User questions and references will typically relate to these project materials. Provide context-aware responses and ask for clarification when artifact references are unclear. These are the project artifacts in this session that you HAVE ACCESS TO and can use your tools on them directly! \n"
+                            "\nFiles in Session:\n"
+                            "The following files are available in your session and can be viewed using your tools if required:\n"
                             + "\n".join(artifact_descriptions)
                         )
                         context_parts.append(artifacts_context)
@@ -164,12 +170,12 @@ async def _inject_project_context(
             except Exception as e:
                 log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
                 # Do not fail the entire request, just log the warning
-        
-        # 3. Inject all gathered context into the message
+
+        # Inject all gathered context into the message, ending with user query 
         modified_message_text = message_text
         if context_parts:
-            project_context = "\n\n".join(context_parts) + "\n\n"
-            modified_message_text = project_context + f"User request: {message_text}"
+            project_context = "\n".join(context_parts)
+            modified_message_text = f"{project_context}\n\nUSER QUERY:\n{message_text}"
             log.info("%sInjected project context for project: %s", log_prefix, project_id)
                 
         return modified_message_text

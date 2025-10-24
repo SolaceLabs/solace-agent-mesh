@@ -16,21 +16,15 @@ from fastapi import (
 )
 from solace_ai_connector.common.log import log
 
-from ..dependencies import get_project_service, get_sac_component, get_shared_artifact_service, get_api_config
+from ..dependencies import get_project_service, get_sac_component, get_api_config
 from ..services.project_service import ProjectService
 from ..shared.auth_utils import get_current_user
-from ....agent.utils.artifact_helpers import get_artifact_info_list
 from ....common.a2a.types import ArtifactInfo
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
 
-try:
-    from google.adk.artifacts import BaseArtifactService
-except ImportError:
-    class BaseArtifactService:
-        pass
 from .dto.requests.project_requests import (
     CreateProjectRequest,
     UpdateProjectRequest,

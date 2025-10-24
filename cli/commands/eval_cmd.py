@@ -3,40 +3,8 @@ from pathlib import Path
 
 import click
 
-from cli.utils import error_exit, load_template
+from cli.utils import error_exit
 from evaluation.run import main as run_evaluation_main
-
-
-def _ensure_eval_backend_config_exists():
-    """Checks for eval_backend.yaml and creates it from a template if missing."""
-    project_root = Path.cwd()
-    configs_dir = project_root / "configs"
-    eval_backend_config_path = configs_dir / "eval_backend.yaml"
-
-    if eval_backend_config_path.exists():
-        return
-
-    click.echo(
-        f"'{eval_backend_config_path.relative_to(project_root)}' not found. Creating it..."
-    )
-
-    if not (configs_dir / "shared_config.yaml").exists():
-        error_exit(
-            "Error: 'configs/shared_config.yaml' not found. Please run 'sam init' first."
-        )
-
-    try:
-        template_content = load_template("eval_backend_template.yaml")
-        with open(eval_backend_config_path, "w", encoding="utf-8") as f:
-            f.write(template_content)
-        click.echo(
-            click.style(
-                f"Successfully created '{eval_backend_config_path.relative_to(project_root)}'.",
-                fg="green",
-            )
-        )
-    except Exception as e:
-        error_exit(f"Failed to create eval_backend.yaml: {e}")
 
 
 @click.command(name="eval")
@@ -64,7 +32,6 @@ def eval_cmd(test_suite_config_path, verbose):
             fg="blue",
         )
     )
-    _ensure_eval_backend_config_exists()
 
     # Set logging config path for evaluation
     project_root = Path.cwd()

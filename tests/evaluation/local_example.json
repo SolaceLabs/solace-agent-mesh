@@ -1,7 +1,7 @@
 {
     "agents": [
         "examples/agents/a2a_agents_example.yaml",
-        "examples/agents/multimodal_example.yaml",
+        "examples/agents/a2a_multimodal_example.yaml",
         "examples/agents/orchestrator_example.yaml"
     ],
     "broker": {

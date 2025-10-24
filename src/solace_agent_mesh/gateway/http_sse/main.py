@@ -125,8 +125,7 @@ async def _get_user_info(
 
 def _extract_user_identifier(user_info: dict) -> str:
     user_identifier = (
-        user_info.get("user_id") # internal /user_info endpoint format maps identifier to user_id
-        or user_info.get("sub")
+        user_info.get("sub")
         or user_info.get("client_id")
         or user_info.get("username")
         or user_info.get("oid")
@@ -136,6 +135,7 @@ def _extract_user_identifier(user_info: dict) -> str:
         or user_info.get("email")
         or user_info.get("name")
         or user_info.get("azp")
+        or user_info.get("user_id") # internal /user_info endpoint format maps identifier to user_id
     )
 
     if user_identifier and user_identifier.lower() == "unknown":
