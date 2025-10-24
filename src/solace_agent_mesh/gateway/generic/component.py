@@ -5,6 +5,8 @@ The GenericGatewayComponent, the engine that hosts and orchestrates GatewayAdapt
 import asyncio
 import importlib
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from a2a.types import (
@@ -25,6 +27,7 @@ from ..adapter.types import (
     ResponseContext,
     SamDataPart,
     SamError,
+    SamFeedback,
     SamFilePart,
     SamTextPart,
     SamUpdate,
@@ -220,6 +223,56 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         )
         self.publish_a2a_message(
             topic=topic, payload=payload, user_properties=user_properties
+        )
+
+    async def submit_feedback(self, feedback: "SamFeedback") -> None:
+        """Handles feedback submission from an adapter."""
+        log_id_prefix = f"{self.log_identifier}[SubmitFeedback]"
+        feedback_config = self.get_config("feedback_publishing", {})
+
+        if not feedback_config.get("enabled", False):
+            log.debug("%s Feedback received but publishing is disabled.", log_id_prefix)
+            return
+
+        log.info(
+            "%s Received feedback for task %s: %s",
+            log_id_prefix,
+            feedback.task_id,
+            feedback.feedback_type,
+        )
+
+        task_context = self.task_context_manager.get_context(feedback.task_id)
+        if not task_context:
+            log.warning(
+                "%s Cannot publish feedback for task %s: Original task context not found.",
+                log_id_prefix,
+                feedback.task_id,
+            )
+            # Still publish feedback, but with less context
+            task_context = {}
+
+        feedback_payload = {
+            "feedback_id": f"feedback-{uuid.uuid4().hex}",
+            "task_id": feedback.task_id,
+            "feedback_type": feedback.feedback_type,
+            "comment": feedback.comment,
+            "user_id": feedback.user_id,
+            "gateway_id": self.gateway_id,
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "platform_context": feedback.platform_context,
+            "task_context": {
+                "target_agent_name": task_context.get("target_agent_name"),
+                "a2a_session_id": task_context.get("a2a_session_id"),
+            },
+        }
+
+        topic = feedback_config.get("topic", "sam/feedback/v1")
+        self.publish_a2a_message(topic=topic, payload=feedback_payload)
+        log.info(
+            "%s Published feedback event for task %s to topic '%s'.",
+            log_id_prefix,
+            feedback.task_id,
+            topic,
         )
 
     def add_timer(

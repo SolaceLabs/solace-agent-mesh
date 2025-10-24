@@ -111,6 +111,19 @@ class SamError(BaseModel):
     ]
 
 
+class SamFeedback(BaseModel):
+    """A structured model for submitting user feedback."""
+
+    task_id: str
+    feedback_type: Literal["positive", "negative"]
+    comment: Optional[str] = None
+    user_id: str
+    platform_context: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Platform-specific context related to the feedback event.",
+    )
+
+
 # --- Context Models ---
 
 
@@ -144,6 +157,10 @@ class GatewayContext:
         raise NotImplementedError
 
     async def cancel_task(self, task_id: str) -> None:
+        raise NotImplementedError
+
+    async def submit_feedback(self, feedback: "SamFeedback") -> None:
+        """Submits user feedback related to a task."""
         raise NotImplementedError
 
     def add_timer(
