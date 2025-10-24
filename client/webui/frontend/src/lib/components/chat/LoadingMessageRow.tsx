@@ -6,7 +6,7 @@ interface LoadingMessageRowProps {
     onViewWorkflow?: () => void;
 }
 
-export const LoadingMessageRow: React.FC<LoadingMessageRowProps> = ({ statusText, onViewWorkflow }) => {
+export const LoadingMessageRow = React.memo<LoadingMessageRowProps>(({ statusText, onViewWorkflow }) => {
     return (
         <div className="flex h-8 items-center space-x-3 py-1">
             {onViewWorkflow ? <ViewWorkflowButton onClick={onViewWorkflow} /> : <MessageLoading className="mr-3 ml-2" />}
@@ -19,4 +19,4 @@ export const LoadingMessageRow: React.FC<LoadingMessageRowProps> = ({ statusText
             </div>
         </div>
     );
-};
+});

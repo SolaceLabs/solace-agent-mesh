@@ -1,3 +1,5 @@
+import React from "react";
+
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
 import { Button } from "@/lib/components/ui/button";
 
@@ -8,7 +10,7 @@ interface ChatSessionDeleteDialogProps {
     sessionName: string;
 }
 
-export const ChatSessionDeleteDialog = ({ isOpen, onClose, onConfirm, sessionName }: ChatSessionDeleteDialogProps) => {
+export const ChatSessionDeleteDialog = React.memo<ChatSessionDeleteDialogProps>(({ isOpen, onClose, onConfirm, sessionName }) => {
     if (!isOpen) {
         return null;
     }
@@ -33,4 +35,4 @@ export const ChatSessionDeleteDialog = ({ isOpen, onClose, onConfirm, sessionNam
             </DialogContent>
         </Dialog>
     );
-};
+});

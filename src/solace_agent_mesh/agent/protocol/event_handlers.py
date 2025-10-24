@@ -49,6 +49,7 @@ from google.adk.agents.run_config import StreamingMode
 
 log = logging.getLogger(__name__)
 
+
 def _register_peer_artifacts_in_parent_context(
     parent_task_context: "TaskExecutionContext",
     peer_task_object: Task,
@@ -123,6 +124,30 @@ async def process_event(component, event: Event):
                 agent_status_sub_prefix
             ):
                 await handle_a2a_response(component, message)
+            elif hasattr(component, "trust_manager") and component.trust_manager:
+                # Check if this is a trust card message (enterprise feature)
+                try:
+                    if component.trust_manager.is_trust_card_topic(topic):
+                        await component.trust_manager.handle_trust_card_message(
+                            message, topic
+                        )
+                        message.call_acknowledgements()
+                        return
+                except Exception as e:
+                    log.error(
+                        "%s Error handling trust card message: %s",
+                        component.log_identifier,
+                        e,
+                    )
+                    message.call_acknowledgements()
+                    return
+
+                log.warning(
+                    "%s Received message on unhandled topic: %s",
+                    component.log_identifier,
+                    topic,
+                )
+                message.call_acknowledgements()
             else:
                 log.warning(
                     "%s Received message on unhandled topic: %s",
@@ -229,12 +254,11 @@ async def handle_a2a_request(component, message: SolaceMessage):
         payload_dict = message.get_payload()
         if not isinstance(payload_dict, dict):
             raise ValueError("Payload is not a dictionary.")
-            
-            
+
         a2a_request: A2ARequest = A2ARequest.model_validate(payload_dict)
         jsonrpc_request_id = a2a.get_request_id(a2a_request)
 
-        # Extract properties from message user properties  
+        # Extract properties from message user properties
         client_id = message.get_user_properties().get("clientId", "default_client")
         status_topic_from_peer = message.get_user_properties().get("a2aStatusTopic")
         reply_topic_from_peer = message.get_user_properties().get("replyTo")
@@ -248,6 +272,90 @@ async def handle_a2a_request(component, message: SolaceMessage):
         # For Send, we will generate it.
         logical_task_id = None
         method = a2a.get_request_method(a2a_request)
+
+        # Enterprise feature: Verify user authentication if trust manager enabled
+        verified_user_identity = None
+        if hasattr(component, "trust_manager") and component.trust_manager:
+            # Determine task_id for verification
+            if method == "tasks/cancel":
+                verification_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
+            elif method in ["message/send", "message/stream"]:
+                verification_task_id = str(a2a.get_request_id(a2a_request))
+            else:
+                verification_task_id = None
+
+            if verification_task_id:
+                try:
+                    # Enterprise handles all verification logic
+                    verified_user_identity = (
+                        component.trust_manager.verify_request_authentication(
+                            message=message,
+                            task_id=verification_task_id,
+                            namespace=namespace,
+                            jsonrpc_request_id=jsonrpc_request_id,
+                        )
+                    )
+
+                    if verified_user_identity:
+                        log.info(
+                            "%s Successfully authenticated user '%s' for task %s",
+                            component.log_identifier,
+                            verified_user_identity.get("user_id"),
+                            verification_task_id,
+                        )
+
+                except Exception as e:
+                    # Authentication failed - enterprise provides error details
+                    log.error(
+                        "%s Authentication failed for task %s: %s",
+                        component.log_identifier,
+                        verification_task_id,
+                        e,
+                    )
+
+                    # Build error response using enterprise exception data if available
+                    error_data = {
+                        "reason": "authentication_failed",
+                        "task_id": verification_task_id,
+                    }
+                    if hasattr(e, "create_error_response_data"):
+                        error_data = e.create_error_response_data()
+
+                    error_response = a2a.create_invalid_request_error_response(
+                        message="Authentication failed",
+                        request_id=jsonrpc_request_id,
+                        data=error_data,
+                    )
+
+                    # Determine reply topic
+                    reply_topic = message.get_user_properties().get("replyTo")
+                    if not reply_topic:
+                        client_id = message.get_user_properties().get(
+                            "clientId", "default_client"
+                        )
+                        reply_topic = a2a.get_client_response_topic(
+                            namespace, client_id
+                        )
+
+                    component.publish_a2a_message(
+                        payload=error_response.model_dump(exclude_none=True),
+                        topic=reply_topic,
+                    )
+
+                    try:
+                        message.call_acknowledgements()
+                        log.debug(
+                            "%s ACKed message with failed authentication",
+                            component.log_identifier,
+                        )
+                    except Exception as ack_e:
+                        log.error(
+                            "%s Failed to ACK message after authentication failure: %s",
+                            component.log_identifier,
+                            ack_e,
+                        )
+                    return None
+
         if method == "tasks/cancel":
             logical_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
             log.info(
@@ -537,6 +645,15 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 "response_format": response_format,
                 "host_agent_name": agent_name,
             }
+
+            # Store verified user identity claims in a2a_context (not the raw token)
+            if verified_user_identity:
+                a2a_context["verified_user_identity"] = verified_user_identity
+                log.debug(
+                    "%s Stored verified user identity in a2a_context for task %s",
+                    component.log_identifier,
+                    logical_task_id,
+                )
             log.debug(
                 "%s A2A Context (shared service model): %s",
                 component.log_identifier,
@@ -547,6 +664,18 @@ async def handle_a2a_request(component, message: SolaceMessage):
             task_context = TaskExecutionContext(
                 task_id=logical_task_id, a2a_context=a2a_context
             )
+
+            # Store auth token for peer delegation using generic security storage
+            if hasattr(component, "trust_manager") and component.trust_manager:
+                auth_token = message.get_user_properties().get("authToken")
+                if auth_token:
+                    task_context.set_security_data("auth_token", auth_token)
+                    log.debug(
+                        "%s Stored authentication token in TaskExecutionContext security storage for task %s",
+                        component.log_identifier,
+                        logical_task_id,
+                    )
+
             with component.active_tasks_lock:
                 component.active_tasks[logical_task_id] = task_context
             log.info(
@@ -1458,6 +1587,7 @@ def publish_agent_card(component):
         dynamic_url = f"solace:{agent_request_topic}"
 
         # Define unique URIs for our custom extensions.
+        DEPLOYMENT_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/deployment"
         PEER_TOPOLOGY_EXTENSION_URI = (
             "https://solace.com/a2a/extensions/peer-agent-topology"
         )
@@ -1465,6 +1595,24 @@ def publish_agent_card(component):
         TOOLS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools"
 
         extensions_list = []
+
+        # Create the extension object for deployment tracking.
+        deployment_config = component.get_config("deployment", {})
+        deployment_id = deployment_config.get("id")
+
+        if deployment_id:
+            deployment_extension = AgentExtension(
+                uri=DEPLOYMENT_EXTENSION_URI,
+                description="SAM deployment tracking for rolling updates",
+                required=False,
+                params={"id": deployment_id}
+            )
+            extensions_list.append(deployment_extension)
+            log.debug(
+                "%s Added deployment extension with ID: %s",
+                component.log_identifier,
+                deployment_id
+            )
 
         # Create the extension object for peer agents.
         if peer_agents:
@@ -1562,81 +1710,95 @@ def handle_sam_event(component, message, topic):
     """Handle incoming SAM system events."""
     try:
         payload = message.get_payload()
-        
+
         if not isinstance(payload, dict):
             log.warning("Invalid SAM event payload - not a dict")
             message.call_acknowledgements()
             return
-        
+
         event_type = payload.get("event_type")
         if not event_type:
             log.warning("SAM event missing event_type field")
             message.call_acknowledgements()
             return
-            
+
         log.info("%s Received SAM event: %s", component.log_identifier, event_type)
-        
+
         if event_type == "session.deleted":
             data = payload.get("data", {})
             session_id = data.get("session_id")
             user_id = data.get("user_id")
             agent_id = data.get("agent_id")
-            
+
             if not all([session_id, user_id, agent_id]):
                 log.warning("Missing required fields in session.deleted event")
                 message.call_acknowledgements()
                 return
-                
+
             current_agent = component.get_config("agent_name")
-            
+
             if agent_id == current_agent:
-                log.info("%s Processing session.deleted event for session %s", 
-                        component.log_identifier, session_id)
-                asyncio.create_task(cleanup_agent_session(component, session_id, user_id))
+                log.info(
+                    "%s Processing session.deleted event for session %s",
+                    component.log_identifier,
+                    session_id,
+                )
+                asyncio.create_task(
+                    cleanup_agent_session(component, session_id, user_id)
+                )
             else:
-                log.debug("Session deletion event for different agent: %s != %s", agent_id, current_agent)
+                log.debug(
+                    "Session deletion event for different agent: %s != %s",
+                    agent_id,
+                    current_agent,
+                )
         else:
             log.debug("Unhandled SAM event type: %s", event_type)
-            
+
         message.call_acknowledgements()
-        
+
     except Exception as e:
         log.error("Error handling SAM event %s: %s", topic, e)
         message.call_acknowledgements()
-
 
 
 async def cleanup_agent_session(component, session_id: str, user_id: str):
     """Clean up agent-side session data."""
     try:
         log.info("Starting cleanup for session %s, user %s", session_id, user_id)
-        
-        if hasattr(component, 'session_service') and component.session_service:
+
+        if hasattr(component, "session_service") and component.session_service:
             agent_name = component.get_config("agent_name")
-            log.info("Deleting session %s from agent %s session service", session_id, agent_name)
+            log.info(
+                "Deleting session %s from agent %s session service",
+                session_id,
+                agent_name,
+            )
             await component.session_service.delete_session(
-                app_name=agent_name,
-                user_id=user_id,
-                session_id=session_id
+                app_name=agent_name, user_id=user_id, session_id=session_id
             )
             log.info("Successfully deleted session %s from session service", session_id)
         else:
             log.info("No session service available for cleanup")
-            
+
         with component.active_tasks_lock:
             tasks_to_cancel = []
             for task_id, context in component.active_tasks.items():
-                if (hasattr(context, 'a2a_context') and 
-                    context.a2a_context.get('session_id') == session_id):
+                if (
+                    hasattr(context, "a2a_context")
+                    and context.a2a_context.get("session_id") == session_id
+                ):
                     tasks_to_cancel.append(task_id)
-                    
+
             for task_id in tasks_to_cancel:
                 context = component.active_tasks.get(task_id)
                 if context:
                     context.cancel()
-                    log.info("Cancelled task %s for deleted session %s", task_id, session_id)
-        
+                    log.info(
+                        "Cancelled task %s for deleted session %s", task_id, session_id
+                    )
+
         log.info("Session cleanup completed for session %s", session_id)
-                    
+
     except Exception as e:
         log.error("Error cleaning up session %s: %s", session_id, e)

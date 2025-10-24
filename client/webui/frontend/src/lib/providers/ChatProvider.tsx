@@ -109,7 +109,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
-    const [userInput, setUserInput] = useState<string>("");
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
@@ -448,7 +447,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         let errorCount = 0;
         for (const filename of filenamesToDelete) {
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${encodeURIComponent(filename)}`, {
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
                     credentials: "include",
                 });
@@ -464,7 +463,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         artifactsRefetch();
         setSelectedArtifactFilenames(new Set());
         setIsArtifactEditMode(false);
-    }, [selectedArtifactFilenames, apiPrefix, addNotification, artifactsRefetch]);
+    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, apiPrefix, sessionId]);
 
     const openArtifactForPreview = useCallback(
         async (artifactFilename: string): Promise<FileAttachment | null> => {
@@ -938,7 +937,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         setSelectedAgentName("");
         setMessages([]);
-        setUserInput("");
         setIsResponding(false);
         setCurrentTaskId(null);
         setTaskIdInSidePanel(null);
@@ -1039,7 +1037,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // Update session state
                 setSessionId(newSessionId);
-                setUserInput("");
                 setIsResponding(false);
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
@@ -1226,9 +1223,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [addNotification, closeCurrentEventSource, isResponding]);
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputOverride?: string | null) => {
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null) => {
             event.preventDefault();
-            const currentInput = userInputOverride?.trim() || userInput.trim();
+            const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
 
             if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
@@ -1261,7 +1258,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             latestStatusText.current = "Thinking";
             setMessages(prev => [...prev, userMsg]);
-            setUserInput("");
 
             const errors: string[] = [];
 
@@ -1429,7 +1425,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, userInput, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble]
+        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
@@ -1543,8 +1539,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setSessionName,
         messages,
         setMessages,
-        userInput,
-        setUserInput,
         isResponding,
         currentTaskId,
         isCancelling,

@@ -4,13 +4,13 @@ import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { Ban, Paperclip, Send } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
-import { useChatContext, useDragAndDrop, useDebounce, useAgentSelection } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useAgentSelection } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
 
 import { FileBadge } from "./file/FileBadge";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
-    const { isResponding, isCancelling, userInput, selectedAgentName, setUserInput, handleSubmit, handleCancel } = useChatContext();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, handleSubmit, handleCancel } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
 
     // File selection support
@@ -21,18 +21,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
     const prevIsRespondingRef = useRef<boolean>(isResponding);
 
-    // Local state for input value before debouncing
-    const [inputValue, setInputValue] = useState<string>(userInput);
-    const debouncedInputValue = useDebounce<string>(inputValue, 300);
+    // Local state for input value (no debouncing needed!)
+    const [inputValue, setInputValue] = useState<string>("");
 
+    // Clear input when session changes
     useEffect(() => {
-        setUserInput(debouncedInputValue);
-    }, [debouncedInputValue, setUserInput]);
-
-    // Sync inputValue when userInput changes (e.g., after form submission)
-    useEffect(() => {
-        setInputValue(userInput);
-    }, [userInput]);
+        setInputValue("");
+    }, [sessionId]);
 
     // Focus the chat input when isResponding becomes false
     useEffect(() => {
@@ -96,6 +91,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
         if (isSubmittingEnabled) {
+            // Pass inputValue directly as required parameter
             await handleSubmit(event, selectedFiles, inputValue.trim());
             setSelectedFiles([]);
             setInputValue("");
@@ -176,12 +172,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 </Select>
 
                 {isResponding && !isCancelling ? (
-                    <Button className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Cancel">
+                    <Button data-testid="cancel" className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Cancel">
                         <Ban className="size-4" />
                         Stop
                     </Button>
                 ) : (
-                    <Button variant="ghost" className="ml-auto gap-1.5" onClick={onSubmit} disabled={!isSubmittingEnabled} tooltip="Send message">
+                    <Button data-testid="sendMessage" variant="ghost" className="ml-auto gap-1.5" onClick={onSubmit} disabled={!isSubmittingEnabled} tooltip="Send message">
                         <Send className="size-4" />
                     </Button>
                 )}
