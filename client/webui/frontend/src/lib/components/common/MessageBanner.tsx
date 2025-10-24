@@ -58,7 +58,7 @@ function MessageBanner({ className, variant = "error", message, action, buttonTe
                 </Button>
             )}
             {action !== undefined ? (
-                <Button variant="ghost" className="h-min gap-1 p-0 text-sm font-normal text-current underline hover:bg-transparent hover:text-current/60 dark:hover:bg-transparent dark:hover:text-white" onClick={action}>
+                <Button variant="link" className="h-min p-0 font-normal text-current underline hover:text-current/60 dark:hover:text-white" onClick={action}>
                     {buttonText}
                 </Button>
             ) : null}
