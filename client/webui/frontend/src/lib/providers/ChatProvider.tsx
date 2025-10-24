@@ -1467,7 +1467,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     useEffect(() => {
         // Don't show welcome message if we're loading a session
         if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
-            const selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+            // Priority order for agent selection:
+            // 1. Project's default agent (if in project context)
+            // 2. OrchestratorAgent (fallback)
+            // 3. First available agent
+            let selectedAgent = agents[0];
+            
+            if (activeProject?.defaultAgentId) {
+                const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
+                if (projectDefaultAgent) {
+                    selectedAgent = projectDefaultAgent;
+                    console.log(`Using project default agent: ${selectedAgent.name}`);
+                } else {
+                    console.warn(`Project default agent "${activeProject.defaultAgentId}" not found, falling back to OrchestratorAgent`);
+                    selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+                }
+            } else {
+                selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+            }
+            
             setSelectedAgentName(selectedAgent.name);
 
             const displayedText = configWelcomeMessage || `Hi! I'm the ${selectedAgent?.displayName}. How can I help?`;
@@ -1484,7 +1502,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             ]);
         }
-    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession]);
+    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject]);
 
     useEffect(() => {
         if (currentTaskId && apiPrefix) {

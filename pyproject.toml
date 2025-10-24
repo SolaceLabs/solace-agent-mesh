@@ -161,6 +161,7 @@ markers = [
     "api: marks tests related to the API",
     "tasks: marks tests related to task management",
     "projects: marks tests related to project management",
+    "default_agent: marks tests related to default agent functionality",
     "crud: marks tests related to CRUD operations",
     "templates: marks tests related to template operations",
     "pagination: marks tests related to pagination functionality",

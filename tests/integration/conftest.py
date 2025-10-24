@@ -73,14 +73,22 @@ def test_db_engine():
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
 
-        # Run Alembic migrations
+        # Run Alembic migrations using the existing engine connection
         alembic_cfg = AlembicConfig()
-        # The script location is relative to the project root
-        script_location = "src/solace_agent_mesh/gateway/http_sse/alembic"
+        # Get absolute path to the alembic directory
+        import os
+        project_root = Path(__file__).parent.parent.parent
+        script_location = os.path.join(
+            project_root, "src", "solace_agent_mesh", "gateway", "http_sse", "alembic"
+        )
         alembic_cfg.set_main_option("script_location", script_location)
         alembic_cfg.set_main_option("sqlalchemy.url", database_url)
-
-        alembic_command.upgrade(alembic_cfg, "head")
+        
+        # Use the existing engine's connection to run migrations
+        with engine.begin() as connection:
+            alembic_cfg.attributes['connection'] = connection
+            alembic_command.upgrade(alembic_cfg, "head")
+        
         print("[SessionFixture] Database migrations applied.")
 
         yield engine

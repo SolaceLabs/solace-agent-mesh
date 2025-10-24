@@ -21,7 +21,7 @@ class ProjectRepository(IProjectRepository):
         self.db = db
 
     def create_project(self, name: str, user_id: str, description: Optional[str] = None,
-                      system_prompt: Optional[str] = None) -> Project:
+                      system_prompt: Optional[str] = None, default_agent_id: Optional[str] = None) -> Project:
         """Create a new user project."""
         model = ProjectModel(
             id=str(uuid.uuid4()),
@@ -29,6 +29,7 @@ class ProjectRepository(IProjectRepository):
             user_id=user_id,
             description=description,
             system_prompt=system_prompt,
+            default_agent_id=default_agent_id,
             created_at=now_epoch_ms(),
         )
         self.db.add(model)
@@ -163,6 +164,7 @@ class ProjectRepository(IProjectRepository):
             user_id=model.user_id,
             description=model.description,
             system_prompt=model.system_prompt,
+            default_agent_id=model.default_agent_id,
             created_at=model.created_at,
             updated_at=model.updated_at,
             deleted_at=model.deleted_at,

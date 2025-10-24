@@ -45,6 +45,7 @@ class ProjectService:
         user_id: str,
         description: Optional[str] = None,
         system_prompt: Optional[str] = None,
+        default_agent_id: Optional[str] = None,
         files: Optional[List[UploadFile]] = None,
         file_metadata: Optional[dict] = None,
     ) -> Project:
@@ -56,6 +57,7 @@ class ProjectService:
             user_id: ID of the user creating the project
             description: Optional project description
             system_prompt: Optional system prompt
+            default_agent_id: Optional default agent ID for new chats
             files: Optional list of files to associate with the project
             
         Returns:
@@ -79,6 +81,7 @@ class ProjectService:
             user_id=user_id,
             description=description.strip() if description else None,
             system_prompt=system_prompt.strip() if system_prompt else None,
+            default_agent_id=default_agent_id,
         )
 
         if files and self.artifact_service:
@@ -272,7 +275,8 @@ class ProjectService:
         return True
 
     def update_project(self, project_id: str, user_id: str,
-                           name: Optional[str] = None, description: Optional[str] = None, system_prompt: Optional[str] = None) -> Optional[Project]:
+                           name: Optional[str] = None, description: Optional[str] = None,
+                           system_prompt: Optional[str] = None, default_agent_id: Optional[str] = ...) -> Optional[Project]:
         """
         Update a project's details.
         
@@ -282,22 +286,25 @@ class ProjectService:
             name: New project name (optional)
             description: New project description (optional)
             system_prompt: New system prompt (optional)
+            default_agent_id: New default agent ID (optional, use ... sentinel to indicate not provided)
             
         Returns:
             Optional[Project]: The updated project if successful, None otherwise
         """
         # Validate business rules
-        if name is not None and not name.strip():
+        if name is not None and name is not ... and not name.strip():
             raise ValueError("Project name cannot be empty")
         
         # Build update data
         update_data = {}
-        if name is not None:
+        if name is not None and name is not ...:
             update_data["name"] = name.strip()
-        if description is not None:
+        if description is not None and description is not ...:
             update_data["description"] = description.strip() if description else None
-        if system_prompt is not None:
+        if system_prompt is not None and system_prompt is not ...:
             update_data["system_prompt"] = system_prompt.strip() if system_prompt else None
+        if default_agent_id is not ...:
+            update_data["default_agent_id"] = default_agent_id
         
         if not update_data:
             # Nothing to update - get existing project

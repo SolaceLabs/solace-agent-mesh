@@ -12,6 +12,7 @@ export { ProjectHeader } from "./ProjectHeader";
 export { ProjectDescription } from "./ProjectDescription";
 export { ProjectChatsSection } from "./ProjectChatsSection";
 export { SystemPromptSection } from "./SystemPromptSection";
+export { DefaultAgentSection } from "./DefaultAgentSection";
 export { KnowledgeSection } from "./KnowledgeSection";
 export { DocumentListItem } from "./DocumentListItem";
 export { ProjectMetadataSidebar } from "./ProjectMetadataSidebar";

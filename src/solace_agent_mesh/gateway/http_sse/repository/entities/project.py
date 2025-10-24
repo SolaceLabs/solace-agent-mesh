@@ -16,6 +16,7 @@ class Project(BaseModel):
     user_id: str
     description: Optional[str] = Field(None, max_length=1000)
     system_prompt: Optional[str] = Field(None, max_length=4000)
+    default_agent_id: Optional[str] = None
     created_at: int
     updated_at: Optional[int] = None
     deleted_at: Optional[int] = None
@@ -40,6 +41,11 @@ class Project(BaseModel):
         else:
             self.description = None
         
+        self.updated_at = now_epoch_ms()
+    
+    def update_default_agent(self, agent_id: Optional[str]) -> None:
+        """Update project default agent."""
+        self.default_agent_id = agent_id
         self.updated_at = now_epoch_ms()
     
     def soft_delete(self, user_id: str) -> None:
