@@ -24,6 +24,14 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
 
+    const sortedArtifacts = React.useMemo(() => {
+        return [...artifacts].sort((a, b) => {
+            const dateA = a.last_modified ? new Date(a.last_modified).getTime() : 0;
+            const dateB = b.last_modified ? new Date(b.last_modified).getTime() : 0;
+            return dateB - dateA; 
+        });
+    }, [artifacts]);
+
     const handleUploadClick = () => {
         fileInputRef.current?.click();
     };
@@ -153,7 +161,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                             </p>
                         </div>
                         <div className="space-y-1 max-h-[400px] overflow-y-auto rounded-md">
-                            {artifacts.map((artifact) => (
+                            {sortedArtifacts.map((artifact) => (
                                 <DocumentListItem
                                     key={artifact.filename}
                                     artifact={artifact}
