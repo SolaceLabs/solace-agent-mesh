@@ -27,24 +27,41 @@ const iconMap = {
     success: CheckCircle,
 };
 
-export interface MessageBannerProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof messageBannerVariants> {
+type ActionProps =
+    | {
+          action: (event: React.MouseEvent<HTMLButtonElement>) => void;
+          buttonText: string;
+      }
+    | {
+          action?: undefined;
+          buttonText?: undefined;
+      };
+
+export interface MessageBannerBaseProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof messageBannerVariants> {
     message: string;
     dismissible?: boolean;
     onDismiss?: () => void;
 }
 
-function MessageBanner({ className, variant = "error", message, dismissible = false, onDismiss, ...props }: MessageBannerProps) {
+export type MessageBannerProps = MessageBannerBaseProps & ActionProps;
+
+function MessageBanner({ className, variant = "error", message, action, buttonText, dismissible = false, onDismiss, ...props }: MessageBannerProps) {
     const IconComponent = iconMap[variant || "error"];
 
     return (
         <div className={cn(messageBannerVariants({ variant, className }), "items-start")} role="alert" aria-live="polite" {...props}>
             <IconComponent className="size-5 shrink-0" />
-            <span className="flex-1">{message}</span>
+            <span className="">{message}</span>
             {dismissible && onDismiss && (
                 <Button variant="ghost" onClick={onDismiss} aria-label="Dismiss">
                     <X className="size-3" />
                 </Button>
             )}
+            {action !== undefined ? (
+                <Button variant="ghost" className="h-min gap-1 p-0 text-sm font-normal text-current underline hover:bg-transparent hover:text-current/60 dark:hover:bg-transparent dark:hover:text-white" onClick={action}>
+                    {buttonText}
+                </Button>
+            ) : null}
         </div>
     );
 }
