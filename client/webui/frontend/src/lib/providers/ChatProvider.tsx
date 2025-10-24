@@ -948,6 +948,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Success notification
         addNotification("New session started successfully.");
         
+        // Dispatch event to focus chat input
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("focus-chat-input"));
+        }
+        
         // Note: No session events dispatched here since no session exists yet.
         // Session creation event will be dispatched when first message creates the actual session.
     }, [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, artifactsRefetch, closeCurrentEventSource, activeProject, setActiveProject]);

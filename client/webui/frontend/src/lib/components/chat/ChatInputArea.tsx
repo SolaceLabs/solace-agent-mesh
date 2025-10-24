@@ -40,6 +40,20 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         prevIsRespondingRef.current = isResponding;
     }, [isResponding]);
 
+    // Focus the chat input when a new chat session is started
+    useEffect(() => {
+        const handleFocusChatInput = () => {
+            setTimeout(() => {
+                chatInputRef.current?.focus();
+            }, 100);
+        };
+
+        window.addEventListener("focus-chat-input", handleFocusChatInput);
+        return () => {
+            window.removeEventListener("focus-chat-input", handleFocusChatInput);
+        };
+    }, []);
+
     const handleFileSelect = () => {
         if (!isResponding) {
             fileInputRef.current?.click();

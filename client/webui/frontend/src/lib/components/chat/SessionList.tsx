@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 
-import { Trash2, Check, X, Pencil, MessageCircle, Filter, FolderInput } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, Filter, FolderInput, ChevronDown, ChevronUp } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
@@ -44,6 +44,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [selectedProject, setSelectedProject] = useState<string | null>(null);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
+    const [showAllProjects, setShowAllProjects] = useState(false);
 
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
@@ -235,15 +236,37 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         return `Session ${sessionId.substring(0, 8)}`;
     };
 
-    // Get unique project names from sessions
+    // Get unique project names from sessions, sorted by most recent activity
     const projectNames = useMemo(() => {
-        const names = new Set<string>();
+        // Create a map of project name to most recent session update timestamp
+        const projectLastActivity = new Map<string, number>();
+        
         sessions.forEach(session => {
-            if (session.projectName) {
-                names.add(session.projectName);
+            if (session.projectName && session.updatedTime) {
+                try {
+                    // Convert ISO string to timestamp for reliable comparison
+                    const timestamp = new Date(session.updatedTime).getTime();
+                    if (!isNaN(timestamp)) {
+                        const existingTimestamp = projectLastActivity.get(session.projectName);
+                        if (!existingTimestamp || timestamp > existingTimestamp) {
+                            projectLastActivity.set(session.projectName, timestamp);
+                        }
+                    }
+                } catch (error) {
+                    // If date parsing fails, skip this session
+                    console.warn(`Failed to parse updatedTime for session ${session.id}:`, error);
+                }
             }
         });
-        return Array.from(names).sort();
+        
+        // Sort projects by most recent activity (descending), then alphabetically as fallback
+        return Array.from(projectLastActivity.entries())
+            .sort((a, b) => {
+                const timeDiff = b[1] - a[1];
+                if (timeDiff !== 0) return timeDiff;
+                return a[0].localeCompare(b[0]);
+            })
+            .map(([name]) => name);
     }, [sessions]);
 
     // Filter sessions by selected project
@@ -253,6 +276,17 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         }
         return sessions.filter(session => session.projectName === selectedProject);
     }, [sessions, selectedProject]);
+
+    // Determine which projects to display
+    const MAX_VISIBLE_PROJECTS = 5;
+    const visibleProjectNames = useMemo(() => {
+        if (showAllProjects || projectNames.length <= MAX_VISIBLE_PROJECTS) {
+            return projectNames;
+        }
+        return projectNames.slice(0, MAX_VISIBLE_PROJECTS);
+    }, [projectNames, showAllProjects]);
+
+    const hasMoreProjects = projectNames.length > MAX_VISIBLE_PROJECTS;
 
     return (
         <div className="flex h-full flex-col gap-4 py-6 pl-6">
@@ -272,18 +306,37 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                         >
                             <Filter size={12} />
                             All Chats
-                        </Button>
-                        {projectNames.map(projectName => (
-                            <Button
+                        </Badge>
+                        {visibleProjectNames.map(projectName => (
+                            <Badge
                                 key={projectName}
-                                variant={selectedProject === projectName ? "default" : "secondary"}
-                                size="sm"
-                                className="h-7 px-2.5 py-1 text-xs"
+                                variant={selectedProject === projectName ? "default" : "outline"}
+                                className="max-w-[120px] cursor-pointer hover:bg-accent transition-colors justify-start"
                                 onClick={() => setSelectedProject(projectName)}
+                                title={projectName}
                             >
-                                {projectName}
-                            </Button>
+                                <span className="truncate block">{projectName}</span>
+                            </Badge>
                         ))}
+                        {hasMoreProjects && (
+                            <Badge
+                                variant="outline"
+                                className="cursor-pointer hover:bg-accent transition-colors"
+                                onClick={() => setShowAllProjects(!showAllProjects)}
+                            >
+                                {showAllProjects ? (
+                                    <>
+                                        <ChevronUp className="mr-1" size={12} />
+                                        Show Less
+                                    </>
+                                ) : (
+                                    <>
+                                        <ChevronDown className="mr-1" size={12} />
+                                        +{projectNames.length - MAX_VISIBLE_PROJECTS} More
+                                    </>
+                                )}
+                            </Badge>
+                        )}
                     </div>
                 )}
             </div>
@@ -318,9 +371,10 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     {session.projectName && (
                                                         <Badge
                                                             variant="outline"
-                                                            className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm"
+                                                            className="max-w-[120px] text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm justify-start"
+                                                            title={session.projectName}
                                                         >
-                                                            {session.projectName}
+                                                            <span className="truncate block">{session.projectName}</span>
                                                         </Badge>
                                                     )}
                                                 </div>
