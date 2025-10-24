@@ -2932,6 +2932,7 @@ class SamAgentComponent(SamComponentBase):
             "replyTo": reply_to_topic,
             "a2aStatusTopic": status_topic,
             "userId": user_id,
+            "delegating_agent_name": delegating_agent_name,
         }
         if isinstance(user_config, dict):
             user_properties["a2aUserConfig"] = user_config
