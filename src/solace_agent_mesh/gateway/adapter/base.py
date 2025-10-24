@@ -3,7 +3,9 @@ Defines the abstract base class for Generic Gateway Adapters.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Optional, TypeVar
+from typing import Any, Dict, Generic, Optional, Type, TypeVar
+
+from pydantic import BaseModel
 
 from .types import (
     AuthClaims,
@@ -19,15 +21,20 @@ from .types import (
 
 T_ExternalInput = TypeVar("T_ExternalInput", bound=Any)
 T_PlatformContext = TypeVar("T_PlatformContext", bound=Dict[str, Any])
+T_AdapterConfig = TypeVar("T_AdapterConfig", bound=BaseModel)
 
 
-class GatewayAdapter(ABC, Generic[T_ExternalInput, T_PlatformContext]):
+class GatewayAdapter(
+    ABC, Generic[T_ExternalInput, T_PlatformContext, T_AdapterConfig]
+):
     """
     Abstract base class for gateway adapter plugins.
 
     Gateway adapters handle platform-specific communication while the
     GenericGatewayComponent manages A2A protocol complexity.
     """
+
+    ConfigModel: Optional[Type[BaseModel]] = None
 
     # --- Lifecycle ---
     async def init(self, context: GatewayContext) -> None:

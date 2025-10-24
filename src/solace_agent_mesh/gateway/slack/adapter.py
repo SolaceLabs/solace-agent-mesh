@@ -23,6 +23,8 @@ except ImportError:
     AsyncSocketModeHandler = None
     SlackApiError = None
 
+from pydantic import BaseModel, Field
+
 from ..adapter.base import GatewayAdapter
 from ..adapter.types import (
     AuthClaims,
@@ -43,8 +45,35 @@ log = logging.getLogger(__name__)
 _NO_EMAIL_MARKER = "_NO_EMAIL_"
 
 
+class SlackAdapterConfig(BaseModel):
+    """Configuration model for the SlackAdapter."""
+
+    slack_bot_token: str = Field(..., description="Slack Bot Token (xoxb-...).")
+    slack_app_token: str = Field(
+        ..., description="Slack App Token (xapp-...) for Socket Mode."
+    )
+    default_agent_name: Optional[str] = Field(
+        None, description="Default agent to route messages to."
+    )
+    slack_initial_status_message: str = Field(
+        "Got it, thinking...",
+        description="Message posted to Slack upon receiving a user request.",
+    )
+    correct_markdown_formatting: bool = Field(
+        True, description="Attempt to convert common Markdown to Slack's format."
+    )
+    feedback_enabled: bool = Field(
+        False, description="Enable thumbs up/down feedback buttons on final messages."
+    )
+    slack_email_cache_ttl_seconds: int = Field(
+        3600, description="TTL for caching Slack user email addresses."
+    )
+
+
 class SlackAdapter(GatewayAdapter):
     """A feature-complete Slack Gateway implementation using the adapter pattern."""
+
+    ConfigModel = SlackAdapterConfig
 
     def __init__(self):
         if not SLACK_BOLT_AVAILABLE:
@@ -60,18 +89,18 @@ class SlackAdapter(GatewayAdapter):
         self.context = context
         log.info("Initializing Slack Adapter...")
 
-        bot_token = self.context.adapter_config.get("slack_bot_token")
-        app_token = self.context.adapter_config.get("slack_app_token")
-        if not bot_token or not app_token:
-            raise ValueError("slack_bot_token and slack_app_token are required.")
+        # Config is now a validated Pydantic model
+        adapter_config: SlackAdapterConfig = self.context.adapter_config
 
-        self.slack_app = AsyncApp(token=bot_token)
+        self.slack_app = AsyncApp(token=adapter_config.slack_bot_token)
 
         # --- Register Event and Action Handlers ---
         self._register_handlers()
 
         # --- Start Socket Mode Handler ---
-        self.slack_handler = AsyncSocketModeHandler(self.slack_app, app_token)
+        self.slack_handler = AsyncSocketModeHandler(
+            self.slack_app, adapter_config.slack_app_token
+        )
         asyncio.create_task(self.slack_handler.start_async())
         log.info("Slack Adapter initialized and listener started.")
 
@@ -150,8 +179,9 @@ class SlackAdapter(GatewayAdapter):
             log.warning("Could not determine Slack user_id or team_id from event.")
             return None
 
+        adapter_config: SlackAdapterConfig = self.context.adapter_config
         cache_key = f"slack_email_cache:{slack_user_id}"
-        ttl = self.context.adapter_config.get("slack_email_cache_ttl_seconds", 3600)
+        ttl = adapter_config.slack_email_cache_ttl_seconds
 
         if self.context.cache_service and ttl > 0:
             cached_claim = self.context.cache_service.get_data(cache_key)
@@ -235,12 +265,11 @@ class SlackAdapter(GatewayAdapter):
         ) and not any(isinstance(p, SamFilePart) for p in parts):
             raise ValueError("No content to send to agent")
 
+        adapter_config: SlackAdapterConfig = self.context.adapter_config
         return SamTask(
             parts=parts,
             conversation_id=f"slack:{channel_id}:{thread_ts}",
-            target_agent=self.context.adapter_config.get(
-                "default_agent_name", "default"
-            ),
+            target_agent=adapter_config.default_agent_name or "default",
             platform_context={
                 "channel_id": channel_id,
                 "thread_ts": thread_ts,
@@ -257,11 +286,10 @@ class SlackAdapter(GatewayAdapter):
         status_ts = self.context.get_task_state(task_id, "status_ts")
         content_ts = self.context.get_task_state(task_id, "content_ts")
 
+        adapter_config: SlackAdapterConfig = self.context.adapter_config
         # If this is the first update, post the initial status message
         if not status_ts:
-            initial_status_msg = self.context.adapter_config.get(
-                "slack_initial_status_message"
-            )
+            initial_status_msg = adapter_config.slack_initial_status_message
             if initial_status_msg:
                 status_blocks = utils.build_slack_blocks(status_text=initial_status_msg)
                 new_status_ts = await utils.send_slack_message(
@@ -314,10 +342,11 @@ class SlackAdapter(GatewayAdapter):
         channel_id = context.platform_context["channel_id"]
         status_ts = self.context.get_task_state(task_id, "status_ts")
 
+        adapter_config: SlackAdapterConfig = self.context.adapter_config
         if status_ts:
             final_status_text = "✅ Task complete."
             feedback_elements = None
-            if self.context.adapter_config.get("feedback_enabled"):
+            if adapter_config.feedback_enabled:
                 feedback_elements = utils.create_feedback_blocks(
                     task_id, context.user_id, context.conversation_id
                 )
@@ -356,7 +385,8 @@ class SlackAdapter(GatewayAdapter):
 
     def _format_text(self, text: str) -> str:
         """Applies markdown correction if enabled."""
-        if self.context.adapter_config.get("correct_markdown_formatting", True):
+        adapter_config: SlackAdapterConfig = self.context.adapter_config
+        if adapter_config.correct_markdown_formatting:
             return utils.correct_slack_markdown(text)
         return text
 
@@ -433,8 +463,8 @@ class SlackAdapter(GatewayAdapter):
         if not file_url:
             raise ValueError("File info is missing a download URL.")
 
-        bot_token = self.context.adapter_config.get("slack_bot_token")
-        headers = {"Authorization": f"Bearer {bot_token}"}
+        adapter_config: SlackAdapterConfig = self.context.adapter_config
+        headers = {"Authorization": f"Bearer {adapter_config.slack_bot_token}"}
 
         # Use to_thread to avoid blocking the event loop
         response = await asyncio.to_thread(

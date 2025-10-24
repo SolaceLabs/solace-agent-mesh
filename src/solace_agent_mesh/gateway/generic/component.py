@@ -73,11 +73,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         super().__init__(**kwargs)
         log.info("%s Initializing Generic Gateway Component...", self.log_identifier)
 
-        # --- GatewayContext properties ---
-        self.adapter_config: Dict[str, Any] = self.get_config("adapter_config", {})
-        self.artifact_service = self.shared_artifact_service
-        # `gateway_id`, `namespace`, `config` are available from base classes.
-
         # --- Adapter Loading ---
         adapter_path = self.get_config("gateway_adapter")
         if not adapter_path:
@@ -93,6 +88,21 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             self.log_identifier,
             adapter_path,
         )
+
+        # --- GatewayContext properties ---
+        adapter_config_dict = self.get_config("adapter_config", {})
+        if self.adapter.ConfigModel:
+            log.info(
+                "%s Validating adapter_config against %s...",
+                self.log_identifier,
+                self.adapter.ConfigModel.__name__,
+            )
+            self.adapter_config = self.adapter.ConfigModel(**adapter_config_dict)
+        else:
+            self.adapter_config = adapter_config_dict
+
+        self.artifact_service = self.shared_artifact_service
+        # `gateway_id`, `namespace`, `config` are available from base classes.
 
     # --- GatewayContext Implementation ---
 

@@ -148,7 +148,7 @@ class GatewayContext:
     gateway_id: str
     namespace: str
     config: Dict[str, Any]
-    adapter_config: Dict[str, Any]
+    adapter_config: Any  # Can be a Pydantic model or a dict
     artifact_service: "BaseArtifactService"
 
     async def handle_external_input(

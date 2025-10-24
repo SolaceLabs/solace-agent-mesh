@@ -36,12 +36,15 @@ This document outlines the steps to implement the Generic Gateway Adapter Framew
 
 4.  **Implement GenericGatewayApp (`src/solace_agent_mesh/gateway/generic/app.py`):**
     *   In a new file, `app.py`, define `GenericGatewayApp` that extends `BaseGatewayApp`.
-    *   Add schema definitions for `gateway_adapter` (the Python module path) and `adapter_config` (a dictionary for adapter-specific settings) to its `SPECIFIC_APP_SCHEMA_PARAMS`.
+    *   Add schema definitions for `gateway_adapter` (the Python module path) and `adapter_config` (a dictionary for adapter-specific settings) to its `SPECIFIC_APP_SCHEMA_PARAMS`. This allows any adapter to be loaded without a custom App class.
     *   Implement the `_get_gateway_component_class` method to return `GenericGatewayComponent`.
 
 5.  **Implement GenericGatewayComponent (`src/solace_agent_mesh/gateway/generic/component.py`):**
     *   In a new file, `component.py`, define `GenericGatewayComponent` that extends `BaseGatewayComponent` and also serves as the concrete implementation of the `GatewayContext`.
-    *   **In `__init__`**: Dynamically import and instantiate the adapter class specified in the `gateway_adapter` configuration.
+    *   **In `__init__`**:
+        *   Dynamically import and instantiate the adapter class specified in the `gateway_adapter` configuration.
+        *   Check if the adapter has a `ConfigModel` (Pydantic model) defined.
+        *   If so, validate the `adapter_config` dictionary against the model and store the resulting Pydantic object. Otherwise, store the raw dictionary.
     *   **Implement `BaseGatewayComponent` abstract methods**:
         *   `_start_listener`: Will call `self.adapter.init(self)`.
         *   `_stop_listener`: Will call `self.adapter.cleanup()`.
@@ -55,15 +58,16 @@ This document outlines the steps to implement the Generic Gateway Adapter Framew
 ### **Phase 3: Refactor an Existing Gateway (Slack)**
 *Goal: Prove the framework's design and power by migrating the `sam-slack` plugin to the new adapter pattern.*
 
-6.  **Create SlackAdapter (`../solace-agent-mesh-core-plugins-1/sam-slack/src/sam_slack/adapter.py`):**
-    *   Create a new file, `adapter.py`, within the `sam_slack` source directory.
-    *   Define a `SlackAdapter` class that implements the `GatewayAdapter` interface.
-    *   Migrate the core platform-specific logic from `SlackGatewayComponent` into the corresponding methods of `SlackAdapter` (`init`, `cleanup`, `extract_auth_claims`, `prepare_task`, `handle_update`, etc.). The adapter will use the `GatewayContext` (`self.context`) to access shared services.
+6.  **Create SlackAdapter (`src/solace_agent_mesh/gateway/slack/adapter.py`):**
+    *   Create a new file, `adapter.py`, within the `src/solace_agent_mesh/gateway/slack/` directory.
+    *   Define a `SlackAdapterConfig` Pydantic model within the file to hold all Slack-specific settings.
+    *   Define a `SlackAdapter` class that implements the `GatewayAdapter` interface and sets `ConfigModel = SlackAdapterConfig`.
+    *   Migrate the core platform-specific logic from the original `SlackGatewayComponent` into the corresponding methods of `SlackAdapter`.
 
-7.  **Update SlackGatewayApp and Handlers:**
-    *   Modify `../solace-agent-mesh-core-plugins-1/sam-slack/src/sam_slack/app.py`: Change `SlackGatewayApp` to inherit from `GenericGatewayApp` instead of `BaseGatewayApp`. Update its schema to specify the `gateway_adapter` and `adapter_config`.
-    *   Modify `../solace-agent-mesh-core-plugins-1/sam-slack/src/sam_slack/handlers.py`: The `_process_slack_event` function will be simplified to call `component.handle_external_input(event)`, delegating orchestration to the `GenericGatewayComponent`.
-    *   Delete the existing `../solace-agent-mesh-core-plugins-1/sam-slack/src/sam_slack/component.py` file, as its functionality will now be handled by the `GenericGatewayComponent` and the new `SlackAdapter`.
+7.  **Create Slack Handlers (`src/solace_agent_mesh/gateway/slack/handlers.py`):**
+    *   Create a new `handlers.py` file.
+    *   Implement `handle_slack_message` and `handle_slack_mention` which delegate to a `_process_slack_event` helper.
+    *   The `_process_slack_event` function will simply call `adapter.context.handle_external_input(event)`, delegating all orchestration to the `GenericGatewayComponent`.
 
 8.  **Update Slack Example Configuration:**
     *   Modify `examples/gateways/slack_gateway_example.yaml`:
