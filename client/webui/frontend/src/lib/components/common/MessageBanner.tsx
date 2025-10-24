@@ -37,7 +37,7 @@ function MessageBanner({ className, variant = "error", message, dismissible = fa
     const IconComponent = iconMap[variant || "error"];
 
     return (
-        <div className={cn(messageBannerVariants({ variant, className }))} role="alert" aria-live="polite" {...props}>
+        <div className={cn(messageBannerVariants({ variant, className }), "items-start")} role="alert" aria-live="polite" {...props}>
             <IconComponent className="size-5 shrink-0" />
             <span className="flex-1">{message}</span>
             {dismissible && onDismiss && (
