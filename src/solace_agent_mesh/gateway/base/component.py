@@ -824,13 +824,6 @@ class BaseGatewayComponent(SamComponentBase):
             elif isinstance(parsed_event, Task):
                 is_finalizing_context_for_embeds = True
 
-            if self.resolve_artifact_uris_in_gateway:
-                log.debug(
-                    "%s Resolving artifact URIs before sending to external...",
-                    log_id_prefix,
-                )
-                await self._resolve_uris_in_payload(parsed_event)
-
             if not isinstance(parsed_event, JSONRPCError):
                 content_was_modified_or_signals_handled = (
                     await self._resolve_embeds_and_handle_signals(
@@ -841,6 +834,13 @@ class BaseGatewayComponent(SamComponentBase):
                         is_finalizing_context=is_finalizing_context_for_embeds,
                     )
                 )
+
+            if self.resolve_artifact_uris_in_gateway:
+                log.debug(
+                    "%s Resolving artifact URIs before sending to external...",
+                    log_id_prefix,
+                )
+                await self._resolve_uris_in_payload(parsed_event)
 
             send_this_event_to_external = True
             is_final_chunk_of_status_update = False
