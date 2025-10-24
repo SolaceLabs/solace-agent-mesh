@@ -127,7 +127,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
                                         {session.name || "Untitled Session"}
                                     </div>
                                     {session.projectName && (
-                                        <div className="text-xs text-muted-foreground">
+                                        <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={`Project: ${session.projectName}`}>
                                             Project: {session.projectName}
                                         </div>
                                     )}

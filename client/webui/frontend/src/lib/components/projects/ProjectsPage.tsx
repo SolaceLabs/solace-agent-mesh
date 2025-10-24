@@ -72,6 +72,12 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
             await handleNewSession(true);
             // Navigate to chat page
             onProjectActivated();
+            // Dispatch focus event after navigation to ensure ChatInputArea is mounted
+            setTimeout(() => {
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("focus-chat-input"));
+                }
+            }, 150);
         }
     };
 
