@@ -10,7 +10,7 @@ from typing import List, Optional
 
 
 class TestPydanticFormatting:
-    "Tests for Pydantic error message formatting utilities."
+    """Tests for Pydantic error message formatting utilities."""
 
     def test_format_validation_error_message(self):
 

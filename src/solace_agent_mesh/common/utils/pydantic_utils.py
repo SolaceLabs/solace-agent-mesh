@@ -1,6 +1,6 @@
 """Provides a Pydantic BaseModel for SAM configuration with dict-like access."""
 from pydantic import BaseModel, ValidationError
-from typing import Any, Dict, Type, TypeVar, Union, Optional, get_args, get_origin
+from typing import Any, List, Type, TypeVar, Union, Optional, get_args, get_origin
 
 T = TypeVar("T", bound="SamConfigBase")
 
@@ -25,7 +25,7 @@ class SamConfigBase(BaseModel):
         return cls.model_validate(obj)
 
     @classmethod
-    def format_validation_error_message(cls: Type[T], error: ValidationError, app_name: str | None, agent_name: str | None = None) -> str:
+    def format_validation_error_message(cls: Type[T], error: ValidationError, app_name: Optional[str], agent_name: Optional[str] = None) -> str:
         """
         Formats Pydantic validation error messages into a clear, actionable format.
 
@@ -50,7 +50,7 @@ class SamConfigBase(BaseModel):
         if agent_name:
             error_lines.append(f"   Agent Name: {agent_name}\n")
 
-        def get_nested_field_description(model_class: Type[BaseModel], path: list) -> str | None:
+        def get_nested_field_description(model_class: Type[BaseModel], path: List[Union[str, int]]) -> Optional[str]:
             """Recursively get field description from nested models"""
             if not path:
                 return None
