@@ -99,3 +99,30 @@ ERROR 1:
 ---- Please update your YAML configuration ----
 """
 
+    def test_error_on_optional_field(self):
+
+        class NestedFieldModel(SamConfigBase):
+            nested_field: int = Field(..., description="A nested integer field.")
+
+        class OptionalFieldModel(SamConfigBase):
+            optional_field: Optional[NestedFieldModel] = Field(None, description="An optional nested field.")
+
+        try:
+            OptionalFieldModel.model_validate_and_clean({
+                "optional_field": {
+                    "nested_field": "not_an_int"
+                }
+            })
+            assert False, "ValidationError was expected but not raised."
+        except ValidationError as e:
+            message = OptionalFieldModel.format_validation_error_message(e, "OptionalApp")
+            assert message == """
+---- Configuration validation failed for OptionalApp ----
+
+ERROR 1:
+   Error: Input should be a valid integer, unable to parse string as an integer
+   Location: app_config.optional_field.nested_field
+   Description: A nested integer field.
+
+---- Please update your YAML configuration ----
+"""
