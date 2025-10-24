@@ -241,7 +241,7 @@ class BaseGatewayComponent(SamComponentBase):
             user_config = await config_resolver.resolve_user_config(
                 user_identity, gateway_context, {}
             )
-            log.info(
+            log.debug(
                 "%s Resolved user configuration for user_identity '%s': %s",
                 log_id_prefix,
                 user_identity.get("id"),
@@ -1193,7 +1193,7 @@ class BaseGatewayComponent(SamComponentBase):
             self.internal_event_queue.put(None)
 
     async def _message_processor_loop(self):
-        log.info("%s Starting message processor loop as an asyncio task...", self.log_identifier)
+        log.debug("%s Starting message processor loop as an asyncio task...", self.log_identifier)
         loop = self.get_async_loop()
 
         while not self.stop_signal.is_set():

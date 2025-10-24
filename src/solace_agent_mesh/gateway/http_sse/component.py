@@ -883,7 +883,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         Manages global subscription reference counts.
         """
         log_id_prefix = f"{self.log_identifier}[AddVizSub:{stream_id}]"
-        log.info(
+        log.debug(
             "%s Attempting to add subscription to topic: %s", log_id_prefix, topic_str
         )
 
@@ -2073,7 +2073,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             await self.sse_manager.send_event(
                 task_id=sse_task_id, event_data=sse_payload, event_type=sse_event_type
             )
-            log.info(
+            log.debug(
                 "%s Successfully sent %s via SSE for A2A Task ID %s.",
                 log_id_prefix,
                 sse_event_type,
