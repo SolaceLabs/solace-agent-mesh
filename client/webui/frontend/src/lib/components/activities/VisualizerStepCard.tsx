@@ -205,16 +205,16 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         return "Peer Interaction with: ";
     };
 
-    const displayTitle = step.title;
-
     return (
         <div className={cardClasses} style={indentationStyle} onClick={onClick}>
-            <div className="mb-1.5 flex items-center">
+            <div className="mb-1.5 flex w-full items-center gap-1">
                 {getStepIcon()}
-                <h4 className="flex-grow text-sm font-semibold text-gray-700 dark:text-gray-200" title={step.title}>
-                    {displayTitle}
-                </h4>
-                <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{displayTimestamp}</span>
+                <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
+                    <h4 className="flex-1 truncate text-sm font-semibold" title={step.title}>
+                        {step.title}
+                    </h4>
+                    <span className="text-muted-foreground shrink-0 font-mono text-xs">{displayTimestamp}</span>
+                </div>
             </div>
             {step.delegationInfo && step.delegationInfo.length > 0 && (
                 <div className="mt-2 mb-1.5 space-y-2 rounded-r-md border-l-4 border-blue-500 bg-blue-50 p-2 text-sm dark:border-blue-400 dark:bg-gray-700/60">
