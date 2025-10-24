@@ -207,13 +207,13 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
 
     return (
         <div className={cardClasses} style={indentationStyle} onClick={onClick}>
-            <div className="mb-1.5 flex items-center">
+            <div className="mb-1.5 flex w-full items-center gap-1">
                 {getStepIcon()}
-                <div className="flex w-full flex-wrap justify-between gap-2">
-                    <h4 className="text-sm font-semibold" title={step.title}>
+                <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
+                    <h4 className="flex-1 truncate text-sm font-semibold" title={step.title}>
                         {step.title}
                     </h4>
-                    <span className="text-muted-foreground font-mono text-xs">{displayTimestamp}</span>
+                    <span className="text-muted-foreground shrink-0 font-mono text-xs">{displayTimestamp}</span>
                 </div>
             </div>
             {step.delegationInfo && step.delegationInfo.length > 0 && (
