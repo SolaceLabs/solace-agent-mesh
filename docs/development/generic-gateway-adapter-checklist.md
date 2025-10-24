@@ -26,10 +26,10 @@ This checklist tracks the implementation of the Generic Gateway Adapter Framewor
 
 ### **Phase 2: Generic Gateway Component Implementation**
 
-- [ ] 4. **Implement GenericGatewayApp** (`src/solace_agent_mesh/gateway/generic/app.py`):
-    - [ ] Extend `BaseGatewayApp`.
-    - [ ] Add `gateway_adapter` and `adapter_config` to schema.
-    - [ ] Implement `_get_gateway_component_class`.
+- [x] 4. **Implement GenericGatewayApp** (`src/solace_agent_mesh/gateway/generic/app.py`):
+    - [x] Extend `BaseGatewayApp`.
+    - [x] Add `gateway_adapter` and `adapter_config` to schema.
+    - [x] Implement `_get_gateway_component_class`.
 
 - [ ] 5. **Implement GenericGatewayComponent** (`src/solace_agent_mesh/gateway/generic/component.py`):
     - [ ] Extend `BaseGatewayComponent` and implement `GatewayContext`.
