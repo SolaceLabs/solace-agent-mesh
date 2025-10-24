@@ -1,7 +1,7 @@
 """
-Unit tests for Pydantic formatting utilities.
+Unit tests for Pydantic utilities.
 
-Tests the formatting of validation error messages from Pydantic models.
+Tests the validation and formatting of validation errors from Pydantic models.
 """
 
 from solace_agent_mesh.common.utils.pydantic_utils import SamConfigBase
