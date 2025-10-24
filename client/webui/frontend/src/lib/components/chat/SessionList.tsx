@@ -264,23 +264,25 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 {/* Project Filter */}
                 {projectNames.length > 0 && (
                     <div className="flex flex-wrap gap-2 pr-4">
-                        <Badge
-                            variant={selectedProject === null ? "default" : "outline"}
-                            className="cursor-pointer hover:bg-accent transition-colors"
+                        <Button
+                            variant={selectedProject === null ? "default" : "secondary"}
+                            size="sm"
+                            className="h-7 px-2.5 py-1 text-xs"
                             onClick={() => setSelectedProject(null)}
                         >
-                            <Filter className="mr-1" size={12} />
+                            <Filter size={12} />
                             All Chats
-                        </Badge>
+                        </Button>
                         {projectNames.map(projectName => (
-                            <Badge
+                            <Button
                                 key={projectName}
-                                variant={selectedProject === projectName ? "default" : "outline"}
-                                className="cursor-pointer hover:bg-accent transition-colors"
+                                variant={selectedProject === projectName ? "default" : "secondary"}
+                                size="sm"
+                                className="h-7 px-2.5 py-1 text-xs"
                                 onClick={() => setSelectedProject(projectName)}
                             >
                                 {projectName}
-                            </Badge>
+                            </Button>
                         ))}
                     </div>
                 )}

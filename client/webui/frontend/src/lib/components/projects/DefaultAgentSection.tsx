@@ -106,7 +106,7 @@ export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({
                                 <span>{displayName}</span>
                             </div>
                         ) : (
-                            <span className="italic">No default agent set. New chats will prompt for agent selection.</span>
+                            <span className="italic">No default agent set.</span>
                         )}
                     </div>
                 )}
