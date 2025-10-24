@@ -54,7 +54,7 @@ function MessageBanner({ className, variant = "error", message, action, buttonTe
             <span>{message}</span>
 
             {action && buttonText && (
-                <Button variant="link" className="h-min p-0 font-normal text-current underline hover:text-current/60 dark:hover:text-white" onClick={action}>
+                <Button variant="link" className="ml-auto h-min p-0 font-normal text-current underline hover:text-current/60 dark:hover:text-white" onClick={action}>
                     {buttonText}
                 </Button>
             )}
