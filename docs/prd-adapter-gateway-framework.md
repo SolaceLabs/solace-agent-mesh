@@ -178,7 +178,7 @@ This document proposes the "Adapter-based Gateway Framework," a new system withi
 # ============================================
 # SAM Adapter Types (solace_agent_mesh/gateway/adapter/types.py)
 # ============================================
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import List, Dict, Any, Optional, Union, Literal
 
 # --- Types for Adapter -> Host communication ---
@@ -200,22 +200,41 @@ class SamTaskRequest(BaseModel):
 
 class SamFile(BaseModel):
     name: str
-    content: bytes
+    content: Optional[bytes] = None
     mime_type: str
     uri: Optional[str] = None
+
+    @model_validator(mode='after')
+    def check_content_or_uri(cls, self):
+        if self.content is None and self.uri is None:
+            raise ValueError("Either 'content' or 'uri' must be provided.")
+        return self
 
 class SamStatusSignal(BaseModel):
     type: str
     data: Dict[str, Any]
 
+# Part types for Host -> Adapter communication
+class SamTextPart(BaseModel):
+    type: Literal["text"] = "text"
+    text: str
+
+class SamFilePart(BaseModel):
+    type: Literal["file"] = "file"
+    file: SamFile
+
+class SamStatusSignalPart(BaseModel):
+    type: Literal["signal"] = "signal"
+    signal: SamStatusSignal
+
+SamPart = Union[SamTextPart, SamFilePart, SamStatusSignalPart]
+
+
 class SamUpdate(BaseModel):
-    text_chunk: Optional[str] = None
-    files: List[SamFile] = Field(default_factory=list)
-    signals: List[SamStatusSignal] = Field(default_factory=list)
+    parts: List[SamPart] = Field(default_factory=list)
 
 class SamFinalResponse(BaseModel):
-    final_text: Optional[str] = None
-    files: List[SamFile] = Field(default_factory=list)
+    parts: List[SamPart] = Field(default_factory=list)
     status: str
     status_message: Optional[str] = None
 
@@ -330,13 +349,22 @@ class CLIAdapter(BaseGatewayAdapter):
         )
 
     def handle_update(self, update: SamUpdate, context: ResponseContext) -> None:
-        for signal in update.signals:
-            if signal.type == "agent_progress_update":
-                print(f"\r[{signal.data.get('status_text', '...')}]", end='', file=sys.stderr, flush=True)
-        if update.text_chunk:
-            print(update.text_chunk, end='', flush=True)
+        for part in update.parts:
+            if part.type == "signal":
+                if part.signal.type == "agent_progress_update":
+                    print(f"\r[{part.signal.data.get('status_text', '...')}]", end='', file=sys.stderr, flush=True)
+            elif part.type == "text":
+                print(part.text, end='', flush=True)
+            elif part.type == "file":
+                print(f"\n[File Received: {part.file.name}]", flush=True)
 
     def handle_final_response(self, response: SamFinalResponse, context: ResponseContext) -> None:
+        # Process any final parts that might have come with the final response
+        for part in response.parts:
+            if part.type == "text":
+                print(part.text, end='', flush=True)
+            elif part.type == "file":
+                print(f"\n[File Received: {part.file.name}]", flush=True)
         print("\n\n---\nNext query:", flush=True)
 
     def handle_error(self, error: SamError, context: ResponseContext) -> None:
@@ -431,13 +459,14 @@ class SlackGatewayAdapter(BaseGatewayAdapter):
         )
 
     def handle_update(self, update: SamUpdate, context: ResponseContext) -> None:
-        # ... logic to buffer text and update a single Slack message ...
-        # ... logic to post status signals to a status message ...
-        # ... logic to upload files from update.files ...
+        # ... logic to iterate through update.parts ...
+        # ... for text parts, buffer and update a single Slack message ...
+        # ... for signal parts, post to a status message ...
+        # ... for file parts, upload the file to Slack ...
         pass
 
     def handle_final_response(self, response: SamFinalResponse, context: ResponseContext) -> None:
-        # ... logic to finalize the main content message ...
+        # ... logic to process any final parts in response.parts ...
         # ... logic to update the status message to "Complete" ...
         # ... logic to add feedback buttons ...
         pass
