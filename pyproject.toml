@@ -160,6 +160,7 @@ markers = [
     "artifacts: marks tests related to artifact handling and services",
     "api: marks tests related to the API",
     "tasks: marks tests related to task management",
+    "builtin_artifact_embeds: marks tests related to the builtin_artifact_embeds",
 
     # Agent Tools
     # Markers for the built-in agent tools.

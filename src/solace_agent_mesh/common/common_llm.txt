@@ -68,9 +68,12 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
 
 **Classes/Functions/Constants:**
 - **`AgentRegistry`**: A thread-safe class for storing and managing agent cards.
-  - `add_or_update_agent(self, agent_card: AgentCard)`: Adds a new agent or updates an existing one.
+  - `add_or_update_agent(self, agent_card: AgentCard) -> bool`: Adds a new agent or updates an existing one, returns True if new.
   - `get_agent(self, agent_name: str) -> Optional[AgentCard]`: Retrieves an agent card by its unique name.
   - `get_agent_names(self) -> List[str]`: Returns a sorted list of all discovered agent names.
+  - `get_last_seen(self, agent_name: str) -> Optional[float]`: Returns the timestamp when the agent was last seen.
+  - `check_ttl_expired(self, agent_name: str, ttl_seconds: int) -> Tuple[bool, int]`: Checks if an agent's TTL has expired.
+  - `remove_agent(self, agent_name: str) -> bool`: Removes an agent from the registry.
   - `clear(self)`: Clears all agents from the registry.
 
 #### constants.py
@@ -79,6 +82,8 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
 
 **Classes/Functions/Constants:**
 - `DEFAULT_COMMUNICATION_TIMEOUT: int`: Default timeout for communication operations (600 seconds / 10 minutes).
+- `HEALTH_CHECK_TTL_SECONDS: int`: Time after which a health check is considered stale (60 seconds).
+- `HEALTH_CHECK_INTERVAL_SECONDS: int`: Interval between health checks (10 seconds).
 - `TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY: int`: Maximum number of characters that can be loaded from a text artifact (200,000).
 - `TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH: int`: Default number of characters to load from a text artifact (100,000).
 
@@ -102,8 +107,11 @@ Together, these components form a cohesive ecosystem, enabling developers to eit
 - **`ArtifactCreationProgressData`**: Data model for artifact creation progress signals.
   - `type: Literal["artifact_creation_progress"]`: The constant type identifier.
   - `filename: str`: The name of the artifact being created.
-  - `bytes_saved: int`: The number of bytes saved so far.
-  - `artifact_chunk: str`: The chunk of artifact data that was saved in this progress update.
+  - `status: Literal["in-progress", "completed", "failed"]`: The status of the artifact creation.
+  - `bytes_transferred: int`: The number of bytes transferred so far.
+  - `description: Optional[str]`: An optional description of the artifact being created.
+  - `artifact_chunk: Optional[str]`: The chunk of artifact data that was transferred in this progress update.
+  - `mime_type: Optional[str]`: The MIME type of the artifact (for completed status).
 - **`ToolResultData`**: Data model for tool execution result signals.
   - `type: Literal["tool_result"]`: The constant type identifier.
   - `tool_name: str`: The name of the tool that was called.
@@ -217,35 +225,6 @@ from solace_agent_mesh.common.services.identity_service import create_identity_s
 
 #### utils/
 **Purpose:** A collection of cross-cutting utilities for caching, logging, MIME type handling, and dynamic content processing.
-**Key Exports:** `InMemoryCache`, `is_text_based_mime_type`, `resolve_embeds_in_string`
-**Import Examples:**
-```python
-from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
-from solace_agent_mesh.common.utils import is_text_based_mime_type
-from solace_agent_mesh.common.utils.embeds import resolve_embeds_recursively_in_string
-```
+**Key Exports:** `InMemoryCache`, `is_text_based_mime_type`, `resolve_emb
 
-## Complete Usage Guide
-
-### 1. Basic A2A Protocol Usage
-This example shows how to use the core protocol functions and types to build A2A communication.
-
-```python
-import uuid
-from datetime import datetime, timezone
-from solace_agent_mesh.common.a2a_protocol import (
-    get_agent_request_topic, 
-    get_gateway_status_topic,
-    translate_a2a_to_adk_content
-)
-from solace_agent_mesh.common.types import (
-    Message, 
-    TextPart, 
-    Task, 
-    TaskStatus, 
-    TaskState,
-    AgentCard
-)
-from solace_
-
-# content_hash: 4cbf98260b5f5bef314fae44cf680520f4581948d2bfd8b08e7c6455bbcac1bc
+# content_hash: 6fd3be2d2c731f45200e4f3968c7ff82a85f6d57e8269b276fd56cd4444013c9

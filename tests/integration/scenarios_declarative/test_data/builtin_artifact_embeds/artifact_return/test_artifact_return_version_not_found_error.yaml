@@ -1,0 +1,84 @@
+test_case_id: "builtin_artifact_return_embed_version_not_found_error_001"
+description: |
+  Tests the 'artifact_return' embed's error handling when the
+  specified artifact version does not exist for a known filename.
+  The embed should fail to resolve and the error should be handled gracefully.
+tags: ["all","agent","embeds","builtin_artifact_embeds","error_handling"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "existing_doc_for_return_version_test.txt"
+    content: "This is version 0 of the document."
+    mime_type: "text/plain"
+    metadata:
+      description: "Base document for artifact_return version not found test"
+      mime_type: "text/plain"
+      size_bytes: 33
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_artifact_return_version_error_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please try to return version 99 of 'existing_doc_for_return_version_test.txt'."
+  external_context:
+    a2a_session_id: "session_artifact_return_version_error_embed_001"
+
+llm_interactions:
+  # Single LLM interaction that includes the artifact_return embed for non-existent version
+  - step_id: "llm_response_with_nonexistent_version_embed"
+    static_response:
+      id: "chatcmpl-artifact-return-version-error-embed-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'll try to return version 99 of the file for you. {artifact_return:existing_doc_for_return_version_test.txt:99}"
+          finish_reason: "stop"
+
+expected_gateway_output:
+  # Since skip_intermediate_events is false, we must list events in the order they appear.
+
+  # LLM Call (that generates response with embed)
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+
+  - type: "status_update"
+    event_purpose: "llm_response"
+    # Assert that the LLM response contains the embed (before resolution attempt)
+    expected_llm_data_contains:
+      content:
+        parts:
+          - text: "I'll try to return version 99 of the file for you. {artifact_return:existing_doc_for_return_version_test.txt:99}"
+
+  - type: "status_update"
+    event_purpose: "generic_text_update"
+
+  # Final Task object - the embed resolution failure should be handled gracefully
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_artifact_return_version_error_embed_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            # The embed should either remain unresolved or be replaced with an error message
+            # This may need adjustment based on actual implementation behavior
+            text_contains: "artifact_return:existing_doc_for_return_version_test.txt:99"
+    # Assert the original artifact (version 0) was not changed
+    assert_artifact_state:
+      - filename: "existing_doc_for_return_version_test.txt"
+        user_id: "declarative_artifact_return_version_error_tester@example.com"
+        session_id: "session_artifact_return_version_error_embed_001"
+        version: 0
+        expected_content_text: "This is version 0 of the document."
+        expected_metadata_contains:
+          description: "Base document for artifact_return version not found test"
+          mime_type: "text/plain"
+          size_bytes: 33

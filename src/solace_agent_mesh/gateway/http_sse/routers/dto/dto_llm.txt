@@ -1,13 +1,13 @@
 # DEVELOPER GUIDE: dto
 
 ## Quick Summary
-The `dto` directory contains Data Transfer Objects (DTOs) for API contract definition and validation in the HTTP SSE gateway. It's organized into two main subdirectories: `requests` for incoming API request validation using Pydantic models, and `responses` for structured API response formatting with automatic timestamp conversion. The DTOs primarily focus on session management operations and provide type-safe interfaces for API endpoints.
+The `dto` directory contains Data Transfer Objects (DTOs) for API contract definition and validation in the HTTP SSE gateway. It's organized into two main subdirectories: `requests` for incoming API request validation using Pydantic models, and `responses` for structured API response formatting with automatic timestamp conversion. The DTOs primarily focus on session management and task operations, providing type-safe interfaces for API endpoints with field aliasing and validation.
 
 ## Files and Subdirectories Overview
 - **Direct files:** 
   - `__init__.py` - Main module exports for requests and responses submodules
 - **Subdirectories:**
-  - `requests/` - Request DTOs for API endpoint validation (session CRUD operations)
+  - `requests/` - Request DTOs for API endpoint validation (session and task CRUD operations)
   - `responses/` - Response DTOs with automatic timestamp serialization and field aliasing
 
 ## Developer API Reference
@@ -25,26 +25,27 @@ The `dto` directory contains Data Transfer Objects (DTOs) for API contract defin
 ### Subdirectory APIs
 
 #### requests/
-**Purpose:** Provides Pydantic models for validating incoming API requests, specifically for session management operations
-**Key Exports:** GetSessionsRequest, GetSessionRequest, GetSessionHistoryRequest, UpdateSessionRequest, DeleteSessionRequest
+**Purpose:** Provides Pydantic models for validating incoming API requests for session management and task operations
+**Key Exports:** GetSessionRequest, UpdateSessionRequest, SaveTaskRequest
 **Import Examples:**
 ```python
 from solace_agent_mesh.gateway.http_sse.routers.dto.requests import (
     GetSessionRequest,
-    GetSessionHistoryRequest,
-    UpdateSessionRequest
+    UpdateSessionRequest,
+    SaveTaskRequest
 )
 ```
 
 #### responses/
 **Purpose:** Provides structured response DTOs with automatic timestamp conversion and field aliasing for API consistency
-**Key Exports:** MessageResponse, SessionResponse, SessionListResponse, BaseTimestampResponse
+**Key Exports:** SessionResponse, SessionListResponse, TaskResponse, TaskListResponse, BaseTimestampResponse
 **Import Examples:**
 ```python
 from solace_agent_mesh.gateway.http_sse.routers.dto.responses import (
-    MessageResponse,
     SessionResponse,
-    SessionListResponse
+    SessionListResponse,
+    TaskResponse,
+    TaskListResponse
 )
 ```
 
@@ -59,22 +60,22 @@ from solace_agent_mesh.gateway.http_sse.routers.dto import requests, responses
 # Or import specific DTOs directly
 from solace_agent_mesh.gateway.http_sse.routers.dto.requests import (
     GetSessionRequest,
-    GetSessionHistoryRequest,
-    UpdateSessionRequest
+    UpdateSessionRequest,
+    SaveTaskRequest
 )
 from solace_agent_mesh.gateway.http_sse.routers.dto.responses import (
     SessionResponse,
-    MessageResponse,
-    SessionListResponse
+    SessionListResponse,
+    TaskResponse,
+    TaskListResponse
 )
 ```
 
-### 2. Working with Request DTOs
+### 2. Working with Session Request DTOs
 
 ```python
 from solace_agent_mesh.gateway.http_sse.routers.dto.requests import (
     GetSessionRequest,
-    GetSessionHistoryRequest,
     UpdateSessionRequest
 )
 from pydantic import ValidationError
@@ -91,19 +92,6 @@ def get_session(session_id: str, user_id: str):
         print(f"Invalid request parameters: {e}")
         return None
 
-# Create a request to get session history with pagination
-def get_session_history(session_id: str, user_id: str, page: int = 1, size: int = 20):
-    try:
-        request = GetSessionHistoryRequest(
-            session_id=session_id,
-            user_id=user_id,
-            pagination={"page": page, "size": size}
-        )
-        return request
-    except ValidationError as e:
-        print(f"Validation failed: {e}")
-        return None
-
 # Create a request to update session name
 def update_session_name(session_id: str, user_id: str, new_name: str):
     try:
@@ -118,15 +106,50 @@ def update_session_name(session_id: str, user_id: str, new_name: str):
         return None
 ```
 
-### 3. Working with Response DTOs
+### 3. Working with Task Request DTOs
+
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests import SaveTaskRequest
+from pydantic import ValidationError
+import json
+
+# Create a save task request with camelCase field names (API style)
+def save_task_with_validation(task_id: str, message_bubbles: list, user_message: str = None, metadata: dict = None):
+    try:
+        # Convert data to JSON strings as required
+        bubbles_json = json.dumps(message_bubbles)
+        metadata_json = json.dumps(metadata) if metadata else None
+        
+        request = SaveTaskRequest(
+            task_id=task_id,
+            user_message=user_message,
+            message_bubbles=bubbles_json,
+            task_metadata=metadata_json
+        )
+        return request
+    except ValidationError as e:
+        print(f"Task validation failed: {e}")
+        return None
+
+# Example usage
+task_request = save_task_with_validation(
+    task_id="task_123",
+    message_bubbles=[
+        {"type": "user", "content": "Hello"},
+        {"type": "assistant", "content": "Hi there!"}
+    ],
+    user_message="Please analyze this data",
+    metadata={"priority": "high", "category": "analysis"}
+)
+```
+
+### 4. Working with Session Response DTOs
 
 ```python
 from solace_agent_mesh.gateway.http_sse.routers.dto.responses import (
     SessionResponse,
-    MessageResponse,
     SessionListResponse
 )
-from solace_agent_mesh.gateway.http_sse.shared.enums import MessageType, SenderType
 import time
 
 # Create session responses
@@ -140,18 +163,6 @@ def create_session_response(session_data: dict) -> SessionResponse:
         updated_time=session_data.get("updated_time")
     )
 
-# Create message responses
-def create_message_response(message_data: dict) -> MessageResponse:
-    return MessageResponse(
-        id=message_data["id"],
-        session_id=message_data["session_id"],
-        message=message_data["message"],
-        sender_type=SenderType.USER,
-        sender_name=message_data["sender_name"],
-        message_type=MessageType.TEXT,
-        created_time=int(time.time() * 1000)
-    )
-
 # Create paginated session list responses
 def create_session_list_response(sessions: list, total: int) -> SessionListResponse:
     session_responses = [create_session_response(session) for session in sessions]
@@ -162,19 +173,47 @@ def create_session_list_response(sessions: list, total: int) -> SessionListRespo
     )
 ```
 
-### 4. Complete API Endpoint Example
+### 5. Working with Task Response DTOs
+
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import (
+    TaskResponse,
+    TaskListResponse
+)
+import json
+import time
+
+# Create task responses
+def create_task_response(task_data: dict) -> TaskResponse:
+    return TaskResponse(
+        task_id=task_data["task_id"],
+        session_id=task_data["session_id"],
+        user_message=task_data.get("user_message"),
+        message_bubbles=json.dumps(task_data["message_bubbles"]),
+        task_metadata=json.dumps(task_data["metadata"]) if task_data.get("metadata") else None,
+        created_time=int(time.time() * 1000),
+        updated_time=task_data.get("updated_time")
+    )
+
+# Create task list responses
+def create_task_list_response(tasks: list) -> TaskListResponse:
+    task_responses = [create_task_response(task) for task in tasks]
+    return TaskListResponse(tasks=task_responses)
+```
+
+### 6. Complete API Endpoint Examples
 
 ```python
 from fastapi import APIRouter, HTTPException
 from solace_agent_mesh.gateway.http_sse.routers.dto.requests import (
     GetSessionRequest,
-    GetSessionHistoryRequest,
-    UpdateSessionRequest
+    UpdateSessionRequest,
+    SaveTaskRequest
 )
 from solace_agent_mesh.gateway.http_sse.routers.dto.responses import (
     SessionResponse,
-    MessageResponse,
-    SessionListResponse
+    SessionListResponse,
+    TaskResponse
 )
 
 router = APIRouter()
@@ -199,39 +238,6 @@ async def get_session(session_id: str, user_id: str) -> SessionResponse:
         name=session_data["name"],
         created_time=session_data["created_time"]
     )
-
-@router.get("/sessions/{session_id}/history")
-async def get_session_history(
-    session_id: str,
-    user_id: str,
-    page: int = 1,
-    size: int = 20
-) -> list[MessageResponse]:
-    """Get session message history"""
-    
-    # Validate request using DTO
-    request = GetSessionHistoryRequest(
-        session_id=session_id,
-        user_id=user_id,
-        pagination={"page": page, "size": size}
-    )
-    
-    # Fetch messages (mock implementation)
-    messages_data = fetch_session_messages(request)
-    
-    # Return response DTOs with automatic field aliasing
-    return [
-        MessageResponse(
-            id=msg["id"],
-            session_id=msg["session_id"],
-            message=msg["message"],
-            sender_type=msg["sender_type"],
-            sender_name=msg["sender_name"],
-            message_type=msg["message_type"],
-            created_time=msg["created_time"]
-        )
-        for msg in messages_data
-    ]
 
 @router.put("/sessions/{session_id}")
 async def update_session(
@@ -262,13 +268,45 @@ async def update_session(
         created_time=updated_session["created_time"],
         updated_time=updated_session["updated_time"]
     )
+
+@router.post("/tasks")
+async def save_task(
+    task_id: str,
+    message_bubbles: str,
+    user_message: str = None,
+    task_metadata: str = None
+) -> TaskResponse:
+    """Save a new task"""
+    
+    # Validate request using DTO
+    try:
+        request = SaveTaskRequest(
+            task_id=task_id,
+            user_message=user_message,
+            message_bubbles=message_bubbles,
+            task_metadata=task_metadata
+        )
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    # Save task (mock implementation)
+    saved_task = save_task_to_db(request)
+    
+    # Return response DTO
+    return TaskResponse(
+        task_id=saved_task["task_id"],
+        session_id=saved_task["session_id"],
+        user_message=saved_task["user_message"],
+        message_bubbles=saved_task["message_bubbles"],
+        task_metadata=saved_task["task_metadata"],
+        created_time=saved_task["created_time"]
+    )
 ```
 
-### 5. JSON Serialization with Automatic Timestamp Conversion
+### 7. JSON Serialization with Automatic Timestamp Conversion
 
 ```python
-from solace_agent_mesh.gateway.http_sse.routers.dto.responses import SessionResponse, MessageResponse
-from solace_agent_mesh.gateway.http_sse.shared.enums import MessageType, SenderType
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import SessionResponse, TaskResponse
 import json
 
 # Create a session response
@@ -291,25 +329,24 @@ print(json_output)
 #   "updatedTime": "2022-01-01T00:01:00Z"
 # }
 
-# Create a message response with field aliasing
-message = MessageResponse(
-    id="msg_789",
+# Create a task response with field aliasing
+task = TaskResponse(
+    task_id="task_789",
     session_id="sess_123",
-    message="Hello world",
-    sender_type=SenderType.USER,
-    sender_name="John Doe",
-    message_type=MessageType.TEXT,
+    user_message="Process this data",
+    message_bubbles='[{"type": "text", "content": "Processing..."}]',
+    task_metadata='{"priority": "high"}',
     created_time=1640995200000
 )
 
 # Get dict with converted timestamps and aliased fields
-dict_output = message.model_dump()
+dict_output = task.model_dump()
+print(dict_output["taskId"])  # "task_789" (camelCase alias)
 print(dict_output["sessionId"])  # "sess_123" (camelCase alias)
-print(dict_output["senderType"])  # SenderType.USER (camelCase alias)
 print(dict_output["createdTime"])  # "2022-01-01T00:00:00Z" (converted timestamp)
 ```
 
-### 6. Custom Response Classes Using Base
+### 8. Custom Response Classes Using Base
 
 ```python
 from solace_agent_mesh.gateway.http_sse.routers.dto.responses.base_responses import BaseTimestampResponse
@@ -341,6 +378,73 @@ json_data = custom_response.model_dump_json()
 # Fields like created_time become ISO strings automatically
 ```
 
-This comprehensive guide shows how the `dto` directory provides a complete type-safe API contract system with automatic validation for requests and structured responses with timestamp conversion for the HTTP SSE gateway.
+### 9. Working with Both Requests and Responses Together
 
-# content_hash: 3bb29d4c46b962221fc3034560b7e0da75b5a41f7f8f4d4f25aecf26e10f83f5
+```python
+from solace_agent_mesh.gateway.http_sse.routers.dto.requests import UpdateSessionRequest, SaveTaskRequest
+from solace_agent_mesh.gateway.http_sse.routers.dto.responses import SessionResponse, TaskResponse
+from pydantic import ValidationError
+import json
+
+async def complete_session_workflow():
+    """Example showing complete request/response workflow"""
+    
+    # 1. Validate incoming request data
+    try:
+        update_request = UpdateSessionRequest(
+            session_id="sess_123",
+            user_id="user_456",
+            name="Updated Session Name"
+        )
+    except ValidationError as e:
+        return {"error": f"Invalid session update request: {e}"}
+    
+    # 2. Process the request (mock database operation)
+    updated_session_data = {
+        "id": update_request.session_id,
+        "user_id": update_request.user_id,
+        "name": update_request.name,
+        "created_time": 1640995200000,
+        "updated_time": 1640995260000
+    }
+    
+    # 3. Create structured response
+    session_response = SessionResponse(**updated_session_data)
+    
+    # 4. Save a related task
+    try:
+        task_request = SaveTaskRequest(
+            task_id="task_456",
+            user_message="Session updated successfully",
+            message_bubbles=json.dumps([
+                {"type": "system", "content": "Session name updated"}
+            ]),
+            task_metadata=json.dumps({"action": "session_update"})
+        )
+    except ValidationError as e:
+        return {"error": f"Invalid task request: {e}"}
+    
+    # 5. Create task response
+    task_response = TaskResponse(
+        task_id=task_request.task_id,
+        session_id=update_request.session_id,
+        user_message=task_request.user_message,
+        message_bubbles=task_request.message_bubbles,
+        task_metadata=task_request.task_metadata,
+        created_time=1640995300000
+    )
+    
+    # 6. Return both responses with automatic field aliasing and timestamp conversion
+    return {
+        "session": session_response.model_dump(),
+        "task": task_response.model_dump()
+    }
+
+# Usage
+result = await complete_session_workflow()
+print(json.dumps(result, indent=2))
+```
+
+This comprehensive guide shows how the `dto` directory provides a complete type-safe API contract system with automatic validation for requests and structured responses with timestamp conversion and field aliasing for both session management and task operations in the HTTP SSE gateway.
+
+# content_hash: 4a446edeace8a993477cc29e6c5676bbeb9fc98ae411e799017a21b610e486be

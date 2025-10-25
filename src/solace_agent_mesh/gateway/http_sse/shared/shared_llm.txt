@@ -157,7 +157,6 @@ register_exception_handlers(app)
   - `update(session: Session, entity_id: Any, update_data: Dict[str, Any]) -> EntityType` - Update an entity
   - `delete(session: Session, entity_id: Any) -> None` - Delete an entity
 - `PaginatedRepository(model_class: Type[ModelType], entity_class: Type[EntityType])` - Base repository with enhanced pagination support
-  - `get_paginated(session: Session, page_number: int, page_size: int) -> tuple[List[EntityType], int]` - Get paginated results
 - `ValidationMixin` - Mixin for repositories that need validation logic
 
 **Usage Examples:**
@@ -186,6 +185,11 @@ user = repo.create(session, {"name": "John", "email": "john@example.com"})
   - `create(data: list[T], total_count: int, pagination: PaginationParams) -> PaginatedResponse[T]` - Create paginated response
 - `DataResponse[T](data: T)` - Simple data response wrapper
   - `create(data: T) -> DataResponse[T]` - Create data response
+
+**Constants/Variables:**
+- `DEFAULT_PAGE_NUMBER: int` - Default page number (1)
+- `DEFAULT_PAGE_SIZE: int` - Default page size (20)
+- `MAX_PAGE_SIZE: int` - Maximum allowed page size (100)
 
 **Usage Examples:**
 ```python
@@ -230,6 +234,8 @@ response = create_paginated_response(users, 100, pagination_params)
 - `DatabaseExceptionHandler` - Centralized handler for converting SQLAlchemy exceptions to domain exceptions
   - `handle_integrity_error(e: IntegrityError, entity_type: str = "Resource") -> ValidationError` - Convert integrity constraint violations
   - `handle_operational_error(e: OperationalError, entity_type: str = "Resource") -> DataIntegrityError` - Handle operational errors
+  - `handle_database_error(e: DatabaseError, entity_type: str = "Resource") -> DataIntegrityError` - Handle general database errors
+  - `handle_sqlalchemy_error(e: SQLAlchemyError, entity_type: str = "Resource") -> DataIntegrityError` - Handle any other SQLAlchemy errors
 
 **Functions:**
 - `handle_database_errors(entity_type: str = "Resource")` - Convenience decorator for database exception handling
@@ -251,6 +257,8 @@ class UserRepository:
 
 **Classes:**
 - `SimpleJSON(TypeDecorator)` - Simple JSON type using Text storage for all databases
+  - `process_bind_param(value, dialect)` - Convert Python object to JSON string for storage
+  - `process_result_value(value, dialect)` - Convert JSON string back to Python object
 
 **Usage Examples:**
 ```python
@@ -262,24 +270,50 @@ class MyModel(Base):
     metadata = Column(SimpleJSON)  # Stores JSON as text
 ```
 
-### utils.py
-**Purpose:** Generic utility functions
-**Import:** `from solace_agent_mesh.gateway.http_sse.shared import generate_uuid, to_snake_case, to_pascal_case`
+### enums.py
+**Purpose:** Enumerations used throughout the application
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, TaskStatus, MessageType`
 
-**Functions:**
-- `generate_uuid() -> str` - Generate a UUID string for database storage
-- `to_snake_case(name: str) -> str` - Convert a string to snake_case
-- `to_pascal_case(name: str) -> str` - Convert a string to PascalCase
+**Classes:**
+- `SenderType(str, Enum)` - Types of message senders (USER, AGENT, SYSTEM)
+- `TaskStatus(str, Enum)` - Task execution status (PENDING, RUNNING, COMPLETED, FAILED, CANCELLED)
+- `MessageType(str, Enum)` - Types of messages (TEXT, FILE, IMAGE, DOCUMENT)
+- `ValidationErrorType(str, Enum)` - Types of validation errors (REQUIRED_FIELD, INVALID_FORMAT, etc.)
 
 **Usage Examples:**
 ```python
-from solace_agent_mesh.gateway.http_sse.shared import generate_uuid, to_snake_case
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, TaskStatus
 
-# Generate unique ID
-user_id = generate_uuid()
+# Use in message handling
+if sender_type == SenderType.USER:
+    process_user_message()
 
-# Convert naming
-snake_name = to_snake_case("User Name")  # "user_name"
+# Use in task management
+task.status = TaskStatus.RUNNING
 ```
 
-# content_hash: 0e33735691fb4637243f4fe61acbba78a388e654834903e34be22e3ce6f3c3bc
+### types.py
+**Purpose:** Custom types and type aliases for better type safety
+**Import:** `from solace_agent_mesh.gateway.http_sse.shared.types import UserId, JsonDict, Timestamp`
+
+**Type Aliases:**
+- `UserId: str` - User identifier type
+- `SessionId: str` - Session identifier type
+- `MessageId: str` - Message identifier type
+- `TaskId: str` - Task identifier type
+- `AgentId: str` - Agent identifier type
+- `JsonDict: dict[str, Any]` - JSON dictionary type
+- `Headers: dict[str, str]` - HTTP headers type
+- `QueryParams: dict[str, str | list[str]]` - Query parameters type
+
+**Classes:**
+- `Timestamp(BaseModel)` - Standardized timestamp representation using epoch milliseconds
+  - `created_time: int` - Creation time in epoch milliseconds
+  - `updated_time: int | None` - Update time in epoch milliseconds
+- `SortInfo(BaseModel)` - Sorting information for list requests
+  - `field: str` - Field to sort by
+  - `direction: str` - Sort direction (asc or desc)
+- `FilterInfo(BaseModel)` - Filtering information for list requests
+  - `field: str` - Field to filter
+
+# content_hash: 646c6eedceab05f3b8573660906cf739cefbc0807c5b28dffe25161746299b67

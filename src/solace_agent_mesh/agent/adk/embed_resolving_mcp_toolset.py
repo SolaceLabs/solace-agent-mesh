@@ -23,6 +23,7 @@ from ...common.utils.embeds import (
     LATE_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
 )
+from ...common.utils.embeds.types import ResolutionMode
 
 log = logging.getLogger(__name__)
 
@@ -112,6 +113,7 @@ class EmbedResolvingMCPTool(MCPTool):
                         context=resolution_context,
                         resolver_func=evaluate_embed,
                         types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
+                        resolution_mode=ResolutionMode.TOOL_PARAMETER,
                         log_identifier=log_identifier,
                         config=self._tool_config,
                     )

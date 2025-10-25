@@ -1,0 +1,190 @@
+# DEVELOPER GUIDE: a2a
+
+## Quick Summary
+The `a2a` directory provides a concrete implementation for proxying standard A2A-over-HTTPS agents. It enables the Solace Agent Mesh to communicate with downstream agents that implement the A2A (Agent-to-Agent) protocol over HTTP/HTTPS, handling authentication, request forwarding, and response processing.
+
+## Files Overview
+- `__init__.py` - Package initialization for A2A-over-HTTPS proxy implementation
+- `app.py` - Main application class that validates A2A-specific configuration
+- `component.py` - Core proxy component that handles A2A protocol communication and request forwarding
+- `config.py` - Pydantic configuration models for A2A proxy settings and authentication
+- `oauth_token_cache.py` - OAuth 2.0 token caching system with automatic expiration
+
+## Developer API Reference
+
+### app.py
+**Purpose:** Provides the main application class for A2A proxy with configuration validation
+**Import:** `from solace_agent_mesh.agent.proxies.a2a.app import A2AProxyApp`
+
+**Classes:**
+- `A2AProxyApp(app_info: Dict[str, Any], **kwargs)` - Main A2A proxy application class
+  - Inherits from `BaseProxyApp` and adds A2A-specific configuration validation
+  - Validates authentication settings, URLs, and other A2A-specific parameters
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.proxies.a2a.app import A2AProxyApp
+
+# Create A2A proxy app with configuration
+app_info = {
+    "app_config": {
+        "proxied_agents": [
+            {
+                "name": "my-agent",
+                "url": "https://agent.example.com",
+                "authentication": {
+                    "type": "oauth2_client_credentials",
+                    "token_url": "https://auth.example.com/token",
+                    "client_id": "my-client-id",
+                    "client_secret": "my-secret"
+                }
+            }
+        ]
+    }
+}
+
+app = A2AProxyApp(app_info)
+```
+
+### component.py
+**Purpose:** Core component that handles A2A protocol communication, authentication, and request forwarding
+**Import:** `from solace_agent_mesh.agent.proxies.a2a.component import A2AProxyComponent`
+
+**Classes:**
+- `A2AProxyComponent(**kwargs: Any)` - Main proxy component for A2A-over-HTTPS agents
+  - `clear_client_cache() -> None` - Clears all cached A2A clients and OAuth tokens
+  - `cleanup() -> None` - Cleans up resources on component shutdown
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.proxies.a2a.component import A2AProxyComponent
+
+# Create component (typically done by the framework)
+component = A2AProxyComponent(
+    proxied_agents_config=[
+        {
+            "name": "my-agent",
+            "url": "https://agent.example.com",
+            "authentication": {
+                "type": "static_bearer",
+                "token": "my-bearer-token"
+            }
+        }
+    ]
+)
+
+# Clear cache if needed (useful for testing)
+component.clear_client_cache()
+
+# Cleanup when shutting down
+component.cleanup()
+```
+
+### config.py
+**Purpose:** Pydantic configuration models for A2A proxy settings and authentication validation
+**Import:** `from solace_agent_mesh.agent.proxies.a2a.config import A2AProxyAppConfig, AuthenticationConfig, A2AProxiedAgentConfig`
+
+**Classes:**
+- `AuthenticationConfig()` - Authentication configuration for downstream A2A agents
+  - `type: Optional[Literal["static_bearer", "static_apikey", "oauth2_client_credentials"]]` - Authentication type
+  - `token: Optional[str]` - Authentication token (for static types)
+  - `token_url: Optional[str]` - OAuth 2.0 token endpoint URL
+  - `client_id: Optional[str]` - OAuth 2.0 client identifier
+  - `client_secret: Optional[str]` - OAuth 2.0 client secret
+  - `scope: Optional[str]` - OAuth 2.0 scope string
+  - `token_cache_duration_seconds: int` - Token cache duration (default: 3300)
+
+- `A2AProxiedAgentConfig()` - Configuration for a single A2A agent
+  - `url: str` - Base URL of the downstream A2A agent
+  - `authentication: Optional[AuthenticationConfig]` - Authentication details
+
+- `A2AProxyAppConfig()` - Complete configuration for A2A proxy application
+  - `proxied_agents: List[A2AProxiedAgentConfig]` - List of agents to proxy
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.proxies.a2a.config import (
+    A2AProxyAppConfig, 
+    A2AProxiedAgentConfig, 
+    AuthenticationConfig
+)
+
+# OAuth 2.0 authentication
+oauth_auth = AuthenticationConfig(
+    type="oauth2_client_credentials",
+    token_url="https://auth.example.com/token",
+    client_id="my-client-id",
+    client_secret="my-secret",
+    scope="agent:read agent:write",
+    token_cache_duration_seconds=3300
+)
+
+# Static bearer token authentication
+bearer_auth = AuthenticationConfig(
+    type="static_bearer",
+    token="my-bearer-token"
+)
+
+# Agent configuration
+agent_config = A2AProxiedAgentConfig(
+    name="my-agent",
+    url="https://agent.example.com",
+    authentication=oauth_auth
+)
+
+# Complete app configuration
+app_config = A2AProxyAppConfig(
+    proxied_agents=[agent_config]
+)
+
+# Validate configuration
+validated_config = A2AProxyAppConfig.model_validate({
+    "proxied_agents": [
+        {
+            "name": "test-agent",
+            "url": "https://agent.example.com",
+            "authentication": {
+                "type": "static_bearer",
+                "token": "abc123"
+            }
+        }
+    ]
+})
+```
+
+### oauth_token_cache.py
+**Purpose:** Thread-safe OAuth 2.0 token caching with automatic expiration
+**Import:** `from solace_agent_mesh.agent.proxies.a2a.oauth_token_cache import OAuth2TokenCache, CachedToken`
+
+**Classes:**
+- `CachedToken(access_token: str, expires_at: float)` - Represents a cached token with expiration
+  - `access_token: str` - The OAuth 2.0 access token
+  - `expires_at: float` - Unix timestamp when token expires
+
+- `OAuth2TokenCache()` - Thread-safe in-memory cache for OAuth tokens
+  - `get(agent_name: str) -> Optional[str]` - Retrieves cached token if valid
+  - `set(agent_name: str, access_token: str, cache_duration_seconds: int) -> None` - Caches token with expiration
+  - `invalidate(agent_name: str) -> None` - Removes token from cache
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.agent.proxies.a2a.oauth_token_cache import OAuth2TokenCache
+
+# Create token cache
+cache = OAuth2TokenCache()
+
+# Cache a token for 1 hour
+await cache.set("my-agent", "access_token_123", 3600)
+
+# Retrieve cached token
+token = await cache.get("my-agent")
+if token:
+    print(f"Using cached token: {token}")
+else:
+    print("No valid cached token found")
+
+# Invalidate cached token
+await cache.invalidate("my-agent")
+```
+
+# content_hash: 7bb671773b0ece239704f18e12a92ac5dc3f97dd0ebb154ac56f53e0d277a1b7

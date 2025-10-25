@@ -1,0 +1,90 @@
+test_case_id: "builtin_artifact_return_embed_binary_001"
+description: |
+  Tests the 'artifact_return' embed for a binary artifact.
+  Verifies that the embed in the LLM response causes the binary artifact to be
+  attached to the final message and the embed text is removed.
+# We need to see intermediate events to catch artifact attachment
+tags: ["all","agent","embeds","builtin_artifact_embeds"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "return_binary_doc.png"
+    content_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" # 1x1 PNG, 68 bytes
+    mime_type: "image/png"
+    metadata:
+      description: "A sample binary PNG for artifact_return embed."
+      mime_type: "image/png"
+      size_bytes: 68
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_artifact_return_binary_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please return 'return_binary_doc.png', version 0, to me."
+  external_context:
+    a2a_session_id: "session_artifact_return_binary_embed_001"
+
+llm_interactions:
+  # Single LLM interaction that includes the artifact_return embed
+  - step_id: "llm_response_with_binary_artifact_embed"
+    static_response:
+      id: "chatcmpl-artifact-return-binary-embed-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'll return the PNG image for you. {artifact_return:return_binary_doc.png:0}"
+          finish_reason: "stop"
+
+expected_gateway_output:
+  # Since skip_intermediate_events is false, we must list events in the order they appear.
+  # The key events are the LLM invocation/response and the final response with artifact attached.
+
+  # LLM Call (that generates response with embed)
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+
+  - type: "status_update"
+    event_purpose: "llm_response" # LLM response containing the embed
+    # Assert that the LLM response contains the embed (before resolution)
+    expected_llm_data_contains:
+      content:
+        parts:
+          - text: "I'll return the PNG image for you. {artifact_return:return_binary_doc.png:0}"
+
+  - type: "status_update"
+    event_purpose: "generic_text_update"
+
+  # Final Task object
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_artifact_return_binary_embed_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            # The embed should be resolved and removed from the text
+            text_exact: "I'll return the PNG image for you. "
+          # The binary artifact should be attached to the message
+          - kind: "file"
+            filename: "return_binary_doc.png"
+            mime_type: "image/png"
+            # Binary content is not typically asserted in text form
+    # We can also assert the original artifact was not changed.
+    assert_artifact_state:
+      - filename: "return_binary_doc.png"
+        user_id: "declarative_artifact_return_binary_tester@example.com"
+        session_id: "session_artifact_return_binary_embed_001"
+        version: 0
+        # For binary, we assert metadata rather than content
+        expected_metadata_contains:
+          description: "A sample binary PNG for artifact_return embed."
+          mime_type: "image/png"
+          size_bytes: 68

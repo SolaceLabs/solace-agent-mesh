@@ -18,7 +18,7 @@ This file contains no public classes or functions - it serves only as package do
 **Import:** `from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService`
 
 **Classes:**
-- `LocalFileIdentityService(config: Dict[str, Any])` - Identity service that sources user data from a local JSON file
+- `LocalFileIdentityService(config: Dict[str, Any], component: Optional[SamComponentBase] = None)` - Identity service that sources user data from a local JSON file
   - `async get_user_profile(auth_claims: Dict[str, Any]) -> Optional[Dict[str, Any]]` - Looks up a user profile using the lookup key from auth claims
   - `async search_users(query: str, limit: int = 10) -> List[Dict[str, Any]]` - Performs case-insensitive search on user names and emails
   - `file_path: str` - Path to the JSON file containing user data
@@ -30,6 +30,7 @@ This file contains no public classes or functions - it serves only as package do
 ```python
 import asyncio
 import json
+from typing import Dict, Any
 from solace_agent_mesh.common.services.providers.local_file_identity_service import LocalFileIdentityService
 
 # Create sample users.json file
@@ -77,4 +78,4 @@ async def main():
 asyncio.run(main())
 ```
 
-# content_hash: 3661ffe07466b1391797c2feb90e2c97544b1a9c6c8cd15fc448cf95f4be6015
+# content_hash: 26b677e947bf60f1e211b6e119bf6382f0a269d46c0f102751bae9faab3c8435
