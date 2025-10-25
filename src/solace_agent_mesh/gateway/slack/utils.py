@@ -24,16 +24,34 @@ THUMBS_DOWN_ACTION_ID = "thumbs_down_action"
 
 
 def correct_slack_markdown(text: str) -> str:
-    """Converts common Markdown to Slack's mrkdwn format."""
+    """
+    Converts common Markdown to Slack's mrkdwn format, avoiding changes inside code blocks.
+    """
     if not isinstance(text, str):
         return text
     try:
-        # Links: [Text](URL) -> <URL|Text>
-        text = re.sub(r"\[(.*?)\]\((http.*?)\)", r"<\2|\1>", text)
-        # Code blocks: ```lang\ncode``` -> ```\ncode```
-        text = re.sub(r"```[a-zA-Z0-9_-]+\n", "```\n", text)
-        # Bold: **Text** -> *Text*
-        text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
+        # Split text by code blocks to avoid formatting inside them
+        parts = re.split(r"(```.*?```)", text, flags=re.DOTALL)
+        processed_parts = []
+
+        for i, part in enumerate(parts):
+            # If it's a code block part (odd index), just clean it up and add it
+            if i % 2 == 1:
+                # Code blocks: ```lang\ncode``` -> ```\ncode```
+                cleaned_code_block = re.sub(r"```[a-zA-Z0-9_-]+\n", "```\n", part)
+                processed_parts.append(cleaned_code_block)
+            # If it's a non-code block part (even index), apply formatting
+            else:
+                # Links: [Text](URL) -> <URL|Text>
+                part = re.sub(r"\[(.*?)\]\((http.*?)\)", r"<\2|\1>", part)
+                # Bold: **Text** -> *Text*
+                part = re.sub(r"\*\*(.*?)\*\*", r"*\1*", part)
+                # Headings: ### Title -> *Title*
+                part = re.sub(r"^\s*#{1,6}\s+(.*)", r"*\1*", part, flags=re.MULTILINE)
+                processed_parts.append(part)
+
+        text = "".join(processed_parts)
+
     except Exception as e:
         log.warning("[SlackUtil:correct_markdown] Error during formatting: %s", e)
     return text
