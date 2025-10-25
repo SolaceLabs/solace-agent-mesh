@@ -262,10 +262,12 @@ class BaseGatewayComponent(SamComponentBase):
         external_request_context["user_identity"] = user_identity
         external_request_context["a2a_user_config"] = user_config
         external_request_context["api_version"] = api_version
+        external_request_context["is_streaming"] = is_streaming
         log.debug(
-            "%s Stored user_identity, configuration, and api_version (%s) in external_request_context.",
+            "%s Stored user_identity, configuration, api_version (%s), and is_streaming (%s) in external_request_context.",
             log_id_prefix,
             api_version,
+            is_streaming,
         )
 
         now = datetime.now(timezone.utc)
