@@ -66,15 +66,17 @@ def build_slack_blocks(
             }
         )
 
-    # Slack requires non-empty text for markdown blocks
-    display_content = content_text if content_text and content_text.strip() else " "
-    blocks.append(
-        {
-            "type": "section",
-            "block_id": f"{CONTENT_BLOCK_ID}_{uuid.uuid4().hex[:8]}",
-            "text": {"type": "mrkdwn", "text": display_content},
-        }
-    )
+    # Only add a content block if content_text is provided.
+    if content_text is not None:
+        # Slack requires non-empty text for markdown blocks
+        display_content = content_text if content_text.strip() else " "
+        blocks.append(
+            {
+                "type": "section",
+                "block_id": f"{CONTENT_BLOCK_ID}_{uuid.uuid4().hex[:8]}",
+                "text": {"type": "mrkdwn", "text": display_content},
+            }
+        )
 
     if cancel_button_action_elements:
         blocks.append(

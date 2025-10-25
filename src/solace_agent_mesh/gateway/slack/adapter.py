@@ -352,10 +352,8 @@ class SlackAdapter(GatewayAdapter):
                     task_id, context.user_id, context.conversation_id
                 )
 
-            content_buffer = self.context.get_task_state(task_id, "content_buffer", " ")
             final_blocks = utils.build_slack_blocks(
                 status_text=final_status_text,
-                content_text=self._format_text(content_buffer),
                 feedback_elements=feedback_elements,
             )
             await utils.update_slack_message(
@@ -373,11 +371,7 @@ class SlackAdapter(GatewayAdapter):
             if error.category == "CANCELED":
                 error_text = "🛑 Task canceled."
 
-            content_buffer = self.context.get_task_state(task_id, "content_buffer", " ")
-            error_blocks = utils.build_slack_blocks(
-                status_text=error_text,
-                content_text=self._format_text(content_buffer),
-            )
+            error_blocks = utils.build_slack_blocks(status_text=error_text)
             await utils.update_slack_message(
                 self, channel_id, status_ts, error_text, error_blocks
             )
