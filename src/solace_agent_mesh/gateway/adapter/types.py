@@ -116,7 +116,8 @@ class SamFeedback(BaseModel):
     """A structured model for submitting user feedback."""
 
     task_id: str
-    feedback_type: Literal["positive", "negative"]
+    session_id: str
+    rating: Literal["up", "down"]
     comment: Optional[str] = None
     user_id: str
     platform_context: Dict[str, Any] = Field(

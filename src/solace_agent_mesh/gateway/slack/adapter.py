@@ -120,9 +120,9 @@ class SlackAdapter(GatewayAdapter):
             await ack()
             payload = json.loads(body["actions"][0]["value"])
             logger.info(
-                "Feedback process started (positive) for task: %s", payload["task_id"]
+                "Feedback process started (up) for task: %s", payload["task_id"]
             )
-            input_blocks = utils.create_feedback_input_blocks("positive", payload)
+            input_blocks = utils.create_feedback_input_blocks("up", payload)
             await client.chat_update(
                 channel=body["container"]["channel_id"],
                 ts=body["container"]["message_ts"],
@@ -135,9 +135,9 @@ class SlackAdapter(GatewayAdapter):
             await ack()
             payload = json.loads(body["actions"][0]["value"])
             logger.info(
-                "Feedback process started (negative) for task: %s", payload["task_id"]
+                "Feedback process started (down) for task: %s", payload["task_id"]
             )
-            input_blocks = utils.create_feedback_input_blocks("negative", payload)
+            input_blocks = utils.create_feedback_input_blocks("down", payload)
             await client.chat_update(
                 channel=body["container"]["channel_id"],
                 ts=body["container"]["message_ts"],
@@ -172,7 +172,8 @@ class SlackAdapter(GatewayAdapter):
             await ack()
             payload = json.loads(body["actions"][0]["value"])
             task_id = payload["task_id"]
-            feedback_type = payload["feedback_type"]
+            rating = payload["rating"]
+            session_id = payload["session_id"]
 
             comment = ""
             try:
@@ -187,15 +188,16 @@ class SlackAdapter(GatewayAdapter):
                 )
 
             logger.info(
-                "Feedback submitted for task %s: type=%s, comment='%s...'",
+                "Feedback submitted for task %s: rating=%s, comment='%s...'",
                 task_id,
-                feedback_type,
+                rating,
                 comment[:50],
             )
 
             feedback = SamFeedback(
                 task_id=task_id,
-                feedback_type=feedback_type,
+                session_id=session_id,
+                rating=rating,
                 comment=comment,
                 user_id=payload["user_id"],
                 platform_context=payload,

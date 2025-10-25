@@ -206,10 +206,10 @@ async def upload_slack_file(
 
 
 def create_feedback_input_blocks(
-    feedback_type: str, original_payload: Dict
+    rating: str, original_payload: Dict
 ) -> List[Dict]:
     """Creates the Slack blocks for text feedback input."""
-    submit_payload = {**original_payload, "feedback_type": feedback_type}
+    submit_payload = {**original_payload, "rating": rating}
     submit_value_string = json.dumps(submit_payload)
 
     cancel_value_string = json.dumps(original_payload)

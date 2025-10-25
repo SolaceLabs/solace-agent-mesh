@@ -21,6 +21,7 @@ from a2a.types import (
 )
 
 from ...common import a2a
+from ...common.a2a.protocol import get_feedback_topic
 from ..adapter.base import GatewayAdapter
 from ..adapter.types import (
     GatewayContext,
@@ -261,7 +262,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             "%s Received feedback for task %s: %s",
             log_id_prefix,
             feedback.task_id,
-            feedback.feedback_type,
+            feedback.rating,
         )
 
         task_context = self.task_context_manager.get_context(feedback.task_id)
@@ -275,13 +276,14 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             task_context = {}
 
         feedback_payload = {
-            "feedback_id": f"feedback-{uuid.uuid4().hex}",
+            "id": f"feedback-{uuid.uuid4().hex}",
+            "session_id": feedback.session_id,
             "task_id": feedback.task_id,
-            "feedback_type": feedback.feedback_type,
-            "comment": feedback.comment,
             "user_id": feedback.user_id,
+            "rating": feedback.rating,
+            "comment": feedback.comment,
+            "created_time": datetime.now(timezone.utc).isoformat(),
             "gateway_id": self.gateway_id,
-            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "platform_context": feedback.platform_context,
             "task_context": {
                 "target_agent_name": task_context.get("target_agent_name"),
@@ -289,7 +291,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             },
         }
 
-        topic = feedback_config.get("topic", "sam/feedback/v1")
+        topic = get_feedback_topic(self.namespace)
         self.publish_a2a_message(topic=topic, payload=feedback_payload)
         log.info(
             "%s Published feedback event for task %s to topic '%s'.",

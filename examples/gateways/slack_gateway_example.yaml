@@ -86,4 +86,3 @@ apps:
       # The adapter_config.feedback_enabled flag controls if the UI shows the buttons.
       feedback_publishing:
         enabled: true
-        topic: sam/feedback/v1
