@@ -23,16 +23,6 @@ THUMBS_UP_ACTION_ID = "thumbs_up_action"
 THUMBS_DOWN_ACTION_ID = "thumbs_down_action"
 
 
-def generate_a2a_session_id(channel_id: str, thread_ts: str, agent_name: str) -> str:
-    """Generates a deterministic A2A session ID based on Slack context."""
-    if not all([channel_id, thread_ts, agent_name]):
-        raise ValueError(
-            "Channel ID, Thread TS, and Agent Name are required to generate session ID."
-        )
-    thread_ts_sanitized = thread_ts.replace(".", "_")
-    return f"slack_{channel_id}__{thread_ts_sanitized}_agent_{agent_name}"
-
-
 def correct_slack_markdown(text: str) -> str:
     """Converts common Markdown to Slack's mrkdwn format."""
     if not isinstance(text, str):
@@ -187,9 +177,7 @@ async def upload_slack_file(
             log.error("Failed to send file upload error notification: %s", notify_err)
 
 
-def create_feedback_blocks(
-    task_id: str, user_id: str, session_id: str
-) -> List[Dict]:
+def create_feedback_blocks(task_id: str, user_id: str, session_id: str) -> List[Dict]:
     """Creates the Slack action blocks for thumbs up/down feedback."""
     try:
         # The value payload for buttons is limited to 2000 characters.
@@ -201,7 +189,9 @@ def create_feedback_blocks(
         }
         value_string = json.dumps(value_payload)
         if len(value_string) > 2000:
-            log.error("Feedback value payload exceeds 2000 chars. Cannot create buttons.")
+            log.error(
+                "Feedback value payload exceeds 2000 chars. Cannot create buttons."
+            )
             return []
 
         return [
