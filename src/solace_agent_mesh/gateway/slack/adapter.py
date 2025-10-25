@@ -97,19 +97,14 @@ class SlackAdapter(GatewayAdapter):
     def _register_handlers(self):
         """Registers all Slack event and action handlers."""
 
-        # Wrapper to inject `self` (the adapter instance) into the handlers
-        def create_handler(handler_func):
-            async def wrapper(*args, **kwargs):
-                # The `say` and `client` objects are passed by slack_bolt
-                await handler_func(self, *args, **kwargs)
-
-            return wrapper
-
         # Event handlers for messages and mentions
-        self.slack_app.event("message")(create_handler(handlers.handle_slack_message))
-        self.slack_app.event("app_mention")(
-            create_handler(handlers.handle_slack_mention)
-        )
+        @self.slack_app.event("message")
+        async def handle_message_wrapper(event, say):
+            await handlers.handle_slack_message(self, event, say)
+
+        @self.slack_app.event("app_mention")
+        async def handle_mention_wrapper(event, say):
+            await handlers.handle_slack_mention(self, event, say)
 
         # Action handler for the cancel button
         @self.slack_app.action(utils.CANCEL_BUTTON_ACTION_ID)
