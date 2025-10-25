@@ -470,6 +470,24 @@ class SlackAdapter(GatewayAdapter):
 
     # --- Private Helper Methods ---
 
+    def _get_icon_for_mime_type(self, mime_type: Optional[str]) -> str:
+        """Returns a Slack emoji for a given MIME type."""
+        if not mime_type:
+            return ":page_facing_up:"
+        if "image" in mime_type:
+            return ":art:"
+        if "audio" in mime_type:
+            return ":sound:"
+        if "video" in mime_type:
+            return ":film_frames:"
+        if "pdf" in mime_type:
+            return ":page_facing_up:"
+        if "zip" in mime_type or "archive" in mime_type:
+            return ":compression:"
+        if "text" in mime_type or "json" in mime_type or "csv" in mime_type:
+            return ":page_with_curl:"
+        return ":page_facing_up:"
+
     def _format_text(self, text: str) -> str:
         """Applies markdown correction if enabled."""
         adapter_config: SlackAdapterConfig = self.context.adapter_config
@@ -492,17 +510,95 @@ class SlackAdapter(GatewayAdapter):
     async def _handle_data_part(
         self, part: SamDataPart, channel_id: str, thread_ts: str, context: ResponseContext
     ):
-        """Handles structured data, checking for status updates."""
+        """Handles structured data, checking for special types like progress updates."""
         data_type = part.data.get("type")
+        task_id = context.task_id
+
         if data_type == "agent_progress_update":
             status_text = part.data.get("status_text")
             if status_text:
                 await self.handle_status_update(status_text, context)
+
         elif data_type == "artifact_creation_progress":
+            status = part.data.get("status")
             filename = part.data.get("filename", "unknown file")
-            bytes_saved = part.data.get("bytes_saved", 0)
-            status_text = f"💾 Creating artifact `{filename}` ({bytes_saved} bytes)..."
-            await self.handle_status_update(status_text, context)
+
+            if status == "in-progress":
+                # Finalize any existing content message to prepare for a new message block
+                content_ts = self.context.get_task_state(task_id, "content_ts")
+                buffer = self.context.get_task_state(task_id, "content_buffer", "")
+                if content_ts and buffer:
+                    formatted_text = self._format_text(buffer)
+                    content_blocks = utils.build_slack_blocks(
+                        content_text=formatted_text
+                    )
+                    await utils.update_slack_message(
+                        self, channel_id, content_ts, formatted_text, content_blocks
+                    )
+
+                # Clear buffer and ts to force a new message for subsequent text parts
+                self.context.set_task_state(task_id, "content_buffer", "")
+                self.context.set_task_state(task_id, "content_ts", None)
+
+                # Create the new "Creating artifact..." message
+                bytes_transferred = part.data.get("bytes_transferred", 0)
+                icon = self._get_icon_for_mime_type(None)  # Mime type not known yet
+                progress_text = f"{icon} Creating `{filename}`..."
+                if bytes_transferred > 0:
+                    progress_text += f" ({bytes_transferred} bytes)"
+
+                progress_blocks = utils.build_slack_blocks(content_text=progress_text)
+                new_artifact_msg_ts = await utils.send_slack_message(
+                    self, channel_id, thread_ts, progress_text, progress_blocks
+                )
+
+                if new_artifact_msg_ts:
+                    self.context.set_task_state(
+                        task_id, f"artifact_msg_ts:{filename}", new_artifact_msg_ts
+                    )
+
+            elif status == "completed":
+                artifact_msg_ts = self.context.get_task_state(
+                    task_id, f"artifact_msg_ts:{filename}"
+                )
+                if artifact_msg_ts:
+                    description = part.data.get("description", "N/A")
+                    mime_type = part.data.get("mime_type")
+                    icon = self._get_icon_for_mime_type(mime_type)
+                    completed_text = (
+                        f"{icon} Artifact Created: `{filename}`\n"
+                        f"*Description*: {description}"
+                    )
+                    completed_blocks = utils.build_slack_blocks(
+                        content_text=completed_text
+                    )
+                    await utils.update_slack_message(
+                        self,
+                        channel_id,
+                        artifact_msg_ts,
+                        completed_text,
+                        completed_blocks,
+                    )
+                else:
+                    log.warning(
+                        f"Could not find message TS for completing artifact '{filename}'"
+                    )
+
+            elif status == "failed":
+                artifact_msg_ts = self.context.get_task_state(
+                    task_id, f"artifact_msg_ts:{filename}"
+                )
+                if artifact_msg_ts:
+                    failed_text = f"❌ Failed to create artifact: `{filename}`"
+                    failed_blocks = utils.build_slack_blocks(content_text=failed_text)
+                    await utils.update_slack_message(
+                        self, channel_id, artifact_msg_ts, failed_text, failed_blocks
+                    )
+                else:
+                    failed_text = f"❌ Failed to create artifact: `{filename}`"
+                    await utils.send_slack_message(
+                        self, channel_id, thread_ts, failed_text
+                    )
 
     async def handle_status_update(
         self, status_text: str, context: ResponseContext
