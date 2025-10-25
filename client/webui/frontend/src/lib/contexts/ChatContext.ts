@@ -7,7 +7,6 @@ export interface ChatState {
     sessionId: string;
     sessionName: string | null;
     messages: MessageFE[];
-    userInput: string;
     isResponding: boolean;
     currentTaskId: string | null;
     selectedAgentName: string;
@@ -50,7 +49,6 @@ export interface ChatActions {
     setSessionId: React.Dispatch<React.SetStateAction<string>>;
     setSessionName: React.Dispatch<React.SetStateAction<string | null>>;
     setMessages: React.Dispatch<React.SetStateAction<MessageFE[]>>;
-    setUserInput: React.Dispatch<React.SetStateAction<string>>;
     setTaskIdInSidePanel: React.Dispatch<React.SetStateAction<string | null>>;
     handleNewSession: () => void;
     handleSwitchSession: (sessionId: string) => Promise<void>;

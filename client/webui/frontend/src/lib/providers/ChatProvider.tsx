@@ -79,7 +79,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
-    const [userInput, setUserInput] = useState<string>("");
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
@@ -1168,24 +1167,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Clear session ID - will be set by backend when first message is sent
         setSessionId("");
 
-        // Reset UI state with empty session ID
-        const welcomeMessages: MessageFE[] = configWelcomeMessage
-            ? [
-                  {
-                      parts: [{ kind: "text", text: configWelcomeMessage }],
-                      isUser: false,
-                      isComplete: true,
-                      role: "agent",
-                      metadata: {
-                          sessionId: "", // Empty - will be populated when session is created
-                          lastProcessedEventSequence: 0,
-                      },
-                  },
-              ]
-            : [];
-
-        setMessages(welcomeMessages);
-        setUserInput("");
+        setSelectedAgentName("");
+        setMessages([]);
         setIsResponding(false);
         setCurrentTaskId(null);
         setTaskIdInSidePanel(null);
@@ -1254,7 +1237,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // Update session state
                 setSessionId(newSessionId);
-                setUserInput("");
                 setIsResponding(false);
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
@@ -1468,10 +1450,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [addNotification, closeCurrentEventSource, isResponding]);
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputOverride?: string | null) => {
-            console.log("handleSubmit: using sessionId", sessionId);
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null) => {
             event.preventDefault();
-            const currentInput = userInputOverride?.trim() || userInput.trim();
+            const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
             if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
                 if (!selectedAgentName) addNotification("Please select an agent first.");
@@ -1498,7 +1479,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             };
             latestStatusText.current = "Thinking";
             setMessages(prev => [...prev, userMsg]);
-            setUserInput("");
+
+            const errors: string[] = [];
+
             try {
                 // 1. Process files using hybrid approach
                 const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
@@ -1652,7 +1635,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, userInput, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble]
+        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble]
     );
 
     // Auto-select agent when agents load and no agent is selected
@@ -1738,8 +1721,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setSessionName,
         messages,
         setMessages,
-        userInput,
-        setUserInput,
         isResponding,
         currentTaskId,
         isCancelling,

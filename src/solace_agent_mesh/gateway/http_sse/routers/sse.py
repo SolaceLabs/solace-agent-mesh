@@ -27,12 +27,12 @@ async def subscribe_to_task_events(
     Establishes an SSE connection to receive real-time updates for a specific task.
     """
     log_prefix = "[GET /api/v1/sse/subscribe/%s] " % task_id
-    log.info("%sClient requesting SSE subscription.", log_prefix)
+    log.debug("%sClient requesting SSE subscription.", log_prefix)
 
     connection_queue: asyncio.Queue = None
     try:
         connection_queue = await sse_manager.create_sse_connection(task_id)
-        log.info("%sSSE connection queue created.", log_prefix)
+        log.debug("%sSSE connection queue created.", log_prefix)
 
         async def event_generator():
             nonlocal connection_queue

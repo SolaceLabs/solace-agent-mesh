@@ -129,7 +129,7 @@ async def save_task(
     Creates a new task or updates an existing one.
     """
     user_id = user.get("id")
-    log.info(
+    log.debug(
         "User %s attempting to save task %s for session %s",
         user_id,
         request.task_id,

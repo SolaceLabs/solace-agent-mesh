@@ -132,7 +132,7 @@ class SamAgentComponent(SamComponentBase):
 
         super().__init__(info, **kwargs)
         self.agent_name = self.get_config("agent_name")
-        log.info("%s Initializing A2A ADK Host Component...", self.log_identifier)
+        log.info("%s Initializing agent: %s (A2A ADK Host Component)...", self.log_identifier, self.agent_name)
 
         # Initialize the agent registry for health tracking
         self.agent_registry = AgentRegistry()
@@ -230,7 +230,6 @@ class SamAgentComponent(SamComponentBase):
                 "max_message_size_bytes", 10_000_000
             )
 
-            log.info("%s Configuration retrieved successfully.", self.log_identifier)
         except Exception as e:
             log.error(
                 "%s Failed to retrieve configuration via get_config: %s",
@@ -271,7 +270,7 @@ class SamAgentComponent(SamComponentBase):
                 self.memory_service = initialize_memory_service(self)
 
                 log.info(
-                    "%s Synchronous ADK services initialized.", self.log_identifier
+                    "%s Initialized Synchronous ADK services.", self.log_identifier
                 )
             except Exception as service_err:
                 log.exception(
@@ -416,10 +415,12 @@ class SamAgentComponent(SamComponentBase):
                     self.log_identifier,
                     publish_interval_sec,
                 )
+                # Register timer with callback
                 self.add_timer(
                     delay_ms=1000,
                     timer_id=self._card_publish_timer_id,
                     interval_ms=publish_interval_sec * 1000,
+                    callback=lambda timer_data: publish_agent_card(self),
                 )
             else:
                 log.warning(
@@ -441,6 +442,7 @@ class SamAgentComponent(SamComponentBase):
                     delay_ms=health_check_interval_seconds * 1000,
                     timer_id=self.HEALTH_CHECK_TIMER_ID,
                     interval_ms=health_check_interval_seconds * 1000,
+                    callback=lambda timer_data: self._check_agent_health(),
                 )
             else:
                 log.warning(
@@ -449,7 +451,7 @@ class SamAgentComponent(SamComponentBase):
                 )
 
             log.info(
-                "%s Initialization complete for agent: %s",
+                "%s Initialized agent: %s",
                 self.log_identifier,
                 self.agent_name,
             )
@@ -457,69 +459,35 @@ class SamAgentComponent(SamComponentBase):
             log.exception("%s Initialization failed: %s", self.log_identifier, e)
             raise
 
+    def _get_component_id(self) -> str:
+        """Returns the agent name as the component identifier."""
+        return self.agent_name
+
+    def _get_component_type(self) -> str:
+        """Returns 'agent' as the component type."""
+        return "agent"
+
     def invoke(self, message: SolaceMessage, data: dict) -> dict:
-        """Placeholder invoke method. Primary logic resides in process_event."""
+        """Placeholder invoke method. Primary logic resides in _handle_message."""
         log.warning(
-            "%s 'invoke' method called, but primary logic resides in 'process_event'. This should not happen in normal operation.",
+            "%s 'invoke' method called, but primary logic resides in '_handle_message'. This should not happen in normal operation.",
             self.log_identifier,
         )
         return None
 
-    def process_event(self, event: Event):
-        """Processes incoming events (Messages, Timers, etc.)."""
-        try:
-            loop = self.get_async_loop()
-            is_loop_running = loop.is_running() if loop else False
-            if loop and is_loop_running:
-                coro = process_event(self, event)
-                future = asyncio.run_coroutine_threadsafe(coro, loop)
-                future.add_done_callback(
-                    functools.partial(
-                        self._handle_scheduled_task_completion,
-                        event_type_for_log=event.event_type,
-                    )
-                )
-            else:
-                log.error(
-                    "%s Async loop not available or not running (loop is %s, is_running: %s). Cannot process event: %s",
-                    self.log_identifier,
-                    "present" if loop else "None",
-                    is_loop_running,
-                    event.event_type,
-                )
-                if event.event_type == EventType.MESSAGE:
-                    try:
-                        event.data.call_negative_acknowledgements()
-                        log.warning(
-                            "%s NACKed message due to unavailable async loop for event processing.",
-                            self.log_identifier,
-                        )
-                    except Exception as nack_e:
-                        log.error(
-                            "%s Failed to NACK message after async loop issue: %s",
-                            self.log_identifier,
-                            nack_e,
-                        )
-        except Exception as e:
-            log.error(
-                "%s Error processing event: %s. Exception: %s",
-                self.log_identifier,
-                event.event_type,
-                e,
-            )
-            if event.event_type == EventType.MESSAGE:
-                try:
-                    event.data.call_negative_acknowledgements()
-                    log.warning(
-                        "%s NACKed message due to error in event processing.",
-                        self.log_identifier,
-                    )
-                except Exception as nack_e:
-                    log.error(
-                        "%s Failed to NACK message after error in event processing: %s",
-                        self.log_identifier,
-                        nack_e,
-                    )
+    async def _handle_message_async(self, message: SolaceMessage, topic: str) -> None:
+        """
+        Async handler for incoming messages.
+
+        Routes the message to the async event handler.
+
+        Args:
+            message: The Solace message
+            topic: The topic the message was received on
+        """
+        # Create event and process asynchronously
+        event = Event(EventType.MESSAGE, message)
+        await process_event(self, event)
 
     def handle_timer_event(self, timer_data: Dict[str, Any]):
         """Handles timer events for agent card publishing and health checks."""
@@ -1561,7 +1529,7 @@ class SamAgentComponent(SamComponentBase):
                 payload_to_publish, target_topic, a2a_context, user_properties
             )
 
-            log.info(
+            log.debug(
                 "%s Published %s status update to %s.",
                 log_identifier,
                 status_type,
@@ -1702,7 +1670,7 @@ class SamAgentComponent(SamComponentBase):
             )
 
             if buffer_has_content and (batching_disabled or threshold_met):
-                log.info(
+                log.debug(
                     "%s Partial event triggered buffer flush due to size/batching config.",
                     log_id_main,
                 )
@@ -1725,7 +1693,7 @@ class SamAgentComponent(SamComponentBase):
         else:
             buffer_content = task_context.get_streaming_buffer_content()
             if buffer_content:
-                log.info(
+                log.debug(
                     "%s Final event triggered flush of remaining buffer content.",
                     log_id_main,
                 )
@@ -1759,7 +1727,7 @@ class SamAgentComponent(SamComponentBase):
 
             if a2a_payload and target_topic:
                 self._publish_a2a_event(a2a_payload, target_topic, a2a_context)
-                log.info(
+                log.debug(
                     "%s Published final turn event (e.g., tool call) to %s.",
                     log_id_main,
                     target_topic,
@@ -2877,6 +2845,35 @@ class SamAgentComponent(SamComponentBase):
         if isinstance(user_config, dict):
             user_properties["a2aUserConfig"] = user_config
 
+        # Retrieve and propagate authentication token from parent task context
+        parent_task_id = a2a_message.metadata.get("parentTaskId")
+        if parent_task_id:
+            with self.active_tasks_lock:
+                parent_task_context = self.active_tasks.get(parent_task_id)
+
+            if parent_task_context:
+                auth_token = parent_task_context.get_security_data("auth_token")
+                if auth_token:
+                    user_properties["authToken"] = auth_token
+                    log.debug(
+                        "%s Propagating authentication token to peer agent %s for sub-task %s",
+                        log_identifier_helper,
+                        target_agent_name,
+                        sub_task_id,
+                    )
+                else:
+                    log.debug(
+                        "%s No authentication token found in parent task context for sub-task %s",
+                        log_identifier_helper,
+                        sub_task_id,
+                    )
+            else:
+                log.warning(
+                    "%s Parent task context not found for task %s, cannot propagate authentication token",
+                    log_identifier_helper,
+                    parent_task_id,
+                )
+
         self.publish_a2a_message(
             payload=a2a_request.model_dump(by_alias=True, exclude_none=True),
             topic=peer_request_topic,
@@ -3426,6 +3423,10 @@ class SamAgentComponent(SamComponentBase):
         Main async logic for the agent component.
         This is called by the base class's `_run_async_operations`.
         """
+        # Call base class to initialize Trust Manager
+        await super()._async_setup_and_run()
+
+        # Perform agent-specific async initialization
         await self._perform_async_init()
 
     def _pre_async_cleanup(self) -> None:
@@ -3433,4 +3434,11 @@ class SamAgentComponent(SamComponentBase):
         Pre-cleanup actions for the agent component.
         Called by the base class before stopping the async loop.
         """
-        pass
+        # Cleanup Trust Manager if present (ENTERPRISE FEATURE)
+        if self.trust_manager:
+            try:
+                self.trust_manager.cleanup(self.cancel_timer)
+            except Exception as e:
+                log.error(
+                    "%s Error during Trust Manager cleanup: %s", self.log_identifier, e
+                )

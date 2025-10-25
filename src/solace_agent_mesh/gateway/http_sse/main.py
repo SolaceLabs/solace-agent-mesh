@@ -97,8 +97,7 @@ async def _get_user_info(
 
 def _extract_user_identifier(user_info: dict) -> str:
     user_identifier = (
-        user_info.get("user_id") # internal /user_info endpoint format maps identifier to user_id
-        or user_info.get("sub")
+        user_info.get("sub")
         or user_info.get("client_id")
         or user_info.get("username")
         or user_info.get("oid")
@@ -108,6 +107,7 @@ def _extract_user_identifier(user_info: dict) -> str:
         or user_info.get("email")
         or user_info.get("name")
         or user_info.get("azp")
+        or user_info.get("user_id") # internal /user_info endpoint format maps identifier to user_id
     )
 
     if user_identifier and user_identifier.lower() == "unknown":
@@ -526,14 +526,14 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
     api_config_dict = _create_api_config(app_config, database_url)
 
     dependencies.set_api_config(api_config_dict)
-    log.info("API configuration extracted and stored.")
+    log.debug("API configuration extracted and stored.")
 
     _setup_middleware(component)
     _setup_routers()
     _setup_static_files()
 
     _dependencies_initialized = True
-    log.info("[setup_dependencies] Dependencies initialization complete")
+    log.debug("[setup_dependencies] Dependencies initialization complete")
 
 
 def _setup_middleware(component: "WebUIBackendComponent") -> None:

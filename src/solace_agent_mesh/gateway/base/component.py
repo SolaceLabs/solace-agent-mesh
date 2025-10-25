@@ -161,7 +161,7 @@ class BaseGatewayComponent(SamComponentBase):
         )
 
         log.info(
-            "%s Base Gateway Component initialized successfully.", self.log_identifier
+            "%s Initialized Base Gateway Component.", self.log_identifier
         )
 
     async def authenticate_and_enrich_user(
@@ -242,7 +242,7 @@ class BaseGatewayComponent(SamComponentBase):
             user_config = await config_resolver.resolve_user_config(
                 user_identity, gateway_context, {}
             )
-            log.info(
+            log.debug(
                 "%s Resolved user configuration for user_identity '%s': %s",
                 log_id_prefix,
                 user_identity.get("id"),
@@ -344,6 +344,37 @@ class BaseGatewayComponent(SamComponentBase):
         if user_config:
             user_properties["a2aUserConfig"] = user_config
 
+        # Enterprise feature: Add signed user claims if trust manager available
+        if hasattr(self, "trust_manager") and self.trust_manager:
+            log.debug(
+                "%s Attempting to sign user claims for task %s",
+                log_id_prefix,
+                task_id,
+            )
+            try:
+                auth_token = self.trust_manager.sign_user_claims(
+                    user_info=user_identity, task_id=task_id
+                )
+                user_properties["authToken"] = auth_token
+                log.debug(
+                    "%s Successfully signed user claims for task %s",
+                    log_id_prefix,
+                    task_id,
+                )
+            except Exception as e:
+                log.error(
+                    "%s Failed to sign user claims for task %s: %s",
+                    log_id_prefix,
+                    task_id,
+                    e,
+                )
+                # Continue without token - enterprise feature is optional
+        else:
+            log.debug(
+                "%s Trust Manager not available, proceeding without authentication token",
+                log_id_prefix,
+            )
+
         user_properties["replyTo"] = a2a.get_gateway_response_topic(
             self.namespace, self.gateway_id, task_id
         )
@@ -367,49 +398,55 @@ class BaseGatewayComponent(SamComponentBase):
         )
         return task_id
 
-    def process_event(self, event: Event):
-        if event.event_type == EventType.MESSAGE:
-            original_broker_message: Optional[SolaceMessage] = event.data
-            if not original_broker_message:
-                log.warning(
-                    "%s Received MESSAGE event with no data. Ignoring.",
-                    self.log_identifier,
-                )
-                return
+    def _handle_message(self, message: SolaceMessage, topic: str) -> None:
+        """
+        Override to use queue-based pattern instead of direct async.
 
-            log.debug(
-                "%s Received SolaceMessage on topic: %s. Bridging to internal queue.",
+        Gateway uses an internal queue for message processing to ensure
+        strict ordering and backpressure handling.
+
+        Args:
+            message: The Solace message
+            topic: The topic the message was received on
+        """
+        log.debug(
+            "%s Received SolaceMessage on topic: %s. Bridging to internal queue.",
+            self.log_identifier,
+            topic,
+        )
+
+        try:
+            msg_data_for_processor = {
+                "topic": topic,
+                "payload": message.get_payload(),
+                "user_properties": message.get_user_properties(),
+                "_original_broker_message": message,
+            }
+            self.internal_event_queue.put_nowait(msg_data_for_processor)
+        except queue.Full:
+            log.error(
+                "%s Internal event queue full. Cannot bridge message.",
                 self.log_identifier,
-                original_broker_message.get_topic(),
             )
-            try:
-                msg_data_for_processor = {
-                    "topic": original_broker_message.get_topic(),
-                    "payload": original_broker_message.get_payload(),
-                    "user_properties": original_broker_message.get_user_properties(),
-                    "_original_broker_message": original_broker_message,
-                }
-                self.internal_event_queue.put_nowait(msg_data_for_processor)
-            except queue.Full:
-                log.error(
-                    "%s Internal event queue full. Cannot bridge message. NACKing.",
-                    self.log_identifier,
-                )
-                original_broker_message.call_negative_acknowledgements()
-            except Exception as e:
-                log.exception(
-                    "%s Error bridging message to internal queue: %s. NACKing.",
-                    self.log_identifier,
-                    e,
-                )
-                original_broker_message.call_negative_acknowledgements()
-        else:
-            log.debug(
-                "%s Received non-MESSAGE event type: %s. Passing to super.",
+            raise
+        except Exception as e:
+            log.exception(
+                "%s Error bridging message to internal queue: %s",
                 self.log_identifier,
-                event.event_type,
+                e,
             )
-            super().process_event(event)
+            raise
+
+    async def _handle_message_async(self, message, topic: str) -> None:
+        """
+        Not used by gateway - we override _handle_message() instead.
+
+        This is here to satisfy the abstract method requirement, but the
+        gateway uses the queue-based pattern via _handle_message() override.
+        """
+        raise NotImplementedError(
+            "Gateway uses queue-based message handling via _handle_message() override"
+        )
 
     async def _handle_resolved_signals(
         self,
@@ -1146,20 +1183,30 @@ class BaseGatewayComponent(SamComponentBase):
 
     async def _async_setup_and_run(self) -> None:
         """Main async logic for the gateway component."""
+        # Call base class to initialize Trust Manager
+        await super()._async_setup_and_run()
+
         log.info(
             "%s Starting _start_listener() to initiate external platform connection.",
             self.log_identifier,
         )
         self._start_listener()
 
-        log.info(
-            "%s Starting _message_processor_loop as an asyncio task.",
-            self.log_identifier,
-        )
         await self._message_processor_loop()
 
     def _pre_async_cleanup(self) -> None:
         """Pre-cleanup actions for the gateway component."""
+        # Cleanup Trust Manager if present (ENTERPRISE FEATURE)
+        if self.trust_manager:
+            try:
+                log.info("%s Cleaning up Trust Manager...", self.log_identifier)
+                self.trust_manager.cleanup(self.cancel_timer)
+                log.info("%s Trust Manager cleanup complete", self.log_identifier)
+            except Exception as e:
+                log.error(
+                    "%s Error during Trust Manager cleanup: %s", self.log_identifier, e
+                )
+
         log.info("%s Calling _stop_listener()...", self.log_identifier)
         self._stop_listener()
 
@@ -1172,7 +1219,7 @@ class BaseGatewayComponent(SamComponentBase):
             self.internal_event_queue.put(None)
 
     async def _message_processor_loop(self):
-        log.info("%s Starting message processor loop...", self.log_identifier)
+        log.debug("%s Starting message processor loop as an asyncio task...", self.log_identifier)
         loop = self.get_async_loop()
 
         while not self.stop_signal.is_set():
@@ -1210,6 +1257,13 @@ class BaseGatewayComponent(SamComponentBase):
                     processed_successfully = await self._handle_discovery_message(
                         payload
                     )
+                elif (
+                    hasattr(self, "trust_manager")
+                    and self.trust_manager
+                    and self.trust_manager.is_trust_card_topic(topic)
+                ):
+                    await self.trust_manager.handle_trust_card_message(payload, topic)
+                    processed_successfully = True
                 elif a2a.topic_matches_subscription(
                     topic,
                     a2a.get_gateway_response_subscription_topic(
@@ -1353,6 +1407,14 @@ class BaseGatewayComponent(SamComponentBase):
         self, external_request_context: Dict[str, Any], error_data: JSONRPCError
     ) -> None:
         pass
+
+    def _get_component_id(self) -> str:
+        """Returns the gateway ID as the component identifier."""
+        return self.gateway_id
+
+    def _get_component_type(self) -> str:
+        """Returns 'gateway' as the component type."""
+        return "gateway"
 
     def invoke(self, message, data):
         if isinstance(message, SolaceMessage):

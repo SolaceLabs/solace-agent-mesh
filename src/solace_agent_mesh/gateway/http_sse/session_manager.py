@@ -35,10 +35,10 @@ class SessionManager:
         self.force_user_identity = app_config.get("force_user_identity")
         self.use_authorization = app_config.get("frontend_use_authorization", False)
         self._temp_code_cache = {}
-        log.info("[SessionManager] Initialized.")
+        log.info("Initialized SessionManager")
         if self.force_user_identity:
             log.warning(
-                f"[SessionManager] Forcing user identity to: {self.force_user_identity}"
+                f"Forcing user identity to: {self.force_user_identity}"
             )
 
     def _get_or_create_client_id(self, request: Request) -> str | None:
@@ -54,19 +54,19 @@ class SessionManager:
             user_id = request.state.user.get("id")
             if user_id:
                 log.debug(
-                    "[SessionManager] Using authenticated user ID from request.state: %s",
+                    "Using authenticated user ID from request.state: %s",
                     user_id,
                 )
                 return user_id
             else:
                 log.warning(
-                    "[SessionManager] request.state.user exists but has no 'id' field. Falling back to other methods."
+                    "request.state.user exists but has no 'id' field. Falling back to other methods."
                 )
 
         user_id = self.get_user_id(request)
         if user_id:
             log.debug(
-                "[SessionManager] Using authenticated user_id from session as A2A Client ID: %s",
+                "Using authenticated user_id from session as A2A Client ID: %s",
                 user_id,
             )
             return user_id
@@ -74,7 +74,7 @@ class SessionManager:
         client_id = request.session.get(SESSION_KEY_CLIENT_ID)
         if client_id:
             log.debug(
-                "[SessionManager] Using existing A2A Client ID: %s for web session.",
+                "Using existing A2A Client ID: %s for web session.",
                 client_id,
             )
             return client_id
@@ -82,14 +82,14 @@ class SessionManager:
         if not self.use_authorization:
             client_id = "sam_dev_user"
             log.info(
-                "[SessionManager] No authenticated user and auth is disabled, using client ID: %s for web session.",
+                "No authenticated user and auth is disabled, using client ID: %s for web session.",
                 client_id,
             )
             request.session[SESSION_KEY_CLIENT_ID] = client_id
             return client_id
 
         log.warning(
-            "[SessionManager] Could not determine client ID and authorization is enabled."
+            "Could not determine client ID and authorization is enabled."
         )
         return None
 
@@ -106,7 +106,7 @@ class SessionManager:
         Returns None if no session has been started for the current agent in this web session.
         """
         session_id = request.session.get(SESSION_KEY_SESSION_ID)
-        log.debug("[SessionManager] Retrieving A2A Session ID: %s", session_id)
+        log.debug("Retrieving A2A Session ID: %s", session_id)
         return session_id
 
     def start_new_a2a_session(self, request: Request) -> str:
@@ -123,7 +123,7 @@ class SessionManager:
         new_session_id = f"web-session-{uuid.uuid4().hex}"
         request.session[SESSION_KEY_SESSION_ID] = new_session_id
         log.info(
-            "[SessionManager] Started new A2A Session ID: %s for Client ID: %s",
+            "Started new A2A Session ID: %s for Client ID: %s",
             new_session_id,
             client_id,
         )
@@ -142,7 +142,7 @@ class SessionManager:
             )
         new_session_id = f"web-session-{uuid.uuid4().hex}"
         log.info(
-            "[SessionManager] Generated new A2A Session ID: %s for Client ID: %s (not stored in cookies)",
+            "Generated new A2A Session ID: %s for Client ID: %s (not stored in cookies)",
             new_session_id,
             client_id,
         )
@@ -157,7 +157,7 @@ class SessionManager:
         if not session_id:
             session_id = self.start_new_a2a_session(request)
             log.info(
-                "[SessionManager] No A2A Session ID found, created new one via ensure_a2a_session: %s",
+                "No A2A Session ID found, created new one via ensure_a2a_session: %s",
                 session_id,
             )
         return session_id
@@ -171,7 +171,7 @@ class SessionManager:
         request.session[SESSION_KEY_ACCESS_TOKEN] = access_token
         if refresh_token:
             request.session[SESSION_KEY_REFRESH_TOKEN] = refresh_token
-        log.info("[SessionManager] Stored auth tokens directly in session.")
+        log.info("Stored auth tokens directly in session.")
 
     def get_access_token(self, request: Request) -> str | None:
         """
@@ -191,14 +191,14 @@ class SessionManager:
         """
         request.session.pop(SESSION_KEY_ACCESS_TOKEN, None)
         request.session.pop(SESSION_KEY_REFRESH_TOKEN, None)
-        log.info("[SessionManager] Cleared auth tokens from session")
+        log.info("Cleared auth tokens from session")
 
     def store_user_id(self, request: Request, user_id: str) -> None:
         """
         Stores the user ID in the web session.
         """
         request.session[SESSION_KEY_USER_ID] = user_id
-        log.info("[SessionManager] Stored user ID in session: %s", user_id)
+        log.info("Stored user ID in session: %s", user_id)
 
     def get_user_id(self, request: Request) -> str | None:
         """
