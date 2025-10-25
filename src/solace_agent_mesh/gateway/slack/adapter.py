@@ -43,9 +43,6 @@ class SlackAdapterConfig(BaseModel):
     slack_app_token: str = Field(
         ..., description="Slack App Token (xapp-...) for Socket Mode."
     )
-    default_agent_name: Optional[str] = Field(
-        None, description="Default agent to route messages to."
-    )
     slack_initial_status_message: str = Field(
         "Got it, thinking...",
         description="Message posted to Slack upon receiving a user request.",
@@ -252,11 +249,10 @@ class SlackAdapter(GatewayAdapter):
         ) and not any(isinstance(p, SamFilePart) for p in parts):
             raise ValueError("No content to send to agent")
 
-        adapter_config: SlackAdapterConfig = self.context.adapter_config
         return SamTask(
             parts=parts,
             conversation_id=f"slack:{channel_id}:{thread_ts}",
-            target_agent=adapter_config.default_agent_name or "default",
+            target_agent=self.context.get_config("default_agent_name", "default"),
             platform_context={
                 "channel_id": channel_id,
                 "thread_ts": thread_ts,

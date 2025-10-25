@@ -40,6 +40,27 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "description": "Unique ID for this gateway instance. Auto-generated if omitted.",
         },
         {
+            "name": "default_agent_name",
+            "required": False,
+            "type": "string",
+            "default": None,
+            "description": "Default agent to route messages to if not specified by the platform or user.",
+        },
+        {
+            "name": "system_purpose",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": "Detailed description of the system's overall purpose, to be optionally used by agents.",
+        },
+        {
+            "name": "response_format",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": "General guidelines on how agent responses should be structured, to be optionally used by agents.",
+        },
+        {
             "name": "artifact_service",
             "required": True,
             "type": "object",
