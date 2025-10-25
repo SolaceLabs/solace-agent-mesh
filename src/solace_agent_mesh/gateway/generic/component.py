@@ -316,7 +316,8 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
 
     def get_task_state(self, task_id: str, key: str, default: Any = None) -> Any:
         cache_key = f"task_state:{task_id}:{key}"
-        return self.cache_service.get_data(cache_key, default)
+        value = self.cache_service.get_data(cache_key)
+        return value if value is not None else default
 
     def set_task_state(self, task_id: str, key: str, value: Any) -> None:
         cache_key = f"task_state:{task_id}:{key}"
@@ -327,7 +328,8 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         self, session_id: str, key: str, default: Any = None
     ) -> Any:
         cache_key = f"session_state:{session_id}:{key}"
-        return self.cache_service.get_data(cache_key, default)
+        value = self.cache_service.get_data(cache_key)
+        return value if value is not None else default
 
     def set_session_state(self, session_id: str, key: str, value: Any) -> None:
         cache_key = f"session_state:{session_id}:{key}"
