@@ -591,6 +591,45 @@ class SlackAdapter(GatewayAdapter):
                         completed_text,
                         completed_blocks,
                     )
+
+                    # Now, load the artifact and upload it to Slack
+                    try:
+                        log.info(
+                            "Artifact '%s' creation complete. Fetching content for upload.",
+                            filename,
+                        )
+                        version = part.data.get("version")
+                        content_bytes = await self.context.load_artifact_content(
+                            context=context, filename=filename, version=version
+                        )
+
+                        if content_bytes:
+                            await utils.upload_slack_file(
+                                self,
+                                channel_id,
+                                thread_ts,
+                                filename,
+                                content_bytes,
+                            )
+                        else:
+                            log.error(
+                                "Failed to load content for artifact '%s' (version: %s). Cannot upload to Slack.",
+                                filename,
+                                version or "latest",
+                            )
+                            error_text = f":warning: Could not retrieve content for artifact `{filename}`."
+                            await utils.send_slack_message(
+                                self, channel_id, thread_ts, error_text
+                            )
+
+                    except Exception as e:
+                        log.exception(
+                            "Error fetching or uploading artifact '%s': %s", filename, e
+                        )
+                        error_text = f":warning: An error occurred while uploading artifact `{filename}`."
+                        await utils.send_slack_message(
+                            self, channel_id, thread_ts, error_text
+                        )
                 else:
                     log.warning(
                         f"Could not find message TS for completing artifact '{filename}'"

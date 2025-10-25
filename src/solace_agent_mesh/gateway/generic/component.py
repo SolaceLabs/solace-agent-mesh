@@ -249,6 +249,49 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             topic=topic, payload=payload, user_properties=user_properties
         )
 
+    async def load_artifact_content(
+        self, context: "ResponseContext", filename: str, version: Union[int, str] = "latest"
+    ) -> Optional[bytes]:
+        """Loads the raw byte content of an artifact using the shared service."""
+        log_id_prefix = f"{self.log_identifier}[LoadArtifact]"
+        if not self.artifact_service:
+            log.error("%s Artifact service is not configured.", log_id_prefix)
+            return None
+        try:
+            # The ADK service returns a google.genai.types.Part object
+            artifact_part = await self.artifact_service.load_artifact(
+                app_name=self.gateway_id,
+                user_id=context.user_id,
+                session_id=context.conversation_id,
+                filename=filename,
+                version=version,
+            )
+            if (
+                artifact_part
+                and hasattr(artifact_part, "blob")
+                and artifact_part.blob.data
+            ):
+                log.info(
+                    "%s Successfully loaded %d bytes for artifact '%s'.",
+                    log_id_prefix,
+                    len(artifact_part.blob.data),
+                    filename,
+                )
+                return artifact_part.blob.data
+            else:
+                log.warning(
+                    "%s Artifact '%s' (version: %s) loaded but has no content.",
+                    log_id_prefix,
+                    filename,
+                    version,
+                )
+                return None
+        except Exception as e:
+            log.exception(
+                "%s Failed to load artifact '%s': %s", log_id_prefix, filename, e
+            )
+            return None
+
     async def submit_feedback(self, feedback: "SamFeedback") -> None:
         """Handles feedback submission from an adapter."""
         log_id_prefix = f"{self.log_identifier}[SubmitFeedback]"

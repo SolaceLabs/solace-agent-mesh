@@ -161,6 +161,12 @@ class GatewayContext:
         """Submits user feedback related to a task."""
         raise NotImplementedError
 
+    async def load_artifact_content(
+        self, context: "ResponseContext", filename: str, version: Union[int, str] = "latest"
+    ) -> Optional[bytes]:
+        """Loads the raw byte content of an artifact."""
+        raise NotImplementedError
+
     def add_timer(
         self, delay_ms: int, callback: "Callable", interval_ms: Optional[int] = None
     ) -> str:
