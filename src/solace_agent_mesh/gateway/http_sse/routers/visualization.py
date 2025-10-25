@@ -321,7 +321,7 @@ async def subscribe_to_visualization_stream(
     resolved_user_identity = _resolve_user_identity_for_authorization(
         component, user_id
     )
-    log.info(
+    log.debug(
         "%s Resolved user identity for authorization: '%s' (from raw user_id: '%s')",
         log_id_prefix,
         resolved_user_identity,
@@ -339,7 +339,7 @@ async def subscribe_to_visualization_stream(
         user_config = await config_resolver.resolve_user_config(
             resolved_user_identity, gateway_context, {}
         )
-        log.info(
+        log.debug(
             "%s Resolved user_config for resolved_user_identity '%s': %s",
             log_id_prefix,
             resolved_user_identity,
@@ -457,7 +457,7 @@ async def subscribe_to_visualization_stream(
                 )
 
                 firehose_topic = f"{component.namespace.strip('/')}/a2a/>"
-                log.info(
+                log.debug(
                     "%s Adding firehose subscription '%s' for my_a2a_messages stream.",
                     log_id_prefix,
                     firehose_topic,
@@ -786,7 +786,7 @@ async def get_visualization_stream_events(
                     yield {"comment": "keep-alive"}
                     continue
                 except asyncio.CancelledError:
-                    log.info(
+                    log.debug(
                         "%s SSE event generator for stream %s cancelled.",
                         log_id_prefix,
                         stream_id,
@@ -800,7 +800,7 @@ async def get_visualization_stream_events(
                 e,
             )
         finally:
-            log.info(
+            log.debug(
                 "%s SSE event generator for stream %s finished.",
                 log_id_prefix,
                 stream_id,
@@ -1135,4 +1135,4 @@ async def unsubscribe_from_visualization_stream(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-log.info("Router for A2A Message Visualization initialized.")
+log.info("Initialized Router for A2A Message Visualization.")

@@ -33,7 +33,7 @@ async def get_discovered_agent_cards(
             if agent_registry.get_agent(name)
         ]
 
-        log.info("%sReturning %d discovered agent cards.", log_prefix, len(agents))
+        log.debug("%sReturning %d discovered agent cards.", log_prefix, len(agents))
         return agents
     except Exception as e:
         log.exception("%sError retrieving discovered agent cards: %s", log_prefix, e)
