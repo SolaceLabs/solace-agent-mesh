@@ -107,12 +107,12 @@ class GatewayAdapter(
                     # Fallback to the generic data part handler
                     await self.handle_data_part(part, context)
 
-    @abstractmethod
     async def handle_text_chunk(self, text: str, context: ResponseContext) -> None:
         """
         Handle streaming text chunk from the agent.
 
-        This is the only required outbound handler unless handle_update is overridden.
+        This is called by the default `handle_update` implementation.
+        An adapter can override this method to process text parts individually.
         """
         pass
 

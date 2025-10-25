@@ -319,10 +319,6 @@ class SlackAdapter(GatewayAdapter):
                 if new_content_ts:
                     self.context.set_task_state(task_id, "content_ts", new_content_ts)
 
-    async def handle_text_chunk(self, text: str, context: ResponseContext) -> None:
-        # This is not called because we override handle_update, but must be implemented.
-        pass
-
     async def handle_task_complete(self, context: ResponseContext) -> None:
         """Update UI to show task is complete and add feedback buttons."""
         task_id = context.task_id
