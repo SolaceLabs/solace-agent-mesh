@@ -13,6 +13,12 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+
+def create_slack_session_id(channel_id: str, thread_ts: str) -> str:
+    """Creates a safe session ID from Slack channel and thread timestamp."""
+    safe_thread_ts = thread_ts.replace(".", "_")
+    return f"slack-{channel_id}-{safe_thread_ts}"
+
 # Block and Action IDs
 STATUS_BLOCK_ID = "a2a_status_block"
 CONTENT_BLOCK_ID = "a2a_content_block"

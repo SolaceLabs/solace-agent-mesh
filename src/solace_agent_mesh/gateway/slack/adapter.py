@@ -345,7 +345,7 @@ class SlackAdapter(GatewayAdapter):
 
         return SamTask(
             parts=parts,
-            conversation_id=f"slack:{channel_id}:{thread_ts}",
+            session_id=utils.create_slack_session_id(channel_id, thread_ts),
             target_agent=self.context.get_config("default_agent_name", "default"),
             platform_context={
                 "channel_id": channel_id,
@@ -431,7 +431,7 @@ class SlackAdapter(GatewayAdapter):
         # Then, if feedback is enabled, post it as a new message in the thread.
         if adapter_config.feedback_enabled:
             feedback_elements = utils.create_feedback_blocks(
-                task_id, context.user_id, context.conversation_id
+                task_id, context.user_id, context.session_id
             )
             if feedback_elements:
                 feedback_blocks = [

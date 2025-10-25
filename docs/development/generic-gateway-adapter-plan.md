@@ -19,7 +19,7 @@ This document outlines the steps to implement the Generic Gateway Adapter Framew
         *   `AuthClaims`: Represents identity information extracted from a platform event.
         *   `SamUpdate`: Represents a streaming update from an agent.
         *   `SamError`: A structured error model with `message`, `code`, and `category: Literal["FAILED", "CANCELED", "TIMED_OUT", "PROTOCOL_ERROR"]`.
-        *   `ResponseContext`: Contains routing information for outbound messages (`task_id`, `conversation_id`, `user_id`, `platform_context`).
+        *   `ResponseContext`: Contains routing information for outbound messages (`task_id`, `session_id`, `user_id`, `platform_context`).
         *   `GatewayContext`: Define this as a class to establish its API, including methods like `handle_external_input`, `cancel_task`, and state management helpers. The concrete implementation will be in the `GenericGatewayComponent`.
 
 3.  **Define GatewayAdapter Interface (`src/solace_agent_mesh/gateway/adapter/base.py`):**

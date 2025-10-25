@@ -62,7 +62,7 @@ class SamTask(BaseModel):
     """A task prepared for submission to the SAM agent mesh."""
 
     parts: List[SamContentPart]
-    conversation_id: Optional[str] = None
+    session_id: Optional[str] = None
     target_agent: str = Field(..., description="Target agent name (required).")
     is_streaming: bool = Field(default=True, description="Enable streaming responses.")
     platform_context: Dict[str, Any] = Field(
@@ -129,7 +129,7 @@ class ResponseContext(BaseModel):
     """Context provided with each outbound response callback."""
 
     task_id: str
-    conversation_id: Optional[str]
+    session_id: Optional[str]
     user_id: str
     platform_context: Dict[str, Any]
 

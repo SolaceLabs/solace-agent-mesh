@@ -169,7 +169,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             a2a_parts = self._sam_parts_to_a2a_parts(sam_task.parts)
 
             external_request_context = {
-                "a2a_session_id": sam_task.conversation_id,
+                "a2a_session_id": sam_task.session_id,
                 **sam_task.platform_context,
             }
 
@@ -262,7 +262,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             artifact_part = await self.artifact_service.load_artifact(
                 app_name=self.gateway_id,
                 user_id=context.user_id,
-                session_id=context.conversation_id,
+                session_id=context.session_id,
                 filename=filename,
                 version=version,
             )
@@ -512,7 +512,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         user_identity = external_request_context.get("user_identity", {})
         return ResponseContext(
             task_id=external_request_context.get("a2a_task_id_for_event"),
-            conversation_id=external_request_context.get("a2a_session_id"),
+            session_id=external_request_context.get("a2a_session_id"),
             user_id=user_identity.get("id"),
             platform_context=external_request_context,
         )
