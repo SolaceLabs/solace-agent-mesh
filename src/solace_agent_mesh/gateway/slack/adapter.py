@@ -412,32 +412,44 @@ class SlackAdapter(GatewayAdapter):
         """Update UI to show task is complete and add feedback buttons."""
         task_id = context.task_id
         channel_id = context.platform_context["channel_id"]
+        thread_ts = context.platform_context["thread_ts"]
         status_ts = self.context.get_task_state(task_id, "status_ts")
 
         adapter_config: SlackAdapterConfig = self.context.adapter_config
 
+        # First, update the status message to show completion.
         final_status_text = "✅ Task complete."
-        feedback_elements = None
+        status_blocks = utils.build_slack_blocks(status_text=final_status_text)
+        if status_ts:
+            await utils.update_slack_message(
+                self, channel_id, status_ts, final_status_text, status_blocks
+            )
+        else:
+            # If no status message was ever posted, post a new one.
+            await utils.send_slack_message(
+                self, channel_id, thread_ts, final_status_text, status_blocks
+            )
+
+        # Then, if feedback is enabled, post it as a new message in the thread.
         if adapter_config.feedback_enabled:
             feedback_elements = utils.create_feedback_blocks(
                 task_id, context.user_id, context.conversation_id
             )
-
-        # Combine final status and feedback buttons into one block list
-        final_blocks = utils.build_slack_blocks(
-            status_text=final_status_text, feedback_elements=feedback_elements
-        )
-
-        if status_ts:
-            await utils.update_slack_message(
-                self, channel_id, status_ts, final_status_text, final_blocks
-            )
-        else:
-            # If for some reason there's no status message, post a new one.
-            thread_ts = context.platform_context["thread_ts"]
-            await utils.send_slack_message(
-                self, channel_id, thread_ts, final_status_text, final_blocks
-            )
+            if feedback_elements:
+                feedback_blocks = [
+                    {
+                        "type": "actions",
+                        "block_id": utils.FEEDBACK_BLOCK_ID,
+                        "elements": feedback_elements,
+                    }
+                ]
+                await utils.send_slack_message(
+                    self,
+                    channel=channel_id,
+                    thread_ts=thread_ts,
+                    text="How was this response?",  # Fallback text for notifications
+                    blocks=feedback_blocks,
+                )
 
     async def handle_error(self, error: SamError, context: ResponseContext) -> None:
         """Display an error message in Slack."""
