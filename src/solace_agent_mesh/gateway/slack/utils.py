@@ -184,6 +184,7 @@ async def upload_slack_file(
     thread_ts: Optional[str],
     filename: str,
     content_bytes: bytes,
+    initial_comment: Optional[str] = None,
 ):
     """
     Uploads a file to Slack using the three-step external upload process
@@ -222,11 +223,12 @@ async def upload_slack_file(
             log_id_prefix,
             file_id,
         )
+        comment = initial_comment or f"Attached file: {filename}"
         await adapter.slack_app.client.files_completeUploadExternal(
             files=[{"id": file_id, "title": filename}],
             channel_id=channel,
             thread_ts=thread_ts,
-            initial_comment=f"Attached file: {filename}",
+            initial_comment=comment,
         )
 
         log.info(

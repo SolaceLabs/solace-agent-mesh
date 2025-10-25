@@ -574,25 +574,16 @@ class SlackAdapter(GatewayAdapter):
 
             elif status == "completed":
                 if artifact_msg_ts:
+                    # The placeholder message exists. We will now upload the file with the
+                    # final description and then delete the placeholder.
                     description = part.data.get("description", "N/A")
                     mime_type = part.data.get("mime_type")
                     icon = self._get_icon_for_mime_type(mime_type)
-                    completed_text = (
+                    final_comment = (
                         f"{icon} Artifact Created: `{filename}`\n"
                         f"*Description*: {description}"
                     )
-                    completed_blocks = utils.build_slack_blocks(
-                        content_text=completed_text
-                    )
-                    await utils.update_slack_message(
-                        self,
-                        channel_id,
-                        artifact_msg_ts,
-                        completed_text,
-                        completed_blocks,
-                    )
 
-                    # Now, load the artifact and upload it to Slack
                     try:
                         log.info(
                             "Artifact '%s' creation complete. Fetching content for upload.",
@@ -604,31 +595,52 @@ class SlackAdapter(GatewayAdapter):
                         )
 
                         if content_bytes:
+                            # Upload the file with the description as the initial comment
                             await utils.upload_slack_file(
                                 self,
                                 channel_id,
                                 thread_ts,
                                 filename,
                                 content_bytes,
+                                initial_comment=final_comment,
+                            )
+                            # Delete the original "Creating..." placeholder message
+                            await self.slack_app.client.chat_delete(
+                                channel=channel_id, ts=artifact_msg_ts
                             )
                         else:
+                            # If content fails to load, update the placeholder to show an error.
                             log.error(
                                 "Failed to load content for artifact '%s' (version: %s). Cannot upload to Slack.",
                                 filename,
                                 version or "latest",
                             )
-                            error_text = f":warning: Could not retrieve content for artifact `{filename}`."
-                            await utils.send_slack_message(
-                                self, channel_id, thread_ts, error_text
+                            error_text = f"❌ Failed to load content for artifact `{filename}`."
+                            error_blocks = utils.build_slack_blocks(
+                                content_text=error_text
+                            )
+                            await utils.update_slack_message(
+                                self,
+                                channel_id,
+                                artifact_msg_ts,
+                                error_text,
+                                error_blocks,
                             )
 
                     except Exception as e:
                         log.exception(
                             "Error fetching or uploading artifact '%s': %s", filename, e
                         )
-                        error_text = f":warning: An error occurred while uploading artifact `{filename}`."
-                        await utils.send_slack_message(
-                            self, channel_id, thread_ts, error_text
+                        error_text = f"❌ An error occurred while uploading artifact `{filename}`."
+                        error_blocks = utils.build_slack_blocks(
+                            content_text=error_text
+                        )
+                        await utils.update_slack_message(
+                            self,
+                            channel_id,
+                            artifact_msg_ts,
+                            error_text,
+                            error_blocks,
                         )
                 else:
                     log.warning(
