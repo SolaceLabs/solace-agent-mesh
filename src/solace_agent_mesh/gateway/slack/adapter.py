@@ -114,39 +114,110 @@ class SlackAdapter(GatewayAdapter):
             logger.info(f"Cancel button clicked for task: {task_id}")
             await self.context.cancel_task(task_id)
 
-        # Action handlers for feedback
+        # Action handlers for multi-step feedback
         @self.slack_app.action(utils.THUMBS_UP_ACTION_ID)
-        async def handle_thumbs_up(ack, body, say, logger):
+        async def handle_thumbs_up(ack, body, client, logger):
             await ack()
             payload = json.loads(body["actions"][0]["value"])
-            logger.info(f"Positive feedback received for task: {payload['task_id']}")
-            feedback = SamFeedback(
-                task_id=payload["task_id"],
-                feedback_type="positive",
-                user_id=payload["user_id"],
-                platform_context=payload,
+            logger.info(
+                "Feedback process started (positive) for task: %s", payload["task_id"]
             )
-            await self.context.submit_feedback(feedback)
-            await say(
-                text="Thanks for your feedback!",
-                thread_ts=body["container"]["thread_ts"],
+            input_blocks = utils.create_feedback_input_blocks("positive", payload)
+            await client.chat_update(
+                channel=body["container"]["channel_id"],
+                ts=body["container"]["message_ts"],
+                blocks=input_blocks,
+                text="Please provide your feedback.",
             )
 
         @self.slack_app.action(utils.THUMBS_DOWN_ACTION_ID)
-        async def handle_thumbs_down(ack, body, say, logger):
+        async def handle_thumbs_down(ack, body, client, logger):
             await ack()
             payload = json.loads(body["actions"][0]["value"])
-            logger.info(f"Negative feedback received for task: {payload['task_id']}")
+            logger.info(
+                "Feedback process started (negative) for task: %s", payload["task_id"]
+            )
+            input_blocks = utils.create_feedback_input_blocks("negative", payload)
+            await client.chat_update(
+                channel=body["container"]["channel_id"],
+                ts=body["container"]["message_ts"],
+                blocks=input_blocks,
+                text="Please provide your feedback.",
+            )
+
+        @self.slack_app.action(utils.CANCEL_FEEDBACK_ACTION_ID)
+        async def handle_cancel_feedback(ack, body, client, logger):
+            await ack()
+            payload = json.loads(body["actions"][0]["value"])
+            logger.info("Feedback cancelled for task: %s", payload["task_id"])
+            original_feedback_elements = utils.create_feedback_blocks(
+                payload["task_id"], payload["user_id"], payload["session_id"]
+            )
+            original_blocks = [
+                {
+                    "type": "actions",
+                    "block_id": utils.FEEDBACK_BLOCK_ID,
+                    "elements": original_feedback_elements,
+                }
+            ]
+            await client.chat_update(
+                channel=body["container"]["channel_id"],
+                ts=body["container"]["message_ts"],
+                blocks=original_blocks,
+                text="How was this response?",
+            )
+
+        @self.slack_app.action(utils.SUBMIT_FEEDBACK_ACTION_ID)
+        async def handle_submit_feedback(ack, body, client, logger):
+            await ack()
+            payload = json.loads(body["actions"][0]["value"])
+            task_id = payload["task_id"]
+            feedback_type = payload["feedback_type"]
+
+            comment = ""
+            try:
+                state_values = body.get("state", {}).get("values", {})
+                comment_block = state_values.get(utils.FEEDBACK_COMMENT_BLOCK_ID, {})
+                comment = comment_block.get(
+                    utils.FEEDBACK_COMMENT_INPUT_ACTION_ID, {}
+                ).get("value", "")
+            except Exception as e:
+                logger.error(
+                    "Error extracting feedback comment for task %s: %s", task_id, e
+                )
+
+            logger.info(
+                "Feedback submitted for task %s: type=%s, comment='%s...'",
+                task_id,
+                feedback_type,
+                comment[:50],
+            )
+
             feedback = SamFeedback(
-                task_id=payload["task_id"],
-                feedback_type="negative",
+                task_id=task_id,
+                feedback_type=feedback_type,
+                comment=comment,
                 user_id=payload["user_id"],
                 platform_context=payload,
             )
             await self.context.submit_feedback(feedback)
-            await say(
-                text="Thanks for your feedback! We'll use it to improve.",
-                thread_ts=body["container"]["thread_ts"],
+
+            thank_you_blocks = [
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "mrkdwn",
+                            "text": "✅ Thank you for your feedback!",
+                        }
+                    ],
+                }
+            ]
+            await client.chat_update(
+                channel=body["container"]["channel_id"],
+                ts=body["container"]["message_ts"],
+                blocks=thank_you_blocks,
+                text="Thank you for your feedback!",
             )
 
     async def extract_auth_claims(
@@ -341,39 +412,32 @@ class SlackAdapter(GatewayAdapter):
         """Update UI to show task is complete and add feedback buttons."""
         task_id = context.task_id
         channel_id = context.platform_context["channel_id"]
-        thread_ts = context.platform_context["thread_ts"]
         status_ts = self.context.get_task_state(task_id, "status_ts")
 
         adapter_config: SlackAdapterConfig = self.context.adapter_config
 
-        # First, update the status message to show completion.
-        if status_ts:
-            final_status_text = "✅ Task complete."
-            status_blocks = utils.build_slack_blocks(status_text=final_status_text)
-            await utils.update_slack_message(
-                self, channel_id, status_ts, final_status_text, status_blocks
-            )
-
-        # Then, if feedback is enabled, post it as a new message in the thread.
+        final_status_text = "✅ Task complete."
+        feedback_elements = None
         if adapter_config.feedback_enabled:
             feedback_elements = utils.create_feedback_blocks(
                 task_id, context.user_id, context.conversation_id
             )
-            if feedback_elements:
-                feedback_blocks = [
-                    {
-                        "type": "actions",
-                        "block_id": utils.FEEDBACK_BLOCK_ID,
-                        "elements": feedback_elements,
-                    }
-                ]
-                await utils.send_slack_message(
-                    self,
-                    channel=channel_id,
-                    thread_ts=thread_ts,
-                    text="How was this response?",  # Fallback text for notifications
-                    blocks=feedback_blocks,
-                )
+
+        # Combine final status and feedback buttons into one block list
+        final_blocks = utils.build_slack_blocks(
+            status_text=final_status_text, feedback_elements=feedback_elements
+        )
+
+        if status_ts:
+            await utils.update_slack_message(
+                self, channel_id, status_ts, final_status_text, final_blocks
+            )
+        else:
+            # If for some reason there's no status message, post a new one.
+            thread_ts = context.platform_context["thread_ts"]
+            await utils.send_slack_message(
+                self, channel_id, thread_ts, final_status_text, final_blocks
+            )
 
     async def handle_error(self, error: SamError, context: ResponseContext) -> None:
         """Display an error message in Slack."""

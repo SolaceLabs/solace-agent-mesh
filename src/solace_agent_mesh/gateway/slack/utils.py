@@ -21,6 +21,10 @@ CANCEL_BUTTON_ACTION_ID = "a2a_cancel_request_button"
 CANCEL_ACTION_BLOCK_ID = "a2a_task_cancel_actions"
 THUMBS_UP_ACTION_ID = "thumbs_up_action"
 THUMBS_DOWN_ACTION_ID = "thumbs_down_action"
+SUBMIT_FEEDBACK_ACTION_ID = "submit_feedback_action"
+CANCEL_FEEDBACK_ACTION_ID = "cancel_feedback_action"
+FEEDBACK_COMMENT_INPUT_ACTION_ID = "feedback_comment_input"
+FEEDBACK_COMMENT_BLOCK_ID = "feedback_comment_block"
 
 
 def correct_slack_markdown(text: str) -> str:
@@ -199,6 +203,70 @@ async def upload_slack_file(
             await send_slack_message(adapter, channel, thread_ts, error_text)
         except Exception as notify_err:
             log.error("Failed to send file upload error notification: %s", notify_err)
+
+
+def create_feedback_input_blocks(
+    feedback_type: str, original_payload: Dict
+) -> List[Dict]:
+    """Creates the Slack blocks for text feedback input."""
+    submit_payload = {**original_payload, "feedback_type": feedback_type}
+    submit_value_string = json.dumps(submit_payload)
+
+    cancel_value_string = json.dumps(original_payload)
+
+    if len(submit_value_string) > 2000 or len(cancel_value_string) > 2000:
+        log.error("Feedback payload exceeds 2000 chars. Cannot create input form.")
+        return [
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": ":warning: Could not load feedback form (payload too large).",
+                    }
+                ],
+            }
+        ]
+
+    return [
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "Thanks! Any additional comments?"},
+        },
+        {
+            "type": "input",
+            "block_id": FEEDBACK_COMMENT_BLOCK_ID,
+            "element": {
+                "type": "plain_text_input",
+                "action_id": FEEDBACK_COMMENT_INPUT_ACTION_ID,
+                "multiline": True,
+                "placeholder": {
+                    "type": "plain_text",
+                    "text": "Let us know what you think...",
+                },
+            },
+            "label": {"type": "plain_text", "text": "Comment"},
+        },
+        {
+            "type": "actions",
+            "block_id": f"feedback_actions_{uuid.uuid4().hex[:8]}",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "Submit"},
+                    "style": "primary",
+                    "value": submit_value_string,
+                    "action_id": SUBMIT_FEEDBACK_ACTION_ID,
+                },
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "Cancel"},
+                    "value": cancel_value_string,
+                    "action_id": CANCEL_FEEDBACK_ACTION_ID,
+                },
+            ],
+        },
+    ]
 
 
 def create_feedback_blocks(task_id: str, user_id: str, session_id: str) -> List[Dict]:
