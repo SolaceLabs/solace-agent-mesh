@@ -171,10 +171,20 @@ class SlackAdapter(GatewayAdapter):
                     return AuthClaims(
                         id=f"slack:{slack_team_id}:{slack_user_id}",
                         source="slack_fallback",
+                        raw_context={
+                            "slack_user_id": slack_user_id,
+                            "slack_team_id": slack_team_id,
+                        },
                     )
                 else:
                     return AuthClaims(
-                        id=cached_claim, email=cached_claim, source="slack_api"
+                        id=cached_claim,
+                        email=cached_claim,
+                        source="slack_api",
+                        raw_context={
+                            "slack_user_id": slack_user_id,
+                            "slack_team_id": slack_team_id,
+                        },
                     )
 
         try:
@@ -188,7 +198,15 @@ class SlackAdapter(GatewayAdapter):
                     self.context.cache_service.add_data(
                         cache_key, user_email, expiry=ttl
                     )
-                return AuthClaims(id=user_email, email=user_email, source="slack_api")
+                return AuthClaims(
+                    id=user_email,
+                    email=user_email,
+                    source="slack_api",
+                    raw_context={
+                        "slack_user_id": slack_user_id,
+                        "slack_team_id": slack_team_id,
+                    },
+                )
             else:
                 raise ValueError("Email not found in profile")
         except Exception as e:
@@ -202,7 +220,12 @@ class SlackAdapter(GatewayAdapter):
                     cache_key, _NO_EMAIL_MARKER, expiry=ttl
                 )
             return AuthClaims(
-                id=f"slack:{slack_team_id}:{slack_user_id}", source="slack_fallback"
+                id=f"slack:{slack_team_id}:{slack_user_id}",
+                source="slack_fallback",
+                raw_context={
+                    "slack_user_id": slack_user_id,
+                    "slack_team_id": slack_team_id,
+                },
             )
 
     async def prepare_task(

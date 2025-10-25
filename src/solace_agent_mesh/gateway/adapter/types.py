@@ -86,9 +86,9 @@ class SamUpdate(BaseModel):
 class AuthClaims(BaseModel):
     """Authentication claims extracted from a platform event."""
 
-    user_id: Optional[str] = Field(
+    id: Optional[str] = Field(
         default=None,
-        description="User identifier. If None, generic gateway uses auth_config default.",
+        description="Primary user identifier. If None, generic gateway uses auth_config default.",
     )
     email: Optional[str] = None
     token: Optional[str] = Field(

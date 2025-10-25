@@ -121,26 +121,35 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 external_input, endpoint_context
             )
 
-            if self.identity_service and auth_claims:
-                enriched_profile = await self.identity_service.get_user_profile(
-                    auth_claims
-                )
-                if enriched_profile:
-                    # Merge claims and profile, with profile taking precedence for shared keys
-                    user_identity = {**auth_claims.model_dump(), **enriched_profile}
+            # The final user_identity is a dictionary, not the Pydantic model.
+            # It's built from claims and potentially enriched by an identity service.
+            if auth_claims:
+                if self.identity_service:
+                    # Pass the rich claims object to the identity service
+                    enriched_profile = await self.identity_service.get_user_profile(
+                        auth_claims
+                    )
+                    if enriched_profile:
+                        # Merge claims and profile, with profile taking precedence
+                        user_identity = {
+                            **auth_claims.model_dump(),
+                            **enriched_profile,
+                        }
+                    else:
+                        user_identity = auth_claims.model_dump()
                 else:
+                    # No identity service, just use the claims from the adapter
                     user_identity = auth_claims.model_dump()
-            elif auth_claims:
-                user_identity = auth_claims.model_dump()
             else:
                 # Fallback to default identity if no claims are extracted
                 default_identity = self.get_config("default_user_identity")
                 if default_identity:
                     user_identity = {"id": default_identity, "name": default_identity}
-                else:
-                    raise PermissionError(
-                        "Authentication failed: No identity could be determined."
-                    )
+
+            if not user_identity or not user_identity.get("id"):
+                raise PermissionError(
+                    "Authentication failed: No identity could be determined."
+                )
 
             log.info(
                 "%s Authenticated user: %s", log_id_prefix, user_identity.get("id")
@@ -177,7 +186,11 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 "%s Error during external input processing: %s", log_id_prefix, e
             )
             # Try to report error back to the platform if possible
-            if user_identity and isinstance(e, (ValueError, PermissionError)):
+            if (
+                user_identity
+                and user_identity.get("id")
+                and isinstance(e, (ValueError, PermissionError))
+            ):
                 try:
                     # Create a dummy context to report the error
                     error_context = ResponseContext(
