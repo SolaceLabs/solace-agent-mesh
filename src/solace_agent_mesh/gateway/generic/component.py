@@ -58,7 +58,9 @@ def _load_adapter_class(adapter_path: str) -> type[GatewayAdapter]:
         return adapter_class
     except (ImportError, AttributeError, ValueError, TypeError) as e:
         log.exception(f"Failed to load gateway adapter from path: {adapter_path}")
-        raise ImportError(f"Could not load gateway adapter '{adapter_path}': {e}") from e
+        raise ImportError(
+            f"Could not load gateway adapter '{adapter_path}': {e}"
+        ) from e
 
 
 class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
@@ -251,7 +253,10 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         )
 
     async def load_artifact_content(
-        self, context: "ResponseContext", filename: str, version: Union[int, str] = "latest"
+        self,
+        context: "ResponseContext",
+        filename: str,
+        version: Union[int, str] = "latest",
     ) -> Optional[bytes]:
         """Loads the raw byte content of an artifact using the shared service."""
         log_id_prefix = f"{self.log_identifier}[LoadArtifact]"
@@ -270,7 +275,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 log_identifier_prefix=log_id_prefix,
             )
             if artifact_data.get("status") == "success":
-                content_bytes = artifact_data.get("content")
+                content_bytes = artifact_data.get("raw_bytes")
                 if content_bytes:
                     log.info(
                         "%s Successfully loaded %d bytes for artifact '%s'.",
@@ -364,9 +369,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         # Use a reasonable expiry to prevent orphaned state
         self.cache_service.add_data(cache_key, value, expiry=3600)  # 1 hour
 
-    def get_session_state(
-        self, session_id: str, key: str, default: Any = None
-    ) -> Any:
+    def get_session_state(self, session_id: str, key: str, default: Any = None) -> Any:
         cache_key = f"session_state:{session_id}:{key}"
         value = self.cache_service.get_data(cache_key)
         return value if value is not None else default
@@ -411,9 +414,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             try:
                 future.result(timeout=10)  # Wait for cleanup to finish
             except Exception as e:
-                log.error(
-                    "%s Error during adapter cleanup: %s", self.log_identifier, e
-                )
+                log.error("%s Error during adapter cleanup: %s", self.log_identifier, e)
 
     async def _send_update_to_external(
         self,
