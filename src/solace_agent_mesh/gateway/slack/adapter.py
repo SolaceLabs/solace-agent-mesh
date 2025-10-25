@@ -9,19 +9,10 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
-try:
-    import requests
-    from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
-    from slack_bolt.async_app import AsyncApp
-    from slack_sdk.errors import SlackApiError
-
-    SLACK_BOLT_AVAILABLE = True
-except ImportError:
-    SLACK_BOLT_AVAILABLE = False
-    requests = None
-    AsyncApp = None
-    AsyncSocketModeHandler = None
-    SlackApiError = None
+import requests
+from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
+from slack_bolt.async_app import AsyncApp
+from slack_sdk.errors import SlackApiError
 
 from pydantic import BaseModel, Field
 
@@ -76,10 +67,6 @@ class SlackAdapter(GatewayAdapter):
     ConfigModel = SlackAdapterConfig
 
     def __init__(self):
-        if not SLACK_BOLT_AVAILABLE:
-            raise ImportError(
-                "Slack dependencies not found. Please install 'slack_bolt' and 'requests'."
-            )
         self.context: Optional[GatewayContext] = None
         self.slack_app: Optional[AsyncApp] = None
         self.slack_handler: Optional[AsyncSocketModeHandler] = None
