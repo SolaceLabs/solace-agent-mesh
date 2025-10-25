@@ -52,8 +52,8 @@ This checklist tracks the implementation of the Generic Gateway Adapter Framewor
     - [x] Create `src/solace_agent_mesh/gateway/slack/handlers.py` to call `handle_external_input`.
     - [x] Delete `src/solace_agent_mesh/gateway/slack/app.py` as it is no longer needed.
 
-- [ ] 8. **Update Slack Example Configuration**:
-    - [ ] Modify `slack_gateway_example.yaml` to use `GenericGatewayApp` and the new `gateway_adapter` and `adapter_config` structure.
+- [x] 8. **Update Slack Example Configuration**:
+    - [x] Modify `slack_gateway_example.yaml` to use `GenericGatewayApp` and the new `gateway_adapter` and `adapter_config` structure.
 
 ---
 
