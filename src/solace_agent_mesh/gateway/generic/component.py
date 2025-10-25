@@ -173,6 +173,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
 
             external_request_context = {
                 "a2a_session_id": sam_task.session_id,
+                "user_id_for_artifacts": user_identity.get("id"),
                 **sam_task.platform_context,
             }
 
