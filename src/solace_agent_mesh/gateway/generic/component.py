@@ -567,13 +567,12 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             if isinstance(part, TextPart):
                 sam_parts.append(SamTextPart(text=part.text))
             elif isinstance(part, FilePart):
-                file_info = a2a.get_file_info_from_file_part(part)
                 sam_parts.append(
                     SamFilePart(
-                        name=file_info.get("name"),
-                        content_bytes=file_info.get("bytes"),
-                        uri=file_info.get("uri"),
-                        mime_type=file_info.get("mime_type"),
+                        name=a2a.get_filename_from_file_part(part),
+                        content_bytes=a2a.get_bytes_from_file_part(part),
+                        uri=a2a.get_uri_from_file_part(part),
+                        mime_type=a2a.get_mimetype_from_file_part(part),
                     )
                 )
             elif isinstance(part, A2ADataPart):
