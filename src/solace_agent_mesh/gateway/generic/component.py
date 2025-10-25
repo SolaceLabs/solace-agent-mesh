@@ -22,6 +22,7 @@ from a2a.types import (
 
 from ...common import a2a
 from ...common.a2a.protocol import get_feedback_topic
+from ...agent.utils.artifact_helpers import load_artifact_content_or_metadata
 from ..adapter.base import GatewayAdapter
 from ..adapter.types import (
     GatewayContext,
@@ -258,32 +259,41 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             log.error("%s Artifact service is not configured.", log_id_prefix)
             return None
         try:
-            # The ADK service returns a google.genai.types.Part object
-            artifact_part = await self.artifact_service.load_artifact(
+            artifact_data = await load_artifact_content_or_metadata(
+                artifact_service=self.artifact_service,
                 app_name=self.gateway_id,
                 user_id=context.user_id,
                 session_id=context.session_id,
                 filename=filename,
                 version=version,
+                return_raw_bytes=True,
+                log_identifier_prefix=log_id_prefix,
             )
-            if (
-                artifact_part
-                and hasattr(artifact_part, "blob")
-                and artifact_part.blob.data
-            ):
-                log.info(
-                    "%s Successfully loaded %d bytes for artifact '%s'.",
-                    log_id_prefix,
-                    len(artifact_part.blob.data),
-                    filename,
-                )
-                return artifact_part.blob.data
+            if artifact_data.get("status") == "success":
+                content_bytes = artifact_data.get("content")
+                if content_bytes:
+                    log.info(
+                        "%s Successfully loaded %d bytes for artifact '%s'.",
+                        log_id_prefix,
+                        len(content_bytes),
+                        filename,
+                    )
+                    return content_bytes
+                else:
+                    log.warning(
+                        "%s Artifact '%s' (version: %s) loaded but has no content.",
+                        log_id_prefix,
+                        filename,
+                        version,
+                    )
+                    return None
             else:
                 log.warning(
-                    "%s Artifact '%s' (version: %s) loaded but has no content.",
+                    "%s Failed to load artifact '%s' (version: %s). Status: %s",
                     log_id_prefix,
                     filename,
                     version,
+                    artifact_data.get("status"),
                 )
                 return None
         except Exception as e:
