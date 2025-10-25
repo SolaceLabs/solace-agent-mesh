@@ -361,7 +361,6 @@ class SlackAdapter(GatewayAdapter):
 
         # Get or create message timestamps
         status_ts = self.context.get_task_state(task_id, "status_ts")
-        content_ts = self.context.get_task_state(task_id, "content_ts")
 
         adapter_config: SlackAdapterConfig = self.context.adapter_config
         # If this is the first update, post the initial status message
@@ -379,35 +378,33 @@ class SlackAdapter(GatewayAdapter):
                     )
                     status_ts = new_status_ts
 
-        # Process parts
-        text_to_display = ""
+        # Process parts sequentially to maintain conversational order
         for part in update.parts:
             if isinstance(part, SamTextPart):
-                text_to_display += part.text
+                # Buffer text and update the content message
+                content_ts = self.context.get_task_state(task_id, "content_ts")
+                buffer = self.context.get_task_state(task_id, "content_buffer", "")
+                buffer += part.text
+                self.context.set_task_state(task_id, "content_buffer", buffer)
+
+                formatted_text = self._format_text(buffer)
+                content_blocks = utils.build_slack_blocks(content_text=formatted_text)
+
+                if content_ts:
+                    await utils.update_slack_message(
+                        self, channel_id, content_ts, formatted_text, content_blocks
+                    )
+                else:
+                    new_content_ts = await utils.send_slack_message(
+                        self, channel_id, thread_ts, formatted_text, content_blocks
+                    )
+                    if new_content_ts:
+                        self.context.set_task_state(task_id, "content_ts", new_content_ts)
+
             elif isinstance(part, SamFilePart):
                 await self._handle_file_part(part, channel_id, thread_ts)
             elif isinstance(part, SamDataPart):
                 await self._handle_data_part(part, channel_id, thread_ts, context)
-
-        # Update content message
-        if text_to_display:
-            buffer = self.context.get_task_state(task_id, "content_buffer", "")
-            buffer += text_to_display
-            self.context.set_task_state(task_id, "content_buffer", buffer)
-
-            formatted_text = self._format_text(buffer)
-            content_blocks = utils.build_slack_blocks(content_text=formatted_text)
-
-            if content_ts:
-                await utils.update_slack_message(
-                    self, channel_id, content_ts, formatted_text, content_blocks
-                )
-            else:
-                new_content_ts = await utils.send_slack_message(
-                    self, channel_id, thread_ts, formatted_text, content_blocks
-                )
-                if new_content_ts:
-                    self.context.set_task_state(task_id, "content_ts", new_content_ts)
 
     async def handle_task_complete(self, context: ResponseContext) -> None:
         """Update UI to show task is complete and add feedback buttons."""
@@ -522,45 +519,60 @@ class SlackAdapter(GatewayAdapter):
         elif data_type == "artifact_creation_progress":
             status = part.data.get("status")
             filename = part.data.get("filename", "unknown file")
+            artifact_msg_ts_key = f"artifact_msg_ts:{filename}"
+            artifact_msg_ts = self.context.get_task_state(
+                task_id, artifact_msg_ts_key
+            )
 
             if status == "in-progress":
-                # Finalize any existing content message to prepare for a new message block
-                content_ts = self.context.get_task_state(task_id, "content_ts")
-                buffer = self.context.get_task_state(task_id, "content_buffer", "")
-                if content_ts and buffer:
-                    formatted_text = self._format_text(buffer)
-                    content_blocks = utils.build_slack_blocks(
-                        content_text=formatted_text
-                    )
-                    await utils.update_slack_message(
-                        self, channel_id, content_ts, formatted_text, content_blocks
-                    )
-
-                # Clear buffer and ts to force a new message for subsequent text parts
-                self.context.set_task_state(task_id, "content_buffer", "")
-                self.context.set_task_state(task_id, "content_ts", None)
-
-                # Create the new "Creating artifact..." message
                 bytes_transferred = part.data.get("bytes_transferred", 0)
-                icon = self._get_icon_for_mime_type(None)  # Mime type not known yet
+                icon = self._get_icon_for_mime_type(None)
                 progress_text = f"{icon} Creating `{filename}`..."
                 if bytes_transferred > 0:
                     progress_text += f" ({bytes_transferred} bytes)"
-
                 progress_blocks = utils.build_slack_blocks(content_text=progress_text)
-                new_artifact_msg_ts = await utils.send_slack_message(
-                    self, channel_id, thread_ts, progress_text, progress_blocks
-                )
 
-                if new_artifact_msg_ts:
-                    self.context.set_task_state(
-                        task_id, f"artifact_msg_ts:{filename}", new_artifact_msg_ts
+                if artifact_msg_ts:
+                    # We have a message for this artifact, so update it
+                    await utils.update_slack_message(
+                        self,
+                        channel_id,
+                        artifact_msg_ts,
+                        progress_text,
+                        progress_blocks,
                     )
+                else:
+                    # This is the first progress update for this artifact.
+                    # Finalize any previous text message.
+                    content_ts = self.context.get_task_state(task_id, "content_ts")
+                    buffer = self.context.get_task_state(task_id, "content_buffer", "")
+                    if content_ts and buffer:
+                        formatted_text = self._format_text(buffer)
+                        content_blocks = utils.build_slack_blocks(
+                            content_text=formatted_text
+                        )
+                        await utils.update_slack_message(
+                            self,
+                            channel_id,
+                            content_ts,
+                            formatted_text,
+                            content_blocks,
+                        )
+
+                    # Force subsequent text to a new message
+                    self.context.set_task_state(task_id, "content_buffer", "")
+                    self.context.set_task_state(task_id, "content_ts", None)
+
+                    # Post the new artifact progress message
+                    new_artifact_msg_ts = await utils.send_slack_message(
+                        self, channel_id, thread_ts, progress_text, progress_blocks
+                    )
+                    if new_artifact_msg_ts:
+                        self.context.set_task_state(
+                            task_id, artifact_msg_ts_key, new_artifact_msg_ts
+                        )
 
             elif status == "completed":
-                artifact_msg_ts = self.context.get_task_state(
-                    task_id, f"artifact_msg_ts:{filename}"
-                )
                 if artifact_msg_ts:
                     description = part.data.get("description", "N/A")
                     mime_type = part.data.get("mime_type")
@@ -585,9 +597,6 @@ class SlackAdapter(GatewayAdapter):
                     )
 
             elif status == "failed":
-                artifact_msg_ts = self.context.get_task_state(
-                    task_id, f"artifact_msg_ts:{filename}"
-                )
                 if artifact_msg_ts:
                     failed_text = f"❌ Failed to create artifact: `{filename}`"
                     failed_blocks = utils.build_slack_blocks(content_text=failed_text)
@@ -595,6 +604,7 @@ class SlackAdapter(GatewayAdapter):
                         self, channel_id, artifact_msg_ts, failed_text, failed_blocks
                     )
                 else:
+                    # If we never even started a message, post a new one.
                     failed_text = f"❌ Failed to create artifact: `{filename}`"
                     await utils.send_slack_message(
                         self, channel_id, thread_ts, failed_text
