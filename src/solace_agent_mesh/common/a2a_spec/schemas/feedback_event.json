@@ -37,22 +37,6 @@
         "gateway_id": {
             "type": "string",
             "description": "The ID of the gateway that collected the feedback."
-        },
-        "platform_context": {
-            "type": "object",
-            "description": "Platform-specific context from the feedback event (e.g., Slack channel, thread)."
-        },
-        "task_context": {
-            "type": "object",
-            "description": "Context related to the original A2A task.",
-            "properties": {
-                "target_agent_name": {
-                    "type": "string"
-                },
-                "a2a_session_id": {
-                    "type": "string"
-                }
-            }
         }
     },
     "required": [
