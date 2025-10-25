@@ -410,9 +410,25 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             for artifact in task_data.artifacts:
                 all_final_parts.extend(a2a.get_parts_from_artifact(artifact))
 
-        sam_update.parts = self._a2a_parts_to_sam_parts(all_final_parts)
+        # If the original request was streaming, filter out text and file parts
+        # from the final response to avoid duplication, as they were already streamed.
+        was_streaming = external_request_context.get("is_streaming", False)
+        if was_streaming:
+            log.debug(
+                "%s Filtering final response parts for streaming task %s.",
+                self.log_identifier,
+                response_context.task_id,
+            )
+            filtered_parts = [
+                part
+                for part in all_final_parts
+                if not isinstance(part, (TextPart, FilePart))
+            ]
+            sam_update.parts = self._a2a_parts_to_sam_parts(filtered_parts)
+        else:
+            sam_update.parts = self._a2a_parts_to_sam_parts(all_final_parts)
 
-        # Send the final content update
+        # Send the final content update (which might be empty for streaming tasks)
         await self.adapter.handle_update(sam_update, response_context)
 
         # Then, signal completion
