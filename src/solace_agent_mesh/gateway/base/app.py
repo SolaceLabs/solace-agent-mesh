@@ -144,8 +144,14 @@ class BaseGatewayApp(App):
 
         base_params = BaseGatewayApp.app_schema.get("config_parameters", [])
 
-        merged_config_parameters = list(base_params)
-        merged_config_parameters.extend(specific_params)
+        # Start with the child's parameters to give them precedence.
+        merged_config_parameters = list(specific_params)
+        specific_param_names = {p["name"] for p in specific_params}
+
+        # Add base parameters only if they are not already defined in the child.
+        for base_param in base_params:
+            if base_param["name"] not in specific_param_names:
+                merged_config_parameters.append(base_param)
 
         cls.app_schema = {"config_parameters": merged_config_parameters}
         log.debug(
