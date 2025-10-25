@@ -407,14 +407,16 @@ class SlackAdapter(GatewayAdapter):
         self, part: SamDataPart, channel_id: str, thread_ts: str, context: ResponseContext
     ):
         """Handles structured data, checking for status updates."""
-        if part.data.get("type") == "agent_progress_update":
+        data_type = part.data.get("type")
+        if data_type == "agent_progress_update":
             status_text = part.data.get("status_text")
             if status_text:
                 await self.handle_status_update(status_text, context)
-        else:
-            # For other data parts, format as JSON and post
-            formatted_data = utils.format_data_part_for_slack(part)
-            await utils.send_slack_message(self, channel_id, thread_ts, formatted_data)
+        elif data_type == "artifact_creation_progress":
+            filename = part.data.get("filename", "unknown file")
+            bytes_saved = part.data.get("bytes_saved", 0)
+            status_text = f"💾 Creating artifact `{filename}` ({bytes_saved} bytes)..."
+            await self.handle_status_update(status_text, context)
 
     async def handle_status_update(
         self, status_text: str, context: ResponseContext

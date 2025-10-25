@@ -49,6 +49,7 @@ class SamDataPart(BaseModel):
 
     type: Literal["data"] = "data"
     data: Dict[str, Any]
+    metadata: Optional[Dict[str, Any]] = None
 
 
 SamContentPart = Union[SamTextPart, SamFilePart, SamDataPart]

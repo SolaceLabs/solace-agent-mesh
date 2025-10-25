@@ -519,7 +519,12 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                     )
                 )
             elif isinstance(part, A2ADataPart):
-                sam_parts.append(SamDataPart(data=a2a.get_data_from_data_part(part)))
+                sam_parts.append(
+                    SamDataPart(
+                        data=a2a.get_data_from_data_part(part),
+                        metadata=a2a.get_metadata_from_part(part),
+                    )
+                )
         return sam_parts
 
     def _a2a_error_to_sam_error(self, error: JSONRPCError) -> SamError:

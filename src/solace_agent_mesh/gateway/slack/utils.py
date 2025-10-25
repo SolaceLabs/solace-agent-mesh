@@ -8,10 +8,6 @@ import re
 import uuid
 from typing import TYPE_CHECKING, Dict, List, Optional
 
-from a2a.types import DataPart
-
-from ...common import a2a
-
 if TYPE_CHECKING:
     from .adapter import SlackAdapter
 
@@ -51,23 +47,6 @@ def correct_slack_markdown(text: str) -> str:
     except Exception as e:
         log.warning("[SlackUtil:correct_markdown] Error during formatting: %s", e)
     return text
-
-
-def format_data_part_for_slack(data_part: DataPart) -> str:
-    """Formats an A2A DataPart for display in Slack."""
-    try:
-        data_dict = a2a.get_data_from_data_part(data_part)
-        json_string = json.dumps(data_dict, indent=2)
-        header = "Received Data"
-        metadata = a2a.get_metadata_from_part(data_part)
-        if metadata:
-            tool_name = metadata.get("tool_name")
-            if tool_name:
-                header = f"Result from Tool: `{tool_name}`"
-        return f"{header}:\n```json\n{json_string}\n```"
-    except Exception as e:
-        log.warning("[SlackUtil:format_data_part] Error formatting DataPart: %s", e)
-        return f"Received Data:\n```\n[Error formatting data: {e}]\n```"
 
 
 def build_slack_blocks(
