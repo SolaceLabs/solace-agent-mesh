@@ -36,7 +36,7 @@ def correct_slack_markdown(text: str) -> str:
 
         def heading_replacer(match: re.Match) -> str:
             title = match.group(1).strip()
-            return f"\n*{title}*\n---"
+            return f"\n*{title}*"
 
         for i, part in enumerate(parts):
             # If it's a code block part (odd index), just clean it up and add it
