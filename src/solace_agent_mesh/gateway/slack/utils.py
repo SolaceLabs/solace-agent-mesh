@@ -2,11 +2,15 @@
 Utility functions for the Slack Gateway adapter.
 """
 
+import asyncio
 import json
 import logging
 import re
 import uuid
 from typing import TYPE_CHECKING, Dict, List, Optional
+
+import requests
+from slack_sdk.errors import SlackApiError
 
 if TYPE_CHECKING:
     from .adapter import SlackAdapter
@@ -181,24 +185,63 @@ async def upload_slack_file(
     filename: str,
     content_bytes: bytes,
 ):
-    """Wrapper for files_upload_v2 with error handling."""
+    """
+    Uploads a file to Slack using the three-step external upload process
+    to ensure atomic message/file posting and correct ordering.
+    """
+    log_id_prefix = "[SlackUpload]"
     try:
-        await adapter.slack_app.client.files_upload_v2(
-            channel=channel,
-            thread_ts=thread_ts,
-            filename=filename,
-            content=content_bytes,
+        # Step 1: Get an upload URL and file_id from Slack
+        log.debug("%s Step 1: Getting upload URL for '%s'", log_id_prefix, filename)
+        upload_url_response = await adapter.slack_app.client.files_getUploadURLExternal(
+            filename=filename, length=len(content_bytes)
         )
+        upload_url = upload_url_response.get("upload_url")
+        file_id = upload_url_response.get("file_id")
+
+        if not upload_url or not file_id:
+            raise SlackApiError(
+                "Failed to get upload URL from Slack.", upload_url_response
+            )
+
+        # Step 2: Upload the file content to the temporary URL
+        log.debug(
+            "%s Step 2: Uploading %d bytes to temporary URL.",
+            log_id_prefix,
+            len(content_bytes),
+        )
+        # Use to_thread to avoid blocking the async event loop
+        upload_response = await asyncio.to_thread(
+            requests.post, upload_url, data=content_bytes
+        )
+        upload_response.raise_for_status()  # Will raise an exception for non-2xx responses
+
+        # Step 3: Complete the upload and post the file to the channel
+        log.debug(
+            "%s Step 3: Completing external upload for file_id %s.",
+            log_id_prefix,
+            file_id,
+        )
+        await adapter.slack_app.client.files_completeUploadExternal(
+            files=[{"id": file_id, "title": filename}],
+            channel_id=channel,
+            thread_ts=thread_ts,
+            initial_comment=f"Attached file: {filename}",
+        )
+
         log.info(
-            "Successfully uploaded file '%s' (%d bytes) to channel %s (Thread: %s)",
+            "%s Successfully uploaded file '%s' (%d bytes) to channel %s (Thread: %s)",
+            log_id_prefix,
             filename,
             len(content_bytes),
             channel,
             thread_ts,
         )
+
     except Exception as e:
         log.error(
-            "Failed to upload Slack file '%s' to channel %s (Thread: %s): %s",
+            "%s Failed to upload Slack file '%s' to channel %s (Thread: %s): %s",
+            log_id_prefix,
             filename,
             channel,
             thread_ts,
@@ -208,7 +251,11 @@ async def upload_slack_file(
             error_text = f":warning: Failed to upload file: {filename}"
             await send_slack_message(adapter, channel, thread_ts, error_text)
         except Exception as notify_err:
-            log.error("Failed to send file upload error notification: %s", notify_err)
+            log.error(
+                "%s Failed to send file upload error notification: %s",
+                log_id_prefix,
+                notify_err,
+            )
 
 
 def create_feedback_input_blocks(
