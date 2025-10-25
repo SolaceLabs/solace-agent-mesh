@@ -34,6 +34,10 @@ def correct_slack_markdown(text: str) -> str:
         parts = re.split(r"(```.*?```)", text, flags=re.DOTALL)
         processed_parts = []
 
+        def heading_replacer(match: re.Match) -> str:
+            title = match.group(1).strip()
+            return f"\n*{title}*\n---"
+
         for i, part in enumerate(parts):
             # If it's a code block part (odd index), just clean it up and add it
             if i % 2 == 1:
@@ -46,8 +50,10 @@ def correct_slack_markdown(text: str) -> str:
                 part = re.sub(r"\[(.*?)\]\((http.*?)\)", r"<\2|\1>", part)
                 # Bold: **Text** -> *Text*
                 part = re.sub(r"\*\*(.*?)\*\*", r"*\1*", part)
-                # Headings: ### Title -> *Title*
-                part = re.sub(r"^\s*#{1,6}\s+(.*)", r"*\1*", part, flags=re.MULTILINE)
+                # Headings: ### Title -> *Title* with underline
+                part = re.sub(
+                    r"^\s*#{1,6}\s+(.*)", heading_replacer, part, flags=re.MULTILINE
+                )
                 processed_parts.append(part)
 
         text = "".join(processed_parts)
