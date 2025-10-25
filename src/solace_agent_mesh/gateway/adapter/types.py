@@ -120,10 +120,6 @@ class SamFeedback(BaseModel):
     rating: Literal["up", "down"]
     comment: Optional[str] = None
     user_id: str
-    platform_context: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Platform-specific context related to the feedback event.",
-    )
 
 
 # --- Context Models ---

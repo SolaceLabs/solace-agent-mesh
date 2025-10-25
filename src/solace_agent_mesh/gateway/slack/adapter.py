@@ -200,7 +200,6 @@ class SlackAdapter(GatewayAdapter):
                 rating=rating,
                 comment=comment,
                 user_id=payload["user_id"],
-                platform_context=payload,
             )
             await self.context.submit_feedback(feedback)
 

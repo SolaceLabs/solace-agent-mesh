@@ -265,16 +265,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             feedback.rating,
         )
 
-        task_context = self.task_context_manager.get_context(feedback.task_id)
-        if not task_context:
-            log.warning(
-                "%s Cannot publish feedback for task %s: Original task context not found.",
-                log_id_prefix,
-                feedback.task_id,
-            )
-            # Still publish feedback, but with less context
-            task_context = {}
-
         feedback_payload = {
             "id": f"feedback-{uuid.uuid4().hex}",
             "session_id": feedback.session_id,
@@ -284,11 +274,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             "comment": feedback.comment,
             "created_time": datetime.now(timezone.utc).isoformat(),
             "gateway_id": self.gateway_id,
-            "platform_context": feedback.platform_context,
-            "task_context": {
-                "target_agent_name": task_context.get("target_agent_name"),
-                "a2a_session_id": task_context.get("a2a_session_id"),
-            },
         }
 
         topic = get_feedback_topic(self.namespace)
