@@ -1,19 +1,23 @@
 FROM python:3.11-slim AS base
 
-ENV PYTHONUNBUFFERED=1
-ENV PIP_NO_CACHE_DIR=1
+# Capture build platform information
+ARG TARGETARCH
+ARG TARGETPLATFORM
 
-# Install system dependencies in a single layer
+ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies and uv
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
     git \
     curl \
     ffmpeg && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/* && \
     curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
-    apt-get purge -y --auto-remove && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -22,23 +26,37 @@ FROM base AS builder
 
 WORKDIR /app
 
-# Install hatch first (this layer will be cached unless hatch version changes)
-RUN python3.11 -m pip install --no-cache-dir hatch
+# Install hatch with cache mount (before copying deps for better layer caching)
+# This layer is invalidated only when base image changes, not when pyproject.toml changes
+RUN --mount=type=cache,target=/root/.cache/uv,id=uv-build-${TARGETARCH} \
+    uv pip install --system hatch
 
-# Copy source code
+# Copy dependency files for metadata
+COPY pyproject.toml README.md ./
+
+# Copy remaining source code
 COPY . .
 
-# Create wheels for dependencies (this will be cached unless pyproject.toml changes)
-RUN python3.11 -m pip wheel --wheel-dir=/wheels --find-links=/wheels --no-build-isolation .
-
-# Build the project wheel
-RUN python3.11 -m hatch build -t wheel
+# Build the project wheel with cache mount
+# uv caches downloaded packages, no need for separate pip wheel step
+RUN --mount=type=cache,target=/root/.cache/uv,id=uv-build-${TARGETARCH} \
+    --mount=type=cache,target=/root/.npm,id=npm-${TARGETARCH} \
+    hatch build -t wheel
 
 # Runtime stage
-FROM base AS runtime
+FROM python:3.11-slim AS runtime
+
+ENV PYTHONUNBUFFERED=1
+
+# Install minimal runtime dependencies (no uv for licensing compliance)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    git \
+    ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Playwright early (large download, rarely changes)
-RUN python3.11 -m pip install playwright && \
+RUN python -m pip install --no-cache-dir playwright && \
     playwright install-deps chromium
 
 # Create non-root user
@@ -51,14 +69,14 @@ RUN chown -R solaceai:solaceai /app /tmp
 USER solaceai
 RUN playwright install chromium
 
-# Install the Solace Agent Mesh package (this layer changes when source code changes)
+# Install the Solace Agent Mesh package
 USER root
 COPY --from=builder /app/dist/solace_agent_mesh-*.whl /tmp/
-COPY --from=builder /wheels /tmp/wheels
 
-RUN python3.11 -m pip install --find-links=/tmp/wheels \
-    /tmp/solace_agent_mesh-*.whl && \
-    rm -rf /tmp/wheels /tmp/solace_agent_mesh-*.whl
+# Use built-in pip for runtime installation (avoids uv licensing in final image)
+# uv is only used in build stage which is discarded
+RUN python -m pip install --no-cache-dir /tmp/solace_agent_mesh-*.whl && \
+    rm -rf /tmp/solace_agent_mesh-*.whl
 
 # Copy sample SAM applications
 COPY preset /preset
