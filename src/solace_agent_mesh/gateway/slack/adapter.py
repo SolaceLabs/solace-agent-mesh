@@ -149,10 +149,12 @@ class SlackAdapter(GatewayAdapter):
                 thread_ts=body["container"]["thread_ts"],
             )
 
-    async def extract_auth_claims(self, event: Dict) -> Optional[AuthClaims]:
+    async def extract_auth_claims(
+        self, external_input: Dict, endpoint_context: Optional[Dict[str, Any]] = None
+    ) -> Optional[AuthClaims]:
         """Extract user identity from a Slack event."""
-        slack_user_id = event.get("user")
-        slack_team_id = event.get("team") or event.get("team_id")
+        slack_user_id = external_input.get("user")
+        slack_team_id = external_input.get("team") or external_input.get("team_id")
 
         if not slack_user_id or not slack_team_id:
             log.warning("Could not determine Slack user_id or team_id from event.")
@@ -203,15 +205,17 @@ class SlackAdapter(GatewayAdapter):
                 id=f"slack:{slack_team_id}:{slack_user_id}", source="slack_fallback"
             )
 
-    async def prepare_task(self, event: Dict) -> SamTask:
+    async def prepare_task(
+        self, external_input: Dict, endpoint_context: Optional[Dict[str, Any]] = None
+    ) -> SamTask:
         """Convert a Slack event into a SamTask."""
-        if event.get("bot_id") or event.get("subtype") == "bot_message":
+        if external_input.get("bot_id") or external_input.get("subtype") == "bot_message":
             raise ValueError("Ignoring bot message")
 
-        channel_id = event.get("channel")
-        thread_ts = event.get("thread_ts") or event.get("ts")
-        text = event.get("text", "")
-        files_info = event.get("files", [])
+        channel_id = external_input.get("channel")
+        thread_ts = external_input.get("thread_ts") or external_input.get("ts")
+        text = external_input.get("text", "")
+        files_info = external_input.get("files", [])
 
         # Resolve @mentions in the text
         resolved_text = await self._resolve_mentions_in_text(text)
