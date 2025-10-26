@@ -30,6 +30,7 @@ from ..adapter.types import (
     SamUpdate,
 )
 from . import handlers, utils
+from .message_queue import SlackMessageQueue
 
 log = logging.getLogger(__name__)
 
@@ -67,6 +68,7 @@ class SlackAdapter(GatewayAdapter):
         self.context: Optional[GatewayContext] = None
         self.slack_app: Optional[AsyncApp] = None
         self.slack_handler: Optional[AsyncSocketModeHandler] = None
+        self.message_queues: Dict[str, SlackMessageQueue] = {}
 
     async def init(self, context: GatewayContext) -> None:
         """Initialize the Slack app, handlers, and start the listener."""
@@ -89,7 +91,17 @@ class SlackAdapter(GatewayAdapter):
         log.info("Slack Adapter initialized and listener started.")
 
     async def cleanup(self) -> None:
-        """Stop the Slack listener."""
+        """Stop the Slack listener and all message queues."""
+        # Stop all message queues
+        for task_id, queue in list(self.message_queues.items()):
+            log.info(f"Stopping message queue for task {task_id}")
+            try:
+                await queue.stop()
+            except Exception as e:
+                log.error(f"Error stopping queue for task {task_id}: {e}")
+        self.message_queues.clear()
+
+        # Stop Slack listener
         if self.slack_handler:
             log.info("Stopping Slack listener...")
             self.slack_handler.close()
@@ -225,11 +237,32 @@ class SlackAdapter(GatewayAdapter):
         self, external_input: Dict, endpoint_context: Optional[Dict[str, Any]] = None
     ) -> Optional[AuthClaims]:
         """Extract user identity from a Slack event."""
-        slack_user_id = external_input.get("user")
-        slack_team_id = external_input.get("team") or external_input.get("team_id")
+        # Skip bot messages - they will be filtered out in prepare_task anyway
+        if external_input.get("bot_id") or external_input.get("subtype") == "bot_message":
+            log.debug("Skipping auth claims extraction for bot message")
+            return None
+
+        # Try multiple possible field names for user ID
+        slack_user_id = (
+            external_input.get("user")
+            or external_input.get("user_id")
+        )
+
+        # Try multiple possible field names for team ID
+        slack_team_id = (
+            external_input.get("team")
+            or external_input.get("team_id")
+            or external_input.get("team_domain")
+        )
 
         if not slack_user_id or not slack_team_id:
-            log.warning("Could not determine Slack user_id or team_id from event.")
+            log.warning(
+                "Could not determine Slack user_id or team_id from event. "
+                f"Event keys: {list(external_input.keys())}, "
+                f"user fields checked: user={external_input.get('user')}, user_id={external_input.get('user_id')}, "
+                f"team fields checked: team={external_input.get('team')}, team_id={external_input.get('team_id')}, "
+                f"team_domain={external_input.get('team_domain')}"
+            )
             return None
 
         adapter_config: SlackAdapterConfig = self.context.adapter_config
@@ -359,7 +392,10 @@ class SlackAdapter(GatewayAdapter):
         channel_id = context.platform_context["channel_id"]
         thread_ts = context.platform_context["thread_ts"]
 
-        # Get or create message timestamps
+        # Get or create message queue for this task
+        queue = await self._get_or_create_queue(task_id, channel_id, thread_ts)
+
+        # Get or create status message timestamp
         status_ts = self.context.get_task_state(task_id, "status_ts")
 
         adapter_config: SlackAdapterConfig = self.context.adapter_config
@@ -378,33 +414,16 @@ class SlackAdapter(GatewayAdapter):
                     )
                     status_ts = new_status_ts
 
-        # Process parts sequentially to maintain conversational order
+        # Process parts by queuing operations (returns immediately)
         for part in update.parts:
             if isinstance(part, SamTextPart):
-                # Buffer text and update the content message
-                content_ts = self.context.get_task_state(task_id, "content_ts")
-                buffer = self.context.get_task_state(task_id, "content_buffer", "")
-                buffer += part.text
-                self.context.set_task_state(task_id, "content_buffer", buffer)
-
-                formatted_text = self._format_text(buffer)
-                content_blocks = utils.build_slack_blocks(content_text=formatted_text)
-
-                if content_ts:
-                    await utils.update_slack_message(
-                        self, channel_id, content_ts, formatted_text, content_blocks
-                    )
-                else:
-                    new_content_ts = await utils.send_slack_message(
-                        self, channel_id, thread_ts, formatted_text, content_blocks
-                    )
-                    if new_content_ts:
-                        self.context.set_task_state(task_id, "content_ts", new_content_ts)
+                # Queue RAW text update - formatting happens in queue when posting
+                await queue.queue_text_update(part.text)
 
             elif isinstance(part, SamFilePart):
-                await self._handle_file_part(part, channel_id, thread_ts)
+                await self._handle_file_part_queued(part, queue)
             elif isinstance(part, SamDataPart):
-                await self._handle_data_part(part, channel_id, thread_ts, context)
+                await self._handle_data_part_queued(part, queue, context)
 
     async def handle_task_complete(self, context: ResponseContext) -> None:
         """Update UI to show task is complete and add feedback buttons."""
@@ -414,6 +433,12 @@ class SlackAdapter(GatewayAdapter):
         status_ts = self.context.get_task_state(task_id, "status_ts")
 
         adapter_config: SlackAdapterConfig = self.context.adapter_config
+
+        # Wait for the message queue to finish processing all pending operations
+        if task_id in self.message_queues:
+            queue = self.message_queues[task_id]
+            log.info(f"Waiting for message queue to complete for task {task_id}")
+            await queue.wait_until_complete()
 
         # First, update the status message to show completion.
         final_status_text = "✅ Task complete."
@@ -449,11 +474,26 @@ class SlackAdapter(GatewayAdapter):
                     blocks=feedback_blocks,
                 )
 
+        # Stop and cleanup the message queue for this task
+        if task_id in self.message_queues:
+            log.info(f"Stopping and cleaning up message queue for task {task_id}")
+            await self.message_queues[task_id].stop()
+            del self.message_queues[task_id]
+
     async def handle_error(self, error: SamError, context: ResponseContext) -> None:
         """Display an error message in Slack."""
         task_id = context.task_id
         channel_id = context.platform_context["channel_id"]
         status_ts = self.context.get_task_state(task_id, "status_ts")
+
+        # Wait for any pending operations to complete before showing error
+        if task_id in self.message_queues:
+            queue = self.message_queues[task_id]
+            try:
+                log.info(f"Waiting for message queue to complete before showing error for task {task_id}")
+                await asyncio.wait_for(queue.wait_until_complete(), timeout=10.0)
+            except asyncio.TimeoutError:
+                log.warning(f"Timeout waiting for queue to complete for task {task_id}")
 
         if status_ts:
             error_text = f"❌ Error: {error.message}"
@@ -465,7 +505,44 @@ class SlackAdapter(GatewayAdapter):
                 self, channel_id, status_ts, error_text, error_blocks
             )
 
+        # Stop and cleanup the message queue for this task
+        if task_id in self.message_queues:
+            log.info(f"Stopping and cleaning up message queue after error for task {task_id}")
+            try:
+                await self.message_queues[task_id].stop()
+            except Exception as e:
+                log.error(f"Error stopping queue for task {task_id}: {e}")
+            del self.message_queues[task_id]
+
     # --- Private Helper Methods ---
+
+    async def _get_or_create_queue(
+        self, task_id: str, channel_id: str, thread_ts: str
+    ) -> SlackMessageQueue:
+        """
+        Get existing message queue for a task or create a new one.
+
+        Args:
+            task_id: Unique task identifier
+            channel_id: Slack channel ID
+            thread_ts: Thread timestamp
+
+        Returns:
+            SlackMessageQueue instance for this task
+        """
+        if task_id not in self.message_queues:
+            queue = SlackMessageQueue(
+                task_id=task_id,
+                slack_client=self.slack_app.client,
+                channel_id=channel_id,
+                thread_ts=thread_ts,
+                adapter=self,
+            )
+            await queue.start()
+            self.message_queues[task_id] = queue
+            log.info(f"Created and started message queue for task {task_id}")
+
+        return self.message_queues[task_id]
 
     def _get_icon_for_mime_type(self, mime_type: Optional[str]) -> str:
         """Returns a Slack emoji for a given MIME type."""
@@ -492,24 +569,22 @@ class SlackAdapter(GatewayAdapter):
             return utils.correct_slack_markdown(text)
         return text
 
-    async def _handle_file_part(
-        self, part: SamFilePart, channel_id: str, thread_ts: str
-    ):
-        """Handles sending a file to Slack."""
+    async def _handle_file_part_queued(self, part: SamFilePart, queue: SlackMessageQueue):
+        """Handles queueing a file upload to Slack."""
         if part.content_bytes:
-            await utils.upload_slack_file(
-                self, channel_id, thread_ts, part.name, part.content_bytes
-            )
+            await queue.queue_file_upload(part.name, part.content_bytes)
         elif part.uri:
             uri_text = f":link: Artifact available: {part.name} - {part.uri}"
-            await utils.send_slack_message(self, channel_id, thread_ts, uri_text)
+            await queue.queue_message_post(uri_text)
 
-    async def _handle_data_part(
-        self, part: SamDataPart, channel_id: str, thread_ts: str, context: ResponseContext
+    async def _handle_data_part_queued(
+        self, part: SamDataPart, queue: SlackMessageQueue, context: ResponseContext
     ):
-        """Handles structured data, checking for special types like progress updates."""
+        """Handles structured data by queuing appropriate operations."""
         data_type = part.data.get("type")
         task_id = context.task_id
+        channel_id = context.platform_context["channel_id"]
+        thread_ts = context.platform_context["thread_ts"]
 
         if data_type == "agent_progress_update":
             status_text = part.data.get("status_text")
@@ -533,37 +608,16 @@ class SlackAdapter(GatewayAdapter):
                 progress_blocks = utils.build_slack_blocks(content_text=progress_text)
 
                 if artifact_msg_ts:
-                    # We have a message for this artifact, so update it
-                    await utils.update_slack_message(
-                        self,
-                        channel_id,
-                        artifact_msg_ts,
-                        progress_text,
-                        progress_blocks,
+                    # We have a message for this artifact, so queue an update
+                    await queue.queue_message_update(
+                        ts=artifact_msg_ts,
+                        text=progress_text,
+                        blocks=progress_blocks,
                     )
                 else:
                     # This is the first progress update for this artifact.
-                    # Finalize any previous text message.
-                    content_ts = self.context.get_task_state(task_id, "content_ts")
-                    buffer = self.context.get_task_state(task_id, "content_buffer", "")
-                    if content_ts and buffer:
-                        formatted_text = self._format_text(buffer)
-                        content_blocks = utils.build_slack_blocks(
-                            content_text=formatted_text
-                        )
-                        await utils.update_slack_message(
-                            self,
-                            channel_id,
-                            content_ts,
-                            formatted_text,
-                            content_blocks,
-                        )
-
-                    # Force subsequent text to a new message
-                    self.context.set_task_state(task_id, "content_buffer", "")
-                    self.context.set_task_state(task_id, "content_ts", None)
-
-                    # Post the new artifact progress message
+                    # Queue a new progress message
+                    # Note: The queue will handle finalizing pending text before this posts
                     new_artifact_msg_ts = await utils.send_slack_message(
                         self, channel_id, thread_ts, progress_text, progress_blocks
                     )
@@ -595,21 +649,16 @@ class SlackAdapter(GatewayAdapter):
                         )
 
                         if content_bytes:
-                            # Upload the file with the description as the initial comment
-                            await utils.upload_slack_file(
-                                self,
-                                channel_id,
-                                thread_ts,
-                                filename,
-                                content_bytes,
+                            # Queue the file upload (with polling)
+                            await queue.queue_file_upload(
+                                filename=filename,
+                                content_bytes=content_bytes,
                                 initial_comment=final_comment,
                             )
-                            # Delete the original "Creating..." placeholder message
-                            await self.slack_app.client.chat_delete(
-                                channel=channel_id, ts=artifact_msg_ts
-                            )
+                            # Queue deletion of the placeholder message
+                            await queue.queue_message_delete(ts=artifact_msg_ts)
                         else:
-                            # If content fails to load, update the placeholder to show an error.
+                            # If content fails to load, queue an error update
                             log.error(
                                 "Failed to load content for artifact '%s' (version: %s). Cannot upload to Slack.",
                                 filename,
@@ -619,12 +668,10 @@ class SlackAdapter(GatewayAdapter):
                             error_blocks = utils.build_slack_blocks(
                                 content_text=error_text
                             )
-                            await utils.update_slack_message(
-                                self,
-                                channel_id,
-                                artifact_msg_ts,
-                                error_text,
-                                error_blocks,
+                            await queue.queue_message_update(
+                                ts=artifact_msg_ts,
+                                text=error_text,
+                                blocks=error_blocks,
                             )
 
                     except Exception as e:
@@ -635,12 +682,10 @@ class SlackAdapter(GatewayAdapter):
                         error_blocks = utils.build_slack_blocks(
                             content_text=error_text
                         )
-                        await utils.update_slack_message(
-                            self,
-                            channel_id,
-                            artifact_msg_ts,
-                            error_text,
-                            error_blocks,
+                        await queue.queue_message_update(
+                            ts=artifact_msg_ts,
+                            text=error_text,
+                            blocks=error_blocks,
                         )
                 else:
                     log.warning(
@@ -651,15 +696,15 @@ class SlackAdapter(GatewayAdapter):
                 if artifact_msg_ts:
                     failed_text = f"❌ Failed to create artifact: `{filename}`"
                     failed_blocks = utils.build_slack_blocks(content_text=failed_text)
-                    await utils.update_slack_message(
-                        self, channel_id, artifact_msg_ts, failed_text, failed_blocks
+                    await queue.queue_message_update(
+                        ts=artifact_msg_ts,
+                        text=failed_text,
+                        blocks=failed_blocks,
                     )
                 else:
-                    # If we never even started a message, post a new one.
+                    # If we never even started a message, queue a new one.
                     failed_text = f"❌ Failed to create artifact: `{filename}`"
-                    await utils.send_slack_message(
-                        self, channel_id, thread_ts, failed_text
-                    )
+                    await queue.queue_message_post(text=failed_text)
 
     async def handle_status_update(
         self, status_text: str, context: ResponseContext

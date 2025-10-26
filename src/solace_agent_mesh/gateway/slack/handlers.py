@@ -32,6 +32,15 @@ async def _process_slack_event(adapter: "SlackAdapter", event: Dict, say: Any):
 
 async def handle_slack_message(adapter: "SlackAdapter", event: Dict, say: Any):
     """Handles 'message' events from Slack (DMs, potentially thread messages)."""
+    # Filter out bot messages and message change events
+    if event.get("bot_id") or event.get("subtype") in [
+        "bot_message",
+        "message_changed",
+        "message_deleted",
+    ]:
+        log.debug(f"Ignoring event with subtype: {event.get('subtype')}")
+        return
+
     channel_type = event.get("channel_type")
     if channel_type == "im":
         log.debug("Handling Direct Message event.")
