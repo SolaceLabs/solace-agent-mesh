@@ -192,18 +192,18 @@ class SlackAdapter(GatewayAdapter):
                         initial_comment=f"Here is your requested file: `{filename}`",
                     )
                 else:
-                    await client.chat_postEphemeral(
+                    await client.chat_postMessage(
                         channel=body["container"]["channel_id"],
-                        user=slack_user_id,
+                        thread_ts=body["container"].get("thread_ts"),
                         text=f"Sorry, I could not retrieve the content for `{filename}`.",
                     )
             except Exception as e:
                 logger.error(
                     f"Error downloading artifact {filename}: {e}", exc_info=True
                 )
-                await client.chat_postEphemeral(
+                await client.chat_postMessage(
                     channel=body["container"]["channel_id"],
-                    user=slack_user_id,
+                    thread_ts=body["container"].get("thread_ts"),
                     text=f"An error occurred while downloading the artifact: {e}",
                 )
 
@@ -331,10 +331,12 @@ class SlackAdapter(GatewayAdapter):
             log.debug("Skipping auth claims extraction for bot message")
             return None
 
-        # Try multiple possible field names for user ID
+        # Try multiple possible field names for user ID to handle both
+        # message events (which have 'user') and action events (which have 'id')
         slack_user_id = (
             external_input.get("user")
             or external_input.get("user_id")
+            or external_input.get("id")
         )
 
         # Try multiple possible field names for team ID
