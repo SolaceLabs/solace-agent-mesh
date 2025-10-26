@@ -22,7 +22,11 @@ from a2a.types import (
 
 from ...common import a2a
 from ...common.a2a.protocol import get_feedback_topic
-from ...agent.utils.artifact_helpers import load_artifact_content_or_metadata
+from ...agent.utils.artifact_helpers import (
+    get_artifact_info_list,
+    load_artifact_content_or_metadata,
+)
+from ...common.a2a.types import ArtifactInfo
 from ..adapter.base import GatewayAdapter
 from ..adapter.types import (
     GatewayContext,
@@ -307,6 +311,38 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 "%s Failed to load artifact '%s': %s", log_id_prefix, filename, e
             )
             return None
+
+    async def list_artifacts(
+        self, context: "ResponseContext"
+    ) -> List[ArtifactInfo]:
+        """Lists all artifacts available in the user's context."""
+        log_id_prefix = f"{self.log_identifier}[ListArtifacts]"
+        if not self.artifact_service:
+            log.error("%s Artifact service is not configured.", log_id_prefix)
+            return []
+        try:
+            artifact_infos = await get_artifact_info_list(
+                artifact_service=self.artifact_service,
+                app_name=self.gateway_id,
+                user_id=context.user_id,
+                session_id=context.session_id,
+            )
+            log.info(
+                "%s Found %d artifacts for user %s in session %s.",
+                log_id_prefix,
+                len(artifact_infos),
+                context.user_id,
+                context.session_id,
+            )
+            return artifact_infos
+        except Exception as e:
+            log.exception(
+                "%s Failed to list artifacts for user %s: %s",
+                log_id_prefix,
+                context.user_id,
+                e,
+            )
+            return []
 
     async def submit_feedback(self, feedback: "SamFeedback") -> None:
         """Handles feedback submission from an adapter."""

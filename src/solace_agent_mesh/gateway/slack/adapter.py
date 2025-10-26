@@ -7,6 +7,7 @@ import base64
 import json
 import logging
 import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -117,6 +118,181 @@ class SlackAdapter(GatewayAdapter):
         @self.slack_app.event("app_mention")
         async def handle_mention_wrapper(event, say):
             await handlers.handle_slack_mention(self, event, say)
+
+        # Handler for the new /artifacts slash command
+        @self.slack_app.command("/artifacts")
+        async def handle_artifacts_command(ack, command, client, logger):
+            await ack()
+            logger.info(f"Received /artifacts command from user {command['user_id']}")
+
+            try:
+                # Create a response context for this interaction.
+                # We need to extract the user's primary ID (e.g., email) for this to work correctly
+                # with the artifact service. We can do this by calling extract_auth_claims.
+                auth_claims = await self.extract_auth_claims(command)
+                if not auth_claims or not auth_claims.id:
+                    raise ValueError(
+                        "Could not determine user identity for artifact listing."
+                    )
+
+                user_id = auth_claims.id
+                session_id = utils.create_slack_session_id(
+                    command["channel_id"],
+                    command.get("thread_ts") or command.get("ts"),
+                )
+
+                response_context = ResponseContext(
+                    task_id=f"slack-cmd-{command['trigger_id']}",
+                    session_id=session_id,
+                    user_id=user_id,
+                    platform_context={
+                        "channel_id": command["channel_id"],
+                        "thread_ts": command.get("thread_ts") or command.get("ts"),
+                        "response_url": command["response_url"],
+                    },
+                )
+
+                # Call the new context method
+                artifacts = await self.context.list_artifacts(response_context)
+
+                if not artifacts:
+                    await client.chat_postEphemeral(
+                        channel=command["channel_id"],
+                        user=command["user_id"],
+                        text="No artifacts found in this session.",
+                    )
+                    return
+
+                blocks = []
+                for artifact in artifacts:
+                    blocks.append({"type": "divider"})
+                    button_value = json.dumps(
+                        {"filename": artifact.filename, "version": artifact.version}
+                    )
+
+                    # Format the last modified time nicely
+                    last_modified_str = "N/A"
+                    if artifact.last_modified:
+                        try:
+                            # Assuming last_modified is an ISO string
+                            dt_obj = datetime.fromisoformat(
+                                artifact.last_modified.replace("Z", "+00:00")
+                            )
+                            last_modified_str = dt_obj.strftime(
+                                "%Y-%m-%d %H:%M:%S UTC"
+                            )
+                        except (ValueError, TypeError):
+                            last_modified_str = artifact.last_modified
+
+                    blocks.append(
+                        {
+                            "type": "section",
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": f"📄 *{artifact.filename}* (v{artifact.version})\n"
+                                f"_{artifact.description or 'No description'}_\n"
+                                f"Created: {last_modified_str}",
+                            },
+                            "accessory": {
+                                "type": "button",
+                                "text": {"type": "plain_text", "text": "Download"},
+                                "action_id": "download_artifact_button",
+                                "value": button_value,
+                            },
+                        }
+                    )
+
+                await client.chat_postEphemeral(
+                    channel=command["channel_id"],
+                    user=command["user_id"],
+                    blocks=blocks,
+                    text=f"Found {len(artifacts)} artifacts.",
+                )
+
+            except Exception as e:
+                logger.error(f"Error handling /artifacts command: {e}", exc_info=True)
+                await client.chat_postEphemeral(
+                    channel=command["channel_id"],
+                    user=command["user_id"],
+                    text=f"An error occurred: {e}",
+                )
+
+        # Handler for the download button action
+        @self.slack_app.action("download_artifact_button")
+        async def handle_download_action(ack, body, client, logger):
+            await ack()
+            action_details = body["actions"][0]
+            button_value = json.loads(action_details["value"])
+            filename = button_value["filename"]
+            version = button_value["version"]
+            slack_user_id = body["user"]["id"]
+
+            logger.info(
+                f"User {slack_user_id} requested download of {filename} v{version}"
+            )
+
+            # Acknowledge the request immediately
+            await client.chat_postEphemeral(
+                channel=body["container"]["channel_id"],
+                user=slack_user_id,
+                text=f"Fetching artifact `{filename}`...",
+            )
+
+            try:
+                # We need the user's primary ID again for the artifact service
+                auth_claims = await self.extract_auth_claims(body["user"])
+                if not auth_claims or not auth_claims.id:
+                    raise ValueError(
+                        "Could not determine user identity for artifact download."
+                    )
+
+                user_id = auth_claims.id
+                session_id = utils.create_slack_session_id(
+                    body["container"]["channel_id"],
+                    body["container"].get("thread_ts"),
+                )
+
+                # Create a response context for the download
+                response_context = ResponseContext(
+                    task_id=f"slack-dl-{body['trigger_id']}",
+                    session_id=session_id,
+                    user_id=user_id,
+                    platform_context={
+                        "channel_id": body["container"]["channel_id"],
+                        "thread_ts": body["container"].get("thread_ts"),
+                    },
+                )
+
+                # Load the artifact content
+                content_bytes = await self.context.load_artifact_content(
+                    response_context, filename, version
+                )
+
+                if content_bytes:
+                    # Use the existing file upload utility
+                    await utils.upload_slack_file(
+                        adapter=self,
+                        channel=body["container"]["channel_id"],
+                        thread_ts=body["container"].get("thread_ts"),
+                        filename=filename,
+                        content_bytes=content_bytes,
+                        initial_comment=f"Here is your requested file: `{filename}`",
+                    )
+                else:
+                    await client.chat_postEphemeral(
+                        channel=body["container"]["channel_id"],
+                        user=slack_user_id,
+                        text=f"Sorry, I could not retrieve the content for `{filename}`.",
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Error downloading artifact {filename}: {e}", exc_info=True
+                )
+                await client.chat_postEphemeral(
+                    channel=body["container"]["channel_id"],
+                    user=slack_user_id,
+                    text=f"An error occurred while downloading the artifact: {e}",
+                )
 
         # Action handler for the cancel button
         @self.slack_app.action(utils.CANCEL_BUTTON_ACTION_ID)

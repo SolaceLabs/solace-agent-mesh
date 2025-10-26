@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, model_validator
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
+    from ...common.a2a.types import ArtifactInfo
 
 
 # --- Content Part Models ---
@@ -165,6 +166,12 @@ class GatewayContext:
         self, context: "ResponseContext", filename: str, version: Union[int, str] = "latest"
     ) -> Optional[bytes]:
         """Loads the raw byte content of an artifact."""
+        raise NotImplementedError
+
+    async def list_artifacts(
+        self, context: "ResponseContext"
+    ) -> List["ArtifactInfo"]:
+        """Lists all artifacts available in the user's context."""
         raise NotImplementedError
 
     def add_timer(
