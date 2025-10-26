@@ -136,9 +136,10 @@ class SlackAdapter(GatewayAdapter):
                     )
 
                 user_id = auth_claims.id
+                # Slash commands don't have a thread_ts, so the session is channel-wide.
                 session_id = utils.create_slack_session_id(
                     command["channel_id"],
-                    command.get("thread_ts") or command.get("ts"),
+                    command.get("thread_ts"),  # This will be None for slash commands
                 )
 
                 response_context = ResponseContext(
