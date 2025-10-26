@@ -144,13 +144,6 @@ class SlackAdapter(GatewayAdapter):
                 f"User {slack_user_id} requested download of {filename} v{version}"
             )
 
-            # Acknowledge the request immediately
-            await client.chat_postEphemeral(
-                channel=body["container"]["channel_id"],
-                user=slack_user_id,
-                text=f"Fetching artifact `{filename}`...",
-            )
-
             try:
                 # We need the user's primary ID again for the artifact service
                 auth_claims = await self.extract_auth_claims(body["user"])
