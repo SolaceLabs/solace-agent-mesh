@@ -201,7 +201,7 @@ class SlackAdapter(GatewayAdapter):
                 )
 
         # Action handler for the cancel button
-        @self.slack_app.action(utils.CANCEL_BUTTON_ACTION_ID)
+        @self.slack_app.action(utils.SLACK_CANCEL_BUTTON_ACTION_ID)
         async def handle_cancel_action(ack, body, logger):
             await ack()
             task_id = body["actions"][0]["value"]
@@ -250,7 +250,7 @@ class SlackAdapter(GatewayAdapter):
             original_blocks = [
                 {
                     "type": "actions",
-                    "block_id": utils.FEEDBACK_BLOCK_ID,
+                    "block_id": utils.SLACK_FEEDBACK_BLOCK_ID,
                     "elements": original_feedback_elements,
                 }
             ]
@@ -546,7 +546,7 @@ class SlackAdapter(GatewayAdapter):
                 feedback_blocks = [
                     {
                         "type": "actions",
-                        "block_id": utils.FEEDBACK_BLOCK_ID,
+                        "block_id": utils.SLACK_FEEDBACK_BLOCK_ID,
                         "elements": feedback_elements,
                     }
                 ]

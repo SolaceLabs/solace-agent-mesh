@@ -29,11 +29,11 @@ def create_slack_session_id(channel_id: str, thread_ts: Optional[str]) -> str:
     return f"slack-{channel_id}"
 
 # Block and Action IDs
-STATUS_BLOCK_ID = "a2a_status_block"
-CONTENT_BLOCK_ID = "a2a_content_block"
-FEEDBACK_BLOCK_ID = "a2a_feedback_block"
-CANCEL_BUTTON_ACTION_ID = "a2a_cancel_request_button"
-CANCEL_ACTION_BLOCK_ID = "a2a_task_cancel_actions"
+SLACK_STATUS_BLOCK_ID = "slack_status_block"
+SLACK_CONTENT_BLOCK_ID = "slack_content_block"
+SLACK_FEEDBACK_BLOCK_ID = "slack_feedback_block"
+SLACK_CANCEL_BUTTON_ACTION_ID = "slack_cancel_request_button"
+SLACK_CANCEL_ACTION_BLOCK_ID = "slack_task_cancel_actions"
 THUMBS_UP_ACTION_ID = "thumbs_up_action"
 THUMBS_DOWN_ACTION_ID = "thumbs_down_action"
 SUBMIT_FEEDBACK_ACTION_ID = "submit_feedback_action"
@@ -94,7 +94,7 @@ def build_slack_blocks(
         blocks.append(
             {
                 "type": "context",
-                "block_id": f"{STATUS_BLOCK_ID}_{uuid.uuid4().hex[:8]}",
+                "block_id": f"{SLACK_STATUS_BLOCK_ID}_{uuid.uuid4().hex[:8]}",
                 "elements": [{"type": "mrkdwn", "text": status_text}],
             }
         )
@@ -106,7 +106,7 @@ def build_slack_blocks(
         blocks.append(
             {
                 "type": "section",
-                "block_id": f"{CONTENT_BLOCK_ID}_{uuid.uuid4().hex[:8]}",
+                "block_id": f"{SLACK_CONTENT_BLOCK_ID}_{uuid.uuid4().hex[:8]}",
                 "text": {"type": "mrkdwn", "text": display_content},
             }
         )
@@ -115,7 +115,7 @@ def build_slack_blocks(
         blocks.append(
             {
                 "type": "actions",
-                "block_id": CANCEL_ACTION_BLOCK_ID,
+                "block_id": SLACK_CANCEL_ACTION_BLOCK_ID,
                 "elements": cancel_button_action_elements,
             }
         )
@@ -124,7 +124,7 @@ def build_slack_blocks(
         blocks.append(
             {
                 "type": "actions",
-                "block_id": FEEDBACK_BLOCK_ID,
+                "block_id": SLACK_FEEDBACK_BLOCK_ID,
                 "elements": feedback_elements,
             }
         )
