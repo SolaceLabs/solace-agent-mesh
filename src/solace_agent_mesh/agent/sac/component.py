@@ -2014,9 +2014,14 @@ class SamAgentComponent(SamComponentBase):
         For STREAMING tasks, it uses the content of the last ADK event.
         """
         logical_task_id = a2a_context.get("logical_task_id")
-        original_message: Optional[SolaceMessage] = a2a_context.get(
-            "original_solace_message"
-        )
+
+        # Retrieve the original Solace message from TaskExecutionContext
+        original_message: Optional[SolaceMessage] = None
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+            if task_context:
+                original_message = task_context.get_original_solace_message()
+
         log.info(
             "%s Finalizing task %s successfully.", self.log_identifier, logical_task_id
         )
@@ -2210,9 +2215,14 @@ class SamAgentComponent(SamComponentBase):
         Called by the background ADK thread wrapper when a task is cancelled.
         """
         logical_task_id = a2a_context.get("logical_task_id")
-        original_message: Optional[SolaceMessage] = a2a_context.get(
-            "original_solace_message"
-        )
+
+        # Retrieve the original Solace message from TaskExecutionContext
+        original_message: Optional[SolaceMessage] = None
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+            if task_context:
+                original_message = task_context.get_original_solace_message()
+
         log.info(
             "%s Finalizing task %s as CANCELED.", self.log_identifier, logical_task_id
         )
@@ -2414,9 +2424,14 @@ class SamAgentComponent(SamComponentBase):
         Sends a COMPLETED status with an informative message.
         """
         logical_task_id = a2a_context.get("logical_task_id")
-        original_message: Optional[SolaceMessage] = a2a_context.get(
-            "original_solace_message"
-        )
+
+        # Retrieve the original Solace message from TaskExecutionContext
+        original_message: Optional[SolaceMessage] = None
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+            if task_context:
+                original_message = task_context.get_original_solace_message()
+
         log.info(
             "%s Finalizing task %s as COMPLETED (LLM call limit reached).",
             self.log_identifier,
@@ -2493,9 +2508,14 @@ class SamAgentComponent(SamComponentBase):
         Called by the background ADK thread wrapper.
         """
         logical_task_id = a2a_context.get("logical_task_id")
-        original_message: Optional[SolaceMessage] = a2a_context.get(
-            "original_solace_message"
-        )
+
+        # Retrieve the original Solace message from TaskExecutionContext
+        original_message: Optional[SolaceMessage] = None
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+            if task_context:
+                original_message = task_context.get_original_solace_message()
+
         log.error(
             "%s Finalizing task %s with error: %s",
             self.log_identifier,
@@ -2638,9 +2658,13 @@ class SamAgentComponent(SamComponentBase):
                         log_id,
                         e,
                     )
-                    original_message: Optional[SolaceMessage] = a2a_context.get(
-                        "original_solace_message"
-                    )
+                    # Retrieve the original Solace message from TaskExecutionContext for fallback NACK
+                    original_message: Optional[SolaceMessage] = None
+                    with self.active_tasks_lock:
+                        task_context = self.active_tasks.get(logical_task_id)
+                        if task_context:
+                            original_message = task_context.get_original_solace_message()
+
                     if original_message:
                         try:
                             original_message.call_negative_acknowledgements()
