@@ -44,34 +44,45 @@ def register_command(name: str) -> Callable[[CommandHandler], CommandHandler]:
 async def handle_artifacts_command(
     adapter: "SlackAdapter", event: Dict, client: Any, logger: logging.Logger
 ):
-    """Handles the !artifacts command to list session artifacts."""
-    logger.info(f"Handling '!artifacts' command for user {event['user']}")
+    """
+    Handles the !artifacts or /artifacts command to list session artifacts.
+    Posts the list into the thread/channel it was invoked from.
+    """
+    user_id_for_log = event.get("user_id") or event.get("user")
+    logger.info(f"Handling artifacts command for user {user_id_for_log}")
+
+    channel_id = event.get("channel_id") or event.get("channel")
+    # For a message event, this will be the thread_ts or message ts.
+    # For a slash command, this will be None, and the message will post to the channel.
+    thread_ts = event.get("thread_ts") or event.get("ts")
+
     try:
         auth_claims = await adapter.extract_auth_claims(event)
         if not auth_claims or not auth_claims.id:
             raise ValueError("Could not determine user identity for artifact listing.")
 
         user_id = auth_claims.id
+        # Session ID is based on the thread if it exists, otherwise the channel.
         session_id = utils.create_slack_session_id(
-            event["channel"], event.get("thread_ts") or event.get("ts")
+            channel_id, event.get("thread_ts")
         )
 
         response_context = ResponseContext(
-            task_id=f"slack-cmd-{event['ts']}",
+            task_id=f"slack-cmd-{event.get('trigger_id') or event.get('ts')}",
             session_id=session_id,
             user_id=user_id,
             platform_context={
-                "channel_id": event["channel"],
-                "thread_ts": event.get("thread_ts") or event.get("ts"),
+                "channel_id": channel_id,
+                "thread_ts": thread_ts,
             },
         )
 
         artifacts = await adapter.context.list_artifacts(response_context)
 
         if not artifacts:
-            await client.chat_postEphemeral(
-                channel=event["channel"],
-                user=event["user"],
+            await client.chat_postMessage(
+                channel=channel_id,
+                thread_ts=thread_ts,
                 text="No artifacts found in this session.",
             )
             return
@@ -92,13 +103,17 @@ async def handle_artifacts_command(
                 except (ValueError, TypeError):
                     last_modified_str = artifact.last_modified
 
+            description = artifact.description or "No description"
+            if len(description) > 200:
+                description = description[:197] + "..."
+
             blocks.append(
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
                         "text": f"📄 *{artifact.filename}* (v{artifact.version})\n"
-                        f"_{artifact.description or 'No description'}_\n"
+                        f"_{description}_\n"
                         f"Created: {last_modified_str}",
                     },
                     "accessory": {
@@ -110,20 +125,49 @@ async def handle_artifacts_command(
                 }
             )
 
-        await client.chat_postEphemeral(
-            channel=event["channel"],
-            user=event["user"],
+        await client.chat_postMessage(
+            channel=channel_id,
+            thread_ts=thread_ts,
             blocks=blocks,
             text=f"Found {len(artifacts)} artifacts.",
         )
 
     except Exception as e:
-        logger.error(f"Error handling '!artifacts' command: {e}", exc_info=True)
-        await client.chat_postEphemeral(
-            channel=event["channel"],
-            user=event["user"],
+        logger.error(f"Error handling artifacts command: {e}", exc_info=True)
+        await client.chat_postMessage(
+            channel=channel_id,
+            thread_ts=thread_ts,
             text=f"An error occurred: {e}",
         )
+
+
+@register_command("help")
+async def handle_help_command(
+    adapter: "SlackAdapter", event: Dict, client: Any, logger: logging.Logger
+):
+    """Handles the !help or /help command to list available commands."""
+    user_id_for_log = event.get("user_id") or event.get("user")
+    logger.info(f"Handling help command for user {user_id_for_log}")
+
+    channel_id = event.get("channel_id") or event.get("channel")
+    user_id_for_ephemeral = event.get("user_id") or event.get("user")
+
+    command_descriptions = {
+        "artifacts": "List artifacts available in the current session/thread.",
+        "help": "Show this help message.",
+    }
+
+    help_text = "*Available Commands:*\n"
+    for cmd, desc in sorted(command_descriptions.items()):
+        if cmd in COMMAND_REGISTRY:
+            help_text += f"• `!{cmd}` or `/{cmd}`: {desc}\n"
+
+    # Post as an ephemeral message so only the user who asked sees it.
+    await client.chat_postEphemeral(
+        channel=channel_id,
+        user=user_id_for_ephemeral,
+        text=help_text,
+    )
 
 
 # --- Main Event Processor ---

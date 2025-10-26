@@ -119,6 +119,16 @@ class SlackAdapter(GatewayAdapter):
         async def handle_mention_wrapper(event, say):
             await handlers.handle_slack_mention(self, event, say)
 
+        # Slash command handlers that reuse the keyword command logic
+        @self.slack_app.command("/artifacts")
+        async def handle_artifacts_slash_command(ack, command, client, logger):
+            await ack()
+            await handlers.handle_artifacts_command(self, command, client, logger)
+
+        @self.slack_app.command("/help")
+        async def handle_help_slash_command(ack, command, client, logger):
+            await ack()
+            await handlers.handle_help_command(self, command, client, logger)
 
         # Handler for the download button action
         @self.slack_app.action("download_artifact_button")
