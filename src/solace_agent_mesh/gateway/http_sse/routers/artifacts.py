@@ -470,7 +470,8 @@ async def list_artifacts(
     log_prefix = f"[ArtifactRouter:ListInfo] -"
     log.info("%s Request received.", log_prefix)
 
-    # Resolve storage context (returns empty list if no context - special case for list)
+    # Resolve storage context (projects vs sessions). This allows for project artiacts
+    # to be listed before a session is created.
     try:
         storage_user_id, storage_session_id, context_type = _resolve_storage_context(
             session_id, project_id, user_id, validate_session, project_service, log_prefix

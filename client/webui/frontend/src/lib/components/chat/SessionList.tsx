@@ -306,22 +306,24 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                         >
                             <Filter size={12} />
                             All Chats
-                        </Badge>
+                        </Button>
                         {visibleProjectNames.map(projectName => (
-                            <Badge
+                            <Button
                                 key={projectName}
-                                variant={selectedProject === projectName ? "default" : "outline"}
-                                className="max-w-[120px] cursor-pointer hover:bg-accent transition-colors justify-start"
+                                variant={selectedProject === projectName ? "default" : "secondary"}
+                                size="sm"
+                                className="h-7 px-2.5 py-1 text-xs max-w-[120px] justify-start"
                                 onClick={() => setSelectedProject(projectName)}
                                 title={projectName}
                             >
                                 <span className="truncate block">{projectName}</span>
-                            </Badge>
+                            </Button>
                         ))}
                         {hasMoreProjects && (
-                            <Badge
-                                variant="outline"
-                                className="cursor-pointer hover:bg-accent transition-colors"
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="h-7 px-2.5 py-1 text-xs"
                                 onClick={() => setShowAllProjects(!showAllProjects)}
                             >
                                 {showAllProjects ? (
@@ -335,7 +337,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         +{projectNames.length - MAX_VISIBLE_PROJECTS} More
                                     </>
                                 )}
-                            </Badge>
+                            </Button>
                         )}
                     </div>
                 )}

@@ -425,12 +425,9 @@ async def update_project(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Project not found."
             )
 
-        # Get only the fields that were explicitly set in the request
-        # Use by_alias=False to get snake_case field names
         update_fields = request.model_dump(exclude_unset=True, by_alias=False)
         
         # Pass only explicitly set fields to the service
-        # Use ... sentinel for fields not provided, allowing None to be set explicitly
         kwargs = {
             'project_id': project_id,
             'user_id': user_id,

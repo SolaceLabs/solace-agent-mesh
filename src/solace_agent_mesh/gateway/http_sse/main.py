@@ -61,8 +61,6 @@ from ...gateway.http_sse.routers import (
     feedback,
 )
 
-# from .infrastructure.persistence import DatabaseService  # Removed with infrastructure
-
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
 

@@ -197,11 +197,8 @@ async def _submit_task(
 ):
     """
     Helper to submit a task, handling both streaming and non-streaming cases.
-    
-    This function handles project context injection for both streaming and non-streaming
-    requests. When a project_id is provided and this is the first message in a new session,
-    the project context (system prompt, description, and artifacts) is injected into the
-    message parts that are sent to the agent, ensuring the agent receives the full context.
+
+    Also handles project context injection.
     """
     log_prefix = f"[POST /api/v1/message:{'stream' if is_streaming else 'send'}] "
 

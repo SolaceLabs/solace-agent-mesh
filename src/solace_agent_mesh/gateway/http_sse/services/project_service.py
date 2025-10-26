@@ -126,7 +126,6 @@ class ProjectService:
         Returns:
             Optional[Project]: The project if found and accessible, None otherwise
         """
-        # Repository now handles user access validation
         return self.project_repository.get_by_id(project_id, user_id)
 
     def get_user_projects(self, user_id: str) -> List[Project]:
