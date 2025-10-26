@@ -113,8 +113,7 @@ async def handle_artifacts_command(
                     "text": {
                         "type": "mrkdwn",
                         "text": f"📄 *{artifact.filename}* (v{artifact.version})\n"
-                        f"_{description}_\n"
-                        f"Created: {last_modified_str}",
+                        f"_{description}_",
                     },
                     "accessory": {
                         "type": "button",
@@ -122,6 +121,14 @@ async def handle_artifacts_command(
                         "action_id": "download_artifact_button",
                         "value": button_value,
                     },
+                }
+            )
+            blocks.append(
+                {
+                    "type": "context",
+                    "elements": [
+                        {"type": "mrkdwn", "text": f"🗓️ {last_modified_str}"}
+                    ],
                 }
             )
 
@@ -150,7 +157,7 @@ async def handle_help_command(
     logger.info(f"Handling help command for user {user_id_for_log}")
 
     channel_id = event.get("channel_id") or event.get("channel")
-    user_id_for_ephemeral = event.get("user_id") or event.get("user")
+    thread_ts = event.get("thread_ts") or event.get("ts")
 
     command_descriptions = {
         "artifacts": "List artifacts available in the current session/thread.",
@@ -162,10 +169,10 @@ async def handle_help_command(
         if cmd in COMMAND_REGISTRY:
             help_text += f"• `!{cmd}` or `/{cmd}`: {desc}\n"
 
-    # Post as an ephemeral message so only the user who asked sees it.
-    await client.chat_postEphemeral(
+    # Post the message in the thread where the command was invoked.
+    await client.chat_postMessage(
         channel=channel_id,
-        user=user_id_for_ephemeral,
+        thread_ts=thread_ts,
         text=help_text,
     )
 
