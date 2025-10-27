@@ -54,7 +54,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             return parsed?.version !== null && parsed?.version !== undefined ? parseInt(parsed.version) : undefined;
         }
         return undefined;
-    }, [props.status, props.fileAttachment]);
+    }, [props.status, props.status === "completed" ? props.fileAttachment : undefined]);
 
     // Get file info for rendering decisions
     const fileAttachment = props.status === "completed" ? props.fileAttachment : undefined;

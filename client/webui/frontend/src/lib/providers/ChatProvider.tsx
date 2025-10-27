@@ -1480,8 +1480,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = "Thinking";
             setMessages(prev => [...prev, userMsg]);
 
-            const errors: string[] = [];
-
             try {
                 // 1. Process files using hybrid approach
                 const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
@@ -1683,7 +1681,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 handleSseOpenRef.current();
             };
 
-            const wrappedHandleSseError = (event: Event) => {
+            const wrappedHandleSseError = () => {
                 handleSseErrorRef.current();
             };
 
