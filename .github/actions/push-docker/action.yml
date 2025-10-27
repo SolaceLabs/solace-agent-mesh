@@ -1,5 +1,5 @@
 name: "Docker Push"
-description: "Builds and pushes a Docker image with specified tags"
+description: "Builds and pushes a Docker image with specified tags, or pulls from source registry and re-tags"
 inputs:
   version_tag:
     description: "The primary version tag for the image (e.g., 1.0.0)"
@@ -14,6 +14,14 @@ inputs:
   docker_password:
     description: "Docker Hub password"
     required: true
+  source_registry:
+    description: "Source registry to pull from (e.g., ECR). If provided, will pull and re-tag instead of building"
+    required: false
+    default: ""
+  source_image_tag:
+    description: "Source image tag to pull (without platform suffix). Required if source_registry is provided"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -42,7 +50,45 @@ runs:
         echo "TAGS_LIST=$tags" >> $GITHUB_OUTPUT
         echo "Prepared tags: $tags"
 
+    - name: Pull from Source and Push to DockerHub
+      if: inputs.source_registry != ''
+      shell: bash
+      run: |
+        source_image="${{ inputs.source_registry }}/solace-agent-mesh:${{ inputs.source_image_tag }}"
+
+        echo "Pulling multi-platform image from ECR: ${source_image}"
+
+        # Pull the multi-platform manifest and both platform images
+        docker pull --platform linux/amd64 "${source_image}-amd64"
+        docker pull --platform linux/arm64 "${source_image}-arm64"
+
+        # Convert comma-separated tags to array
+        IFS=',' read -ra TAGS <<< "${{ steps.docker_tags.outputs.TAGS_LIST }}"
+
+        # For each target tag, create a multi-platform manifest
+        for TAG in "${TAGS[@]}"; do
+          TAG=$(echo "$TAG" | xargs)  # Trim whitespace
+          echo "Creating multi-platform manifest for: ${TAG}"
+          
+          # Tag the platform-specific images for DockerHub
+          docker tag "${source_image}-amd64" "${TAG}-amd64"
+          docker tag "${source_image}-arm64" "${TAG}-arm64"
+          
+          # Push platform-specific images
+          docker push "${TAG}-amd64"
+          docker push "${TAG}-arm64"
+          
+          # Create and push multi-platform manifest
+          docker buildx imagetools create \
+            --tag "${TAG}" \
+            "${TAG}-amd64" \
+            "${TAG}-arm64"
+        done
+
+        echo "Successfully pulled from ECR and pushed to DockerHub"
+
     - name: Build And Push Docker Image
+      if: inputs.source_registry == ''
       uses: docker/build-push-action@v6.16.0
       with:
         context: "."
