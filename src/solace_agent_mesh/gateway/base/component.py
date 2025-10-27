@@ -302,6 +302,15 @@ class BaseGatewayComponent(SamComponentBase):
             "system_purpose": system_purpose,
             "response_format": response_format,
         }
+
+        # Add session behavior if provided by adapter
+        session_behavior = external_request_context.get("session_behavior")
+        if session_behavior:
+            a2a_metadata["sessionBehavior"] = session_behavior
+            log.debug(
+                "%s Setting sessionBehavior to: %s", log_id_prefix, session_behavior
+            )
+
         invoked_artifacts = external_request_context.get("invoked_with_artifacts")
         if invoked_artifacts:
             a2a_metadata["invoked_with_artifacts"] = invoked_artifacts

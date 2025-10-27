@@ -3,9 +3,12 @@ Defines the abstract base class for Generic Gateway Adapters.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Optional, Type, TypeVar
+from typing import TYPE_CHECKING, Any, Dict, Generic, Optional, Type, TypeVar
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from a2a.types import AgentCard
 
 from .types import (
     AuthClaims,
@@ -141,3 +144,26 @@ class GatewayAdapter(
     async def handle_error(self, error: SamError, context: ResponseContext) -> None:
         """Handle error from the agent or gateway."""
         pass
+
+    # --- Agent Registry Change Handlers ---
+
+    async def handle_agent_registered(self, agent_card: "AgentCard") -> None:
+        """
+        Called when a new agent is registered in the agent registry.
+
+        This allows adapters to react to new agents becoming available.
+        For example, the MCP adapter can register new tools dynamically.
+
+        Args:
+            agent_card: The AgentCard of the newly registered agent
+        """
+        pass  # Optional - default is no-op
+
+    async def handle_agent_deregistered(self, agent_name: str) -> None:
+        """
+        Called when an agent is removed from the registry (e.g., TTL expiry).
+
+        Args:
+            agent_name: Name of the agent that was removed
+        """
+        pass  # Optional - default is no-op

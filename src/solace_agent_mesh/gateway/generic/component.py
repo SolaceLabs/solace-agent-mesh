@@ -112,6 +112,43 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         self.artifact_service = self.shared_artifact_service
         # `gateway_id`, `namespace`, `config` are available from base classes.
 
+        # --- Register Agent Registry Callbacks ---
+        # Wire up callbacks so the adapter is notified of agent changes
+        self.agent_registry._on_agent_added = self._on_agent_added
+        self.agent_registry._on_agent_removed = self._on_agent_removed
+        log.info(
+            "%s Agent registry callbacks registered for dynamic adapter updates.",
+            self.log_identifier,
+        )
+
+    def _on_agent_added(self, agent_card: Any) -> None:
+        """Called when a new agent is added to the registry."""
+        log.info(
+            "%s New agent registered: %s, notifying adapter...",
+            self.log_identifier,
+            agent_card.name,
+        )
+
+        if self.adapter:
+            # Schedule the async call in the component's event loop
+            asyncio.run_coroutine_threadsafe(
+                self.adapter.handle_agent_registered(agent_card), self.get_async_loop()
+            )
+
+    def _on_agent_removed(self, agent_name: str) -> None:
+        """Called when an agent is removed from the registry."""
+        log.info(
+            "%s Agent deregistered: %s, notifying adapter...",
+            self.log_identifier,
+            agent_name,
+        )
+
+        if self.adapter:
+            # Schedule the async call in the component's event loop
+            asyncio.run_coroutine_threadsafe(
+                self.adapter.handle_agent_deregistered(agent_name), self.get_async_loop()
+            )
+
     # --- GatewayContext Implementation ---
 
     async def handle_external_input(
@@ -181,6 +218,10 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 **sam_task.platform_context,
             }
 
+            # Pass session_behavior if provided by adapter
+            if sam_task.session_behavior:
+                external_request_context["session_behavior"] = sam_task.session_behavior
+
             task_id = await self.submit_a2a_task(
                 target_agent_name=sam_task.target_agent,
                 a2a_parts=a2a_parts,
@@ -204,7 +245,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                     # Create a dummy context to report the error
                     error_context = ResponseContext(
                         task_id="pre-task-error",
-                        conversation_id=None,
+                        session_id=None,
                         user_id=user_identity.get("id"),
                         platform_context={},
                     )
@@ -342,6 +383,22 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 context.user_id,
                 e,
             )
+            return []
+
+    def list_agents(self) -> List[Any]:
+        """Lists all agents currently registered in the agent registry."""
+        log_id_prefix = f"{self.log_identifier}[ListAgents]"
+        try:
+            agent_names = self.agent_registry.get_agent_names()
+            agents = []
+            for agent_name in agent_names:
+                agent_card = self.agent_registry.get_agent(agent_name)
+                if agent_card:
+                    agents.append(agent_card)
+            log.info("%s Found %d registered agents.", log_id_prefix, len(agents))
+            return agents
+        except Exception as e:
+            log.exception("%s Failed to list agents: %s", log_id_prefix, e)
             return []
 
     async def submit_feedback(self, feedback: "SamFeedback") -> None:
