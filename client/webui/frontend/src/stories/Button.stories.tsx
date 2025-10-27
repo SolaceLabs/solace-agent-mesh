@@ -28,6 +28,7 @@ export const Default: Story = {
     args: {
         variant: "default",
         children: "Default Button",
+        disabled: false,
         onClick: () => alert("Button does something"),
     },
 };
@@ -36,6 +37,7 @@ export const Secondary: Story = {
     args: {
         variant: "secondary",
         children: "Secondary Button",
+        disabled: false,
         onClick: () => alert("Button does something"),
     },
 };
@@ -44,6 +46,7 @@ export const Outline: Story = {
     args: {
         variant: "outline",
         children: "Outline Button",
+        disabled: false,
         onClick: () => alert("Button does something"),
     },
 };
@@ -52,6 +55,7 @@ export const Link: Story = {
     args: {
         variant: "link",
         children: "Link Button",
+        disabled: false,
         onClick: () => alert("Button does something"),
     },
 };
@@ -60,6 +64,7 @@ export const Ghost: Story = {
     args: {
         variant: "ghost",
         children: "Ghost Button",
+        disabled: false,
         onClick: () => alert("Button does something"),
     },
 };
@@ -68,6 +73,7 @@ export const Destructive: Story = {
     args: {
         variant: "destructive",
         children: "Destructive Button",
+        disabled: false,
         onClick: () => alert("Button does something"),
     },
 };
