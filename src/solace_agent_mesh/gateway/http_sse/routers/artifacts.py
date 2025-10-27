@@ -384,7 +384,7 @@ async def list_artifact_versions(
     associated with the specified context (session or project).
     """
 
-    log_prefix = f"[ArtifactRouter:ListVersions:{filename}] -"
+    log_prefix = f"[ArtifactRouter:ListVersions:{filename}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
     # Resolve storage context
@@ -467,7 +467,7 @@ async def list_artifacts(
     for all artifacts associated with the specified context (session or project).
     """
 
-    log_prefix = f"[ArtifactRouter:ListInfo] -"
+    log_prefix = f"[ArtifactRouter:ListInfo] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
     # Resolve storage context (projects vs sessions). This allows for project artiacts
@@ -533,7 +533,9 @@ async def get_latest_artifact(
     Retrieves the content of the latest version of the specified artifact
     associated with the specified context (session or project).
     """
-    log_prefix = f"[ArtifactRouter:GetLatest:{filename}] -"
+    log_prefix = (
+        f"[ArtifactRouter:GetLatest:{filename}] User={user_id}, Session={session_id} -"
+    )
     log.info("%s Request received.", log_prefix)
 
     # Resolve storage context
@@ -682,7 +684,7 @@ async def get_specific_artifact_version(
     Retrieves the content of a specific version of the specified artifact
     associated with the specified context (session or project).
     """
-    log_prefix = f"[ArtifactRouter:GetVersion:{filename} v{version}] -"
+    log_prefix = f"[ArtifactRouter:GetVersion:{filename} v{version}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
     # Resolve storage context
