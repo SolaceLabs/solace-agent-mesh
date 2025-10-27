@@ -2,79 +2,80 @@
 Custom Solace AI Connector Component to Host Google ADK Agents via A2A Protocol.
 """
 
-import logging
-from typing import Any, Dict, Optional, Union, Callable, List, Tuple, TYPE_CHECKING
 import asyncio
-import functools
-import threading
 import concurrent.futures
 import fnmatch
-import time
-import json
-from solace_ai_connector.common.message import (
-    Message as SolaceMessage,
-)
-from solace_ai_connector.common.event import Event, EventType
-
-from solace_ai_connector.common.utils import import_module
+import functools
 import inspect
-from pydantic import BaseModel, ValidationError
-from google.adk.agents.invocation_context import (
-    LlmCallsLimitExceededError,
-)
-from google.adk.agents import RunConfig
-from google.adk.agents.run_config import StreamingMode
-from google.adk.sessions import BaseSessionService
-from google.adk.artifacts import BaseArtifactService
-from google.adk.memory import BaseMemoryService
-from google.adk.agents import LlmAgent
-from google.adk.runners import Runner
-from google.adk.models import LlmResponse
-from google.adk.agents.readonly_context import ReadonlyContext
-from google.adk.events import Event as ADKEvent
-from google.adk.agents.callback_context import CallbackContext
-from google.adk.models.llm_request import LlmRequest
-from google.genai import types as adk_types
-from google.adk.tools.mcp_tool import MCPToolset
+import json
+import logging
+import threading
+import time
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+
 from a2a.types import (
     AgentCard,
-    Artifact as A2AArtifact,
-    Message as A2AMessage,
     MessageSendParams,
     SendMessageRequest,
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
 )
-from ...common import a2a
-from ...common.data_parts import AgentProgressUpdateData
-from ...common.a2a.translation import format_and_route_adk_event
-from ...agent.utils.config_parser import resolve_instruction_provider
+from a2a.types import Artifact as A2AArtifact
+from a2a.types import Message as A2AMessage
+from google.adk.agents import LlmAgent, RunConfig
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.agents.invocation_context import LlmCallsLimitExceededError
+from google.adk.agents.readonly_context import ReadonlyContext
+from google.adk.agents.run_config import StreamingMode
+from google.adk.artifacts import BaseArtifactService
+from google.adk.auth.credential_service.base_credential_service import (
+    BaseCredentialService,
+)
+from google.adk.events import Event as ADKEvent
+from google.adk.memory import BaseMemoryService
+from google.adk.models import LlmResponse
+from google.adk.models.llm_request import LlmRequest
+from google.adk.runners import Runner
+from google.adk.sessions import BaseSessionService
+from google.adk.tools.mcp_tool import MCPToolset
+from google.genai import types as adk_types
+from pydantic import BaseModel, ValidationError
+from solace_ai_connector.common.event import Event, EventType
+from solace_ai_connector.common.message import Message as SolaceMessage
+from solace_ai_connector.common.utils import import_module
+
+from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.adk.services import (
-    initialize_session_service,
     initialize_artifact_service,
+    initialize_credential_service,
     initialize_memory_service,
+    initialize_session_service,
 )
 from ...agent.adk.setup import (
-    load_adk_tools,
     initialize_adk_agent,
     initialize_adk_runner,
+    load_adk_tools,
 )
-from ...agent.protocol.event_handlers import (
-    process_event,
-    publish_agent_card,
-)
-from ...agent.adk.runner import run_adk_async_task_thread_wrapper, TaskCancelledError
+from ...agent.protocol.event_handlers import process_event, publish_agent_card
 from ...agent.tools.peer_agent_tool import (
     CORRELATION_DATA_PREFIX,
-    PeerAgentTool,
     PEER_TOOL_PREFIX,
+    PeerAgentTool,
 )
-from ...common.middleware.registry import MiddlewareRegistry
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT, HEALTH_CHECK_TTL_SECONDS, HEALTH_CHECK_INTERVAL_SECONDS
 from ...agent.tools.registry import tool_registry
-from ...common.sac.sam_component_base import SamComponentBase
+from ...agent.utils.config_parser import resolve_instruction_provider
+from ...common import a2a
+from ...common.a2a.translation import format_and_route_adk_event
 from ...common.agent_registry import AgentRegistry
+from ...common.constants import (
+    DEFAULT_COMMUNICATION_TIMEOUT,
+    HEALTH_CHECK_INTERVAL_SECONDS,
+    HEALTH_CHECK_TTL_SECONDS,
+)
+from ...common.data_parts import AgentProgressUpdateData
+from ...common.middleware.registry import MiddlewareRegistry
+from ...common.sac.sam_component_base import SamComponentBase
 
 log = logging.getLogger(__name__)
 
@@ -102,7 +103,6 @@ info = {
     },
 }
 InstructionProvider = Callable[[ReadonlyContext], str]
-
 
 class SamAgentComponent(SamComponentBase):
     """
@@ -236,6 +236,7 @@ class SamAgentComponent(SamComponentBase):
         self.session_service: BaseSessionService = None
         self.artifact_service: BaseArtifactService = None
         self.memory_service: BaseMemoryService = None
+        self.credential_service: Optional[BaseCredentialService] = None
         self.adk_agent: LlmAgent = None
         self.runner: Runner = None
         self.agent_card_tool_manifest: List[Dict[str, Any]] = []
@@ -264,6 +265,7 @@ class SamAgentComponent(SamComponentBase):
                 self.session_service = initialize_session_service(self)
                 self.artifact_service = initialize_artifact_service(self)
                 self.memory_service = initialize_memory_service(self)
+                self.credential_service = initialize_credential_service(self)
 
                 log.info(
                     "%s Initialized Synchronous ADK services.", self.log_identifier
@@ -277,6 +279,18 @@ class SamAgentComponent(SamComponentBase):
                 raise RuntimeError(
                     f"Failed to initialize synchronous ADK services: {service_err}"
                 ) from service_err
+
+            # initialize enterprise features if available
+            try:
+                from solace_agent_mesh_enterprise.init_enterprise_component import (
+                    init_enterprise_component_features,
+                )
+
+                init_enterprise_component_features(self)
+            except ImportError:
+                # Community edition
+                # Contact Solace support for enterprise features
+                pass
 
             from .app import (
                 AgentInitCleanupConfig,
@@ -521,6 +535,83 @@ class SamAgentComponent(SamComponentBase):
                 self.log_identifier,
                 sub_task_id,
             )
+
+    async def get_main_task_context(
+        self, logical_task_id: str
+    ) -> Optional["TaskExecutionContext"]:
+        """
+        Retrieves the main task context for a given logical task ID.
+
+        This method is used when the current agent is the target agent for the task.
+        It returns the TaskExecutionContext which contains the full task state including
+        a2a_context, active_peer_sub_tasks, and other task execution details.
+
+        Args:
+            logical_task_id: The unique logical ID of the task
+
+        Returns:
+            The TaskExecutionContext if the task is active, None otherwise
+
+        Raises:
+            ValueError: If logical_task_id is None or empty
+        """
+        if not logical_task_id:
+            raise ValueError("logical_task_id cannot be None or empty")
+
+        with self.active_tasks_lock:
+            active_task_context = self.active_tasks.get(logical_task_id)
+            if active_task_context is None:
+                log.warning(
+                    f"No active task context found for logical_task_id: {logical_task_id}"
+                )
+                return None
+
+            return active_task_context
+
+    async def get_all_sub_task_correlation_data_from_logical_task_id(
+        self, logical_task_id: str
+    ) -> list[dict[str, Any]]:
+        """
+        Retrieves correlation data for all active peer sub-tasks of a given logical task.
+
+        This method is used when forwarding requests to other agents in an A2A workflow.
+        It returns a list of correlation data dictionaries, each containing information
+        about a peer sub-task including peer_task_id, peer_agent_name, and original_task_context.
+
+        Args:
+            logical_task_id: The unique logical ID of the parent task
+
+        Returns:
+            List of correlation data dictionaries for active peer sub-tasks.
+            Returns empty list if no active peer sub-tasks exist.
+
+        Raises:
+            ValueError: If logical_task_id is None or empty
+        """
+        if not logical_task_id:
+            raise ValueError("logical_task_id cannot be None or empty")
+
+        with self.active_tasks_lock:
+            active_task_context = self.active_tasks.get(logical_task_id)
+            if active_task_context is None:
+                log.warning(
+                    f"No active task context found for logical_task_id: {logical_task_id}"
+                )
+                return []
+
+            active_peer_sub_tasks = active_task_context.active_peer_sub_tasks
+            if not active_peer_sub_tasks:
+                log.debug(
+                    f"No active peer sub-tasks found for logical_task_id: {logical_task_id}"
+                )
+                return []
+
+            results = []
+            for sub_task_id, correlation_data in active_peer_sub_tasks.items():
+                if sub_task_id is not None and correlation_data is not None:
+                    results.append(correlation_data)
+
+            return results
 
     async def _get_correlation_data_for_sub_task(
         self, sub_task_id: str
@@ -1625,6 +1716,19 @@ class SamAgentComponent(SamComponentBase):
 
         is_run_based_session = a2a_context.get("is_run_based_session", False)
         is_final_turn_event = not adk_event.partial
+
+        try:
+            from solace_agent_mesh_enterprise.auth.tool_auth import handle_tool_auth_event
+            auth_status_update = await handle_tool_auth_event(adk_event, self, a2a_context)
+            if auth_status_update:
+                await self._publish_status_update_with_buffer_flush(
+                    auth_status_update,
+                    a2a_context,
+                    skip_buffer_flush=False,
+                )
+                return
+        except ImportError:
+            pass
 
         if not is_final_turn_event:
             if adk_event.content and adk_event.content.parts:
@@ -2824,6 +2928,7 @@ class SamAgentComponent(SamComponentBase):
             "replyTo": reply_to_topic,
             "a2aStatusTopic": status_topic,
             "userId": user_id,
+            "delegating_agent_name": delegating_agent_name,
         }
         if isinstance(user_config, dict):
             user_properties["a2aUserConfig"] = user_config
@@ -3355,11 +3460,11 @@ class SamAgentComponent(SamComponentBase):
         resolver_config = context_for_embeds["config"]
 
         try:
-            from ...common.utils.embeds.resolver import (
-                resolve_embeds_in_string,
-                evaluate_embed,
-            )
             from ...common.utils.embeds.constants import EARLY_EMBED_TYPES
+            from ...common.utils.embeds.resolver import (
+                evaluate_embed,
+                resolve_embeds_in_string,
+            )
 
             resolved_text, processed_until_index, signals_found = (
                 await resolve_embeds_in_string(

@@ -14,6 +14,7 @@ from fastapi import (
     status,
 )
 from pydantic import BaseModel, Field
+import json
 from typing import List, Optional, Dict, Any, Set
 
 
@@ -231,9 +232,75 @@ def _resolve_user_identity_for_authorization(
                 "%s No user_identity provided but authorization is enabled. This should not happen.",
                 log_id_prefix,
             )
-            raise ValueError("No user identity available when authorization is required")
+            raise ValueError(
+                "No user identity available when authorization is required"
+            )
 
     return user_identity
+
+
+def _include_for_visualization(event_payload: Dict[str, Any]) -> bool:
+    """
+    Check if an event should be included for visualization based on metadata.
+
+    Args:
+        event_payload: The event payload containing event data
+
+    Returns:
+        False if the event should be excluded from visualization (when visualization is False),
+        True otherwise (include by default)
+    """
+    try:
+        # Get the data field from the event payload
+        data_str = event_payload.get("data")
+        if not data_str:
+            return True  # Include by default if no data
+
+        # Parse the JSON data
+        try:
+            data = json.loads(data_str)
+        except (json.JSONDecodeError, TypeError):
+            return True
+
+        # Look for the full_payload in the data
+        full_payload = data.get("full_payload")
+        if not full_payload:
+            return True
+
+        # Check if full_payload has params
+        params = full_payload.get("params")
+        if not params:
+            return True
+
+        # Check if params has message
+        message = params.get("message")
+        if not message:
+            return True
+
+        # Check if message has metadata
+        metadata = message.get("metadata")
+        if not metadata:
+            return True
+
+        # Check the visualization setting in metadata
+        visualization_setting = metadata.get("visualization")
+        if visualization_setting is not None and (
+            (
+                isinstance(visualization_setting, str)
+                and visualization_setting.lower() == "false"
+            )
+            or (
+                isinstance(visualization_setting, bool)
+                and visualization_setting is False
+            )
+        ):
+            return False
+
+        return True
+
+    except Exception as e:
+        log.warning("Error checking visualization filter for event: %s", e)
+        return True
 
 
 @router.post(
@@ -780,7 +847,14 @@ async def get_visualization_stream_events(
                             stream_id,
                         )
                         break
-                    yield event_payload
+                    if _include_for_visualization(event_payload):
+                        log.debug(
+                            "%s Yielding event for stream %s: %s",
+                            log_id_prefix,
+                            stream_id,
+                            event_payload,
+                        )
+                        yield event_payload
                     sse_queue.task_done()
                 except asyncio.TimeoutError:
                     yield {"comment": "keep-alive"}
