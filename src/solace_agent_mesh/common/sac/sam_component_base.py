@@ -403,23 +403,17 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     )
                 else:
                     log.debug(
-                        "%s [publish_a2a_message] About to call app.send_message on topic '%s'",
+                        "%s [publish_a2a_message] About to call app.send_message on topic '%s'. (To see full payload and user_properties, set 'sam_trace' logger to DEBUG level.)",
                         self.log_identifier, topic
                     )
-
-                log.debug(
-                    f"{self.log_identifier} [publish_a2a_message] About to call app.send_message with payload: {payload}"
-                )
-                log.debug(
-                    f"{self.log_identifier} [publish_a2a_message] App send_message params - topic: {topic}, user_properties: {user_properties}"
-                )
 
                 app.send_message(
                     payload=payload, topic=topic, user_properties=user_properties
                 )
 
                 log.debug(
-                    f"{self.log_identifier} [publish_a2a_message] Successfully called app.send_message"
+                    "%s [publish_a2a_message] Successfully called app.send_message on topic '%s'",
+                    self.log_identifier, topic
                 )
             else:
                 log.error(
