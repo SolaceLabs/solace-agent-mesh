@@ -123,7 +123,7 @@ RUN apt-get update && \
 # This is separate from the full venv to keep this layer cached
 # We'll use the playwright from the full venv at runtime
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --no-cache-dir playwright==1.55.0
+    python -m pip install --no-cache-dir playwright
 
 # Install Playwright system dependencies (cached layer)
 RUN playwright install-deps chromium
