@@ -417,9 +417,10 @@ class CliPtAdapter(GatewayAdapter):
                 print_formatted_text(HTML(f"<ansigreen>{summary}</ansigreen>"))
 
     async def handle_status_update(self, status_text: str, context: ResponseContext) -> None:
-        """Handle agent status updates - shown in bottom toolbar."""
-        self.current_status = f"⏳ {status_text}"
-        # The toolbar will update automatically
+        """Handle agent status updates - print as a line."""
+        from prompt_toolkit import print_formatted_text
+        # Print status as a dim line
+        print_formatted_text(HTML(f"<ansiblue>⏳ {status_text}</ansiblue>"))
 
     async def handle_task_complete(self, context: ResponseContext) -> None:
         """Handle task completion."""
@@ -461,21 +462,27 @@ class CliPtAdapter(GatewayAdapter):
 
     async def _handle_artifact_progress(self, part: SamDataPart, context: ResponseContext) -> None:
         """Handle artifact creation progress updates."""
+        from prompt_toolkit import print_formatted_text
+
         status = part.data.get("status")
         filename = part.data.get("filename", "unknown file")
         adapter_config: CliPtAdapterConfig = self.context.adapter_config
 
         if status == "in-progress":
-            bytes_transferred = part.data.get("bytes_transferred", 0)
-            if bytes_transferred > 0:
-                size_str = utils.format_artifact_size(bytes_transferred)
-                self.current_status = f"📄 Creating {filename} ({size_str})..."
-            else:
-                self.current_status = f"📄 Creating {filename}..."
+            # Only print the first in-progress message to avoid clutter
+            if not hasattr(self, '_artifact_progress_printed'):
+                self._artifact_progress_printed = {}
+
+            if filename not in self._artifact_progress_printed:
+                print_formatted_text(HTML(f"<ansiblue>📄 Creating {filename}...</ansiblue>"))
+                self._artifact_progress_printed[filename] = True
 
         elif status == "completed":
             version = part.data.get("version", 1)
-            self.current_status = ""  # Clear status
+
+            # Clear this from progress tracking
+            if hasattr(self, '_artifact_progress_printed'):
+                self._artifact_progress_printed.pop(filename, None)
 
             if adapter_config.auto_save_artifacts:
                 try:
@@ -508,5 +515,4 @@ class CliPtAdapter(GatewayAdapter):
                     print_formatted_text(HTML(f"<ansired>❌ Failed to save {filename}: {e}</ansired>"))
 
         elif status == "failed":
-            self.current_status = ""
             print_formatted_text(HTML(f"<ansired>❌ Failed to create artifact: {filename}</ansired>"))
