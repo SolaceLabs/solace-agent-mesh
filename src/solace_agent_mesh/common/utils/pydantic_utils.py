@@ -1,6 +1,7 @@
 """Provides a Pydantic BaseModel for SAM configuration with dict-like access."""
 from pydantic import BaseModel, ValidationError
-from typing import Any, List, Type, TypeVar, Union, Optional, get_args, get_origin
+from typing import Any, TypeVar, Union, get_args, get_origin
+from types import UnionType
 
 T = TypeVar("T", bound="SamConfigBase")
 
@@ -13,7 +14,7 @@ class SamConfigBase(BaseModel):
     """
 
     @classmethod
-    def model_validate_and_clean(cls: Type[T], obj: Any) -> T:
+    def model_validate_and_clean(cls: type[T], obj: Any) -> T:
         """
         Validates a dictionary, first removing any keys with None values.
         This allows Pydantic's default values to be applied correctly when
@@ -25,7 +26,7 @@ class SamConfigBase(BaseModel):
         return cls.model_validate(obj)
 
     @classmethod
-    def format_validation_error_message(cls: Type[T], error: ValidationError, app_name: Optional[str], agent_name: Optional[str] = None) -> str:
+    def format_validation_error_message(cls: type[T], error: ValidationError, app_name: str | None, agent_name: str | None = None) -> str:
         """
         Formats Pydantic validation error messages into a clear, actionable format.
 
@@ -50,7 +51,7 @@ class SamConfigBase(BaseModel):
         if agent_name:
             error_lines.append(f"   Agent Name: {agent_name}\n")
 
-        def get_nested_field_description(model_class: Type[BaseModel], path: List[Union[str, int]]) -> Optional[str]:
+        def get_nested_field_description(model_class: type[BaseModel], path: list[str | int]) -> str | None:
             """Recursively get field description from nested models"""
             if not path:
                 return None
@@ -69,7 +70,7 @@ class SamConfigBase(BaseModel):
             # Handle Optional/Union types
             if annotation is not None:
                 origin = get_origin(annotation)
-                if origin is Union:
+                if origin is Union or origin is UnionType:
                     types = get_args(annotation)
                     annotation = next((t for t in types if t is not type(None)), None)
                 elif origin is list:

@@ -6,7 +6,6 @@ Tests the validation and formatting of validation errors from Pydantic models.
 
 from solace_agent_mesh.common.utils.pydantic_utils import SamConfigBase
 from pydantic import Field, ValidationError
-from typing import List, Optional
 
 
 class TestPydanticFormatting:
@@ -16,12 +15,12 @@ class TestPydanticFormatting:
 
         class DummyModel(SamConfigBase):
             required_field: str = Field(..., description="A required field for testing.")
-            optional_field: Optional[str] = Field(None, description="An optional field for testing.")
+            optional_field: str | None = Field(None, description="An optional field for testing.")
             wrong_type_field: int = Field(..., description="An integer field for testing.")
 
         try:
             DummyModel.model_validate_and_clean({"wrong_type_field": "not_an_int"})
-            assert False, "ValidationError was expected but not raised."
+            raise AssertionError("ValidationError was expected but not raised.")
         except ValidationError as e:
             message = DummyModel.format_validation_error_message(e, "TestApp", "TestAgent")
             print(message)
@@ -57,7 +56,7 @@ ERROR 2:
                 "parent_field": "valid",
                 "nested": {}
             })
-            assert False, "ValidationError was expected but not raised."
+            raise AssertionError("ValidationError was expected but not raised.")
         except ValidationError as e:
             message = ParentModel.format_validation_error_message(e, "ParentApp")
             assert message == """
@@ -77,13 +76,13 @@ ERROR 1:
             item_field: float = Field(..., description="A float field in the item.")
 
         class ArrayModel(SamConfigBase):
-            items: List[ItemModel] = Field(..., description="A list of item models.")
+            items: list[ItemModel] = Field(..., description="A list of item models.")
 
         try:
             ArrayModel.model_validate_and_clean({
                 "items": [{}]
             })
-            assert False, "ValidationError was expected but not raised."
+            raise AssertionError("ValidationError was expected but not raised.")
         except ValidationError as e:
             message = ArrayModel.format_validation_error_message(e, None, "ArrayAgent")
             assert message == """
@@ -105,7 +104,7 @@ ERROR 1:
             nested_field: int = Field(..., description="A nested integer field.")
 
         class OptionalFieldModel(SamConfigBase):
-            optional_field: Optional[NestedFieldModel] = Field(None, description="An optional nested field.")
+            optional_field: NestedFieldModel | None = Field(None, description="An optional nested field.")
 
         try:
             OptionalFieldModel.model_validate_and_clean({
@@ -113,7 +112,7 @@ ERROR 1:
                     "nested_field": "not_an_int"
                 }
             })
-            assert False, "ValidationError was expected but not raised."
+            raise AssertionError("ValidationError was expected but not raised.")
         except ValidationError as e:
             message = OptionalFieldModel.format_validation_error_message(e, "OptionalApp")
             assert message == """
