@@ -60,7 +60,9 @@ dependencies = [
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
     "alembic==1.16.5",
-    "openai==1.99.9"
+    "openai==1.99.9",
+    "rich==13.9.4",
+    "prompt_toolkit==3.0.48"
 ]
 
 [project.optional-dependencies]

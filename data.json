@@ -1,0 +1,30 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john.doe@example.com",
+      "role": "admin",
+      "active": true
+    },
+    {
+      "id": 2,
+      "name": "Jane Smith",
+      "email": "jane.smith@example.com",
+      "role": "user",
+      "active": true
+    },
+    {
+      "id": 3,
+      "name": "Bob Johnson",
+      "email": "bob.johnson@example.com",
+      "role": "user",
+      "active": false
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created": "2025-10-27",
+    "total_records": 3
+  }
+}
