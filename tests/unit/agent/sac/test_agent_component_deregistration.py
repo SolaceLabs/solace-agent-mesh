@@ -1,8 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, patch, call
-import time
-import json
-
+from unittest.mock import MagicMock
 from a2a.types import AgentCard
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 

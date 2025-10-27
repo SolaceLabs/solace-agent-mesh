@@ -1,8 +1,6 @@
 """Tests for deployment ID extension in AgentCard publishing."""
 
-import pytest
-from unittest.mock import Mock, MagicMock
-from a2a.types import AgentCard, AgentExtension
+from unittest.mock import Mock
 from solace_agent_mesh.agent.protocol.event_handlers import publish_agent_card
 
 DEPLOYMENT_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/deployment"
