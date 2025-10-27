@@ -14,7 +14,7 @@ const buttonVariants = cva(
     {
         variants: {
             variant: {
-                default: "text-[var(--color-primary-text-w10)] bg-[var(--color-primary-wMain)] enabled:hover:bg-[var(--color-primary-w100)] dark:enabled:hover:bg-[var(--color-primary-w60)]",
+                default: "text-[var(--color-primary-text-w10)] bg-[var(--color-primary-wMain)] enabled:hover:bg-[var(--color-primary-w100)] dark:enabled:hover:bg-[var(--color-primary-w60)] dark:text-[--color-primary-w10]",
                 destructive: "text-[var(--color-primary-text-w10)] bg-[var(--color-error-wMain)] enabled:hover:bg-[var(--color-error-w70)]",
                 outline: commonButtonStyles + " border border-1 border-[var(--color-primary-wMain)]",
                 secondary: commonButtonStyles,
