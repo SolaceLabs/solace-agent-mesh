@@ -101,6 +101,7 @@ def init_database(database_url: str):
                 cursor.close()
 
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        log.debug(f"Database initialized: {url}")
         log.info("Database initialized successfully")
     else:
         log.warning("Database already initialized.")
