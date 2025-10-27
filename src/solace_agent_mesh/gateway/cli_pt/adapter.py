@@ -16,6 +16,8 @@ from prompt_toolkit.formatted_text import HTML, FormattedText
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.shortcuts import clear
 from pydantic import BaseModel, Field
+from rich.console import Console
+from rich.markdown import Markdown
 from rich.table import Table
 
 from ..adapter.base import GatewayAdapter
@@ -78,6 +80,10 @@ class CliPtAdapter(GatewayAdapter):
         self.current_task_id: Optional[str] = None
         self.current_status: str = ""  # For bottom toolbar
         self.running: bool = False
+        self.text_buffer: str = ""  # Accumulate text for markdown rendering
+
+        # Rich console for markdown rendering
+        self.rich_console = Console()
 
         # Command registry
         self.commands: Dict[str, Callable] = {}
@@ -385,10 +391,8 @@ class CliPtAdapter(GatewayAdapter):
 
     async def handle_text_chunk(self, text: str, context: ResponseContext) -> None:
         """Handle streaming text from the agent."""
-        # Use sys.stdout directly with flush for better streaming compatibility
-        import sys
-        sys.stdout.write(text)
-        sys.stdout.flush()
+        # Accumulate text in buffer for markdown rendering
+        self.text_buffer += text
 
     async def handle_file(self, file_part: SamFilePart, context: ResponseContext) -> None:
         """Handle file/artifact from the agent."""
@@ -420,6 +424,17 @@ class CliPtAdapter(GatewayAdapter):
     async def handle_task_complete(self, context: ResponseContext) -> None:
         """Handle task completion."""
         self.current_status = ""  # Clear status
+
+        # Render accumulated markdown text
+        if self.text_buffer.strip():
+            try:
+                self.rich_console.print(Markdown(self.text_buffer))
+            except Exception as e:
+                # Fallback to plain text if markdown parsing fails
+                log.warning(f"Failed to render markdown: {e}")
+                print(self.text_buffer)
+            self.text_buffer = ""  # Clear buffer
+
         print_formatted_text(HTML("\n<ansigreen><b>✅ Task complete.</b></ansigreen>\n"))
         self.current_task_id = None
         self.processing = False  # Allow prompt to show again
@@ -427,6 +442,14 @@ class CliPtAdapter(GatewayAdapter):
     async def handle_error(self, error: SamError, context: ResponseContext) -> None:
         """Handle errors from the agent or gateway."""
         self.current_status = ""  # Clear status
+
+        # Render any accumulated text before showing error
+        if self.text_buffer.strip():
+            try:
+                self.rich_console.print(Markdown(self.text_buffer))
+            except Exception:
+                print(self.text_buffer)
+            self.text_buffer = ""
 
         if error.category == "CANCELED":
             print_formatted_text(HTML("\n<ansiyellow>🛑 Task canceled.</ansiyellow>\n"))
