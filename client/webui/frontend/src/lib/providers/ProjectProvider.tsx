@@ -31,12 +31,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             return;
         }
 
-        if (!projectsEnabled) {
-            setIsLoading(false);
-            setProjects([]);
-            return;
-        }
-
         setIsLoading(true);
         setError(null);
         try {

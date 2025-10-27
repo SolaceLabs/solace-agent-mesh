@@ -9,7 +9,6 @@ from fastapi import Request as FastAPIRequest
 from fastapi import status
 from typing import TYPE_CHECKING
 
-import httpx
 import sqlalchemy as sa
 from a2a.types import InternalError, JSONRPCError
 from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
@@ -50,16 +49,7 @@ from a2a.types import InternalError, InvalidRequestError, JSONRPCError
 from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
 from ...common import a2a
 from ...gateway.http_sse import dependencies
-from ...gateway.http_sse.routers import (
-    artifacts,
-    auth,
-    config,
-    people,
-    sse,
-    tasks,
-    visualization,
-    feedback,
-)
+
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent

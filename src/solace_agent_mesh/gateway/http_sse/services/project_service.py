@@ -165,7 +165,6 @@ class ProjectService:
             return []
 
         storage_user_id = project.user_id
-        storage_user_id = project.user_id
         storage_session_id = f"project-{project.id}"
 
         self.logger.info(f"Fetching artifacts for project {project.id} with storage session {storage_session_id} and user {storage_user_id}")
