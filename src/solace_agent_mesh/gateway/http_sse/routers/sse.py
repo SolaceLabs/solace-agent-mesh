@@ -82,8 +82,9 @@ async def subscribe_to_task_events(
                             )
                         else:
                             log.debug(
-                                "%sYielding event",
-                                log_prefix
+                                "%sYielding event: %s",
+                                log_prefix,
+                                event_payload.get("event") if event_payload else "unknown"
                             )
                         yield event_payload
                         connection_queue.task_done()

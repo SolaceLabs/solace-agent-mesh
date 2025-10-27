@@ -403,7 +403,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     )
                 else:
                     log.debug(
-                        "%s [publish_a2a_message] About to call app.send_message on topic '%s'. (To see full payload and user_properties, set 'sam_trace' logger to DEBUG level.)",
+                        "%s [publish_a2a_message] About to call app.send_message on topic '%s' (for more details, enable TRACE logging)",
                         self.log_identifier, topic
                     )
 
