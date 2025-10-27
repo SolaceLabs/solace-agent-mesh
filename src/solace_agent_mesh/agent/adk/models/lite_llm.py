@@ -699,6 +699,11 @@ class LiteLlm(BaseLlm):
         super().__init__(model=model, **kwargs)
         self._additional_args = kwargs.copy()
 
+        # Remove handlers added by LiteLLM as they produce duplicate and misformatted logs.
+        # Logging is an application concern and libraries should not set handlers/formatters.
+        for logger_name in ["LiteLLM", "LiteLLM Proxy", "LiteLLM Router", "litellm"]:
+            logging.getLogger(logger_name).handlers.clear()
+
         # Validate and store cache strategy
         valid_strategies = ["none", "5m", "1h"]
         if cache_strategy not in valid_strategies:
