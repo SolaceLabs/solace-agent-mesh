@@ -4,11 +4,11 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { AlertCircle, AlertTriangle, Info, CheckCircle, X } from "lucide-react";
 
 import { Button } from "@/lib/components";
-import { messageBannerColourVariants } from "./messageColourVariants";
+import { messageColourVariants } from "./messageColourVariants";
 import { cn } from "@/lib/utils";
 
 const messageBannerVariants = cva("flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all border-l-4 border-solid ", {
-    variants: { variant: messageBannerColourVariants },
+    variants: { variant: messageColourVariants },
     defaultVariants: {
         variant: "error",
     },
