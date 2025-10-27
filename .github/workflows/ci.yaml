@@ -54,6 +54,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Sync and verify uv.lock
+        run: |
+          # Sync lock file with pyproject.toml
+          uv lock --upgrade-package solace-agent-mesh
+          # Check if lock file was modified
+          if ! git diff --quiet uv.lock; then
+            echo "Warning: uv.lock was out of sync and has been updated"
+            # In CI, we just warn but continue. In development, developers should commit the updated lock file.
+          fi
+
       - name: Get Commit Hash
         id: get_commit_hash
         run: |
@@ -63,7 +78,7 @@ jobs:
       - name: Get Version from hatch
         id: get_version
         run: |
-          python3 -m pip install hatch
+          uv tool install hatch
           echo "version=$(hatch version)" >> $GITHUB_OUTPUT
           echo "Found version: $(hatch version)"
 
@@ -188,6 +203,8 @@ jobs:
           push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
           cache-from: type=gha,scope=${{ matrix.platform.tag_suffix }}
           cache-to: type=gha,scope=${{ matrix.platform.tag_suffix }},mode=max
+          provenance: false
+          sbom: false
 
   # ----------------------------------------------------
   # PHASE 3: Merge Multi-Platform Manifest (Always)
