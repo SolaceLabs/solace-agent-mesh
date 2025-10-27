@@ -4,16 +4,13 @@ Tests the core ADK integration layer including tool loading, agent initializatio
 """
 
 import pytest
-from typing import Dict, Any
 from sam_test_infrastructure.llm_server.server import TestLLMServer
 from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
 from solace_agent_mesh.agent.sac.app import SamAgentApp
-from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.agent.adk.setup import load_adk_tools, initialize_adk_agent, initialize_adk_runner
 from solace_agent_mesh.agent.adk.services import initialize_session_service, initialize_artifact_service
-from solace_agent_mesh.agent.tools.registry import tool_registry
 
 from tests.integration.scenarios_programmatic.test_helpers import (
     prime_llm_server,
@@ -21,8 +18,7 @@ from tests.integration.scenarios_programmatic.test_helpers import (
     submit_test_input,
     get_all_task_events,
     extract_outputs_from_event_list,
-    assert_final_response_text_contains,
-    assert_llm_request_count,
+    assert_final_response_text_contains
 )
 
 pytestmark = [
