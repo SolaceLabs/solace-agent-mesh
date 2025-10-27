@@ -510,3 +510,25 @@ class SamAgentApp(App):
 
         super().__init__(app_info, **kwargs)
         log.debug("%s Agent initialization complete.", agent_name)
+
+    def get_component(self, component_name: str = None) -> "SamAgentComponent":
+        """
+        Retrieves the running SamAgentComponent instance from the app's flow.
+        
+        Args:
+            component_name: Optional component name (for compatibility, but ignored since there's only one component)
+            
+        Returns:
+            The SamAgentComponent instance or None if not found
+        """
+        if self.flows and self.flows[0].component_groups:
+            for group in self.flows[0].component_groups:
+                for component_wrapper in group:
+                    component = (
+                        component_wrapper.component
+                        if hasattr(component_wrapper, "component")
+                        else component_wrapper
+                    )
+                    if isinstance(component, SamAgentComponent):
+                        return component
+        return None
