@@ -49,6 +49,8 @@ if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
 
 log = logging.getLogger(__name__)
+trace_logger = logging.getLogger("sam_trace")
+
 
 def _forward_jsonrpc_response(
     component: "SamAgentComponent",
@@ -734,11 +736,18 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     component.log_identifier,
                     logical_task_id,
                 )
-            log.debug(
-                "%s A2A Context (shared service model): %s",
-                component.log_identifier,
-                a2a_context,
-            )
+            if trace_logger.isEnabledFor(logging.DEBUG):
+                trace_logger.debug(
+                    "%s A2A Context (shared service model): %s",
+                    component.log_identifier,
+                    a2a_context,
+                )
+            else:
+                log.debug(
+                    "%s A2A Context prepared for task %s",
+                    component.log_identifier,
+                    a2a_context.get("logical_task_id", "unknown"),
+                )
 
             # Create and store the execution context for this task
             task_context = TaskExecutionContext(

@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
+trace_logger = logging.getLogger("sam_trace")
 
 router = APIRouter()
 
@@ -848,12 +849,19 @@ async def get_visualization_stream_events(
                         )
                         break
                     if _include_for_visualization(event_payload):
-                        log.debug(
-                            "%s Yielding event for stream %s: %s",
-                            log_id_prefix,
-                            stream_id,
-                            event_payload,
-                        )
+                        if trace_logger.isEnabledFor(logging.DEBUG):
+                            trace_logger.debug(
+                                "%s Yielding event for stream %s: %s",
+                                log_id_prefix,
+                                stream_id,
+                                event_payload,
+                            )
+                        else:
+                            log.debug(
+                                "%s Yielding event for stream %s",
+                                log_id_prefix,
+                                stream_id,
+                            )
                         yield event_payload
                     sse_queue.task_done()
                 except asyncio.TimeoutError:
