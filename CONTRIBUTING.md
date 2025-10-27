@@ -6,6 +6,7 @@ We'd love for you to contribute and welcome your help. Here are some guidelines 
 - [Submitting a fix](#submitting)
 - [Feature Requests](#features)
 - [Questions](#questions)
+- [Developer Certificate of Origin (DCO)](#dco)
 
 ## <a name="issue"></a> Did you find a issue?
 
@@ -99,7 +100,8 @@ That's it! Thank you for your contribution!
 
 * Ask any question about the code or how to use Solace technologies in the [Solace community](https://solace.community).
 
-## Developer Certificate of Origin
+## <a name="dco"></a> Developer Certificate of Origin
+
 Any contributions must only contain code that can legally be contributed to Solace Agent Mesh, and which the Solace Agent Mesh project can distribute under its license.
 
 Prior to contributing:
