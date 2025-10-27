@@ -6,6 +6,8 @@ into appropriate HTTP responses with consistent formatting. These handlers
 can be used by any FastAPI application for uniform error handling.
 """
 
+import logging
+
 from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -23,6 +25,8 @@ from .exceptions import (
     ExternalServiceError,
 )
 from .error_dto import EventErrorDTO
+
+log = logging.getLogger(__name__)
 
 
 def create_error_response(
@@ -105,9 +109,6 @@ async def webui_backend_exception_handler(
     request: Request, exc: WebUIBackendException
 ) -> JSONResponse:
     """Handle generic WebUI backend exceptions - 500 Internal Server Error."""
-    import logging
-    log = logging.getLogger(__name__)
-
     log.error(
         f"WebUIBackendException: {exc.message}",
         extra={
