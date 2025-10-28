@@ -151,7 +151,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 markArtifactAsDisplayed(artifact.filename, false);
             }
         };
-    }, [shouldRender, artifact?.filename, markArtifactAsDisplayed]); // Only depend on filename, not the whole artifact object
+    }, [shouldRender, artifact, markArtifactAsDisplayed]);
 
     // Check if we should render content inline (for images and audio)
     const shouldRenderInline = useMemo(() => {

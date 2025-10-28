@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
+import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 
@@ -1356,7 +1357,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     : artifact
             );
         });
-    }, []); // setArtifacts is stable from useState, no dependencies needed
+    }, [setArtifacts]);
 
     const openSessionDeleteModal = useCallback((session: Session) => {
         setSessionToDelete(session);
