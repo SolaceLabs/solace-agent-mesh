@@ -115,6 +115,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.ssl_keyfile = self.get_config("ssl_keyfile", "")
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
+            self.model_config = self.get_config("model", None)
 
             log.info(
                 "%s WebUI-specific configuration retrieved (Host: %s, Port: %d).",
