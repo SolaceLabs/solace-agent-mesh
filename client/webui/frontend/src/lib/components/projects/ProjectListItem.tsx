@@ -20,7 +20,7 @@ export const ProjectListItem: React.FC<ProjectListItemProps> = ({ project, isSel
     return (
         <div
             className={`
-                group cursor-pointer px-4 py-3 transition-colors
+                group cursor-pointer px-4 py-2 transition-colors
                 hover:bg-accent/50
                 ${isSelected ? "bg-accent" : ""}
             `}

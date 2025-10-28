@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, ExternalLink } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
@@ -359,12 +359,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                 {session.projectName && (
                                                     <Badge
                                                         variant="outline"
-                                                        className="max-w-[120px] text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm justify-start flex-shrink-0 cursor-pointer hover:bg-primary/20 transition-colors"
-                                                        title="Go to Project"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleGoToProject(session);
-                                                        }}
+                                                        className="max-w-[120px] text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm justify-start flex-shrink-0"
                                                     >
                                                         <span className="truncate block">{session.projectName}</span>
                                                     </Badge>
@@ -393,7 +388,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     {session.projectId && (
                                                         <>
                                                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleGoToProject(session); }}>
-                                                                <ExternalLink size={16} className="mr-2" />
+                                                                <PanelsTopLeft size={16} className="mr-2" />
                                                                 Go to Project
                                                             </DropdownMenuItem>
                                                             <DropdownMenuSeparator />
@@ -405,9 +400,10 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveClick(session); }}>
                                                         <FolderInput size={16} className="mr-2" />
-                                                        Move to project
+                                                        Move to Project
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteClick(session); }} className="text-destructive focus:text-destructive">
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteClick(session); }}>
                                                         <Trash2 size={16} className="mr-2" />
                                                         Delete
                                                     </DropdownMenuItem>

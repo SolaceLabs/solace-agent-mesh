@@ -51,7 +51,7 @@ export const ProjectListSidebar: React.FC<ProjectListSidebarProps> = ({
     return (
         <div className="flex h-full flex-col bg-background border-r">
             {/* Project List */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto py-6 pl-6">
                 {isLoading && (
                     <div className="flex items-center justify-center p-8">
                         <Spinner size="small" />
