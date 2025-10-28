@@ -453,17 +453,32 @@ def _run_enterprise_migrations(
         raise RuntimeError(f"Enterprise database migration failed: {e}") from e
 
 
-def _setup_database(component: "WebUIBackendComponent", database_url: str) -> None:
+def _setup_database(
+    component: "WebUIBackendComponent",
+    database_url: str,
+    platform_database_url: str = None
+) -> None:
     """
-    Initialize database connection and run all required migrations.
-    This sets up both community and enterprise database schemas.
+    Initialize database connections and run all required migrations.
+    Sets up both runtime and platform database schemas.
+
+    Args:
+        component: WebUIBackendComponent instance
+        database_url: Runtime database URL (sessions, tasks, chat) - REQUIRED
+        platform_database_url: Platform database URL (agents, connectors, deployments).
+                                If None, platform features will be unavailable.
     """
     dependencies.init_database(database_url)
     log.info("Persistence enabled - sessions will be stored in database")
     log.info("Running database migrations...")
 
     _run_community_migrations(database_url)
-    _run_enterprise_migrations(component, database_url)
+
+    if platform_database_url:
+        log.info("Platform database configured - running migrations")
+        _run_enterprise_migrations(component, platform_database_url)
+    else:
+        log.info("No platform database configured - skipping platform migrations")
 
 
 def _get_app_config(component: "WebUIBackendComponent") -> dict:
@@ -498,12 +513,20 @@ def _create_api_config(app_config: dict, database_url: str) -> dict:
     }
 
 
-def setup_dependencies(component: "WebUIBackendComponent", database_url: str = None):
+def setup_dependencies(
+    component: "WebUIBackendComponent",
+    database_url: str = None,
+    platform_database_url: str = None
+):
     """
-    This function initializes the simplified architecture while maintaining full
-    backward compatibility with existing API contracts.
+    Initialize dependencies for both runtime and platform databases.
 
-    If database_url is None, runs in compatibility mode with in-memory sessions.
+    Args:
+        component: WebUIBackendComponent instance
+        database_url: Runtime database URL (sessions, tasks, chat).
+                     If None, runs in compatibility mode with in-memory sessions.
+        platform_database_url: Platform database URL (agents, connectors, deployments).
+                                If None, platform features will be unavailable (returns 501).
 
     This function is idempotent and safe to call multiple times.
     """
@@ -516,7 +539,7 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
     dependencies.set_component_instance(component)
 
     if database_url:
-        _setup_database(component, database_url)
+        _setup_database(component, database_url, platform_database_url)
     else:
         log.warning(
             "No database URL provided - using in-memory session storage (data not persisted across restarts)"
