@@ -1,44 +1,116 @@
 """
 Custom MCPToolset that resolves embeds in tool parameters before calling MCP tools.
+
+This module uses dynamic inheritance to support both standard and enterprise MCP tools:
+- Standard mode: Inherits from MCPTool and MCPToolset (Google ADK)
+- Enterprise mode: Inherits from McpToolWithManifest and McpToolsetWithManifest
+  (adds manifest support and tool_config parameter)
+
+The base class is determined at import time based on enterprise package availability.
 """
 
 import logging
-import asyncio
-from typing import Dict, List, Optional, Any
+from typing import Any
 
-from google.adk.tools.mcp_tool import MCPToolset, MCPTool
-from google.adk.tools.mcp_tool.mcp_session_manager import (
-    SseConnectionParams,
-    StdioConnectionParams,
-    StreamableHTTPConnectionParams,
-)
+from google.adk.auth.credential_manager import CredentialManager
+from google.adk.tools.mcp_tool import MCPTool, MCPToolset
 from google.adk.tools.tool_context import ToolContext
 
-
-from ..utils.context_helpers import get_original_session_id
 from ...common.utils.embeds import (
-    resolve_embeds_in_string,
-    evaluate_embed,
     EARLY_EMBED_TYPES,
-    LATE_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
+    LATE_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_in_string,
 )
+from ..utils.context_helpers import get_original_session_id
 
 log = logging.getLogger(__name__)
 
-class EmbedResolvingMCPTool(MCPTool):
+def _get_base_mcp_toolset_class() -> tuple[type[MCPToolset], bool]:
+    """
+    Factory function to determine which base MCP toolset class to use for inheritance.
+
+    Tries to import McpToolsetWithManifest from solace_agent_mesh_enterprise.common
+    and returns it if available. Falls back to base MCPToolset if not available.
+
+    Returns:
+        Tuple of (class, supports_tool_config_flag) where:
+        - class: The base MCPToolset class to inherit from
+        - supports_tool_config_flag: Whether the class supports tool_config parameter
+    """
+    try:
+        from solace_agent_mesh_enterprise.auth.mcp_toolset_with_manifest import (
+            McpToolsetWithManifest,
+        )
+
+        return (McpToolsetWithManifest, True)
+    except ImportError:
+        return (MCPToolset, False)
+
+
+def _get_base_mcp_tool_class() -> tuple[type[MCPTool], bool]:
+    """
+    Factory function to determine which base MCP tool class to use for inheritance.
+
+    Tries to import McpToolWithManifest from solace_agent_mesh_enterprise.common
+    and returns it if available. Falls back to base MCPTool if not available.
+
+    Returns:
+        Tuple of (class, supports_tool_config_flag) where:
+        - class: The base MCPTool class to inherit from
+        - supports_tool_config_flag: Whether the class supports tool_config parameter
+    """
+    try:
+        from solace_agent_mesh_enterprise.auth.mcp_toolset_with_manifest import (
+            McpToolWithManifest,
+        )
+
+        return (McpToolWithManifest, True)
+    except ImportError:
+        return (MCPTool, False)
+
+
+# Get the base tool class to use for inheritance
+_BaseMcpToolClass, _base_supports_tool_config = _get_base_mcp_tool_class()
+
+
+class EmbedResolvingMCPTool(_BaseMcpToolClass):
     """
     Custom MCPTool that resolves embeds in parameters before calling the actual MCP tool.
+    Uses dynamic inheritance to conditionally inherit from McpToolWithManifest when available,
+    falling back to the standard MCPTool base class.
     """
 
-    def __init__(self, original_mcp_tool: MCPTool, tool_config: Optional[Dict] = None):
+    def __init__(
+        self,
+        original_mcp_tool: MCPTool,
+        tool_config: dict | None = None,
+        credential_manager: CredentialManager | None = None,
+    ):
         # Copy all attributes from the original tool
-        super().__init__(
-            mcp_tool=original_mcp_tool._mcp_tool,
-            mcp_session_manager=original_mcp_tool._mcp_session_manager,
-            auth_scheme=getattr(original_mcp_tool, "_auth_scheme", None),
-            auth_credential=getattr(original_mcp_tool, "_auth_credential", None),
-        )
+        if _base_supports_tool_config:
+            super().__init__(
+                mcp_tool=original_mcp_tool._mcp_tool,
+                mcp_session_manager=original_mcp_tool._mcp_session_manager,
+                auth_scheme=getattr(original_mcp_tool._mcp_tool, "auth_scheme", None),
+                auth_credential=getattr(
+                    original_mcp_tool._mcp_tool, "auth_credential", None
+                ),
+                auth_discovery=getattr(
+                    original_mcp_tool._mcp_tool, "auth_discovery", None
+                ),
+                credential_manager=credential_manager,
+            )
+        else:
+            super().__init__(
+                mcp_tool=original_mcp_tool._mcp_tool,
+                mcp_session_manager=original_mcp_tool._mcp_session_manager,
+                auth_scheme=getattr(original_mcp_tool._mcp_tool, "auth_scheme", None),
+                auth_credential=getattr(
+                    original_mcp_tool._mcp_tool, "auth_credential", None
+                ),
+            )
         self._original_mcp_tool = original_mcp_tool
         self._tool_config = tool_config or {}
 
@@ -254,9 +326,15 @@ class EmbedResolvingMCPTool(MCPTool):
         )
 
 
-class EmbedResolvingMCPToolset(MCPToolset):
+# Get the base toolset class to use for inheritance
+_BaseMcpToolsetClass, _base_toolset_supports_tool_config = _get_base_mcp_toolset_class()
+
+
+class EmbedResolvingMCPToolset(_BaseMcpToolsetClass):
     """
     Custom MCPToolset that creates EmbedResolvingMCPTool instances for embed resolution.
+    Uses dynamic inheritance to conditionally inherit from McpToolsetWithManifest when available,
+    falling back to the standard MCPToolset base class.
     """
 
     def __init__(
@@ -265,20 +343,43 @@ class EmbedResolvingMCPToolset(MCPToolset):
         tool_filter=None,
         auth_scheme=None,
         auth_credential=None,
-        tool_config: Optional[Dict] = None,
+        auth_discovery=None,
+        tool_config: dict | None = None,
+        credential_manager: CredentialManager | None = None,
     ):
-        super().__init__(
-            connection_params=connection_params,
-            tool_filter=tool_filter,
-            auth_scheme=auth_scheme,
-            auth_credential=auth_credential,
-        )
+        # Store tool_config for later use
         self._tool_config = tool_config or {}
 
-    async def get_tools(self, readonly_context=None) -> List[MCPTool]:
+        # Initialize base class with appropriate parameters
+        if _base_toolset_supports_tool_config:
+            super().__init__(
+                connection_params=connection_params,
+                tool_filter=tool_filter,
+                auth_scheme=auth_scheme,
+                auth_credential=auth_credential,
+                auth_discovery=auth_discovery,
+                tool_config=tool_config,
+            )
+        else:
+            # Base MCPToolset doesn't support tool_config parameter
+            super().__init__(
+                connection_params=connection_params,
+                tool_filter=tool_filter,
+                auth_scheme=auth_scheme,
+                auth_credential=auth_credential,
+            )
+
+        self._tool_cache = []
+        self._credential_manager = credential_manager
+
+    async def get_tools(self, readonly_context=None) -> list[MCPTool]:
         """
         Override get_tools to return EmbedResolvingMCPTool instances.
         """
+
+        if self._tool_cache:
+            return self._tool_cache
+
         # Get the original tools from the parent class
         original_tools = await super().get_tools(readonly_context)
 
@@ -294,7 +395,10 @@ class EmbedResolvingMCPToolset(MCPToolset):
             embed_resolving_tool = EmbedResolvingMCPTool(
                 original_mcp_tool=tool,
                 tool_config=tool_specific_config,
+                credential_manager=self._credential_manager,
             )
             embed_resolving_tools.append(embed_resolving_tool)
 
+        self._tool_cache = embed_resolving_tools
         return embed_resolving_tools
+

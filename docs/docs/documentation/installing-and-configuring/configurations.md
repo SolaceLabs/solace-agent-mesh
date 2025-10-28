@@ -206,9 +206,3 @@ Result preview settings control how much data agents display when showing query 
 | `sqlite_memory_threshold_mb` | `integer` | The memory threshold in megabytes for using an in-memory SQLite database. | `100` |
 | `max_result_preview_rows` | `integer` | The maximum number of rows to show in a result preview. | `50` |
 | `max_result_preview_bytes` | `integer` | The maximum number of bytes to show in a result preview. | `4096` |
-
-## System Logging
-
-System logging configuration controls how Agent Mesh records operational information, errors, and debugging details. Proper logging configuration helps with troubleshooting, monitoring, and maintaining your agent deployments.
-
-For information about configuring log rotation, verbosity levels, and log formatting options, see [System Logs](../deploying/debugging.md#system-logs).
