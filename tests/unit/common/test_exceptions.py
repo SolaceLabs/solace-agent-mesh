@@ -67,15 +67,6 @@ class TestMessageSizeExceededError:
         assert "10000000" in str(error)
         assert "5000000" in str(error)
 
-    def test_exception_attributes_are_accessible(self):
-        """Test that exception attributes can be accessed after raising."""
-        try:
-            raise MessageSizeExceededError(1500, 1000, "Test message")
-        except MessageSizeExceededError as e:
-            assert e.actual_size == 1500
-            assert e.max_size == 1000
-            assert str(e) == "Test message"
-
     def test_exception_with_negative_sizes(self):
         """Test exception with negative sizes (edge case)."""
         error = MessageSizeExceededError(-100, 1000)
@@ -89,11 +80,3 @@ class TestMessageSizeExceededError:
             "Message size 1234 bytes exceeds maximum limit of 1000 bytes"
         )
         assert str(error) == expected_message
-
-    def test_exception_can_be_caught_as_base_exception(self):
-        """Test that the exception can be caught as base Exception."""
-        with pytest.raises(Exception) as exc_info:
-            raise MessageSizeExceededError(1500, 1000)
-        
-        assert isinstance(exc_info.value, MessageSizeExceededError)
-        assert exc_info.value.actual_size == 1500

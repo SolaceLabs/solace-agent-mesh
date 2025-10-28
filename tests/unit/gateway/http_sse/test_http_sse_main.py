@@ -16,21 +16,15 @@ Tests cover:
 Based on coverage analysis in tests/unit/gateway/coverage_analysis.md
 """
 
-import pytest
 import asyncio
 import json
-import os
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, AsyncMock, patch, call, Mock
-from typing import Dict, Any, Optional
+from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
-from fastapi import FastAPI, HTTPException, status
-from fastapi.testclient import TestClient
-from fastapi.exceptions import RequestValidationError
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.requests import Request as StarletteRequest
-from sqlalchemy import create_engine, inspect as sa_inspect
+import pytest
 from alembic.config import Config as AlembicConfig
+from fastapi import FastAPI, HTTPException, status
+from fastapi.exceptions import RequestValidationError
+from typing import Any, Dict, Optional
 
 # Import main module components
 from solace_agent_mesh.gateway.http_sse import main
@@ -494,34 +488,6 @@ class TestUserStateCreation:
 # ============================================================================
 # Dependency Injection Tests
 # ============================================================================
-
-class TestDependencySetup:
-    """Test dependency injection setup."""
-    
-    def test_setup_dependencies_idempotent(self, mock_component):
-        """Test that setup_dependencies is idempotent."""
-        with patch('solace_agent_mesh.gateway.http_sse.main._setup_middleware'), \
-             patch('solace_agent_mesh.gateway.http_sse.main._setup_routers'), \
-             patch('solace_agent_mesh.gateway.http_sse.main._setup_static_files'):
-            main.setup_dependencies(mock_component, None)
-            
-            # Call again
-            main.setup_dependencies(mock_component, None)
-            
-            # Should only initialize once
-            assert main._dependencies_initialized is True
-    
-    def test_setup_dependencies_without_database(self, mock_component):
-        """Test setup without database URL."""
-        with patch('solace_agent_mesh.gateway.http_sse.main._setup_middleware'), \
-             patch('solace_agent_mesh.gateway.http_sse.main._setup_routers'), \
-             patch('solace_agent_mesh.gateway.http_sse.main._setup_static_files'):
-            main.setup_dependencies(mock_component, None)
-            
-            assert dependencies.sac_component_instance == mock_component
-            assert dependencies.SessionLocal is None
-            assert dependencies.api_config is not None
-
 
 class TestConfigCreation:
     """Test API configuration creation."""

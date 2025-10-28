@@ -4,9 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
 from google.adk.models.llm_request import LlmRequest
-from google.adk.models.llm_response import LlmResponse
 
 from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
 from solace_agent_mesh.common.utils.in_memory_cache import InMemoryCache
@@ -44,32 +42,6 @@ def mock_token_response():
         "token_type": "Bearer",
         "expires_in": 3600,
         "scope": "llm.read llm.write",
-    }
-
-
-@pytest.fixture
-def mock_llm_response():
-    """Mock LLM completion response."""
-    return {
-        "id": "chatcmpl-test123",
-        "object": "chat.completion",
-        "created": 1234567890,
-        "model": "test-model",
-        "choices": [
-            {
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": "Hello! How can I help you today?",
-                },
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 10,
-            "completion_tokens": 8,
-            "total_tokens": 18,
-        },
     }
 
 
@@ -125,7 +97,7 @@ class TestOAuthLLMIntegration:
 
     @pytest.mark.asyncio
     async def test_oauth_token_injection_in_requests(
-        self, oauth_config, mock_token_response, mock_llm_response, sample_llm_request
+        self, oauth_config, mock_token_response, sample_llm_request
     ):
         """Test that OAuth tokens are properly injected into LLM requests."""
         llm = LiteLlm(**oauth_config)
@@ -169,7 +141,7 @@ class TestOAuthLLMIntegration:
 
     @pytest.mark.asyncio
     async def test_fallback_to_api_key_on_oauth_failure(
-        self, mock_llm_response, sample_llm_request
+        self, sample_llm_request
     ):
         """Test graceful fallback to API key when OAuth fails."""
         # Configuration with both OAuth and API key
@@ -219,7 +191,7 @@ class TestOAuthLLMIntegration:
 
     @pytest.mark.asyncio
     async def test_multiple_llm_requests_with_token_reuse(
-        self, oauth_config, mock_token_response, mock_llm_response, sample_llm_request
+        self, oauth_config, mock_token_response, sample_llm_request
     ):
         """Test that multiple LLM requests reuse cached OAuth tokens."""
         llm = LiteLlm(**oauth_config)

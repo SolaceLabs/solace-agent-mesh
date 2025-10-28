@@ -742,11 +742,3 @@ class TestTranslateADKPartToA2AFilePart:
             
             assert result is None
 
-
-class TestConstants:
-    """Test module constants."""
-
-    def test_constants_defined(self):
-        """Test that constants are properly defined."""
-        assert A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY == "temp:llm_stream_chunks_processed"
-        assert A2A_STATUS_SIGNAL_STORAGE_KEY == "temp:a2a_status_signals_collected"

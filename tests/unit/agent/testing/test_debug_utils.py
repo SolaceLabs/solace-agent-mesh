@@ -10,8 +10,6 @@ Tests the debugging utilities for the declarative test framework including:
 - Edge cases and error conditions
 """
 
-import json
-from io import StringIO
 from unittest.mock import patch
 import pytest
 
@@ -475,14 +473,10 @@ class TestPrettyPrintEventHistory:
         ]
         
         with patch('builtins.print') as mock_print:
-            # Should not raise exceptions - but it does, so let's catch it
-            try:
+            with pytest.raises(AttributeError):
                 pretty_print_event_history(events, max_string_length=100)
-            except AttributeError:
-                # Expected due to None payload
-                pass
             
-            # Just verify that print was called
+            # Verify that print was called before the exception
             assert mock_print.called
 
     def test_pretty_print_event_with_missing_message_parts(self):

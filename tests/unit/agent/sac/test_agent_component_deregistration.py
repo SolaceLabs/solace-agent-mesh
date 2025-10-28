@@ -60,7 +60,6 @@ class TestSamAgentComponentDeregistration(unittest.TestCase):
     def test_check_agent_health_no_expired_agents(self):
         """Test _check_agent_health when no agents have expired TTLs."""
         # Set up
-        self.component._check_agent_health = SamAgentComponent._check_agent_health.__get__(self.component)
         self.component._deregister_agent = MagicMock()
         self.component.agent_discovery_config = {
             "health_check_ttl_seconds": 300,  # 5 minutes
@@ -68,7 +67,7 @@ class TestSamAgentComponentDeregistration(unittest.TestCase):
         }
         
         # Execute
-        self.component._check_agent_health()
+        SamAgentComponent._check_agent_health(self.component)
         
         # Verify
         self.component._deregister_agent.assert_not_called()
@@ -78,7 +77,6 @@ class TestSamAgentComponentDeregistration(unittest.TestCase):
     def test_check_agent_health_with_expired_agents(self):
         """Test _check_agent_health when some agents have expired TTLs."""
         # Set up
-        self.component._check_agent_health = SamAgentComponent._check_agent_health.__get__(self.component)
         self.component._deregister_agent = MagicMock()
         self.component.agent_discovery_config = {
             "health_check_ttl_seconds": 10,  # 10 seconds
@@ -90,19 +88,16 @@ class TestSamAgentComponentDeregistration(unittest.TestCase):
         self.agent_registry.check_ttl_expired.side_effect = lambda agent_name, ttl: (True, 20) if agent_name == "agent1" else (False, 0)
         
         # Execute
-        self.component._check_agent_health()
+        SamAgentComponent._check_agent_health(self.component)
         
         # Verify
         self.component._deregister_agent.assert_called_once_with("agent1")
 
     def test_deregister_agent(self):
         """Test _deregister_agent removes the agent and publishes an event."""
-        # Set up
-        self.component._deregister_agent = SamAgentComponent._deregister_agent.__get__(self.component)
-        
         # Execute
-        self.component._deregister_agent("agent1")
-        
+        SamAgentComponent._deregister_agent(self.component, "agent1")
+
         # Verify
         # Agent should be removed from registry
         self.assertNotIn("agent1", self.agent_registry.get_agent_names())
@@ -110,39 +105,23 @@ class TestSamAgentComponentDeregistration(unittest.TestCase):
         self.assertNotIn("agent1", self.component.peer_agents)
         # De-registration event should be published
         self.component.publish_a2a_message.assert_called_once()
-        
-        # Get the arguments that publish_a2a_message was called with
-        call_args = self.component.publish_a2a_message.call_args
-        
-        # Check if the call was made with keyword arguments
-        if call_args[1]:  # kwargs present
-            payload = call_args[1].get('payload')
-        else:  # positional args
-            # Only try to access args if they exist
-            args = call_args[0] if call_args[0] else ()
-            payload = args[0] if len(args) > 0 else None
-        
-        # Verify payload contents - only check if payload is available
-        if payload:
-            self.assertEqual(payload.get("event_type"), "agent.deregistered")
-            self.assertEqual(payload.get("agent_name"), "agent1")
-            self.assertEqual(payload.get("reason"), "health_check_failure")
-            
-            # Check metadata if it exists
-            metadata = payload.get("metadata", {})
-            if "timestamp" in metadata:
-                # If timestamp exists, verify it
-                self.assertIsNotNone(metadata.get("timestamp"))
-            
-            self.assertEqual(metadata.get("deregistered_by"), "test_agent")
+
+        # Verify payload contents
+        # The IndexError indicates the payload is not a positional argument.
+        # We assume it's passed as a keyword argument, likely 'payload'.
+        _, kwargs = self.component.publish_a2a_message.call_args
+        payload = kwargs['payload']
+        self.assertEqual(payload["event_type"], "agent.deregistered")
+        self.assertEqual(payload["agent_name"], "agent1")
+        self.assertEqual(payload["reason"], "health_check_failure")
+        self.assertIn("metadata", payload)
+        self.assertEqual(payload["metadata"]["deregistered_by"], "test_agent")
+        self.assertIn("timestamp", payload["metadata"])
 
     def test_deregister_nonexistent_agent(self):
         """Test _deregister_agent with a non-existent agent."""
-        # Set up
-        self.component._deregister_agent = SamAgentComponent._deregister_agent.__get__(self.component)
-        
         # Execute
-        self.component._deregister_agent("nonexistent_agent")
+        SamAgentComponent._deregister_agent(self.component, "nonexistent_agent")
         
         # Verify
         # Registry should remain unchanged
@@ -155,7 +134,6 @@ class TestSamAgentComponentDeregistration(unittest.TestCase):
     def test_check_agent_health_skips_own_agent(self):
         """Test _check_agent_health skips the component's own agent name."""
         # Set up
-        self.component._check_agent_health = SamAgentComponent._check_agent_health.__get__(self.component)
         self.component._deregister_agent = MagicMock()
         self.component.agent_discovery_config = {
             "health_check_ttl_seconds": 10,
@@ -180,7 +158,7 @@ class TestSamAgentComponentDeregistration(unittest.TestCase):
         self.agent_registry.check_ttl_expired.return_value = (True, 20)  # All agents expired
         
         # Execute
-        self.component._check_agent_health()
+        SamAgentComponent._check_agent_health(self.component)
         
         # Verify
         # Should call _deregister_agent for agent1 and agent2, but not for test_agent
@@ -192,6 +170,3 @@ class TestSamAgentComponentDeregistration(unittest.TestCase):
         calls = [call[0][0] for call in self.component._deregister_agent.call_args_list]
         self.assertNotIn("test_agent", calls)
 
-
-if __name__ == "__main__":
-    unittest.main()

@@ -31,7 +31,3 @@ class TestInitializeBasicFunctionality:
             assert True  # If we get here, no exception was raised
         except Exception as e:
             pytest.fail(f"Multiple initialize() calls raised an exception: {e}")
-
-    def test_initialize_is_callable(self):
-        """Test that initialize is a callable function"""
-        assert callable(initialize)

@@ -5,21 +5,13 @@ Tests cover filename validation, URI handling, schema inference, metadata proces
 """
 
 import pytest
-import asyncio
 import json
-import uuid
-import tempfile
-import os
-import yaml
 import base64
-import binascii
-from unittest.mock import Mock, AsyncMock, patch, MagicMock, call, mock_open
+import yaml
+from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from pathlib import Path
-from google.genai import types as adk_types
-from google.adk.artifacts import BaseArtifactService
 
+from solace_agent_mesh.agent.adk.services import BaseArtifactService
 from solace_agent_mesh.agent.utils.artifact_helpers import (
     is_filename_safe,
     ensure_correct_extension,
@@ -30,15 +22,11 @@ from solace_agent_mesh.agent.utils.artifact_helpers import (
     save_artifact_with_metadata,
     process_artifact_upload,
     format_metadata_for_llm,
-    generate_artifact_metadata_summary,
     decode_and_get_bytes,
     get_latest_artifact_version,
-    get_artifact_info_list,
     load_artifact_content_or_metadata,
-    METADATA_SUFFIX,
     DEFAULT_SCHEMA_MAX_KEYS,
 )
-from solace_agent_mesh.common.a2a.types import ArtifactInfo
 
 
 class TestIsFilenameSafe:
@@ -438,7 +426,6 @@ class TestSaveArtifactWithMetadata:
         """Test saving artifact with explicit schema."""
         content_bytes = b'{"name": "test"}'
         explicit_schema = {"type": "object", "properties": {"name": {"type": "string"}}}
-        timestamp = datetime.now(timezone.utc)
         
         result = await save_artifact_with_metadata(
             artifact_service=mock_artifact_service,
@@ -449,7 +436,7 @@ class TestSaveArtifactWithMetadata:
             content_bytes=content_bytes,
             mime_type="application/json",
             metadata_dict={},
-            timestamp=timestamp,
+            timestamp=datetime.now(timezone.utc),
             explicit_schema=explicit_schema
         )
         
@@ -469,7 +456,6 @@ class TestSaveArtifactWithMetadata:
         mock_artifact_service.save_artifact.side_effect = Exception("Save failed")
         
         content_bytes = b"Test content"
-        timestamp = datetime.now(timezone.utc)
         
         result = await save_artifact_with_metadata(
             artifact_service=mock_artifact_service,
@@ -480,7 +466,7 @@ class TestSaveArtifactWithMetadata:
             content_bytes=content_bytes,
             mime_type="text/plain",
             metadata_dict={},
-            timestamp=timestamp
+            timestamp=datetime.now(timezone.utc)
         )
         
         assert result["status"] == "error"
@@ -494,7 +480,6 @@ class TestSaveArtifactWithMetadata:
         mock_artifact_service.save_artifact.side_effect = [1, Exception("Metadata save failed")]
         
         content_bytes = b"Test content"
-        timestamp = datetime.now(timezone.utc)
         
         result = await save_artifact_with_metadata(
             artifact_service=mock_artifact_service,
@@ -505,7 +490,7 @@ class TestSaveArtifactWithMetadata:
             content_bytes=content_bytes,
             mime_type="text/plain",
             metadata_dict={},
-            timestamp=timestamp
+            timestamp=datetime.now(timezone.utc)
         )
         
         assert result["status"] == "partial_success"

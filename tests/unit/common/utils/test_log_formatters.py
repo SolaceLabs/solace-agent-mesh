@@ -408,20 +408,6 @@ class TestDatadogJsonFormatterEdgeCases:
         assert log_data["code.module"] is None
         assert log_data["code.funcName"] is None
 
-    def test_format_preserves_json_structure(self, formatter, sample_log_record):
-        """Test that formatted output maintains valid JSON structure"""
-        formatted = formatter.format(sample_log_record)
-        
-        # Should be valid JSON
-        log_data = json.loads(formatted)
-        
-        # Should be able to serialize back to JSON
-        re_serialized = json.dumps(log_data)
-        assert isinstance(re_serialized, str)
-        
-        # Should be able to parse the re-serialized JSON
-        re_parsed = json.loads(re_serialized)
-        assert re_parsed == log_data
 
     def test_format_consistent_field_names(self, formatter, sample_log_record):
         """Test that field names are consistent with Datadog conventions"""

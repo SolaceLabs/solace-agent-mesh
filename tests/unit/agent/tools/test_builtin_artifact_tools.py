@@ -6,8 +6,8 @@ signaling, extraction, deletion, and updates.
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
 import json
+from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timezone
 
 from solace_agent_mesh.agent.tools.builtin_artifact_tools import (
@@ -361,18 +361,16 @@ class TestExtractContentFromArtifact:
             }
             mock_session.return_value = "session123"
             
-            # Since the function has complex LLM validation, we'll just test that it attempts to load
-            try:
-                result = await extract_content_from_artifact(
+            # The function has complex LLM validation, so we'll just test that it attempts to load
+            # the artifact. The LLM interaction part is tested in integration tests.
+            with pytest.raises(Exception):
+                await extract_content_from_artifact(
                     filename="test.txt",
                     extraction_goal="Extract key points",
                     tool_context=mock_tool_context
                 )
-            except Exception:
-                # Expected due to complex LLM setup, but we verify the load was attempted
-                pass
             
-            # The function should attempt to load the artifact
+            # The function should attempt to load the artifact before calling the LLM
             mock_load.assert_called_once()
 
     @pytest.mark.asyncio

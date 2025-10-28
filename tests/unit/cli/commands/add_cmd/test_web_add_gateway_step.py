@@ -11,9 +11,8 @@ Tests the web-based gateway addition functionality including:
 
 import multiprocessing
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 import pytest
-from click.testing import CliRunner
 
 from cli.commands.add_cmd.web_add_gateway_step import launch_add_gateway_web_portal
 

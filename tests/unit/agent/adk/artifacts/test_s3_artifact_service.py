@@ -15,9 +15,8 @@ Tests the S3ArtifactService implementation including:
 - Error handling and AWS exceptions
 """
 
-import asyncio
 import unicodedata
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from unittest.mock import Mock, patch
 import pytest
 from botocore.exceptions import ClientError, BotoCoreError, NoCredentialsError
 
@@ -257,36 +256,20 @@ class TestS3ArtifactServiceSaveArtifact:
         assert call_args[1]['Key'] == 'test_app/user1/user/document.txt/0'
 
     @pytest.mark.asyncio
-    async def test_save_artifact_no_inline_data(self, mock_s3_client):
-        """Test saving artifact with no inline data raises ValueError"""
+    @pytest.mark.parametrize("artifact_mock", [
+        Mock(inline_data=None),
+        Mock(inline_data=Mock(data=None))
+    ])
+    async def test_save_artifact_no_data(self, mock_s3_client, artifact_mock):
+        """Test saving artifact with no data raises ValueError"""
         service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
-        artifact = Mock()
-        artifact.inline_data = None
-        
         with pytest.raises(ValueError, match="Artifact Part has no inline_data to save"):
             await service.save_artifact(
                 app_name="test_app",
                 user_id="user1",
                 session_id="session1",
                 filename="test.txt",
-                artifact=artifact
-            )
-
-    @pytest.mark.asyncio
-    async def test_save_artifact_no_data_in_inline_data(self, mock_s3_client):
-        """Test saving artifact with None data in inline_data raises ValueError"""
-        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
-        artifact = Mock()
-        artifact.inline_data = Mock()
-        artifact.inline_data.data = None
-        
-        with pytest.raises(ValueError, match="Artifact Part has no inline_data to save"):
-            await service.save_artifact(
-                app_name="test_app",
-                user_id="user1",
-                session_id="session1",
-                filename="test.txt",
-                artifact=artifact
+                artifact=artifact_mock
             )
 
     @pytest.mark.asyncio

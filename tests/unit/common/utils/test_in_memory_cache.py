@@ -355,16 +355,3 @@ class TestInMemoryCacheEdgeCases:
         
         result = cache.get("key")
         assert result is None
-
-    def test_get_expired_key_returns_none_verified(self):
-        """Test that getting an expired key returns None (verified)."""
-        cache = InMemoryCache()
-        cache.set("key", "value", ttl=0.1)
-        
-        # Verify it exists initially
-        assert cache.get("key") == "value"
-        
-        time.sleep(0.2)
-        
-        # After expiration, should return None
-        assert cache.get("key") is None

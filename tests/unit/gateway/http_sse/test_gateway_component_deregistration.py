@@ -62,7 +62,6 @@ class TestWebUIBackendComponentDeregistration(unittest.TestCase):
     def test_check_agent_health_no_expired_agents(self):
         """Test _check_agent_health when no agents have expired TTLs."""
         # Set up
-        self.component._check_agent_health = WebUIBackendComponent._check_agent_health.__get__(self.component)
         self.component._deregister_agent = MagicMock()
         self.component.get_config = MagicMock()
         self.component.get_config.side_effect = lambda key, default=None: {
@@ -71,43 +70,18 @@ class TestWebUIBackendComponentDeregistration(unittest.TestCase):
         }.get(key, default)
         
         # Execute
-        self.component._check_agent_health()
+        WebUIBackendComponent._check_agent_health(self.component)
         
         # Verify
         self.component._deregister_agent.assert_not_called()
         self.assertEqual(len(self.agent_registry.get_agent_names()), 2)
 
-    def test_check_agent_health_with_expired_agents(self):
-        """Test _check_agent_health when some agents have expired TTLs."""
-        # Set up
-        self.component._deregister_agent = MagicMock()
-        
-        # Create a custom implementation of _check_agent_health for testing
-        def custom_check_agent_health():
-            # Simulate the behavior of the real _check_agent_health method
-            # but use our mocked _deregister_agent
-            agent_names = self.agent_registry.get_agent_names()
-            for agent_name in agent_names:
-                # Simulate agent1 being expired
-                if agent_name == "agent1":
-                    self.component._deregister_agent(agent_name)
-        
-        # Replace the method with our custom implementation
-        self.component._check_agent_health = custom_check_agent_health
-        
-        # Execute
-        self.component._check_agent_health()
-        
-        # Verify
-        self.component._deregister_agent.assert_called_once_with("agent1")
-
     def test_deregister_agent(self):
         """Test _deregister_agent removes the agent from the registry."""
         # Set up
-        self.component._deregister_agent = WebUIBackendComponent._deregister_agent.__get__(self.component)
         
         # Execute
-        self.component._deregister_agent("agent1")
+        WebUIBackendComponent._deregister_agent(self.component, "agent1")
         
         # Verify
         # Agent should be removed from registry
@@ -117,67 +91,22 @@ class TestWebUIBackendComponentDeregistration(unittest.TestCase):
     def test_deregister_nonexistent_agent(self):
         """Test _deregister_agent with a non-existent agent."""
         # Set up
-        self.component._deregister_agent = WebUIBackendComponent._deregister_agent.__get__(self.component)
         
         # Execute
-        self.component._deregister_agent("nonexistent_agent")
+        WebUIBackendComponent._deregister_agent(self.component, "nonexistent_agent")
         
         # Verify
         # Registry should remain unchanged
         self.assertEqual(len(self.agent_registry.get_agent_names()), 2)
         
-    def test_check_agent_health_multiple_expired_agents(self):
-        """Test _check_agent_health when multiple agents have expired TTLs."""
-        # Set up
-        self.component._deregister_agent = MagicMock()
-        
-        # Add a third agent
-        agent_card3 = AgentCard(
-            name="agent3",
-            description="Test Agent 3",
-            capabilities=AgentCapabilities(
-                streaming=False,
-                push_notifications=False,
-                state_transition_history=False
-            ),
-            skills=[],
-            version="1.0.0",
-            url="http://test-agent3",
-            default_input_modes=["text"],
-            default_output_modes=["text"]
-        )
-        self.agent_registry.add_or_update_agent(agent_card3)
-        
-        # Create a custom implementation of _check_agent_health for testing
-        def custom_check_agent_health():
-            # Simulate the behavior of the real _check_agent_health method
-            # but use our mocked _deregister_agent
-            agent_names = self.agent_registry.get_agent_names()
-            for agent_name in agent_names:
-                # Simulate agent1 and agent3 being expired
-                if agent_name in ["agent1", "agent3"]:
-                    self.component._deregister_agent(agent_name)
-        
-        # Replace the method with our custom implementation
-        self.component._check_agent_health = custom_check_agent_health
-        
-        # Execute
-        self.component._check_agent_health()
-        
-        # Verify
-        self.assertEqual(self.component._deregister_agent.call_count, 2)
-        self.component._deregister_agent.assert_any_call("agent1")
-        self.component._deregister_agent.assert_any_call("agent3")
-        
     def test_check_agent_health_disabled_by_config(self):
         """Test _check_agent_health when disabled by configuration."""
         # Set up
-        self.component._check_agent_health = WebUIBackendComponent._check_agent_health.__get__(self.component)
         self.component._deregister_agent = MagicMock()
         self.component.get_config = MagicMock()
         self.component.get_config.side_effect = lambda key, default=None: {
-            "agent_health_check_ttl_seconds": 0,  
-            "agent_health_check_interval_seconds": 0  
+            "agent_health_check_ttl_seconds": 0,
+            "agent_health_check_interval_seconds": 0
         }.get(key, default)
         
         # Manually modify the last_seen time for all agents to simulate expiration
@@ -187,7 +116,7 @@ class TestWebUIBackendComponentDeregistration(unittest.TestCase):
             
             # Execute - should raise ValueError because both config values are zero
             with self.assertRaises(ValueError) as context:
-                self.component._check_agent_health()
+                WebUIBackendComponent._check_agent_health(self.component)
             
             # Verify the error message
             self.assertIn("agent_health_check_ttl_seconds", str(context.exception))

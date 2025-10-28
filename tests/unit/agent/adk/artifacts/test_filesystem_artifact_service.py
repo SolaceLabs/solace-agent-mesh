@@ -13,14 +13,12 @@ Tests the FilesystemArtifactService implementation including:
 - Error handling and edge cases
 """
 
-import asyncio
 import json
 import os
 import shutil
 import tempfile
 import unicodedata
-from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock, patch
 import pytest
 
 from google.genai import types as adk_types
@@ -230,34 +228,19 @@ class TestFilesystemArtifactServiceSaveArtifact:
         assert artifact_dir == expected_dir
 
     @pytest.mark.asyncio
-    async def test_save_artifact_no_inline_data(self, artifact_service):
-        """Test saving artifact with no inline data raises OSError"""
-        artifact = Mock()
-        artifact.inline_data = None
-        
+    @pytest.mark.parametrize("artifact_mock", [
+        Mock(inline_data=None),
+        Mock(inline_data=Mock(data=None))
+    ])
+    async def test_save_artifact_no_data(self, artifact_service, artifact_mock):
+        """Test saving artifact with no data raises OSError"""
         with pytest.raises(OSError, match="Failed to save artifact version 0: Artifact Part has no inline_data to save"):
             await artifact_service.save_artifact(
                 app_name="test_app",
                 user_id="user1",
                 session_id="session1",
                 filename="test.txt",
-                artifact=artifact
-            )
-
-    @pytest.mark.asyncio
-    async def test_save_artifact_no_data_in_inline_data(self, artifact_service):
-        """Test saving artifact with None data in inline_data raises ValueError"""
-        artifact = Mock()
-        artifact.inline_data = Mock()
-        artifact.inline_data.data = None
-        
-        with pytest.raises(OSError, match="Failed to save artifact version 0: Artifact Part has no inline_data to save"):
-            await artifact_service.save_artifact(
-                app_name="test_app",
-                user_id="user1",
-                session_id="session1",
-                filename="test.txt",
-                artifact=artifact
+                artifact=artifact_mock
             )
 
     @pytest.mark.asyncio

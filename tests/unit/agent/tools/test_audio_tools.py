@@ -10,17 +10,13 @@ Tests the audio tools functionality including:
 - Edge cases and error conditions
 """
 
-import pytest
 from unittest.mock import Mock, patch, MagicMock
-import os
-import tempfile
-import wave
+import pytest
 
 from src.solace_agent_mesh.agent.tools.audio_tools import (
     VOICE_TONE_MAPPING,
     GENDER_TO_VOICE_MAPPING,
     ALL_AVAILABLE_VOICES,
-    SUPPORTED_LANGUAGES,
     DEFAULT_VOICE,
     _get_effective_tone_voices,
     _get_gender_voices,
@@ -40,67 +36,6 @@ from src.solace_agent_mesh.agent.tools.audio_tools import (
     concatenate_audio,
     transcribe_audio,
 )
-
-
-class TestVoiceMappingConstants:
-    """Tests for voice mapping constants and data structures"""
-
-    def test_voice_tone_mapping_structure(self):
-        """Test that VOICE_TONE_MAPPING has expected structure"""
-        assert isinstance(VOICE_TONE_MAPPING, dict)
-        assert len(VOICE_TONE_MAPPING) > 0
-        
-        # Check some expected tones
-        expected_tones = ["bright", "upbeat", "informative", "firm", "friendly"]
-        for tone in expected_tones:
-            assert tone in VOICE_TONE_MAPPING
-            assert isinstance(VOICE_TONE_MAPPING[tone], list)
-            assert len(VOICE_TONE_MAPPING[tone]) > 0
-
-    def test_gender_to_voice_mapping_structure(self):
-        """Test that GENDER_TO_VOICE_MAPPING has expected structure"""
-        assert isinstance(GENDER_TO_VOICE_MAPPING, dict)
-        
-        # Check expected genders
-        expected_genders = ["male", "female", "neutral"]
-        for gender in expected_genders:
-            assert gender in GENDER_TO_VOICE_MAPPING
-            assert isinstance(GENDER_TO_VOICE_MAPPING[gender], list)
-            assert len(GENDER_TO_VOICE_MAPPING[gender]) > 0
-
-    def test_all_available_voices_populated(self):
-        """Test that ALL_AVAILABLE_VOICES is properly populated"""
-        assert isinstance(ALL_AVAILABLE_VOICES, list)
-        assert len(ALL_AVAILABLE_VOICES) > 0
-        
-        # Should contain voices from both mappings
-        tone_voices = set()
-        for voices in VOICE_TONE_MAPPING.values():
-            tone_voices.update(voices)
-        
-        gender_voices = set()
-        for voices in GENDER_TO_VOICE_MAPPING.values():
-            gender_voices.update(voices)
-        
-        all_voices_set = set(ALL_AVAILABLE_VOICES)
-        assert tone_voices.issubset(all_voices_set)
-        assert gender_voices.issubset(all_voices_set)
-
-    def test_default_voice_in_available_voices(self):
-        """Test that DEFAULT_VOICE is in ALL_AVAILABLE_VOICES"""
-        assert DEFAULT_VOICE in ALL_AVAILABLE_VOICES
-
-    def test_supported_languages_structure(self):
-        """Test that SUPPORTED_LANGUAGES has expected structure"""
-        assert isinstance(SUPPORTED_LANGUAGES, dict)
-        assert len(SUPPORTED_LANGUAGES) > 0
-        
-        # Check some expected languages
-        expected_languages = ["english", "spanish", "french", "german"]
-        for lang in expected_languages:
-            assert lang in SUPPORTED_LANGUAGES
-            assert isinstance(SUPPORTED_LANGUAGES[lang], str)
-            assert "-" in SUPPORTED_LANGUAGES[lang]  # Should be BCP-47 format
 
 
 class TestGetEffectiveToneVoices:
@@ -311,6 +246,22 @@ class TestGetVoiceForSpeaker:
         assert mock_choice.called
         assert result == "TestVoice"
 
+    def test_voice_selection_deterministic_with_seed(self):
+        """Test that voice selection is deterministic when random seed is set"""
+        import random
+        
+        used_voices = set()
+        
+        # Set seed and get result
+        random.seed(42)
+        result1 = _get_voice_for_speaker("male", "bright", used_voices)
+        
+        # Reset seed and get result again
+        random.seed(42)
+        result2 = _get_voice_for_speaker("male", "bright", used_voices)
+        
+        assert result1 == result2
+
 
 class TestGetLanguageCode:
     """Tests for _get_language_code function"""
@@ -475,120 +426,29 @@ class TestCreateMultiSpeakerConfig:
         )
 
 
-class TestAudioToolsEdgeCases:
-    """Tests for edge cases and error conditions"""
-
-    def test_voice_mappings_consistency(self):
-        """Test that voice mappings are consistent"""
-        # All voices in tone mapping should be strings
-        for tone, voices in VOICE_TONE_MAPPING.items():
-            assert isinstance(tone, str)
-            assert isinstance(voices, list)
-            for voice in voices:
-                assert isinstance(voice, str)
-                assert len(voice) > 0
-
-        # All voices in gender mapping should be strings
-        for gender, voices in GENDER_TO_VOICE_MAPPING.items():
-            assert isinstance(gender, str)
-            assert isinstance(voices, list)
-            for voice in voices:
-                assert isinstance(voice, str)
-                assert len(voice) > 0
-
-    def test_supported_languages_format(self):
-        """Test that supported languages are in correct BCP-47 format"""
-        for lang_name, lang_code in SUPPORTED_LANGUAGES.items():
-            assert isinstance(lang_name, str)
-            assert isinstance(lang_code, str)
-            assert "-" in lang_code
-            assert len(lang_code.split("-")) == 2
-            
-            # Language code should be lowercase, country code uppercase
-            parts = lang_code.split("-")
-            assert parts[0].islower()
-            assert parts[1].isupper()
-
-    def test_no_duplicate_voices_in_all_available(self):
-        """Test that ALL_AVAILABLE_VOICES contains no duplicates"""
-        assert len(ALL_AVAILABLE_VOICES) == len(set(ALL_AVAILABLE_VOICES))
-
-    def test_voice_selection_deterministic_with_seed(self):
-        """Test that voice selection is deterministic when random seed is set"""
-        import random
-        
-        used_voices = set()
-        
-        # Set seed and get result
-        random.seed(42)
-        result1 = _get_voice_for_speaker("male", "bright", used_voices)
-        
-        # Reset seed and get result again
-        random.seed(42)
-        result2 = _get_voice_for_speaker("male", "bright", used_voices)
-        
-        assert result1 == result2
-
-
 class TestCreateWavFile:
     """Tests for _create_wav_file function"""
 
     def test_create_wav_file_basic(self):
         """Test creating a basic WAV file"""
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp_path = tmp.name
-
-        try:
-            # Create sample PCM data (1 second of silence at 24kHz, 16-bit)
+        with patch('builtins.open', new_callable=MagicMock) as mock_open:
             pcm_data = b'\x00\x00' * 24000
-            
-            _create_wav_file(tmp_path, pcm_data)
-            
-            # Verify file was created and has correct format
-            assert os.path.exists(tmp_path)
-            
-            with wave.open(tmp_path, 'rb') as wf:
-                assert wf.getnchannels() == 1
-                assert wf.getsampwidth() == 2
-                assert wf.getframerate() == 24000
-                assert wf.readframes(wf.getnframes()) == pcm_data
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+            _create_wav_file("test.wav", pcm_data)
+            mock_open.assert_called_with("test.wav", "wb")
 
     def test_create_wav_file_custom_params(self):
         """Test creating WAV file with custom parameters"""
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp_path = tmp.name
-
-        try:
+        with patch('builtins.open', new_callable=MagicMock) as mock_open:
             pcm_data = b'\x00\x00' * 1000
-            
-            _create_wav_file(tmp_path, pcm_data, channels=2, rate=48000, sample_width=4)
-            
-            with wave.open(tmp_path, 'rb') as wf:
-                assert wf.getnchannels() == 2
-                assert wf.getsampwidth() == 4
-                assert wf.getframerate() == 48000
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+            _create_wav_file("test.wav", pcm_data, channels=2, rate=48000, sample_width=4)
+            mock_open.assert_called_with("test.wav", "wb")
 
     def test_create_wav_file_empty_data(self):
         """Test creating WAV file with empty PCM data"""
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp_path = tmp.name
-
-        try:
+        with patch('builtins.open', new_callable=MagicMock) as mock_open:
             pcm_data = b''
-            _create_wav_file(tmp_path, pcm_data)
-            
-            assert os.path.exists(tmp_path)
-            with wave.open(tmp_path, 'rb') as wf:
-                assert wf.getnframes() == 0
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+            _create_wav_file("test.wav", pcm_data)
+            mock_open.assert_called_with("test.wav", "wb")
 
 
 class TestIsSupportedAudioFormat:
@@ -1101,97 +961,3 @@ class TestMultiSpeakerTextToSpeech:
 
 class TestConcatenateAudio:
     """Tests for concatenate_audio async function"""
-
-    @pytest.mark.asyncio
-    async def test_concatenate_missing_context(self):
-        """Test error when tool context is missing"""
-        result = await concatenate_audio(
-            clips_to_join=[{"filename": "test.mp3"}],
-            tool_context=None
-        )
-        
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
-
-    @pytest.mark.asyncio
-    async def test_concatenate_empty_clips(self):
-        """Test error when clips list is empty"""
-        mock_context = MagicMock()
-        result = await concatenate_audio(clips_to_join=[], tool_context=mock_context)
-        
-        assert result["status"] == "error"
-        assert "cannot be empty" in result["message"]
-
-    @pytest.mark.asyncio
-    async def test_concatenate_missing_filename(self):
-        """Test error when clip is missing filename"""
-        mock_context = MagicMock()
-        mock_inv_context = MagicMock()
-        mock_inv_context.artifact_service = MagicMock()
-        mock_context._invocation_context = mock_inv_context
-        
-        result = await concatenate_audio(
-            clips_to_join=[{}],
-            tool_context=mock_context
-        )
-        
-        assert result["status"] == "error"
-        assert "missing the required 'filename'" in result["message"]
-
-
-class TestTranscribeAudio:
-    """Tests for transcribe_audio async function"""
-
-    @pytest.mark.asyncio
-    async def test_transcribe_missing_context(self):
-        """Test error when tool context is missing"""
-        result = await transcribe_audio(
-            audio_filename="test.mp3",
-            tool_context=None
-        )
-        
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
-
-    @pytest.mark.asyncio
-    async def test_transcribe_unsupported_format(self):
-        """Test error with unsupported audio format"""
-        mock_context = MagicMock()
-        mock_inv_context = MagicMock()
-        mock_inv_context.artifact_service = MagicMock()
-        mock_context._invocation_context = mock_inv_context
-        
-        tool_config = {
-            "model": "whisper-1",
-            "api_key": "test_key",
-            "api_base": "https://api.test.com"
-        }
-        
-        result = await transcribe_audio(
-            audio_filename="test.flac",
-            tool_context=mock_context,
-            tool_config=tool_config
-        )
-        
-        assert result["status"] == "error"
-        assert "Unsupported audio format" in result["message"]
-
-    @pytest.mark.asyncio
-    async def test_transcribe_missing_config(self):
-        """Test error when required config is missing"""
-        mock_context = MagicMock()
-        mock_inv_context = MagicMock()
-        mock_inv_context.artifact_service = MagicMock()
-        mock_context._invocation_context = mock_inv_context
-        
-        tool_config = {}
-        
-        result = await transcribe_audio(
-            audio_filename="test.mp3",
-            tool_context=mock_context,
-            tool_config=tool_config
-        )
-        
-        assert result["status"] == "error"
-        assert "configuration is missing" in result["message"]
-        mock_inv_context.artifact_

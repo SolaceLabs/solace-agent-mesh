@@ -698,11 +698,6 @@ class TestModifierDefinitions:
         for modifier_name in MODIFIER_DEFINITIONS.keys():
             assert modifier_name in MODIFIER_IMPLEMENTATIONS
 
-    def test_all_modifiers_have_function(self):
-        """Test that all modifier definitions have a function."""
-        for modifier_name, definition in MODIFIER_DEFINITIONS.items():
-            assert "function" in definition
-            assert callable(definition["function"])
 
     def test_all_modifiers_have_accepts(self):
         """Test that all modifier definitions specify accepted formats."""

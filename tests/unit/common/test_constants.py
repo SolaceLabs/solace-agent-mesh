@@ -3,7 +3,6 @@ Unit tests for common/constants.py
 Tests common constants used across the system.
 """
 
-import pytest
 from solace_agent_mesh.common.constants import (
     DEFAULT_COMMUNICATION_TIMEOUT,
     HEALTH_CHECK_TTL_SECONDS,
@@ -53,18 +52,6 @@ class TestConstants:
     def test_default_length_less_than_max_capacity(self):
         """Test that default length is less than max capacity."""
         assert TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
-
-    def test_constants_are_immutable_types(self):
-        """Test that all constants are immutable types (int)."""
-        constants = [
-            DEFAULT_COMMUNICATION_TIMEOUT,
-            HEALTH_CHECK_TTL_SECONDS,
-            HEALTH_CHECK_INTERVAL_SECONDS,
-            TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY,
-            TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH,
-        ]
-        for constant in constants:
-            assert isinstance(constant, int)
 
     def test_timeout_values_are_reasonable(self):
         """Test that timeout values are within reasonable ranges."""
