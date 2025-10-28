@@ -17,6 +17,7 @@ import { extractEmbeddedContent } from "./preview/contentUtils";
 import { decodeBase64Content } from "./preview/previewUtils";
 import { downloadFile } from "@/lib/utils/download";
 import type { ExtractedContent } from "./preview/contentUtils";
+import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
@@ -167,6 +168,10 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     if (message.isStatusBubble) {
         return null;
+    }
+
+    if (message.authenticationLink) {
+        return <AuthenticationMessage message={message} />;
     }
 
     // Group contiguous parts to handle interleaving of text and files

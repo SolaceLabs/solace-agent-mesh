@@ -49,6 +49,9 @@ class McpToolConfig(BaseToolConfig):
     connection_params: Dict[str, Any]
     tool_name: Optional[str] = None # Optional filter
     environment_variables: Optional[Dict[str, Any]] = None
+    auth: dict[str, Any] | None = None
+    manifest: list[dict[str, Any]] | None = None
+
 
 AnyToolConfig = Union[
     BuiltinToolConfig,

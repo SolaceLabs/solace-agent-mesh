@@ -2072,6 +2072,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             return
 
+        try:
+            from solace_agent_mesh_enterprise.auth.input_required import handle_input_required_request
+            event_data = handle_input_required_request(event_data, sse_task_id, self)
+        except ImportError:
+            pass
+
+
         log.debug(
             "%s Sending update for A2A Task ID %s to SSE Task ID %s. Final chunk: %s",
             log_id_prefix,
