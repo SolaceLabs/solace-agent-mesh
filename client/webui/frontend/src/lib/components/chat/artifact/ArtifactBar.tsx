@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Download, Eye, ChevronDown, Trash, Info, ChevronUp, CircleAlert } from "lucide-react";
+import { Download, ChevronDown, Trash, Info, ChevronUp, CircleAlert } from "lucide-react";
 
 import { Button, Spinner } from "@/lib/components/ui";
 import { FileIcon } from "../file/FileIcon";
@@ -209,24 +209,6 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                             tooltip="Download"
                         >
                             <Download className="h-4 w-4" />
-                        </Button>
-                    )}
-
-                    {status === "completed" && actions?.onPreview && !isDeleted && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={e => {
-                                e.stopPropagation();
-                                try {
-                                    actions.onPreview?.();
-                                } catch (error) {
-                                    console.error("Preview failed:", error);
-                                }
-                            }}
-                            tooltip="Preview"
-                        >
-                            <Eye className="h-4 w-4" />
                         </Button>
                     )}
 

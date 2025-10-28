@@ -1248,18 +1248,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsCancelling(false);
 
             try {
-                // Load session tasks instead of old message history
-                await loadSessionTasks(newSessionId);
-
-                // Load session metadata (name)
+                // Load session metadata (name) first before updating state
                 const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
+                let newSessionName: string | null = null;
                 if (sessionResponse.ok) {
                     const sessionData = await sessionResponse.json();
-                    setSessionName(sessionData.name);
+                    // API returns {data: {name: "...", ...}}
+                    newSessionName = sessionData.data?.name || null;
+                } else {
+                    console.warn(`${log_prefix} Failed to fetch session metadata, status: ${sessionResponse.status}`);
                 }
 
-                // Update session state
+                // Update all session state together to avoid intermediate renders with mismatched state
                 setSessionId(newSessionId);
+                setSessionName(newSessionName);
                 setIsResponding(false);
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
@@ -1267,6 +1269,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isFinalizing.current = false;
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
+
+                // Load session tasks
+                await loadSessionTasks(newSessionId);
             } catch (error) {
                 console.error(`${log_prefix} Failed to fetch session history:`, error);
                 addNotification("Error switching session. Please try again.", "error");

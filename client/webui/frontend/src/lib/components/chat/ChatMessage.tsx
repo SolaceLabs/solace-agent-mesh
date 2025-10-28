@@ -94,21 +94,24 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
         .map(p => (p as TextPart).text)
         .join("") || "";
 
+    // Trim text for user messages to prevent trailing whitespace issues
+    const displayText = message.isUser ? textContent.trim() : textContent;
+
     if (message.isError) {
         return (
             <div className="flex items-center">
                 <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
-                <MarkdownHTMLConverter>{textContent}</MarkdownHTMLConverter>
+                <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>
             </div>
         );
     }
 
-    const embeddedContent = extractEmbeddedContent(textContent);
+    const embeddedContent = extractEmbeddedContent(displayText);
     if (embeddedContent.length === 0) {
-        return <MarkdownHTMLConverter>{textContent}</MarkdownHTMLConverter>;
+        return <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
     }
 
-    let modifiedText = textContent;
+    let modifiedText = displayText;
     const contentElements: ReactNode[] = [];
     embeddedContent.forEach((item: ExtractedContent, index: number) => {
         modifiedText = modifiedText.replace(item.originalMatch, "");
@@ -163,7 +166,6 @@ const getUploadedFiles = (message: MessageFE) => {
 };
 
 const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
-    console.log(`[ChatMessage] Rendering bubble for message:`, message);
     const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
 
     if (message.isStatusBubble) {
@@ -192,8 +194,6 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     if (currentTextGroup) {
         groupedParts.push({ kind: "text", text: currentTextGroup });
     }
-
-    console.log(`[ChatMessage] Grouped parts for message:`, groupedParts);
 
     const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file" || p.kind === "artifact");
     if (!hasContent) {
@@ -264,7 +264,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                     return (
                         <ChatBubble key={`part-${index}`} variant={variant}>
                             <ChatBubbleMessage variant={variant}>
-                                <MessageContent message={{...message, parts: [{kind: "text", text: (part as TextPart).text}]}} />
+                                <MessageContent message={{ ...message, parts: [{ kind: "text", text: (part as TextPart).text }] }} />
                                 {/* Show actions on the last part if it's text */}
                                 {isLastPart && <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />}
                             </ChatBubbleMessage>

@@ -854,6 +854,29 @@ def _generate_fenced_artifact_instruction() -> str:
     close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
     return f"""\
 **Creating Text-Based Artifacts:**
+
+**When to Create Text-based Artifacts:**
+Create an artifact when the content provides value as a standalone file:
+- Content with special formatting (HTML, Markdown, CSS, structured markup) that requires proper rendering
+- Content explicitly intended for use outside this conversation (reports, emails, presentations, reference documents)
+- Structured reference content users will save or follow (schedules, guides, templates)
+- Content that will be edited, expanded, or reused
+- Substantial text documents
+- Technical documentation meant as reference material
+
+**When NOT to Create Text-based Artifacts:**
+- Simple answers, explanations, or conversational responses
+- Brief advice, opinions, or quick information
+- Short lists, summaries, or single paragraphs  
+- Temporary content only relevant to the immediate conversation
+- Basic explanations that don't require reference material
+
+**Behaviour of created artifacts:** 
+- they are sent back to the UI inline with the text and show up as an interactive file component
+- the user can easily see the content so there is no need to return or embed it again.
+- do not embed the same artifact again, since the user already has it to expand and view
+
+**How to create artifacts:**
 To create an artifact from content you generate (like code, a report, or a document), you MUST use a fenced artifact block with the EXACT syntax shown below. This is the only reliable way to ensure your content is saved correctly.
 
 **EXACT SYNTAX (copy this pattern exactly):**
@@ -876,10 +899,10 @@ It can span multiple lines.
   ❌ WRONG: `{open_delim[0:2]}save_artifact:` (only 2 angle brackets)
   ❌ WRONG: `{open_delim[0:1]}save_artifact:` (only 1 angle bracket)
   ❌ WRONG: `{open_delim}save_artifact` (missing colon)
-  ❌ WRONG: `{open_delim}save_artifact :` (space before colon)
   ✅ CORRECT: `{open_delim}save_artifact: filename="test.txt" mime_type="text/plain"`
 
-The system will automatically save the content and give you a confirmation in the next turn."""
+The system will automatically save the content and give you a confirmation in the next turn by way of an automatically injected _notify_artifact_save tool call.
+"""
 
 
 def _generate_artifact_creation_instruction() -> str:
@@ -918,7 +941,7 @@ def _generate_embed_instruction(
     )
 
     base_instruction = f"""\
-You can use dynamic embeds in your text responses and tool parameters using the syntax {open_delim}type:expression {chain_delim} format{close_delim}. This allows you to
+You can use dynamic embeds in your text responses and tool parameters using the syntax {open_delim}type:expression {chain_delim} format{close_delim}. NOTE that this differs from 'save_artifact', which has  different delimiters. This allows you to
 always have correct information in your output. Specifically, make sure you always use embeds for math, even if it is simple. You will make mistakes if you try to do math yourself.
 Use HTML entities to escape the delimiters.
 This host resolves the following embed types *early* (before sending to the LLM or tool): {early_types}. This means the embed is replaced with its resolved value.
@@ -927,6 +950,10 @@ This host resolves the following embed types *early* (before sending to the LLM 
 - `{open_delim}uuid:{close_delim}`: Inserts a random UUID.
 - `{open_delim}artifact_meta:filename[:version]{close_delim}`: Inserts a summary of the artifact's metadata (latest version if unspecified).
 - `{open_delim}status_update:Your message here{close_delim}`: Generates an immediate, distinct status message event that is displayed to the user (e.g., 'Thinking...', 'Searching database...'). This message appears in a status area, not as part of the main chat conversation. Use this to provide interim feedback during processing.
+
+Examples:
+- `{open_delim}status_update:Analyzing data...{close_delim}` (Shows 'Analyzing data...' as a status update)
+- `The result of 23.5 * 4.2 is {open_delim}math:23.5 * 4.2 | .2f{close_delim}` (Embeds calculated result with 2 decimal places)
 
 The following embeds are resolved *late* (by the gateway before final display):
 - `{open_delim}artifact_return:filename[:version]{close_delim}`: **This is the primary way to return an artifact to the user.** It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it. Note: artifact_return is not necessary if the artifact was just created by you in this same response, since newly created artifacts are automatically attached to your message."""
@@ -954,7 +981,8 @@ The following embeds are resolved *late* (by the gateway before final display):
         - `{open_delim}artifact_content:products.csv {chain_delim} apply_to_template:product_table.html.mustache {chain_delim} format:text{close_delim}` (CSV is auto-parsed to `headers` and `data_rows` for the HTML template)
         - `{open_delim}artifact_content:config.json {chain_delim} jsonpath:$.userPreferences.theme {chain_delim} format:text{close_delim}` (Extract a single value from a JSON artifact)
         - `{open_delim}artifact_content:sensor_readings.csv {chain_delim} filter_rows_eq:status:critical {chain_delim} select_cols:timestamp,sensor_id,value {chain_delim} format:csv{close_delim}` (Filter critical sensor readings and select specific columns, output as CSV)
-        - `{open_delim}artifact_content:server.log {chain_delim} tail:100 {chain_delim} grep:WARN {chain_delim} format:text{close_delim}` (Get warning lines from the last 100 lines of a log file)"""
+        - `{open_delim}artifact_content:server.log {chain_delim} tail:100 {chain_delim} grep:WARN {chain_delim} format:text{close_delim}` (Get warning lines from the last 100 lines of a log file)
+"""
 
     final_instruction = base_instruction
     if include_artifact_content:
@@ -1051,9 +1079,6 @@ If a plan is created:
 
 """
     injected_instructions.append(planning_instruction)
-    log.debug("%s Added hardcoded planning instructions.", log_identifier)
-    artifact_creation_instruction = _generate_artifact_creation_instruction()
-    injected_instructions.append(artifact_creation_instruction)
     fenced_artifact_instruction = _generate_fenced_artifact_instruction()
     injected_instructions.append(fenced_artifact_instruction)
 

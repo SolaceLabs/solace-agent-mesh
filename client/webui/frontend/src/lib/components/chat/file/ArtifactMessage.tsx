@@ -66,18 +66,21 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         return props.status === "completed" && !artifact;
     }, [props.status, artifact]);
 
+    // Determine if this should auto-expand based on context
+    const shouldAutoExpand = useMemo(() => {
+        const renderType = getRenderType(fileName, fileMimeType);
+        const isAutoRenderType = renderType === "image" || renderType === "audio";
+        // Only auto-expand images/audio in chat context, never in list context
+        return isAutoRenderType && context === "chat";
+    }, [fileName, fileMimeType, context]);
+
     // Use the artifact rendering hook to determine rendering behavior
     // This uses local state, so each component instance has its own expansion state
     const { shouldRender, isExpandable, isExpanded, toggleExpanded } = useArtifactRendering({
         filename: fileName,
         mimeType: fileMimeType,
+        shouldAutoExpand,
     });
-
-    // Check if this should auto-render (images and audio)
-    const shouldAutoRender = useMemo(() => {
-        const renderType = getRenderType(fileName, fileMimeType);
-        return renderType === "image" || renderType === "audio";
-    }, [fileName, fileMimeType]);
 
     const handlePreviewClick = useCallback(async () => {
         if (artifact) {
@@ -131,13 +134,6 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const handleInfoClick = useCallback(() => {
         setIsInfoExpanded(!isInfoExpanded);
     }, [isInfoExpanded]);
-
-    // Auto-expand for images and audio when completed
-    useEffect(() => {
-        if (props.status === "completed" && shouldAutoRender && !isExpanded) {
-            toggleExpanded();
-        }
-    }, [props.status, shouldAutoRender, isExpanded, toggleExpanded]);
 
     // Mark artifact as displayed when rendered
     useEffect(() => {
@@ -356,8 +352,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
     }
 
-    // For inline rendering (images/audio), always show the content regardless of expansion state
-    const shouldShowContent = shouldRenderInline || (shouldRender && isExpanded);
+    // Show content when it should render and is expanded
+    const shouldShowContent = shouldRender && isExpanded;
 
     // Prepare info content for expansion
     const infoContent = useMemo(() => {
@@ -432,7 +428,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             size={fileAttachment?.size}
             status={props.status}
             expandable={isExpandable && context === "chat"} // Allow expansion in chat context for user-controllable files
-            expanded={shouldShowContent || isInfoExpanded}
+            expanded={isExpanded || isInfoExpanded}
             onToggleExpand={isExpandable && context === "chat" ? toggleExpanded : undefined}
             actions={actions}
             bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}

@@ -1538,7 +1538,12 @@ async def _notify_artifact_save(
     """
     CRITICAL: _notify_artifact_save is automatically invoked by the system as a side-effect when you create artifacts. You should NEVER call this tool yourself. The system will call it for you and provide the results in your next turn. If you manually invoke it, you are making an error."
     """
-    return {"filename": filename, "version": version, "status": status}
+    return {
+        "filename": filename,
+        "version": version,
+        "status": status,
+        "message": "Artifact has been created and provided to the requester",
+    }
 
 
 _notify_artifact_save_tool_def = BuiltinTool(

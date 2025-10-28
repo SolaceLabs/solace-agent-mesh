@@ -39,11 +39,12 @@ export const shouldAutoRender = (filename?: string, mimeType?: string): boolean 
 };
 
 /**
- * Determines if a file is user-controllable for rendering (text-based files)
+ * Determines if a file is user-controllable for rendering (text-based files, images, and audio)
+ * Images and audio auto-expand but users should be able to collapse them
  */
 export const isUserControllableRendering = (filename?: string, mimeType?: string): boolean => {
     const renderType = getRenderType(filename, mimeType);
-    const controllableTypes = ["text", "markdown", "json", "yaml", "csv", "html"];
+    const controllableTypes = ["text", "markdown", "json", "yaml", "csv", "html", "image", "audio"];
     return renderType ? controllableTypes.includes(renderType) : false;
 };
 
