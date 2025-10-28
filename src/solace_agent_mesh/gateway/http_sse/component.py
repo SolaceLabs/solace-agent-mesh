@@ -204,13 +204,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self.platform_database_url = platform_config.get("database_url")
 
         if self.platform_database_url:
-            log.info(
+            log.debug(
                 "%s Platform database configured: %s",
                 self.log_identifier,
                 self.platform_database_url.split('@')[-1] if '@' in self.platform_database_url else self.platform_database_url
             )
         else:
-            log.info("%s No platform database configured - platform features will be unavailable", self.log_identifier)
+            log.debug("%s No platform database configured - platform features will be unavailable", self.log_identifier)
 
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
