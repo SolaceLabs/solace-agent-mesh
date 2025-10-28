@@ -383,7 +383,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 addNotification(`Error deleting file "${filename}": ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
-        [apiPrefix, addNotification, artifactsRefetch]
+        [apiPrefix, sessionId, addNotification, artifactsRefetch]
     );
 
     const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
@@ -486,7 +486,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [apiPrefix, addNotification, artifacts]
+        [apiPrefix, sessionId, addNotification, artifacts]
     );
 
     const navigateArtifactVersion = useCallback(
@@ -521,7 +521,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [apiPrefix, addNotification, artifacts, previewedArtifactAvailableVersions]
+        [apiPrefix, sessionId, addNotification, artifacts, previewedArtifactAvailableVersions]
     );
 
     const openMessageAttachmentForPreview = useCallback(
@@ -1124,7 +1124,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
-        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble, downloadAndResolveArtifact]
+        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble, downloadAndResolveArtifact, setArtifacts]
     );
 
     const handleNewSession = useCallback(async () => {
@@ -1187,7 +1187,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         // Note: No session events dispatched here since no session exists yet.
         // Session creation event will be dispatched when first message creates the actual session.
-    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, configWelcomeMessage, addNotification, artifactsRefetch]);
+    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, artifactsRefetch, apiPrefix, setPreviewArtifact]);
 
     const handleSwitchSession = useCallback(
         async (newSessionId: string) => {
@@ -1249,7 +1249,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 addNotification("Error switching session. Please try again.", "error");
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks, setPreviewArtifact]
     );
 
     const updateSessionName = useCallback(
@@ -1334,7 +1334,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     : artifact
             );
         });
-    }, [setArtifacts]);
+    }, []); // setArtifacts is stable from useState, no dependencies needed
 
     const openSessionDeleteModal = useCallback((session: Session) => {
         setSessionToDelete(session);
@@ -1633,7 +1633,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble]
+        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, INLINE_FILE_SIZE_LIMIT_BYTES]
     );
 
     // Auto-select agent when agents load and no agent is selected

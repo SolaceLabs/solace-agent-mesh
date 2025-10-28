@@ -47,7 +47,7 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
                 mime_type: artifact.mime_type,
                 content: artifact.accumulatedContent,
                 last_modified: artifact.last_modified,
-                // @ts-ignore - Add custom property to track if content is plain text
+                // @ts-expect-error - Add custom property to track if content is plain text
                 isPlainText: artifact.isAccumulatedContentPlainText,
             };
             setCachedContent(cachedFile);
@@ -90,7 +90,7 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
                     const resolvedContent = await downloadAndResolveArtifact(artifact.filename);
                     if (resolvedContent) {
                         // Add isPlainText: false because downloaded content is base64
-                        setCachedContent({ ...resolvedContent, isPlainText: false } as any);
+                        setCachedContent({ ...resolvedContent, isPlainText: false } as FileAttachment & { isPlainText: boolean });
                     }
                 } catch (err) {
                     console.error(`[ArtifactPreviewContent] Error downloading ${artifact.filename}:`, err);

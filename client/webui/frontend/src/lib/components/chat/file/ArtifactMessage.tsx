@@ -54,7 +54,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             return parsed?.version !== null && parsed?.version !== undefined ? parseInt(parsed.version) : undefined;
         }
         return undefined;
-    }, [props.status, props.status === "completed" ? props.fileAttachment : undefined]);
+    }, [props]);
 
     // Get file info for rendering decisions
     const fileAttachment = props.status === "completed" ? props.fileAttachment : undefined;
@@ -120,7 +120,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         } else {
             console.error(`No file to download for artifact: ${props.name}`);
         }
-    }, [artifact, fileAttachment, sessionId]);
+    }, [artifact, fileAttachment, sessionId, props.name]);
 
     const handleDeleteClick = useCallback(() => {
         if (artifact) {
@@ -137,7 +137,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         if (props.status === "completed" && shouldAutoRender && !isExpanded) {
             toggleExpanded();
         }
-    }, [props.status, shouldAutoRender, isExpanded, fileName, toggleExpanded]);
+    }, [props.status, shouldAutoRender, isExpanded, toggleExpanded]);
 
     // Mark artifact as displayed when rendered
     useEffect(() => {
@@ -151,7 +151,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 markArtifactAsDisplayed(artifact.filename, false);
             }
         };
-    }, [shouldRender, fileName, markArtifactAsDisplayed]); // Only depend on filename, not the whole artifact object
+    }, [shouldRender, artifact?.filename, markArtifactAsDisplayed]); // Only depend on filename, not the whole artifact object
 
     // Check if we should render content inline (for images and audio)
     const shouldRenderInline = useMemo(() => {
@@ -293,7 +293,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 onInfo: handleInfoClick,
             };
         }
-    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, isExpandable, toggleExpanded]);
+    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick]);
 
     // Get description from global artifacts instead of message parts
     const artifactFromGlobal = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
@@ -326,7 +326,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             const finalContent = getFileContent({
                 ...fileForRendering,
                 content: contentToRender,
-                // @ts-ignore - Add flag to indicate if content is plain text from streaming
+                // @ts-expect-error - Add flag to indicate if content is plain text from streaming
                 // Content is plain text if: (1) it's from accumulated content during streaming, OR (2) we're in progress state
                 isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) ||
                              (props.status === "in-progress" && !!fetchedContent)
@@ -420,7 +420,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
 
         return undefined;
-    }, [isInfoExpanded, infoContent, shouldShowContent, expandedContent, fileName]);
+    }, [isInfoExpanded, infoContent, shouldShowContent, expandedContent]);
 
     // Render the bar with expanded content inside
     return (
