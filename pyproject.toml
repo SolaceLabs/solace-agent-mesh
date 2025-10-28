@@ -72,7 +72,7 @@ postgresql = ["psycopg2-binary==2.9.10"]
 
 [tool.hatch.envs.hatch-test]
 parallel = false
-installer = "pip"
+installer = "uv"
 dependencies = [
     "solace-agent-mesh[postgresql,gcs,vertex,employee_tools,s3]",
     "pytest-asyncio",
