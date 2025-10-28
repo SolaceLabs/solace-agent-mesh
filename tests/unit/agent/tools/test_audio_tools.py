@@ -11,7 +11,10 @@ Tests the audio tools functionality including:
 """
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
+import os
+import tempfile
+import wave
 
 from src.solace_agent_mesh.agent.tools.audio_tools import (
     VOICE_TONE_MAPPING,
@@ -24,7 +27,18 @@ from src.solace_agent_mesh.agent.tools.audio_tools import (
     _get_voice_for_speaker,
     _get_language_code,
     _create_voice_config,
-    _create_multi_speaker_config
+    _create_multi_speaker_config,
+    _create_wav_file,
+    _convert_pcm_to_mp3,
+    _generate_audio_with_gemini,
+    _save_audio_artifact,
+    _is_supported_audio_format_for_transcription,
+    _get_audio_mime_type,
+    select_voice,
+    text_to_speech,
+    multi_speaker_text_to_speech,
+    concatenate_audio,
+    transcribe_audio,
 )
 
 
@@ -514,3 +528,670 @@ class TestAudioToolsEdgeCases:
         result2 = _get_voice_for_speaker("male", "bright", used_voices)
         
         assert result1 == result2
+
+
+class TestCreateWavFile:
+    """Tests for _create_wav_file function"""
+
+    def test_create_wav_file_basic(self):
+        """Test creating a basic WAV file"""
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            # Create sample PCM data (1 second of silence at 24kHz, 16-bit)
+            pcm_data = b'\x00\x00' * 24000
+            
+            _create_wav_file(tmp_path, pcm_data)
+            
+            # Verify file was created and has correct format
+            assert os.path.exists(tmp_path)
+            
+            with wave.open(tmp_path, 'rb') as wf:
+                assert wf.getnchannels() == 1
+                assert wf.getsampwidth() == 2
+                assert wf.getframerate() == 24000
+                assert wf.readframes(wf.getnframes()) == pcm_data
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    def test_create_wav_file_custom_params(self):
+        """Test creating WAV file with custom parameters"""
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            pcm_data = b'\x00\x00' * 1000
+            
+            _create_wav_file(tmp_path, pcm_data, channels=2, rate=48000, sample_width=4)
+            
+            with wave.open(tmp_path, 'rb') as wf:
+                assert wf.getnchannels() == 2
+                assert wf.getsampwidth() == 4
+                assert wf.getframerate() == 48000
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    def test_create_wav_file_empty_data(self):
+        """Test creating WAV file with empty PCM data"""
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            pcm_data = b''
+            _create_wav_file(tmp_path, pcm_data)
+            
+            assert os.path.exists(tmp_path)
+            with wave.open(tmp_path, 'rb') as wf:
+                assert wf.getnframes() == 0
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+
+class TestIsSupportedAudioFormat:
+    """Tests for _is_supported_audio_format_for_transcription function"""
+
+    def test_supported_wav_format(self):
+        """Test that .wav files are supported"""
+        assert _is_supported_audio_format_for_transcription("audio.wav") is True
+        assert _is_supported_audio_format_for_transcription("audio.WAV") is True
+        assert _is_supported_audio_format_for_transcription("/path/to/audio.wav") is True
+
+    def test_supported_mp3_format(self):
+        """Test that .mp3 files are supported"""
+        assert _is_supported_audio_format_for_transcription("audio.mp3") is True
+        assert _is_supported_audio_format_for_transcription("audio.MP3") is True
+        assert _is_supported_audio_format_for_transcription("/path/to/audio.mp3") is True
+
+    def test_unsupported_formats(self):
+        """Test that other formats are not supported"""
+        assert _is_supported_audio_format_for_transcription("audio.flac") is False
+        assert _is_supported_audio_format_for_transcription("audio.ogg") is False
+        assert _is_supported_audio_format_for_transcription("audio.m4a") is False
+        assert _is_supported_audio_format_for_transcription("audio.aac") is False
+
+    def test_no_extension(self):
+        """Test files without extension"""
+        assert _is_supported_audio_format_for_transcription("audio") is False
+        assert _is_supported_audio_format_for_transcription("") is False
+
+
+class TestGetAudioMimeType:
+    """Tests for _get_audio_mime_type function"""
+
+    def test_wav_mime_type(self):
+        """Test getting MIME type for WAV files"""
+        assert _get_audio_mime_type("audio.wav") == "audio/wav"
+        assert _get_audio_mime_type("audio.WAV") == "audio/wav"
+        assert _get_audio_mime_type("/path/to/audio.wav") == "audio/wav"
+
+    def test_mp3_mime_type(self):
+        """Test getting MIME type for MP3 files"""
+        assert _get_audio_mime_type("audio.mp3") == "audio/mpeg"
+        assert _get_audio_mime_type("audio.MP3") == "audio/mpeg"
+        assert _get_audio_mime_type("/path/to/audio.mp3") == "audio/mpeg"
+
+    def test_unknown_mime_type(self):
+        """Test getting MIME type for unknown formats defaults to wav"""
+        assert _get_audio_mime_type("audio.flac") == "audio/wav"
+        assert _get_audio_mime_type("audio.ogg") == "audio/wav"
+        assert _get_audio_mime_type("audio") == "audio/wav"
+
+
+class TestConvertPcmToMp3:
+    """Tests for _convert_pcm_to_mp3 async function"""
+
+    @pytest.mark.asyncio
+    async def test_convert_pcm_to_mp3_success(self):
+        """Test successful PCM to MP3 conversion"""
+        pcm_data = b'\x00\x00' * 1000
+        
+        with patch('src.solace_agent_mesh.agent.tools.audio_tools.tempfile.NamedTemporaryFile') as mock_temp, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.asyncio.to_thread') as mock_to_thread, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.AudioSegment') as mock_audio_segment, \
+             patch('builtins.open', create=True) as mock_open:
+            
+            mock_wav_file = MagicMock()
+            mock_wav_file.name = '/tmp/test.wav'
+            mock_mp3_file = MagicMock()
+            mock_mp3_file.name = '/tmp/test.mp3'
+            
+            mock_temp.side_effect = [mock_wav_file, mock_mp3_file]
+            
+            mock_audio = MagicMock()
+            mock_audio_segment.from_wav.return_value = mock_audio
+            mock_to_thread.side_effect = [None, mock_audio, None]
+            
+            mock_file_handle = MagicMock()
+            mock_file_handle.read.return_value = b'mp3_data'
+            mock_open.return_value.__enter__.return_value = mock_file_handle
+            
+            result = await _convert_pcm_to_mp3(pcm_data)
+            
+            assert result == b'mp3_data'
+            assert mock_to_thread.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_convert_pcm_to_mp3_cleanup(self):
+        """Test that temporary files are cleaned up"""
+        pcm_data = b'\x00\x00' * 100
+        
+        with patch('src.solace_agent_mesh.agent.tools.audio_tools.tempfile.NamedTemporaryFile') as mock_temp, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.asyncio.to_thread') as mock_to_thread, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.AudioSegment') as mock_audio_segment, \
+             patch('builtins.open', create=True) as mock_open, \
+             patch('os.remove') as mock_remove:
+            
+            mock_wav_file = MagicMock()
+            mock_wav_file.name = '/tmp/test.wav'
+            mock_mp3_file = MagicMock()
+            mock_mp3_file.name = '/tmp/test.mp3'
+            
+            mock_temp.side_effect = [mock_wav_file, mock_mp3_file]
+            
+            mock_audio = MagicMock()
+            mock_audio_segment.from_wav.return_value = mock_audio
+            mock_to_thread.side_effect = [None, mock_audio, None]
+            
+            mock_file_handle = MagicMock()
+            mock_file_handle.read.return_value = b'mp3_data'
+            mock_open.return_value.__enter__.return_value = mock_file_handle
+            
+            await _convert_pcm_to_mp3(pcm_data)
+            
+            assert mock_remove.call_count == 2
+
+
+class TestGenerateAudioWithGemini:
+    """Tests for _generate_audio_with_gemini async function"""
+
+    @pytest.mark.asyncio
+    async def test_generate_audio_success(self):
+        """Test successful audio generation"""
+        mock_client = MagicMock()
+        mock_speech_config = MagicMock()
+        
+        mock_inline_data = MagicMock()
+        mock_inline_data.data = b'audio_data'
+        
+        mock_part = MagicMock()
+        mock_part.inline_data = mock_inline_data
+        
+        mock_content = MagicMock()
+        mock_content.parts = [mock_part]
+        
+        mock_candidate = MagicMock()
+        mock_candidate.content = mock_content
+        
+        mock_response = MagicMock()
+        mock_response.candidates = [mock_candidate]
+        
+        with patch('src.solace_agent_mesh.agent.tools.audio_tools.asyncio.to_thread') as mock_to_thread, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.adk_types') as mock_adk_types:
+            
+            mock_to_thread.return_value = mock_response
+            mock_config = MagicMock()
+            mock_adk_types.GenerateContentConfig.return_value = mock_config
+            
+            result = await _generate_audio_with_gemini(
+                mock_client,
+                "Test prompt",
+                mock_speech_config,
+                model="test-model",
+                language="en-US"
+            )
+            
+            assert result == b'audio_data'
+            mock_to_thread.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_generate_audio_no_response(self):
+        """Test error when no response from API"""
+        mock_client = MagicMock()
+        mock_speech_config = MagicMock()
+        
+        with patch('src.solace_agent_mesh.agent.tools.audio_tools.asyncio.to_thread') as mock_to_thread, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.adk_types'):
+            
+            mock_to_thread.return_value = None
+            
+            with pytest.raises(ValueError, match="did not return valid audio data"):
+                await _generate_audio_with_gemini(
+                    mock_client,
+                    "Test prompt",
+                    mock_speech_config
+                )
+
+    @pytest.mark.asyncio
+    async def test_generate_audio_no_audio_data(self):
+        """Test error when response has no audio data"""
+        mock_client = MagicMock()
+        mock_speech_config = MagicMock()
+        
+        mock_inline_data = MagicMock()
+        mock_inline_data.data = None
+        
+        mock_part = MagicMock()
+        mock_part.inline_data = mock_inline_data
+        
+        mock_content = MagicMock()
+        mock_content.parts = [mock_part]
+        
+        mock_candidate = MagicMock()
+        mock_candidate.content = mock_content
+        
+        mock_response = MagicMock()
+        mock_response.candidates = [mock_candidate]
+        
+        with patch('src.solace_agent_mesh.agent.tools.audio_tools.asyncio.to_thread') as mock_to_thread, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.adk_types'):
+            
+            mock_to_thread.return_value = mock_response
+            
+            with pytest.raises(ValueError, match="No audio data received"):
+                await _generate_audio_with_gemini(
+                    mock_client,
+                    "Test prompt",
+                    mock_speech_config
+                )
+
+
+class TestSaveAudioArtifact:
+    """Tests for _save_audio_artifact async function"""
+
+    @pytest.mark.asyncio
+    async def test_save_audio_artifact_success(self):
+        """Test successful audio artifact saving"""
+        audio_data = b'test_audio_data'
+        filename = "test.mp3"
+        metadata = {"description": "Test audio"}
+        
+        mock_tool_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_inv_context.app_name = "test_app"
+        mock_inv_context.user_id = "test_user"
+        mock_inv_context.artifact_service = MagicMock()
+        mock_tool_context._invocation_context = mock_inv_context
+        
+        with patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id') as mock_get_session, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.save_artifact_with_metadata') as mock_save:
+            
+            mock_get_session.return_value = "test_session"
+            mock_save.return_value = {"status": "success", "data_version": 1}
+            
+            result = await _save_audio_artifact(
+                audio_data, filename, metadata, mock_tool_context
+            )
+            
+            assert result["status"] == "success"
+            assert result["data_version"] == 1
+            mock_save.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_save_audio_artifact_no_service(self):
+        """Test error when artifact service is not available"""
+        audio_data = b'test_audio_data'
+        filename = "test.mp3"
+        metadata = {"description": "Test audio"}
+        
+        mock_tool_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_inv_context.artifact_service = None
+        mock_tool_context._invocation_context = mock_inv_context
+        
+        with pytest.raises(ValueError, match="ArtifactService is not available"):
+            await _save_audio_artifact(
+                audio_data, filename, metadata, mock_tool_context
+            )
+
+    @pytest.mark.asyncio
+    async def test_save_audio_artifact_save_error(self):
+        """Test error handling when save fails"""
+        audio_data = b'test_audio_data'
+        filename = "test.mp3"
+        metadata = {"description": "Test audio"}
+        
+        mock_tool_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_inv_context.app_name = "test_app"
+        mock_inv_context.user_id = "test_user"
+        mock_inv_context.artifact_service = MagicMock()
+        mock_tool_context._invocation_context = mock_inv_context
+        
+        with patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id') as mock_get_session, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.save_artifact_with_metadata') as mock_save:
+            
+            mock_get_session.return_value = "test_session"
+            mock_save.return_value = {"status": "error", "message": "Save failed"}
+            
+            with pytest.raises(IOError, match="Failed to save audio artifact"):
+                await _save_audio_artifact(
+                    audio_data, filename, metadata, mock_tool_context
+                )
+
+
+class TestSelectVoice:
+    """Tests for select_voice async function"""
+
+    @pytest.mark.asyncio
+    async def test_select_voice_with_gender(self):
+        """Test voice selection with gender parameter"""
+        result = await select_voice(gender="male")
+        
+        assert result["status"] == "success"
+        assert "voice_name" in result
+        assert isinstance(result["voice_name"], str)
+
+    @pytest.mark.asyncio
+    async def test_select_voice_with_tone(self):
+        """Test voice selection with tone parameter"""
+        result = await select_voice(tone="friendly")
+        
+        assert result["status"] == "success"
+        assert "voice_name" in result
+
+    @pytest.mark.asyncio
+    async def test_select_voice_with_exclusions(self):
+        """Test voice selection with excluded voices"""
+        exclude_list = ["Kore", "Puck"]
+        result = await select_voice(exclude_voices=exclude_list)
+        
+        assert result["status"] == "success"
+        assert result["voice_name"] not in exclude_list
+
+    @pytest.mark.asyncio
+    async def test_select_voice_no_params(self):
+        """Test voice selection with no parameters"""
+        result = await select_voice()
+        
+        assert result["status"] == "success"
+        assert "voice_name" in result
+
+    @pytest.mark.asyncio
+    async def test_select_voice_exception_handling(self):
+        """Test exception handling in select_voice"""
+        with patch('src.solace_agent_mesh.agent.tools.audio_tools._get_voice_for_speaker', side_effect=Exception("Test error")):
+            result = await select_voice(gender="male")
+            
+            assert result["status"] == "error"
+            assert "error" in result["message"].lower()
+
+
+class TestTextToSpeech:
+    """Tests for text_to_speech async function"""
+
+    @pytest.mark.asyncio
+    async def test_text_to_speech_missing_context(self):
+        """Test error when tool context is missing"""
+        result = await text_to_speech("Hello world", tool_context=None)
+        
+        assert result["status"] == "error"
+        assert "ToolContext is missing" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_text_to_speech_empty_text(self):
+        """Test error when text is empty"""
+        mock_context = MagicMock()
+        result = await text_to_speech("", tool_context=mock_context)
+        
+        assert result["status"] == "error"
+        assert "Text input is required" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_text_to_speech_missing_api_key(self):
+        """Test error when API key is missing"""
+        mock_context = MagicMock()
+        tool_config = {}
+        
+        result = await text_to_speech(
+            "Hello world",
+            tool_context=mock_context,
+            tool_config=tool_config
+        )
+        
+        assert result["status"] == "error"
+        assert "GEMINI_API_KEY is required" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_text_to_speech_success(self):
+        """Test successful text to speech generation"""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_inv_context.app_name = "test_app"
+        mock_inv_context.user_id = "test_user"
+        mock_inv_context.artifact_service = MagicMock()
+        mock_context._invocation_context = mock_inv_context
+        
+        tool_config = {
+            "gemini_api_key": "test_key",
+            "model": "test-model"
+        }
+        
+        with patch('src.solace_agent_mesh.agent.tools.audio_tools.genai.Client') as mock_client, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._generate_audio_with_gemini') as mock_generate, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._save_audio_artifact') as mock_save, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id'):
+            
+            mock_generate.return_value = b'wav_data'
+            mock_convert.return_value = b'mp3_data'
+            mock_save.return_value = {"status": "success", "data_version": 1}
+            
+            result = await text_to_speech(
+                "Hello world",
+                tool_context=mock_context,
+                tool_config=tool_config
+            )
+            
+            assert result["status"] == "success"
+            assert "output_filename" in result
+            assert "output_version" in result
+
+    @pytest.mark.asyncio
+    async def test_text_to_speech_with_voice_name(self):
+        """Test text to speech with specific voice name"""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_inv_context.app_name = "test_app"
+        mock_inv_context.user_id = "test_user"
+        mock_inv_context.artifact_service = MagicMock()
+        mock_context._invocation_context = mock_inv_context
+        
+        tool_config = {"gemini_api_key": "test_key"}
+        
+        with patch('src.solace_agent_mesh.agent.tools.audio_tools.genai.Client'), \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._generate_audio_with_gemini') as mock_generate, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._save_audio_artifact') as mock_save, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id'):
+            
+            mock_generate.return_value = b'wav_data'
+            mock_convert.return_value = b'mp3_data'
+            mock_save.return_value = {"status": "success", "data_version": 1}
+            
+            result = await text_to_speech(
+                "Hello world",
+                voice_name="Puck",
+                tool_context=mock_context,
+                tool_config=tool_config
+            )
+            
+            assert result["status"] == "success"
+            assert result["voice_used"] == "Puck"
+
+
+class TestMultiSpeakerTextToSpeech:
+    """Tests for multi_speaker_text_to_speech async function"""
+
+    @pytest.mark.asyncio
+    async def test_multi_speaker_missing_context(self):
+        """Test error when tool context is missing"""
+        result = await multi_speaker_text_to_speech(
+            "Speaker1: Hello\nSpeaker2: Hi",
+            tool_context=None
+        )
+        
+        assert result["status"] == "error"
+        assert "ToolContext is missing" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_multi_speaker_empty_text(self):
+        """Test error when conversation text is empty"""
+        mock_context = MagicMock()
+        result = await multi_speaker_text_to_speech("", tool_context=mock_context)
+        
+        assert result["status"] == "error"
+        assert "Conversation text input is required" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_multi_speaker_missing_api_key(self):
+        """Test error when API key is missing"""
+        mock_context = MagicMock()
+        tool_config = {}
+        
+        result = await multi_speaker_text_to_speech(
+            "Speaker1: Hello",
+            tool_context=mock_context,
+            tool_config=tool_config
+        )
+        
+        assert result["status"] == "error"
+        assert "GEMINI_API_KEY is required" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_multi_speaker_success(self):
+        """Test successful multi-speaker TTS generation"""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_inv_context.app_name = "test_app"
+        mock_inv_context.user_id = "test_user"
+        mock_inv_context.artifact_service = MagicMock()
+        mock_context._invocation_context = mock_inv_context
+        
+        tool_config = {"gemini_api_key": "test_key"}
+        speaker_configs = [
+            {"name": "Speaker1", "voice": "Kore"},
+            {"name": "Speaker2", "voice": "Puck"}
+        ]
+        
+        with patch('src.solace_agent_mesh.agent.tools.audio_tools.genai.Client'), \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._generate_audio_with_gemini') as mock_generate, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._convert_pcm_to_mp3') as mock_convert, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools._save_audio_artifact') as mock_save, \
+             patch('src.solace_agent_mesh.agent.tools.audio_tools.get_original_session_id'):
+            
+            mock_generate.return_value = b'wav_data'
+            mock_convert.return_value = b'mp3_data'
+            mock_save.return_value = {"status": "success", "data_version": 1}
+            
+            result = await multi_speaker_text_to_speech(
+                "Speaker1: Hello\nSpeaker2: Hi there",
+                speaker_configs=speaker_configs,
+                tool_context=mock_context,
+                tool_config=tool_config
+            )
+            
+            assert result["status"] == "success"
+            assert "output_filename" in result
+            assert "speakers_used" in result
+
+
+class TestConcatenateAudio:
+    """Tests for concatenate_audio async function"""
+
+    @pytest.mark.asyncio
+    async def test_concatenate_missing_context(self):
+        """Test error when tool context is missing"""
+        result = await concatenate_audio(
+            clips_to_join=[{"filename": "test.mp3"}],
+            tool_context=None
+        )
+        
+        assert result["status"] == "error"
+        assert "ToolContext is missing" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_concatenate_empty_clips(self):
+        """Test error when clips list is empty"""
+        mock_context = MagicMock()
+        result = await concatenate_audio(clips_to_join=[], tool_context=mock_context)
+        
+        assert result["status"] == "error"
+        assert "cannot be empty" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_concatenate_missing_filename(self):
+        """Test error when clip is missing filename"""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_inv_context.artifact_service = MagicMock()
+        mock_context._invocation_context = mock_inv_context
+        
+        result = await concatenate_audio(
+            clips_to_join=[{}],
+            tool_context=mock_context
+        )
+        
+        assert result["status"] == "error"
+        assert "missing the required 'filename'" in result["message"]
+
+
+class TestTranscribeAudio:
+    """Tests for transcribe_audio async function"""
+
+    @pytest.mark.asyncio
+    async def test_transcribe_missing_context(self):
+        """Test error when tool context is missing"""
+        result = await transcribe_audio(
+            audio_filename="test.mp3",
+            tool_context=None
+        )
+        
+        assert result["status"] == "error"
+        assert "ToolContext is missing" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_transcribe_unsupported_format(self):
+        """Test error with unsupported audio format"""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_inv_context.artifact_service = MagicMock()
+        mock_context._invocation_context = mock_inv_context
+        
+        tool_config = {
+            "model": "whisper-1",
+            "api_key": "test_key",
+            "api_base": "https://api.test.com"
+        }
+        
+        result = await transcribe_audio(
+            audio_filename="test.flac",
+            tool_context=mock_context,
+            tool_config=tool_config
+        )
+        
+        assert result["status"] == "error"
+        assert "Unsupported audio format" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_transcribe_missing_config(self):
+        """Test error when required config is missing"""
+        mock_context = MagicMock()
+        mock_inv_context = MagicMock()
+        mock_inv_context.artifact_service = MagicMock()
+        mock_context._invocation_context = mock_inv_context
+        
+        tool_config = {}
+        
+        result = await transcribe_audio(
+            audio_filename="test.mp3",
+            tool_context=mock_context,
+            tool_config=tool_config
+        )
+        
+        assert result["status"] == "error"
+        assert "configuration is missing" in result["message"]
+        mock_inv_context.artifact_
