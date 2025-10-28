@@ -440,16 +440,38 @@ async def process_artifact_blocks_callback(
                     adk_types.Part(text=final_parser_result.user_facing_text)
                 )
 
-        # Check if any blocks were completed (for metadata tracking)
+        # Check if any blocks were completed and need to be injected into the final response
         completed_blocks_list = session.state.get("completed_artifact_blocks_list")
         if completed_blocks_list:
             log.info(
-                "%s Completed %d artifact(s) this turn.",
+                "%s Injecting info for %d saved artifact(s) into final LlmResponse.",
                 log_identifier,
                 len(completed_blocks_list),
             )
-            # Note: Completion notifications are already sent via ArtifactCreationProgressData
-            # in the BlockCompletedEvent handler above. No additional SSE events needed here.
+
+            tool_call_parts = []
+            for block_info in completed_blocks_list:
+                notify_tool_call = adk_types.FunctionCall(
+                    name="_notify_artifact_save",
+                    args={
+                        "filename": block_info["filename"],
+                        "version": block_info["version"],
+                        "status": block_info["status"],
+                    },
+                    id=f"host-notify-{uuid.uuid4()}",
+                )
+                tool_call_parts.append(adk_types.Part(function_call=notify_tool_call))
+
+            existing_parts = llm_response.content.parts if llm_response.content else []
+            final_existing_parts = existing_parts
+
+            if llm_response.content is None:
+                llm_response.content = adk_types.Content(parts=[])
+
+            llm_response.content.parts = tool_call_parts + final_existing_parts
+
+            llm_response.turn_complete = True
+            llm_response.partial = False
 
         session.state[parser_state_key] = None
         session.state["completed_artifact_blocks_list"] = None

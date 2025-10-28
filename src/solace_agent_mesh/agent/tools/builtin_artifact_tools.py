@@ -44,6 +44,7 @@ log = logging.getLogger(__name__)
 CATEGORY_NAME = "Artifact Management"
 CATEGORY_DESCRIPTION = "List, read, create, update, and delete artifacts."
 
+
 async def _internal_create_artifact(
     filename: str,
     content: str,
@@ -863,7 +864,7 @@ async def extract_content_from_artifact(
         mime_type=normalized_source_mime_type,
         content_bytes=source_artifact_content_bytes,
     )
-            
+
     if is_text_based:
         try:
             artifact_text_content = source_artifact_content_bytes.decode("utf-8")
@@ -1535,9 +1536,15 @@ async def _notify_artifact_save(
     tool_context: ToolContext = None,  # Keep tool_context for signature consistency
 ) -> Dict[str, Any]:
     """
-    An internal tool used by the system to confirm that a fenced artifact block
-    has been successfully saved. It performs no actions and simply returns its
-    arguments to get the result into the ADK history.
+    An internal tool that is automatically invoked as a side-effect when the LLM
+    creates an artifact using a fenced save_artifact block.
+
+    This tool provides the LLM with the exact version number assigned to the newly
+    created artifact and the save operation status. The LLM needs this version
+    number if it wants to immediately pass the artifact to other tools in subsequent
+    actions within the same conversation.
+
+    It should not be called directly by the LLM.
     """
     return {"filename": filename, "version": version, "status": status}
 
@@ -1545,7 +1552,7 @@ async def _notify_artifact_save(
 _notify_artifact_save_tool_def = BuiltinTool(
     name="_notify_artifact_save",
     implementation=_notify_artifact_save,
-    description="INTERNAL TOOL. This tool is used by the system to confirm that a fenced artifact block has been saved. You MUST NOT call this tool directly.",
+    description="INTERNAL TOOL. This tool is automatically invoked as a side-effect when you create an artifact using a fenced save_artifact block. It provides you with the exact version number assigned to the newly created artifact and the save operation status. You will need this version number if you want to immediately pass the artifact to other tools. The user already sees the artifact in their UI automatically. You MUST NOT call this tool directly.",
     category="internal",
     required_scopes=[],  # No scopes needed for an internal notification tool
     parameters=adk_types.Schema(
