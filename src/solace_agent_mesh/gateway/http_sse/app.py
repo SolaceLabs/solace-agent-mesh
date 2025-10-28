@@ -90,6 +90,13 @@ class WebUIBackendApp(BaseGatewayApp):
             "description": "General guidelines on how agent responses should be structured, to be optionally used by agents.",
         },
         {
+            "name": "model",
+            "required": False,
+            "type": "dict",
+            "default": None,
+            "description": "The model to use for the WebUI gateway.",
+        },
+        {
             "name": "frontend_welcome_message",
             "required": False,
             "type": "string",

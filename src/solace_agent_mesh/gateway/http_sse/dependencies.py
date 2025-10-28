@@ -5,7 +5,6 @@ managed by the WebUIBackendComponent.
 
 import logging
 from collections.abc import Callable, Generator
-from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends, HTTPException, Request, status
@@ -18,11 +17,11 @@ from ...common.services.identity_service import BaseIdentityService
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.task_context import TaskContextManager
 from ...gateway.http_sse.services.agent_card_service import AgentCardService
-from ...gateway.http_sse.services.people_service import PeopleService
-from ...gateway.http_sse.services.task_service import TaskService
-from ...gateway.http_sse.services.feedback_service import FeedbackService
-from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
 from ...gateway.http_sse.services.data_retention_service import DataRetentionService
+from ...gateway.http_sse.services.feedback_service import FeedbackService
+from ...gateway.http_sse.services.people_service import PeopleService
+from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
+from ...gateway.http_sse.services.task_service import TaskService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .repository import SessionRepository
@@ -60,24 +59,49 @@ def set_component_instance(component: "WebUIBackendComponent"):
 
 
 def init_database(database_url: str):
-    """Initialize database with direct sessionmaker."""
+    """Initialize database with appropriate configuration based on database dialect."""
     global SessionLocal
     if SessionLocal is None:
-        engine = create_engine(database_url)
+        from sqlalchemy import event, pool
+        from sqlalchemy.engine.url import make_url
 
-        # Enable foreign keys for SQLite only (database-agnostic)
-        from sqlalchemy import event
+        url = make_url(database_url)
+        dialect_name = url.get_dialect().name
+
+        engine_kwargs = {}
+
+        if dialect_name == "sqlite":
+            engine_kwargs = {
+                "poolclass": pool.StaticPool,
+                "connect_args": {"check_same_thread": False}
+            }
+            log.info("Configuring SQLite database (single-connection mode)")
+
+        elif dialect_name in ("postgresql", "mysql"):
+            engine_kwargs = {
+                "pool_size": 10,
+                "max_overflow": 20,
+                "pool_timeout": 30,
+                "pool_recycle": 1800,
+                "pool_pre_ping": True,
+            }
+            log.info(f"Configuring {dialect_name} database with connection pooling")
+
+        else:
+            log.warning(f"Using default configuration for dialect: {dialect_name}")
+
+        engine = create_engine(database_url, **engine_kwargs)
 
         @event.listens_for(engine, "connect")
         def set_sqlite_pragma(dbapi_conn, connection_record):
-            # Only apply to SQLite connections
-            if database_url.startswith("sqlite"):
+            if dialect_name == "sqlite":
                 cursor = dbapi_conn.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
 
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        log.info("Initialized Database with foreign key support.")
+        log.debug(f"Database initialized: {url}")
+        log.info("Database initialized successfully")
     else:
         log.warning("Database already initialized.")
 
@@ -532,7 +556,7 @@ def get_session_validator(
                     return session_domain is not None
                 finally:
                     db.close()
-            except:
+            except Exception:
                 return False
 
         return validate_with_database
