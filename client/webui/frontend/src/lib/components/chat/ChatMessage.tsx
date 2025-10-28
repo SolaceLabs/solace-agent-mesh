@@ -250,23 +250,23 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
         return null;
     };
 
-    // Count text and artifact parts for workflow button logic
-    const textParts = groupedParts.filter(part => part.kind === "text");
-    const artifactParts = groupedParts.filter(part => part.kind === "artifact" || part.kind === "file");
+    // Find the index of the last part with content
+    const lastPartIndex = groupedParts.length - 1;
+    const lastPartKind = groupedParts[lastPartIndex]?.kind;
 
     return (
         <div key={message.metadata?.messageId} className="space-y-2">
             {/* Render parts in their original order to preserve interleaving */}
             {groupedParts.map((part, index) => {
-                if (part.kind === "text") {
-                    const isLastTextPart = index === groupedParts.length - 1 || !groupedParts.slice(index + 1).some(p => p.kind === "text");
+                const isLastPart = index === lastPartIndex;
 
+                if (part.kind === "text") {
                     return (
                         <ChatBubble key={`part-${index}`} variant={variant}>
                             <ChatBubbleMessage variant={variant}>
                                 <MessageContent message={{...message, parts: [{kind: "text", text: (part as TextPart).text}]}} />
-                                {/* Show actions on the last text part */}
-                                {isLastTextPart && <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />}
+                                {/* Show actions on the last part if it's text */}
+                                {isLastPart && <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />}
                             </ChatBubbleMessage>
                         </ChatBubble>
                     );
@@ -276,12 +276,12 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                 return null;
             })}
 
-            {/* Show actions if no text content but artifacts are present */}
-            {textParts.length === 0 && artifactParts.length > 0 && (
+            {/* Show actions after artifacts if the last part is an artifact */}
+            {lastPartKind === "artifact" || lastPartKind === "file" ? (
                 <div className={`flex ${message.isUser ? "justify-end pr-4" : "justify-start pl-4"}`}>
                     <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />
                 </div>
-            )}
+            ) : null}
         </div>
     );
 };

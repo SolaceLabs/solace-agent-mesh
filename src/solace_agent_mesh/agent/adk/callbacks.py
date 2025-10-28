@@ -170,7 +170,17 @@ async def process_artifact_blocks_callback(
                             event.params,
                         )
                         filename = event.params.get("filename", "unknown_artifact")
+                        if filename == "unknown_artifact":
+                            log.warning(
+                                "%s Fenced artifact block started without a 'filename' parameter.",
+                                log_identifier,
+                            )
                         description = event.params.get("description")
+                        if filename == "unknown_artifact":
+                            log.warning(
+                                "%s Fenced artifact block started without a 'filename' parameter.",
+                                log_identifier,
+                            )
                         if a2a_context:
                             status_text = f"Receiving artifact `{filename}`..."
                             if description:
@@ -206,8 +216,13 @@ async def process_artifact_blocks_callback(
                             log_identifier,
                             event.buffered_size,
                         )
-                        params = parser._block_params
+                        params = event.params
                         filename = params.get("filename", "unknown_artifact")
+                        if filename == "unknown_artifact":
+                            log.warning(
+                                "%s Fenced artifact block progressed without a 'filename' parameter.",
+                                log_identifier,
+                            )
                         if a2a_context:
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
@@ -256,6 +271,8 @@ async def process_artifact_blocks_callback(
                                 }
                             )
                             if a2a_context:
+                                if not filename or not filename.strip():
+                                    filename = "unknown_artifact"
                                 progress_data = ArtifactCreationProgressData(
                                     filename=filename or "unknown_artifact",
                                     description=params.get("description"),
@@ -404,6 +421,11 @@ async def process_artifact_blocks_callback(
                 )
                 params = event.params
                 filename = params.get("filename", "unknown_artifact")
+                if filename == "unknown_artifact":
+                    log.warning(
+                        "%s Unterminated fenced artifact block is missing a valid 'filename'. Failing operation.",
+                        log_identifier,
+                    )
                 if (
                     "completed_artifact_blocks_list" not in session.state
                     or session.state["completed_artifact_blocks_list"] is None
