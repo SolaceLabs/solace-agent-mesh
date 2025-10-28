@@ -82,3 +82,20 @@ jobs:
           docker_password: ${{ secrets.DOCKER_PASSWORD }}
           source_registry: ${{ secrets.SAM_AWS_ECR_REGISTRY }}
           source_image_tag: ${{ needs.release.outputs.new_version }}-${{ steps.get_commit_hash.outputs.short_sha }}
+
+      - name: Verify image is in DockerHub
+        run: |
+          set -e
+          IMAGE="solace/solace-agent-mesh"
+          VERSION="${{ needs.release.outputs.new_version }}"
+          DOCKERHUB_URL="https://hub.docker.com/v2/repositories/${IMAGE}/tags/${VERSION}"
+
+          echo "Checking DockerHub for ${IMAGE}:${VERSION}..."
+          http_code=$(curl -s -o /dev/null -w "%{http_code}" "$DOCKERHUB_URL")
+
+          if [ "$http_code" -ne 200 ]; then
+            echo "❌ Image tag ${IMAGE}:${VERSION} NOT found on DockerHub!"
+            exit 1
+          fi
+
+          echo "✅ Image tag ${IMAGE}:${VERSION} exists on DockerHub."

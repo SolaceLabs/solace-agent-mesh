@@ -83,18 +83,6 @@ runs:
             --tag "${TAG}" \
             "${TAG}-amd64" \
             "${TAG}-arm64"
+          
+          docker push "${TAG}"
         done
-
-        echo "Successfully pulled from ECR and pushed to DockerHub"
-
-    - name: Build And Push Docker Image
-      if: inputs.source_registry == ''
-      uses: docker/build-push-action@v6.16.0
-      with:
-        context: "."
-        file: "Dockerfile"
-        push: true
-        platforms: linux/amd64,linux/arm64
-        tags: ${{ steps.docker_tags.outputs.TAGS_LIST }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
