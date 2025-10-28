@@ -47,9 +47,6 @@ SessionLocal: sessionmaker = None
 
 api_config: dict[str, Any] | None = None
 
-DB_POOL_SIZE = 30
-DB_MAX_OVERFLOW = 20
-
 
 def set_component_instance(component: "WebUIBackendComponent"):
     """Called by the component during its startup to provide its instance."""
@@ -65,11 +62,7 @@ def init_database(database_url: str):
     """Initialize database with direct sessionmaker."""
     global SessionLocal
     if SessionLocal is None:
-        engine = engine = create_engine(
-            database_url,
-            pool_size=DB_POOL_SIZE,
-            max_overflow=DB_MAX_OVERFLOW
-        )
+        engine = create_engine(database_url)
 
         # Enable foreign keys for SQLite only (database-agnostic)
         from sqlalchemy import event
