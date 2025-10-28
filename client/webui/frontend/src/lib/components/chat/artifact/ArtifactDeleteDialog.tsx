@@ -26,7 +26,7 @@ export const ArtifactDeleteDialog: React.FC = () => {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={closeDeleteModal}>
+                    <Button variant="ghost" onClick={closeDeleteModal}>
                         Cancel
                     </Button>
                     <Button variant="default" onClick={() => confirmDelete()}>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 
-import { Trash2, Check, X, Pencil, MessageCircle, Filter, FolderInput, ChevronDown, ChevronUp } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, ExternalLink } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
@@ -9,7 +9,15 @@ import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
 import { Spinner } from "@/lib/components/ui/spinner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui/select";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/lib/components/ui/dropdown-menu";
 import type { Session } from "@/lib/types";
 import type { Project } from "@/lib/types/projects";
 
@@ -41,10 +49,9 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
-    const [selectedProject, setSelectedProject] = useState<string | null>(null);
+    const [selectedProject, setSelectedProject] = useState<string>("all");
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
-    const [showAllProjects, setShowAllProjects] = useState(false);
 
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
@@ -161,6 +168,21 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         setSessionToMove(session);
         setIsMoveDialogOpen(true);
     };
+    const handleGoToProject = (session: Session) => {
+        if (!session.projectId) return;
+
+        // Dispatch event to navigate to projects page and select this project
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(
+                new CustomEvent("navigate-to-project", {
+                    detail: {
+                        projectId: session.projectId,
+                    },
+                })
+            );
+        }
+    };
+
 
     const handleMoveConfirm = async (targetProjectId: string | null) => {
         if (!sessionToMove) return;
@@ -271,22 +293,11 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
     // Filter sessions by selected project
     const filteredSessions = useMemo(() => {
-        if (!selectedProject) {
+        if (selectedProject === "all") {
             return sessions;
         }
         return sessions.filter(session => session.projectName === selectedProject);
     }, [sessions, selectedProject]);
-
-    // Determine which projects to display
-    const MAX_VISIBLE_PROJECTS = 5;
-    const visibleProjectNames = useMemo(() => {
-        if (showAllProjects || projectNames.length <= MAX_VISIBLE_PROJECTS) {
-            return projectNames;
-        }
-        return projectNames.slice(0, MAX_VISIBLE_PROJECTS);
-    }, [projectNames, showAllProjects]);
-
-    const hasMoreProjects = projectNames.length > MAX_VISIBLE_PROJECTS;
 
     return (
         <div className="flex h-full flex-col gap-4 py-6 pl-6">
@@ -297,48 +308,21 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
                 {/* Project Filter - Only show when persistence is enabled */}
                 {persistenceEnabled && projectNames.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pr-4">
-                        <Button
-                            variant={selectedProject === null ? "default" : "secondary"}
-                            size="sm"
-                            className="h-7 px-2.5 py-1 text-xs"
-                            onClick={() => setSelectedProject(null)}
-                        >
-                            <Filter size={12} />
-                            All Chats
-                        </Button>
-                        {visibleProjectNames.map(projectName => (
-                            <Button
-                                key={projectName}
-                                variant={selectedProject === projectName ? "default" : "secondary"}
-                                size="sm"
-                                className="h-7 px-2.5 py-1 text-xs max-w-[120px] justify-start"
-                                onClick={() => setSelectedProject(projectName)}
-                                title={projectName}
-                            >
-                                <span className="truncate block">{projectName}</span>
-                            </Button>
-                        ))}
-                        {hasMoreProjects && (
-                            <Button
-                                variant="secondary"
-                                size="sm"
-                                className="h-7 px-2.5 py-1 text-xs"
-                                onClick={() => setShowAllProjects(!showAllProjects)}
-                            >
-                                {showAllProjects ? (
-                                    <>
-                                        <ChevronUp className="mr-1" size={12} />
-                                        Show Less
-                                    </>
-                                ) : (
-                                    <>
-                                        <ChevronDown className="mr-1" size={12} />
-                                        +{projectNames.length - MAX_VISIBLE_PROJECTS} More
-                                    </>
-                                )}
-                            </Button>
-                        )}
+                    <div className="flex items-center gap-2 pr-4">
+                        <label className="text-sm font-medium">Project:</label>
+                        <Select value={selectedProject} onValueChange={setSelectedProject}>
+                            <SelectTrigger className="w-[200px] rounded-md">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Chats</SelectItem>
+                                {projectNames.map(projectName => (
+                                    <SelectItem key={projectName} value={projectName}>
+                                        {projectName}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 )}
             </div>
@@ -365,47 +349,70 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         />
                                     ) : (
                                         <button onClick={() => handleSessionClick(session.id)} className="flex-grow cursor-pointer text-left">
-                                            <div className="flex max-w-50 flex-col gap-1">
-                                                <div className="flex items-center gap-2">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex flex-col gap-1 min-w-0 flex-1">
                                                     <span className="truncate font-semibold" title={getSessionDisplayName(session)}>
                                                         {getSessionDisplayName(session)}
                                                     </span>
-                                                    {session.projectName && (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="max-w-[120px] text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm justify-start"
-                                                            title={session.projectName}
-                                                        >
-                                                            <span className="truncate block">{session.projectName}</span>
-                                                        </Badge>
-                                                    )}
+                                                    <span className="text-muted-foreground text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
-                                                <span className="text-muted-foreground text-xs">{formatSessionDate(session.updatedTime)}</span>
+                                                {session.projectName && (
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="max-w-[120px] text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm justify-start flex-shrink-0 cursor-pointer hover:bg-primary/20 transition-colors"
+                                                        title="Go to Project"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleGoToProject(session);
+                                                        }}
+                                                    >
+                                                        <span className="truncate block">{session.projectName}</span>
+                                                    </Badge>
+                                                )}
                                             </div>
                                         </button>
                                     )}
-                                    <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+                                    <div className="flex items-center">
                                         {editingSessionId === session.id ? (
                                             <>
-                                                <Button variant="ghost" onClick={handleRename}>
+                                                <Button variant="ghost" size="sm" onClick={handleRename} className="h-8 w-8 p-0">
                                                     <Check size={16} />
                                                 </Button>
-                                                <Button variant="ghost" onClick={() => setEditingSessionId(null)}>
+                                                <Button variant="ghost" size="sm" onClick={() => setEditingSessionId(null)} className="h-8 w-8 p-0">
                                                     <X size={16} />
                                                 </Button>
                                             </>
                                         ) : (
-                                            <>
-                                                <Button variant="ghost" onClick={() => handleEditClick(session)} title="Rename">
-                                                    <Pencil size={16} />
-                                                </Button>
-                                                <Button variant="ghost" onClick={() => handleMoveClick(session)} title="Move to project">
-                                                    <FolderInput size={16} />
-                                                </Button>
-                                                <Button variant="ghost" onClick={() => handleDeleteClick(session)} title="Delete">
-                                                    <Trash2 size={16} />
-                                                </Button>
-                                            </>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
+                                                        <MoreHorizontal size={16} />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="w-48">
+                                                    {session.projectId && (
+                                                        <>
+                                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleGoToProject(session); }}>
+                                                                <ExternalLink size={16} className="mr-2" />
+                                                                Go to Project
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSeparator />
+                                                        </>
+                                                    )}
+                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditClick(session); }}>
+                                                        <Pencil size={16} className="mr-2" />
+                                                        Rename
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveClick(session); }}>
+                                                        <FolderInput size={16} className="mr-2" />
+                                                        Move to project
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteClick(session); }} className="text-destructive focus:text-destructive">
+                                                        <Trash2 size={16} className="mr-2" />
+                                                        Delete
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                         )}
                                     </div>
                                 </div>
@@ -415,7 +422,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 )}
                 {filteredSessions.length === 0 && sessions.length > 0 && !isLoading && (
                     <div className="text-muted-foreground flex h-full flex-col items-center justify-center text-sm">
-                        <Filter className="mx-auto mb-4 h-12 w-12" />
+                        <MessageCircle className="mx-auto mb-4 h-12 w-12" />
                         No sessions found for this project
                     </div>
                 )}

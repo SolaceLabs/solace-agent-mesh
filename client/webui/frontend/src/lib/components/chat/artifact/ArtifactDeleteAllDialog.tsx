@@ -26,7 +26,7 @@ export const ArtifactDeleteAllDialog: React.FC = () => {
                     <DialogDescription>{artifacts.length === 1 ? "One file" : `All ${artifacts.length} files`} will be permanently deleted.</DialogDescription>
                 </DialogHeader>
                 <div className="flex justify-end space-x-2">
-                    <Button variant="outline" onClick={() => setIsBatchDeleteModalOpen(false)}>
+                    <Button variant="ghost" onClick={() => setIsBatchDeleteModalOpen(false)}>
                         Cancel
                     </Button>
                     <Button variant="default" onClick={() => confirmBatchDeleteArtifacts()}>

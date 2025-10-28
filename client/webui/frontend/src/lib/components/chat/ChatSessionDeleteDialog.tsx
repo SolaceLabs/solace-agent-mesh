@@ -25,7 +25,7 @@ export const ChatSessionDeleteDialog = React.memo<ChatSessionDeleteDialogProps>(
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose} title="Cancel">
+                    <Button variant="ghost" onClick={onClose} title="Cancel">
                         Cancel
                     </Button>
                     <Button onClick={onConfirm} title="Delete">
