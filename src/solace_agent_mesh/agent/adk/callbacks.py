@@ -832,19 +832,30 @@ def _generate_fenced_artifact_instruction() -> str:
     close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
     return f"""\
 **Creating Text-Based Artifacts:**
-To create an artifact from content you generate (like code, a report, or a document), you MUST use a special `save_artifact` block. This is the only reliable way to ensure your content is saved correctly.
+To create an artifact from content you generate (like code, a report, or a document), you MUST use a fenced artifact block with the EXACT syntax shown below. This is the only reliable way to ensure your content is saved correctly.
 
-**Syntax:**
+**EXACT SYNTAX (copy this pattern exactly):**
 {open_delim}save_artifact: filename="your_filename.ext" mime_type="text/plain" description="A brief description."
 The full content you want to save goes here.
 It can span multiple lines.
 {close_delim}
 
-- **Rules:**
-  - The parameters `filename` and `mime_type` are required. `description` is optional but recommended.
-  - All parameter values **MUST** be enclosed in double quotes.
-  - You **MUST NOT** use double quotes `"` inside the parameter values (e.g., within the description string). Use single quotes or rephrase instead.
-  - Do not surround a save_artifact block with '```' (triple backticks). This will create rendering issues.
+**CRITICAL FORMATTING RULES:**
+  1. The opening delimiter MUST be EXACTLY three angle brackets: `{open_delim}` (not `{open_delim[0:2]}` or `{open_delim[0:1]}`)
+  2. Immediately after the opening delimiter, write `save_artifact:` with a colon and NO space before the colon
+  3. Parameters (filename, mime_type, description) must be on the SAME line as the opening delimiter
+  4. All parameter values **MUST** be enclosed in double quotes: `filename="example.txt"`
+  5. You **MUST NOT** use double quotes `"` inside parameter values. Use single quotes or rephrase instead
+  6. After all parameters, press enter/newline, then write your content
+  7. Close the block with EXACTLY three angle brackets: `{close_delim}` on its own line
+  8. Do NOT surround the block with triple backticks (```). The delimiters `{open_delim}` and `{close_delim}` are sufficient
+
+**COMMON ERRORS TO AVOID:**
+  ❌ WRONG: `{open_delim[0:2]}save_artifact:` (only 2 angle brackets)
+  ❌ WRONG: `{open_delim[0:1]}save_artifact:` (only 1 angle bracket)
+  ❌ WRONG: `{open_delim}save_artifact` (missing colon)
+  ❌ WRONG: `{open_delim}save_artifact :` (space before colon)
+  ✅ CORRECT: `{open_delim}save_artifact: filename="test.txt" mime_type="text/plain"`
 
 The system will automatically save the content and give you a confirmation in the next turn."""
 
@@ -943,6 +954,10 @@ def _generate_tool_instructions_from_registry(
 
     instructions_by_category = defaultdict(list)
     for tool in sorted(active_tools, key=lambda t: (t.category, t.name)):
+        # Skip internal tools (those starting with underscore)
+        if tool.name.startswith("_"):
+            continue
+
         param_parts = []
         if tool.parameters and tool.parameters.properties:
             for name, schema in tool.parameters.properties.items():

@@ -1536,15 +1536,7 @@ async def _notify_artifact_save(
     tool_context: ToolContext = None,  # Keep tool_context for signature consistency
 ) -> Dict[str, Any]:
     """
-    An internal tool that is automatically invoked as a side-effect when the LLM
-    creates an artifact using a fenced save_artifact block.
-
-    This tool provides the LLM with the exact version number assigned to the newly
-    created artifact and the save operation status. The LLM needs this version
-    number if it wants to immediately pass the artifact to other tools in subsequent
-    actions within the same conversation.
-
-    It should not be called directly by the LLM.
+    CRITICAL: _notify_artifact_save is automatically invoked by the system as a side-effect when you create artifacts. You should NEVER call this tool yourself. The system will call it for you and provide the results in your next turn. If you manually invoke it, you are making an error."
     """
     return {"filename": filename, "version": version, "status": status}
 
@@ -1552,7 +1544,7 @@ async def _notify_artifact_save(
 _notify_artifact_save_tool_def = BuiltinTool(
     name="_notify_artifact_save",
     implementation=_notify_artifact_save,
-    description="INTERNAL TOOL. This tool is automatically invoked as a side-effect when you create an artifact using a fenced save_artifact block. It provides you with the exact version number assigned to the newly created artifact and the save operation status. You will need this version number if you want to immediately pass the artifact to other tools. The user already sees the artifact in their UI automatically. You MUST NOT call this tool directly.",
+    description="CRITICAL: _notify_artifact_save is automatically invoked by the system as a side-effect when you create artifacts. You should NEVER call this tool yourself. The system will call it for you and provide the results in your next turn. If you manually invoke it, you are making an error.",
     category="internal",
     required_scopes=[],  # No scopes needed for an internal notification tool
     parameters=adk_types.Schema(

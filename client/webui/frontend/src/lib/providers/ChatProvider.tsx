@@ -1357,7 +1357,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     : artifact
             );
         });
-    }, [setArtifacts]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // setArtifacts is stable from useState
 
     const openSessionDeleteModal = useCallback((session: Session) => {
         setSessionToDelete(session);

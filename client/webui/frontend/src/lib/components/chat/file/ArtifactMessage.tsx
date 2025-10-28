@@ -141,17 +141,18 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     // Mark artifact as displayed when rendered
     useEffect(() => {
-        if (shouldRender && artifact) {
-            markArtifactAsDisplayed(artifact.filename, true);
+        const filename = artifact?.filename;
+        if (shouldRender && filename) {
+            markArtifactAsDisplayed(filename, true);
         }
 
         return () => {
             // Unmark when component unmounts or stops rendering
-            if (artifact) {
-                markArtifactAsDisplayed(artifact.filename, false);
+            if (filename) {
+                markArtifactAsDisplayed(filename, false);
             }
         };
-    }, [shouldRender, artifact, markArtifactAsDisplayed]);
+    }, [shouldRender, artifact?.filename, markArtifactAsDisplayed]);
 
     // Check if we should render content inline (for images and audio)
     const shouldRenderInline = useMemo(() => {
