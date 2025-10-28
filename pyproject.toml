@@ -91,6 +91,9 @@ dependencies = [
     "asyncpg",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
+post-install-commands = [
+  "playwright install"
+]
 
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.13"]
@@ -100,6 +103,7 @@ run = "pytest {args}"
 run-cov = "coverage run -m pytest --cov=cli --cov=src {args}"
 cov-combine = "coverage combine"
 cov-report = "coverage report"
+
 
 [project.urls]
 Homepage = "https://github.com/SolaceLabs/solace-agent-mesh"
