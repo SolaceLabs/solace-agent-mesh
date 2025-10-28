@@ -19,8 +19,8 @@ class CustomBuildHook(BuildHookInterface):
         )
 
         if skip_ui_build:
-            stdout.write("SAM_SKIP_UI_BUILD is set, skipping UI build steps\n")
-            stdout.write("Verifying static assets exist...\n")
+            self.app.display_info("SAM_SKIP_UI_BUILD is set, skipping UI build steps\n")
+            self.app.display_info("Verifying static assets exist...\n")
 
             required_paths = [
                 "config_portal/frontend/static",
@@ -34,7 +34,7 @@ class CustomBuildHook(BuildHookInterface):
                     f"SAM_SKIP_UI_BUILD is set but required static assets are missing: {', '.join(missing)}"
                 )
 
-            stdout.write(
+            self.app.display_info(
                 "All required static assets found, proceeding with Python build only\n"
             )
             return
