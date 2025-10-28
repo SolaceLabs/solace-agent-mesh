@@ -181,6 +181,18 @@ class WebUIBackendComponent(BaseGatewayComponent):
         else:
             # Memory storage or no explicit configuration - no persistence service needed
             self.database_url = None
+
+        platform_config = self.get_config("platform_service", {})
+        self.platform_database_url = platform_config.get("database_url")
+
+        if self.platform_database_url:
+            log.info(
+                "%s Platform database configured: %s",
+                self.log_identifier,
+                self.platform_database_url.split('@')[-1] if '@' in self.platform_database_url else self.platform_database_url
+            )
+        else:
+            log.info("%s No platform database configured - platform features will be unavailable", self.log_identifier)
             
             # Validate that features requiring database persistence are not enabled
             task_logging_config = self.get_config("task_logging", {})
@@ -1198,7 +1210,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self, self.database_url)
+            setup_dependencies(self, self.database_url, self.platform_database_url)
 
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.
