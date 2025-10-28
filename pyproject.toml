@@ -97,7 +97,7 @@ python = ["3.10", "3.13"]
 
 [tool.hatch.envs.hatch-test.scripts]
 run = "pytest {args}"
-run-cov = "coverage run -m pytest {args}"
+run-cov = "coverage run -m pytest --cov=cli --cov=src {args}"
 cov-combine = "coverage combine"
 cov-report = "coverage report"
 
