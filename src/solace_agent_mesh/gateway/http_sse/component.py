@@ -182,6 +182,24 @@ class WebUIBackendComponent(BaseGatewayComponent):
             # Memory storage or no explicit configuration - no persistence service needed
             self.database_url = None
 
+        # Validate that features requiring runtime database persistence are not enabled without database
+        if self.database_url is None:
+            task_logging_config = self.get_config("task_logging", {})
+            if task_logging_config.get("enabled", False):
+                raise ValueError(
+                    f"{self.log_identifier} Task logging requires SQL session storage. "
+                    "Either set session_service.type='sql' with a valid database_url, "
+                    "or disable task_logging.enabled."
+                )
+
+            feedback_config = self.get_config("feedback_publishing", {})
+            if feedback_config.get("enabled", False):
+                log.warning(
+                    "%s Feedback publishing is enabled but database persistence is not configured. "
+                    "Feedback will only be published to the broker, not stored locally.",
+                    self.log_identifier
+                )
+
         platform_config = self.get_config("platform_service", {})
         self.platform_database_url = platform_config.get("database_url")
 
@@ -193,23 +211,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
         else:
             log.info("%s No platform database configured - platform features will be unavailable", self.log_identifier)
-            
-            # Validate that features requiring database persistence are not enabled
-            task_logging_config = self.get_config("task_logging", {})
-            if task_logging_config.get("enabled", False):
-                raise ValueError(
-                    f"{self.log_identifier} Task logging requires SQL session storage. "
-                    "Either set session_service.type='sql' with a valid database_url, "
-                    "or disable task_logging.enabled."
-                )
-            
-            feedback_config = self.get_config("feedback_publishing", {})
-            if feedback_config.get("enabled", False):
-                log.warning(
-                    "%s Feedback publishing is enabled but database persistence is not configured. "
-                    "Feedback will only be published to the broker, not stored locally.",
-                    self.log_identifier
-                )
 
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
