@@ -95,7 +95,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
         app_config = component_config.get("app_config", {})
         resolve_uris = app_config.get("resolve_artifact_uris_in_gateway", True)
 
-        super().__init__(resolve_artifact_uris_in_gateway=resolve_uris, **kwargs)
+        # HTTP SSE gateway configuration:
+        # - supports_inline_artifact_resolution=True: Artifacts are converted to FileParts
+        #   during embed resolution and rendered inline in the web UI
+        # - filter_tool_data_parts=False: Web UI displays all parts including tool execution details
+        super().__init__(
+            resolve_artifact_uris_in_gateway=resolve_uris,
+            supports_inline_artifact_resolution=True,
+            filter_tool_data_parts=False,
+            **kwargs
+        )
         log.info("%s Initializing Web UI Backend Component...", self.log_identifier)
 
         try:
