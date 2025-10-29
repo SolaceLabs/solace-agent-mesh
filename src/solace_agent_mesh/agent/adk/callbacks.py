@@ -303,11 +303,6 @@ async def process_artifact_blocks_callback(
                                     log_identifier,
                                     params["schema_max_keys"],
                                 )
-                        log.error(
-                            "%s Calling internal create_artifact tool with args: %s",
-                            log_identifier,
-                            kwargs_for_call,
-                        )
                         wrapped_creator = ADKToolWrapper(
                             original_func=_internal_create_artifact,
                             tool_config=None,  # No specific config for this internal tool

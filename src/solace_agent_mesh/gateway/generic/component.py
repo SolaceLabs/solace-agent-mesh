@@ -78,7 +78,20 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
     """
 
     def __init__(self, **kwargs: Any):
-        super().__init__(**kwargs)
+        component_config = kwargs.get("component_config", {})
+        app_config = component_config.get("app_config", {})
+        resolve_uris = app_config.get("resolve_artifact_uris_in_gateway", True)
+
+        # Generic gateway configuration:
+        # - supports_inline_artifact_resolution=True: Artifacts are converted to FileParts
+        #   during embed resolution and can be rendered inline
+        # - filter_tool_data_parts=False: Gateway displays all parts including tool execution details
+        super().__init__(
+            resolve_artifact_uris_in_gateway=resolve_uris,
+            supports_inline_artifact_resolution=True,
+            filter_tool_data_parts=False,
+            **kwargs
+        )
         log.info("%s Initializing Generic Gateway Component...", self.log_identifier)
 
         # --- Adapter Loading ---
