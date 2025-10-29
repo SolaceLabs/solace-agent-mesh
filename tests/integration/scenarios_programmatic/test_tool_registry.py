@@ -33,7 +33,6 @@ async def test_initial_tool_registry_state():
         "append_to_artifact",
         "list_artifacts",
         "load_artifact",
-        "signal_artifact_for_return",
         "apply_embed_and_create_artifact",
         "extract_content_from_artifact",
         "delete_artifact",

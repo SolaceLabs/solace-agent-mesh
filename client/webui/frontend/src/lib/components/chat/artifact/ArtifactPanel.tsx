@@ -5,6 +5,7 @@ import { ArrowDown, ArrowLeft, Ellipsis, FileText, Loader2 } from "lucide-react"
 import { Button } from "@/lib/components";
 import { useChatContext, useDownload } from "@/lib/hooks";
 import type { ArtifactInfo } from "@/lib/types";
+import { formatBytes } from "@/lib/utils/format";
 
 import { ArtifactCard } from "./ArtifactCard";
 import { ArtifactDeleteDialog } from "./ArtifactDeleteDialog";
@@ -26,6 +27,7 @@ export const ArtifactPanel: React.FC = () => {
     const { onDownload } = useDownload();
 
     const [sortOption, setSortOption] = useState<SortOptionType>(SortOption.DateDesc);
+    const [isPreviewInfoExpanded, setIsPreviewInfoExpanded] = useState(false);
     const sortedArtifacts = useMemo(() => {
         if (artifactsLoading) return [];
 
@@ -97,10 +99,34 @@ export const ArtifactPanel: React.FC = () => {
                             <ArtifactDetails
                                 artifactInfo={previewArtifact}
                                 isPreview={true}
+                                isExpanded={isPreviewInfoExpanded}
+                                setIsExpanded={setIsPreviewInfoExpanded}
                                 onDelete={() => openDeleteModal(previewArtifact)}
                                 onDownload={() => onDownload(previewArtifact)}
                             />
                         </div>
+                        {isPreviewInfoExpanded && (
+                            <div className="border-b px-4 py-3">
+                                <div className="space-y-2 text-sm">
+                                    {previewArtifact.description && (
+                                        <div>
+                                            <span className="text-secondary-foreground">Description:</span>
+                                            <div className="mt-1">{previewArtifact.description}</div>
+                                        </div>
+                                    )}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <span className="text-secondary-foreground">Size:</span>
+                                            <div>{formatBytes(previewArtifact.size)}</div>
+                                        </div>
+                                        <div>
+                                            <span className="text-secondary-foreground">Type:</span>
+                                            <div>{previewArtifact.mime_type || 'Unknown'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
                             <ArtifactPreviewContent artifact={previewArtifact} />
                         </div>

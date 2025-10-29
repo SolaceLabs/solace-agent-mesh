@@ -5,28 +5,32 @@ Initializes ADK Services based on configuration.
 import logging
 import os
 import re
-from typing import Dict, Optional, List, Any
-from typing_extensions import override
+from typing import Any, Dict, List, Optional
 
-from google.genai import types as adk_types
-
-
-from google.adk.sessions import (
-    BaseSessionService,
-    InMemorySessionService,
-    DatabaseSessionService,
-    VertexAiSessionService,
-)
 from google.adk.artifacts import (
     BaseArtifactService,
-    InMemoryArtifactService,
     GcsArtifactService,
+    InMemoryArtifactService,
+)
+from google.adk.auth.credential_service.base_credential_service import (
+    BaseCredentialService,
+)
+from google.adk.auth.credential_service.in_memory_credential_service import (
+    InMemoryCredentialService,
 )
 from google.adk.memory import (
     BaseMemoryService,
     InMemoryMemoryService,
     VertexAiRagMemoryService,
 )
+from google.adk.sessions import (
+    BaseSessionService,
+    DatabaseSessionService,
+    InMemorySessionService,
+    VertexAiSessionService,
+)
+from google.genai import types as adk_types
+from typing_extensions import override
 
 from .artifacts.filesystem_artifact_service import FilesystemArtifactService
 
@@ -170,9 +174,9 @@ def initialize_session_service(component) -> BaseSessionService:
     config = component.get_config("session_service", {})
 
     # Handle both dict and SessionServiceConfig object
-    if hasattr(config, 'type'):
+    if hasattr(config, "type"):
         service_type = config.type.lower()
-        db_url = getattr(config, 'database_url', None)
+        db_url = getattr(config, "database_url", None)
     else:
         service_type = config.get("type", "memory").lower()
         db_url = config.get("database_url")
@@ -280,7 +284,6 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                 "aws_secret_access_key",
                 "aws_session_token",
                 "region_name",
-                "endpoint_url",
                 "config",
             ]
 
@@ -296,8 +299,9 @@ def initialize_artifact_service(component) -> BaseArtifactService:
                     s3_config[key] = config[key]
 
             # Set credentials from environment variables as a fallback.
-            if "endpoint_url" not in s3_config:
-                s3_config["endpoint_url"] = os.environ.get("S3_ENDPOINT_URL")
+            endpoint_url = config.get("endpoint_url") or os.environ.get("S3_ENDPOINT_URL") or "https://s3.amazonaws.com"
+            s3_config["endpoint_url"] = endpoint_url
+
             if "aws_access_key_id" not in s3_config:
                 env_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
                 if env_access_key is not None:
@@ -389,4 +393,36 @@ def initialize_memory_service(component) -> BaseMemoryService:
     else:
         raise ValueError(
             f"{component.log_identifier} Unsupported memory service type: {service_type}"
+        )
+
+
+def initialize_credential_service(component) -> BaseCredentialService | None:
+    """Initializes the ADK Credential Service based on configuration."""
+    config = component.get_config("credential_service", None)
+
+    # If no credential service is configured, return None
+    if config is None:
+        log.info(
+            "%s No credential service configured, skipping initialization",
+            component.log_identifier,
+        )
+        return None
+
+    # Handle both dict and CredentialServiceConfig object
+    if hasattr(config, "type"):
+        service_type = config.type.lower()
+    else:
+        service_type = config.get("type", "memory").lower()
+
+    log.info(
+        "%s Initializing Credential Service of type: %s",
+        component.log_identifier,
+        service_type,
+    )
+
+    if service_type == "memory":
+        return InMemoryCredentialService()
+    else:
+        raise ValueError(
+            f"{component.log_identifier} Unsupported credential service type: {service_type}"
         )

@@ -43,8 +43,9 @@ class BaseProxyApp(App, ABC):
             # Overwrite the raw dict with the validated object for downstream use
             app_info["app_config"] = app_config
         except ValidationError as e:
-            log.error("Proxy configuration validation failed:\n%s", e)
-            raise ValueError(f"Invalid proxy configuration: {e}") from e
+            message = BaseProxyAppConfig.format_validation_error_message(e, app_info['name'])
+            log.error("Invalid Proxy configuration:\n%s", message)
+            raise
 
         namespace = app_config.get("namespace")
         proxied_agents = app_config.get("proxied_agents", [])

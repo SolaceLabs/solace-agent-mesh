@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 
 import { Loader2 } from "lucide-react";
 
@@ -24,6 +24,11 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
     const [cachedContent, setCachedContent] = useState<FileAttachment | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
 
+    // Track in-flight fetches to prevent duplicate requests
+    const isFetchingRef = useRef(false);
+    const lastFetchedFilenameRef = useRef<string | null>(null);
+    const isDownloadingRef = useRef(false);
+
     // Mark artifact as displayed when preview opens
     useEffect(() => {
         markArtifactAsDisplayed(artifact.filename, true);
@@ -37,6 +42,9 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
         setIsLoading(false);
         setError(null);
         setCachedContent(null);
+        // Reset fetch tracking when filename changes
+        isFetchingRef.current = false;
+        lastFetchedFilenameRef.current = null;
     }, [artifact.filename]); // Only depend on filename to avoid infinite loops
 
     // Update cached content when accumulated content changes (for progressive rendering)
@@ -47,7 +55,7 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
                 mime_type: artifact.mime_type,
                 content: artifact.accumulatedContent,
                 last_modified: artifact.last_modified,
-                // @ts-ignore - Add custom property to track if content is plain text
+                // @ts-expect-error - Add custom property to track if content is plain text
                 isPlainText: artifact.isAccumulatedContentPlainText,
             };
             setCachedContent(cachedFile);
@@ -57,6 +65,15 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
     // Fetch data when preview opens or filename changes
     useEffect(() => {
         async function fetchData() {
+            // Prevent duplicate fetches in React Strict Mode and rapid re-renders
+            if (isFetchingRef.current && lastFetchedFilenameRef.current === artifact.filename) {
+                return;
+            }
+
+            // Mark as fetching
+            isFetchingRef.current = true;
+            lastFetchedFilenameRef.current = artifact.filename;
+
             try {
                 setIsLoading(true);
                 setError(null);
@@ -73,6 +90,7 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
                 setError(err instanceof Error ? err.message : "Failed to load artifact content");
             } finally {
                 setIsLoading(false);
+                // Keep isFetchingRef.current as true to prevent re-fetches for the same file
             }
         }
 
@@ -84,18 +102,21 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
     // Trigger download for embed resolution when artifact completes
     useEffect(() => {
         async function triggerDownload() {
-            if (artifact.needsEmbedResolution && !isDownloading) {
+            // Prevent duplicate downloads in React Strict Mode and rapid re-renders
+            if (artifact.needsEmbedResolution && !isDownloading && !isDownloadingRef.current) {
+                isDownloadingRef.current = true;
                 setIsDownloading(true);
                 try {
                     const resolvedContent = await downloadAndResolveArtifact(artifact.filename);
                     if (resolvedContent) {
                         // Add isPlainText: false because downloaded content is base64
-                        setCachedContent({ ...resolvedContent, isPlainText: false } as any);
+                        setCachedContent({ ...resolvedContent, isPlainText: false } as FileAttachment & { isPlainText: boolean });
                     }
                 } catch (err) {
                     console.error(`[ArtifactPreviewContent] Error downloading ${artifact.filename}:`, err);
                 } finally {
                     setIsDownloading(false);
+                    isDownloadingRef.current = false;
                 }
             }
         }

@@ -39,11 +39,12 @@ export const shouldAutoRender = (filename?: string, mimeType?: string): boolean 
 };
 
 /**
- * Determines if a file is user-controllable for rendering (text-based files)
+ * Determines if a file is user-controllable for rendering (text-based files, images, and audio)
+ * Images and audio auto-expand but users should be able to collapse them
  */
 export const isUserControllableRendering = (filename?: string, mimeType?: string): boolean => {
     const renderType = getRenderType(filename, mimeType);
-    const controllableTypes = ["text", "markdown", "json", "yaml", "csv", "html"];
+    const controllableTypes = ["text", "markdown", "json", "yaml", "csv", "html", "image", "audio"];
     return renderType ? controllableTypes.includes(renderType) : false;
 };
 
@@ -161,7 +162,7 @@ export const extractJsonPreview = (content: string): string => {
             return `{\n${preview}\n}`;
         }
         return JSON.stringify(parsed, null, 2).substring(0, 150);
-    } catch (error) {
+    } catch {
         return content.substring(0, 150);
     }
 };
@@ -244,11 +245,12 @@ export const generateFileTypePreview = (content: string, filename?: string, mime
             return generateStructuredDataPreview(content, "json", maxLength);
         case "yaml":
             return generateStructuredDataPreview(content, "yaml", maxLength);
-        case "csv":
+        case "csv": {
             // For CSV, show first few rows
             const csvLines = content.split('\n').slice(0, 5);
             return generateContentPreview(csvLines.join('\n'), maxLength);
-        case "html":
+        }
+        case "html": {
             // For HTML, try to extract text content or show structure
             const htmlPreview = content
                 .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove scripts
@@ -257,6 +259,7 @@ export const generateFileTypePreview = (content: string, filename?: string, mime
                 .replace(/\s+/g, ' ') // Normalize whitespace
                 .trim();
             return generateContentPreview(htmlPreview || content, maxLength);
+        }
         default:
             return generateContentPreview(content, maxLength);
     }
