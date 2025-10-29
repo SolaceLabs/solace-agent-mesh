@@ -4,7 +4,10 @@ Encapsulates the runtime state for a single, in-flight agent task.
 
 import asyncio
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from solace_ai_connector.common.message import Message as SolaceMessage
 
 
 class TaskExecutionContext:
@@ -33,13 +36,20 @@ class TaskExecutionContext:
         self.artifact_signals_to_return: List[Dict[str, Any]] = []
         self.event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.lock: threading.Lock = threading.Lock()
-        
+
         # Token usage tracking
         self.total_input_tokens: int = 0
         self.total_output_tokens: int = 0
         self.total_cached_input_tokens: int = 0
         self.token_usage_by_model: Dict[str, Dict[str, int]] = {}
         self.token_usage_by_source: Dict[str, Dict[str, int]] = {}
+
+        # Generic security storage (enterprise use only)
+        self._security_context: Dict[str, Any] = {}
+
+        # Original Solace message for ACK/NACK operations
+        # Stored here instead of a2a_context to avoid serialization issues
+        self._original_solace_message: Optional["SolaceMessage"] = None
 
     def cancel(self) -> None:
         """Signals that the task should be cancelled."""
@@ -256,3 +266,70 @@ class TaskExecutionContext:
                 "by_model": dict(self.token_usage_by_model),
                 "by_source": dict(self.token_usage_by_source),
             }
+    
+    def set_security_data(self, key: str, value: Any) -> None:
+        """
+        Store opaque security data (enterprise use only).
+        
+        This method provides a secure storage mechanism for enterprise security features
+        such as authentication tokens. The stored data is isolated per task and
+        automatically cleaned up when the task completes.
+        
+        Args:
+            key: Storage key for the security data
+            value: Security data to store (opaque to open source code)
+        """
+        with self.lock:
+            self._security_context[key] = value
+    
+    def get_security_data(self, key: str, default: Any = None) -> Any:
+        """
+        Retrieve opaque security data (enterprise use only).
+        
+        This method retrieves security data that was previously stored using
+        set_security_data(). The data is opaque to open source code.
+        
+        Args:
+            key: Storage key for the security data
+            default: Default value to return if key not found
+            
+        Returns:
+            The stored security data, or default if not found
+        """
+        with self.lock:
+            return self._security_context.get(key, default)
+    
+    def clear_security_data(self) -> None:
+        """
+        Clear all security data.
+
+        This method is provided for completeness but is not explicitly called.
+        Security data is automatically cleaned up when the TaskExecutionContext
+        is removed from active_tasks and garbage collected.
+        """
+        with self.lock:
+            self._security_context.clear()
+
+    def set_original_solace_message(self, message: Optional["SolaceMessage"]) -> None:
+        """
+        Store the original Solace message for this task.
+
+        This message is used for ACK/NACK operations when the task completes.
+        Stored separately from a2a_context to avoid serialization issues when
+        the context is persisted to the ADK session state.
+
+        Args:
+            message: The Solace message that initiated this task, or None
+        """
+        with self.lock:
+            self._original_solace_message = message
+
+    def get_original_solace_message(self) -> Optional["SolaceMessage"]:
+        """
+        Retrieve the original Solace message for this task.
+
+        Returns:
+            The Solace message that initiated this task, or None if not available
+        """
+        with self.lock:
+            return self._original_solace_message

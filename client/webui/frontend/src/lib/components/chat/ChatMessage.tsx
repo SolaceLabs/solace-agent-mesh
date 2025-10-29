@@ -16,6 +16,7 @@ import { ContentRenderer } from "./preview/ContentRenderer";
 import { extractEmbeddedContent } from "./preview/contentUtils";
 import { decodeBase64Content } from "./preview/previewUtils";
 import type { ExtractedContent } from "./preview/contentUtils";
+import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
@@ -82,11 +83,8 @@ const MessageActions: React.FC<{
     );
 };
 
-const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
+const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
-    if (message.isStatusBubble) {
-        return null;
-    }
 
     // Derive text content from the `parts` array for both user and agent messages.
     const textParts = message.parts?.filter(p => p.kind === "text") as TextPart[] | undefined;
@@ -149,11 +147,11 @@ const MessageContent: React.FC<{ message: MessageFE }> = ({ message }) => {
             {contentElements}
         </div>
     );
-};
+});
 
-const MessageWrapper: React.FC<{ message: MessageFE; children: ReactNode; className?: string }> = ({ message, children, className }) => {
+const MessageWrapper = React.memo<{ message: MessageFE; children: ReactNode; className?: string }>(({ message, children, className }) => {
     return <div className={`mt-1 space-y-1 ${message.isUser ? "ml-auto" : "mr-auto"} ${className}`}>{children}</div>;
-};
+});
 
 const getUploadedFiles = (message: MessageFE) => {
     if (message.uploadedFiles && message.uploadedFiles.length > 0) {
@@ -186,6 +184,10 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     if (message.isStatusBubble) {
         return null;
+    }
+
+    if (message.authenticationLink) {
+        return <AuthenticationMessage message={message} />;
     }
 
     const textContent = message.parts?.some(p => p.kind === "text" && p.text.trim());

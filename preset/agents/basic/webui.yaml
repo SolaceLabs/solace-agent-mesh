@@ -27,6 +27,8 @@ apps:
 
       artifact_service: *default_artifact_service
 
+      model: *general_model
+
       gateway_id: ${WEBUI_GATEWAY_ID}
       fastapi_host: ${FASTAPI_HOST}
       fastapi_port: ${FASTAPI_PORT}

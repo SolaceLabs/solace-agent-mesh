@@ -106,7 +106,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
-    const [userInput, setUserInput] = useState<string>("");
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
@@ -670,6 +669,28 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 case "tool_invocation_start":
                                     break;
+                                case "authentication_required": {
+                                    const auth_uri = data?.auth_uri;
+                                    const target_agent = typeof data?.target_agent === "string" ? data.target_agent : "Agent";
+                                    const gateway_task_id = typeof data?.gateway_task_id === "string" ? data.gateway_task_id : undefined;
+                                    if (typeof auth_uri === "string" && auth_uri.startsWith("http")) {
+                                        const authMessage: MessageFE = {
+                                            role: "agent",
+                                            parts: [{ kind: "text", text: "" }],
+                                            authenticationLink: {
+                                                url: auth_uri,
+                                                text: "Click to Authenticate",
+                                                targetAgent: target_agent,
+                                                gatewayTaskId: gateway_task_id
+                                            },
+                                            isUser: false,
+                                            isComplete: true,
+                                            metadata: { messageId: `auth-${v4()}` }
+                                        };
+                                        setMessages(prev => [...prev, authMessage]);
+                                    }
+                                    break;
+                                }
                                 default:
                                     newContentParts.push(part);
                             }
@@ -900,7 +921,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         setSelectedAgentName("");
         setMessages([]);
-        setUserInput("");
         setIsResponding(false);
         setCurrentTaskId(null);
         setTaskIdInSidePanel(null);
@@ -969,7 +989,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // Update session state
                 setSessionId(newSessionId);
-                setUserInput("");
                 setIsResponding(false);
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
@@ -1154,9 +1173,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [addNotification, closeCurrentEventSource, isResponding]);
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputOverride?: string | null) => {
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null) => {
             event.preventDefault();
-            const currentInput = userInputOverride?.trim() || userInput.trim();
+            const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
 
             if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
@@ -1189,7 +1208,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             latestStatusText.current = "Thinking";
             setMessages(prev => [...prev, userMsg]);
-            setUserInput("");
 
             const errors: string[] = [];
 
@@ -1354,7 +1372,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, userInput, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble]
+        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble]
     );
 
     useEffect(() => {
@@ -1418,8 +1436,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setSessionName,
         messages,
         setMessages,
-        userInput,
-        setUserInput,
         isResponding,
         currentTaskId,
         isCancelling,

@@ -31,7 +31,6 @@ export const Default: Story = {
         chatContext: {
             sessionId: "mock-session-id",
             messages: mockMessages,
-            userInput: "",
             isResponding: false,
             isCancelling: false,
             selectedAgentName: "OrchestratorAgent",
@@ -55,7 +54,6 @@ export const WithLoadingMessage: Story = {
         chatContext: {
             sessionId: "mock-session-id",
             messages: [...mockMessages, mockLoadingMessage],
-            userInput: "",
             isResponding: true,
             isCancelling: false,
             selectedAgentName: "OrchestratorAgent",
@@ -80,7 +78,6 @@ export const WithSidePanelOpen: Story = {
         chatContext: {
             sessionId: "mock-session-id",
             messages: mockMessages,
-            userInput: "",
             isResponding: false,
             isCancelling: false,
             selectedAgentName: "OrchestratorAgent",
@@ -111,7 +108,6 @@ export const NewSessionDialog: Story = {
         chatContext: {
             sessionId: "mock-session-id",
             messages: mockMessages,
-            userInput: "",
             isResponding: false,
             isCancelling: false,
             selectedAgentName: "OrchestratorAgent",

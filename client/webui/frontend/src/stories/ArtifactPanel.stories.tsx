@@ -31,7 +31,6 @@ export const Default: Story = {
         chatContext: {
             sessionId: "mock-session-id",
             messages: mockMessages,
-            userInput: "",
             isResponding: false,
             isCancelling: false,
             selectedAgentName: "OrchestratorAgent",
