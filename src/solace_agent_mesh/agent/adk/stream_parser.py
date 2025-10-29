@@ -46,6 +46,7 @@ class BlockStartedEvent(ParserEvent):
 class BlockProgressedEvent(ParserEvent):
     """Emitted periodically while content is being buffered for a block."""
 
+    params: Dict[str, Any]
     buffered_size: int
     chunk: str
 
@@ -216,6 +217,10 @@ class FencedBlockStreamParser:
                     self._last_progress_update_size : current_size
                 ]
                 events.append(
-                    BlockProgressedEvent(buffered_size=current_size, chunk=new_chunk)
+                    BlockProgressedEvent(
+                        params=self._block_params,
+                        buffered_size=current_size,
+                        chunk=new_chunk,
+                    )
                 )
                 self._last_progress_update_size = current_size

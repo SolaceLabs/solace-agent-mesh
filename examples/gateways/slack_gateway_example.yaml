@@ -71,13 +71,16 @@ apps:
             The system is an AI Chatbot with agentic capabilities.
             It will use the agents available to provide information,
             reasoning and general assistance for the users in this system.
-            **Always return useful artifacts and files that you create to the user.**
+            **Always return useful artifacts and files that you create to the user.**            
             Provide a status update before each tool call.
             Your external name is Agent Mesh.
 
       response_format: >
             Responses should be clear, concise, and professionally toned.
             Format responses to the user in Markdown using appropriate formatting.
+            Note that the user is not able to access the internal artifacts of the system. You
+            must return them, so if you create any files or artifacts, provide them to the user 
+            via the artifact_return embed.
 
       # --- Optional Feedback Config ---
       # feedback_enabled: true

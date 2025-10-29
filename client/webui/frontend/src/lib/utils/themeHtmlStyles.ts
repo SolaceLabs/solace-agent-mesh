@@ -1,9 +1,8 @@
 export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
-    return `
-    whitespace-normal
+  return `
 	  break-words
     leading-[24px]
-    
+
     /* Typography */
     [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-4 [&_h1]:mt-6 [&_h1]:text-foreground
     [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:text-foreground
@@ -11,9 +10,9 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
     [&_h4]:text-base [&_h4]:font-semibold [&_h4]:mb-2 [&_h4]:mt-3 [&_h4]:text-foreground
     [&_h5]:text-sm [&_h5]:font-semibold [&_h5]:mb-1 [&_h5]:mt-2 [&_h5]:text-foreground
     [&_h6]:text-xs [&_h6]:font-semibold [&_h6]:mb-1 [&_h6]:mt-2 [&_h6]:text-foreground
-    
+
     /* Paragraphs */
-    [&_p]:mb-2 [&_p]:leading-[24px] [&_p]:text-foreground
+    [&_p]:leading-[24px] [&_p]:text-foreground [&_p]:whitespace-pre-wrap
 
     /* Text formatting */
     [&_strong]:font-semibold [&_strong]:text-foreground
@@ -30,14 +29,14 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
     [&_li]:text-foreground [&_li]:leading-[24px]
     [&_ul_ul]:mt-1 [&_ul_ul]:mb-1
     [&_ol_ol]:mt-1 [&_ol_ol]:mb-1
-    
+
     /* Code */
     [&_code]:bg-transparent [&_code]:py-0.5 [&_code]:rounded
     [&_code]:text-sm [&_code]:font-mono [&_code]:font-semibold [&_code]:text-foreground [&_code]:break-words
     [&_pre]:bg-transparent [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:max-w-full
     [&_pre]:mb-4 [&_pre]:border [&_pre]:border-border [&_pre]:whitespace-pre-wrap
     [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-sm [&_pre_code]:break-words
-    
+
     /* Blockquotes */
     [&_blockquote]:border-l-4 [&_blockquote]:border-border [&_blockquote]:pl-4
     [&_blockquote]:py-2 [&_blockquote]:mb-4 [&_blockquote]:italic
@@ -58,12 +57,12 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
 
     ${additionalClasses}
   `
-        .trim()
-        .replace(/\s+/g, " ");
+    .trim()
+    .replace(/\s+/g, " ");
 };
 
 export const getThemeButtonHtmlStyles = (additionalClasses: string = ""): string => {
-    return `
+  return `
     /* Buttons - "important" overrides for flow controls */
     [&>button]:bg-[var(--color-background-w10)]
     [&>button]:dark:!bg-[var(--color-background-w100)]
@@ -77,6 +76,6 @@ export const getThemeButtonHtmlStyles = (additionalClasses: string = ""): string
 
     ${additionalClasses}
   `
-        .trim()
-        .replace(/\s+/g, " ");
+    .trim()
+    .replace(/\s+/g, " ");
 };

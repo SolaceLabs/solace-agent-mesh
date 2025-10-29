@@ -1,0 +1,62 @@
+test_case_id: "builtin_artifact_return_embed_surrounding_text_001"
+description: |
+  Tests the 'artifact_return' embed when it is surrounded by text.
+  Verifies that the gateway correctly splits the text part, inserts the file part,
+  and preserves the surrounding text fragments in the correct order.
+tags: ["all","agent","embeds","builtin_artifact_embeds"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "test_doc.txt"
+    content: "This is the content of the test document."
+    mime_type: "text/plain"
+    metadata:
+      description: "A sample text document for testing surrounding text in artifact_return."
+      mime_type: "text/plain"
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_artifact_return_surrounding_text_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please return 'test_doc.txt' and confirm."
+  external_context:
+    a2a_session_id: "session_artifact_return_surrounding_text_001"
+
+llm_interactions:
+  - step_id: "llm_response_with_surrounding_text"
+    static_response:
+      id: "chatcmpl-artifact-return-surrounding-text-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Of course, here is the document: «artifact_return:test_doc.txt:0» Let me know if you need anything else."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_artifact_return_surrounding_text_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "Of course, here is the document: "
+          - kind: "file"
+            filename: "test_doc.txt"
+            mime_type: "text/plain"
+          - kind: "text"
+            text_exact: " Let me know if you need anything else."
+    assert_artifact_state:
+      - filename: "test_doc.txt"
+        user_id: "declarative_artifact_return_surrounding_text_tester@example.com"
+        session_id: "session_artifact_return_surrounding_text_001"
+        version: 0
+        expected_content: "This is the content of the test document."

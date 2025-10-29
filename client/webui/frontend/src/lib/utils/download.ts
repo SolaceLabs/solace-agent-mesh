@@ -2,7 +2,7 @@ import type { FileAttachment } from "@/lib/types";
 import { authenticatedFetch } from "./api";
 
 // Helper function to parse the custom artifact URI
-const parseArtifactUri = (uri: string): { filename: string; version: string | null } | null => {
+export const parseArtifactUri = (uri: string): { filename: string; version: string | null } | null => {
     try {
         const url = new URL(uri);
         if (url.protocol !== "artifact:") {
@@ -36,7 +36,7 @@ export const downloadBlob = (blob: Blob, filename?: string) => {
     }
 };
 
-export const downloadFile = async (file: FileAttachment) => {
+export const downloadFile = async (file: FileAttachment, sessionId?: string) => {
     try {
         let blob: Blob;
         let filename = file.name;
@@ -61,7 +61,10 @@ export const downloadFile = async (file: FileAttachment) => {
             const version = parsedUri.version || "latest";
 
             // Construct the API URL to fetch the artifact content
-            const apiUrl = `/api/v1/artifacts/${encodeURIComponent(filename)}/versions/${version}`;
+            // Include sessionId if provided
+            const apiUrl = sessionId
+                ? `/api/v1/artifacts/${encodeURIComponent(sessionId)}/${encodeURIComponent(filename)}/versions/${version}`
+                : `/api/v1/artifacts/${encodeURIComponent(filename)}/versions/${version}`;
 
             const response = await authenticatedFetch(apiUrl, { credentials: "include" });
             if (!response.ok) {
