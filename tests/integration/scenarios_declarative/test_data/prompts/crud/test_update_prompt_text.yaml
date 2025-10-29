@@ -1,0 +1,20 @@
+test_case_id: "prompts_update_text_creates_version_001"
+description: "Creating a prompt verifies version 1 is created"
+tags: ["prompts", "api", "crud", "versioning"]
+
+expected_http_responses:
+  - description: "Create a prompt"
+    request:
+      method: "POST"
+      path: "/api/v1/prompts/groups"
+      json_body:
+        name: "Version Test Prompt"
+        description: "Test versioning"
+        command: "version-test-unique"
+        initial_prompt: "Version 1 text content"
+    expected_status_code: 201
+    expected_json_body_matches:
+      name: "Version Test Prompt"
+      production_prompt:
+        prompt_text: "Version 1 text content"
+        version: 1

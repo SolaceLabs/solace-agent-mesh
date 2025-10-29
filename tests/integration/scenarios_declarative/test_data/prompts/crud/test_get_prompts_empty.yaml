@@ -1,0 +1,13 @@
+test_case_id: "prompts_get_all_empty_001"
+description: "GET /api/v1/prompts/groups/all returns list (may be empty or have data from other tests)"
+tags: ["prompts", "api", "crud"]
+
+# Note: Database may have data from previous tests, so we just verify the endpoint works
+
+expected_http_responses:
+  - description: "GET all prompts should return 200"
+    request:
+      method: "GET"
+      path: "/api/v1/prompts/groups/all"
+    expected_status_code: 200
+    # Don't assert empty - database may have data from other tests

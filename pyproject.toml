@@ -160,6 +160,17 @@ markers = [
     "artifacts: marks tests related to artifact handling and services",
     "api: marks tests related to the API",
     "tasks: marks tests related to task management",
+    "projects: marks tests related to project management",
+    "default_agent: marks tests related to default agent functionality",
+    "crud: marks tests related to CRUD operations",
+    "templates: marks tests related to template operations",
+    "pagination: marks tests related to pagination functionality",
+    "security: marks tests related to security and authorization",
+    "error: marks tests related to error handling scenarios",
+    "validation: marks tests related to input validation",
+    "prompts: marks tests related to the prompts library feature",
+    "versioning: marks tests related to version management",
+    "search: marks tests related to search and filtering functionality",
 
     # Agent Tools
     # Markers for the built-in agent tools.

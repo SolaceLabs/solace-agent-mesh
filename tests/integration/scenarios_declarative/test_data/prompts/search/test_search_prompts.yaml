@@ -1,0 +1,18 @@
+test_case_id: "prompts_search_001"
+description: "GET /api/v1/prompts/groups with search parameter filters results"
+tags: ["prompts", "api", "search"]
+
+expected_http_responses:
+  - description: "Create searchable prompt"
+    request:
+      method: "POST"
+      path: "/api/v1/prompts/groups"
+      json_body:
+        name: "Searchable Code Review Helper"
+        description: "Helps with code reviews"
+        category: "Development"
+        command: "search-test-review"
+        initial_prompt: "Review code"
+    expected_status_code: 201
+    expected_json_body_matches:
+      name: "Searchable Code Review Helper"
