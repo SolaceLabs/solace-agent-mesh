@@ -11,6 +11,7 @@ Once initialized, the `AppLlmAgent` (a custom agent class) is managed by the `ru
 - **Direct files:**
   - `__init__.py`: Standard Python package initializer
   - `adk_llm.txt`: Documentation file containing developer guide content
+  - `adk_llm_detail.txt`: Concatenated LLM summary file from all subdirectories
   - `app_llm_agent.py`: Defines a custom `LlmAgent` subclass that holds a reference to its host component
   - `callbacks.py`: Provides a rich set of ADK callback functions for dynamic instructions, metadata injection, and Solace integration
   - `embed_resolving_mcp_toolset.py`: Custom MCPToolset that resolves embeds in tool parameters before calling MCP tools
@@ -158,10 +159,11 @@ from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3Artifact
 
 #### models/
 **Purpose:** Contains concrete `BaseLlm` implementations for interfacing with various LLM providers
-**Key Exports:** `LiteLlm` class for broad model provider compatibility
+**Key Exports:** `LiteLlm` class for broad model provider compatibility, `OAuth2ClientCredentialsTokenManager` for OAuth authentication
 **Import Examples:**
 ```python
 from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+from solace_agent_mesh.agent.adk.models.oauth2_token_manager import OAuth2ClientCredentialsTokenManager
 ```
 
 ## Complete Usage Guide
@@ -198,7 +200,8 @@ from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
 llm = LiteLlm(
     model="gpt-4-turbo",
     temperature=0.7,
-    max_completion_tokens=1000
+    max_completion_tokens=1000,
+    cache_strategy="5m"
 )
 
 # Anthropic
@@ -212,21 +215,12 @@ llm = LiteLlm(
     model="gemini-pro",
     temperature=0.3
 )
-```
 
-### 3. Artifact Service Usage
+# With OAuth authentication
+llm = LiteLlm(
+    model="custom-model",
+    oauth_token_url="https://auth.example.com/oauth/token",
+    oauth_client_id="your-client-id",
+    oauth_client_secret="your-client-secret",
 
-```python
-from solace_agent_mesh.agent.adk.artifacts.filesystem_artifact_service import FilesystemArtifactService
-from solace_agent_mesh.agent.adk.artifacts.s3_artifact_service import S3ArtifactService
-from google.genai import types as adk_types
-
-# Initialize filesystem artifact service
-artifact_service = FilesystemArtifactService(base_path="/tmp/artifacts")
-
-# Or initialize S3 artifact service
-artifact_service = S3ArtifactService(bucket_name="my-artifacts-bucket")
-
-# Save an artifact
-
-# content_hash: def8e8563d73ee6354aa959a4073a5474c225a2159f7c8fd37cf396040adeb5d
+# content_hash: c689f024368fe41a8310f8060beb396353bdb6708fb095fd2a1857ab21e68b50
