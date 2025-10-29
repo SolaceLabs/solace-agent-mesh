@@ -43,13 +43,16 @@ def upgrade() -> None:
     if 'project_id' not in sessions_columns:
         op.add_column('sessions', sa.Column('project_id', sa.String(), nullable=True))
         
+        # Add index on project_id for better query performance
+        op.create_index('ix_sessions_project_id', 'sessions', ['project_id'])
+        
         # Add foreign key constraint
         try:
             op.create_foreign_key(
-                'fk_sessions_project_id', 
-                'sessions', 
-                'projects', 
-                ['project_id'], 
+                'fk_sessions_project_id',
+                'sessions',
+                'projects',
+                ['project_id'],
                 ['id']
             )
         except Exception as e:
@@ -68,6 +71,12 @@ def downgrade() -> None:
             op.drop_constraint('fk_sessions_project_id', 'sessions', type_='foreignkey')
         except Exception as e:
             print(f"Warning: Could not drop foreign key constraint: {e}")
+        
+        # Drop index on project_id
+        try:
+            op.drop_index('ix_sessions_project_id', 'sessions')
+        except Exception as e:
+            print(f"Warning: Could not drop index: {e}")
         
         op.drop_column('sessions', 'project_id')
     
