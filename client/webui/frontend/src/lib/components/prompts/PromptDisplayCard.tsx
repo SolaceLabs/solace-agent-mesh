@@ -5,6 +5,7 @@ import { Command, Pencil, Trash2, FileText, Tag, Calendar, History } from "lucid
 
 import type { PromptGroup } from "@/lib/types/prompts";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
+import { useConfigContext } from "@/lib/hooks";
 
 interface DetailItemProps {
     label: string;
@@ -38,6 +39,11 @@ const DetailItem: React.FC<DetailItemProps> = ({ label, value, icon, fullWidthVa
 };
 
 export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, isExpanded, onToggleExpand, onEdit, onDelete, onViewVersions }) => {
+    const { configFeatureEnablement } = useConfigContext();
+    const versionHistoryEnabled = configFeatureEnablement?.promptVersionHistory ?? true;
+    
+    // Only show version history if enabled and callback provided
+    const showVersionHistory = versionHistoryEnabled && onViewVersions;
     const handleEdit = (e: React.MouseEvent) => {
         e.stopPropagation();
         onEdit(prompt);
@@ -89,7 +95,7 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
                             >
                                 <Pencil size={16} />
                             </button>
-                            {onViewVersions && (
+                            {showVersionHistory && (
                                 <button
                                     onClick={handleViewVersionsFront}
                                     className="p-1.5 rounded hover:bg-muted transition-colors"
@@ -181,7 +187,7 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
                                     Delete
                                 </button>
                             </div>
-                            {onViewVersions && (
+                            {showVersionHistory && (
                                 <button
                                     onClick={handleViewVersions}
                                     className="w-full flex items-center justify-center gap-2 rounded bg-muted px-3 py-2 text-xs font-medium hover:bg-muted/80 transition-colors"

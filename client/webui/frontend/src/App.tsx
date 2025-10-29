@@ -1,14 +1,21 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
-import { AgentMeshPage, ChatPage, bottomNavigationItems, topNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
+import { AgentMeshPage, ChatPage, bottomNavigationItems, getTopNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
 import { PromptsPage } from "@/lib/components/pages/PromptsPage";
 import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
 
-import { useAuthContext, useBeforeUnload } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
 
 function AppContent() {
     const [activeNavItem, setActiveNavItem] = useState<string>("chat");
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
+    const { configFeatureEnablement } = useConfigContext();
+
+    // Get navigation items based on feature flags
+    const topNavItems = useMemo(
+        () => getTopNavigationItems(configFeatureEnablement),
+        [configFeatureEnablement]
+    );
 
     // Enable beforeunload warning when chat data is present
     useBeforeUnload();
@@ -22,7 +29,7 @@ function AppContent() {
     }
 
     const handleNavItemChange = (itemId: string) => {
-        const item = topNavigationItems.find(item => item.id === itemId) || bottomNavigationItems.find(item => item.id === itemId);
+        const item = topNavItems.find(item => item.id === itemId) || bottomNavigationItems.find(item => item.id === itemId);
 
         if (item?.onClick && itemId !== "settings") {
             item.onClick();
@@ -48,7 +55,7 @@ function AppContent() {
 
     return (
         <div className={`relative flex h-screen`}>
-            <NavigationSidebar items={topNavigationItems} bottomItems={bottomNavigationItems} activeItem={activeNavItem} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
+            <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={activeNavItem} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             <main className="h-full w-full flex-1 overflow-auto">{renderMainContent()}</main>
             <ToastContainer />
         </div>

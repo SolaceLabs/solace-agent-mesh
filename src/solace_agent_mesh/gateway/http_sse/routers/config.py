@@ -3,6 +3,7 @@ API Router for providing frontend configuration.
 """
 
 import logging
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
 
@@ -36,6 +37,73 @@ async def get_app_config(
         if task_logging_config and task_logging_config.get("enabled", False):
             feature_enablement["taskLogging"] = True
             log.debug("%s taskLogging feature flag is enabled.", log_prefix)
+
+        # Determine if prompt library should be enabled
+        prompt_library_config = component.get_config("prompt_library", {})
+        prompt_library_enabled = prompt_library_config.get("enabled", True)
+        
+        if prompt_library_enabled:
+            # Check if SQL persistence is available (REQUIRED for prompts)
+            session_config = component.get_config("session_service", {})
+            session_type = session_config.get("type", "memory")
+            
+            if session_type != "sql":
+                log.warning(
+                    "%s Prompt library is configured but session_service type is '%s' (not 'sql'). "
+                    "Disabling prompt library for frontend.",
+                    log_prefix,
+                    session_type
+                )
+                prompt_library_enabled = False
+            else:
+                feature_enablement["promptLibrary"] = True
+                log.debug("%s promptLibrary feature flag is enabled.", log_prefix)
+                
+                # Check AI-assisted sub-feature (only if parent is enabled)
+                ai_assisted_config = prompt_library_config.get("ai_assisted", {})
+                ai_assisted_enabled = ai_assisted_config.get("enabled", True)
+                
+                if ai_assisted_enabled:
+                    # Verify LLM is configured
+                    llm_model = os.getenv("LLM_SERVICE_GENERAL_MODEL_NAME")
+                    if llm_model:
+                        feature_enablement["promptAIAssisted"] = True
+                        log.debug("%s promptAIAssisted feature flag is enabled.", log_prefix)
+                    else:
+                        feature_enablement["promptAIAssisted"] = False
+                        log.warning(
+                            "%s AI-assisted prompts disabled: LLM_SERVICE_GENERAL_MODEL_NAME not configured",
+                            log_prefix
+                        )
+                else:
+                    feature_enablement["promptAIAssisted"] = False
+                
+                # Check version history sub-feature (only if parent is enabled)
+                version_history_config = prompt_library_config.get("version_history", {})
+                version_history_enabled = version_history_config.get("enabled", True)
+                
+                if version_history_enabled:
+                    feature_enablement["promptVersionHistory"] = True
+                    log.debug("%s promptVersionHistory feature flag is enabled.", log_prefix)
+                else:
+                    feature_enablement["promptVersionHistory"] = False
+                
+                # Future: prompt sharing (only if parent is enabled)
+                sharing_config = prompt_library_config.get("sharing", {})
+                sharing_enabled = sharing_config.get("enabled", False)
+                
+                if sharing_enabled:
+                    feature_enablement["promptSharing"] = True
+                    log.debug("%s promptSharing feature flag is enabled.", log_prefix)
+                else:
+                    feature_enablement["promptSharing"] = False
+        else:
+            # Explicitly set to false when disabled
+            feature_enablement["promptLibrary"] = False
+            feature_enablement["promptAIAssisted"] = False
+            feature_enablement["promptVersionHistory"] = False
+            feature_enablement["promptSharing"] = False
+            log.info("%s Prompt library feature is explicitly disabled.", log_prefix)
 
         # Determine if feedback should be enabled
         # Feedback requires SQL session storage for persistence

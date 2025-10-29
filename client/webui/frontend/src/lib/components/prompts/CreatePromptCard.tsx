@@ -1,5 +1,6 @@
 import React from "react";
 import { Plus, Sparkles, Pencil } from "lucide-react";
+import { useConfigContext } from "@/lib/hooks";
 
 interface CreatePromptCardProps {
     onManualCreate: () => void;
@@ -7,6 +8,8 @@ interface CreatePromptCardProps {
 }
 
 export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCreate, onAIAssisted }) => {
+    const { configFeatureEnablement } = useConfigContext();
+    const aiAssistedEnabled = configFeatureEnablement?.promptAIAssisted ?? true;
     return (
         <div className="bg-card h-[400px] w-full flex-shrink-0 rounded-lg sm:w-[380px] border-2 border-dashed border-primary/30 hover:border-primary/60 transition-colors">
             <div className="flex h-full w-full flex-col items-center justify-center p-6 gap-6">
@@ -23,15 +26,26 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
                 <div className="flex flex-col gap-3 w-full max-w-xs">
                     <button
                         onClick={onAIAssisted}
-                        className="flex items-center justify-center gap-3 rounded-lg bg-primary px-6 py-4 text-primary-foreground hover:bg-primary/90 transition-colors shadow-md hover:shadow-lg"
+                        disabled={!aiAssistedEnabled}
+                        className={`flex items-center justify-center gap-3 rounded-lg px-6 py-4 transition-colors shadow-md ${
+                            aiAssistedEnabled
+                                ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-lg'
+                                : 'bg-muted text-muted-foreground cursor-not-allowed opacity-60'
+                        }`}
+                        title={aiAssistedEnabled ? undefined : "AI-Assisted Builder requires LLM configuration"}
                     >
                         <Sparkles className="h-5 w-5" />
                         <span className="font-medium">AI-Assisted Builder</span>
+                        {!aiAssistedEnabled && <span className="text-xs">(Disabled)</span>}
                     </button>
 
                     <button
                         onClick={onManualCreate}
-                        className="flex items-center justify-center gap-3 rounded-lg border-2 border-border bg-background px-6 py-4 hover:bg-muted transition-colors"
+                        className={`flex items-center justify-center gap-3 rounded-lg px-6 py-4 transition-colors ${
+                            aiAssistedEnabled
+                                ? 'border-2 border-border bg-background hover:bg-muted'
+                                : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md hover:shadow-lg'
+                        }`}
                     >
                         <Pencil className="h-5 w-5" />
                         <span className="font-medium">Manual Creation</span>
@@ -39,7 +53,9 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
                 </div>
 
                 <div className="text-xs text-muted-foreground text-center max-w-xs">
-                    AI-Assisted helps you build prompts through conversation, while Manual gives you direct control
+                    {aiAssistedEnabled
+                        ? 'AI-Assisted helps you build prompts through conversation, while Manual gives you direct control'
+                        : 'AI-Assisted Builder requires LLM configuration. Use Manual Creation to build prompts.'}
                 </div>
             </div>
         </div>
