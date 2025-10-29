@@ -1,0 +1,1749 @@
+versions pytest-8.4.2, python-3.13.7.final.0
+invocation_dir=/Users/artmorozov/wrk/solace-agent-mesh
+cwd=/Users/artmorozov/wrk/solace-agent-mesh
+args=('--cov=cli', '--cov=src', '--junitxml=junit-3.13.xml', '--debug=trac')
+
+  pytest_cmdline_main [hook]
+      config: <_pytest.config.Config object at 0x120f7eba0>
+    pytest_plugin_registered [hook]
+        plugin: <Session  exitstatus='<UNSET>' testsfailed=0 testscollected=0>
+        plugin_name: session
+        manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+    finish pytest_plugin_registered --> [] [hook]
+    pytest_configure [hook]
+        config: <_pytest.config.Config object at 0x120f7eba0>
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.LFPlugin object at 0x121f574d0>
+          plugin_name: lfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.NFPlugin object at 0x121f578c0>
+          plugin_name: nfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+    early skip of rewriting module: faulthandler [assertion]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.junitxml.LogXML object at 0x121f57a10>
+          plugin_name: 4864702992
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <class '_pytest.legacypath.LegacyTmpdirPlugin'>
+          plugin_name: legacypath-tmpdir
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+    early skip of rewriting module: pdb [assertion]
+    early skip of rewriting module: cmd [assertion]
+    early skip of rewriting module: code [assertion]
+    early skip of rewriting module: codeop [assertion]
+    early skip of rewriting module: rlcompleter [assertion]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+          plugin_name: 4848083904
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.config.Config object at 0x120f7eba0>
+          plugin_name: pytestconfig
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.mark' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/mark/__init__.py'>
+          plugin_name: mark
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.main' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/main.py'>
+          plugin_name: main
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.runner' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/runner.py'>
+          plugin_name: runner
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.fixtures' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/fixtures.py'>
+          plugin_name: fixtures
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.helpconfig' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/helpconfig.py'>
+          plugin_name: helpconfig
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.python' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/python.py'>
+          plugin_name: python
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.terminal' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/terminal.py'>
+          plugin_name: terminal
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.debugging' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/debugging.py'>
+          plugin_name: debugging
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.unittest' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/unittest.py'>
+          plugin_name: unittest
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.capture' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/capture.py'>
+          plugin_name: capture
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.skipping' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/skipping.py'>
+          plugin_name: skipping
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.legacypath' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/legacypath.py'>
+          plugin_name: legacypath
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.tmpdir' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/tmpdir.py'>
+          plugin_name: tmpdir
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.monkeypatch' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/monkeypatch.py'>
+          plugin_name: monkeypatch
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.recwarn' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/recwarn.py'>
+          plugin_name: recwarn
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.pastebin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/pastebin.py'>
+          plugin_name: pastebin
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.assertion' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/assertion/__init__.py'>
+          plugin_name: assertion
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.junitxml' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/junitxml.py'>
+          plugin_name: junitxml
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.doctest' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/doctest.py'>
+          plugin_name: doctest
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.cacheprovider' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/cacheprovider.py'>
+          plugin_name: cacheprovider
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.freeze_support' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/freeze_support.py'>
+          plugin_name: freeze_support
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.setuponly' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/setuponly.py'>
+          plugin_name: setuponly
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.setupplan' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/setupplan.py'>
+          plugin_name: setupplan
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.stepwise' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/stepwise.py'>
+          plugin_name: stepwise
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.unraisableexception' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/unraisableexception.py'>
+          plugin_name: unraisableexception
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.threadexception' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/threadexception.py'>
+          plugin_name: threadexception
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.warnings' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/warnings.py'>
+          plugin_name: warnings
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.logging' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/logging.py'>
+          plugin_name: logging
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.reports' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/reports.py'>
+          plugin_name: reports
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.faulthandler' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/faulthandler.py'>
+          plugin_name: faulthandler
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'pytest_asyncio' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_asyncio/__init__.py'>
+          plugin_name: pytest_asyncio
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'respx.plugin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/respx/plugin.py'>
+          plugin_name: respx
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'pytest_mock' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_mock/__init__.py'>
+          plugin_name: pytest_mock
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'pytest_asyncio.plugin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_asyncio/plugin.py'>
+          plugin_name: asyncio
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'anyio.pytest_plugin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/anyio/pytest_plugin.py'>
+          plugin_name: anyio
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'xdist.plugin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/xdist/plugin.py'>
+          plugin_name: xdist
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'xdist.looponfail' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/xdist/looponfail.py'>
+          plugin_name: xdist.looponfail
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'pytest_httpx' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_httpx/__init__.py'>
+          plugin_name: pytest_httpx
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'pytest_cov.plugin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_cov/plugin.py'>
+          plugin_name: pytest_cov
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <CaptureManager _method='fd' _global_capturing=<MultiCapture out=<FDCapture 1 oldfd=5 _state='suspended' tmpfile=<EncodedFile name="<_io.FileIO name=6 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> err=<FDCapture 2 oldfd=7 _state='suspended' tmpfile=<EncodedFile name="<_io.FileIO name=8 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> in_=<FDCapture 0 oldfd=3 _state='started' tmpfile=<_io.TextIOWrapper name='/dev/null' mode='r' encoding='utf-8'>> _state='suspended' _in_suspended=False> _capture_fixture=None>
+          plugin_name: capturemanager
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <pytest_cov.plugin.CovPlugin object at 0x121f56a50>
+          plugin_name: _cov
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+          plugin_name: session
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.LFPlugin object at 0x121f574d0>
+          plugin_name: lfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.NFPlugin object at 0x121f578c0>
+          plugin_name: nfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.junitxml.LogXML object at 0x121f57a10>
+          plugin_name: 4864702992
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <class '_pytest.legacypath.LegacyTmpdirPlugin'>
+          plugin_name: legacypath-tmpdir
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.terminal.TerminalReporter object at 0x122165550>
+          plugin_name: terminalreporter
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.logging.LoggingPlugin object at 0x122165e80>
+          plugin_name: logging-plugin
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+    finish pytest_configure --> [] [hook]
+    pytest_sessionstart [hook]
+        session: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+          plugin_name: 4848083904
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.config.Config object at 0x120f7eba0>
+          plugin_name: pytestconfig
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.mark' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/mark/__init__.py'>
+          plugin_name: mark
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.main' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/main.py'>
+          plugin_name: main
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.runner' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/runner.py'>
+          plugin_name: runner
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.fixtures' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/fixtures.py'>
+          plugin_name: fixtures
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.helpconfig' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/helpconfig.py'>
+          plugin_name: helpconfig
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.python' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/python.py'>
+          plugin_name: python
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.terminal' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/terminal.py'>
+          plugin_name: terminal
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.debugging' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/debugging.py'>
+          plugin_name: debugging
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.unittest' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/unittest.py'>
+          plugin_name: unittest
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.capture' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/capture.py'>
+          plugin_name: capture
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.skipping' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/skipping.py'>
+          plugin_name: skipping
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.legacypath' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/legacypath.py'>
+          plugin_name: legacypath
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.tmpdir' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/tmpdir.py'>
+          plugin_name: tmpdir
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.monkeypatch' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/monkeypatch.py'>
+          plugin_name: monkeypatch
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.recwarn' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/recwarn.py'>
+          plugin_name: recwarn
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.pastebin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/pastebin.py'>
+          plugin_name: pastebin
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.assertion' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/assertion/__init__.py'>
+          plugin_name: assertion
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.junitxml' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/junitxml.py'>
+          plugin_name: junitxml
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.doctest' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/doctest.py'>
+          plugin_name: doctest
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.cacheprovider' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/cacheprovider.py'>
+          plugin_name: cacheprovider
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.freeze_support' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/freeze_support.py'>
+          plugin_name: freeze_support
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.setuponly' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/setuponly.py'>
+          plugin_name: setuponly
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.setupplan' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/setupplan.py'>
+          plugin_name: setupplan
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.stepwise' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/stepwise.py'>
+          plugin_name: stepwise
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.unraisableexception' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/unraisableexception.py'>
+          plugin_name: unraisableexception
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.threadexception' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/threadexception.py'>
+          plugin_name: threadexception
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.warnings' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/warnings.py'>
+          plugin_name: warnings
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.logging' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/logging.py'>
+          plugin_name: logging
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.reports' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/reports.py'>
+          plugin_name: reports
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module '_pytest.faulthandler' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/_pytest/faulthandler.py'>
+          plugin_name: faulthandler
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'pytest_asyncio' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_asyncio/__init__.py'>
+          plugin_name: pytest_asyncio
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'respx.plugin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/respx/plugin.py'>
+          plugin_name: respx
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'pytest_mock' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_mock/__init__.py'>
+          plugin_name: pytest_mock
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'pytest_asyncio.plugin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_asyncio/plugin.py'>
+          plugin_name: asyncio
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'anyio.pytest_plugin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/anyio/pytest_plugin.py'>
+          plugin_name: anyio
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'xdist.plugin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/xdist/plugin.py'>
+          plugin_name: xdist
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'xdist.looponfail' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/xdist/looponfail.py'>
+          plugin_name: xdist.looponfail
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'pytest_httpx' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_httpx/__init__.py'>
+          plugin_name: pytest_httpx
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <module 'pytest_cov.plugin' from '/Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_cov/plugin.py'>
+          plugin_name: pytest_cov
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <CaptureManager _method='fd' _global_capturing=<MultiCapture out=<FDCapture 1 oldfd=5 _state='suspended' tmpfile=<EncodedFile name="<_io.FileIO name=6 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> err=<FDCapture 2 oldfd=7 _state='suspended' tmpfile=<EncodedFile name="<_io.FileIO name=8 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> in_=<FDCapture 0 oldfd=3 _state='started' tmpfile=<_io.TextIOWrapper name='/dev/null' mode='r' encoding='utf-8'>> _state='suspended' _in_suspended=False> _capture_fixture=None>
+          plugin_name: capturemanager
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <pytest_cov.plugin.CovPlugin object at 0x121f56a50>
+          plugin_name: _cov
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+          plugin_name: session
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.LFPlugin object at 0x121f574d0>
+          plugin_name: lfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.cacheprovider.NFPlugin object at 0x121f578c0>
+          plugin_name: nfplugin
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.junitxml.LogXML object at 0x121f57a10>
+          plugin_name: 4864702992
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <class '_pytest.legacypath.LegacyTmpdirPlugin'>
+          plugin_name: legacypath-tmpdir
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.terminal.TerminalReporter object at 0x122165550>
+          plugin_name: terminalreporter
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.logging.LoggingPlugin object at 0x122165e80>
+          plugin_name: logging-plugin
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_plugin_registered [hook]
+          plugin: <_pytest.fixtures.FixtureManager object at 0x122166a50>
+          plugin_name: funcmanage
+          manager: <_pytest.config.PytestPluginManager object at 0x120f7e3c0>
+      finish pytest_plugin_registered --> [] [hook]
+      pytest_report_header [hook]
+          config: <_pytest.config.Config object at 0x120f7eba0>
+          start_path: /Users/artmorozov/wrk/solace-agent-mesh
+          startdir: /Users/artmorozov/wrk/solace-agent-mesh
+      finish pytest_report_header --> [['asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function'], ['rootdir: /Users/artmorozov/wrk/solace-agent-mesh', 'configfile: pyproject.toml', 'testpaths: tests', 'plugins: respx-0.22.0, mock-3.15.1, asyncio-1.2.0, anyio-4.11.0, xdist-3.8.0, httpx-0.35.0, cov-7.0.0'], ['using: pytest-8.4.2', 'registered third-party plugins:', '  respx-0.22.0 at /Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/respx/plugin.py', '  pytest-mock-3.15.1 at /Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_mock/__init__.py', '  pytest-asyncio-1.2.0 at /Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_asyncio/plugin.py', '  anyio-4.11.0 at /Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/anyio/pytest_plugin.py', '  pytest-xdist-3.8.0 at /Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/xdist/plugin.py', '  pytest-xdist-3.8.0 at /Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/xdist/looponfail.py', '  pytest-httpx-0.35.0 at /Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_httpx/__init__.py', '  pytest-cov-7.0.0 at /Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/pytest_cov/plugin.py']] [hook]
+    finish pytest_sessionstart --> [] [hook]
+    pytest_collection [hook]
+        session: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+    perform_collect <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0> ['tests'] [collection]
+        pytest_collectstart [hook]
+            collector: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+        finish pytest_collectstart --> [] [hook]
+        pytest_make_collect_report [hook]
+            collector: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+        processing argument CollectionArgument(path=PosixPath('/Users/artmorozov/wrk/solace-agent-mesh/tests'), parts=[], module_name=None) [collection]
+            pytest_collect_directory [hook]
+                path: /Users/artmorozov/wrk/solace-agent-mesh
+                parent: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+            finish pytest_collect_directory --> <Dir solace-agent-mesh> [hook]
+            pytest_collectstart [hook]
+                collector: <Dir solace-agent-mesh>
+            finish pytest_collectstart --> [] [hook]
+            pytest_make_collect_report [hook]
+                collector: <Dir solace-agent-mesh>
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/.dockerignore
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.dockerignore
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/.dockerignore
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.dockerignore
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/.env
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.env
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/.env
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.env
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/.git
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.git
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/.github
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.github
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/.gitignore
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.gitignore
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/.gitignore
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.gitignore
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/.hooks
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.hooks
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/.pytest_cache
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.pytest_cache
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/.sam
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.sam
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/.versionrc.json
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.versionrc.json
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/.versionrc.json
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.versionrc.json
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/.vscode
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/.vscode
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/CODE_OF_CONDUCT.md
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/CODE_OF_CONDUCT.md
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/CODE_OF_CONDUCT.md
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/CODE_OF_CONDUCT.md
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/CONTRIBUTING.md
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/CONTRIBUTING.md
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/CONTRIBUTING.md
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/CONTRIBUTING.md
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/Dockerfile
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/Dockerfile
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/Dockerfile
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/Dockerfile
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/LICENSE
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/LICENSE
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/LICENSE
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/LICENSE
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/README.md
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/README.md
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/README.md
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/README.md
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/build.log
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/build.log
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/build.log
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/build.log
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/cli
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/cli
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/cli
+                  parent: <Dir solace-agent-mesh>
+              finish pytest_collect_directory --> <Package cli> [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/client
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/client
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/client
+                  parent: <Dir solace-agent-mesh>
+              finish pytest_collect_directory --> <Dir client> [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/config_portal
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/config_portal
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/config_portal
+                  parent: <Dir solace-agent-mesh>
+              finish pytest_collect_directory --> <Package config_portal> [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/dist
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/dist
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/docs
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/docs
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/docs
+                  parent: <Dir solace-agent-mesh>
+              finish pytest_collect_directory --> <Dir docs> [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/evaluation
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/evaluation
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/evaluation
+                  parent: <Dir solace-agent-mesh>
+              finish pytest_collect_directory --> <Package evaluation> [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/examples
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/examples
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/examples
+                  parent: <Dir solace-agent-mesh>
+              finish pytest_collect_directory --> <Dir examples> [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/junit-3.13.xml
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/junit-3.13.xml
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/junit-3.13.xml
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/junit-3.13.xml
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/opt_diff
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/opt_diff
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/opt_diff
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/opt_diff
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/orchestrator-agent.db
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/orchestrator-agent.db
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/orchestrator-agent.db
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/orchestrator-agent.db
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/preset
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/preset
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/preset
+                  parent: <Dir solace-agent-mesh>
+              finish pytest_collect_directory --> <Dir preset> [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/pyproject.toml
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/pyproject.toml
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/pyproject.toml
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/pyproject.toml
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/sam.log
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/sam.log
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/sam.log
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/sam.log
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/scripts
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/scripts
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/scripts
+                  parent: <Dir solace-agent-mesh>
+              finish pytest_collect_directory --> <Dir scripts> [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/src
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/src
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/src
+                  parent: <Dir solace-agent-mesh>
+              finish pytest_collect_directory --> <Dir src> [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/templates
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/templates
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_directory [hook]
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/templates
+                  parent: <Dir solace-agent-mesh>
+              finish pytest_collect_directory --> <Dir templates> [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/test-docker.sh
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/test-docker.sh
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/test-docker.sh
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/test-docker.sh
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/test_llm_server.log
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/test_llm_server.log
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/test_llm_server.log
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/test_llm_server.log
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/test_static_file_server.log
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/test_static_file_server.log
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/test_static_file_server.log
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/test_static_file_server.log
+              finish pytest_collect_file --> [] [hook]
+              pytest_collect_directory [hook]
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/tests
+                  parent: <Dir solace-agent-mesh>
+              finish pytest_collect_directory --> <Package tests> [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/trac
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/trac
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/trac
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/trac
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/uv.lock
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/uv.lock
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/uv.lock
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/uv.lock
+              finish pytest_collect_file --> [] [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/venv
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/venv
+              finish pytest_ignore_collect --> True [hook]
+              pytest_ignore_collect [hook]
+                  config: <_pytest.config.Config object at 0x120f7eba0>
+                  collection_path: /Users/artmorozov/wrk/solace-agent-mesh/wss-unified-agent.config
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/wss-unified-agent.config
+              finish pytest_ignore_collect --> None [hook]
+              pytest_collect_file [hook]
+                  parent: <Dir solace-agent-mesh>
+                  file_path: /Users/artmorozov/wrk/solace-agent-mesh/wss-unified-agent.config
+                  path: /Users/artmorozov/wrk/solace-agent-mesh/wss-unified-agent.config
+              finish pytest_collect_file --> [] [hook]
+            finish pytest_make_collect_report --> <CollectReport '.' lenresult=11 outcome='passed'> [hook]
+        finish pytest_make_collect_report --> <CollectReport '' lenresult=1 outcome='passed'> [hook]
+        pytest_collectreport [hook]
+            report: <CollectReport '' lenresult=1 outcome='passed'>
+        finish pytest_collectreport --> [] [hook]
+    genitems <Package tests> [collection]
+      pytest_collectstart [hook]
+          collector: <Package tests>
+      finish pytest_collectstart --> [] [hook]
+      pytest_make_collect_report [hook]
+          collector: <Package tests>
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/__init__.py
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/__init__.py
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Package tests>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/__init__.py
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/__init__.py
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/__pycache__
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/__pycache__
+        finish pytest_ignore_collect --> True [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_directory [hook]
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation
+            parent: <Package tests>
+        finish pytest_collect_directory --> <Dir evaluation> [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/integration
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/integration
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_directory [hook]
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/integration
+            parent: <Package tests>
+        finish pytest_collect_directory --> <Package integration> [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/sam-test-infrastructure
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/sam-test-infrastructure
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_directory [hook]
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/sam-test-infrastructure
+            parent: <Package tests>
+        finish pytest_collect_directory --> <Dir sam-test-infrastructure> [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/system
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/system
+        finish pytest_ignore_collect --> True [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/unit
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/unit
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_directory [hook]
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/unit
+            parent: <Package tests>
+        finish pytest_collect_directory --> <Package unit> [hook]
+      finish pytest_make_collect_report --> <CollectReport 'tests' lenresult=4 outcome='passed'> [hook]
+    genitems <Dir evaluation> [collection]
+      pytest_collectstart [hook]
+          collector: <Dir evaluation>
+      finish pytest_collectstart --> [] [hook]
+      pytest_make_collect_report [hook]
+          collector: <Dir evaluation>
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/local_example.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/local_example.json
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir evaluation>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/local_example.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/local_example.json
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/remote_example.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/remote_example.json
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir evaluation>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/remote_example.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/remote_example.json
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_directory [hook]
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases
+            parent: <Dir evaluation>
+        finish pytest_collect_directory --> <Dir test_cases> [hook]
+      finish pytest_make_collect_report --> <CollectReport 'tests/evaluation' lenresult=1 outcome='passed'> [hook]
+    genitems <Dir test_cases> [collection]
+      pytest_collectstart [hook]
+          collector: <Dir test_cases>
+      finish pytest_collectstart --> [] [hook]
+      pytest_make_collect_report [hook]
+          collector: <Dir test_cases>
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_directory [hook]
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts
+            parent: <Dir test_cases>
+        finish pytest_collect_directory --> <Dir artifacts> [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/convert_html_to_md.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/convert_html_to_md.test.json
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir test_cases>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/convert_html_to_md.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/convert_html_to_md.test.json
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/convert_pdf_to_md.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/convert_pdf_to_md.test.json
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir test_cases>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/convert_pdf_to_md.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/convert_pdf_to_md.test.json
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/create_diagram.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/create_diagram.test.json
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir test_cases>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/create_diagram.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/create_diagram.test.json
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/file_artifact.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/file_artifact.test.json
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir test_cases>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/file_artifact.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/file_artifact.test.json
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/filter_csv_employees_by_age_and_country.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/filter_csv_employees_by_age_and_country.test.json
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir test_cases>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/filter_csv_employees_by_age_and_country.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/filter_csv_employees_by_age_and_country.test.json
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/generate_employee_csv.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/generate_employee_csv.test.json
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir test_cases>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/generate_employee_csv.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/generate_employee_csv.test.json
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/generate_sales_report.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/generate_sales_report.test.json
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir test_cases>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/generate_sales_report.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/generate_sales_report.test.json
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/hello_world.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/hello_world.test.json
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir test_cases>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/hello_world.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/hello_world.test.json
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/web_search_solace_summary.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/web_search_solace_summary.test.json
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir test_cases>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/web_search_solace_summary.test.json
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/web_search_solace_summary.test.json
+        finish pytest_collect_file --> [] [hook]
+      finish pytest_make_collect_report --> <CollectReport 'tests/evaluation/test_cases' lenresult=1 outcome='passed'> [hook]
+    genitems <Dir artifacts> [collection]
+      pytest_collectstart [hook]
+          collector: <Dir artifacts>
+      finish pytest_collectstart --> [] [hook]
+      pytest_make_collect_report [hook]
+          collector: <Dir artifacts>
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.csv
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.csv
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir artifacts>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.csv
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.csv
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.html
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.html
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir artifacts>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.html
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.html
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.pdf
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.pdf
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir artifacts>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.pdf
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.pdf
+        finish pytest_collect_file --> [] [hook]
+        pytest_ignore_collect [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            collection_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.txt
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.txt
+        finish pytest_ignore_collect --> None [hook]
+        pytest_collect_file [hook]
+            parent: <Dir artifacts>
+            file_path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.txt
+            path: /Users/artmorozov/wrk/solace-agent-mesh/tests/evaluation/test_cases/artifacts/sample.txt
+        finish pytest_collect_file --> [] [hook]
+      finish pytest_make_collect_report --> <CollectReport 'tests/evaluation/test_cases/artifacts' lenresult=0 outcome='passed'> [hook]
+      pytest_collectreport [hook]
+          report: <CollectReport 'tests/evaluation/test_cases/artifacts' lenresult=0 outcome='passed'>
+      finish pytest_collectreport --> [] [hook]
+      pytest_collectreport [hook]
+          report: <CollectReport 'tests/evaluation/test_cases' lenresult=1 outcome='passed'>
+      finish pytest_collectreport --> [] [hook]
+      pytest_collectreport [hook]
+          report: <CollectReport 'tests/evaluation' lenresult=1 outcome='passed'>
+      finish pytest_collectreport --> [] [hook]
+    genitems <Package integration> [collection]
+      pytest_collectstart [hook]
+          collector: <Package integration>
+      finish pytest_collectstart --> [] [hook]
+      pytest_make_collect_report [hook]
+          collector: <Package integration>
+      find_module called for: tests [assertion]
+      early skip of rewriting module: tests.integration [assertion]
+      find_module called for: tests.integration.conftest [assertion]
+      rewriting conftest file: '/Users/artmorozov/wrk/solace-agent-mesh/tests/integration/conftest.py' [assertion]
+      found cached rewritten pyc for /Users/artmorozov/wrk/solace-agent-mesh/tests/integration/conftest.py [assertion]
+      early skip of rewriting module: sqlalchemy [assertion]
+      early skip of rewriting module: sqlalchemy.util [assertion]
+      early skip of rewriting module: sqlalchemy.util.preloaded [assertion]
+      early skip of rewriting module: sqlalchemy.util._collections [assertion]
+      early skip of rewriting module: sqlalchemy.util._has_cy [assertion]
+      early skip of rewriting module: sqlalchemy.cyextension [assertion]
+      early skip of rewriting module: sqlalchemy.cyextension.collections [assertion]
+      early skip of rewriting module: backports_abc [assertion]
+      early skip of rewriting module: sqlalchemy.cyextension.immutabledict [assertion]
+      early skip of rewriting module: sqlalchemy.cyextension.processors [assertion]
+      early skip of rewriting module: sqlalchemy.cyextension.resultproxy [assertion]
+      early skip of rewriting module: sqlalchemy.cyextension.util [assertion]
+      early skip of rewriting module: sqlalchemy.exc [assertion]
+      early skip of rewriting module: sqlalchemy.util.compat [assertion]
+      early skip of rewriting module: sqlalchemy.util.typing [assertion]
+      early skip of rewriting module: typing_extensions [assertion]
+      early skip of rewriting module: sqlalchemy.util.concurrency [assertion]
+      early skip of rewriting module: greenlet [assertion]
+      early skip of rewriting module: greenlet._greenlet [assertion]
+      early skip of rewriting module: sqlalchemy.util._concurrency_py3k [assertion]
+      early skip of rewriting module: sqlalchemy.util.langhelpers [assertion]
+      early skip of rewriting module: sqlalchemy.util.deprecations [assertion]
+      early skip of rewriting module: sqlalchemy.engine [assertion]
+      early skip of rewriting module: sqlalchemy.engine.events [assertion]
+      early skip of rewriting module: sqlalchemy.engine.base [assertion]
+      early skip of rewriting module: sqlalchemy.engine.interfaces [assertion]
+      early skip of rewriting module: sqlalchemy.event [assertion]
+      early skip of rewriting module: sqlalchemy.event.api [assertion]
+      early skip of rewriting module: sqlalchemy.event.base [assertion]
+      early skip of rewriting module: sqlalchemy.event.attr [assertion]
+      early skip of rewriting module: sqlalchemy.event.legacy [assertion]
+      early skip of rewriting module: sqlalchemy.event.registry [assertion]
+      early skip of rewriting module: sqlalchemy.pool [assertion]
+      early skip of rewriting module: sqlalchemy.pool.events [assertion]
+      early skip of rewriting module: sqlalchemy.pool.base [assertion]
+      early skip of rewriting module: sqlalchemy.log [assertion]
+      early skip of rewriting module: sqlalchemy.pool.impl [assertion]
+      early skip of rewriting module: sqlalchemy.util.queue [assertion]
+      early skip of rewriting module: sqlalchemy.sql [assertion]
+      early skip of rewriting module: sqlalchemy.sql._typing [assertion]
+      early skip of rewriting module: sqlalchemy.sql.roles [assertion]
+      early skip of rewriting module: sqlalchemy.inspection [assertion]
+      early skip of rewriting module: sqlalchemy.sql.base [assertion]
+      early skip of rewriting module: sqlalchemy.sql.visitors [assertion]
+      early skip of rewriting module: sqlalchemy.sql.cache_key [assertion]
+      early skip of rewriting module: sqlalchemy.sql.traversals [assertion]
+      early skip of rewriting module: sqlalchemy.sql.operators [assertion]
+      early skip of rewriting module: sqlalchemy.sql.compiler [assertion]
+      early skip of rewriting module: sqlalchemy.sql.coercions [assertion]
+      early skip of rewriting module: sqlalchemy.sql.crud [assertion]
+      early skip of rewriting module: sqlalchemy.sql.dml [assertion]
+      early skip of rewriting module: sqlalchemy.sql.util [assertion]
+      early skip of rewriting module: sqlalchemy.sql.annotation [assertion]
+      early skip of rewriting module: sqlalchemy.sql.ddl [assertion]
+      early skip of rewriting module: sqlalchemy.sql.elements [assertion]
+      early skip of rewriting module: sqlalchemy.sql.type_api [assertion]
+      early skip of rewriting module: sqlalchemy.util.topological [assertion]
+      early skip of rewriting module: sqlalchemy.sql.schema [assertion]
+      early skip of rewriting module: sqlalchemy.sql.selectable [assertion]
+      early skip of rewriting module: sqlalchemy.sql.sqltypes [assertion]
+      early skip of rewriting module: sqlalchemy.engine.processors [assertion]
+      early skip of rewriting module: sqlalchemy.engine._py_processors [assertion]
+      early skip of rewriting module: sqlalchemy.sql.functions [assertion]
+      early skip of rewriting module: sqlalchemy.sql.expression [assertion]
+      early skip of rewriting module: sqlalchemy.sql._dml_constructors [assertion]
+      early skip of rewriting module: sqlalchemy.sql._elements_constructors [assertion]
+      early skip of rewriting module: sqlalchemy.sql._selectable_constructors [assertion]
+      early skip of rewriting module: sqlalchemy.sql.lambdas [assertion]
+      early skip of rewriting module: sqlalchemy.sql.naming [assertion]
+      early skip of rewriting module: sqlalchemy.sql.events [assertion]
+      early skip of rewriting module: sqlalchemy.sql.default_comparator [assertion]
+      early skip of rewriting module: sqlalchemy.engine.util [assertion]
+      early skip of rewriting module: sqlalchemy.engine.create [assertion]
+      early skip of rewriting module: sqlalchemy.engine.url [assertion]
+      early skip of rewriting module: sqlalchemy.dialects [assertion]
+      early skip of rewriting module: sqlalchemy.engine.mock [assertion]
+      early skip of rewriting module: sqlalchemy.engine.cursor [assertion]
+      early skip of rewriting module: sqlalchemy.engine.result [assertion]
+      early skip of rewriting module: sqlalchemy.engine.row [assertion]
+      early skip of rewriting module: sqlalchemy.engine.reflection [assertion]
+      early skip of rewriting module: sqlalchemy.schema [assertion]
+      early skip of rewriting module: sqlalchemy.types [assertion]
+      early skip of rewriting module: sqlalchemy.engine.default [assertion]
+      early skip of rewriting module: sqlalchemy.engine.characteristics [assertion]
+      early skip of rewriting module: a2a [assertion]
+      early skip of rewriting module: a2a.types [assertion]
+      early skip of rewriting module: pydantic [assertion]
+      early skip of rewriting module: pydantic._migration [assertion]
+      early skip of rewriting module: pydantic.version [assertion]
+      early skip of rewriting module: pydantic_core [assertion]
+      early skip of rewriting module: pydantic_core._pydantic_core [assertion]
+      early skip of rewriting module: pydantic_core.core_schema [assertion]
+      early skip of rewriting module: pydantic.errors [assertion]
+      early skip of rewriting module: typing_inspection [assertion]
+      early skip of rewriting module: typing_inspection.introspection [assertion]
+      early skip of rewriting module: typing_inspection.typing_objects [assertion]
+      early skip of rewriting module: pydantic._internal [assertion]
+      early skip of rewriting module: pydantic._internal._repr [assertion]
+      early skip of rewriting module: pydantic._internal._typing_extra [assertion]
+      early skip of rewriting module: pydantic._internal._namespace_utils [assertion]
+      early skip of rewriting module: pydantic.fields [assertion]
+      early skip of rewriting module: annotated_types [assertion]
+      early skip of rewriting module: pydantic._internal._validators [assertion]
+      early skip of rewriting module: zoneinfo [assertion]
+      early skip of rewriting module: zoneinfo._tzpath [assertion]
+      early skip of rewriting module: zoneinfo._common [assertion]
+      early skip of rewriting module: _zoneinfo [assertion]
+      early skip of rewriting module: pydantic._internal._import_utils [assertion]
+      early skip of rewriting module: pydantic.types [assertion]
+      early skip of rewriting module: pydantic._internal._fields [assertion]
+      early skip of rewriting module: pydantic.warnings [assertion]
+      early skip of rewriting module: pydantic._internal._generics [assertion]
+      early skip of rewriting module: pydantic._internal._core_utils [assertion]
+      early skip of rewriting module: pydantic._internal._forward_ref [assertion]
+      early skip of rewriting module: pydantic._internal._utils [assertion]
+      early skip of rewriting module: pydantic._internal._config [assertion]
+      early skip of rewriting module: pydantic.aliases [assertion]
+      early skip of rewriting module: pydantic._internal._internal_dataclass [assertion]
+      early skip of rewriting module: pydantic.config [assertion]
+      early skip of rewriting module: pydantic._internal._docs_extraction [assertion]
+      early skip of rewriting module: pydantic.annotated_handlers [assertion]
+      early skip of rewriting module: pydantic.json_schema [assertion]
+      early skip of rewriting module: pydantic._internal._core_metadata [assertion]
+      early skip of rewriting module: pydantic._internal._decorators [assertion]
+      early skip of rewriting module: pydantic._internal._mock_val_ser [assertion]
+      early skip of rewriting module: pydantic.plugin [assertion]
+      early skip of rewriting module: pydantic.plugin._schema_validator [assertion]
+      early skip of rewriting module: pydantic._internal._schema_generation_shared [assertion]
+      early skip of rewriting module: pydantic.root_model [assertion]
+      early skip of rewriting module: pydantic._internal._model_construction [assertion]
+      early skip of rewriting module: pydantic._internal._generate_schema [assertion]
+      early skip of rewriting module: pydantic.functional_validators [assertion]
+      early skip of rewriting module: pydantic._internal._discriminated_union [assertion]
+      early skip of rewriting module: pydantic._internal._known_annotated_metadata [assertion]
+      early skip of rewriting module: pydantic._internal._schema_gather [assertion]
+      early skip of rewriting module: pydantic._internal._signature [assertion]
+      early skip of rewriting module: pydantic.main [assertion]
+      early skip of rewriting module: pydantic.plugin._loader [assertion]
+      early skip of rewriting module: a2a._base [assertion]
+      early skip of rewriting module: pydantic.alias_generators [assertion]
+      early skip of rewriting module: alembic [assertion]
+      early skip of rewriting module: alembic.context [assertion]
+      early skip of rewriting module: alembic.runtime [assertion]
+      early skip of rewriting module: alembic.runtime.environment [assertion]
+      early skip of rewriting module: alembic.runtime.migration [assertion]
+      early skip of rewriting module: sqlalchemy.engine.strategies [assertion]
+      early skip of rewriting module: alembic.ddl [assertion]
+      early skip of rewriting module: alembic.ddl.mssql [assertion]
+      early skip of rewriting module: alembic.ddl.base [assertion]
+      early skip of rewriting module: sqlalchemy.ext [assertion]
+      early skip of rewriting module: sqlalchemy.ext.compiler [assertion]
+      early skip of rewriting module: alembic.util [assertion]
+      early skip of rewriting module: alembic.util.editor [assertion]
+      early skip of rewriting module: alembic.util.compat [assertion]
+      early skip of rewriting module: alembic.util.exc [assertion]
+      early skip of rewriting module: alembic.util.langhelpers [assertion]
+      early skip of rewriting module: alembic.util.messaging [assertion]
+      early skip of rewriting module: alembic.util.pyfiles [assertion]
+      early skip of rewriting module: mako [assertion]
+      early skip of rewriting module: mako.exceptions [assertion]
+      early skip of rewriting module: mako.compat [assertion]
+      early skip of rewriting module: mako.util [assertion]
+      early skip of rewriting module: timeit [assertion]
+      early skip of rewriting module: mako.ext [assertion]
+      early skip of rewriting module: mako.ext.pygmentplugin [assertion]
+      early skip of rewriting module: pygments.formatters.html [assertion]
+      early skip of rewriting module: ctags [assertion]
+      early skip of rewriting module: pygments.lexers.agile [assertion]
+      early skip of rewriting module: pygments.lexers.lisp [assertion]
+      early skip of rewriting module: pygments.lexers._scheme_builtins [assertion]
+      early skip of rewriting module: pygments.lexers.jvm [assertion]
+      early skip of rewriting module: pygments.lexers.ruby [assertion]
+      early skip of rewriting module: pygments.lexers.perl [assertion]
+      early skip of rewriting module: pygments.lexers.d [assertion]
+      early skip of rewriting module: pygments.lexers.iolang [assertion]
+      early skip of rewriting module: pygments.lexers.tcl [assertion]
+      early skip of rewriting module: pygments.lexers.factor [assertion]
+      early skip of rewriting module: pygments.lexers.scripting [assertion]
+      early skip of rewriting module: pygments.lexers._lua_builtins [assertion]
+      early skip of rewriting module: pygments.lexers.web [assertion]
+      early skip of rewriting module: pygments.lexers.html [assertion]
+      early skip of rewriting module: pygments.lexers.javascript [assertion]
+      early skip of rewriting module: pygments.lexers.css [assertion]
+      early skip of rewriting module: pygments.lexers._css_builtins [assertion]
+      early skip of rewriting module: pygments.lexers.actionscript [assertion]
+      early skip of rewriting module: pygments.lexers.php [assertion]
+      early skip of rewriting module: pygments.lexers.webmisc [assertion]
+      early skip of rewriting module: pygments.lexers.data [assertion]
+      early skip of rewriting module: pygments.styles.default [assertion]
+      early skip of rewriting module: mako.template [assertion]
+      early skip of rewriting module: mako.cache [assertion]
+      early skip of rewriting module: mako.codegen [assertion]
+      early skip of rewriting module: mako.ast [assertion]
+      early skip of rewriting module: mako.pyparser [assertion]
+      early skip of rewriting module: mako._ast_util [assertion]
+      early skip of rewriting module: mako.filters [assertion]
+      early skip of rewriting module: markupsafe [assertion]
+      early skip of rewriting module: markupsafe._speedups [assertion]
+      early skip of rewriting module: mako.parsetree [assertion]
+      early skip of rewriting module: mako.pygen [assertion]
+      early skip of rewriting module: mako.runtime [assertion]
+      early skip of rewriting module: mako.lexer [assertion]
+      early skip of rewriting module: alembic.util.sqla_compat [assertion]
+      early skip of rewriting module: alembic.ddl.impl [assertion]
+      early skip of rewriting module: alembic.ddl._autogen [assertion]
+      early skip of rewriting module: alembic.ddl.mysql [assertion]
+      early skip of rewriting module: alembic.ddl.oracle [assertion]
+      early skip of rewriting module: alembic.ddl.postgresql [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.array [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.operators [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.asyncpg [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.json [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.ranges [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.base [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.pg_catalog [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.types [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.ext [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.hstore [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.named_types [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.pg8000 [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.psycopg [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql._psycopg_common [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.psycopg2 [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.psycopg2cffi [assertion]
+      early skip of rewriting module: sqlalchemy.dialects.postgresql.dml [assertion]
+      early skip of rewriting module: sqlalchemy.dialects._typing [assertion]
+      early skip of rewriting module: alembic.autogenerate [assertion]
+      early skip of rewriting module: alembic.autogenerate.api [assertion]
+      early skip of rewriting module: alembic.autogenerate.compare [assertion]
+      early skip of rewriting module: alembic.operations [assertion]
+      early skip of rewriting module: alembic.operations.toimpl [assertion]
+      early skip of rewriting module: alembic.operations.ops [assertion]
+      early skip of rewriting module: alembic.operations.schemaobj [assertion]
+      early skip of rewriting module: alembic.operations.base [assertion]
+      early skip of rewriting module: alembic.operations.batch [assertion]
+      early skip of rewriting module: alembic.autogenerate.render [assertion]
+      early skip of rewriting module: alembic.autogenerate.rewriter [assertion]
+      early skip of rewriting module: alembic.ddl.sqlite [assertion]
+      early skip of rewriting module: alembic.script [assertion]
+      early skip of rewriting module: alembic.script.base [assertion]
+      early skip of rewriting module: alembic.script.revision [assertion]
+      early skip of rewriting module: alembic.script.write_hooks [assertion]
+      early skip of rewriting module: alembic.op [assertion]
+      early skip of rewriting module: alembic.command [assertion]
+      early skip of rewriting module: alembic.config [assertion]
+      early skip of rewriting module: fastapi [assertion]
+      early skip of rewriting module: starlette [assertion]
+      early skip of rewriting module: starlette.status [assertion]
+      early skip of rewriting module: fastapi.applications [assertion]
+      early skip of rewriting module: fastapi.routing [assertion]
+      early skip of rewriting module: fastapi.params [assertion]
+      early skip of rewriting module: fastapi.openapi [assertion]
+      early skip of rewriting module: fastapi.openapi.models [assertion]
+      early skip of rewriting module: fastapi._compat [assertion]
+      early skip of rewriting module: fastapi.exceptions [assertion]
+      early skip of rewriting module: starlette.exceptions [assertion]
+      early skip of rewriting module: fastapi.types [assertion]
+      early skip of rewriting module: starlette.datastructures [assertion]
+      early skip of rewriting module: starlette.concurrency [assertion]
+      early skip of rewriting module: starlette.types [assertion]
+      early skip of rewriting module: pydantic.type_adapter [assertion]
+      early skip of rewriting module: fastapi.logger [assertion]
+      early skip of rewriting module: pydantic.networks [assertion]
+      early skip of rewriting module: email_validator [assertion]
+      early skip of rewriting module: email_validator.exceptions [assertion]
+      early skip of rewriting module: email_validator.types [assertion]
+      early skip of rewriting module: email_validator.validate_email [assertion]
+      early skip of rewriting module: email_validator.syntax [assertion]
+      early skip of rewriting module: email_validator.rfc_constants [assertion]
+      early skip of rewriting module: email_validator.version [assertion]
+      early skip of rewriting module: fastapi.datastructures [assertion]
+      early skip of rewriting module: fastapi.dependencies [assertion]
+      early skip of rewriting module: fastapi.dependencies.models [assertion]
+      early skip of rewriting module: fastapi.security [assertion]
+      early skip of rewriting module: fastapi.security.api_key [assertion]
+      early skip of rewriting module: fastapi.security.base [assertion]
+      early skip of rewriting module: starlette.requests [assertion]
+      early skip of rewriting module: starlette._utils [assertion]
+      early skip of rewriting module: starlette.formparsers [assertion]
+      early skip of rewriting module: python_multipart [assertion]
+      early skip of rewriting module: python_multipart.multipart [assertion]
+      early skip of rewriting module: python_multipart.decoders [assertion]
+      early skip of rewriting module: python_multipart.exceptions [assertion]
+      early skip of rewriting module: fastapi.security.http [assertion]
+      early skip of rewriting module: fastapi.security.utils [assertion]
+      early skip of rewriting module: fastapi.security.oauth2 [assertion]
+      early skip of rewriting module: fastapi.param_functions [assertion]
+      early skip of rewriting module: fastapi.security.open_id_connect_url [assertion]
+      early skip of rewriting module: fastapi.dependencies.utils [assertion]
+      early skip of rewriting module: fastapi.background [assertion]
+      early skip of rewriting module: starlette.background [assertion]
+      early skip of rewriting module: fastapi.concurrency [assertion]
+      early skip of rewriting module: fastapi.utils [assertion]
+      early skip of rewriting module: starlette.responses [assertion]
+      early skip of rewriting module: secrets [assertion]
+      early skip of rewriting module: hmac [assertion]
+      early skip of rewriting module: starlette.websockets [assertion]
+      early skip of rewriting module: fastapi.encoders [assertion]
+      early skip of rewriting module: pydantic.color [assertion]
+      early skip of rewriting module: starlette.routing [assertion]
+      early skip of rewriting module: starlette._exception_handler [assertion]
+      early skip of rewriting module: starlette.convertors [assertion]
+      early skip of rewriting module: starlette.middleware [assertion]
+      early skip of rewriting module: fastapi.exception_handlers [assertion]
+      early skip of rewriting module: fastapi.websockets [assertion]
+      early skip of rewriting module: fastapi.openapi.docs [assertion]
+      early skip of rewriting module: fastapi.openapi.utils [assertion]
+      early skip of rewriting module: fastapi.openapi.constants [assertion]
+      early skip of rewriting module: fastapi.responses [assertion]
+      early skip of rewriting module: ujson [assertion]
+      early skip of rewriting module: orjson [assertion]
+      early skip of rewriting module: starlette.applications [assertion]
+      early skip of rewriting module: starlette.middleware.base [assertion]
+      early skip of rewriting module: starlette.middleware.errors [assertion]
+      early skip of rewriting module: starlette.middleware.exceptions [assertion]
+      early skip of rewriting module: fastapi.requests [assertion]
+      early skip of rewriting module: fastapi.testclient [assertion]
+      early skip of rewriting module: starlette.testclient [assertion]
+      early skip of rewriting module: sam_test_infrastructure [assertion]
+      early skip of rewriting module: sam_test_infrastructure.a2a_validator [assertion]
+      early skip of rewriting module: sam_test_infrastructure.a2a_validator.validator [assertion]
+      early skip of rewriting module: jsonschema [assertion]
+      early skip of rewriting module: jsonschema._format [assertion]
+      early skip of rewriting module: jsonschema.exceptions [assertion]
+      early skip of rewriting module: attrs [assertion]
+      early skip of rewriting module: attrs.converters [assertion]
+      early skip of rewriting module: attrs.exceptions [assertion]
+      early skip of rewriting module: attrs.filters [assertion]
+      early skip of rewriting module: attrs.setters [assertion]
+      early skip of rewriting module: attrs.validators [assertion]
+      early skip of rewriting module: referencing [assertion]
+      early skip of rewriting module: referencing._core [assertion]
+      early skip of rewriting module: rpds [assertion]
+      early skip of rewriting module: rpds.rpds [assertion]
+      early skip of rewriting module: referencing.exceptions [assertion]
+      early skip of rewriting module: referencing._attrs [assertion]
+      early skip of rewriting module: referencing.typing [assertion]
+      early skip of rewriting module: jsonschema._utils [assertion]
+      early skip of rewriting module: fqdn [assertion]
+      early skip of rewriting module: rfc3987 [assertion]
+      early skip of rewriting module: rfc3986_validator [assertion]
+      early skip of rewriting module: rfc3987_syntax [assertion]
+      early skip of rewriting module: rfc3339_validator [assertion]
+      early skip of rewriting module: webcolors [assertion]
+      early skip of rewriting module: jsonpointer [assertion]
+      early skip of rewriting module: uri_template [assertion]
+      early skip of rewriting module: isoduration [assertion]
+      early skip of rewriting module: jsonschema._types [assertion]
+      early skip of rewriting module: jsonschema.validators [assertion]
+      early skip of rewriting module: jsonschema_specifications [assertion]
+      early skip of rewriting module: referencing.jsonschema [assertion]
+      early skip of rewriting module: jsonschema_specifications._core [assertion]
+      early skip of rewriting module: importlib.resources._adapters [assertion]
+      early skip of rewriting module: importlib.readers [assertion]
+      early skip of rewriting module: importlib.resources.readers [assertion]
+      early skip of rewriting module: importlib.resources._itertools [assertion]
+      early skip of rewriting module: jsonschema._keywords [assertion]
+      early skip of rewriting module: jsonschema._legacy_keywords [assertion]
+      early skip of rewriting module: jsonschema._typing [assertion]
+      early skip of rewriting module: jsonschema.protocols [assertion]
+      early skip of rewriting module: sam_test_infrastructure.artifact_service [assertion]
+      early skip of rewriting module: sam_test_infrastructure.artifact_service.service [assertion]
+      early skip of rewriting module: google.adk [assertion]
+      early skip of rewriting module: google.adk.version [assertion]
+      early skip of rewriting module: google.adk.agents [assertion]
+      early skip of rewriting module: google.adk.agents.base_agent [assertion]
+      early skip of rewriting module: google.genai [assertion]
+      early skip of rewriting module: google.genai.types [assertion]
+      early skip of rewriting module: google.genai._common [assertion]
+      early skip of rewriting module: google.genai._operations_converters [assertion]
+      early skip of rewriting module: google.genai._base_transformers [assertion]
+      early skip of rewriting module: PIL [assertion]
+      early skip of rewriting module: PIL._version [assertion]
+      early skip of rewriting module: PIL.Image [assertion]
+      early skip of rewriting module: PIL.ExifTags [assertion]
+      early skip of rewriting module: PIL.ImageMode [assertion]
+      early skip of rewriting module: PIL.TiffTags [assertion]
+      early skip of rewriting module: PIL._binary [assertion]
+      early skip of rewriting module: PIL._deprecate [assertion]
+      early skip of rewriting module: PIL._util [assertion]
+      early skip of rewriting module: defusedxml [assertion]
+      early skip of rewriting module: defusedxml.common [assertion]
+      early skip of rewriting module: xml.parsers [assertion]
+      early skip of rewriting module: xml.parsers.expat [assertion]
+      early skip of rewriting module: defusedxml.ElementTree [assertion]
+      early skip of rewriting module: xml.etree.ElementTree [assertion]
+      early skip of rewriting module: PIL._imaging [assertion]
+      early skip of rewriting module: mcp [assertion]
+      early skip of rewriting module: mcp.client [assertion]
+      early skip of rewriting module: mcp.client.session [assertion]
+      early skip of rewriting module: mcp.types [assertion]
+      early skip of rewriting module: mcp.shared [assertion]
+      early skip of rewriting module: mcp.shared.context [assertion]
+      early skip of rewriting module: mcp.shared.session [assertion]
+      early skip of rewriting module: mcp.shared.exceptions [assertion]
+      early skip of rewriting module: mcp.shared.message [assertion]
+      early skip of rewriting module: mcp.shared.version [assertion]
+      early skip of rewriting module: mcp.client.session_group [assertion]
+      early skip of rewriting module: mcp.client.sse [assertion]
+      early skip of rewriting module: httpx_sse [assertion]
+      early skip of rewriting module: httpx_sse._api [assertion]
+      early skip of rewriting module: httpx_sse._decoders [assertion]
+      early skip of rewriting module: httpx_sse._models [assertion]
+      early skip of rewriting module: httpx_sse._exceptions [assertion]
+      early skip of rewriting module: mcp.shared._httpx_utils [assertion]
+      early skip of rewriting module: mcp.client.stdio [assertion]
+      matched marked file 'anyio.streams.text' (from 'anyio') [assertion]
+      find_module called for: anyio.streams.text [assertion]
+      found cached rewritten pyc for /Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/anyio/streams/text.py [assertion]
+      early skip of rewriting module: mcp.os [assertion]
+      early skip of rewriting module: mcp.os.posix [assertion]
+      early skip of rewriting module: mcp.os.posix.utilities [assertion]
+      early skip of rewriting module: mcp.os.win32 [assertion]
+      early skip of rewriting module: mcp.os.win32.utilities [assertion]
+      matched marked file 'anyio.streams.file' (from 'anyio') [assertion]
+      find_module called for: anyio.streams.file [assertion]
+      found cached rewritten pyc for /Users/artmorozov/wrk/hatch_data/env/virtual/solace-agent-mesh/BjgRAgEB/hatch-test.py3.13/lib/python3.13/site-packages/anyio/streams/file.py [assertion]
+      early skip of rewriting module: mcp.client.streamable_http [assertion]
+      early skip of rewriting module: mcp.server [assertion]
+      early skip of rewriting module: mcp.server.fastmcp [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.server [assertion]
+      early skip of rewriting module: pydantic_settings [assertion]
+      early skip of rewriting module: pydantic_settings.exceptions [assertion]
+      early skip of rewriting module: pydantic_settings.main [assertion]
+      early skip of rewriting module: pydantic.dataclasses [assertion]
+      early skip of rewriting module: pydantic._internal._dataclasses [assertion]
+      early skip of rewriting module: pydantic_settings.sources [assertion]
+      early skip of rewriting module: pydantic_settings.sources.base [assertion]
+      early skip of rewriting module: pydantic_settings.utils [assertion]
+      early skip of rewriting module: pydantic_settings.sources.types [assertion]
+      early skip of rewriting module: pydantic_settings.sources.utils [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers.aws [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers.env [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers.azure [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers.cli [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers.dotenv [assertion]
+      early skip of rewriting module: dotenv [assertion]
+      early skip of rewriting module: dotenv.main [assertion]
+      early skip of rewriting module: dotenv.parser [assertion]
+      early skip of rewriting module: dotenv.variables [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers.gcp [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers.json [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers.pyproject [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers.toml [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers.secrets [assertion]
+      early skip of rewriting module: pydantic_settings.sources.providers.yaml [assertion]
+      early skip of rewriting module: pydantic_settings.version [assertion]
+      early skip of rewriting module: starlette.middleware.authentication [assertion]
+      early skip of rewriting module: starlette.authentication [assertion]
+      early skip of rewriting module: mcp.server.auth [assertion]
+      early skip of rewriting module: mcp.server.auth.middleware [assertion]
+      early skip of rewriting module: mcp.server.auth.middleware.auth_context [assertion]
+      early skip of rewriting module: mcp.server.auth.middleware.bearer_auth [assertion]
+      early skip of rewriting module: mcp.server.auth.provider [assertion]
+      early skip of rewriting module: mcp.shared.auth [assertion]
+      early skip of rewriting module: mcp.server.auth.settings [assertion]
+      early skip of rewriting module: mcp.server.elicitation [assertion]
+      early skip of rewriting module: mcp.server.session [assertion]
+      early skip of rewriting module: mcp.server.models [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.exceptions [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.prompts [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.prompts.base [assertion]
+      early skip of rewriting module: pydantic.validate_call_decorator [assertion]
+      early skip of rewriting module: pydantic._internal._validate_call [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.utilities [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.utilities.context_injection [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.utilities.func_metadata [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.utilities.logging [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.utilities.types [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.prompts.manager [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.resources [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.resources.base [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.resources.resource_manager [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.resources.templates [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.resources.types [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.tools [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.tools.base [assertion]
+      early skip of rewriting module: mcp.server.fastmcp.tools.tool_manager [assertion]
+      early skip of rewriting module: mcp.server.lowlevel [assertion]
+      early skip of rewriting module: mcp.server.lowlevel.server [assertion]
+      early skip of rewriting module: mcp.server.lowlevel.func_inspection [assertion]
+      early skip of rewriting module: mcp.server.lowlevel.helper_types [assertion]
+      early skip of rewriting module: mcp.server.sse [assertion]
+      early skip of rewriting module: sse_starlette [assertion]
+      early skip of rewriting module: sse_starlette.event [assertion]
+      early skip of rewriting module: sse_starlette.sse [assertion]
+      early skip of rewriting module: uvicorn [assertion]
+      early skip of rewriting module: uvicorn.config [assertion]
+      early skip of rewriting module: logging.config [assertion]
+      early skip of rewriting module: logging.handlers [assertion]
+      early skip of rewriting module: socketserver [assertion]
+      early skip of rewriting module: uvicorn._types [assertion]
+      early skip of rewriting module: uvicorn.importer [assertion]
+      early skip of rewriting module: uvicorn.logging [assertion]
+      early skip of rewriting module: uvicorn.middleware [assertion]
+      early skip of rewriting module: uvicorn.middleware.asgi2 [assertion]
+      early skip of rewriting module: uvicorn.middleware.message_logger [assertion]
+      early skip of rewriting module: uvicorn.middleware.proxy_headers [assertion]
+      early skip of rewriting module: uvicorn.middleware.wsgi [assertion]
+      early skip of rewriting module: a2wsgi [assertion]
+      early skip of rewriting module: uvicorn.main [assertion]
+      early skip of rewriting module: uvicorn.server [assertion]
+      early skip of rewriting module: uvicorn._compat [assertion]
+      early skip of rewriting module: uvicorn.supervisors [assertion]
+      early skip of rewriting module: uvicorn.supervisors.basereload [assertion]
+      early skip of rewriting module: uvicorn._subprocess [assertion]
+      early skip of rewriting module: multiprocessing.connection [assertion]
+      early skip of rewriting module: multiprocessing.util [assertion]
+      early skip of rewriting module: _multiprocessing [assertion]
+      early skip of rewriting module: _winapi [assertion]
+      early skip of rewriting module: uvicorn.supervisors.multiprocess [assertion]
+      early skip of rewriting module: uvicorn.supervisors.watchfilesreload [assertion]
+      early skip of rewriting module: watchfiles [assertion]
+      early skip of rewriting module: watchfiles.filters [assertion]
+      early skip of rewriting module: watchfiles.main [assertion]
+      early skip of rewriting module: watchfiles._rust_notify [assertion]
+      early skip of rewriting module: watchfiles.run [assertion]
+      early skip of rewriting module: watchfiles.version [assertion]
+      early skip of rewriting module: mcp.server.transport_security [assertion]
+      early skip of rewriting module: mcp.server.stdio [assertion]
+      early skip of rewriting module: mcp.server.streamable_http [assertion]
+      early skip of rewriting module: mcp.server.streamable_http_manager [assertion]
+      early skip of rewriting module: yaml [assertion]
+      early skip of rewriting module: yaml.error [assertion]
+      early skip of rewriting module: yaml.tokens [assertion]
+      early skip of rewriting module: yaml.events [assertion]
+      early skip of rewriting module: yaml.nodes [assertion]
+      early skip of rewriting module: yaml.loader [assertion]
+      early skip of rewriting module: yaml.reader [assertion]
+      early skip of rewriting module: yaml.scanner [assertion]
+      early skip of rewriting module: yaml.parser [assertion]
+      early skip of rewriting module: yaml.composer [assertion]
+      early skip of rewriting module: yaml.constructor [assertion]
+      early skip of rewriting module: yaml.resolver [assertion]
+      early skip of rewriting module: yaml.dumper [assertion]
+      early skip of rewriting module: yaml.emitter [assertion]
+      early skip of rewriting module: yaml.serializer [assertion]
+      early skip of rewriting module: yaml.representer [assertion]
+      early skip of rewriting module: yaml.cyaml [assertion]
+      early skip of rewriting module: yaml._yaml [assertion]
+      pytest_collection_finish [hook]
+          session: <Session  exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>
+        pytest_report_collectionfinish [hook]
+            config: <_pytest.config.Config object at 0x120f7eba0>
+            items: []
+            start_path: /Users/artmorozov/wrk/solace-agent-mesh
+            startdir: /Users/artmorozov/wrk/solace-agent-mesh
+        finish pytest_report_collectionfinish --> [] [hook]
+      finish pytest_collection_finish --> [] [hook]
+      pytest_warning_recorded [hook]
+          warning_message: {message : DeprecationWarning('jsonschema.RefResolver is deprecated as of v4.18.0, in favor of the https://github.com/python-jsonschema/referencing library, which provides more compliant referencing behavior as well as more flexible APIs for customization. A future release will remove RefResolver. Please file a feature request (on referencing) if you are missing an API for the kind of customization you need.'), category : 'DeprecationWarning', filename : '/Users/artmorozov/wrk/solace-agent-mesh/tests/sam-test-infrastructure/src/sam_test_infrastructure/a2a_validator/validator.py', lineno : 13, line : None}
+          nodeid: 
+          when: collect
+          location: None
