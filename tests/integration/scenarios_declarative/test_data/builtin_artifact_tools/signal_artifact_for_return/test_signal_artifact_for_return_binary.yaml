@@ -1,0 +1,138 @@
+test_case_id: "builtin_signal_artifact_for_return_binary_001"
+description: |
+  Tests the 'signal_artifact_for_return' tool for a binary artifact.
+  Verifies the tool's success response and that a TaskArtifactUpdateEvent
+  is subsequently published. Content of the event's data is not deeply asserted
+  by current runner, only name.
+# We need to see intermediate events to catch TaskArtifactUpdateEvent
+tags: ["all","agent","tools","builtin_artifact_tools"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "signal_binary_doc.png"
+    content_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" # 1x1 PNG, 68 bytes
+    mime_type: "image/png"
+    metadata:
+      description: "A sample binary PNG for signal_artifact_for_return."
+      mime_type: "image/png"
+      size_bytes: 68
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_signal_binary_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please signal 'signal_binary_doc.png', version 0, for return."
+  external_context:
+    a2a_session_id: "session_signal_binary_artifact_001"
+
+llm_interactions:
+  # Step 1: LLM decides to call signal_artifact_for_return
+  - step_id: "llm_calls_signal_binary_artifact"
+    static_response:
+      id: "chatcmpl-signal-binary-artifact-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_signal_binary_doc"
+                type: "function"
+                function:
+                  name: "signal_artifact_for_return"
+                  arguments: '{"filename": "signal_binary_doc.png", "version": 0}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  - step_id: "llm_final_response_after_binary_signal"
+    expected_request: # After signal_artifact_for_return tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: success 
+    static_response:
+      id: "chatcmpl-signal-binary-artifact-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Okay, I've signaled 'signal_binary_doc.png' (v0) for return. The host component may have issues sending binary artifacts directly."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  # Based on logs ("Failed to translate artifact ... to A2A FilePart"),
+  # we do NOT expect a TaskArtifactUpdateEvent for binary files currently.
+  # The sequence will be: LLM invokes tool, tool responds, LLM gives final answer.
+
+  # LLM Call 1 (that decides to call the tool)
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+
+  - type: "status_update"
+    event_purpose: "llm_response"
+    expected_llm_data_contains:
+      content: # Actual structure is nested under 'content.parts[0].function_call'
+        parts:
+          - function_call:
+              name: "signal_artifact_for_return"
+              # Optionally, assert arguments if they are stable and important here:
+              # args:
+              #   filename: "signal_binary_doc.png"
+              #   version: 0
+
+  # Tool execution phase
+  - type: "status_update"
+    event_purpose: "tool_invocation_start"
+    expected_tool_name: "signal_artifact_for_return"
+
+  - type: "status_update" # Event carrying the direct JSON output from the tool
+    event_purpose: "generic_text_update"
+
+  # NO "artifact_update" event expected due to "Failed to translate artifact" warning for binary.
+
+
+  # LLM Call 2 (that formulates the final text reply)
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+
+
+  - type: "status_update" # This is the llm_response event that finalizes the text stream
+    event_purpose: "llm_response"
+    final_flag: false
+    expected_llm_data_contains: # The content of an llm_response event is in its metadata
+      content:
+        parts:
+          - text: "Okay, I've signaled 'signal_binary_doc.png' (v0) for return. The host component may have issues sending binary artifacts directly."
+        # Optionally, assert role if it's always 'model' here
+        # role: "model"
+
+  - type: "status_update" # This is the aggregation of generic_text_update chunks
+    event_purpose: "generic_text_update"
+    # final_flag removed for the aggregated generic_text_update event
+
+  # Final Task object
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_signal_binary_artifact_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "Okay, I've signaled 'signal_binary_doc.png' (v0) for return. The host component may have issues sending binary artifacts directly."
+    assert_artifact_state: # Verify original artifact is untouched
+      - filename: "signal_binary_doc.png"
+        user_id: "declarative_signal_binary_tester@example.com"
+        session_id: "session_signal_binary_artifact_001"
+        version: 0
+        expected_content_bytes_base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+        expected_metadata_contains:
+          description: "A sample binary PNG for signal_artifact_for_return."
+          mime_type: "image/png"
+          size_bytes: 68

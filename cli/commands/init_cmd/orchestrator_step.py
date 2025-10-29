@@ -383,7 +383,7 @@ def create_orchestrator_config(
 
         Artifact Management Guidelines:
         - If an artifact was created during the task (either by yourself or a delegated agent), you must use the `list_artifacts` tool to get the details of the created artifacts.
-        - You must then review the list of artifacts and return the ones that are important for the user by using artifact_return embed.
+        - You must then review the list of artifacts and return the ones that are important for the user by using the `signal_artifact_for_return` tool.
         - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call."""
 
         session_service_lines = [

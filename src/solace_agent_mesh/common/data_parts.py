@@ -71,26 +71,10 @@ class ArtifactCreationProgressData(BaseModel):
         description="The constant type for this data part.",
     )
     filename: str = Field(..., description="The name of the artifact being created.")
-    status: Literal["in-progress", "completed", "failed"] = Field(
-        ..., description="The status of the artifact creation."
-    )
-    bytes_transferred: int = Field(
-        ..., description="The number of bytes transferred so far."
-    )
-    description: Optional[str] = Field(
-        None, description="An optional description of the artifact being created."
-    )
-    artifact_chunk: Optional[str] = Field(
-        None,
-        description="The chunk of artifact data that was transferred in this progress update. Only present for 'in-progress' status.",
-    )
-    mime_type: Optional[str] = Field(
-        None,
-        description="The MIME type of the artifact. Only present for 'completed' status.",
-    )
-    version: Optional[int] = Field(
-        None,
-        description="The version number of the artifact being created or updated.",
+    bytes_saved: int = Field(..., description="The number of bytes saved so far.")
+    artifact_chunk: str = Field(
+        ...,
+        description="The chunk of artifact data that was saved in this progress update.",
     )
 
 

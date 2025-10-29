@@ -1,74 +1,29 @@
 # DEVELOPER GUIDE: entities
 
 ## Quick Summary
-The entities directory contains domain entities for the repository layer, providing core business objects for managing chat sessions, tasks, feedback, and events with built-in validation and business logic.
+The entities directory contains domain entities for the repository layer, providing core business objects for managing chat sessions, messages, tasks, feedback, and events with built-in validation and business logic.
 
 ## Files Overview
-- `__init__.py` - Exports the main domain entities (ChatTask, Feedback, Session, Task, TaskEvent)
-- `chat_task.py` - ChatTask entity for managing chat conversations with JSON validation
+- `__init__.py` - Exports the main domain entities (Feedback, Message, Session, SessionHistory, Task, TaskEvent)
 - `feedback.py` - Feedback entity for user ratings and comments on tasks
+- `message.py` - Message entity with content validation and sender type checking
 - `session.py` - Session entity with name management and access control
-- `task.py` - Task entity for tracking user tasks with token usage metrics
-- `task_event.py` - TaskEvent entity for tracking events related to tasks
+- `session_history.py` - Composite entity combining sessions with their message history
+- `task.py` - Task entity for tracking user tasks and their status with token usage
+- `task_event.py` - Task event entity for tracking events related to tasks
 
 ## Developer API Reference
 
 ### __init__.py
 **Purpose:** Provides centralized imports for all domain entities
-**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import ChatTask, Feedback, Session, Task, TaskEvent`
-
-### chat_task.py
-**Purpose:** Defines the ChatTask domain entity for managing chat conversations with JSON validation
-**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import ChatTask`
-
-**Classes:**
-- `ChatTask(id: str, session_id: str, user_id: str, message_bubbles: str, created_time: int, user_message: str | None = None, task_metadata: str | None = None, updated_time: int | None = None)` - ChatTask domain entity with business logic
-  - `add_feedback(feedback_type: str, feedback_text: str | None = None) -> None` - Add or update feedback for this task
-  - `get_feedback() -> dict[str, Any] | None` - Get feedback for this task
-  - `id: str` - Unique task identifier
-  - `session_id: str` - Associated session identifier
-  - `user_id: str` - User who owns the task
-  - `user_message: str | None` - Optional user message
-  - `message_bubbles: str` - JSON string containing message bubbles (must be non-empty JSON array)
-  - `task_metadata: str | None` - Optional JSON string for task metadata
-  - `created_time: int` - Task creation timestamp
-  - `updated_time: int | None` - Last update timestamp
-
-**Usage Examples:**
-```python
-from solace_agent_mesh.gateway.http_sse.repository.entities import ChatTask
-import json
-
-# Create a chat task
-message_bubbles = json.dumps([
-    {"type": "user", "content": "Hello"},
-    {"type": "agent", "content": "Hi there!"}
-])
-
-chat_task = ChatTask(
-    id="chat_123",
-    session_id="session_456",
-    user_id="user_789",
-    user_message="Hello",
-    message_bubbles=message_bubbles,
-    created_time=1640995200000
-)
-
-# Add feedback
-chat_task.add_feedback("positive", "Great response!")
-
-# Get feedback
-feedback = chat_task.get_feedback()
-if feedback:
-    print(f"Feedback type: {feedback['type']}")
-```
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback, Message, Session, SessionHistory, Task, TaskEvent`
 
 ### feedback.py
 **Purpose:** Defines the Feedback domain entity for user ratings and comments
 **Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Feedback`
 
 **Classes:**
-- `Feedback(id: str, session_id: str, task_id: str, user_id: str, rating: str, created_time: int, comment: str | None = None)` - Feedback domain entity
+- `Feedback(id: str, session_id: str, task_id: str, user_id: str, rating: str, comment: str | None = None, created_time: int)` - Feedback domain entity
   - `id: str` - Unique feedback identifier
   - `session_id: str` - Associated session identifier
   - `task_id: str` - Associated task identifier
@@ -93,12 +48,54 @@ feedback = Feedback(
 )
 ```
 
+### message.py
+**Purpose:** Defines the Message domain entity with business logic for chat messages
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Message`
+
+**Classes:**
+- `Message(id: MessageId, session_id: SessionId, message: str, sender_type: SenderType, sender_name: str, message_type: MessageType = MessageType.TEXT, created_time: int)` - Message domain entity with business logic
+  - `validate_message_content() -> None` - Validates message content is not empty and under 10MB limit
+  - `is_from_user() -> bool` - Checks if message is from a user
+  - `is_from_agent() -> bool` - Checks if message is from an agent
+  - `is_system_message() -> bool` - Checks if message is a system message
+  - `id: MessageId` - Unique message identifier
+  - `session_id: SessionId` - Associated session identifier
+  - `message: str` - Message content
+  - `sender_type: SenderType` - Type of sender (USER, AGENT, SYSTEM)
+  - `sender_name: str` - Name of the message sender
+  - `message_type: MessageType` - Type of message content
+  - `created_time: int` - Message creation timestamp
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import Message
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, MessageType
+
+# Create a user message
+message = Message(
+    id="msg_123",
+    session_id="session_456",
+    message="Hello, how can I help?",
+    sender_type=SenderType.USER,
+    sender_name="John Doe",
+    message_type=MessageType.TEXT,
+    created_time=1640995200000
+)
+
+# Validate message content
+message.validate_message_content()
+
+# Check sender type
+if message.is_from_user():
+    print("Message from user")
+```
+
 ### session.py
 **Purpose:** Defines the Session domain entity with business logic for chat sessions
 **Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import Session`
 
 **Classes:**
-- `Session(id: SessionId, user_id: UserId, created_time: int, name: str | None = None, agent_id: AgentId | None = None, updated_time: int | None = None)` - Session domain entity with business logic
+- `Session(id: SessionId, user_id: UserId, name: str | None = None, agent_id: AgentId | None = None, created_time: int, updated_time: int | None = None)` - Session domain entity with business logic
   - `update_name(new_name: str) -> None` - Updates session name with validation and sets updated_time
   - `mark_activity() -> None` - Marks session as having recent activity by updating timestamp
   - `can_be_deleted_by_user(user_id: UserId) -> bool` - Checks if user can delete this session
@@ -132,6 +129,51 @@ session.mark_activity()
 # Check permissions
 if session.can_be_accessed_by_user("user_456"):
     print("User can access this session")
+```
+
+### session_history.py
+**Purpose:** Defines a composite entity that combines a session with its message history
+**Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import SessionHistory`
+
+**Classes:**
+- `SessionHistory(session: Session, messages: list[Message] = [], total_message_count: int = 0)` - Composite entity representing a session with its messages
+  - `session: Session` - The session entity
+  - `messages: list[Message]` - List of messages in the session
+  - `total_message_count: int` - Total count of messages (may exceed messages list length for pagination)
+
+**Usage Examples:**
+```python
+from solace_agent_mesh.gateway.http_sse.repository.entities import SessionHistory, Session, Message
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType
+
+# Create session history
+session = Session(
+    id="session_123",
+    user_id="user_456",
+    created_time=1640995200000
+)
+
+messages = [
+    Message(
+        id="msg_1",
+        session_id="session_123",
+        message="Hello",
+        sender_type=SenderType.USER,
+        sender_name="John",
+        created_time=1640995200000
+    )
+]
+
+history = SessionHistory(
+    session=session,
+    messages=messages,
+    total_message_count=1
+)
+
+# Access session and messages
+print(f"Session: {history.session.id}")
+print(f"Message count: {len(history.messages)}")
+print(f"Total messages: {history.total_message_count}")
 ```
 
 ### task.py
@@ -183,7 +225,7 @@ task_with_tokens = Task(
 **Import:** `from solace_agent_mesh.gateway.http_sse.repository.entities import TaskEvent`
 
 **Classes:**
-- `TaskEvent(id: str, task_id: str, created_time: int, topic: str, direction: str, payload: dict[str, Any], user_id: str | None = None)` - TaskEvent domain entity
+- `TaskEvent(id: str, task_id: str, user_id: str | None = None, created_time: int, topic: str, direction: str, payload: dict[str, Any])` - TaskEvent domain entity
   - `id: str` - Unique event identifier
   - `task_id: str` - Associated task identifier
   - `user_id: str | None` - Optional user identifier
@@ -218,4 +260,4 @@ system_event = TaskEvent(
 )
 ```
 
-# content_hash: d7b07fd8577e43715a286030d4119267ddff5483180284a16dc6d8aab19fd089
+# content_hash: 14f978bcbf2c820db1c7f3185ffa1529a656b3b5fa0f64cff81927eb2f7d12e9

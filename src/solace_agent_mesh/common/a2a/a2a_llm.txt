@@ -34,8 +34,6 @@ This file re-exports all public functions from the other modules, allowing devel
 - `get_artifact_id(artifact: Artifact) -> str` - Safely retrieves the ID from an Artifact
 - `get_artifact_name(artifact: Artifact) -> Optional[str]` - Safely retrieves the name from an Artifact
 - `get_parts_from_artifact(artifact: Artifact) -> List[ContentPart]` - Extracts unwrapped content parts from an Artifact
-- `is_text_only_artifact(artifact: Artifact) -> bool` - Checks if an artifact contains only TextParts
-- `get_text_content_from_artifact(artifact: Artifact) -> List[str]` - Extracts all text content from TextParts in an artifact
 
 **Usage Examples:**
 ```python
@@ -63,8 +61,6 @@ artifact_id = get_artifact_id(artifact)
 - `get_message_from_status_update(event: TaskStatusUpdateEvent) -> Optional[Message]` - Extracts Message from TaskStatusUpdateEvent
 - `get_data_parts_from_status_update(event: TaskStatusUpdateEvent) -> List[DataPart]` - Extracts DataPart objects from status update
 - `get_artifact_from_artifact_update(event: TaskArtifactUpdateEvent) -> Optional[Artifact]` - Extracts Artifact from TaskArtifactUpdateEvent
-- `is_task_status_update(obj: Any) -> bool` - Checks if an object is a TaskStatusUpdateEvent
-- `is_task_artifact_update(obj: Any) -> bool` - Checks if an object is a TaskArtifactUpdateEvent
 
 **Usage Examples:**
 ```python
@@ -110,11 +106,6 @@ status_event = create_status_update(
 - `get_bytes_from_file_part(part: FilePart) -> Optional[bytes]` - Gets decoded bytes from FilePart
 - `get_filename_from_file_part(part: FilePart) -> Optional[str]` - Gets filename from FilePart
 - `get_mimetype_from_file_part(part: FilePart) -> Optional[str]` - Gets MIME type from FilePart
-- `is_text_part(part: Part) -> bool` - Checks if a Part contains a TextPart
-- `is_file_part(part: Part) -> bool` - Checks if a Part contains a FilePart
-- `is_data_part(part: Part) -> bool` - Checks if a Part contains a DataPart
-- `is_file_part_bytes(part: FilePart) -> bool` - Checks if a FilePart uses FileWithBytes
-- `is_file_part_uri(part: FilePart) -> bool` - Checks if a FilePart uses FileWithUri
 
 **Usage Examples:**
 ```python
@@ -159,8 +150,6 @@ user_message = create_user_message(
 - `get_client_response_topic(namespace: str, client_id: str) -> str` - Returns topic for publishing response to client
 - `get_client_status_topic(namespace: str, client_id: str, task_id: str) -> str` - Returns topic for publishing status to client
 - `get_client_status_subscription_topic(namespace: str, client_id: str) -> str` - Returns wildcard topic for client to receive status
-- `get_sam_events_topic(namespace: str, category: str, action: str) -> str` - Returns SAM system events topic
-- `get_sam_events_subscription_topic(namespace: str, category: str) -> str` - Returns SAM system events subscription topic
 - `create_send_message_request(message: Message, task_id: str, metadata: Optional[Dict[str, Any]] = None) -> SendMessageRequest` - Creates SendMessageRequest object
 - `create_send_streaming_message_request(message: Message, task_id: str, metadata: Optional[Dict[str, Any]] = None) -> SendStreamingMessageRequest` - Creates SendStreamingMessageRequest object
 - `create_success_response(result: Any, request_id: Optional[Union[str, int]]) -> JSONRPCResponse` - Creates successful JSON-RPC response
@@ -170,6 +159,24 @@ user_message = create_user_message(
 - `get_request_id(request: A2ARequest) -> str | int` - Gets JSON-RPC request ID
 - `get_request_method(request: A2ARequest) -> str` - Gets JSON-RPC method name
 - `get_message_from_send_request(request: A2ARequest) -> Optional[Message]` - Gets Message from send request
-- `
+- `get_task_id_from_cancel_request(request: A2ARequest) -> Optional[str]` - Gets task ID from cancel request
+- `get_response_id(response: JSONRPCResponse) -> Optional[Union[str, int]]` - Gets response ID
+- `get_response_result(response: JSONRPCResponse) -> Optional[Any]` - Gets response result
+- `get_response_error(response: JSONRPCResponse) -> Optional[JSONRPCError]` - Gets response error
+- `topic_matches_subscription(topic: str, subscription: str) -> bool` - Checks if topic matches Solace subscription pattern
+- `subscription_to_regex(subscription: str) -> str` - Converts Solace subscription to regex
+- `extract_task_id_from_topic(topic: str, subscription_pattern: str, log_identifier: str) -> Optional[str]` - Extracts task ID from topic
 
-# content_hash: 71c64edf65fe99d8d5cc67d5522436b870fc5b1ead118fc5ef38689b6f26689e
+**Usage Examples:**
+```python
+from solace_agent_mesh.common.a2a.protocol import get_agent_request_topic, create_send_message_request
+from solace_agent_mesh.common.a2a.message import create_agent_text_message
+
+# Get topic for sending request to an agent
+topic = get_agent_request_topic("my-namespace", "my-agent")
+
+# Create a send message request
+message = create_agent_text_message("Hello agent!")
+request = create_sen
+
+# content_hash: 9b1778648fd65100e79527a9b08867fe94c18b13a52bbe33d86f2e4a6cd62269

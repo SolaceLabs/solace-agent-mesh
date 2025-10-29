@@ -1,0 +1,78 @@
+test_case_id: "builtin_signal_artifact_filename_embed_behavior_001"
+description: |
+  Tests the 'signal_artifact_for_return' tool's behavior when the 'filename'
+  argument contains embed-like syntax. Expects the syntax to be treated literally,
+  resulting in an artifact not found error.
+tags: ["all","agent","tools","builtin_artifact_tools"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "some_other_file.txt"
+    content: "This is just a placeholder file."
+    mime_type: "text/plain"
+    metadata:
+      description: "Placeholder"
+      mime_type: "text/plain"
+      size_bytes: 32
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_signal_embed_fname_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please try to signal an artifact using a filename with embed syntax: '«my_variable».log', version 0."
+  external_context:
+    a2a_session_id: "session_signal_embed_fname_artifact_001"
+
+llm_interactions:
+  # Step 1: LLM calls signal_artifact_for_return with a filename containing embed-like syntax
+  - step_id: "llm_calls_signal_artifact_with_embed_filename"
+    static_response:
+      id: "chatcmpl-signal-embed-fname-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_signal_embed_fname"
+                type: "function"  
+                function:
+                  name: "signal_artifact_for_return"
+                  arguments: '{"filename": "«my_variable».log", "version": 0}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool error result and formulates final response
+  - step_id: "llm_final_response_after_signal_embed_fname_error"
+    expected_request: # After signal_artifact_for_return tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+            filename: "«my_variable».log" # The literal filename
+            version: 0
+          response_contains: "Artifact '«my_variable».log' version 0 not found"
+    static_response:
+      id: "chatcmpl-signal-embed-fname-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I couldn't signal '«my_variable».log' because a file with that literal name was not found. Embeds in filenames are not resolved by this tool for signaling."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_signal_embed_fname_artifact_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "I couldn't signal '«my_variable».log' because a file with that literal name was not found. Embeds in filenames are not resolved by this tool for signaling."

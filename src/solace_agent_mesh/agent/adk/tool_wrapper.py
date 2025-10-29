@@ -15,7 +15,6 @@ from ...common.utils.embeds import (
     LATE_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
 )
-from ...common.utils.embeds.types import ResolutionMode
 
 log = logging.getLogger(__name__)
 
@@ -103,7 +102,6 @@ class ADKToolWrapper:
                         context=context_for_embeds,
                         resolver_func=evaluate_embed,
                         types_to_resolve=self._types_to_resolve,
-                        resolution_mode=ResolutionMode.TOOL_PARAMETER,
                         log_identifier=log_identifier,
                         config=self._tool_config,
                     )
@@ -125,7 +123,6 @@ class ADKToolWrapper:
                         context=context_for_embeds,
                         resolver_func=evaluate_embed,
                         types_to_resolve=self._types_to_resolve,
-                        resolution_mode=ResolutionMode.TOOL_PARAMETER,
                         log_identifier=log_identifier,
                         config=self._tool_config,
                     )

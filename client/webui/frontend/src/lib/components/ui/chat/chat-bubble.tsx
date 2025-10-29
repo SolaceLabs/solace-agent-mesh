@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage, Button } from "@/lib/components/ui
 import { cn } from "@/lib/utils";
 
 // ChatBubble
-const chatBubbleVariant = cva("flex gap-2 max-w-full items-end relative group", {
+const chatBubbleVariant = cva("flex gap-2 max-w-[90%] items-end relative group", {
     variants: {
         variant: {
             received: "self-start",
@@ -74,7 +74,7 @@ interface ChatBubbleMessageProps extends React.HTMLAttributes<HTMLDivElement>, V
 }
 
 const ChatBubbleMessage = React.forwardRef<HTMLDivElement, ChatBubbleMessageProps>(({ className, variant, layout, children, ...props }, ref) => (
-    <div className={cn(chatBubbleMessageVariants({ variant, layout, className }), "relative max-w-full break-words")} ref={ref} {...props}>
+    <div className={cn(chatBubbleMessageVariants({ variant, layout, className }), "relative max-w-full break-words whitespace-pre-wrap")} ref={ref} {...props}>
         <>{children}</>
     </div>
 ));

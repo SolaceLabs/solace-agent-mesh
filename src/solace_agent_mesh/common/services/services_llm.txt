@@ -36,10 +36,10 @@ The core architecture revolves around factory functions (`create_identity_servic
 
 **Classes/Functions/Constants:**
 - **`class BaseIdentityService(ABC)`**: The abstract base class for identity service providers.
-    - **`__init__(self, config: Dict[str, Any], component: Optional[SamComponentBase] = None)`**: Initializes the service, setting up configuration and an optional in-memory cache.
+    - **`__init__(self, config: Dict[str, Any])`**: Initializes the service, setting up configuration and an optional in-memory cache.
     - **`async def get_user_profile(self, auth_claims: Dict[str, Any]) -> Optional[Dict[str, Any]]`**: (Abstract) Fetches additional profile details for an authenticated user based on claims.
     - **`async def search_users(self, query: str, limit: int = 10) -> List[Dict[str, Any]]`**: (Abstract) Searches for users based on a query string (e.g., for autocomplete).
-- **`def create_identity_service(config: Optional[Dict[str, Any]], component: Optional[SamComponentBase] = None) -> Optional[BaseIdentityService]`**: A factory function that instantiates an identity service provider. It has special handling for the built-in `local_file` provider and uses Python entry points for all other provider types.
+- **`def create_identity_service(config: Optional[Dict[str, Any]]) -> Optional[BaseIdentityService]`**: A factory function that instantiates an identity service provider. It has special handling for the built-in `local_file` provider and uses Python entry points for all other provider types.
 
 ### Subdirectory APIs
 
@@ -358,11 +358,6 @@ async def setup_file_based_identity():
 asyncio.run(setup_file_based_identity())
 ```
 
-### 6. Advanced Usage: Custom Identity Service with Component Integration
+This comprehensive guide shows how the services framework provides a clean, extensible way to integrate various data sources while maintaining consistent interfaces and supporting both built-in providers and external plugins through the factory pattern and plugin system.
 
-```python
-import asyncio
-from typing import Any, Dict, List, Optional
-from solace_agent
-
-# content_hash: 4532aa73f5067694fc253bc1875f79148f7b8778d1d46680c423d2b3da8456e6
+# content_hash: 879562926a7d3b7c6782ae395159d6c1f8a55663ce052a93eea8966e69b04444

@@ -87,4 +87,4 @@ agent_card = AgentCard(name="new_agent", description="A new agent")
 service.process_discovery_message(agent_card)
 ```
 
-# content_hash: 64e02756b1b097e39257e8e52df701d758df0f8d022ea6d6b088057f7025a6d9
+# content_hash: fcc947b32fa06db11f6cdf1064dfd9a68ee152373677a574602c182fc8c62f56

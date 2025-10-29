@@ -58,7 +58,7 @@ else:
   - `cleanup_old_data() -> None` - Main orchestration method for cleaning up old data, calls cleanup methods for tasks and feedback
 
 **Constants/Variables:**
-- `MIN_RETENTION_DAYS: int` - Minimum retention period (1 day)
+- `MIN_RETENTION_DAYS: int` - Minimum retention period (7 days)
 - `MIN_CLEANUP_INTERVAL_HOURS: int` - Minimum cleanup interval (1 hour)
 - `MIN_BATCH_SIZE: int` - Minimum batch size for deletion (1)
 - `MAX_BATCH_SIZE: int` - Maximum batch size for deletion (10000)
@@ -160,16 +160,16 @@ asyncio.run(search_users())
   - `is_persistence_enabled() -> bool` - Checks if the service is configured with a persistent backend
   - `get_user_sessions(db: DbSession, user_id: UserId, pagination: PaginationParams | None = None) -> PaginatedResponse[Session]` - Retrieves paginated sessions for a user
   - `get_session_details(db: DbSession, session_id: SessionId, user_id: UserId) -> Session | None` - Gets session details for a specific session
+  - `get_session_history(db: DbSession, session_id: SessionId, user_id: UserId, pagination: PaginationInfo | None = None) -> SessionHistory | None` - Gets session with messages
   - `create_session(db: DbSession, user_id: UserId, name: str | None = None, agent_id: str | None = None, session_id: str | None = None) -> Optional[Session]` - Creates a new session
   - `update_session_name(db: DbSession, session_id: SessionId, user_id: UserId, name: str) -> Session | None` - Updates session name
   - `delete_session_with_notifications(db: DbSession, session_id: SessionId, user_id: UserId) -> bool` - Deletes session and notifies agents
-  - `save_task(db: DbSession, task_id: str, session_id: str, user_id: str, user_message: Optional[str], message_bubbles: str, task_metadata: Optional[str] = None) -> ChatTask` - Saves a complete task interaction
-  - `get_session_tasks(db: DbSession, session_id: str, user_id: str) -> List[ChatTask]` - Gets all tasks for a session
-  - `get_session_messages_from_tasks(db: DbSession, session_id: str, user_id: str) -> List[Dict[str, Any]]` - Gets session messages by flattening task message_bubbles for backward compatibility
+  - `add_message_to_session(db: DbSession, session_id: SessionId, user_id: UserId, message: str, sender_type: SenderType, sender_name: str, agent_id: str | None = None, message_type: MessageType = MessageType.TEXT) -> Message` - Adds a message to a session
 
 **Usage Examples:**
 ```python
 from solace_agent_mesh.gateway.http_sse.services.session_service import SessionService
+from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType, MessageType
 from sqlalchemy.orm import Session as DbSession
 
 # Initialize with component
@@ -186,20 +186,14 @@ with your_session_factory() as db:
         agent_id="assistant-agent"
     )
 
-    # Save a task with message bubbles
-    import json
-    message_bubbles = json.dumps([
-        {"type": "user", "text": "Hello", "id": "msg1"},
-        {"type": "agent", "text": "Hi there!", "id": "msg2"}
-    ])
-    
-    task = session_service.save_task(
+    # Add a message to the session
+    message = session_service.add_message_to_session(
         db=db,
-        task_id="task-123",
         session_id=session.id,
         user_id="user123",
-        user_message="Hello",
-        message_bubbles=message_bubbles
+        message="Hello, how can you help me?",
+        sender_type=SenderType.USER,
+        sender_name="John Doe"
     )
 
     # Get user's sessions with pagination
@@ -300,4 +294,4 @@ async def cancel_task_example():
 asyncio.run(cancel_task_example())
 ```
 
-# content_hash: 09bc3008d9a6c148b0b9d7477d20b26514f7fc4ee72f36eda5348f8f7d51f2ea
+# content_hash: 12385f5117d2f5c30f0e44a0913ea91d62722aa82eb55268ae6bd317311ec5eb

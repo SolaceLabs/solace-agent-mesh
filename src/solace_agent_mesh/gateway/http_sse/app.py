@@ -203,25 +203,6 @@ class WebUIBackendApp(BaseGatewayApp):
             },
         },
         {
-            "name": "platform_service",
-            "required": False,
-            "type": "dict",
-            "default": {},
-            "description": "Configuration for the Platform Service (enterprise features: agents, connectors, deployments).",
-            "dict_schema": {
-                "database_url": {
-                    "type": "string",
-                    "required": False,
-                    "default": None,
-                    "description": (
-                        "Database URL for platform data (agents, connectors, deployments). "
-                        "REQUIRED for platform features to be available. "
-                        "Example: postgresql://user:pass@host:5432/platform_db"
-                    ),
-                },
-            },
-        },
-        {
             "name": "task_logging",
             "required": False,
             "type": "dict",

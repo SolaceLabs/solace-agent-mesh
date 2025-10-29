@@ -155,8 +155,8 @@ from solace_agent_mesh.gateway.http_sse.components.task_logger_forwarder import 
 **Import Examples:**
 ```python
 from solace_agent_mesh.gateway.http_sse.repository import (
-    ISessionRepository, ITaskRepository, SessionRepository, TaskRepository,
-    Session, Task, SessionModel, TaskModel, Base
+    ISessionRepository, IMessageRepository, SessionRepository, MessageRepository,
+    Session, Message, SessionHistory, Base, SessionModel, MessageModel
 )
 ```
 
@@ -275,7 +275,7 @@ async def my_custom_endpoint(
     return {"agents": len(agents), "user": user_id}
 ```
 
-### 3. Working with Sessions and Tasks
+### 3. Working with Sessions and Messages
 
 ```python
 from fastapi import Depends
@@ -286,14 +286,14 @@ from solace_agent_mesh.gateway.http_sse.dependencies import (
 from solace_agent_mesh.gateway.http_sse.services.session_service import SessionService
 from solace_agent_mesh.gateway.http_sse.shared.enums import SenderType
 
-@router.post("/sessions/{session_id}/tasks")
-async def save_task_to_session(
+@router.post("/sessions/{session_id}/messages")
+async def add_message_to_session(
     session_id: str,
-    task_data: dict,
+    message_text: str,
     user_id: str = Depends(get_user_id),
     db: Session = Depends(get_db),
     session_service: SessionService = Depends(get_session_business_service_optional)
 ):
-    if session_service and db
+    if session_
 
-# content_hash: 7da6d9233d06a0b9137a843efe5238a14d1762ee3bba437875b5d915634e0f63
+# content_hash: 1ec069cbf74863d29b45cd3b1031e6ab820e1b30d7c8b631488a54630a936828

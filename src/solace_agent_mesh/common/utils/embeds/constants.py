@@ -38,7 +38,6 @@ EARLY_EMBED_TYPES: Set[str] = {
 }
 LATE_EMBED_TYPES: Set[str] = {
     "artifact_content",
-    "artifact_return",
 }
 
 TEXT_CONTAINER_MIME_TYPES: Set[str] = {
