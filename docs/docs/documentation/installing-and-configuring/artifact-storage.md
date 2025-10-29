@@ -17,6 +17,31 @@ Artifacts are files and data created by agents during task execution. Examples i
 - **Retrievable**: Users can access, download, and view artifact history
 - **Tool-Driven**: Agents use built-in tools to create and manage artifacts
 
+### Artifact Storage vs Session Storage
+
+Unlike session storage (which is separate for WebUI Gateway and each agent), **artifact storage is shared across all agents and gateways in your deployment**.
+
+**How It Works:**
+- All agents and gateways connect to the **same artifact storage backend**
+- Artifacts are scoped by `(user_id, session_id, app_name)` to maintain isolation
+- Any agent or gateway can access artifacts within their scope
+- This allows agents to share files and data within a conversation
+
+**Example:**
+```yaml
+# WebUI Gateway and all agents share this artifact storage
+artifact_service:
+  type: "s3"
+  bucket_name: "shared-artifacts-bucket"
+  region: "us-west-2"
+```
+
+**Contrast with Session Storage:**
+- Session storage: Each agent has its own separate database
+- Artifact storage: All agents and gateways share the same storage backend
+
+For session storage configuration, see [Session Storage](./session-storage.md).
+
 ## Artifact Storage Backends
 
 Agent Mesh supports multiple storage backends for artifacts. Choose based on your deployment environment and requirements.
