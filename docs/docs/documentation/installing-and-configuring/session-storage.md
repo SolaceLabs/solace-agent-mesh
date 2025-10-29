@@ -540,19 +540,6 @@ After configuring session storage, verify everything works correctly.
 
 ---
 
-### Performance Issues
-
-**Symptom**: Slow response times after enabling persistence
-
-**Solutions**:
-- Enable connection pooling (configured automatically for PostgreSQL/MySQL)
-- Check database query performance using slow query logs
-- Verify database indexes exist
-- Consider database scaling if traffic increases
-- Monitor database CPU and memory usage
-
----
-
 ## Next Steps
 
 After configuring session storage, you may want to:
