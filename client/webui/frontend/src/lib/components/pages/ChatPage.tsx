@@ -88,7 +88,6 @@ export function ChatPage() {
         setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
     }, [isSessionSidePanelCollapsed]);
 
-    // Breadcrumbs removed - not consistent with hierarchy-based navigation pattern
     const breadcrumbs = undefined;
 
     // Determine the page title
