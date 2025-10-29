@@ -383,12 +383,6 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                         <div>{artifact.mime_type}</div>
                     </div>
                 )}
-                {artifact.uri && (
-                    <div>
-                        <span className="text-secondary-foreground">URI:</span>
-                        <div className="text-xs break-all">{artifact.uri}</div>
-                    </div>
-                )}
             </div>
         );
     }, [isInfoExpanded, artifact]);
