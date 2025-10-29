@@ -8,6 +8,7 @@ import { useChatContext, useDragAndDrop, useAgentSelection } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
 
 import { FileBadge } from "./file/FileBadge";
+import { PromptsCommand } from "./PromptsCommand";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const { isResponding, isCancelling, selectedAgentName, sessionId, handleSubmit, handleCancel } = useChatContext();
@@ -23,10 +24,14 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     // Local state for input value (no debouncing needed!)
     const [inputValue, setInputValue] = useState<string>("");
+    
+    // Prompts command state
+    const [showPromptsCommand, setShowPromptsCommand] = useState(false);
 
     // Clear input when session changes
     useEffect(() => {
         setInputValue("");
+        setShowPromptsCommand(false);
     }, [sessionId]);
 
     // Focus the chat input when isResponding becomes false
@@ -115,6 +120,44 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         disabled: isResponding,
     });
 
+    // Handle input change with "/" detection
+    const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+        const value = event.target.value;
+        setInputValue(value);
+        
+        // Check if "/" is typed at start or after space
+        const cursorPosition = event.target.selectionStart;
+        const textBeforeCursor = value.substring(0, cursorPosition);
+        const lastChar = textBeforeCursor[textBeforeCursor.length - 1];
+        const charBeforeLast = textBeforeCursor[textBeforeCursor.length - 2];
+        
+        if (lastChar === '/' && (!charBeforeLast || charBeforeLast === ' ' || charBeforeLast === '\n')) {
+            setShowPromptsCommand(true);
+        } else if (showPromptsCommand && !textBeforeCursor.includes('/')) {
+            setShowPromptsCommand(false);
+        }
+    };
+
+    // Handle prompt selection
+    const handlePromptSelect = (promptText: string) => {
+        // Remove the "/" trigger and insert the prompt
+        const cursorPosition = chatInputRef.current?.selectionStart || 0;
+        const textBeforeCursor = inputValue.substring(0, cursorPosition);
+        const textAfterCursor = inputValue.substring(cursorPosition);
+        
+        // Find the last "/" before cursor
+        const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
+        const newText = textBeforeCursor.substring(0, lastSlashIndex) + promptText + textAfterCursor;
+        
+        setInputValue(newText);
+        setShowPromptsCommand(false);
+        
+        // Focus back on input
+        setTimeout(() => {
+            chatInputRef.current?.focus();
+        }, 100);
+    };
+
     return (
         <div
             className={`rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
@@ -135,12 +178,20 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 </div>
             )}
 
+            {/* Prompts Command Popover */}
+            <PromptsCommand
+                isOpen={showPromptsCommand}
+                onClose={() => setShowPromptsCommand(false)}
+                textAreaRef={chatInputRef}
+                onPromptSelect={handlePromptSelect}
+            />
+
             {/* Chat Input */}
             <ChatInput
                 ref={chatInputRef}
                 value={inputValue}
-                onChange={event => setInputValue(event.target.value)}
-                placeholder="How can I help you today?"
+                onChange={handleInputChange}
+                placeholder="How can I help you today? (Type / for prompts)"
                 className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none"
                 rows={1}
                 onPaste={handlePaste}

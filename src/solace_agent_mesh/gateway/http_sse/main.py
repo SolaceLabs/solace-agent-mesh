@@ -30,6 +30,7 @@ from ...gateway.http_sse.routers import (
     tasks,
     visualization,
     feedback,
+    prompts,
 )
 from .routers.sessions import router as session_router
 from .routers.tasks import router as task_router
@@ -600,6 +601,7 @@ def _setup_routers() -> None:
     app.include_router(people.router, prefix=api_prefix, tags=["People"])
     app.include_router(auth.router, prefix=api_prefix, tags=["Auth"])
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
+    app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers from community repo

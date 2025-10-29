@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { AgentMeshPage, ChatPage, bottomNavigationItems, topNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
+import { PromptsPage } from "@/lib/components/pages/PromptsPage";
 import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
 
 import { useAuthContext, useBeforeUnload } from "@/lib/hooks";
@@ -40,6 +41,8 @@ function AppContent() {
                 return <ChatPage />;
             case "agentMesh":
                 return <AgentMeshPage />;
+            case "prompts":
+                return <PromptsPage />;
         }
     };
 

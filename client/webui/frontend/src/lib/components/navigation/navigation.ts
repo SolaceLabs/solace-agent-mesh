@@ -1,4 +1,4 @@
-import { MessageCircle, Bot, SunMoon } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, Command } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
@@ -12,6 +12,11 @@ export const topNavigationItems: NavigationItem[] = [
         id: "agentMesh",
         label: "Agents",
         icon: Bot,
+    },
+    {
+        id: "prompts",
+        label: "Prompts",
+        icon: Command,
     },
 ];
 

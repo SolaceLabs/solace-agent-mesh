@@ -8,6 +8,7 @@ from .feedback_model import FeedbackModel
 from .session_model import SessionModel, CreateSessionModel, UpdateSessionModel
 from .task_event_model import TaskEventModel
 from .task_model import TaskModel
+from .prompt_model import PromptGroupModel, PromptModel
 
 __all__ = [
     "Base",
@@ -18,4 +19,6 @@ __all__ = [
     "TaskEventModel",
     "TaskModel",
     "FeedbackModel",
+    "PromptGroupModel",
+    "PromptModel",
 ]
