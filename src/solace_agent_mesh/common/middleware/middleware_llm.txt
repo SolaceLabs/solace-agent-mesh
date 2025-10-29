@@ -171,4 +171,4 @@ MiddlewareRegistry.reset_bindings()
 print(f"Registry Status after reset: {MiddlewareRegistry.get_registry_status()}")
 ```
 
-# content_hash: 9f505d5203463aeca42959c92c78fe35212f34e4ea0288b67c1c6a6450117d6c
+# content_hash: eb6f60d7fdc4a0fb198bf8cc5644c3d372a72ebf46870c79282f230b07637095

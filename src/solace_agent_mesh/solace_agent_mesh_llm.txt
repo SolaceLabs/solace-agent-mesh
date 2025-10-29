@@ -359,4 +359,4 @@ async def client_integration_example():
         if hasattr(response.result, 'text_delta'):
             print(response.result.text_delta,
 
-# content_hash: ce6554bc70f746507a86e0faa0836fe1b338161b5f72a7923df30de5f23ac84e
+# content_hash: fa4f1849eeec9ff7be5bf627dd4ff9a4441625606ab996e0aaec608fcc8229d9

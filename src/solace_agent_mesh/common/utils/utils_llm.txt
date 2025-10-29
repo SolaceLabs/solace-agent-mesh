@@ -1,3 +1,5 @@
+# DEVELOPER GUIDE: utils
+
 ## Quick Summary
 The `utils` directory provides essential utility functions and tools for the Solace Agent Mesh system. It contains both direct utility files for common operations (MIME type handling, caching, message validation, authentication) and a sophisticated `embeds` subdirectory that implements a dynamic expression evaluation system. The utilities work together to provide platform compatibility, security features, data processing capabilities, and dynamic content generation for agent workflows.
 
@@ -119,6 +121,7 @@ The `utils` directory provides essential utility functions and tools for the Sol
   - `__setitem__(key: str, value: Any)` - Dict-like ['key'] = value assignment
   - `__contains__(key: str) -> bool` - Dict-like 'in' support
   - `keys()`, `values()`, `items()`, `__iter__()` - Dict-like iteration methods
+  - `pop(key: str, default: Any = None) -> Any` - Dict-like .pop() method
 
 #### type_utils.py
 **Purpose:** Utilities for robust type checking, especially in development environments
@@ -327,10 +330,6 @@ async def webhook_handler(request: Request):
             data = await request.json()
             # Process authenticated notification
             print(f"Received verified notification: {data}")
-            return Response("OK")
-        else:
-            return Response("Unauthorized", status_code=401)
-    except Exception as e:
-        print(f"
+            return Response
 
-# content_hash: d80ffe631ca180ea5aacca592313af42838960a949c8664559a957c2492fa86f
+# content_hash: c5bd94fc53429706fd6649d3dcf489665da150cfed54fd6961472c7b57dfc910

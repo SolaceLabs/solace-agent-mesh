@@ -21,6 +21,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     artifacts: [],
     artifactsLoading: false,
     artifactsRefetch: async () => {},
+    setArtifacts: () => {},
     taskIdInSidePanel: null,
     isSidePanelCollapsed: false,
     activeSidePanelTab: "files",
@@ -80,6 +81,24 @@ const defaultMockChatContext: DefaultMockContextType = {
     submittedFeedback: {},
     handleFeedbackSubmit: function (): Promise<void> {
         return Promise.resolve();
+    },
+
+    // Artifact Rendering State
+    artifactRenderingState: {
+        expandedArtifacts: new Set<string>(),
+    },
+
+    // Artifact Rendering Actions
+    toggleArtifactExpanded: function (): void {},
+    isArtifactExpanded: function (): boolean {
+        return false;
+    },
+    setArtifactRenderingState: function (): void {},
+
+    // Artifact Display and Cache Management
+    markArtifactAsDisplayed: function (): void {},
+    downloadAndResolveArtifact: function (): Promise<null> {
+        return Promise.resolve(null);
     },
 };
 

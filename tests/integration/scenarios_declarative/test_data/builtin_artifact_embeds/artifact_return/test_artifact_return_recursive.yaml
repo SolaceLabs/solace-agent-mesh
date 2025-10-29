@@ -1,0 +1,54 @@
+test_case_id: "builtin_artifact_return_embed_recursive_001"
+description: |
+  Tests that an 'artifact_return' embed is correctly processed when it is
+  nested inside another artifact that is being resolved via 'artifact_content'.
+  This validates the gateway's recursive embed resolution logic.
+tags: ["all","agent","embeds","builtin_artifact_embeds"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "document_to_return.txt"
+    content: "This is the actual document content."
+    mime_type: "text/plain"
+  - filename: "template_with_embed.txt"
+    content: "Here is the document you requested: «artifact_return:document_to_return.txt:0»"
+    mime_type: "text/plain"
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_artifact_return_recursive_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please process the template file."
+  external_context:
+    a2a_session_id: "session_artifact_return_recursive_001"
+
+llm_interactions:
+  - step_id: "llm_response_with_content_embed"
+    static_response:
+      id: "chatcmpl-artifact-return-recursive-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "«artifact_content:template_with_embed.txt:0»"
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_artifact_return_recursive_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "Here is the document you requested: "
+          - kind: "file"
+            filename: "document_to_return.txt"
+            mime_type: "text/plain"
