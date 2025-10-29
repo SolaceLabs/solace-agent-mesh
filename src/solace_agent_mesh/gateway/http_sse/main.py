@@ -209,7 +209,6 @@ def _create_auth_middleware(component):
             skip_paths = [
                 "/api/v1/config",
                 "/api/v1/auth/callback",
-                "/api/v1/auth/tool/callback",
                 "/api/v1/auth/login",
                 "/api/v1/auth/refresh",
                 "/api/v1/csrf-token",

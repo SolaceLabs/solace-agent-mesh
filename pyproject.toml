@@ -70,9 +70,10 @@ vertex = ["google-cloud-aiplatform==1.120.0"]
 employee_tools = ["holidays==0.81.0"]
 postgresql = ["psycopg2-binary==2.9.10"]
 
+
 [tool.hatch.envs.hatch-test]
 parallel = false
-installer = "pip"
+installer = "uv"
 dependencies = [
     "solace-agent-mesh[postgresql,gcs,vertex,employee_tools,s3]",
     "pytest-asyncio",
@@ -91,15 +92,20 @@ dependencies = [
     "asyncpg",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
+post-install-commands = [
+  "playwright install"
+]
+
 
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.13"]
 
 [tool.hatch.envs.hatch-test.scripts]
 run = "pytest {args}"
-run-cov = "coverage run -m pytest {args}"
+run-cov = "coverage run -m pytest --cov=cli --cov=src {args}"
 cov-combine = "coverage combine"
 cov-report = "coverage report"
+
 
 [project.urls]
 Homepage = "https://github.com/SolaceLabs/solace-agent-mesh"
@@ -126,6 +132,7 @@ pythonpath = [".", "src", "tests/sam-test-infrastructure/src"]
 python_files = ["test_*.py", "*_test.py", "tests.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+
 markers = [
     "all: marks all tests",
     "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
