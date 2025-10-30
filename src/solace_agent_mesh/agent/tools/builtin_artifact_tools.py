@@ -44,6 +44,7 @@ log = logging.getLogger(__name__)
 CATEGORY_NAME = "Artifact Management"
 CATEGORY_DESCRIPTION = "List, read, create, update, and delete artifacts."
 
+
 async def _internal_create_artifact(
     filename: str,
     content: str,
@@ -863,7 +864,7 @@ async def extract_content_from_artifact(
         mime_type=normalized_source_mime_type,
         content_bytes=source_artifact_content_bytes,
     )
-            
+
     if is_text_based:
         try:
             artifact_text_content = source_artifact_content_bytes.decode("utf-8")
@@ -1535,17 +1536,20 @@ async def _notify_artifact_save(
     tool_context: ToolContext = None,  # Keep tool_context for signature consistency
 ) -> Dict[str, Any]:
     """
-    An internal tool used by the system to confirm that a fenced artifact block
-    has been successfully saved. It performs no actions and simply returns its
-    arguments to get the result into the ADK history.
+    CRITICAL: _notify_artifact_save is automatically invoked by the system as a side-effect when you create artifacts. You should NEVER call this tool yourself. The system will call it for you and provide the results in your next turn. If you manually invoke it, you are making an error."
     """
-    return {"filename": filename, "version": version, "status": status}
+    return {
+        "filename": filename,
+        "version": version,
+        "status": status,
+        "message": "Artifact has been created and provided to the requester",
+    }
 
 
 _notify_artifact_save_tool_def = BuiltinTool(
     name="_notify_artifact_save",
     implementation=_notify_artifact_save,
-    description="INTERNAL TOOL. This tool is used by the system to confirm that a fenced artifact block has been saved. You MUST NOT call this tool directly.",
+    description="CRITICAL: _notify_artifact_save is automatically invoked by the system as a side-effect when you create artifacts. You should NEVER call this tool yourself. The system will call it for you and provide the results in your next turn. If you manually invoke it, you are making an error.",
     category="internal",
     required_scopes=[],  # No scopes needed for an internal notification tool
     parameters=adk_types.Schema(

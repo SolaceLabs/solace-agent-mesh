@@ -13,6 +13,8 @@ from ....gateway.http_sse.sse_manager import SSEManager
 from ....gateway.http_sse.dependencies import get_sse_manager
 
 log = logging.getLogger(__name__)
+trace_logger = logging.getLogger("sam_trace")
+
 
 router = APIRouter()
 
@@ -73,9 +75,17 @@ async def subscribe_to_task_events(
                                 log_prefix,
                             )
                             break
-                        log.debug(
-                            "%sYielding event_payload: %s", log_prefix, event_payload
-                        )
+                        if trace_logger.isEnabledFor(logging.DEBUG):
+                            trace_logger.debug(
+                                "%sYielding event_payload: %s",
+                                log_prefix, event_payload
+                            )
+                        else:
+                            log.debug(
+                                "%sYielding event: %s",
+                                log_prefix,
+                                event_payload.get("event") if event_payload else "unknown"
+                            )
                         yield event_payload
                         connection_queue.task_done()
                         log.debug(

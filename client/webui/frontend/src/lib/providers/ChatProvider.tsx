@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
+import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 
@@ -87,6 +88,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
     const isCancellingRef = useRef(isCancelling);
     const savingTasksRef = useRef<Set<string>>(new Set());
+    // Track in-flight artifact preview fetches to prevent duplicates
+    const artifactFetchInProgressRef = useRef<Set<string>>(new Set());
+    const artifactDownloadInProgressRef = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         isCancellingRef.current = isCancelling;
@@ -383,7 +387,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 addNotification(`Error deleting file "${filename}": ${error instanceof Error ? error.message : "Unknown error"}`);
             }
         },
-        [apiPrefix, addNotification, artifactsRefetch]
+        [apiPrefix, sessionId, addNotification, artifactsRefetch]
     );
 
     const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
@@ -452,9 +456,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const openArtifactForPreview = useCallback(
         async (artifactFilename: string): Promise<FileAttachment | null> => {
-            setPreviewedArtifactAvailableVersions(null);
-            setCurrentPreviewedVersionNumber(null);
-            setPreviewFileContent(null);
+            // Prevent duplicate fetches for the same file
+            if (artifactFetchInProgressRef.current.has(artifactFilename)) {
+                return null;
+            }
+
+            // Mark this file as being fetched
+            artifactFetchInProgressRef.current.add(artifactFilename);
+
+            // Only clear state if this is a different file from what we're currently previewing
+            // This prevents clearing state during duplicate fetch attempts
+            if (previewArtifactFilename !== artifactFilename) {
+                setPreviewedArtifactAvailableVersions(null);
+                setCurrentPreviewedVersionNumber(null);
+                setPreviewFileContent(null);
+            }
             try {
                 const versionsResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`, { credentials: "include" });
                 if (!versionsResponse.ok) throw new Error("Error fetching version list");
@@ -484,14 +500,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             } catch (error) {
                 addNotification(`Error loading preview for ${artifactFilename}: ${error instanceof Error ? error.message : "Unknown error"}`);
                 return null;
+            } finally {
+                // Remove from in-progress set immediately when done
+                artifactFetchInProgressRef.current.delete(artifactFilename);
             }
         },
-        [apiPrefix, addNotification, artifacts]
+        [apiPrefix, sessionId, addNotification, artifacts, previewArtifactFilename]
     );
 
     const navigateArtifactVersion = useCallback(
         async (artifactFilename: string, targetVersion: number): Promise<FileAttachment | null> => {
-            if (!previewedArtifactAvailableVersions || !previewedArtifactAvailableVersions.includes(targetVersion)) {
+            // If versions aren't loaded yet, this is likely a timing issue where this was called
+            // before openArtifactForPreview completed. Just silently return - the artifact will
+            // show the latest version when loaded, which is acceptable behavior.
+            if (!previewedArtifactAvailableVersions || previewedArtifactAvailableVersions.length === 0) {
+                return null;
+            }
+
+            // Now check if the specific version exists
+            if (!previewedArtifactAvailableVersions.includes(targetVersion)) {
                 addNotification(`Version ${targetVersion} is not available for ${artifactFilename}.`);
                 return null;
             }
@@ -521,7 +548,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [apiPrefix, addNotification, artifacts, previewedArtifactAvailableVersions]
+        [apiPrefix, sessionId, addNotification, artifacts, previewedArtifactAvailableVersions]
     );
 
     const openMessageAttachmentForPreview = useCallback(
@@ -564,6 +591,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Download and resolve artifact with embeds
     const downloadAndResolveArtifact = useCallback(
         async (filename: string): Promise<FileAttachment | null> => {
+            // Prevent duplicate downloads for the same file
+            if (artifactDownloadInProgressRef.current.has(filename)) {
+                console.log(`[ChatProvider] Skipping duplicate download for ${filename} - already in progress`);
+                return null;
+            }
+
+            // Mark this file as being downloaded
+            artifactDownloadInProgressRef.current.add(filename);
+
             try {
                 // Find the artifact in state
                 const artifact = artifacts.find(art => art.filename === filename);
@@ -627,6 +663,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     "error"
                 );
                 return null;
+            } finally {
+                // Remove from in-progress set immediately when done
+                artifactDownloadInProgressRef.current.delete(filename);
             }
         },
         [apiPrefix, sessionId, artifacts, addNotification, setArtifacts]
@@ -907,6 +946,28 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 }
                                 case "tool_invocation_start":
                                     break;
+                                case "authentication_required": {
+                                    const auth_uri = data?.auth_uri;
+                                    const target_agent = typeof data?.target_agent === "string" ? data.target_agent : "Agent";
+                                    const gateway_task_id = typeof data?.gateway_task_id === "string" ? data.gateway_task_id : undefined;
+                                    if (typeof auth_uri === "string" && auth_uri.startsWith("http")) {
+                                        const authMessage: MessageFE = {
+                                            role: "agent",
+                                            parts: [{ kind: "text", text: "" }],
+                                            authenticationLink: {
+                                                url: auth_uri,
+                                                text: "Click to Authenticate",
+                                                targetAgent: target_agent,
+                                                gatewayTaskId: gateway_task_id
+                                            },
+                                            isUser: false,
+                                            isComplete: true,
+                                            metadata: { messageId: `auth-${v4()}` }
+                                        };
+                                        setMessages(prev => [...prev, authMessage]);
+                                    }
+                                    break;
+                                }
                                 default:
                                     console.warn("Received unknown data part type:", data.type);
                             }
@@ -1124,7 +1185,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
-        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble, downloadAndResolveArtifact]
+        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble, downloadAndResolveArtifact, setArtifacts]
     );
 
     const handleNewSession = useCallback(async () => {
@@ -1187,7 +1248,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         // Note: No session events dispatched here since no session exists yet.
         // Session creation event will be dispatched when first message creates the actual session.
-    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, configWelcomeMessage, addNotification, artifactsRefetch]);
+    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, artifactsRefetch, apiPrefix, setPreviewArtifact]);
 
     const handleSwitchSession = useCallback(
         async (newSessionId: string) => {
@@ -1225,18 +1286,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsCancelling(false);
 
             try {
-                // Load session tasks instead of old message history
-                await loadSessionTasks(newSessionId);
-
-                // Load session metadata (name)
+                // Load session metadata (name) first before updating state
                 const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
+                let newSessionName: string | null = null;
                 if (sessionResponse.ok) {
                     const sessionData = await sessionResponse.json();
-                    setSessionName(sessionData.name);
+                    // API returns {data: {name: "...", ...}}
+                    newSessionName = sessionData.data?.name || null;
+                } else {
+                    console.warn(`${log_prefix} Failed to fetch session metadata, status: ${sessionResponse.status}`);
                 }
 
-                // Update session state
+                // Update all session state together to avoid intermediate renders with mismatched state
                 setSessionId(newSessionId);
+                setSessionName(newSessionName);
                 setIsResponding(false);
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
@@ -1244,12 +1307,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isFinalizing.current = false;
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
+
+                // Load session tasks
+                await loadSessionTasks(newSessionId);
             } catch (error) {
                 console.error(`${log_prefix} Failed to fetch session history:`, error);
                 addNotification("Error switching session. Please try again.", "error");
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks, setPreviewArtifact]
     );
 
     const updateSessionName = useCallback(
@@ -1334,7 +1400,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     : artifact
             );
         });
-    }, [setArtifacts]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // setArtifacts is stable from useState
 
     const openSessionDeleteModal = useCallback((session: Session) => {
         setSessionToDelete(session);
@@ -1479,8 +1546,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             };
             latestStatusText.current = "Thinking";
             setMessages(prev => [...prev, userMsg]);
-
-            const errors: string[] = [];
 
             try {
                 // 1. Process files using hybrid approach
@@ -1635,7 +1700,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble]
+        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, INLINE_FILE_SIZE_LIMIT_BYTES]
     );
 
     // Auto-select agent when agents load and no agent is selected
@@ -1683,7 +1748,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 handleSseOpenRef.current();
             };
 
-            const wrappedHandleSseError = (event: Event) => {
+            const wrappedHandleSseError = () => {
                 handleSseErrorRef.current();
             };
 

@@ -135,6 +135,14 @@ export interface MessageFE {
     isError?: boolean; // ADDED: True if this message represents an error/failure
     uploadedFiles?: File[]; // Array of files uploaded by the user with this message
     toolEvents?: ToolEvent[]; // --- NEW: Array to hold tool call results ---
+    authenticationLink?: {
+        url: string;
+        text: string;
+        targetAgent?: string;
+        gatewayTaskId?: string;
+        authenticationAttempted?: boolean; // Track if auth button was clicked
+        rejected?: boolean; // Track if reject button was clicked
+    };
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
         messageId?: string; // Unique ID for the agent's message (if provided by backend)

@@ -76,6 +76,13 @@ class WebUIBackendApp(BaseGatewayApp):
             "description": "If true, the gateway will resolve artifact:// URIs found in A2A messages and embed the content as bytes before sending to the UI. If false, URIs are passed through.",
         },
         {
+            "name": "model",
+            "required": False,
+            "type": "dict",
+            "default": None,
+            "description": "The model to use for the WebUI gateway.",
+        },
+        {
             "name": "frontend_welcome_message",
             "required": False,
             "type": "string",
@@ -178,6 +185,25 @@ class WebUIBackendApp(BaseGatewayApp):
                     "required": False,
                     "default": None,
                     "description": "Database URL for SQL session service. Required if type is 'sql'.",
+                },
+            },
+        },
+        {
+            "name": "platform_service",
+            "required": False,
+            "type": "dict",
+            "default": {},
+            "description": "Configuration for the Platform Service (enterprise features: agents, connectors, deployments).",
+            "dict_schema": {
+                "database_url": {
+                    "type": "string",
+                    "required": False,
+                    "default": None,
+                    "description": (
+                        "Database URL for platform data (agents, connectors, deployments). "
+                        "REQUIRED for platform features to be available. "
+                        "Example: postgresql://user:pass@host:5432/platform_db"
+                    ),
                 },
             },
         },

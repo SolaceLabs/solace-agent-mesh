@@ -54,7 +54,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             return parsed?.version !== null && parsed?.version !== undefined ? parseInt(parsed.version) : undefined;
         }
         return undefined;
-    }, [props.status, props.fileAttachment]);
+    }, [props]);
 
     // Get file info for rendering decisions
     const fileAttachment = props.status === "completed" ? props.fileAttachment : undefined;
@@ -66,18 +66,21 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         return props.status === "completed" && !artifact;
     }, [props.status, artifact]);
 
+    // Determine if this should auto-expand based on context
+    const shouldAutoExpand = useMemo(() => {
+        const renderType = getRenderType(fileName, fileMimeType);
+        const isAutoRenderType = renderType === "image" || renderType === "audio";
+        // Only auto-expand images/audio in chat context, never in list context
+        return isAutoRenderType && context === "chat";
+    }, [fileName, fileMimeType, context]);
+
     // Use the artifact rendering hook to determine rendering behavior
     // This uses local state, so each component instance has its own expansion state
     const { shouldRender, isExpandable, isExpanded, toggleExpanded } = useArtifactRendering({
         filename: fileName,
         mimeType: fileMimeType,
+        shouldAutoExpand,
     });
-
-    // Check if this should auto-render (images and audio)
-    const shouldAutoRender = useMemo(() => {
-        const renderType = getRenderType(fileName, fileMimeType);
-        return renderType === "image" || renderType === "audio";
-    }, [fileName, fileMimeType]);
 
     const handlePreviewClick = useCallback(async () => {
         if (artifact) {
@@ -120,7 +123,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         } else {
             console.error(`No file to download for artifact: ${props.name}`);
         }
-    }, [artifact, fileAttachment, sessionId]);
+    }, [artifact, fileAttachment, sessionId, props.name]);
 
     const handleDeleteClick = useCallback(() => {
         if (artifact) {
@@ -132,26 +135,20 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         setIsInfoExpanded(!isInfoExpanded);
     }, [isInfoExpanded]);
 
-    // Auto-expand for images and audio when completed
-    useEffect(() => {
-        if (props.status === "completed" && shouldAutoRender && !isExpanded) {
-            toggleExpanded();
-        }
-    }, [props.status, shouldAutoRender, isExpanded, fileName, toggleExpanded]);
-
     // Mark artifact as displayed when rendered
     useEffect(() => {
-        if (shouldRender && artifact) {
-            markArtifactAsDisplayed(artifact.filename, true);
+        const filename = artifact?.filename;
+        if (shouldRender && filename) {
+            markArtifactAsDisplayed(filename, true);
         }
 
         return () => {
             // Unmark when component unmounts or stops rendering
-            if (artifact) {
-                markArtifactAsDisplayed(artifact.filename, false);
+            if (filename) {
+                markArtifactAsDisplayed(filename, false);
             }
         };
-    }, [shouldRender, fileName, markArtifactAsDisplayed]); // Only depend on filename, not the whole artifact object
+    }, [shouldRender, artifact?.filename, markArtifactAsDisplayed]);
 
     // Check if we should render content inline (for images and audio)
     const shouldRenderInline = useMemo(() => {
@@ -293,7 +290,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 onInfo: handleInfoClick,
             };
         }
-    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, isExpandable, toggleExpanded]);
+    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick]);
 
     // Get description from global artifacts instead of message parts
     const artifactFromGlobal = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
@@ -326,7 +323,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             const finalContent = getFileContent({
                 ...fileForRendering,
                 content: contentToRender,
-                // @ts-ignore - Add flag to indicate if content is plain text from streaming
+                // @ts-expect-error - Add flag to indicate if content is plain text from streaming
                 // Content is plain text if: (1) it's from accumulated content during streaming, OR (2) we're in progress state
                 isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) ||
                              (props.status === "in-progress" && !!fetchedContent)
@@ -355,8 +352,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
     }
 
-    // For inline rendering (images/audio), always show the content regardless of expansion state
-    const shouldShowContent = shouldRenderInline || (shouldRender && isExpanded);
+    // Show content when it should render and is expanded
+    const shouldShowContent = shouldRender && isExpanded;
 
     // Prepare info content for expansion
     const infoContent = useMemo(() => {
@@ -384,12 +381,6 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                     <div>
                         <span className="text-secondary-foreground">Type:</span>
                         <div>{artifact.mime_type}</div>
-                    </div>
-                )}
-                {artifact.uri && (
-                    <div>
-                        <span className="text-secondary-foreground">URI:</span>
-                        <div className="text-xs break-all">{artifact.uri}</div>
                     </div>
                 )}
             </div>
@@ -420,7 +411,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
 
         return undefined;
-    }, [isInfoExpanded, infoContent, shouldShowContent, expandedContent, fileName]);
+    }, [isInfoExpanded, infoContent, shouldShowContent, expandedContent]);
 
     // Render the bar with expanded content inside
     return (
@@ -431,7 +422,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             size={fileAttachment?.size}
             status={props.status}
             expandable={isExpandable && context === "chat"} // Allow expansion in chat context for user-controllable files
-            expanded={shouldShowContent || isInfoExpanded}
+            expanded={isExpanded || isInfoExpanded}
             onToggleExpand={isExpandable && context === "chat" ? toggleExpanded : undefined}
             actions={actions}
             bytesTransferred={props.status === "in-progress" ? props.bytesTransferred : undefined}

@@ -31,6 +31,7 @@ from a2a.types import (
     TaskArtifactUpdateEvent,
     JSONRPCError,
     TextPart,
+    DataPart,
     FilePart,
     Artifact as A2AArtifact,
 )
@@ -98,9 +99,32 @@ class BaseGatewayComponent(SamComponentBase):
 
         return super().get_config(key, default)
 
-    def __init__(self, resolve_artifact_uris_in_gateway: bool = True, **kwargs: Any):
+    def __init__(
+        self,
+        resolve_artifact_uris_in_gateway: bool = True,
+        supports_inline_artifact_resolution: bool = False,
+        filter_tool_data_parts: bool = True,
+        **kwargs: Any
+    ):
+        """
+        Initialize the BaseGatewayComponent.
+
+        Args:
+            resolve_artifact_uris_in_gateway: If True, resolves artifact URIs before sending to external.
+            supports_inline_artifact_resolution: If True, SIGNAL_ARTIFACT_RETURN embeds are converted
+                to FileParts during embed resolution. If False (default), signals are passed through
+                for the gateway to handle manually. Use False for legacy gateways (e.g., Slack),
+                True for modern gateways that support inline artifact rendering (e.g., HTTP SSE).
+            filter_tool_data_parts: If True (default), filters out tool-related DataParts (tool_call,
+                tool_result, etc.) from final Task messages before sending to gateway. Use True for
+                gateways that don't want to display internal tool execution details (e.g., Slack),
+                False for gateways that display all parts (e.g., HTTP SSE Web UI).
+            **kwargs: Additional arguments passed to parent class.
+        """
         super().__init__(info, **kwargs)
         self.resolve_artifact_uris_in_gateway = resolve_artifact_uris_in_gateway
+        self.supports_inline_artifact_resolution = supports_inline_artifact_resolution
+        self.filter_tool_data_parts = filter_tool_data_parts
         log.info("%s Initializing Base Gateway Component...", self.log_identifier)
 
         try:
@@ -209,6 +233,8 @@ class BaseGatewayComponent(SamComponentBase):
         user_identity: Any,
         is_streaming: bool = True,
         api_version: str = "v2",
+        task_id_override: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         log_id_prefix = f"{self.log_identifier}[SubmitA2ATask]"
         log.info(
@@ -319,9 +345,15 @@ class BaseGatewayComponent(SamComponentBase):
                 log_id_prefix,
                 len(invoked_artifacts),
             )
+        
+        if metadata:
+            a2a_metadata.update(metadata)
 
         # This correlation ID is used by the gateway to track the task
-        task_id = f"gdk-task-{uuid.uuid4().hex}"
+        if task_id_override:
+            task_id = task_id_override
+        else:
+            task_id = f"gdk-task-{uuid.uuid4().hex}"
 
         prepared_a2a_parts = await self._prepare_parts_for_publishing(
             parts=a2a_parts,
@@ -530,6 +562,245 @@ class BaseGatewayComponent(SamComponentBase):
                         log.exception(
                             "%s Error sending status signal: %s", log_id_prefix, e
                         )
+                elif signal_type == "SIGNAL_ARTIFACT_RETURN":
+                    # Handle artifact return signal for legacy gateways
+                    # During finalizing context (final Task), suppress this to avoid duplicates
+                    # since the same signal might appear in both streaming and final responses
+                    if is_finalizing_context:
+                        log.debug(
+                            "%s Suppressing SIGNAL_ARTIFACT_RETURN during finalizing context to avoid duplicate: %s",
+                            log_id_prefix,
+                            signal_data,
+                        )
+                        continue
+
+                    log.info(
+                        "%s Handling SIGNAL_ARTIFACT_RETURN for legacy gateway: %s",
+                        log_id_prefix,
+                        signal_data,
+                    )
+                    try:
+                        filename = signal_data.get("filename")
+                        version = signal_data.get("version")
+
+                        if not filename:
+                            log.error(
+                                "%s SIGNAL_ARTIFACT_RETURN missing filename. Skipping.",
+                                log_id_prefix,
+                            )
+                            continue
+
+                        # Load artifact content (not just metadata) for legacy gateways
+                        # Legacy gateways like Slack need the actual bytes to upload files
+                        artifact_data = await load_artifact_content_or_metadata(
+                            self.shared_artifact_service,
+                            app_name=external_request_context.get(
+                                "app_name_for_artifacts", self.gateway_id
+                            ),
+                            user_id=external_request_context.get("user_id_for_artifacts"),
+                            session_id=external_request_context.get("a2a_session_id"),
+                            filename=filename,
+                            version=version,
+                            load_metadata_only=False,  # Load full content for legacy gateways
+                        )
+
+                        if artifact_data.get("status") != "success":
+                            log.error(
+                                "%s Failed to load artifact content for %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
+                            )
+                            continue
+
+                        # Get content and ensure it's bytes
+                        content = artifact_data.get("content")
+                        if not content:
+                            log.error(
+                                "%s No content found in artifact %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
+                            )
+                            continue
+
+                        # Convert to bytes if it's a string (text-based artifacts)
+                        if isinstance(content, str):
+                            content_bytes = content.encode("utf-8")
+                        elif isinstance(content, bytes):
+                            content_bytes = content
+                        else:
+                            log.error(
+                                "%s Artifact content is neither string nor bytes: %s",
+                                log_id_prefix,
+                                type(content),
+                            )
+                            continue
+
+                        # Create FilePart with bytes for legacy gateway to upload
+                        file_part = a2a.create_file_part_from_bytes(
+                            content_bytes=content_bytes,
+                            name=filename,
+                            mime_type=artifact_data.get("metadata", {}).get("mime_type"),
+                        )
+
+                        # Create artifact with the file part
+                        # Import Part type for wrapping
+                        from a2a.types import Artifact, Part
+                        artifact = Artifact(
+                            artifact_id=str(uuid.uuid4().hex),
+                            parts=[Part(root=file_part)],
+                            name=filename,
+                            description=f"Artifact: {filename}",
+                        )
+
+                        # Send as TaskArtifactUpdateEvent
+                        a2a_task_id_for_signal = external_request_context.get(
+                            "a2a_task_id_for_event", original_rpc_id
+                        )
+
+                        if not a2a_task_id_for_signal:
+                            log.error(
+                                "%s Cannot determine A2A task ID for artifact signal. Skipping.",
+                                log_id_prefix,
+                            )
+                            continue
+
+                        artifact_event = a2a.create_artifact_update(
+                            task_id=a2a_task_id_for_signal,
+                            context_id=external_request_context.get("a2a_session_id"),
+                            artifact=artifact,
+                        )
+
+                        await self._send_update_to_external(
+                            external_request_context=external_request_context,
+                            event_data=artifact_event,
+                            is_final_chunk_of_update=False,
+                        )
+                        log.info(
+                            "%s Sent artifact signal as TaskArtifactUpdateEvent for %s",
+                            log_id_prefix,
+                            filename,
+                        )
+                    except Exception as e:
+                        log.exception(
+                            "%s Error sending artifact signal: %s", log_id_prefix, e
+                        )
+                elif signal_type == "SIGNAL_ARTIFACT_CREATION_COMPLETE":
+                    # Handle artifact creation completion for legacy gateways
+                    # This is similar to SIGNAL_ARTIFACT_RETURN but for newly created artifacts
+                    log.info(
+                        "%s Handling SIGNAL_ARTIFACT_CREATION_COMPLETE for legacy gateway: %s",
+                        log_id_prefix,
+                        signal_data,
+                    )
+                    try:
+                        filename = signal_data.get("filename")
+                        version = signal_data.get("version")
+
+                        if not filename:
+                            log.error(
+                                "%s SIGNAL_ARTIFACT_CREATION_COMPLETE missing filename. Skipping.",
+                                log_id_prefix,
+                            )
+                            continue
+
+                        # Load artifact content (not just metadata) for legacy gateways
+                        # Legacy gateways like Slack need the actual bytes to upload files
+                        artifact_data = await load_artifact_content_or_metadata(
+                            self.shared_artifact_service,
+                            app_name=external_request_context.get(
+                                "app_name_for_artifacts", self.gateway_id
+                            ),
+                            user_id=external_request_context.get("user_id_for_artifacts"),
+                            session_id=external_request_context.get("a2a_session_id"),
+                            filename=filename,
+                            version=version,
+                            load_metadata_only=False,  # Load full content for legacy gateways
+                        )
+
+                        if artifact_data.get("status") != "success":
+                            log.error(
+                                "%s Failed to load artifact content for %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
+                            )
+                            continue
+
+                        # Get content and ensure it's bytes
+                        content = artifact_data.get("content")
+                        if not content:
+                            log.error(
+                                "%s No content found in artifact %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
+                            )
+                            continue
+
+                        # Convert to bytes if it's a string (text-based artifacts)
+                        if isinstance(content, str):
+                            content_bytes = content.encode("utf-8")
+                        elif isinstance(content, bytes):
+                            content_bytes = content
+                        else:
+                            log.error(
+                                "%s Artifact content is neither string nor bytes: %s",
+                                log_id_prefix,
+                                type(content),
+                            )
+                            continue
+
+                        # Create FilePart with bytes for legacy gateway to upload
+                        file_part = a2a.create_file_part_from_bytes(
+                            content_bytes=content_bytes,
+                            name=filename,
+                            mime_type=signal_data.get("mime_type") or artifact_data.get("metadata", {}).get("mime_type"),
+                        )
+
+                        # Create artifact with the file part
+                        # Import Part type for wrapping
+                        from a2a.types import Artifact, Part
+                        artifact = Artifact(
+                            artifact_id=str(uuid.uuid4().hex),
+                            parts=[Part(root=file_part)],
+                            name=filename,
+                            description=f"Artifact: {filename}",
+                        )
+
+                        # Send as TaskArtifactUpdateEvent
+                        a2a_task_id_for_signal = external_request_context.get(
+                            "a2a_task_id_for_event", original_rpc_id
+                        )
+
+                        if not a2a_task_id_for_signal:
+                            log.error(
+                                "%s Cannot determine A2A task ID for artifact creation signal. Skipping.",
+                                log_id_prefix,
+                            )
+                            continue
+
+                        artifact_event = a2a.create_artifact_update(
+                            task_id=a2a_task_id_for_signal,
+                            context_id=external_request_context.get("a2a_session_id"),
+                            artifact=artifact,
+                        )
+
+                        await self._send_update_to_external(
+                            external_request_context=external_request_context,
+                            event_data=artifact_event,
+                            is_final_chunk_of_update=False,
+                        )
+                        log.info(
+                            "%s Sent artifact creation completion as TaskArtifactUpdateEvent for %s",
+                            log_id_prefix,
+                            filename,
+                        )
+                    except Exception as e:
+                        log.exception(
+                            "%s Error sending artifact creation completion signal: %s", log_id_prefix, e
+                        )
                 else:
                     log.warning(
                         "%s Received unhandled signal type during embed resolution: %s",
@@ -632,6 +903,64 @@ class BaseGatewayComponent(SamComponentBase):
                 processed_parts.append(part)
         return processed_parts
 
+    def _should_include_data_part_in_final_output(self, part: Any) -> bool:
+        """
+        Determines if a DataPart should be included in the final output sent to the gateway.
+
+        This filters out internal/tool-related DataParts that shouldn't be shown to end users.
+        Gateways can override this method for custom filtering logic.
+
+        Args:
+            part: The part to check (expected to be a DataPart)
+
+        Returns:
+            True if the part should be included, False if it should be filtered out
+        """
+        from a2a.types import DataPart
+
+        if not isinstance(part, DataPart):
+            return True
+
+        # Check if this is a tool result by looking at metadata
+        # Tool results have metadata.tool_name set
+        if part.metadata and part.metadata.get("tool_name"):
+            # This is a tool result - filter it out
+            return False
+
+        # Get the type of the data part
+        data_type = part.data.get("type") if part.data else None
+
+        # Filter out tool-related data parts that are internal
+        tool_related_types = {
+            "tool_call",
+            "tool_result",
+            "tool_error",
+            "tool_execution",
+        }
+
+        if data_type in tool_related_types:
+            return False
+
+        # Handle artifact_creation_progress based on gateway capabilities
+        if data_type == "artifact_creation_progress":
+            # For modern gateways (HTTP SSE), keep these to display progress bubbles
+            # For legacy gateways (Slack), filter them out as they'll be converted to FileParts
+            if self.supports_inline_artifact_resolution:
+                return True  # Keep for HTTP SSE
+            else:
+                return False  # Filter for Slack (will be converted to FileParts instead)
+
+        # Keep user-facing data parts like general progress updates
+        user_facing_types = {
+            "agent_progress_update",
+        }
+
+        if data_type in user_facing_types:
+            return True
+
+        # Default: include unknown types (to avoid hiding potentially useful info)
+        return True
+
     async def _resolve_embeds_and_handle_signals(
         self,
         event_with_parts: Union[TaskStatusUpdateEvent, Task, TaskArtifactUpdateEvent],
@@ -724,52 +1053,57 @@ class BaseGatewayComponent(SamComponentBase):
                             signal_tuple = placeholder_map[fragment]
                             signal_type, signal_data = signal_tuple[1], signal_tuple[2]
                             if signal_type == "SIGNAL_ARTIFACT_RETURN":
-                                try:
-                                    filename, version = (
-                                        signal_data["filename"],
-                                        signal_data["version"],
-                                    )
-                                    artifact_data = (
-                                        await load_artifact_content_or_metadata(
-                                            self.shared_artifact_service,
-                                            **embed_eval_context["session_context"],
-                                            filename=filename,
-                                            version=version,
-                                            load_metadata_only=True,
+                                # Only convert to FilePart if gateway supports inline artifact resolution
+                                if self.supports_inline_artifact_resolution:
+                                    try:
+                                        filename, version = (
+                                            signal_data["filename"],
+                                            signal_data["version"],
                                         )
-                                    )
-                                    if artifact_data.get("status") == "success":
-                                        uri = format_artifact_uri(
-                                            **embed_eval_context["session_context"],
-                                            filename=filename,
-                                            version=artifact_data.get("version"),
-                                        )
-                                        new_parts.append(
-                                            a2a.create_file_part_from_uri(
-                                                uri,
-                                                filename,
-                                                artifact_data.get("metadata", {}).get(
-                                                    "mime_type"
-                                                ),
+                                        artifact_data = (
+                                            await load_artifact_content_or_metadata(
+                                                self.shared_artifact_service,
+                                                **embed_eval_context["session_context"],
+                                                filename=filename,
+                                                version=version,
+                                                load_metadata_only=True,
                                             )
                                         )
-                                    else:
+                                        if artifact_data.get("status") == "success":
+                                            uri = format_artifact_uri(
+                                                **embed_eval_context["session_context"],
+                                                filename=filename,
+                                                version=artifact_data.get("version"),
+                                            )
+                                            new_parts.append(
+                                                a2a.create_file_part_from_uri(
+                                                    uri,
+                                                    filename,
+                                                    artifact_data.get("metadata", {}).get(
+                                                        "mime_type"
+                                                    ),
+                                                )
+                                            )
+                                        else:
+                                            new_parts.append(
+                                                a2a.create_text_part(
+                                                    f"[Error: Artifact '{filename}' v{version} not found.]"
+                                                )
+                                            )
+                                    except Exception as e:
+                                        log.exception(
+                                            "%s Error handling SIGNAL_ARTIFACT_RETURN: %s",
+                                            log_id_prefix,
+                                            e,
+                                        )
                                         new_parts.append(
                                             a2a.create_text_part(
-                                                f"[Error: Artifact '{filename}' v{version} not found.]"
+                                                f"[Error: Could not retrieve artifact '{signal_data.get('filename')}'.]"
                                             )
                                         )
-                                except Exception as e:
-                                    log.exception(
-                                        "%s Error handling SIGNAL_ARTIFACT_RETURN: %s",
-                                        log_id_prefix,
-                                        e,
-                                    )
-                                    new_parts.append(
-                                        a2a.create_text_part(
-                                            f"[Error: Could not retrieve artifact '{signal_data.get('filename')}'.]"
-                                        )
-                                    )
+                                else:
+                                    # Legacy gateway mode: pass signal through for gateway to handle
+                                    other_signals.append(signal_tuple)
                             elif signal_type == "SIGNAL_INLINE_BINARY_CONTENT":
                                 signal_data["content_bytes"] = signal_data.get("bytes")
                                 del signal_data["bytes"]
@@ -809,6 +1143,57 @@ class BaseGatewayComponent(SamComponentBase):
             elif isinstance(part, FilePart) and part.file:
                 # Handle recursive embeds in text-based FileParts
                 new_parts.append(part)  # Placeholder for now
+            elif isinstance(part, DataPart):
+                # Handle artifact creation progress DataParts for legacy gateways
+                data_type = part.data.get("type") if part.data else None
+                if (
+                    data_type == "artifact_creation_progress"
+                    and not self.supports_inline_artifact_resolution
+                ):
+                    # Legacy gateway mode: convert completed artifact creation to FilePart
+                    status = part.data.get("status")
+                    if status == "completed" and not is_finalizing_context:
+                        # Extract artifact info from the DataPart
+                        filename = part.data.get("filename")
+                        version = part.data.get("version")
+                        mime_type = part.data.get("mime_type")
+
+                        if filename and version is not None:
+                            log.info(
+                                "%s Converting artifact creation completion to FilePart for legacy gateway: %s v%s",
+                                log_id_prefix,
+                                filename,
+                                version,
+                            )
+                            # This will be sent as an artifact signal, so don't add to new_parts
+                            # Instead, add to other_signals for processing
+                            signal_tuple = (
+                                None,
+                                "SIGNAL_ARTIFACT_CREATION_COMPLETE",
+                                {
+                                    "filename": filename,
+                                    "version": version,
+                                    "mime_type": mime_type,
+                                },
+                            )
+                            other_signals.append(signal_tuple)
+                        else:
+                            # Missing required info, keep the DataPart as-is
+                            new_parts.append(part)
+                    elif status == "completed" and is_finalizing_context:
+                        # Suppress during finalizing to avoid duplicates
+                        log.debug(
+                            "%s Suppressing artifact creation completion during finalizing context for %s",
+                            log_id_prefix,
+                            part.data.get("filename"),
+                        )
+                        continue
+                    else:
+                        # Keep in-progress or failed status DataParts
+                        new_parts.append(part)
+                else:
+                    # Not an artifact creation DataPart, or modern gateway - keep as-is
+                    new_parts.append(part)
             else:
                 new_parts.append(part)
 
@@ -1054,6 +1439,32 @@ class BaseGatewayComponent(SamComponentBase):
 
             if send_this_event_to_external:
                 if isinstance(parsed_event, Task):
+                    # Filter DataParts from final Task if gateway has filtering enabled
+                    # This prevents tool results and other internal data from appearing in user-facing output
+                    if (
+                        self.filter_tool_data_parts
+                        and parsed_event.status
+                        and parsed_event.status.message
+                        and parsed_event.status.message.parts
+                    ):
+                        original_parts = a2a.get_parts_from_message(
+                            parsed_event.status.message
+                        )
+                        filtered_parts = [
+                            part
+                            for part in original_parts
+                            if self._should_include_data_part_in_final_output(part)
+                        ]
+                        if len(filtered_parts) != len(original_parts):
+                            log.debug(
+                                "%s Filtered %d DataParts from final Task message",
+                                log_id_prefix,
+                                len(original_parts) - len(filtered_parts),
+                            )
+                            parsed_event.status.message = a2a.update_message_parts(
+                                parsed_event.status.message, filtered_parts
+                            )
+
                     await self._send_final_response_to_external(
                         external_request_context, parsed_event
                     )

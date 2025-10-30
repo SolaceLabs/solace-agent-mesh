@@ -2,9 +2,9 @@
 Custom Solace AI Connector Component to host the FastAPI backend for the Web UI.
 """
 
-import logging
 import asyncio
 import json
+import logging
 import queue
 import re
 import threading
@@ -15,22 +15,20 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, UploadFile
 from fastapi import Request as FastAPIRequest
-
+from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
-from solace_ai_connector.common.event import Event, EventType
 
 from ...common.agent_registry import AgentRegistry
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.component import BaseGatewayComponent
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
-from .sse_event_buffer import SSEEventBuffer
+from . import dependencies
 from .components import VisualizationForwarderComponent
 from .components.task_logger_forwarder import TaskLoggerForwarderComponent
-from .services.feedback_service import FeedbackService
 from .services.task_logger_service import TaskLoggerService
-from . import dependencies
+from .sse_event_buffer import SSEEventBuffer
 
 log = logging.getLogger(__name__)
 
@@ -97,7 +95,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
         app_config = component_config.get("app_config", {})
         resolve_uris = app_config.get("resolve_artifact_uris_in_gateway", True)
 
-        super().__init__(resolve_artifact_uris_in_gateway=resolve_uris, **kwargs)
+        # HTTP SSE gateway configuration:
+        # - supports_inline_artifact_resolution=True: Artifacts are converted to FileParts
+        #   during embed resolution and rendered inline in the web UI
+        # - filter_tool_data_parts=False: Web UI displays all parts including tool execution details
+        super().__init__(
+            resolve_artifact_uris_in_gateway=resolve_uris,
+            supports_inline_artifact_resolution=True,
+            filter_tool_data_parts=False,
+            **kwargs
+        )
         log.info("%s Initializing Web UI Backend Component...", self.log_identifier)
 
         try:
@@ -115,6 +122,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.ssl_keyfile = self.get_config("ssl_keyfile", "")
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
+            self.model_config = self.get_config("model", None)
 
             log.info(
                 "%s WebUI-specific configuration retrieved (Host: %s, Port: %d).",
@@ -185,7 +193,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
             # Memory storage or no explicit configuration - no persistence service needed
             self.database_url = None
 
-            # Validate that features requiring database persistence are not enabled
+        # Validate that features requiring runtime database persistence are not enabled without database
+        if self.database_url is None:
             task_logging_config = self.get_config("task_logging", {})
             if task_logging_config.get("enabled", False):
                 raise ValueError(
@@ -202,6 +211,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     self.log_identifier,
                 )
 
+        platform_config = self.get_config("platform_service", {})
+        self.platform_database_url = platform_config.get("database_url")
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
 
@@ -1218,7 +1229,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self, self.database_url)
+            setup_dependencies(self, self.database_url, self.platform_database_url)
 
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.
@@ -1815,8 +1826,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         # Get TTL from configuration or use default from constants
         from ...common.constants import (
-            HEALTH_CHECK_TTL_SECONDS,
             HEALTH_CHECK_INTERVAL_SECONDS,
+            HEALTH_CHECK_TTL_SECONDS,
         )
 
         ttl_seconds = self.get_config(
@@ -2071,6 +2082,15 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log_id_prefix,
             )
             return
+
+        try:
+            from solace_agent_mesh_enterprise.auth.input_required import (
+                handle_input_required_request,
+            )
+
+            event_data = handle_input_required_request(event_data, sse_task_id, self)
+        except ImportError:
+            pass
 
         log.debug(
             "%s Sending update for A2A Task ID %s to SSE Task ID %s. Final chunk: %s",

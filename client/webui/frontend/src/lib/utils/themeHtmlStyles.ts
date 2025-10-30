@@ -12,7 +12,7 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
     [&_h6]:text-xs [&_h6]:font-semibold [&_h6]:mb-1 [&_h6]:mt-2 [&_h6]:text-foreground
 
     /* Paragraphs */
-    [&_p]:mb-2 [&_p]:leading-[24px] [&_p]:text-foreground [&_p]:whitespace-pre-wrap
+    [&_p]:leading-[24px] [&_p]:text-foreground [&_p]:whitespace-pre-wrap
 
     /* Text formatting */
     [&_strong]:font-semibold [&_strong]:text-foreground

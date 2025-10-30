@@ -75,7 +75,7 @@ export interface ChatActions {
     confirmBatchDeleteArtifacts: () => Promise<void>;
     setIsBatchDeleteModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 
-    setPreviewArtifact: React.Dispatch<React.SetStateAction<ArtifactInfo | null>>;
+    setPreviewArtifact: (artifact: ArtifactInfo | null) => void;
     openArtifactForPreview: (artifactFilename: string, autoRun?: boolean) => Promise<FileAttachment | null>;
     navigateArtifactVersion: (artifactFilename: string, targetVersion: number) => Promise<FileAttachment | null>;
 

@@ -699,3 +699,471 @@ def test_feedback_publishing_with_missing_task(
     assert published_payload["feedback"]["task_id"] == fake_task_id
     assert "task_summary" not in published_payload
     assert "task_stim_data" not in published_payload
+
+
+# ========================================
+# GET /feedback endpoint tests
+# ========================================
+
+
+def test_get_feedback_returns_users_own_feedback(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
+    """
+    Tests that a user can retrieve their own feedback.
+    """
+    # Arrange: Create session, task, and submit feedback
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+    task = gateway_adapter.send_message(session.id, "Task for retrieval test")
+
+    feedback_payload = {
+        "taskId": task.task_id,
+        "sessionId": session.id,
+        "feedbackType": "up",
+        "feedbackText": "Great response!",
+    }
+    api_client.post("/api/v1/feedback", json=feedback_payload)
+
+    # Act: Retrieve feedback
+    response = api_client.get("/api/v1/feedback")
+
+    # Assert
+    assert response.status_code == 200
+    feedback_list = response.json()
+    assert len(feedback_list) >= 1
+
+    # Find our feedback in the list
+    our_feedback = next(
+        (f for f in feedback_list if f["task_id"] == task.task_id), None
+    )
+    assert our_feedback is not None
+    assert our_feedback["rating"] == "up"
+    assert our_feedback["comment"] == "Great response!"
+    assert our_feedback["user_id"] == "sam_dev_user"
+
+
+def test_get_feedback_filters_by_task_id(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
+    """
+    Tests that feedback can be filtered by task_id.
+    """
+    # Arrange: Create two tasks with different feedback
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+    task1 = gateway_adapter.send_message(session.id, "Task 1")
+    task2 = gateway_adapter.send_message(session.id, "Task 2")
+
+    # Manually create the task records so the feedback endpoint can find them
+    with database_inspector.db_manager.get_gateway_connection() as conn:
+        metadata = sa.MetaData()
+        metadata.reflect(bind=conn)
+        tasks_table = metadata.tables["tasks"]
+        conn.execute(
+            tasks_table.insert().values(
+                id=task1.task_id,
+                user_id="sam_dev_user",
+                initial_request_text="Task 1",
+                start_time=now_epoch_ms(),
+                end_time=now_epoch_ms(),
+            )
+        )
+        conn.execute(
+            tasks_table.insert().values(
+                id=task2.task_id,
+                user_id="sam_dev_user",
+                initial_request_text="Task 2",
+                start_time=now_epoch_ms(),
+                end_time=now_epoch_ms(),
+            )
+        )
+        if conn.in_transaction():
+            conn.commit()
+
+    api_client.post(
+        "/api/v1/feedback",
+        json={
+            "taskId": task1.task_id,
+            "sessionId": session.id,
+            "feedbackType": "up",
+            "feedbackText": "Task 1 feedback",
+        },
+    )
+    api_client.post(
+        "/api/v1/feedback",
+        json={
+            "taskId": task2.task_id,
+            "sessionId": session.id,
+            "feedbackType": "down",
+            "feedbackText": "Task 2 feedback",
+        },
+    )
+
+    # Act: Filter by task1
+    response = api_client.get(f"/api/v1/feedback?task_id={task1.task_id}")
+
+    # Assert
+    assert response.status_code == 200
+    feedback_list = response.json()
+    assert len(feedback_list) == 1
+    assert feedback_list[0]["task_id"] == task1.task_id
+    assert feedback_list[0]["comment"] == "Task 1 feedback"
+
+
+def test_get_feedback_filters_by_rating(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
+    """
+    Tests that feedback can be filtered by rating type.
+    """
+    # Arrange: Create multiple feedback entries with different ratings
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+    task1 = gateway_adapter.send_message(session.id, "Task with positive feedback")
+    task2 = gateway_adapter.send_message(session.id, "Task with negative feedback")
+
+    api_client.post(
+        "/api/v1/feedback",
+        json={
+            "taskId": task1.task_id,
+            "sessionId": session.id,
+            "feedbackType": "up",
+        },
+    )
+    api_client.post(
+        "/api/v1/feedback",
+        json={
+            "taskId": task2.task_id,
+            "sessionId": session.id,
+            "feedbackType": "down",
+        },
+    )
+
+    # Act: Filter by rating "down"
+    response = api_client.get("/api/v1/feedback?rating=down")
+
+    # Assert
+    assert response.status_code == 200
+    feedback_list = response.json()
+
+    # Find our negative feedback
+    our_feedback = next(
+        (f for f in feedback_list if f["task_id"] == task2.task_id), None
+    )
+    assert our_feedback is not None
+    assert our_feedback["rating"] == "down"
+
+
+def test_get_feedback_filters_by_session_id(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
+    """
+    Tests that feedback can be filtered by session_id.
+    """
+    # Arrange: Create two sessions with different feedback
+    session1 = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+    session2 = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+
+    task1 = gateway_adapter.send_message(session1.id, "Task in session 1")
+    task2 = gateway_adapter.send_message(session2.id, "Task in session 2")
+
+    api_client.post(
+        "/api/v1/feedback",
+        json={
+            "taskId": task1.task_id,
+            "sessionId": session1.id,
+            "feedbackType": "up",
+            "feedbackText": "Session 1 feedback",
+        },
+    )
+    api_client.post(
+        "/api/v1/feedback",
+        json={
+            "taskId": task2.task_id,
+            "sessionId": session2.id,
+            "feedbackType": "down",
+            "feedbackText": "Session 2 feedback",
+        },
+    )
+
+    # Act: Filter by session1
+    response = api_client.get(f"/api/v1/feedback?session_id={session1.id}")
+
+    # Assert
+    assert response.status_code == 200
+    feedback_list = response.json()
+    assert len(feedback_list) == 1
+    assert feedback_list[0]["session_id"] == session1.id
+    assert feedback_list[0]["comment"] == "Session 1 feedback"
+
+
+def test_get_feedback_filters_by_date_range(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
+    """
+    Tests that feedback can be filtered by date range.
+    """
+    from datetime import datetime, timedelta
+
+    # Arrange: Create feedback
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+    task = gateway_adapter.send_message(session.id, "Task for date filter test")
+
+    api_client.post(
+        "/api/v1/feedback",
+        json={
+            "taskId": task.task_id,
+            "sessionId": session.id,
+            "feedbackType": "up",
+            "feedbackText": "Recent feedback",
+        },
+    )
+
+    # Act: Filter by date range (last 24 hours to now)
+    end_date = datetime.now()
+    start_date = end_date - timedelta(hours=24)
+
+    response = api_client.get(
+        f"/api/v1/feedback?start_date={start_date.isoformat()}&end_date={end_date.isoformat()}"
+    )
+
+    # Assert
+    assert response.status_code == 200
+    feedback_list = response.json()
+
+    # Should find our feedback
+    our_feedback = next(
+        (f for f in feedback_list if f["task_id"] == task.task_id), None
+    )
+    assert our_feedback is not None
+
+
+def test_get_feedback_combined_filters(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
+    """
+    Tests that multiple filters can be combined.
+    """
+    # Arrange: Create multiple feedback entries
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+    task1 = gateway_adapter.send_message(session.id, "Task 1")
+    task2 = gateway_adapter.send_message(session.id, "Task 2")
+
+    api_client.post(
+        "/api/v1/feedback",
+        json={
+            "taskId": task1.task_id,
+            "sessionId": session.id,
+            "feedbackType": "up",
+        },
+    )
+    api_client.post(
+        "/api/v1/feedback",
+        json={
+            "taskId": task2.task_id,
+            "sessionId": session.id,
+            "feedbackType": "down",
+        },
+    )
+
+    # Act: Filter by session AND rating
+    response = api_client.get(
+        f"/api/v1/feedback?session_id={session.id}&rating=up"
+    )
+
+    # Assert
+    assert response.status_code == 200
+    feedback_list = response.json()
+    assert len(feedback_list) == 1
+    assert feedback_list[0]["task_id"] == task1.task_id
+    assert feedback_list[0]["rating"] == "up"
+
+
+def test_get_feedback_pagination(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
+    """
+    Tests that pagination parameters work correctly.
+    """
+    # Arrange: Create multiple feedback entries
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+
+    for i in range(5):
+        task = gateway_adapter.send_message(session.id, f"Task {i}")
+        api_client.post(
+            "/api/v1/feedback",
+            json={
+                "taskId": task.task_id,
+                "sessionId": session.id,
+                "feedbackType": "up",
+            },
+        )
+
+    # Act: Get first page with page_size=2
+    response = api_client.get("/api/v1/feedback?page=1&page_size=2")
+
+    # Assert
+    assert response.status_code == 200
+    feedback_list = response.json()
+    assert len(feedback_list) == 2
+
+
+def test_get_feedback_user_cannot_access_others_feedback(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
+    """
+    Tests that regular users cannot see feedback from other users.
+    """
+    # Arrange: Create task owned by a different user in database directly
+    with database_inspector.db_manager.get_gateway_connection() as conn:
+        metadata = sa.MetaData()
+        metadata.reflect(bind=conn)
+        tasks_table = metadata.tables["tasks"]
+        feedback_table = metadata.tables["feedback"]
+
+        other_task_id = f"task-{uuid.uuid4().hex[:8]}"
+        other_feedback_id = str(uuid.uuid4())
+
+        # Create task for another user
+        conn.execute(
+            tasks_table.insert().values(
+                id=other_task_id,
+                user_id="other_user",
+                initial_request_text="Other user's task",
+                start_time=now_epoch_ms(),
+            )
+        )
+
+        # Create feedback for another user
+        conn.execute(
+            feedback_table.insert().values(
+                id=other_feedback_id,
+                task_id=other_task_id,
+                session_id="other-session",
+                user_id="other_user",
+                rating="up",
+                comment="Other user's feedback",
+                created_time=now_epoch_ms(),
+            )
+        )
+
+        if conn.in_transaction():
+            conn.commit()
+
+    # Act: Try to retrieve feedback (should only see own feedback, not other user's)
+    response = api_client.get("/api/v1/feedback")
+
+    # Assert
+    assert response.status_code == 200
+    feedback_list = response.json()
+
+    # Should not see other user's feedback
+    other_feedback = next(
+        (f for f in feedback_list if f["user_id"] == "other_user"), None
+    )
+    assert other_feedback is None
+
+
+def test_get_feedback_invalid_date_format_returns_400(api_client: TestClient):
+    """
+    Tests that invalid date format returns 400 Bad Request.
+    """
+    # Act: Use invalid date format
+    response = api_client.get("/api/v1/feedback?start_date=not-a-date")
+
+    # Assert
+    assert response.status_code == 400
+    error_data = response.json()
+    assert "Invalid start_date format" in error_data["detail"]
+
+
+def test_get_feedback_for_nonexistent_task_returns_404(
+    api_client: TestClient,
+):
+    """
+    Tests that querying feedback for a non-existent task returns 404.
+    """
+    # Act: Query for non-existent task
+    fake_task_id = f"task-{uuid.uuid4().hex[:8]}"
+    response = api_client.get(f"/api/v1/feedback?task_id={fake_task_id}")
+
+    # Assert
+    assert response.status_code == 404
+    error_data = response.json()
+    assert f"Task with ID '{fake_task_id}' not found" in error_data["detail"]
+
+
+def test_get_feedback_returns_most_recent_first(
+    api_client: TestClient,
+    gateway_adapter: GatewayAdapter,
+    database_inspector: DatabaseInspector,
+):
+    """
+    Tests that feedback is returned in descending order by creation time (most recent first).
+    """
+    import time
+
+    # Arrange: Create multiple feedback entries with small delays
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+
+    task_ids = []
+    for i in range(3):
+        task = gateway_adapter.send_message(session.id, f"Task {i}")
+        task_ids.append(task.task_id)
+        api_client.post(
+            "/api/v1/feedback",
+            json={
+                "taskId": task.task_id,
+                "sessionId": session.id,
+                "feedbackType": "up",
+                "feedbackText": f"Feedback {i}",
+            },
+        )
+        time.sleep(0.01)  # Small delay to ensure different timestamps
+
+    # Act: Get feedback
+    response = api_client.get("/api/v1/feedback")
+
+    # Assert
+    assert response.status_code == 200
+    feedback_list = response.json()
+
+    # Filter to only our feedback
+    our_feedback = [f for f in feedback_list if f["task_id"] in task_ids]
+    assert len(our_feedback) == 3
+
+    # Verify they're in descending order by created_time
+    for i in range(len(our_feedback) - 1):
+        assert our_feedback[i]["created_time"] >= our_feedback[i + 1]["created_time"]
