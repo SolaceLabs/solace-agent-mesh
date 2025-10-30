@@ -132,7 +132,7 @@ jobs:
         run: |
           use_ecr=false
           # Determine if we should use ECR (don't expose the actual registry URL)
-          if [[ ("${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}") || "${{ github.ref_name }}" == "test-build-opt" ]]; then
+          if [[ ( "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ) || "${{ github.ref_name }}" == "test-build-opt" ]]; then
             # Check if ECR registry is available
             ecr_registry="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
             if [[ -n "${ecr_registry}" && "${ecr_registry}" != "" ]]; then
@@ -140,6 +140,7 @@ jobs:
               echo "Will use ECR registry for default branch push"
             else
               echo "ECR registry not available, will use GitHub repository"
+            fi
           else
             echo "Will use GitHub repository for PR/branch build"
           fi
