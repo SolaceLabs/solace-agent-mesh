@@ -761,6 +761,32 @@ def test_get_feedback_filters_by_task_id(
     task1 = gateway_adapter.send_message(session.id, "Task 1")
     task2 = gateway_adapter.send_message(session.id, "Task 2")
 
+    # Manually create the task records so the feedback endpoint can find them
+    with database_inspector.db_manager.get_gateway_connection() as conn:
+        metadata = sa.MetaData()
+        metadata.reflect(bind=conn)
+        tasks_table = metadata.tables["tasks"]
+        conn.execute(
+            tasks_table.insert().values(
+                id=task1.task_id,
+                user_id="sam_dev_user",
+                initial_request_text="Task 1",
+                start_time=now_epoch_ms(),
+                end_time=now_epoch_ms(),
+            )
+        )
+        conn.execute(
+            tasks_table.insert().values(
+                id=task2.task_id,
+                user_id="sam_dev_user",
+                initial_request_text="Task 2",
+                start_time=now_epoch_ms(),
+                end_time=now_epoch_ms(),
+            )
+        )
+        if conn.in_transaction():
+            conn.commit()
+
     api_client.post(
         "/api/v1/feedback",
         json={
