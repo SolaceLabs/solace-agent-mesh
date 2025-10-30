@@ -23,6 +23,7 @@ from ...common.utils.embeds import (
     evaluate_embed,
     resolve_embeds_in_string,
 )
+from ...common.utils.embeds.types import ResolutionMode
 from ..utils.context_helpers import get_original_session_id
 
 log = logging.getLogger(__name__)
@@ -184,6 +185,7 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
                         context=resolution_context,
                         resolver_func=evaluate_embed,
                         types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
+                        resolution_mode=ResolutionMode.TOOL_PARAMETER,
                         log_identifier=log_identifier,
                         config=self._tool_config,
                     )
