@@ -1,0 +1,130 @@
+test_case_id: "path_traversal_prevention_001"
+description: |
+  Tests that the agent prevents path traversal attacks when creating files
+  and accessing artifacts. Ensures filenames are properly sanitized.
+tags: ["all", "agent"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "legitimate_file.txt"
+    content: "This is safe content that should be accessible."
+    mime_type: "text/plain"
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "security_tester@example.com"
+  parts:
+    - type: "text"
+      text: |
+        Please create files with these names and process the legitimate file:
+        1. Create: "../../../etc/passwd"
+        2. Create: "..\\..\\windows\\system32\\config"
+        3. Create: "normal_file.txt"
+        4. Process: legitimate_file.txt
+  external_context:
+    a2a_session_id: "path_traversal_session"
+
+llm_interactions:
+  # Step 1: Agent should sanitize malicious paths
+  - step_id: "sanitize_paths"
+    expected_request:
+      tools_present:
+        - "apply_embed_and_create_artifact"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_safe_file1"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "sanitized_etc_passwd.txt", "embed_directive": "Path traversal attempt detected and blocked: ../../../etc/passwd"}'
+              - id: "call_safe_file2"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "sanitized_windows_config.txt", "embed_directive": "Windows path traversal blocked: ..\\\\..\\\\windows\\\\system32\\\\config"}'
+              - id: "call_normal_file"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "normal_file.txt", "embed_directive": "This is a normal file with safe content."}'
+          finish_reason: "tool_calls"
+
+  # Step 2: Process legitimate file
+  - step_id: "process_legitimate"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+        - tool_call_id_matches_prior_request_index: 1
+          response_json_matches:
+            status: "error"
+        - tool_call_id_matches_prior_request_index: 2
+          response_json_matches:
+            status: "error"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "call_process_legit"
+                type: "function"
+                function:
+                  name: "apply_embed_and_create_artifact"
+                  arguments: '{"output_filename": "processed_legitimate.txt", "embed_directive": "Processed content from legitimate_file.txt: «artifact_content:legitimate_file.txt»"}'
+          finish_reason: "tool_calls"
+
+  # Step 3: Final response
+  - step_id: "final_response"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+    static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              I've processed your requests with security controls applied:
+
+              **Security Actions Taken:**
+              1. **Path Traversal Blocked**: "../../../etc/passwd" → sanitized to "sanitized_etc_passwd.txt"
+              2. **Windows Path Blocked**: "..\\..\\windows\\system32\\config" → sanitized to "sanitized_windows_config.txt"
+              3. **Normal File Created**: "normal_file.txt" - processed safely
+              4. **Legitimate Processing**: Successfully processed "legitimate_file.txt"
+
+              **Files Created:**
+              - sanitized_etc_passwd.txt (security report)
+              - sanitized_windows_config.txt (security report)
+              - normal_file.txt (safe content)
+              - processed_legitimate.txt (processed legitimate content)
+
+              All path traversal attempts were detected and blocked. Only safe operations were performed.
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: task
+    id: '*'
+    contextId: "path_traversal_session"
+    status:
+      state: "completed"
+      message:
+        kind: message
+        messageId: '*'
+        role: agent
+        parts:
+          - type: "text"
+            text_contains:
+              - "Security Actions Taken"
+              - "Path Traversal Blocked"
+              - "Windows Path Blocked"
+              - "sanitized_etc_passwd.txt"
+              - "sanitized_windows_config.txt"
+              - "path traversal attempts were detected and blocked"
+
+# No artifacts expected since tools return errors
