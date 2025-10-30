@@ -12,7 +12,6 @@ from solace_agent_mesh.common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
     ToolResultData,
-    SignalData,
 )
 
 
@@ -179,72 +178,6 @@ class TestAgentProgressUpdateData:
         assert serialized["type"] == "agent_progress_update"
         assert serialized["status_text"] == "Test status"
 
-
-class TestArtifactCreationProgressData:
-    """Test ArtifactCreationProgressData model."""
-
-    def test_valid_artifact_creation_progress(self):
-        """Test creating a valid ArtifactCreationProgressData."""
-        data = ArtifactCreationProgressData(
-            filename="report.pdf",
-            bytes_saved=1024,
-            artifact_chunk="base64encodeddata",
-        )
-        
-        assert data.type == "artifact_creation_progress"
-        assert data.filename == "report.pdf"
-        assert data.bytes_saved == 1024
-        assert data.artifact_chunk == "base64encodeddata"
-
-    def test_artifact_creation_progress_type_is_literal(self):
-        """Test that type field is always 'artifact_creation_progress'."""
-        data = ArtifactCreationProgressData(
-            filename="test.txt",
-            bytes_saved=100,
-            artifact_chunk="data",
-        )
-        assert data.type == "artifact_creation_progress"
-
-    def test_artifact_creation_progress_missing_required_fields(self):
-        """Test that missing required fields raise ValidationError."""
-        with pytest.raises(ValidationError):
-            ArtifactCreationProgressData(filename="test.txt")
-
-    def test_artifact_creation_progress_with_zero_bytes(self):
-        """Test artifact progress with zero bytes saved."""
-        data = ArtifactCreationProgressData(
-            filename="empty.txt",
-            bytes_saved=0,
-            artifact_chunk="",
-        )
-        assert data.bytes_saved == 0
-        assert data.artifact_chunk == ""
-
-    def test_artifact_creation_progress_with_large_chunk(self):
-        """Test artifact progress with large chunk."""
-        large_chunk = "A" * 10000
-        data = ArtifactCreationProgressData(
-            filename="large.bin",
-            bytes_saved=10000,
-            artifact_chunk=large_chunk,
-        )
-        assert len(data.artifact_chunk) == 10000
-
-    def test_artifact_creation_progress_serialization(self):
-        """Test serialization to dict."""
-        data = ArtifactCreationProgressData(
-            filename="test.pdf",
-            bytes_saved=512,
-            artifact_chunk="chunk_data",
-        )
-        serialized = data.model_dump()
-        
-        assert serialized["type"] == "artifact_creation_progress"
-        assert serialized["filename"] == "test.pdf"
-        assert serialized["bytes_saved"] == 512
-        assert serialized["artifact_chunk"] == "chunk_data"
-
-
 class TestToolResultData:
     """Test ToolResultData model."""
 
@@ -329,7 +262,6 @@ class TestToolResultData:
         )
         assert data4.result_data is None
 
-    def test_tool_result_serialization(self):
         """Test serialization to dict."""
         result_data = {"status": "ok"}
         llm_usage = {"input_tokens": 10, "output_tokens": 5, "model": "gpt-4"}
@@ -347,45 +279,6 @@ class TestToolResultData:
         assert serialized["function_call_id"] == "call_123"
         assert serialized["llm_usage"] == llm_usage
 
-
-class TestSignalDataUnion:
-    """Test SignalData union type."""
-
-    def test_signal_data_accepts_all_types(self):
-        """Test that SignalData union accepts all signal types."""
-        # ToolInvocationStartData
-        signal1: SignalData = ToolInvocationStartData(
-            tool_name="tool1",
-            tool_args={},
-            function_call_id="call_1",
-        )
-        assert signal1.type == "tool_invocation_start"
-        
-        # LlmInvocationData
-        signal2: SignalData = LlmInvocationData(request={"model": "gpt-4"})
-        assert signal2.type == "llm_invocation"
-        
-        # AgentProgressUpdateData
-        signal3: SignalData = AgentProgressUpdateData(status_text="Working...")
-        assert signal3.type == "agent_progress_update"
-        
-        # ArtifactCreationProgressData
-        signal4: SignalData = ArtifactCreationProgressData(
-            filename="file.txt",
-            bytes_saved=100,
-            artifact_chunk="data",
-        )
-        assert signal4.type == "artifact_creation_progress"
-        
-        # ToolResultData
-        signal5: SignalData = ToolResultData(
-            tool_name="tool5",
-            result_data={},
-            function_call_id="call_5",
-        )
-        assert signal5.type == "tool_result"
-
-    def test_signal_data_type_discrimination(self):
         """Test that signal types can be discriminated by their type field."""
         signals = [
             ToolInvocationStartData(

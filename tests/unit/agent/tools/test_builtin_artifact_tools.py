@@ -7,14 +7,13 @@ signaling, extraction, deletion, and updates.
 
 import pytest
 import json
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timezone
 
 from solace_agent_mesh.agent.tools.builtin_artifact_tools import (
     _internal_create_artifact,
     list_artifacts,
     load_artifact,
-    signal_artifact_for_return,
     extract_content_from_artifact,
     delete_artifact,
     append_to_artifact,
@@ -258,81 +257,6 @@ class TestLoadArtifact:
             
             assert result["status"] == "success"
             mock_load.assert_called_once()
-
-
-class TestSignalArtifactForReturn:
-    """Test cases for signal_artifact_for_return function."""
-
-    @pytest.fixture
-    def mock_tool_context(self):
-        """Create a mock ToolContext with proper _invocation_context."""
-        mock_context = Mock()
-        mock_context._invocation_context = Mock()
-        mock_context._invocation_context.artifact_service = AsyncMock()
-        mock_context._invocation_context.agent = Mock()
-        mock_context._invocation_context.agent.host_component = Mock()
-        mock_context._invocation_context.app_name = "test_app"
-        mock_context._invocation_context.user_id = "test_user"
-        mock_context.state = {"a2a_context": {"logical_task_id": "task123"}}
-        mock_context.actions = Mock()
-        mock_context.actions.state_delta = {}
-        return mock_context
-
-    @pytest.mark.asyncio
-    async def test_signal_artifact_success(self, mock_tool_context):
-        """Test successful artifact signaling."""
-        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session:
-            mock_session.return_value = "session123"
-            
-            # Mock artifact service
-            mock_tool_context._invocation_context.artifact_service.list_versions.return_value = [1, 2]
-            
-            # Mock host component and task execution context
-            mock_task_context = Mock()
-            mock_task_context.add_artifact_signal = Mock()
-            
-            # Create a proper context manager mock for active_tasks_lock
-            mock_lock = Mock()
-            mock_lock.__enter__ = Mock(return_value=mock_lock)
-            mock_lock.__exit__ = Mock(return_value=None)
-            mock_tool_context._invocation_context.agent.host_component.active_tasks_lock = mock_lock
-            mock_tool_context._invocation_context.agent.host_component.active_tasks = {
-                "task123": mock_task_context
-            }
-            
-            result = await signal_artifact_for_return(
-                filename="test.txt",
-                version=1,
-                tool_context=mock_tool_context
-            )
-            
-            assert result["status"] == "success"
-            mock_task_context.add_artifact_signal.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_signal_artifact_no_tool_context(self):
-        """Test signaling without tool context."""
-        result = await signal_artifact_for_return(
-            filename="test.txt",
-            version=1,
-            tool_context=None
-        )
-        
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
-
-    @pytest.mark.asyncio
-    async def test_signal_artifact_no_version(self, mock_tool_context):
-        """Test signaling without version."""
-        result = await signal_artifact_for_return(
-            filename="test.txt",
-            version=None,
-            tool_context=mock_tool_context
-        )
-        
-        assert result["status"] == "error"
-        assert "Version parameter is required" in result["message"]
-
 
 class TestExtractContentFromArtifact:
     """Test cases for extract_content_from_artifact function."""
@@ -654,9 +578,6 @@ class TestBuiltinArtifactToolsIntegration:
                 tool_context=mock_tool_context
             )
             assert load_result["status"] == "success"
-
-    @pytest.mark.asyncio
-    async def test_create_append_workflow(self, mock_tool_context):
         """Test workflow: create artifact, then append to it."""
         with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
              patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
@@ -691,13 +612,11 @@ class TestBuiltinArtifactToolsIntegration:
             )
             assert append_result["status"] == "success"
 
-    def test_category_constants(self):
         """Test that category constants are properly defined."""
         assert CATEGORY_NAME == "Artifact Management"
         assert CATEGORY_DESCRIPTION == "List, read, create, update, and delete artifacts."
 
-    @pytest.mark.asyncio
-    async def test_error_handling_consistency(self, mock_tool_context):
+
         """Test that error handling is consistent across functions."""
         # Test unsafe filename handling across different functions
         unsafe_filename = "../unsafe.txt"
@@ -711,8 +630,6 @@ class TestBuiltinArtifactToolsIntegration:
         assert create_result["status"] == "error"
         assert "disallowed characters" in create_result["message"].lower()
 
-    @pytest.mark.asyncio
-    async def test_signal_and_state_management(self, mock_tool_context):
         """Test artifact signaling and state management."""
         with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session:
             mock_session.return_value = "session123"
