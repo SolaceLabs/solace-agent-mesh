@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - test-build-opt
   pull_request:
     types: [opened, synchronize]
     branches:
@@ -197,18 +198,9 @@ jobs:
           cache_ref="${image_name}:buildcache-${{ matrix.platform.tag_suffix }}"
           echo "cache_ref=${cache_ref}" >> $GITHUB_OUTPUT
 
-          # For PR builds, use gha cache as fallback since we can't push to registry
-          # For push builds, use registry cache for better persistence and sharing
-          if [[ "${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}" == "true" ]]; then
-            echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
-            echo "cache_to=type=registry,ref=${cache_ref},mode=max" >> $GITHUB_OUTPUT
-            echo "Using registry cache (can read and write)"
-          else
-            # PR builds: try to read from registry cache, write to gha cache
-            echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
-            echo "cache_to=type=gha,scope=${{ matrix.platform.tag_suffix }},mode=max" >> $GITHUB_OUTPUT
-            echo "Using registry cache for reading, gha cache for writing (PR build)"
-          fi
+          echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
+          echo "cache_to=type=registry,ref=${cache_ref},mode=max" >> $GITHUB_OUTPUT
+          echo "Using registry cache (can read and write)"
 
       - name: Build and Push Platform-Specific Image
         uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
