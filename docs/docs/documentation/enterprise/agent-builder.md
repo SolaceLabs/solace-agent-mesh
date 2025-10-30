@@ -5,13 +5,13 @@ sidebar_position: 10
 
 # Agent Builder
 
-Agent Builder provides a visual, form-based interface for creating and managing agents without writing YAML configuration files directly. This tool simplifies agent creation by optionally leveraging AI assistance to suggest initial configuration values, making it accessible to users who may not be familiar with YAML syntax while still providing full control over agent capabilities.
+Agent Builder provides a visual, form-based interface for creating and managing agents without writing configuration files. This tool simplifies agent creation by optionally leveraging AI assistance to suggest initial configuration values based on a description of the agent.
 
 ## Overview
 
-When you click the "Create Agent" button from the Agents page (requires `createAgents` permission. See Access Control), a dialog appears offering optional AI assistance. You can either describe what you want the agent to do in natural language (10-1000 characters), and the AI will generate initial configuration values, or you can skip this step and manually enter basic information.
+When you click the "Create Agent" button from the Agents page (requiring the `sam:agent_builder:create` capability to view, see Access Control) a dialog appears offering optional AI assistance. You can either describe what you want the agent to do in natural language (10-1000 characters), and the AI will generate initial configuration values, or you can skip this step and manually enter basic information.
 
-Once you've configured the agent in the form and saved it, the agent appears in the Inactive tab with NOT_DEPLOYED status, ready for further editing or deployment.
+Once you've configured the agent in the form and saved it, the agent appears in the Inactive tab with `Not Deployed` status, ready for further editing or deployment.
 
 Use the "Refresh" button next to "Create Agent" to update the displayed agent list and sync deployment status information from the backend.
 
@@ -24,7 +24,7 @@ When you click "Create Agent" from the Agents page, the AI assistance dialog ope
 Provide a natural language description of what you want the agent to do. This description should be between 10 and 1000 characters and should explain the agent's purpose, the types of tasks it will handle, and any specific capabilities it needs. For example:
 
 - "An agent that helps users search company documentation and answer questions about internal policies"
-- "An agent that analyzes sales data and generates weekly reports"
+- "An agent that analyzes sales data and generates reports"
 - "An agent that assists with employee onboarding by answering HR-related questions"
 
 When you submit your description, the AI analyzes it and generates suggested values for:
@@ -33,13 +33,14 @@ When you submit your description, the AI analyzes it and generates suggested val
 - A detailed description field explaining the agent's purpose
 - System instructions that define how the agent should behave
 - Appropriate toolsets based on the capabilities mentioned in your description
-- Default settings for communication modes and other configuration options
+- Appropriate connectors (if available, see Connectors) based on your description
+- Default settings for skills and communication modes
 
-These AI-generated values are suggestions only. After the AI generates them, you proceed to the configuration form where you can review, modify, or completely rewrite any of these values before saving the agent.
+These AI-generated values are suggestions only. After the AI generates them, you proceed to the configuration form where you can review, modify, or completely rewrite any of these values before saving the agent. 
 
 **Option 2: Skip AI assistance**
 
-Click the secondary button to bypass AI assistance. You'll be prompted to manually enter the agent's name and description in a simple dialog. After providing these basic details and clicking continue, you proceed to the agent configuration form where the Agent Details section is pre-filled with your entered name and description, while other sections (instructions, toolsets, connectors, agent card) remain empty for you to configure.
+Click the secondary button to bypass AI assistance. You'll be prompted to manually enter the agent's name and description in a simple dialog. After providing these basic details and clicking continue, you proceed to the agent configuration form where the Agent Details section is pre-filled with your entered name and description. Other sections (instructions, toolsets, connectors, agent card) remain empty for you to configure. Minimally, the name, description and instructions must be completed before your agent can be deployed (see Agent Lifecycle and Management).
 
 ## Agent Configuration Form
 
@@ -55,7 +56,7 @@ Agent details form the foundation of your agent configuration:
 
 ### Instructions
 
-Instructions define how the agent behaves during interactions. This optional field accepts a system prompt between 100 and 10,000 characters. The prompt should explain the agent's role, communication style, and any specific rules or constraints it should follow.
+Instructions define how the agent behaves during interactions. This field is between 100 and 10,000 characters and is the basis of the agent system prompt. The instructions should explain the agent's role, communication style, and any specific rules or constraints it should follow.
 
 For example, you might instruct an agent to:
 - Always provide sources for information
@@ -69,12 +70,11 @@ If you used AI assistance, the system generates initial instructions based on yo
 
 Toolsets provide the agent with capabilities it can use to accomplish tasks. Select from available toolsets such as:
 
-- `artifacts_management` for list, read, create, update and delete artifacts
-- `data_analysis` for query, transform and visualize data from artifacts
-- `web_search` for internet searches
-- Specialized toolsets configured in your deployment
+- `Artifact Management` to list, read, create, update and delete artifacts
+- `Data Analysis` to query, transform and visualize data from artifacts
+- `Web` to perform internet searches
 
-You can assign multiple toolsets to a single agent, giving it access to diverse capabilities. The available toolsets depend on your Agent Mesh configuration.
+You can assign multiple toolsets to a single agent, giving it access to diverse capabilities. If you select `Data Analysis`, include `Artifact Management` as well.
 
 If you used AI assistance, the system suggests toolsets based on your description. Review these selections and add or remove toolsets as needed to match your agent's actual requirements.
 
@@ -84,22 +84,22 @@ Connectors link agents to external data sources like SQL databases. You can assi
 
 **Important**: All agents sharing a connector use the same database credentials. Implement database-level access controls to restrict what each agent can access. The system supports MySQL, PostgreSQL, and MariaDB connectors.
 
-Connectors must be created separately before they can be assigned to agents. The AI assistance step cannot create connectors—you must assign them manually in this configuration form. See [Working with SQL Connectors](#working-with-sql-connectors) for detailed information on creating and configuring database connectors.
+Connectors must be created separately before they can be assigned to agents. See [Working with SQL Connectors](#working-with-sql-connectors) for detailed information on creating and configuring database connectors.
 
 ### Agent Card
 
 Agent card configuration defines how the agent presents itself and communicates:
 
-**Skills**: Specify what tasks the agent can perform. This helps users understand the agent's capabilities.
+**Skills**: Specify what tasks the agent can perform. This helps users and other agents understand your agent's capabilities.
 
-**Communication Modes**: Select how the agent interacts with users, such as text-based interaction or voice capabilities.
+**Communication Modes**: Select how the agent interacts, such as text-based interaction or voice capabilities.
 
 ### Saving the Agent
 
-After configuring all settings, save the agent. It will appear in the Inactive tab with NOT_DEPLOYED status, where you can:
+After configuring all settings, save the agent. It will appear in the Inactive tab with `Not Deployed` status, where you can:
 - Further edit the configuration
 - Download it as a YAML file
-- Deploy it to make it available for use
+- Deploy it to make it available for use in Chat
 
 ## Working with SQL Connectors
 
@@ -129,13 +129,17 @@ Each agent can be assigned a maximum of 5 connectors. This limit helps manage co
 
 Agents move through distinct states as you create, edit, and deploy them.
 
-**NOT_DEPLOYED** is the initial status for newly created agents. These agents appear in the Inactive tab where you can edit their configurations, download them as YAML files, or prepare them for deployment. Agents remain in this status until you explicitly deploy them.
+**Not Deployed** is the initial status for newly created agents. These agents appear in the Inactive tab where you can edit their configurations, download them as YAML files, or prepare them for deployment. Agents remain in this status until you explicitly deploy them.
 
-**Deployed** agents move to the Active tab and become available for user interactions. Once deployed, agents cannot be deleted—you must undeploy them first to remove them from the system.
+**Deploying/Undeploying** are the in progress statuses when an agent is deploying or undeploying an agent. It's recommended not interact with an agent when its in this transitory state.
 
-**Sync Status** tracking helps you manage configuration drift for deployed agents. When you deploy an agent, the system records its configuration. If you later edit the agent's configuration in the UI, the system detects this mismatch and indicates that the agent is out of sync. This visibility helps you understand when deployed agents don't match their stored configurations, though the specific synchronization mechanism depends on your deployment approach.
+**Running** agents move to the Active tab and become available for user interactions. Once deployed, agents cannot be deleted—you must undeploy them first to remove them from the system.
 
-You can edit agent configurations at any time, whether they're deployed or not. Changes to deployed agents may require redeployment to take effect, depending on your deployment method.
+**Deployment Failed** is displayed if your agent failed to deploy for any reason. Verfy all agent configuration and try again or contact an adminstrator.
+
+**Sync Status** tracking helps you manage configuration drift for deployed agents. When you deploy an agent, the system records its configuration. If you later edit the agent's configuration in the UI, the system detects this mismatch. The system will continue to display the `Running` agent in the active section and also display the agent updates as `Not Deployed` in the inactive section. Both tiles will show `Undeployed changes`. This visibility helps you understand when deployed agents don't match their stored configurations, though the specific synchronization mechanism depends on your deployment approach. The `Preview Updates` action surfaced in the agent side panel can help compare the running agent with its undeployed configuration.
+
+You can edit agent configurations (of agents built with agent builder) at any time, whether they're deployed or not. Changes to deployed agents will require the `Deploy Updates` action to take effect in the `Running` agent.
 
 Downloading agents as YAML files provides portability and version control. You can use these files to:
 
@@ -156,7 +160,7 @@ The system enforces several validation rules to ensure agent configurations rema
 - System instructions: 100-10,000 characters (optional)
 - AI-assisted descriptions: 10-1000 characters
 
-**Deletion Restrictions** prevent accidentally removing active agents. You cannot delete deployed agents directly. You must first undeploy them, which moves them back to NOT_DEPLOYED status in the Inactive tab, and then you can delete them. This two-step process helps prevent service disruptions.
+**Deletion Restrictions** prevent accidentally removing active agents. You cannot delete deployed agents directly. You must first undeploy them, which moves them back to `Not Deployed` status in the Inactive tab, and then you can delete them. This two-step process helps prevent service disruptions.
 
 **Connector Limits**: Each agent can have a maximum of 5 connectors. This restriction helps manage complexity and prevents performance issues that could arise from agents attempting to connect to too many databases simultaneously.
 
@@ -174,8 +178,10 @@ When connector assignment fails, verify that:
 - You haven't exceeded the per-agent connector limit
 - The connector type matches your requirements (MySQL, PostgreSQL, or MariaDB)
 
-If you cannot delete an agent, check its deployment status. Only agents in NOT_DEPLOYED status can be deleted. If the agent appears in the Active tab, you must undeploy it first.
+Note: Agent Mesh does not validate the connector configuration. If the connector was assigned but not functioning, verify this configuration.
 
-When deployed agents show as out of sync, this indicates the stored configuration differs from the deployed configuration. Review recent changes to the agent's settings and consider whether redeployment is necessary to apply those changes.
+If you cannot delete an agent, check its deployment status. Only agents in `Not Deployed` status can be deleted. If the agent is running, you must undeploy it first.
+
+When deployed agents show as having `Undeployed changes`, this indicates the stored configuration differs from the deployed configuration. Review recent changes to the agent's settings and consider deploying updates to apply those changes.
 
 Name uniqueness errors occur when attempting to create or rename an agent using a name that already exists. Choose a different name or modify the existing agent instead of creating a new one.
