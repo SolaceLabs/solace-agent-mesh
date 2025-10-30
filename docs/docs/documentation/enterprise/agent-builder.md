@@ -131,11 +131,13 @@ Agents move through distinct states as you create, edit, and deploy them.
 
 **Not Deployed** is the initial status for newly created agents. These agents appear in the Inactive tab where you can edit their configurations, download them as YAML files, or prepare them for deployment. Agents remain in this status until you explicitly deploy them.
 
-**Deploying** is the in progress status when an agent is deploying or undeploying an agent. It's recommended not interact with an agent when its in this transitory state.
+**Deploying/Undeploying** are the in progress statuses when an agent is deploying or undeploying an agent. It's recommended not interact with an agent when its in this transitory state.
 
 **Running** agents move to the Active tab and become available for user interactions. Once deployed, agents cannot be deleted—you must undeploy them first to remove them from the system.
 
-**Sync Status** tracking helps you manage configuration drift for deployed agents. When you deploy an agent, the system records its configuration. If you later edit the agent's configuration in the UI, the system detects this mismatch and displays the agent in the inactive section with `Undeployed changes`. This visibility helps you understand when deployed agents don't match their stored configurations, though the specific synchronization mechanism depends on your deployment approach. The `Preview Updates` action can help compare the running agent with its undeployed configuration.
+**Deployment Failed** is displayed if your agent failed to deployed
+
+**Sync Status** tracking helps you manage configuration drift for deployed agents. When you deploy an agent, the system records its configuration. If you later edit the agent's configuration in the UI, the system detects this mismatch and will continue to display the `Running` agent in the active section and display the updated agent in the inactive section. Both tiles will display with `Undeployed changes`. This visibility helps you understand when deployed agents don't match their stored configurations, though the specific synchronization mechanism depends on your deployment approach. The `Preview Updates` action surfaced in the agent side panel can help compare the running agent with its undeployed configuration.
 
 You can edit agent configurations (of agents built with agent builder) at any time, whether they're deployed or not. Changes to deployed agents may require redeployment to take effect, depending on your deployment method.
 
