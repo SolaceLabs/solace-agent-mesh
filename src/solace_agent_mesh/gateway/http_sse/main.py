@@ -19,6 +19,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
 from ...common import a2a
+from ...gateway.adapter import oauth_utils
 from ...gateway.http_sse import dependencies
 from ...gateway.http_sse.routers import (
     agent_cards,
@@ -71,48 +72,41 @@ def _extract_access_token(request: FastAPIRequest) -> str:
 async def _validate_token(
     auth_service_url: str, auth_provider: str, access_token: str
 ) -> bool:
-    async with httpx.AsyncClient() as client:
-        validation_response = await client.post(
-            f"{auth_service_url}/is_token_valid",
-            json={"provider": auth_provider},
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-    return validation_response.status_code == 200
+    """
+    Validate token using shared OAuth utilities.
+
+    This is a thin wrapper for backward compatibility with existing code.
+    """
+    return await oauth_utils.validate_token_with_oauth_service(
+        auth_service_url, auth_provider, access_token
+    )
 
 
 async def _get_user_info(
     auth_service_url: str, auth_provider: str, access_token: str
 ) -> dict:
-    async with httpx.AsyncClient() as client:
-        userinfo_response = await client.get(
-            f"{auth_service_url}/user_info?provider={auth_provider}",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
+    """
+    Get user info using shared OAuth utilities.
 
-    if userinfo_response.status_code != 200:
-        return None
-
-    return userinfo_response.json()
+    This is a thin wrapper for backward compatibility with existing code.
+    """
+    return await oauth_utils.get_user_info_from_oauth_service(
+        auth_service_url, auth_provider, access_token
+    )
 
 
 def _extract_user_identifier(user_info: dict) -> str:
-    user_identifier = (
-        user_info.get("sub")
-        or user_info.get("client_id")
-        or user_info.get("username")
-        or user_info.get("oid")
-        or user_info.get("preferred_username")
-        or user_info.get("upn")
-        or user_info.get("unique_name")
-        or user_info.get("email")
-        or user_info.get("name")
-        or user_info.get("azp")
-        or user_info.get("user_id") # internal /user_info endpoint format maps identifier to user_id
-    )
+    """
+    Extract user identifier using shared OAuth utilities.
 
-    if user_identifier and user_identifier.lower() == "unknown":
+    This is a thin wrapper for backward compatibility with existing code.
+    Returns fallback value if extraction fails.
+    """
+    user_identifier = oauth_utils.extract_user_identifier(user_info)
+
+    if not user_identifier:
         log.warning(
-            "AuthMiddleware: IDP returned 'Unknown' as user identifier. Using fallback."
+            "AuthMiddleware: Could not extract user identifier. Using fallback."
         )
         return "sam_dev_user"
 

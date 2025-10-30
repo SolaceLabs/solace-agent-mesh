@@ -25,6 +25,7 @@ from mcp.types import (
 from pydantic import BaseModel, Field
 
 from ...common.utils.mime_helpers import is_text_based_file
+from ..adapter import oauth_utils
 from ..adapter.base import GatewayAdapter
 from ..adapter.types import (
     AuthClaims,
@@ -37,6 +38,7 @@ from ..adapter.types import (
     SamTextPart,
     SamUpdate,
 )
+from .oauth_handler import OAuthFlowHandler
 from .utils import sanitize_tool_name, format_agent_skill_description
 
 log = logging.getLogger(__name__)
@@ -69,6 +71,24 @@ class McpAdapterConfig(BaseModel):
     task_timeout_seconds: int = Field(
         default=300,
         description="Timeout in seconds for waiting for agent task completion (default 5 minutes)",
+    )
+
+    # OAuth Authentication Configuration
+    enable_auth: bool = Field(
+        default=False,
+        description="Enable OAuth authentication. Requires HTTP transport and external OAuth2 service.",
+    )
+    external_auth_service_url: str = Field(
+        default="http://localhost:8050",
+        description="URL of SAM's OAuth2 service (enterprise feature)",
+    )
+    external_auth_provider: str = Field(
+        default="azure",
+        description="OAuth provider configured in OAuth2 service (e.g., 'azure', 'google')",
+    )
+    dev_mode: bool = Field(
+        default=False,
+        description="Development mode - bypass auth and use default_user_identity (WARNING: insecure, dev only)",
     )
 
     # File handling configuration
@@ -116,21 +136,28 @@ class McpAdapter(GatewayAdapter):
     def __init__(self):
         self.context: Optional[GatewayContext] = None
         self.mcp_server: Optional[FastMCP] = None
+        self.oauth_handler: Optional[OAuthFlowHandler] = None
         self.tool_to_agent_map: Dict[str, tuple[str, str]] = (
             {}
         )  # tool_name -> (agent_name, skill_id)
-        self.active_tasks: Dict[str, str] = (
-            {}
-        )  # task_id -> tool_name (for correlation)
+        self.active_tasks: Dict[str, str] = {}  # task_id -> tool_name (for correlation)
         self.task_buffers: Dict[str, List[str]] = {}  # task_id -> list of text chunks
-        self.task_futures: Dict[str, asyncio.Future] = {}  # task_id -> Future for completion
+        self.task_futures: Dict[str, asyncio.Future] = (
+            {}
+        )  # task_id -> Future for completion
         self.task_errors: Dict[str, SamError] = {}  # task_id -> error if failed
-        self.task_queues: Dict[str, asyncio.Queue] = {}  # task_id -> Queue for streaming chunks
-        self.agent_to_tools: Dict[str, List[str]] = {}  # agent_name -> list of tool names
+        self.task_queues: Dict[str, asyncio.Queue] = (
+            {}
+        )  # task_id -> Queue for streaming chunks
+        self.agent_to_tools: Dict[str, List[str]] = (
+            {}
+        )  # agent_name -> list of tool names
 
         # Resource management for artifact access
         # Track which artifacts exist per session for resource listing
-        self.session_artifacts: Dict[str, Dict[str, Dict[str, Any]]] = {}  # session_id -> {filename -> metadata}
+        self.session_artifacts: Dict[str, Dict[str, Dict[str, Any]]] = (
+            {}
+        )  # session_id -> {filename -> metadata}
 
     async def init(self, context: GatewayContext) -> None:
         """Initialize the MCP server and register tools from discovered agents."""
@@ -139,12 +166,55 @@ class McpAdapter(GatewayAdapter):
 
         log.info("Initializing MCP Gateway Adapter...")
 
+        # Validate OAuth configuration
+        if config.enable_auth:
+            if config.transport == "stdio":
+                raise ValueError(
+                    "OAuth authentication requires HTTP transport. "
+                    "Set transport='http' in configuration when enable_auth=True."
+                )
+            if config.dev_mode:
+                log.warning(
+                    "⚠️  DEV MODE ENABLED: Authentication is bypassed! "
+                    "This is insecure and should NEVER be used in production."
+                )
+            log.info(
+                "OAuth authentication enabled: service=%s, provider=%s",
+                config.external_auth_service_url,
+                config.external_auth_provider,
+            )
+        elif config.dev_mode:
+            log.warning(
+                "⚠️  DEV MODE ENABLED with auth disabled: Using default_user_identity=%s",
+                config.default_user_identity,
+            )
+        else:
+            log.info(
+                "OAuth authentication disabled, using default_user_identity=%s",
+                config.default_user_identity,
+            )
+
+        # Initialize OAuth handler if authentication is enabled
+        if config.enable_auth:
+            callback_base_url = f"http://{config.host}:{config.port}"
+            self.oauth_handler = OAuthFlowHandler(
+                oauth_service_url=config.external_auth_service_url,
+                oauth_provider=config.external_auth_provider,
+                callback_base_url=callback_base_url,
+                callback_path="/oauth/callback",
+            )
+            log.info("OAuth handler initialized")
+
         # Create FastMCP server
         self.mcp_server = FastMCP(name=config.mcp_server_name)
 
         # Register artifact resource template if enabled
         if config.enable_artifact_resources:
             self._register_artifact_resource_template()
+
+        # Register OAuth endpoints if authentication is enabled
+        if config.enable_auth and self.oauth_handler:
+            self._register_oauth_endpoints()
 
         # Register tools dynamically from agent registry
         await self._register_tools_from_agents()
@@ -202,7 +272,42 @@ class McpAdapter(GatewayAdapter):
             """
             return await self._handle_artifact_resource_read(session_id, filename)
 
-        log.info(f"Registered artifact resource template: {config.resource_uri_prefix}://{{session_id}}/{{filename}}")
+        log.info(
+            f"Registered artifact resource template: {config.resource_uri_prefix}://{{session_id}}/{{filename}}"
+        )
+
+    def _register_oauth_endpoints(self):
+        """
+        Register OAuth endpoints with the FastMCP server.
+
+        Note: FastMCP HTTP server currently doesn't expose a way to add custom HTTP endpoints.
+        This is a known limitation. The OAuth handler is initialized and ready, but OAuth
+        endpoints would need to be exposed via a separate HTTP server or by modifying FastMCP.
+
+        For now, this serves as documentation and preparation for when FastMCP supports
+        custom HTTP endpoints, or when we implement a separate HTTP server for OAuth.
+
+        OAuth endpoints that should be exposed:
+        - GET /oauth/authorize - Initiates OAuth flow
+        - GET /oauth/callback - Handles OAuth callback
+        - POST /oauth/token - Token refresh endpoint
+        - GET /.well-known/oauth-authorization-server - OAuth metadata
+        """
+        if not self.oauth_handler:
+            return
+
+        log.warning(
+            "OAuth handler initialized but endpoints not exposed. "
+            "FastMCP HTTP server does not currently support custom HTTP endpoints. "
+            "OAuth flow must be handled externally or via a separate HTTP server. "
+            "See documentation for workarounds."
+        )
+
+        # TODO: Once FastMCP supports custom HTTP endpoints, register them here:
+        # - self.mcp_server.add_http_endpoint("GET", "/oauth/authorize", self._handle_oauth_authorize)
+        # - self.mcp_server.add_http_endpoint("GET", "/oauth/callback", self._handle_oauth_callback)
+        # - self.mcp_server.add_http_endpoint("POST", "/oauth/token", self._handle_oauth_token)
+        # - self.mcp_server.add_http_endpoint("GET", "/oauth/metadata", self._handle_oauth_metadata)
 
     def _register_tool_for_skill(self, agent_card: AgentCard, skill: AgentSkill):
         """
@@ -311,13 +416,44 @@ class McpAdapter(GatewayAdapter):
                 if not client_id:
                     # Last resort: generate a unique ID
                     import uuid
+
                     client_id = f"generated-{uuid.uuid4().hex[:12]}"
 
                 log.warning(
                     f"mcp_context.client_id not available, using fallback: {client_id}"
                 )
 
-            # Create external input dict with client_id
+            # Extract access token from MCP context for OAuth authentication
+            # The token can be provided by the MCP client in various ways
+            access_token = None
+            if config.enable_auth and not config.dev_mode:
+                try:
+                    # Try to get token from mcp_context metadata/headers
+                    # FastMCP may provide this in different ways depending on transport
+                    if hasattr(mcp_context, "request_context"):
+                        # HTTP transport might have headers
+                        request_ctx = mcp_context.request_context
+                        if isinstance(request_ctx, dict):
+                            access_token = oauth_utils.extract_bearer_token_from_dict(
+                                request_ctx
+                            )
+
+                    # Try metadata attribute
+                    if not access_token and hasattr(mcp_context, "metadata"):
+                        metadata = mcp_context.metadata
+                        if isinstance(metadata, dict):
+                            access_token = oauth_utils.extract_bearer_token_from_dict(
+                                metadata
+                            )
+
+                    if not access_token:
+                        log.warning(
+                            "OAuth enabled but no access token found in MCP context for tool call"
+                        )
+                except Exception as e:
+                    log.warning(f"Error extracting access token from MCP context: {e}")
+
+            # Create external input dict with client_id and optional token
             external_input = {
                 "tool_name": tool_name,
                 "agent_name": agent_name,
@@ -326,6 +462,11 @@ class McpAdapter(GatewayAdapter):
                 "mcp_client_id": client_id,
                 "timestamp": datetime.utcnow().isoformat(),
             }
+
+            # Add token to external_input if OAuth is enabled
+            if access_token:
+                external_input["access_token"] = access_token
+                log.debug("Added access token to external_input for authentication")
 
             # Submit to SAM via the generic gateway with endpoint_context
             task_id = await self.context.handle_external_input(
@@ -348,7 +489,7 @@ class McpAdapter(GatewayAdapter):
                 Accumulates non-text content objects for final return.
                 This runs in the MCP request context, so mcp_context is valid here.
                 """
-                content_objects = []  # Accumulate ImageContent, AudioContent, ResourceLink, etc.
+                content_objects = []
 
                 if not config.stream_responses:
                     log.debug(f"Streaming disabled for task {task_id}")
@@ -361,7 +502,9 @@ class McpAdapter(GatewayAdapter):
 
                         # Check for sentinel (completion signal)
                         if chunk is STREAM_COMPLETE:
-                            log.debug(f"Stream consumer for task {task_id} received completion signal")
+                            log.debug(
+                                f"Stream consumer for task {task_id} received completion signal"
+                            )
                             break
 
                         # Handle different chunk types
@@ -370,31 +513,40 @@ class McpAdapter(GatewayAdapter):
                             try:
                                 await mcp_context.info(chunk)
                             except Exception as e:
-                                log.warning(f"Failed to stream text chunk to MCP client: {e}")
+                                log.warning(
+                                    f"Failed to stream text chunk to MCP client: {e}"
+                                )
                         else:
                             # Content object (ImageContent, AudioContent, ResourceLink, EmbeddedResource)
                             # Don't stream these, accumulate for final return
                             content_objects.append(chunk)
                             # Optionally notify about the content
                             try:
-                                content_type = getattr(chunk, 'type', 'content')
+                                content_type = getattr(chunk, "type", "content")
                                 if content_type == "image":
                                     await mcp_context.info(f"📷 Image attached")
                                 elif content_type == "audio":
                                     await mcp_context.info(f"🎵 Audio attached")
                                 elif content_type == "resource_link":
-                                    await mcp_context.info(f"📎 File available: {getattr(chunk, 'name', 'file')}")
+                                    await mcp_context.info(
+                                        f"📎 File available: {getattr(chunk, 'name', 'file')}"
+                                    )
                                 elif content_type == "resource":
                                     await mcp_context.info(f"📄 Resource embedded")
                             except Exception as e:
-                                log.warning(f"Failed to notify about content object: {e}")
+                                log.warning(
+                                    f"Failed to notify about content object: {e}"
+                                )
 
                         stream_queue.task_done()
 
                 except asyncio.CancelledError:
                     log.debug(f"Stream consumer for task {task_id} was cancelled")
                 except Exception as e:
-                    log.error(f"Error in stream consumer for task {task_id}: {e}", exc_info=True)
+                    log.error(
+                        f"Error in stream consumer for task {task_id}: {e}",
+                        exc_info=True,
+                    )
 
                 return content_objects
 
@@ -427,17 +579,19 @@ class McpAdapter(GatewayAdapter):
                     # Add all content objects (images, audio, resources, etc.)
                     final_content.extend(content_objects)
 
-                    log.info(f"Task {task_id} completed with {len(final_content)} content parts")
+                    log.info(
+                        f"Task {task_id} completed with {len(final_content)} content parts"
+                    )
                     return final_content
                 else:
                     # Text-only response
-                    log.info(f"Task {task_id} completed successfully, returned {len(result_text)} chars")
+                    log.info(
+                        f"Task {task_id} completed successfully, returned {len(result_text)} chars"
+                    )
                     return result_text
 
             except asyncio.TimeoutError:
-                error_msg = (
-                    f"Task {task_id} timed out after {config.task_timeout_seconds} seconds"
-                )
+                error_msg = f"Task {task_id} timed out after {config.task_timeout_seconds} seconds"
                 log.error(error_msg)
                 await mcp_context.error(error_msg)
 
@@ -712,7 +866,9 @@ class McpAdapter(GatewayAdapter):
         except Exception as e:
             log.warning(f"Failed to register concrete resource for {uri}: {e}")
 
-        log.info(f"Registered artifact for session {session_id}: {filename} (URI: {uri})")
+        log.info(
+            f"Registered artifact for session {session_id}: {filename} (URI: {uri})"
+        )
         return filename, uri, size
 
     async def _handle_artifact_resource_read(self, session_id: str, filename: str):
@@ -729,7 +885,10 @@ class McpAdapter(GatewayAdapter):
         config: McpAdapterConfig = self.context.adapter_config
 
         # Check if this artifact exists for this session
-        if session_id not in self.session_artifacts or filename not in self.session_artifacts[session_id]:
+        if (
+            session_id not in self.session_artifacts
+            or filename not in self.session_artifacts[session_id]
+        ):
             raise ValueError(f"Artifact not found: {filename} in session {session_id}")
 
         # Get artifact metadata
@@ -754,7 +913,9 @@ class McpAdapter(GatewayAdapter):
             raise ValueError(f"Failed to load artifact content: {filename}")
 
         # Build URI
-        uri = artifact_metadata.get("uri", f"{config.resource_uri_prefix}://{session_id}/{filename}")
+        uri = artifact_metadata.get(
+            "uri", f"{config.resource_uri_prefix}://{session_id}/{filename}"
+        )
 
         # Return based on whether it's text or binary
         if is_text_based_file(mime_type, content):
@@ -774,9 +935,7 @@ class McpAdapter(GatewayAdapter):
             return
 
         artifact_count = len(self.session_artifacts[session_id])
-        log.info(
-            f"Clearing {artifact_count} artifact(s) for session {session_id}"
-        )
+        log.info(f"Clearing {artifact_count} artifact(s) for session {session_id}")
 
         del self.session_artifacts[session_id]
 
@@ -797,12 +956,14 @@ class McpAdapter(GatewayAdapter):
 
         artifacts = []
         for filename, metadata in self.session_artifacts[session_id].items():
-            artifacts.append({
-                "filename": filename,
-                "uri": metadata.get("uri"),
-                "mime_type": metadata.get("mime_type"),
-                "size": metadata.get("size"),
-            })
+            artifacts.append(
+                {
+                    "filename": filename,
+                    "uri": metadata.get("uri"),
+                    "mime_type": metadata.get("mime_type"),
+                    "size": metadata.get("size"),
+                }
+            )
 
         return artifacts
 
@@ -812,11 +973,77 @@ class McpAdapter(GatewayAdapter):
         self, external_input: Dict, endpoint_context: Optional[Dict[str, Any]] = None
     ) -> Optional[AuthClaims]:
         """
-        Extract authentication info from MCP request.
-        For now, uses configured default user identity.
+        Extract authentication claims from MCP request.
+
+        This method implements OAuth authentication by:
+        1. Checking if auth is enabled and not in dev mode
+        2. Extracting bearer token from external_input
+        3. Validating token against SAM's OAuth2 service
+        4. Retrieving user info and creating AuthClaims
+
+        If auth is disabled or in dev mode, falls back to default_user_identity.
+
+        Args:
+            external_input: Dictionary containing MCP request data
+            endpoint_context: Optional endpoint-specific context
+
+        Returns:
+            AuthClaims with authenticated user info, or None if auth fails
         """
         config: McpAdapterConfig = self.context.adapter_config
-        return AuthClaims(id=config.default_user_identity, source="mcp")
+
+        # Dev mode bypass (insecure, for development only)
+        if config.dev_mode:
+            log.debug(
+                "Dev mode: Using default_user_identity=%s", config.default_user_identity
+            )
+            return AuthClaims(
+                id=config.default_user_identity,
+                source="mcp_dev",
+                raw_context={"dev_mode": True},
+            )
+
+        # Authentication disabled - use default identity
+        if not config.enable_auth:
+            log.debug(
+                "Auth disabled: Using default_user_identity=%s",
+                config.default_user_identity,
+            )
+            return AuthClaims(id=config.default_user_identity, source="mcp")
+
+        # OAuth authentication enabled - extract and validate token
+        log.debug("OAuth authentication enabled, extracting token from request")
+
+        # Extract token from external_input (could be in headers, metadata, or direct field)
+        access_token = oauth_utils.extract_bearer_token_from_dict(
+            external_input,
+            token_keys=["access_token", "token", "Authorization", "authorization"],
+        )
+
+        if not access_token:
+            log.warning("OAuth enabled but no access token found in MCP request")
+            return None
+
+        # Validate token and get user info
+        try:
+            claims = await oauth_utils.validate_and_create_auth_claims(
+                auth_service_url=config.external_auth_service_url,
+                auth_provider=config.external_auth_provider,
+                access_token=access_token,
+                source="mcp",
+            )
+
+            if claims:
+                log.info("Successfully authenticated MCP user: %s", claims.id)
+                return claims
+            else:
+                log.warning("Token validation failed for MCP request")
+                return None
+
+        except Exception as e:
+            log.error("Error during OAuth authentication: %s", e)
+            # If OAuth service is unreachable, fail closed (reject request)
+            return None
 
     async def prepare_task(
         self, external_input: Dict, endpoint_context: Optional[Dict[str, Any]] = None
@@ -886,7 +1113,9 @@ class McpAdapter(GatewayAdapter):
                     try:
                         stream_queue.put_nowait(part.text)
                     except Exception as e:
-                        log.warning("Failed to queue text chunk for task %s: %s", task_id, e)
+                        log.warning(
+                            "Failed to queue text chunk for task %s: %s", task_id, e
+                        )
 
             elif isinstance(part, SamFilePart):
                 log.info("Received file part: %s", part.name)
@@ -902,19 +1131,30 @@ class McpAdapter(GatewayAdapter):
                     elif content_type == "audio":
                         content_obj = await self._create_audio_content(part, context)
                     elif content_type == "text_embedded":
-                        content_obj = await self._create_text_embedded_resource(part, context)
+                        content_obj = await self._create_text_embedded_resource(
+                            part, context
+                        )
                     elif content_type == "blob_embedded":
-                        content_obj = await self._create_blob_embedded_resource(part, context)
+                        content_obj = await self._create_blob_embedded_resource(
+                            part, context
+                        )
                     elif content_type == "resource_link":
                         content_obj = await self._create_resource_link(part, context)
                 except Exception as e:
-                    log.error(f"Failed to create {content_type} content for {part.name}: {e}", exc_info=True)
+                    log.error(
+                        f"Failed to create {content_type} content for {part.name}: {e}",
+                        exc_info=True,
+                    )
                     # Fallback to simple notification
                     if stream_queue:
                         try:
-                            stream_queue.put_nowait(f"⚠️ Failed to process file: {part.name}")
+                            stream_queue.put_nowait(
+                                f"⚠️ Failed to process file: {part.name}"
+                            )
                         except Exception as queue_err:
-                            log.warning(f"Failed to queue error notification: {queue_err}")
+                            log.warning(
+                                f"Failed to queue error notification: {queue_err}"
+                            )
                     continue
 
                 # Queue the content object for streaming
@@ -923,7 +1163,9 @@ class McpAdapter(GatewayAdapter):
                         stream_queue.put_nowait(content_obj)
                         log.debug(f"Queued {content_type} content for {part.name}")
                     except Exception as e:
-                        log.warning(f"Failed to queue {content_type} for task {task_id}: {e}")
+                        log.warning(
+                            f"Failed to queue {content_type} for task {task_id}: {e}"
+                        )
 
             elif isinstance(part, SamDataPart):
                 # Handle special data types
@@ -962,7 +1204,9 @@ class McpAdapter(GatewayAdapter):
                 await self.task_queues[task_id].put(STREAM_COMPLETE)
                 log.debug("Sent STREAM_COMPLETE signal for task %s", task_id)
             except Exception as e:
-                log.warning("Failed to signal stream completion for task %s: %s", task_id, e)
+                log.warning(
+                    "Failed to signal stream completion for task %s: %s", task_id, e
+                )
 
         # Resolve the Future - this unblocks _handle_tool_call()
         if task_id in self.task_futures:
@@ -1011,7 +1255,11 @@ class McpAdapter(GatewayAdapter):
                 await self.task_queues[task_id].put(STREAM_COMPLETE)
                 log.debug("Sent STREAM_COMPLETE signal for failed task %s", task_id)
             except Exception as e:
-                log.warning("Failed to signal stream completion for failed task %s: %s", task_id, e)
+                log.warning(
+                    "Failed to signal stream completion for failed task %s: %s",
+                    task_id,
+                    e,
+                )
 
         # Resolve the Future with error message - this unblocks _handle_tool_call()
         if task_id in self.task_futures:
