@@ -6,6 +6,7 @@ export { Input } from "./input";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
 export { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card";
 export { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "./form";
+export { Spinner } from "./spinner";
 export * from "./dialog";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
 export { Pagination, PaginationContent, PaginationLink, PaginationItem, PaginationPrevious, PaginationNext, PaginationEllipsis } from "./pagination";

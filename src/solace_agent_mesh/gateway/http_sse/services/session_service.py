@@ -124,7 +124,7 @@ class SessionService:
 
         session_repository = self._get_repositories(db)
         created_session = session_repository.save(db, session)
-        log.info("Created new session %s for user %s", created_session.id, user_id)
+        log.debug("Created new session %s for user %s", created_session.id, user_id)
 
         if not created_session:
             raise ValueError(f"Failed to save session for {session_id}")

@@ -13,6 +13,8 @@ import math
 from .sse_event_buffer import SSEEventBuffer
 
 log = logging.getLogger(__name__)
+trace_logger = logging.getLogger("sam_trace")
+
 
 class SSEManager:
     """
@@ -180,12 +182,19 @@ class SSEManager:
                 self._event_buffer.buffer_event(task_id, sse_payload)
                 return
 
-            log.debug(
-                "%s Prepared SSE payload for Task ID %s: %s",
-                self.log_identifier,
-                task_id,
-                sse_payload,
-            )
+            if trace_logger.isEnabledFor(logging.DEBUG):
+                trace_logger.debug(
+                    "%s Prepared SSE payload for Task ID %s: %s",
+                    self.log_identifier,
+                    task_id,
+                    sse_payload,
+                )
+            else:
+                log.debug(
+                    "%s Prepared SSE payload for Task ID %s",
+                    self.log_identifier,
+                    task_id,
+                )
 
             queues_to_remove = []
             for connection_queue in list(self._connections.get(task_id, [])):

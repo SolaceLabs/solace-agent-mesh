@@ -49,7 +49,6 @@ The `routers` directory contains FastAPI router modules that define the REST API
 - `get_latest_artifact(session_id: str, filename: str) -> StreamingResponse` - Downloads latest artifact version with embed resolution
 - `get_specific_artifact_version(session_id: str, filename: str, version: Union[int, str]) -> StreamingResponse` - Downloads specific version
 - `get_artifact_by_uri(uri: str) -> StreamingResponse` - Downloads artifact by formal artifact:// URI
-- `upload_artifact(session_id: str, filename: str, upload_file: UploadFile, metadata_json: Optional[str]) -> Dict[str, Any]` - Uploads new artifact version with metadata
 - `delete_artifact(session_id: str, filename: str) -> Response` - Deletes artifact and all versions
 
 #### auth.py
@@ -100,6 +99,8 @@ The `routers` directory contains FastAPI router modules that define the REST API
 - `get_session_history(session_id: str, user: dict) -> List[MessageResponse]` - Gets session message history
 - `update_session_name(session_id: str, name: str, user: dict) -> SessionResponse` - Updates session name with validation
 - `delete_session(session_id: str, user: dict) -> None` - Deletes session with cascade notifications
+- `save_task(session_id: str, request: SaveTaskRequest, user: dict) -> TaskResponse` - Saves complete task interaction (upsert)
+- `get_session_tasks(session_id: str, user: dict) -> TaskListResponse` - Gets all tasks for a session
 
 #### sse.py
 **Purpose:** Provides Server-Sent Events endpoint for real-time streaming
@@ -293,22 +294,19 @@ import httpx
 import json
 from pathlib import Path
 
-# Upload an artifact with metadata using session-based endpoint
+# Upload an artifact with metadata and automatic session creation
 async def upload_artifact_with_metadata(session_id: str, filename: str, file_path: Path, metadata: dict = None):
     files = {"upload_file": (filename, file_path.open("rb"))}
-    data = {}
+    data = {
+        "sessionId": session_id,  # Can be null/empty to create new session
+        "filename": filename
+    }
     
     if metadata:
         data["metadata_json"] = json.dumps(metadata)
     
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            f"http://localhost:8000/api/v1/artifacts/{session_id}/{filename}",
-            files=files,
-            data=data
-        )
-        return response.json()
+            "http://localhost:
 
-# Upload artifact with automatic session creation
-
-# content_hash: a98ae1eb7e5483f6e9438569a4c3dd2df4d9992a968e84230d41cf18d2d34624
+# content_hash: 8e5e35d1d55cb448656d32d58b4600db192110e8de163a93765eef3e04086329

@@ -1,0 +1,68 @@
+test_case_id: "builtin_artifact_return_embed_not_found_error_001"
+description: |
+  Tests the 'artifact_return' embed's error handling when the
+  specified artifact filename does not exist. The embed should
+  fail to resolve and the error should be handled gracefully.
+tags: ["all","agent","embeds","builtin_artifact_embeds","error_handling"]
+skip_intermediate_events: true
+
+# No setup_artifacts for the target file.
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_artifact_return_error_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please try to return 'non_existent_return_target.txt', version 0."
+  external_context:
+    a2a_session_id: "session_artifact_return_error_embed_001"
+
+llm_interactions:
+  # Single LLM interaction that includes the artifact_return embed for non-existent file
+  - step_id: "llm_response_with_nonexistent_artifact_embed"
+    static_response:
+      id: "chatcmpl-artifact-return-error-embed-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I'll try to return the file for you. {artifact_return:non_existent_return_target.txt:0}"
+          finish_reason: "stop"
+
+expected_gateway_output:
+  # Since skip_intermediate_events is false, we must list events in the order they appear.
+
+  # LLM Call (that generates response with embed)
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+
+  - type: "status_update"
+    event_purpose: "llm_response"
+    # Assert that the LLM response contains the embed (before resolution attempt)
+    expected_llm_data_contains:
+      content:
+        parts:
+          - text: "I'll try to return the file for you. {artifact_return:non_existent_return_target.txt:0}"
+
+  - type: "status_update"
+    event_purpose: "generic_text_update"
+
+  # Final Task object - the embed resolution failure should be handled gracefully
+  # The exact behavior depends on implementation, but typically the embed remains unresolved
+  # or an error message is substituted
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_artifact_return_error_embed_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            # The embed should either remain unresolved or be replaced with an error message
+            # This may need adjustment based on actual implementation behavior
+            text_contains: "artifact_return:non_existent_return_target.txt:0"

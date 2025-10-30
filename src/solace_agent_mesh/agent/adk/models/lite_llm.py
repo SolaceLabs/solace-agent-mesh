@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import logging
 from typing import Any
@@ -144,6 +145,38 @@ def _safe_json_serialize(obj) -> str:
         return str(obj)
 
 
+def _truncate_tool_call_id(tool_call_id: str, max_length: int = 40) -> str:
+    """Truncates tool call ID to meet OpenAI's maximum length requirement.
+    
+    OpenAI requires tool_call_id to be at most 40 characters. If the ID exceeds
+    this limit, we create a deterministic hash-based truncation to ensure:
+    1. The ID stays within the limit
+    2. The same input always produces the same output (deterministic)
+    3. Collisions are extremely unlikely
+    
+    Args:
+        tool_call_id: The original tool call ID
+        max_length: Maximum allowed length (default: 40 for OpenAI)
+    
+    Returns:
+        Truncated tool call ID that meets the length requirement
+    """
+    if len(tool_call_id) <= max_length:
+        return tool_call_id
+    
+    # Use first part of ID + hash of full ID to maintain uniqueness
+    # Format: prefix_hash where prefix is from original and hash ensures uniqueness
+    prefix_length = max_length - 33  # Reserve 33 chars for hash (32) + underscore (1)
+    if prefix_length < 1:
+        prefix_length = 1
+    
+    prefix = tool_call_id[:prefix_length]
+    # Use SHA256 and take first 32 hex characters for uniqueness
+    hash_suffix = hashlib.sha256(tool_call_id.encode()).hexdigest()[:32]
+    
+    return f"{prefix}_{hash_suffix}"
+
+
 def _content_to_message_param(
     content: types.Content,
 ) -> Union[Message, list[Message]]:
@@ -165,7 +198,7 @@ def _content_to_message_param(
             tool_messages.append(
                 ChatCompletionToolMessage(
                     role="tool",
-                    tool_call_id=part.function_response.id,
+                    tool_call_id=_truncate_tool_call_id(part.function_response.id),
                     content=_safe_json_serialize(part.function_response.response),
                 )
             )
@@ -185,7 +218,7 @@ def _content_to_message_param(
                 tool_calls.append(
                     ChatCompletionAssistantToolCall(
                         type="function",
-                        id=part.function_call.id,
+                        id=_truncate_tool_call_id(part.function_call.id),
                         function=Function(
                             name=part.function_call.name,
                             arguments=_safe_json_serialize(part.function_call.args),
@@ -464,7 +497,7 @@ def _message_to_generate_content_response(
                         name=tool_call.function.name,
                         args=json.loads(tool_call.function.arguments or "{}"),
                     )
-                    part.function_call.id = tool_call.id
+                    part.function_call.id = _truncate_tool_call_id(tool_call.id)
                     parts.append(part)
                 except json.JSONDecodeError as e:
                     logger.error(
@@ -699,6 +732,11 @@ class LiteLlm(BaseLlm):
         super().__init__(model=model, **kwargs)
         self._additional_args = kwargs.copy()
 
+        # Remove handlers added by LiteLLM as they produce duplicate and misformatted logs.
+        # Logging is an application concern and libraries should not set handlers/formatters.
+        for logger_name in ["LiteLLM", "LiteLLM Proxy", "LiteLLM Router", "litellm"]:
+            logging.getLogger(logger_name).handlers.clear()
+
         # Validate and store cache strategy
         valid_strategies = ["none", "5m", "1h"]
         if cache_strategy not in valid_strategies:
@@ -882,7 +920,7 @@ class LiteLlm(BaseLlm):
                                 tool_calls.append(
                                     ChatCompletionMessageToolCall(
                                         type="function",
-                                        id=func_data["id"],
+                                        id=_truncate_tool_call_id(func_data["id"]),
                                         function=Function(
                                             name=func_data["name"],
                                             arguments=func_data["args"],
@@ -911,7 +949,7 @@ class LiteLlm(BaseLlm):
                                 tool_calls.append(
                                     ChatCompletionMessageToolCall(
                                         type="function",
-                                        id=func_data["id"],
+                                        id=_truncate_tool_call_id(func_data["id"]),
                                         function=Function(
                                             name=func_data["name"],
                                             arguments=func_data["args"],

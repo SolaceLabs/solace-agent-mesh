@@ -3,7 +3,6 @@ import { Loader2, FileText, AlertTriangle, Plus } from "lucide-react";
 
 import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
 import type { Project } from "@/lib/types/projects";
-import type { ArtifactInfo } from "@/lib/types";
 import { Button } from "@/lib/components/ui";
 import { useProjectContext } from "@/lib/providers";
 import { ArtifactCard } from "../chat/artifact/ArtifactCard";
@@ -16,7 +15,7 @@ interface ProjectFilesManagerProps {
 
 export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ project, isEditing }) => {
     const { artifacts, isLoading, error, refetch } = useProjectArtifacts(project.id);
-    const { addFilesToProject, removeFileFromProject } = useProjectContext();
+    const { addFilesToProject } = useProjectContext();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
@@ -53,17 +52,6 @@ export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ projec
             console.error("Failed to add files:", e);
         } finally {
             setIsSubmitting(false);
-        }
-    };
-
-    const handleDeleteFile = async (artifact: ArtifactInfo) => {
-        if (window.confirm(`Are you sure you want to delete ${artifact.filename}?`)) {
-            try {
-                await removeFileFromProject(project.id, artifact.filename);
-                await refetch();
-            } catch (e) {
-                console.error(`Failed to delete file ${artifact.filename}:`, e);
-            }
         }
     };
 
@@ -106,7 +94,7 @@ export const ProjectFilesManager: React.FC<ProjectFilesManagerProps> = ({ projec
             ) : (
                 <div className="overflow-hidden rounded-md border">
                     {artifacts.map(artifact => (
-                        <ArtifactCard key={artifact.filename} artifact={artifact} isProjectManagementContext={true} onDelete={isEditing ? () => handleDeleteFile(artifact) : undefined} />
+                        <ArtifactCard key={artifact.filename} artifact={artifact} />
                     ))}
                 </div>
             )}

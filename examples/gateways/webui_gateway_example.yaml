@@ -37,6 +37,7 @@ apps:
         database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
         default_behavior: "PERSISTENT"
       # --- Optional with Defaults ---
+      model: *general_model # Optional: defaults to None - Points to shared_config.yaml
       gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.
       fastapi_host: ${FASTAPI_HOST, localhost} # Host for the FastAPI server
       fastapi_port: ${FASTAPI_PORT, 8000} # Port for the FastAPI server

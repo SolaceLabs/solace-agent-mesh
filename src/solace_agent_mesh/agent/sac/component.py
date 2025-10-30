@@ -2,79 +2,80 @@
 Custom Solace AI Connector Component to Host Google ADK Agents via A2A Protocol.
 """
 
-import logging
-from typing import Any, Dict, Optional, Union, Callable, List, Tuple, TYPE_CHECKING
 import asyncio
-import functools
-import threading
 import concurrent.futures
 import fnmatch
-import time
-import json
-from solace_ai_connector.common.message import (
-    Message as SolaceMessage,
-)
-from solace_ai_connector.common.event import Event, EventType
-
-from solace_ai_connector.common.utils import import_module
+import functools
 import inspect
-from pydantic import BaseModel, ValidationError
-from google.adk.agents.invocation_context import (
-    LlmCallsLimitExceededError,
-)
-from google.adk.agents import RunConfig
-from google.adk.agents.run_config import StreamingMode
-from google.adk.sessions import BaseSessionService
-from google.adk.artifacts import BaseArtifactService
-from google.adk.memory import BaseMemoryService
-from google.adk.agents import LlmAgent
-from google.adk.runners import Runner
-from google.adk.models import LlmResponse
-from google.adk.agents.readonly_context import ReadonlyContext
-from google.adk.events import Event as ADKEvent
-from google.adk.agents.callback_context import CallbackContext
-from google.adk.models.llm_request import LlmRequest
-from google.genai import types as adk_types
-from google.adk.tools.mcp_tool import MCPToolset
+import json
+import logging
+import threading
+import time
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+
 from a2a.types import (
     AgentCard,
-    Artifact as A2AArtifact,
-    Message as A2AMessage,
     MessageSendParams,
     SendMessageRequest,
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
 )
-from ...common import a2a
-from ...common.data_parts import AgentProgressUpdateData
-from ...common.a2a.translation import format_and_route_adk_event
-from ...agent.utils.config_parser import resolve_instruction_provider
+from a2a.types import Artifact as A2AArtifact
+from a2a.types import Message as A2AMessage
+from google.adk.agents import LlmAgent, RunConfig
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.agents.invocation_context import LlmCallsLimitExceededError
+from google.adk.agents.readonly_context import ReadonlyContext
+from google.adk.agents.run_config import StreamingMode
+from google.adk.artifacts import BaseArtifactService
+from google.adk.auth.credential_service.base_credential_service import (
+    BaseCredentialService,
+)
+from google.adk.events import Event as ADKEvent
+from google.adk.memory import BaseMemoryService
+from google.adk.models import LlmResponse
+from google.adk.models.llm_request import LlmRequest
+from google.adk.runners import Runner
+from google.adk.sessions import BaseSessionService
+from google.adk.tools.mcp_tool import MCPToolset
+from google.genai import types as adk_types
+from pydantic import BaseModel, ValidationError
+from solace_ai_connector.common.event import Event, EventType
+from solace_ai_connector.common.message import Message as SolaceMessage
+from solace_ai_connector.common.utils import import_module
+
+from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.adk.services import (
-    initialize_session_service,
     initialize_artifact_service,
+    initialize_credential_service,
     initialize_memory_service,
+    initialize_session_service,
 )
 from ...agent.adk.setup import (
-    load_adk_tools,
     initialize_adk_agent,
     initialize_adk_runner,
+    load_adk_tools,
 )
-from ...agent.protocol.event_handlers import (
-    process_event,
-    publish_agent_card,
-)
-from ...agent.adk.runner import run_adk_async_task_thread_wrapper, TaskCancelledError
+from ...agent.protocol.event_handlers import process_event, publish_agent_card
 from ...agent.tools.peer_agent_tool import (
     CORRELATION_DATA_PREFIX,
-    PeerAgentTool,
     PEER_TOOL_PREFIX,
+    PeerAgentTool,
 )
-from ...common.middleware.registry import MiddlewareRegistry
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT, HEALTH_CHECK_TTL_SECONDS, HEALTH_CHECK_INTERVAL_SECONDS
 from ...agent.tools.registry import tool_registry
-from ...common.sac.sam_component_base import SamComponentBase
+from ...agent.utils.config_parser import resolve_instruction_provider
+from ...common import a2a
+from ...common.a2a.translation import format_and_route_adk_event
 from ...common.agent_registry import AgentRegistry
+from ...common.constants import (
+    DEFAULT_COMMUNICATION_TIMEOUT,
+    HEALTH_CHECK_INTERVAL_SECONDS,
+    HEALTH_CHECK_TTL_SECONDS,
+)
+from ...common.data_parts import AgentProgressUpdateData
+from ...common.middleware.registry import MiddlewareRegistry
+from ...common.sac.sam_component_base import SamComponentBase
 
 log = logging.getLogger(__name__)
 
@@ -103,7 +104,6 @@ info = {
 }
 InstructionProvider = Callable[[ReadonlyContext], str]
 
-
 class SamAgentComponent(SamComponentBase):
     """
     A Solace AI Connector component that hosts a Google ADK agent,
@@ -128,8 +128,8 @@ class SamAgentComponent(SamComponentBase):
 
         super().__init__(info, **kwargs)
         self.agent_name = self.get_config("agent_name")
-        log.info("%s Initializing A2A ADK Host Component...", self.log_identifier)
-        
+        log.info("%s Initializing agent: %s (A2A ADK Host Component)...", self.log_identifier, self.agent_name)
+
         # Initialize the agent registry for health tracking
         self.agent_registry = AgentRegistry()
         try:
@@ -226,7 +226,6 @@ class SamAgentComponent(SamComponentBase):
                 "max_message_size_bytes", 10_000_000
             )
 
-            log.info("%s Configuration retrieved successfully.", self.log_identifier)
         except Exception as e:
             log.error(
                 "%s Failed to retrieve configuration via get_config: %s",
@@ -237,6 +236,7 @@ class SamAgentComponent(SamComponentBase):
         self.session_service: BaseSessionService = None
         self.artifact_service: BaseArtifactService = None
         self.memory_service: BaseMemoryService = None
+        self.credential_service: Optional[BaseCredentialService] = None
         self.adk_agent: LlmAgent = None
         self.runner: Runner = None
         self.agent_card_tool_manifest: List[Dict[str, Any]] = []
@@ -265,9 +265,10 @@ class SamAgentComponent(SamComponentBase):
                 self.session_service = initialize_session_service(self)
                 self.artifact_service = initialize_artifact_service(self)
                 self.memory_service = initialize_memory_service(self)
+                self.credential_service = initialize_credential_service(self)
 
                 log.info(
-                    "%s Synchronous ADK services initialized.", self.log_identifier
+                    "%s Initialized Synchronous ADK services.", self.log_identifier
                 )
             except Exception as service_err:
                 log.exception(
@@ -278,6 +279,18 @@ class SamAgentComponent(SamComponentBase):
                 raise RuntimeError(
                     f"Failed to initialize synchronous ADK services: {service_err}"
                 ) from service_err
+
+            # initialize enterprise features if available
+            try:
+                from solace_agent_mesh_enterprise.init_enterprise_component import (
+                    init_enterprise_component_features,
+                )
+
+                init_enterprise_component_features(self)
+            except ImportError:
+                # Community edition
+                # Contact Solace support for enterprise features
+                pass
 
             from .app import (
                 AgentInitCleanupConfig,
@@ -424,9 +437,11 @@ class SamAgentComponent(SamComponentBase):
                     "%s Agent card publishing interval not configured or invalid, card will not be published periodically.",
                     self.log_identifier,
                 )
-                
+
             # Set up health check timer if enabled
-            health_check_interval_seconds = self.agent_discovery_config.get("health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS)
+            health_check_interval_seconds = self.agent_discovery_config.get(
+                "health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS
+            )
             if health_check_interval_seconds > 0:
                 log.info(
                     "%s Scheduling agent health check every %d seconds.",
@@ -444,9 +459,9 @@ class SamAgentComponent(SamComponentBase):
                     "%s Agent health check interval not configured or invalid, health checks will not run periodically.",
                     self.log_identifier,
                 )
-                
+
             log.info(
-                "%s Initialization complete for agent: %s",
+                "%s Initialized agent: %s",
                 self.log_identifier,
                 self.agent_name,
             )
@@ -483,6 +498,16 @@ class SamAgentComponent(SamComponentBase):
         # Create event and process asynchronously
         event = Event(EventType.MESSAGE, message)
         await process_event(self, event)
+
+    def handle_timer_event(self, timer_data: Dict[str, Any]):
+        """Handles timer events for agent card publishing and health checks."""
+        log.debug("%s Received timer event: %s", self.log_identifier, timer_data)
+        timer_id = timer_data.get("timer_id")
+
+        if timer_id == self._card_publish_timer_id:
+            publish_agent_card(self)
+        elif timer_id == self.HEALTH_CHECK_TIMER_ID:
+            self._check_agent_health()
 
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
         """
@@ -522,6 +547,83 @@ class SamAgentComponent(SamComponentBase):
                 self.log_identifier,
                 sub_task_id,
             )
+
+    async def get_main_task_context(
+        self, logical_task_id: str
+    ) -> Optional["TaskExecutionContext"]:
+        """
+        Retrieves the main task context for a given logical task ID.
+
+        This method is used when the current agent is the target agent for the task.
+        It returns the TaskExecutionContext which contains the full task state including
+        a2a_context, active_peer_sub_tasks, and other task execution details.
+
+        Args:
+            logical_task_id: The unique logical ID of the task
+
+        Returns:
+            The TaskExecutionContext if the task is active, None otherwise
+
+        Raises:
+            ValueError: If logical_task_id is None or empty
+        """
+        if not logical_task_id:
+            raise ValueError("logical_task_id cannot be None or empty")
+
+        with self.active_tasks_lock:
+            active_task_context = self.active_tasks.get(logical_task_id)
+            if active_task_context is None:
+                log.warning(
+                    f"No active task context found for logical_task_id: {logical_task_id}"
+                )
+                return None
+
+            return active_task_context
+
+    async def get_all_sub_task_correlation_data_from_logical_task_id(
+        self, logical_task_id: str
+    ) -> list[dict[str, Any]]:
+        """
+        Retrieves correlation data for all active peer sub-tasks of a given logical task.
+
+        This method is used when forwarding requests to other agents in an A2A workflow.
+        It returns a list of correlation data dictionaries, each containing information
+        about a peer sub-task including peer_task_id, peer_agent_name, and original_task_context.
+
+        Args:
+            logical_task_id: The unique logical ID of the parent task
+
+        Returns:
+            List of correlation data dictionaries for active peer sub-tasks.
+            Returns empty list if no active peer sub-tasks exist.
+
+        Raises:
+            ValueError: If logical_task_id is None or empty
+        """
+        if not logical_task_id:
+            raise ValueError("logical_task_id cannot be None or empty")
+
+        with self.active_tasks_lock:
+            active_task_context = self.active_tasks.get(logical_task_id)
+            if active_task_context is None:
+                log.warning(
+                    f"No active task context found for logical_task_id: {logical_task_id}"
+                )
+                return []
+
+            active_peer_sub_tasks = active_task_context.active_peer_sub_tasks
+            if not active_peer_sub_tasks:
+                log.debug(
+                    f"No active peer sub-tasks found for logical_task_id: {logical_task_id}"
+                )
+                return []
+
+            results = []
+            for sub_task_id, correlation_data in active_peer_sub_tasks.items():
+                if sub_task_id is not None and correlation_data is not None:
+                    results.append(correlation_data)
+
+            return results
 
     async def _get_correlation_data_for_sub_task(
         self, sub_task_id: str
@@ -1514,7 +1616,7 @@ class SamAgentComponent(SamComponentBase):
                 payload_to_publish, target_topic, a2a_context, user_properties
             )
 
-            log.info(
+            log.debug(
                 "%s Published %s status update to %s.",
                 log_identifier,
                 status_type,
@@ -1627,6 +1729,19 @@ class SamAgentComponent(SamComponentBase):
         is_run_based_session = a2a_context.get("is_run_based_session", False)
         is_final_turn_event = not adk_event.partial
 
+        try:
+            from solace_agent_mesh_enterprise.auth.tool_auth import handle_tool_auth_event
+            auth_status_update = await handle_tool_auth_event(adk_event, self, a2a_context)
+            if auth_status_update:
+                await self._publish_status_update_with_buffer_flush(
+                    auth_status_update,
+                    a2a_context,
+                    skip_buffer_flush=False,
+                )
+                return
+        except ImportError:
+            pass
+
         if not is_final_turn_event:
             if adk_event.content and adk_event.content.parts:
                 for part in adk_event.content.parts:
@@ -1655,7 +1770,7 @@ class SamAgentComponent(SamComponentBase):
             )
 
             if buffer_has_content and (batching_disabled or threshold_met):
-                log.info(
+                log.debug(
                     "%s Partial event triggered buffer flush due to size/batching config.",
                     log_id_main,
                 )
@@ -1678,7 +1793,7 @@ class SamAgentComponent(SamComponentBase):
         else:
             buffer_content = task_context.get_streaming_buffer_content()
             if buffer_content:
-                log.info(
+                log.debug(
                     "%s Final event triggered flush of remaining buffer content.",
                     log_id_main,
                 )
@@ -1712,7 +1827,7 @@ class SamAgentComponent(SamComponentBase):
 
             if a2a_payload and target_topic:
                 self._publish_a2a_event(a2a_payload, target_topic, a2a_context)
-                log.info(
+                log.debug(
                     "%s Published final turn event (e.g., tool call) to %s.",
                     log_id_main,
                     target_topic,
@@ -1769,7 +1884,7 @@ class SamAgentComponent(SamComponentBase):
                 log_id,
                 len(signals_found),
             )
-            for _signal_index, signal_data_tuple in signals_found:
+            for _signal_index, signal_data_tuple, _placeholder in signals_found:
                 if (
                     isinstance(signal_data_tuple, tuple)
                     and len(signal_data_tuple) == 3
@@ -1785,6 +1900,7 @@ class SamAgentComponent(SamComponentBase):
                     await self._publish_agent_status_signal_update(
                         status_text, a2a_context
                     )
+                    resolved_text = resolved_text.replace(_placeholder, "")
 
         return resolved_text, unprocessed_tail
 
@@ -1998,9 +2114,14 @@ class SamAgentComponent(SamComponentBase):
         For STREAMING tasks, it uses the content of the last ADK event.
         """
         logical_task_id = a2a_context.get("logical_task_id")
-        original_message: Optional[SolaceMessage] = a2a_context.get(
-            "original_solace_message"
-        )
+
+        # Retrieve the original Solace message from TaskExecutionContext
+        original_message: Optional[SolaceMessage] = None
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+            if task_context:
+                original_message = task_context.get_original_solace_message()
+
         log.info(
             "%s Finalizing task %s successfully.", self.log_identifier, logical_task_id
         )
@@ -2194,9 +2315,14 @@ class SamAgentComponent(SamComponentBase):
         Called by the background ADK thread wrapper when a task is cancelled.
         """
         logical_task_id = a2a_context.get("logical_task_id")
-        original_message: Optional[SolaceMessage] = a2a_context.get(
-            "original_solace_message"
-        )
+
+        # Retrieve the original Solace message from TaskExecutionContext
+        original_message: Optional[SolaceMessage] = None
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+            if task_context:
+                original_message = task_context.get_original_solace_message()
+
         log.info(
             "%s Finalizing task %s as CANCELED.", self.log_identifier, logical_task_id
         )
@@ -2398,9 +2524,14 @@ class SamAgentComponent(SamComponentBase):
         Sends a COMPLETED status with an informative message.
         """
         logical_task_id = a2a_context.get("logical_task_id")
-        original_message: Optional[SolaceMessage] = a2a_context.get(
-            "original_solace_message"
-        )
+
+        # Retrieve the original Solace message from TaskExecutionContext
+        original_message: Optional[SolaceMessage] = None
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+            if task_context:
+                original_message = task_context.get_original_solace_message()
+
         log.info(
             "%s Finalizing task %s as COMPLETED (LLM call limit reached).",
             self.log_identifier,
@@ -2477,9 +2608,14 @@ class SamAgentComponent(SamComponentBase):
         Called by the background ADK thread wrapper.
         """
         logical_task_id = a2a_context.get("logical_task_id")
-        original_message: Optional[SolaceMessage] = a2a_context.get(
-            "original_solace_message"
-        )
+
+        # Retrieve the original Solace message from TaskExecutionContext
+        original_message: Optional[SolaceMessage] = None
+        with self.active_tasks_lock:
+            task_context = self.active_tasks.get(logical_task_id)
+            if task_context:
+                original_message = task_context.get_original_solace_message()
+
         log.error(
             "%s Finalizing task %s with error: %s",
             self.log_identifier,
@@ -2622,9 +2758,13 @@ class SamAgentComponent(SamComponentBase):
                         log_id,
                         e,
                     )
-                    original_message: Optional[SolaceMessage] = a2a_context.get(
-                        "original_solace_message"
-                    )
+                    # Retrieve the original Solace message from TaskExecutionContext for fallback NACK
+                    original_message: Optional[SolaceMessage] = None
+                    with self.active_tasks_lock:
+                        task_context = self.active_tasks.get(logical_task_id)
+                        if task_context:
+                            original_message = task_context.get_original_solace_message()
+
                     if original_message:
                         try:
                             original_message.call_negative_acknowledgements()
@@ -2825,6 +2965,7 @@ class SamAgentComponent(SamComponentBase):
             "replyTo": reply_to_topic,
             "a2aStatusTopic": status_topic,
             "userId": user_id,
+            "delegating_agent_name": delegating_agent_name,
         }
         if isinstance(user_config, dict):
             user_properties["a2aUserConfig"] = user_config
@@ -3180,79 +3321,93 @@ class SamAgentComponent(SamComponentBase):
         For now, using the agent name, but could be made more robust (e.g., hostname + agent name).
         """
         return self.agent_name
-        
+
     def _check_agent_health(self):
         """
         Checks the health of peer agents and de-registers unresponsive ones.
         This is called periodically by the health check timer.
         Uses TTL-based expiration to determine if an agent is unresponsive.
         """
-            
+
         log.debug("%s Performing agent health check...", self.log_identifier)
-        
-        ttl_seconds = self.agent_discovery_config.get("health_check_ttl_seconds", HEALTH_CHECK_TTL_SECONDS)
-        health_check_interval = self.agent_discovery_config.get("health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS)
-        
+
+        ttl_seconds = self.agent_discovery_config.get(
+            "health_check_ttl_seconds", HEALTH_CHECK_TTL_SECONDS
+        )
+        health_check_interval = self.agent_discovery_config.get(
+            "health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS
+        )
+
         log.debug(
             "%s Health check configuration: interval=%d seconds, TTL=%d seconds",
             self.log_identifier,
             health_check_interval,
-            ttl_seconds
+            ttl_seconds,
         )
 
         # Validate configuration values
-        if ttl_seconds <= 0 or health_check_interval <= 0 or ttl_seconds < health_check_interval:
+        if (
+            ttl_seconds <= 0
+            or health_check_interval <= 0
+            or ttl_seconds < health_check_interval
+        ):
             log.error(
                 "%s agent_health_check_ttl_seconds (%d) and agent_health_check_interval_seconds (%d) must be positive and TTL must be greater than interval.",
                 self.log_identifier,
                 ttl_seconds,
-                health_check_interval
+                health_check_interval,
             )
-            raise ValueError(f"Invalid health check configuration. agent_health_check_ttl_seconds ({ttl_seconds}) and agent_health_check_interval_seconds ({health_check_interval}) must be positive and TTL must be greater than interval.")
-        
+            raise ValueError(
+                f"Invalid health check configuration. agent_health_check_ttl_seconds ({ttl_seconds}) and agent_health_check_interval_seconds ({health_check_interval}) must be positive and TTL must be greater than interval."
+            )
+
         # Get all agent names from the registry
         agent_names = self.agent_registry.get_agent_names()
         total_agents = len(agent_names)
         agents_to_deregister = []
-        
-        log.debug("%s Checking health of %d peer agents", self.log_identifier, total_agents)
-        
+
+        log.debug(
+            "%s Checking health of %d peer agents", self.log_identifier, total_agents
+        )
+
         for agent_name in agent_names:
             # Skip our own agent
             if agent_name == self.agent_name:
                 continue
-                
+
             # Check if the agent's TTL has expired
-            is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(agent_name, ttl_seconds)
-            
+            is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(
+                agent_name, ttl_seconds
+            )
+
             if is_expired:
                 log.warning(
                     "%s Agent '%s' TTL has expired. De-registering. Time since last seen: %d seconds (TTL: %d seconds)",
                     self.log_identifier,
                     agent_name,
                     time_since_last_seen,
-                    ttl_seconds
+                    ttl_seconds,
                 )
                 agents_to_deregister.append(agent_name)
-            
+
         # De-register unresponsive agents
         for agent_name in agents_to_deregister:
             self._deregister_agent(agent_name)
-            
+
         log.debug(
             "%s Agent health check completed. Total agents: %d, De-registered: %d",
             self.log_identifier,
             total_agents,
-            len(agents_to_deregister)
+            len(agents_to_deregister),
         )
-        
+
     def _deregister_agent(self, agent_name: str):
         """
         De-registers an agent from the registry and publishes a de-registration event.
         """
         # Remove from registry
         registry_removed = self.agent_registry.remove_agent(agent_name)
-        
+
         # Always remove from peer_agents regardless of registry result
         peer_removed = False
         if agent_name in self.peer_agents:
@@ -3261,18 +3416,18 @@ class SamAgentComponent(SamComponentBase):
             log.info(
                 "%s Removed agent '%s' from peer_agents dictionary",
                 self.log_identifier,
-                agent_name
+                agent_name,
             )
-        
+
         # Publish de-registration event if agent was in either data structure
         if registry_removed or peer_removed:
             try:
                 # Create a de-registration event topic
                 namespace = self.get_config("namespace")
                 deregistration_topic = f"{namespace}/a2a/events/agent/deregistered"
-                
+
                 current_time = time.time()
-                
+
                 # Create the payload
                 deregistration_payload = {
                     "event_type": "agent.deregistered",
@@ -3280,28 +3435,27 @@ class SamAgentComponent(SamComponentBase):
                     "reason": "health_check_failure",
                     "metadata": {
                         "timestamp": current_time,
-                        "deregistered_by": self.agent_name
-                    }
+                        "deregistered_by": self.agent_name,
+                    },
                 }
-                
+
                 # Publish the event
                 self.publish_a2a_message(
-                    payload=deregistration_payload,
-                    topic=deregistration_topic
+                    payload=deregistration_payload, topic=deregistration_topic
                 )
-                
+
                 log.info(
                     "%s Published de-registration event for agent '%s' to topic '%s'",
                     self.log_identifier,
                     agent_name,
-                    deregistration_topic
+                    deregistration_topic,
                 )
             except Exception as e:
                 log.error(
                     "%s Failed to publish de-registration event for agent '%s': %s",
                     self.log_identifier,
                     agent_name,
-                    e
+                    e,
                 )
 
     async def _resolve_early_embeds_and_handle_signals(
@@ -3356,11 +3510,12 @@ class SamAgentComponent(SamComponentBase):
         resolver_config = context_for_embeds["config"]
 
         try:
-            from ...common.utils.embeds.resolver import (
-                resolve_embeds_in_string,
-                evaluate_embed,
-            )
             from ...common.utils.embeds.constants import EARLY_EMBED_TYPES
+            from ...common.utils.embeds.types import ResolutionMode
+            from ...common.utils.embeds.resolver import (
+                evaluate_embed,
+                resolve_embeds_in_string,
+            )
 
             resolved_text, processed_until_index, signals_found = (
                 await resolve_embeds_in_string(
@@ -3368,6 +3523,7 @@ class SamAgentComponent(SamComponentBase):
                     context=context_for_embeds,
                     resolver_func=evaluate_embed,
                     types_to_resolve=EARLY_EMBED_TYPES,
+                    resolution_mode=ResolutionMode.TOOL_PARAMETER,
                     log_identifier=method_context_log_identifier,
                     config=resolver_config,
                 )

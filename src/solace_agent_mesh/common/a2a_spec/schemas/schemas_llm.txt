@@ -9,7 +9,6 @@ This directory contains JSON Schema definitions for various agent-to-agent (A2A)
 - `llm_invocation.json` - Schema for LLM model invocation signals with usage tracking
 - `tool_invocation_start.json` - Schema for tool execution start notifications
 - `tool_result.json` - Schema for tool execution completion results with optional LLM usage
-- `schemas_llm.txt` - Previous developer guide (legacy documentation)
 
 ## Developer API Reference
 
@@ -52,7 +51,7 @@ validate(instance=data, schema=schema)
 ```
 
 ### artifact_creation_progress.json
-**Purpose:** Defines the schema for tracking progress during file or artifact creation operations with chunked data transfer.
+**Purpose:** Defines the schema for tracking progress during file or artifact creation operations with status tracking and chunked data transfer.
 
 **Import:** Load as JSON schema for validation
 ```python
@@ -65,16 +64,22 @@ from jsonschema import validate
 {
   "type": "artifact_creation_progress",
   "filename": "string",
-  "bytes_saved": "integer",
-  "artifact_chunk": "string"
+  "description": "string",
+  "status": "in-progress|completed|failed",
+  "bytes_transferred": "integer",
+  "artifact_chunk": "string",
+  "mime_type": "string"
 }
 ```
 
 **Properties:**
 - `type: "artifact_creation_progress"` - Constant identifier for this signal type (required)
 - `filename: string` - Name of the artifact being created (required)
-- `bytes_saved: integer` - Number of bytes saved so far (required)
-- `artifact_chunk: string` - The chunk of artifact data that was saved in this update (required)
+- `description: string` - Optional description of the artifact being created (optional)
+- `status: string` - Status of artifact creation: "in-progress", "completed", or "failed" (required)
+- `bytes_transferred: integer` - Number of bytes transferred so far (required)
+- `artifact_chunk: string` - Chunk of artifact data transferred in this update (optional, only for 'in-progress')
+- `mime_type: string` - MIME type of the artifact (optional, only for 'completed')
 
 **Usage Examples:**
 ```python
@@ -85,14 +90,26 @@ from jsonschema import validate
 with open('solace_agent_mesh/common/a2a_spec/schemas/artifact_creation_progress.json') as f:
     schema = json.load(f)
 
-# Valid data example
+# In-progress example
 data = {
     "type": "artifact_creation_progress",
     "filename": "report.pdf",
-    "bytes_saved": 1024,
+    "description": "Monthly sales report",
+    "status": "in-progress",
+    "bytes_transferred": 1024,
     "artifact_chunk": "JVBERi0xLjQKJcOkw7zDtsO..."
 }
 validate(instance=data, schema=schema)
+
+# Completed example
+completed_data = {
+    "type": "artifact_creation_progress",
+    "filename": "report.pdf",
+    "status": "completed",
+    "bytes_transferred": 5120,
+    "mime_type": "application/pdf"
+}
+validate(instance=completed_data, schema=schema)
 ```
 
 ### llm_invocation.json
@@ -310,4 +327,4 @@ schemas = {
 }
 ```
 
-# content_hash: 8d0325636918fd8bdabc0ba61bed79ae2b2be06778893406197aebfb7c3e3a21
+# content_hash: 9b18c2ba0e0aa3d52a27ecd90f45376713fe2738cee386219f988fd84da93a51

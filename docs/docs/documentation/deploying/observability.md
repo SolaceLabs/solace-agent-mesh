@@ -9,6 +9,10 @@ Understanding how your Agent Mesh system operates in real-time is crucial for ma
 
 These observability tools work together to create a complete picture of your system's health and performance. Whether you're troubleshooting a specific issue, optimizing performance, or simply monitoring day-to-day operations, these tools provide the visibility you need to maintain a robust agent mesh.
 
+:::tip Complementary Tools
+The observability features described here focus on runtime behavior and message flows. For information about application logging, see [Logging Configuration](./logging.md).
+:::
+
 ## Viewing Workflows
 
 The workflow viewer serves as your primary window into how individual requests flow through your agent mesh. This interactive visualization tool transforms complex multi-agent interactions into clear, understandable diagrams that show exactly how your system processes each user query.

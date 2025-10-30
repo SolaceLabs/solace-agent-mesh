@@ -121,7 +121,7 @@ async def get_app_config(
             "frontend_feature_enablement": feature_enablement,
             "persistence_enabled": api_config.get("persistence_enabled", False),
         }
-        log.info("%sReturning frontend configuration.", log_prefix)
+        log.debug("%sReturning frontend configuration.", log_prefix)
         return config_data
     except Exception as e:
         log.exception(

@@ -137,6 +137,37 @@ class IFeedbackRepository(ABC):
         pass
 
     @abstractmethod
+    def search(
+        self,
+        session: DBSession,
+        user_id: UserId,
+        start_date: int | None = None,
+        end_date: int | None = None,
+        task_id: str | None = None,
+        session_id: str | None = None,
+        rating: str | None = None,
+        pagination: PaginationParams | None = None,
+    ) -> list[Feedback]:
+        """
+        Search feedback with flexible filtering.
+        All filters are optional and can be combined.
+
+        Args:
+            session: Database session
+            user_id: User ID to filter by, or "*" for all users (admin)
+            start_date: Start of date range in epoch milliseconds
+            end_date: End of date range in epoch milliseconds
+            task_id: Filter by specific task ID
+            session_id: Filter by specific session ID
+            rating: Filter by rating type ("up" or "down")
+            pagination: Pagination parameters
+
+        Returns:
+            List of feedback entries matching the filters
+        """
+        pass
+
+    @abstractmethod
     def delete_feedback_older_than(self, session: DBSession, cutoff_time_ms: int, batch_size: int) -> int:
         """Delete feedback older than cutoff time using batch deletion."""
         pass

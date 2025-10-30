@@ -55,7 +55,7 @@ dependencies = [
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
-    "solace_ai_connector==1.3.0",
+    "solace_ai_connector==1.3.1",
     "holidays==0.81.0",
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
@@ -72,7 +72,7 @@ postgresql = ["psycopg2-binary==2.9.10"]
 
 [tool.hatch.envs.hatch-test]
 parallel = false
-installer = "pip"
+installer = "uv"
 dependencies = [
     "solace-agent-mesh[postgresql,gcs,vertex,employee_tools,s3]",
     "pytest-asyncio",
@@ -91,15 +91,19 @@ dependencies = [
     "asyncpg",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
 ]
+post-install-commands = [
+  "playwright install"
+]
 
 [[tool.hatch.envs.hatch-test.matrix]]
 python = ["3.10", "3.13"]
 
 [tool.hatch.envs.hatch-test.scripts]
 run = "pytest {args}"
-run-cov = "coverage run -m pytest {args}"
+run-cov = "coverage run -m pytest --cov=cli --cov=src {args}"
 cov-combine = "coverage combine"
 cov-report = "coverage report"
+
 
 [project.urls]
 Homepage = "https://github.com/SolaceLabs/solace-agent-mesh"
@@ -160,6 +164,7 @@ markers = [
     "artifacts: marks tests related to artifact handling and services",
     "api: marks tests related to the API",
     "tasks: marks tests related to task management",
+    "builtin_artifact_embeds: marks tests related to the builtin_artifact_embeds",
     "projects: marks tests related to project management",
     "default_agent: marks tests related to default agent functionality",
     "crud: marks tests related to CRUD operations",

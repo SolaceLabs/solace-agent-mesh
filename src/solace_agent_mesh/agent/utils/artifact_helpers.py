@@ -822,7 +822,7 @@ async def get_artifact_info_list(
         keys = await list_keys_method(
             app_name=app_name, user_id=user_id, session_id=session_id
         )
-        log.info(
+        log.debug(
             "%s Found %d artifact keys. Fetching details...", log_prefix, len(keys)
         )
 
