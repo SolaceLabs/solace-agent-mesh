@@ -162,8 +162,6 @@ class TestAgentProgressUpdateData:
         """Test progress update with empty status text."""
         data = AgentProgressUpdateData(status_text="")
         assert data.status_text == ""
-
-    def test_agent_progress_update_with_long_status(self):
         """Test progress update with long status text."""
         long_status = "A" * 1000
         data = AgentProgressUpdateData(status_text=long_status)
