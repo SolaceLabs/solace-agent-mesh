@@ -111,7 +111,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error("Projects feature is disabled");
             }
 
-
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts`, {
                     method: "POST",
@@ -125,10 +124,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     }));
                     throw new Error(errorData.detail || `Failed to add files: ${response.statusText}`);
                 }
+                // Clear any previous errors on success
+                setError(null);
             } catch (err: unknown) {
                 console.error("Error adding files to project:", err);
                 const errorMessage = err instanceof Error ? err.message : "Could not add files to project.";
-                setError(errorMessage);
+                // Don't set global error for file operations - let component handle it
                 throw new Error(errorMessage);
             }
         },
@@ -140,7 +141,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (!projectsEnabled) {
                 throw new Error("Projects feature is disabled");
             }
-
 
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
@@ -154,10 +154,12 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     }));
                     throw new Error(errorData.detail || `Failed to remove file: ${response.statusText}`);
                 }
+                // Clear any previous errors on success
+                setError(null);
             } catch (err: unknown) {
                 console.error("Error removing file from project:", err);
                 const errorMessage = err instanceof Error ? err.message : "Could not remove file from project.";
-                setError(errorMessage);
+                // Don't set global error for file operations - let component handle it
                 throw new Error(errorMessage);
             }
         },
@@ -179,10 +181,35 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({
-                        detail: `Failed to update project: ${response.statusText}`,
-                    }));
-                    throw new Error(errorData.detail || `Failed to update project: ${response.statusText}`);
+                    let errorMessage = `Failed to update project: ${response.statusText}`;
+                    
+                    try {
+                        const errorData = await response.json();
+                        
+                        // Handle validation errors (422)
+                        if (response.status === 422) {
+                            if (errorData.detail) {
+                                // Check if it's a Pydantic validation error array
+                                if (Array.isArray(errorData.detail)) {
+                                    const validationErrors = errorData.detail
+                                        .map((err: any) => {
+                                            const field = err.loc?.join('.') || 'field';
+                                            return `${field}: ${err.msg}`;
+                                        })
+                                        .join(', ');
+                                    errorMessage = `Validation error: ${validationErrors}`;
+                                } else if (typeof errorData.detail === 'string') {
+                                    errorMessage = errorData.detail;
+                                }
+                            }
+                        } else {
+                            errorMessage = errorData.detail || errorData.message || errorMessage;
+                        }
+                    } catch {
+                        // If JSON parsing fails, use the default error message
+                    }
+                    
+                    throw new Error(errorMessage);
                 }
 
                 const updatedProject: Project = await response.json();
@@ -203,11 +230,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 // Update active project if it's the one being edited
                 setActiveProject(current => (current?.id === updatedProject.id ? updatedProject : current));
 
+                // Clear any previous errors on success
+                setError(null);
+                
                 return updatedProject;
             } catch (err: unknown) {
                 console.error("Error updating project:", err);
                 const errorMessage = err instanceof Error ? err.message : "Could not update project.";
-                setError(errorMessage);
+                // Don't set global error state for update failures - let the component handle it
                 throw new Error(errorMessage);
             }
         },
@@ -239,13 +269,16 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 setSelectedProject(selected => (selected?.id === projectId ? null : selected));
                 setActiveProject(active => (active?.id === projectId ? null : active));
                 
+                // Clear any previous errors on success
+                setError(null);
+                
                 if (onProjectDeletedCallback) {
                     onProjectDeletedCallback(projectId);
                 }
             } catch (err: unknown) {
                 console.error("Error deleting project:", err);
                 const errorMessage = err instanceof Error ? err.message : "Could not delete project.";
-                setError(errorMessage);
+                // Don't set global error for delete operations - let component handle it
                 throw new Error(errorMessage);
             }
         },

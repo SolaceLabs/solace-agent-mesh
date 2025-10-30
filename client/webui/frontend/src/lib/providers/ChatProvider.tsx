@@ -1257,6 +1257,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         // Clear session ID - will be set by backend when first message is sent
         setSessionId("");
+        
+        // Clear session name - will be set when first message is sent
+        setSessionName(null);
 
         // Clear project context when starting a new chat outside of a project
         if (activeProject && !preserveProjectContext) {

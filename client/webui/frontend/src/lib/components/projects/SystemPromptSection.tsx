@@ -1,38 +1,65 @@
 import React, { useState, useEffect } from "react";
-import { Pencil, Save, X } from "lucide-react";
+import { Pencil, Save, X, AlertCircle } from "lucide-react";
 
 import { Button, Textarea } from "@/lib/components/ui";
 import type { Project } from "@/lib/types/projects";
+import { useConfigContext } from "@/lib/hooks";
 
 interface SystemPromptSectionProps {
     project: Project;
     onSave: (systemPrompt: string) => Promise<void>;
     isSaving: boolean;
+    error?: string | null;
 }
 
 export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
     project,
     onSave,
     isSaving,
+    error,
 }) => {
+    const { validationLimits } = useConfigContext();
+    const MAX_INSTRUCTIONS_LENGTH = validationLimits?.projectInstructionsMax ?? 4000;
+    
     const [isEditing, setIsEditing] = useState(false);
     const [editedPrompt, setEditedPrompt] = useState(project.systemPrompt || "");
+    const [localError, setLocalError] = useState<string | null>(null);
 
     useEffect(() => {
         setEditedPrompt(project.systemPrompt || "");
+        setLocalError(null);
     }, [project.systemPrompt]);
 
-    const handleSave = async () => {
-        if (editedPrompt.trim() !== (project.systemPrompt || "")) {
-            await onSave(editedPrompt.trim());
+    useEffect(() => {
+        if (error) {
+            setLocalError(error);
         }
-        setIsEditing(false);
+    }, [error]);
+
+    const handleSave = async () => {
+        setLocalError(null);
+
+        if (editedPrompt.trim() !== (project.systemPrompt || "")) {
+            try {
+                await onSave(editedPrompt.trim());
+                setIsEditing(false);
+            } catch (err) {
+                // Error will be handled by parent component
+            }
+        } else {
+            setIsEditing(false);
+        }
     };
 
     const handleCancel = () => {
         setEditedPrompt(project.systemPrompt || "");
+        setLocalError(null);
         setIsEditing(false);
     };
+
+    const characterCount = editedPrompt.length;
+    const isOverLimit = characterCount > MAX_INSTRUCTIONS_LENGTH;
+    const isNearLimit = characterCount > MAX_INSTRUCTIONS_LENGTH * 0.9;
 
     return (
         <div className="border-b">
@@ -54,19 +81,33 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
             <div className="px-4 pb-3">
                 {isEditing ? (
                     <div className="space-y-2">
-                        <Textarea
-                            value={editedPrompt}
-                            onChange={(e) => setEditedPrompt(e.target.value)}
-                            placeholder="Add instructions for this project..."
-                            rows={8}
-                            disabled={isSaving}
-                            className="text-sm"
-                        />
+                        <div className="relative">
+                            <Textarea
+                                value={editedPrompt}
+                                onChange={(e) => setEditedPrompt(e.target.value)}
+                                placeholder="Add instructions for this project..."
+                                rows={8}
+                                disabled={isSaving}
+                                className={`text-sm ${isOverLimit ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                            />
+                            <div className={`mt-1 text-xs ${isOverLimit ? 'text-destructive font-medium' : isNearLimit ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                                {isOverLimit
+                                    ? `Instructions must be less than ${MAX_INSTRUCTIONS_LENGTH} characters (currently ${characterCount})`
+                                    : `${characterCount} / ${MAX_INSTRUCTIONS_LENGTH} characters`
+                                }
+                            </div>
+                        </div>
+                        {localError && (
+                            <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                <span>{localError}</span>
+                            </div>
+                        )}
                         <div className="flex gap-2">
                             <Button
                                 size="sm"
                                 onClick={handleSave}
-                                disabled={isSaving}
+                                disabled={isSaving || isOverLimit}
                             >
                                 <Save className="h-4 w-4 mr-2" />
                                 Save

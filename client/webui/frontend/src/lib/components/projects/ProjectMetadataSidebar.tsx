@@ -15,6 +15,7 @@ export const ProjectMetadataSidebar: React.FC<ProjectMetadataSidebarProps> = ({
 }) => {
     const { updateProject } = useProjectContext();
     const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     if (!selectedProject) {
         return (
@@ -28,11 +29,15 @@ export const ProjectMetadataSidebar: React.FC<ProjectMetadataSidebarProps> = ({
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
         setIsSaving(true);
+        setError(null);
         try {
             const updateData: UpdateProjectData = { systemPrompt };
             await updateProject(selectedProject.id, updateData);
         } catch (error) {
             console.error("Failed to update instructions:", error);
+            const errorMessage = error instanceof Error ? error.message : "Failed to update instructions";
+            setError(errorMessage);
+            throw error; // Re-throw so SystemPromptSection can handle it
         } finally {
             setIsSaving(false);
         }
@@ -56,6 +61,7 @@ export const ProjectMetadataSidebar: React.FC<ProjectMetadataSidebarProps> = ({
                 project={selectedProject}
                 onSave={handleSaveSystemPrompt}
                 isSaving={isSaving}
+                error={error}
             />
 
             <DefaultAgentSection

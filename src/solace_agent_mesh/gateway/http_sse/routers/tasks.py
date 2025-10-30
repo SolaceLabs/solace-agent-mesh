@@ -63,10 +63,18 @@ async def _inject_project_context(
     project_service: ProjectService,
     component: "WebUIBackendComponent",
     log_prefix: str,
+    inject_full_context: bool = True,
 ) -> str:
     """
     Helper function to inject project context and copy artifacts to session.
-    Returns the modified message text with project context injected.
+    
+    Args:
+        inject_full_context: If True, injects full project context (name, description, instructions).
+                           If False, only copies new artifacts without modifying message text.
+                           This allows existing sessions to get new project files without
+                           re-injecting the full context on every message.
+    
+    Returns the modified message text with project context injected (if inject_full_context=True).
     """
     if not project_id or not message_text:
         return message_text
@@ -75,20 +83,24 @@ async def _inject_project_context(
         project = project_service.get_project(project_id, user_id)
         if not project:
             return message_text
+        
         context_parts = []
 
-        # Start with clear workspace framing
-        context_parts.append(f'You are working in the project workspace: "{project.name}"')
+        # Only inject full context for new sessions
+        if inject_full_context:
+            # Start with clear workspace framing
+            context_parts.append(f'You are working in the project workspace: "{project.name}"')
 
-        # Add system prompt if exists
-        if project.system_prompt and project.system_prompt.strip():
-            context_parts.append(f"\n{project.system_prompt.strip()}")
+            # Add system prompt if exists
+            if project.system_prompt and project.system_prompt.strip():
+                context_parts.append(f"\n{project.system_prompt.strip()}")
 
-        # Add project description if exists
-        if project.description and project.description.strip():
-            context_parts.append(f"\nProject Description: {project.description.strip()}")
+            # Add project description if exists
+            if project.description and project.description.strip():
+                context_parts.append(f"\nProject Description: {project.description.strip()}")
         
-        # 2. Copy project artifacts to session and gather their descriptions for injection
+        # Always copy project artifacts to session (for both new and existing sessions)
+        # This ensures new project files are available to existing sessions
         artifact_service = component.get_shared_artifact_service()
         if artifact_service:
             try:
@@ -105,65 +117,114 @@ async def _inject_project_context(
                 )
 
                 if project_artifacts:
-                    log.info("%sFound %d artifacts to copy from project %s.", log_prefix, len(project_artifacts), project.id)
-                    artifact_descriptions = []
+                    log.info("%sFound %d artifacts in project %s to process.", log_prefix, len(project_artifacts), project.id)
+                    
+                    # Get list of artifacts already in session to avoid re-copying
+                    try:
+                        session_artifacts = await get_artifact_info_list(
+                            artifact_service=artifact_service,
+                            app_name=project_service.app_name,
+                            user_id=user_id,
+                            session_id=session_id,
+                        )
+                        session_artifact_names = {art.filename for art in session_artifacts}
+                        log.debug("%sSession %s currently has %d artifacts", log_prefix, session_id, len(session_artifact_names))
+                    except Exception as e:
+                        log.warning("%sFailed to get session artifacts, will copy all project artifacts: %s", log_prefix, e)
+                        session_artifact_names = set()
+                    
+                    all_artifact_descriptions = []  # For new sessions - all files
+                    new_artifact_descriptions = []  # For existing sessions - only new files
+                    artifacts_copied = 0
+                    
                     for artifact_info in project_artifacts:
-                        # Build description string for context injection
+                        # Build description for all artifacts (for new sessions)
                         desc_str = f"- {artifact_info.filename}"
                         if artifact_info.description:
                             desc_str += f": {artifact_info.description}"
-                        artifact_descriptions.append(desc_str)
+                        all_artifact_descriptions.append(desc_str)
 
-                        # Load artifact content from project storage
-                        loaded_artifact = await load_artifact_content_or_metadata(
-                            artifact_service=artifact_service,
-                            app_name=project_service.app_name,
-                            user_id=source_user_id,
-                            session_id=project_artifacts_session_id,
-                            filename=artifact_info.filename,
-                            return_raw_bytes=True,
-                            version="latest"
-                        )
+                        # Skip if artifact already exists in session (any source)
+                        if artifact_info.filename in session_artifact_names:
+                            log.debug("%sSkipping artifact %s - already exists in session", log_prefix, artifact_info.filename)
+                            continue
                         
-                        # Load the full metadata separately
-                        loaded_metadata = await load_artifact_content_or_metadata(
-                            artifact_service=artifact_service,
-                            app_name=project_service.app_name,
-                            user_id=source_user_id,
-                            session_id=project_artifacts_session_id,
-                            filename=artifact_info.filename,
-                            load_metadata_only=True,
-                            version="latest"
-                        )
-                        
-                        # Save a copy to the current chat session
-                        if loaded_artifact.get("status") == "success":
-                            full_metadata = loaded_metadata.get("metadata", {}) if loaded_metadata.get("status") == "success" else {}
-                            
-                            # Ensure the source is always set for copied project artifacts
-                            full_metadata["source"] = "project"
+                        # Track new artifacts for existing sessions
+                        new_artifact_descriptions.append(desc_str)
 
-                            await save_artifact_with_metadata(
+                        log.info("%sCopying new artifact %s to session %s", log_prefix, artifact_info.filename, session_id)
+                        
+                        try:
+                            # Load artifact content from project storage
+                            loaded_artifact = await load_artifact_content_or_metadata(
                                 artifact_service=artifact_service,
                                 app_name=project_service.app_name,
-                                user_id=user_id,
-                                session_id=session_id,
+                                user_id=source_user_id,
+                                session_id=project_artifacts_session_id,
                                 filename=artifact_info.filename,
-                                content_bytes=loaded_artifact.get("raw_bytes"),
-                                mime_type=loaded_artifact.get("mime_type"),
-                                metadata_dict=full_metadata,
-                                timestamp=datetime.now(timezone.utc),
+                                return_raw_bytes=True,
+                                version="latest"
                             )
+                            
+                            # Load the full metadata separately
+                            loaded_metadata = await load_artifact_content_or_metadata(
+                                artifact_service=artifact_service,
+                                app_name=project_service.app_name,
+                                user_id=source_user_id,
+                                session_id=project_artifacts_session_id,
+                                filename=artifact_info.filename,
+                                load_metadata_only=True,
+                                version="latest"
+                            )
+                            
+                            # Save a copy to the current chat session
+                            if loaded_artifact.get("status") == "success":
+                                full_metadata = loaded_metadata.get("metadata", {}) if loaded_metadata.get("status") == "success" else {}
+                                
+                                # Ensure the source is always set for copied project artifacts
+                                full_metadata["source"] = "project"
 
-                    if artifact_descriptions:
+                                await save_artifact_with_metadata(
+                                    artifact_service=artifact_service,
+                                    app_name=project_service.app_name,
+                                    user_id=user_id,
+                                    session_id=session_id,
+                                    filename=artifact_info.filename,
+                                    content_bytes=loaded_artifact.get("raw_bytes"),
+                                    mime_type=loaded_artifact.get("mime_type"),
+                                    metadata_dict=full_metadata,
+                                    timestamp=datetime.now(timezone.utc),
+                                )
+                                artifacts_copied += 1
+                                log.info("%sSuccessfully copied artifact %s to session", log_prefix, artifact_info.filename)
+                            else:
+                                log.warning("%sFailed to load artifact %s: %s", log_prefix, artifact_info.filename, loaded_artifact.get("status"))
+                        except Exception as e:
+                            log.error("%sError copying artifact %s to session: %s", log_prefix, artifact_info.filename, e)
+                            # Continue with other artifacts even if one fails
+
+                    # Add artifact descriptions to context
+                    if inject_full_context and all_artifact_descriptions:
+                        # New session: show all project files
                         artifacts_context = (
                             "\nFiles in Session:\n"
                             "The following files are available in your session and can be viewed using your tools if required:\n"
-                            + "\n".join(artifact_descriptions)
+                            + "\n".join(all_artifact_descriptions)
                         )
                         context_parts.append(artifacts_context)
+                    elif not inject_full_context and new_artifact_descriptions:
+                        # Existing session: notify about newly added files
+                        new_files_context = (
+                            "\nNew Files Added to Project:\n"
+                            "The following files have been added to the project and are now available in your session:\n"
+                            + "\n".join(new_artifact_descriptions)
+                        )
+                        context_parts.append(new_files_context)
                     
-                    log.info("%sFinished copying %d artifacts to session %s.", log_prefix, len(project_artifacts), session_id)
+                    if artifacts_copied > 0:
+                        log.info("%sCopied %d new artifacts to session %s.", log_prefix, artifacts_copied, session_id)
+                    else:
+                        log.debug("%sNo new artifacts to copy to session %s.", log_prefix, session_id)
                 else:
                     log.info("%sNo artifacts found in project %s to copy.", log_prefix, project.id)
 
@@ -171,12 +232,15 @@ async def _inject_project_context(
                 log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
                 # Do not fail the entire request, just log the warning
 
-        # Inject all gathered context into the message, ending with user query 
+        # Inject all gathered context into the message, ending with user query
+        # Only modify message text if we're injecting full context (new sessions)
         modified_message_text = message_text
-        if context_parts:
+        if inject_full_context and context_parts:
             project_context = "\n".join(context_parts)
             modified_message_text = f"{project_context}\n\nUSER QUERY:\n{message_text}"
-            log.info("%sInjected project context for project: %s", log_prefix, project_id)
+            log.info("%sInjected full project context for project: %s", log_prefix, project_id)
+        elif not inject_full_context:
+            log.debug("%sSkipped full context injection for existing session, but ensured new artifacts are copied", log_prefix)
                 
         return modified_message_text
         
@@ -215,6 +279,33 @@ async def _submit_task(
         )
 
     log.info("%sReceived request for agent: %s", log_prefix, agent_name)
+    
+    # If project_id not in metadata, check if session has a project_id in database
+    # This handles cases where sessions are moved to projects after creation
+    if not project_id and session_service:
+        from ....gateway.http_sse.dependencies import SessionLocal
+        if SessionLocal is not None:
+            # Get the session ID from the request first
+            temp_frontend_session_id = None
+            if (
+                hasattr(payload.params.message, "context_id")
+                and payload.params.message.context_id
+            ):
+                context_id = payload.params.message.context_id
+                if isinstance(context_id, str) and context_id.strip():
+                    temp_frontend_session_id = context_id.strip()
+            
+            if temp_frontend_session_id:
+                db = SessionLocal()
+                try:
+                    session_details = session_service.get_session_details(db, temp_frontend_session_id, None)
+                    if session_details and session_details.project_id:
+                        project_id = session_details.project_id
+                        log.info("%sFound project_id %s from session database for session %s", log_prefix, project_id, temp_frontend_session_id)
+                except Exception as e:
+                    log.warning("%sFailed to lookup session project_id: %s", log_prefix, e)
+                finally:
+                    db.close()
 
     try:
         user_identity = await component.authenticate_and_enrich_user(request)
@@ -297,9 +388,13 @@ async def _submit_task(
                     message_text = part.text
                     break
         
-        # Project context injection for the first message (when session was just created)
+        # Project context injection - always inject for project sessions to ensure new files are available
         modified_message = payload.params.message
-        if project_id and message_text and not frontend_session_id:
+        if project_id and message_text:
+            # Inject context for new sessions (includes full context + artifact copy)
+            # For existing sessions, only copy new artifacts without re-injecting full context
+            should_inject_full_context = not frontend_session_id
+            
             modified_message_text = await _inject_project_context(
                 project_id=project_id,
                 message_text=message_text,
@@ -308,6 +403,7 @@ async def _submit_task(
                 project_service=project_service,
                 component=component,
                 log_prefix=log_prefix,
+                inject_full_context=should_inject_full_context,
             )
             
             # Update the message with project context if it was modified

@@ -14,6 +14,11 @@ interface BackendConfig {
     frontend_bot_name: string;
     frontend_feature_enablement?: Record<string, boolean>;
     persistence_enabled?: boolean;
+    validation_limits?: {
+        projectNameMax?: number;
+        projectDescriptionMax?: number;
+        projectInstructionsMax?: number;
+    };
 }
 
 interface ConfigProviderProps {
@@ -103,6 +108,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     frontend_use_authorization: data.frontend_use_authorization,
                     persistenceEnabled: data.persistence_enabled ?? false,
                     projectsEnabled,
+                    validationLimits: data.validation_limits,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

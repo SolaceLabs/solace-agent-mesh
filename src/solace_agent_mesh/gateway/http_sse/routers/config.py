@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
 
 from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
+from ..routers.dto.requests.project_requests import CreateProjectRequest, UpdateProjectRequest
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -15,6 +16,21 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _get_validation_limits() -> Dict[str, Any]:
+    """
+    Extract validation limits from Pydantic models to expose to frontend.
+    This ensures frontend and backend validation limits stay in sync.
+    """
+    # Extract limits from CreateProjectRequest model
+    create_fields = CreateProjectRequest.model_fields
+    
+    return {
+        "projectNameMax": create_fields["name"].metadata[1].max_length if create_fields["name"].metadata else 255,
+        "projectDescriptionMax": create_fields["description"].metadata[0].max_length if create_fields["description"].metadata else 1000,
+        "projectInstructionsMax": create_fields["system_prompt"].metadata[0].max_length if create_fields["system_prompt"].metadata else 4000,
+    }
 
 
 def _determine_projects_enabled(
@@ -120,6 +136,7 @@ async def get_app_config(
             "frontend_bot_name": component.get_config("frontend_bot_name", "A2A Agent"),
             "frontend_feature_enablement": feature_enablement,
             "persistence_enabled": api_config.get("persistence_enabled", False),
+            "validation_limits": _get_validation_limits(),
         }
         log.debug("%sReturning frontend configuration.", log_prefix)
         return config_data

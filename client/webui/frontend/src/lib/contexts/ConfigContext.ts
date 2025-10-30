@@ -1,5 +1,11 @@
 import { createContext } from "react";
 
+export interface ValidationLimits {
+    projectNameMax?: number;
+    projectDescriptionMax?: number;
+    projectInstructionsMax?: number;
+}
+
 export interface ConfigContextValue {
     configServerUrl: string;
     configAuthLoginUrl: string;
@@ -22,6 +28,13 @@ export interface ConfigContextValue {
      * Computed from feature flags and persistence status.
      */
     projectsEnabled?: boolean;
+    
+    /**
+     * Validation limits from backend.
+     * These are dynamically fetched from the backend to ensure
+     * frontend and backend validation stay in sync.
+     */
+    validationLimits?: ValidationLimits;
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null);
