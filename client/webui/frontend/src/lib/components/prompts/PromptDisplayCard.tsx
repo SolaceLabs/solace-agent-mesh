@@ -113,20 +113,30 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
                             </button>
                         </div>
                     </div>
-                    <div className="scrollbar-themed flex-grow space-y-3 overflow-y-auto p-4">
-                        <div className="mb-2 line-clamp-4 text-base">{prompt.description || "No description provided."}</div>
+                    <div className="flex flex-col flex-grow overflow-hidden p-4">
                         {prompt.category && (
-                            <DetailItem label="Category" value={prompt.category} icon={<Tag size={14} />} />
+                            <div className="mb-3">
+                                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                                    <Tag size={12} />
+                                    {prompt.category}
+                                </span>
+                            </div>
                         )}
+                        <div className="mb-4 text-base leading-6 line-clamp-3">{prompt.description || "No description provided."}</div>
                         {prompt.production_prompt && (
-                            <div className="mt-3">
-                                <div className="text-sm font-semibold mb-1 flex items-center">
+                            <div className="flex flex-col flex-shrink-0">
+                                <div className="text-sm font-semibold mb-2 flex items-center">
                                     <FileText size={14} className="mr-2" />
                                     Preview:
                                 </div>
-                                <p className="text-xs text-muted-foreground font-mono bg-muted/50 p-2 rounded line-clamp-3">
-                                    {prompt.production_prompt.prompt_text}
-                                </p>
+                                <div className="relative text-xs text-muted-foreground font-mono bg-muted/50 p-2 rounded h-[6rem] overflow-hidden">
+                                    <p className="whitespace-pre-wrap break-words">
+                                        {prompt.production_prompt.prompt_text}
+                                    </p>
+                                    <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-muted/50 to-transparent pointer-events-none flex items-end justify-end pb-1 pr-2">
+                                        <span className="text-[10px] text-primary/80 font-sans font-medium">View more</span>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
