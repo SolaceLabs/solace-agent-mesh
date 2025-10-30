@@ -20,6 +20,12 @@ RUN apt-get update && \
 # ============================================================
 # UI Build Stages - Run in parallel with separate caches
 # ============================================================
+# These stages use registry cache with mode=max, which means:
+# - Each stage is cached independently in the registry
+# - Only stages with changed dependencies will rebuild
+# - Cache mounts persist across builds for faster npm installs
+# - Changes to docs/ won't invalidate config_portal or webui caches
+# ============================================================
 
 # Build Config Portal UI
 FROM base AS ui-config-portal
@@ -52,6 +58,12 @@ RUN npm run build
 
 # ============================================================
 # Python Build Stage
+# ============================================================
+# This stage uses registry cache with mode=max for optimal caching:
+# - uv cache mount (/root/.cache/uv) speeds up package downloads
+# - Lock file changes only rebuild dependency installation layer
+# - Source code changes only rebuild the wheel build layer
+# - Independent from UI build stages - Python changes don't rebuild UI
 # ============================================================
 
 # Builder stage for creating wheels and runtime environment
@@ -128,6 +140,8 @@ RUN playwright install-deps chromium
 
 # Install Playwright browsers with cache (cached layer)
 # This layer stays cached because it doesn't depend on builder stage
+# Registry cache with mode=max ensures this expensive download is cached
+# sharing=locked prevents concurrent builds from corrupting the cache
 RUN --mount=type=cache,target=/var/cache/playwright,sharing=locked \
     PLAYWRIGHT_BROWSERS_PATH=/var/cache/playwright playwright install chromium
 
