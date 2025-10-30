@@ -76,6 +76,7 @@ async def run_adk_async_task_thread_wrapper(
 
         if adk_session and component.session_service and append_context_event:
             context_setting_invocation_id = logical_task_id
+            original_message = a2a_context.pop("original_solace_message", None)
             try:
                 context_setting_event = ADKEvent(
                     invocation_id=context_setting_invocation_id,
@@ -107,6 +108,9 @@ async def run_adk_async_task_thread_wrapper(
                     e_append,
                     exc_info=True,
                 )
+            finally:
+                if original_message:
+                    a2a_context["original_solace_message"] = original_message
         else:
             if append_context_event:
                 log.warning(
@@ -196,7 +200,7 @@ async def run_adk_async_task_thread_wrapper(
             "%s Bad Request for task %s: %s.",
             component.log_identifier,
             logical_task_id,
-            e.message,
+            e.message
         )
         raise
     except Exception as e:
@@ -343,7 +347,7 @@ async def run_adk_async_task(
             "%s Bad Request for task %s: %s.",
             component.log_identifier,
             logical_task_id,
-            e.message,
+            e.message
         )
         raise
     except Exception as e:

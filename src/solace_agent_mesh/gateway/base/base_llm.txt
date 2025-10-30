@@ -31,8 +31,6 @@ The `base` directory provides foundational abstract classes for building Gateway
   - `enable_embed_resolution: bool` - Flag to enable/disable late-stage 'artifact_content' embed resolution
   - `gateway_max_artifact_resolve_size_bytes: int` - Maximum size for resolving artifacts (default: 104857600)
   - `gateway_recursive_embed_depth: int` - Maximum depth for recursive embed resolution (default: 12)
-  - `artifact_handling_mode: str` - How gateway handles file parts: "reference", "embed", or "passthrough"
-  - `gateway_max_message_size_bytes: int` - Maximum message size in bytes (default: 10MB)
 
 **Constants/Variables:**
 - `BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]]` - Base configuration schema automatically merged with subclass parameters
@@ -41,11 +39,8 @@ The `base` directory provides foundational abstract classes for building Gateway
 **Usage Examples:**
 ```python
 from typing import Type, List, Dict, Any
-from solace_agent_mesh.gateway.base.app import BaseGatewayApp, BaseGatewayComponent
-
-class MyGatewayComponent(BaseGatewayComponent):
-    # Implementation details...
-    pass
+from solace_agent_mesh.gateway.base.app import BaseGatewayApp
+from .component import MyGatewayComponent
 
 class MyGatewayApp(BaseGatewayApp):
     """Custom gateway application for My Platform."""
@@ -60,7 +55,7 @@ class MyGatewayApp(BaseGatewayApp):
         }
     ]
 
-    def _get_gateway_component_class(self) -> Type[BaseGatewayComponent]:
+    def _get_gateway_component_class(self) -> Type[MyGatewayComponent]:
         return MyGatewayComponent
 
 # Usage in YAML config:
@@ -80,11 +75,14 @@ class MyGatewayApp(BaseGatewayApp):
 **Import:** `from solace_agent_mesh.gateway.base.component import BaseGatewayComponent`
 
 **Classes:**
-- `BaseGatewayComponent(resolve_artifact_uris_in_gateway: bool = True, **kwargs: Any)` - Abstract base class for gateway components
+- `BaseGatewayComponent(**kwargs: Any)` - Abstract base class for gateway components
   - **Public Methods:**
     - `get_config(self, key: str, default: Any = None) -> Any` - Retrieves configuration from nested app_config or component_config
+    - `publish_a2a_message(self, topic: str, payload: Dict, user_properties: Optional[Dict] = None) -> None` - Publishes A2A messages to Solace broker
     - `authenticate_and_enrich_user(self, external_event_data: Any) -> Optional[Dict[str, Any]]` - Orchestrates user authentication and identity enrichment
     - `submit_a2a_task(self, target_agent_name: str, a2a_parts: List[ContentPart], external_request_context: Dict[str, Any], user_identity: Any, is_streaming: bool = True, api_version: str = "v2") -> str` - Submits task to target agent, returns task_id
+    - `run(self) -> None` - Starts component's async operations and external platform listener
+    - `cleanup(self) -> None` - Cleans up resources and stops background threads
   - **Abstract Methods (Must be Implemented):**
     - `_extract_initial_claims(self, external_event_data: Any) -> Optional[Dict[str, Any]]` - Extract identity claims from platform event (must return dict with 'id' key)
     - `_start_listener(self) -> None` - Start external platform listener (e.g., web server, WebSocket)
@@ -223,4 +221,4 @@ if retrieved_context:
 context_manager.remove_context(task_id)
 ```
 
-# content_hash: 74574cc0c8234142d9ecddd116cc306b5420f938289ab4eab77feaa225adae7a
+# content_hash: 849930d2f66a87b20823732d8339e50a0a55a0d52958b2467e072de8b3eebea9

@@ -168,4 +168,4 @@ await artifact_service.delete_artifact(
 )
 ```
 
-# content_hash: 8edcfe37e688e203ddb9d14f62b8e5f8dcb6129fc3c08816eea26de02ff6eb69
+# content_hash: c4df3504afaa30b614cafc8cda2c977b18d0036faabaaec82b2f7a9bc5b082f6

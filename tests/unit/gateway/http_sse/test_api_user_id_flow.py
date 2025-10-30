@@ -4,14 +4,14 @@ Unit test to verify that user ID flows correctly through all API endpoints.
 This test verifies that the AuthMiddleware -> Dependencies -> Controllers flow works correctly.
 """
 
+import asyncio
 import os
 import sys
 from unittest.mock import Mock
 
 from fastapi import Request
 
-# Add the src directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../../src"))
+from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
 
 
 class TestUserIDFlow:
@@ -77,12 +77,6 @@ class TestUserIDFlow:
 
             # Test get_current_user function (from auth_utils)
             # Run async function
-            import asyncio
-
-            from solace_agent_mesh.gateway.http_sse.shared.auth_utils import (
-                get_current_user,
-            )
-
             user = asyncio.run(get_current_user(mock_request))
 
             assert user["id"] == idp_test["expected_id"], (
@@ -180,36 +174,3 @@ class TestUserIDFlow:
         print("  ✓ Complete flow works correctly!")
 
 
-if __name__ == "__main__":
-    test = TestUserIDFlow()
-
-    print("Testing User ID Flow Through API Layers")
-    print("=" * 60)
-
-    try:
-        print("\n1. Testing AuthMiddleware to Dependencies flow:")
-        test.test_auth_middleware_to_dependencies_flow()
-
-        print("\n2. Testing Controller user ID extraction:")
-        test.test_controller_user_id_extraction()
-
-        print("\n3. Testing Session Service validation:")
-        test.test_session_service_receives_correct_id()
-
-        print("\n4. Testing complete flow simulation:")
-        test.test_complete_flow_simulation()
-
-        print("\n" + "=" * 60)
-        print("✓ All API flow tests passed!")
-        print("\nSummary:")
-        print("- AuthMiddleware correctly extracts user ID from various IDP formats")
-        print("- Dependencies (get_current_user, get_user_id) properly pass the ID")
-        print("- Controllers correctly extract user ID from the user dict")
-        print("- Session service receives and validates the correct user ID")
-        print("- The complete flow works end-to-end without 'Unknown' user IDs")
-
-    except Exception as e:
-        print(f"\n✗ Test failed: {e}")
-        import traceback
-
-        traceback.print_exc()

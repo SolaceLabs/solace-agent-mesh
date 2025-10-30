@@ -5,7 +5,6 @@ This directory contains concrete implementations of the `BaseLlm` interface, pro
 
 ## Files Overview
 - `lite_llm.py` - LLM client using the `litellm` library to support hundreds of models from different providers
-- `oauth2_token_manager.py` - OAuth 2.0 Client Credentials token manager for LLM authentication
 
 ## Developer API Reference
 
@@ -15,7 +14,7 @@ This directory contains concrete implementations of the `BaseLlm` interface, pro
 **Import:** `from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm`
 
 **Classes:**
-- `LiteLlm(model: str, cache_strategy: str = "5m", **kwargs)` - Wrapper around `litellm` supporting any model it recognizes
+- `LiteLlm(model: str, **kwargs)` - Wrapper around `litellm` supporting any model it recognizes
   - `generate_content_async(llm_request: LlmRequest, stream: bool = False) -> AsyncGenerator[LlmResponse, None]` - Generates content asynchronously with optional streaming
   - `supported_models() -> list[str]` - Returns list of supported models (empty for LiteLlm due to dynamic model support)
   - `model: str` - The name of the LiteLlm model
@@ -65,8 +64,7 @@ async def main():
     llm = LiteLlm(
         model="gpt-4-turbo",
         temperature=0.7,
-        max_completion_tokens=150,
-        cache_strategy="5m"  # Options: "none", "5m", "1h"
+        max_completion_tokens=150
     )
     
     # Create a request
@@ -98,92 +96,47 @@ async def main():
         if response.usage_metadata:
             print(f"\nTotal tokens: {response.usage_metadata.total_token_count}")
 
-# Example with OAuth authentication
-async def oauth_example():
-    llm = LiteLlm(
-        model="custom-model",
-        oauth_token_url="https://auth.example.com/oauth/token",
-        oauth_client_id="your-client-id",
-        oauth_client_secret="your-client-secret",
-        oauth_scope="llm.read llm.write",
-        oauth_ca_cert="/path/to/ca.crt",  # Optional
-        oauth_token_refresh_buffer_seconds=300,  # Optional
-        oauth_max_retries=3  # Optional
+# Example with function calling
+async def function_calling_example():
+    from google.genai.types import FunctionDeclaration, Schema, Type, Tool
+    
+    # Define a function for the LLM to call
+    get_weather_func = FunctionDeclaration(
+        name="get_weather",
+        description="Get current weather for a location",
+        parameters=Schema(
+            type=Type.OBJECT,
+            properties={
+                "location": Schema(type=Type.STRING, description="City name"),
+                "unit": Schema(type=Type.STRING, description="Temperature unit")
+            },
+            required=["location"]
+        )
     )
     
+    llm = LiteLlm(model="gpt-4-turbo")
+    
     request = LlmRequest(
-        contents=[Content(role="user", parts=[Part.from_text("Hello!")])]
+        contents=[
+            Content(
+                role="user", 
+                parts=[Part.from_text("What's the weather like in Tokyo?")]
+            )
+        ],
+        config=LlmConfig(
+            tools=[Tool(function_declarations=[get_weather_func])]
+        )
     )
     
     async for response in llm.generate_content_async(request):
-        print(response.text)
+        if response.function_calls:
+            for func_call in response.function_calls:
+                print(f"Function called: {func_call.name}")
+                print(f"Arguments: {func_call.args}")
 
 if __name__ == "__main__":
     asyncio.run(main())
+    # asyncio.run(function_calling_example())
 ```
 
-### oauth2_token_manager.py
-**Purpose:** Provides OAuth 2.0 Client Credentials flow implementation for LLM authentication with automatic token management, caching, and refresh capabilities.
-
-**Import:** `from solace_agent_mesh.agent.adk.models.oauth2_token_manager import OAuth2ClientCredentialsTokenManager`
-
-**Classes:**
-- `OAuth2ClientCredentialsTokenManager(token_url: str, client_id: str, client_secret: str, scope: Optional[str] = None, ca_cert_path: Optional[str] = None, refresh_buffer_seconds: int = 300, max_retries: int = 3)` - Manages OAuth 2.0 Client Credentials tokens with caching and automatic refresh
-  - `get_token() -> str` - Get a valid OAuth 2.0 access token (async)
-  - `token_url: str` - OAuth 2.0 token endpoint URL
-  - `client_id: str` - OAuth client identifier
-  - `client_secret: str` - OAuth client secret
-  - `scope: Optional[str]` - OAuth scope (space-separated string)
-  - `ca_cert_path: Optional[str]` - Path to custom CA certificate file
-  - `refresh_buffer_seconds: int` - Seconds before actual expiry to refresh token
-  - `max_retries: int` - Maximum number of retry attempts for token requests
-
-**Usage Examples:**
-```python
-import asyncio
-from solace_agent_mesh.agent.adk.models.oauth2_token_manager import OAuth2ClientCredentialsTokenManager
-
-async def main():
-    # Initialize OAuth token manager
-    token_manager = OAuth2ClientCredentialsTokenManager(
-        token_url="https://auth.example.com/oauth/token",
-        client_id="your-client-id",
-        client_secret="your-client-secret",
-        scope="llm.read llm.write",  # Optional
-        ca_cert_path="/path/to/ca.crt",  # Optional for custom CA
-        refresh_buffer_seconds=300,  # Refresh 5 minutes before expiry
-        max_retries=3  # Retry failed requests up to 3 times
-    )
-    
-    try:
-        # Get a valid access token
-        access_token = await token_manager.get_token()
-        print(f"Access token: {access_token[:20]}...")
-        
-        # Token is automatically cached and reused
-        # Subsequent calls will return cached token if still valid
-        cached_token = await token_manager.get_token()
-        print(f"Cached token: {cached_token[:20]}...")
-        
-    except Exception as e:
-        print(f"Failed to get OAuth token: {e}")
-
-# Example with custom SSL configuration
-async def custom_ssl_example():
-    token_manager = OAuth2ClientCredentialsTokenManager(
-        token_url="https://secure-auth.example.com/oauth/token",
-        client_id="client-123",
-        client_secret="secret-456",
-        ca_cert_path="/etc/ssl/certs/custom-ca.pem",  # Custom CA certificate
-        refresh_buffer_seconds=600,  # Refresh 10 minutes early
-        max_retries=5  # More retries for unreliable networks
-    )
-    
-    token = await token_manager.get_token()
-    print(f"Token obtained with custom SSL: {token[:20]}...")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-# content_hash: 29d771563355d8e4b320350d4fe586f19717d8b16707487efb4372125d5e0f10
+# content_hash: 97abaea0097e0d6fe18f1d747ed54ced092c0a96829dc5be8448b087ac5f7c20

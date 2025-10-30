@@ -32,7 +32,6 @@ from ...common.utils.embeds import (
     EMBED_REGEX,
     EMBED_CHAIN_DELIMITER,
 )
-from ...common.utils.embeds.types import ResolutionMode
 from ...agent.utils.context_helpers import get_original_session_id
 from ...agent.adk.models.lite_llm import LiteLlm
 from google.adk.models import LlmRequest
@@ -43,7 +42,6 @@ log = logging.getLogger(__name__)
 
 CATEGORY_NAME = "Artifact Management"
 CATEGORY_DESCRIPTION = "List, read, create, update, and delete artifacts."
-
 
 async def _internal_create_artifact(
     filename: str,
@@ -453,6 +451,121 @@ async def load_artifact(
         }
 
 
+async def signal_artifact_for_return(
+    filename: str,
+    version: int,
+    tool_context: ToolContext = None,
+) -> Dict[str, Any]:
+    """
+    Signals that a specific version of an artifact should be returned to the
+    original caller as part of the final task result.
+
+    Args:
+        filename: The name of the artifact to return. May contain embeds.
+        version: The specific version number to return. Must be explicitly provided.
+    """
+    if not tool_context:
+        return {
+            "status": "error",
+            "filename": filename,
+            "version": version,
+            "message": "ToolContext is missing.",
+        }
+
+    log_identifier = (
+        f"[BuiltinArtifactTool:signal_artifact_for_return:{filename}:{version}]"
+    )
+    log.debug("%s Processing request after potential embed resolution.", log_identifier)
+
+    if version is None:
+        return {
+            "status": "error",
+            "filename": filename,
+            "version": None,
+            "message": "Version parameter is required. Use list_artifacts() to find available versions.",
+        }
+
+    try:
+        inv_context = tool_context._invocation_context
+        artifact_service = inv_context.artifact_service
+        host_component = getattr(inv_context.agent, "host_component", None)
+
+        if not artifact_service:
+            raise ValueError("ArtifactService is not available in the context.")
+        if not host_component:
+            raise ValueError("Host component is not available.")
+
+        app_name = inv_context.app_name
+        user_id = inv_context.user_id
+        session_id = get_original_session_id(inv_context)
+
+        versions = await artifact_service.list_versions(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+        )
+        if version not in versions:
+            raise FileNotFoundError(
+                f"Artifact '{filename}' version {version} not found."
+            )
+
+        a2a_context = tool_context.state.get("a2a_context", {})
+        logical_task_id = a2a_context.get("logical_task_id")
+        if not logical_task_id:
+            raise ValueError("Could not determine logical_task_id for signaling.")
+
+        with host_component.active_tasks_lock:
+            task_execution_context = host_component.active_tasks.get(logical_task_id)
+
+        if not task_execution_context:
+            raise ValueError(
+                f"TaskExecutionContext not found for task {logical_task_id}."
+            )
+
+        signal_data = {"filename": filename, "version": version}
+        task_execution_context.add_artifact_signal(signal_data)
+
+        log.info(
+            "%s Added artifact signal to TaskExecutionContext for task %s.",
+            log_identifier,
+            logical_task_id,
+        )
+
+        # Also add a placeholder to state_delta. This acts as a trigger
+        # for the host component to check the cache at the end of the turn.
+        # The key is unique to avoid collisions, but the content is just a placeholder.
+        trigger_key = f"temp:a2a_return_artifact:{uuid.uuid4().hex}"
+        tool_context.actions.state_delta[trigger_key] = {"triggered": True}
+        log.debug(
+            "%s Set state_delta trigger key '%s' to ensure signal processing.",
+            log_identifier,
+            trigger_key,
+        )
+
+        return {
+            "status": "success",
+            "message": f"Artifact '{filename}' (version {version}) has been signaled for return.",
+        }
+
+    except FileNotFoundError as fnf_err:
+        log.warning("%s Artifact not found: %s", log_identifier, fnf_err)
+        return {
+            "status": "error",
+            "filename": filename,
+            "version": version,
+            "message": str(fnf_err),
+        }
+    except Exception as e:
+        log.exception("%s Error signaling artifact for return: %s", log_identifier, e)
+        return {
+            "status": "error",
+            "filename": filename,
+            "version": version,
+            "message": f"Failed to signal artifact for return: {e}",
+        }
+
+
 async def apply_embed_and_create_artifact(
     output_filename: str,
     embed_directive: str,
@@ -546,7 +659,6 @@ async def apply_embed_and_create_artifact(
         format_spec=format_spec,
         context=gateway_context,
         log_identifier=log_identifier,
-        resolution_mode=ResolutionMode.TOOL_PARAMETER,
         config=embed_config,
     )
 
@@ -864,7 +976,7 @@ async def extract_content_from_artifact(
         mime_type=normalized_source_mime_type,
         content_bytes=source_artifact_content_bytes,
     )
-
+            
     if is_text_based:
         try:
             artifact_text_content = source_artifact_content_bytes.decode("utf-8")
@@ -1536,20 +1648,17 @@ async def _notify_artifact_save(
     tool_context: ToolContext = None,  # Keep tool_context for signature consistency
 ) -> Dict[str, Any]:
     """
-    CRITICAL: _notify_artifact_save is automatically invoked by the system as a side-effect when you create artifacts. You should NEVER call this tool yourself. The system will call it for you and provide the results in your next turn. If you manually invoke it, you are making an error."
+    An internal tool used by the system to confirm that a fenced artifact block
+    has been successfully saved. It performs no actions and simply returns its
+    arguments to get the result into the ADK history.
     """
-    return {
-        "filename": filename,
-        "version": version,
-        "status": status,
-        "message": "Artifact has been created and provided to the requester",
-    }
+    return {"filename": filename, "version": version, "status": status}
 
 
 _notify_artifact_save_tool_def = BuiltinTool(
     name="_notify_artifact_save",
     implementation=_notify_artifact_save,
-    description="CRITICAL: _notify_artifact_save is automatically invoked by the system as a side-effect when you create artifacts. You should NEVER call this tool yourself. The system will call it for you and provide the results in your next turn. If you manually invoke it, you are making an error.",
+    description="INTERNAL TOOL. This tool is used by the system to confirm that a fenced artifact block has been saved. You MUST NOT call this tool directly.",
     category="internal",
     required_scopes=[],  # No scopes needed for an internal notification tool
     parameters=adk_types.Schema(
@@ -1653,6 +1762,31 @@ load_artifact_tool_def = BuiltinTool(
     examples=[],
 )
 
+signal_artifact_for_return_tool_def = BuiltinTool(
+    name="signal_artifact_for_return",
+    implementation=signal_artifact_for_return,
+    description="Signals the host component to return a specific artifact version to the original caller of the task. This tool does not load the artifact content itself; it just flags it for return.",
+    category="artifact_management",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
+    required_scopes=["tool:artifact:signal_return"],
+    parameters=adk_types.Schema(
+        type=adk_types.Type.OBJECT,
+        properties={
+            "filename": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="The name of the artifact to return. May contain embeds.",
+            ),
+            "version": adk_types.Schema(
+                type=adk_types.Type.INTEGER,
+                description="The specific version number to return. Use list_artifacts() first to find available versions.",
+            ),
+        },
+        required=["filename", "version"],
+    ),
+    examples=[],
+)
+
 apply_embed_and_create_artifact_tool_def = BuiltinTool(
     name="apply_embed_and_create_artifact",
     implementation=apply_embed_and_create_artifact,
@@ -1723,6 +1857,7 @@ tool_registry.register(_notify_artifact_save_tool_def)
 tool_registry.register(append_to_artifact_tool_def)
 tool_registry.register(list_artifacts_tool_def)
 tool_registry.register(load_artifact_tool_def)
+tool_registry.register(signal_artifact_for_return_tool_def)
 tool_registry.register(apply_embed_and_create_artifact_tool_def)
 tool_registry.register(extract_content_from_artifact_tool_def)
 

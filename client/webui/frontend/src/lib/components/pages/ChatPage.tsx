@@ -36,7 +36,7 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { agents, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, sessionName, currentTaskId } = useChatContext();
+    const { agents, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, sessionName } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
@@ -133,14 +133,13 @@ export function ChatPage() {
     }, [loadingMessage]);
 
     const handleViewProgressClick = useMemo(() => {
-        // Use currentTaskId directly instead of relying on loadingMessage
-        if (!currentTaskId) return undefined;
+        if (!loadingMessage?.taskId) return undefined;
 
         return () => {
-            setTaskIdInSidePanel(currentTaskId);
+            setTaskIdInSidePanel(loadingMessage.taskId!);
             openSidePanelTab("workflow");
         };
-    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
+    }, [loadingMessage?.taskId, setTaskIdInSidePanel, openSidePanelTab]);
 
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {

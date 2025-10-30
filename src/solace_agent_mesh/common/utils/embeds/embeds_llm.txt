@@ -217,4 +217,4 @@ result, error, size = await evaluate_embed(
 
 ### types.py
 
-# content_hash: b2c6bea4995d4d68f8cad84016e236560d091897ba1b8502f1532bf84eb813f7
+# content_hash: 2f31c6289fe46fe2ebb4c490574d6d030547346221337f730f315f7b3cac572f

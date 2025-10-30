@@ -76,17 +76,16 @@ result = await multi_speaker_text_to_speech(
 
 ### builtin_artifact_tools.py
 **Purpose:** Core artifact management and content processing tools
-**Import:** `from solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, apply_embed_and_create_artifact, extract_content_from_artifact, append_to_artifact, delete_artifact`
+**Import:** `from solace_agent_mesh.agent.tools.builtin_artifact_tools import list_artifacts, load_artifact, signal_artifact_for_return, apply_embed_and_create_artifact, extract_content_from_artifact, append_to_artifact, delete_artifact`
 
 **Functions:**
 - `list_artifacts(tool_context: ToolContext = None) -> Dict[str, Any]` - Lists all available artifacts with metadata summaries
 - `load_artifact(filename: str, version: int, load_metadata_only: bool = False, max_content_length: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Loads artifact content or metadata
+- `signal_artifact_for_return(filename: str, version: int, tool_context: ToolContext = None) -> Dict[str, Any]` - Signals artifact to be returned to caller
 - `apply_embed_and_create_artifact(output_filename: str, embed_directive: str, output_metadata: Optional[Dict[str, Any]] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Resolves embed directives and creates new artifacts
 - `extract_content_from_artifact(filename: str, extraction_goal: str, version: Optional[str] = "latest", output_filename_base: Optional[str] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Uses LLM to extract/transform artifact content
 - `append_to_artifact(filename: str, content_chunk: str, mime_type: str, tool_context: ToolContext = None) -> Dict[str, Any]` - Appends content to existing artifacts
 - `delete_artifact(filename: str, version: Optional[int] = None, tool_context: ToolContext = None) -> Dict[str, Any]` - Deletes artifact versions
-
-**Note:** To return artifacts to users, use the `«artifact_return:filename[:version]»` embed in your response text instead of a tool call. This is more efficient and provides a better user experience.
 
 **Usage Examples:**
 ```python

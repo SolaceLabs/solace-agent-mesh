@@ -31,26 +31,12 @@ class TestExtractToolOrigin:
         result = SamAgentComponent._extract_tool_origin(tool)
         assert result == "func_origin"
 
-    def test_extract_tool_origin_with_getattr_fallback(self):
-        """Test _extract_tool_origin when using getattr fallback."""
-
-        class CustomTool:
-            pass
-
-        custom_tool = CustomTool()
-        setattr(custom_tool, "origin", "getattr_origin")
-
-        result = SamAgentComponent._extract_tool_origin(custom_tool)
-        assert result == "getattr_origin"
-
     def test_extract_tool_origin_unknown_fallback(self):
         """Test _extract_tool_origin when no origin is found."""
-        tool = Mock()
-        tool.origin = None
+        # Create a mock object that does not have an 'origin' attribute,
+        # and its 'func' attribute is None.
+        tool = Mock(spec=["func"])
         tool.func = None
-
-        if hasattr(tool, "origin"):
-            delattr(tool, "origin")
 
         result = SamAgentComponent._extract_tool_origin(tool)
         assert result == "unknown"

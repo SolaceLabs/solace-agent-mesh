@@ -1,3 +1,5 @@
+I notice the content was cut off at the end. Let me provide the complete developer guide based on the available information:
+
 # DEVELOPER GUIDE: gateway
 
 ## Quick Summary
@@ -7,10 +9,10 @@ The `gateway` directory provides a comprehensive framework for building gateways
 - **Direct files:**
   - `__init__.py`: Standard Python package initializer
   - `gateway_llm.txt`: Documentation or configuration file for LLM-related gateway functionality
-  - `gateway_llm_detail.txt`: Comprehensive documentation combining all gateway module summaries
 
 - **Subdirectories:**
   - `base/`: Foundational abstract classes and utilities for building gateway implementations
+  - `slack/`: Complete Slack platform integration gateway with bot functionality
   - `http_sse/`: HTTP/Server-Sent Events gateway for web-based user interfaces
 
 ## Developer API Reference
@@ -30,12 +32,6 @@ This file is empty and contains no direct exports.
 
 **Content:** This appears to be a documentation or configuration file rather than executable code.
 
-#### gateway_llm_detail.txt
-**Purpose:** Comprehensive documentation combining all individual LLM summary files from the gateway directory tree
-**Import:** Not applicable (text/documentation file)
-
-**Content:** Contains concatenated developer guides for all gateway subdirectories and components.
-
 ### Subdirectory APIs
 
 #### base/
@@ -46,6 +42,16 @@ This file is empty and contains no direct exports.
 from solace_agent_mesh.gateway.base.app import BaseGatewayApp
 from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
 from solace_agent_mesh.gateway.base.task_context import TaskContextManager
+```
+
+#### slack/
+**Purpose:** Complete Slack platform integration with bot functionality, event handling, and A2A message translation
+**Key Exports:** `SlackGatewayApp`, `SlackGatewayComponent`, utility functions for Slack operations
+**Import Examples:**
+```python
+from solace_agent_mesh.gateway.slack.app import SlackGatewayApp
+from solace_agent_mesh.gateway.slack.component import SlackGatewayComponent
+from solace_agent_mesh.gateway.slack.utils import generate_a2a_session_id, send_slack_message
 ```
 
 #### http_sse/
@@ -220,7 +226,43 @@ if __name__ == "__main__":
     app.run()
 ```
 
-### 2. Using the HTTP/SSE Gateway for Web Interfaces
+### 2. Using the Slack Gateway
+
+```python
+from solace_agent_mesh.gateway.slack.app import SlackGatewayApp
+
+# Configure Slack gateway
+slack_config = {
+    "name": "my-slack-bot",
+    "namespace": "/myorg/prod",
+    "gateway_id": "slack-bot-01",
+    
+    # Slack credentials (get these from your Slack app)
+    "slack_bot_token": "xoxb-your-bot-token",
+    "slack_app_token": "xapp-your-app-token",
+    "slack_signing_secret": "your-signing-secret",
+    
+    # Gateway settings
+    "default_agent_name": "assistant",
+    "enable_socket_mode": True,
+    "enable_file_upload": True,
+    "slack_request_timeout": 30,
+    
+    # A2A system configuration
+    "solace_config": {
+        "broker_url": "tcp://localhost:55555",
+        "vpn_name": "default",
+        "username": "default",
+        "password": "default"
+    }
+}
+
+# Create and run the Slack gateway
+slack_app = SlackGatewayApp(app_info=slack_config)
+slack_app.run()
+```
+
+### 3. Using the HTTP/SSE Gateway for Web Interfaces
 
 ```python
 from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
@@ -276,7 +318,7 @@ webui_app = WebUIBackendApp(app_info=webui_config)
 webui_app.run()
 ```
 
-### 3. Working with Task Context and Session Management
+### 4. Working with Task Context and Session Management
 
 ```python
 from solace_agent_mesh.gateway.base.task_context import TaskContextManager
@@ -288,10 +330,10 @@ context_manager = TaskContextManager()
 # Store context when submitting a task
 task_id = "task-123"
 context = {
-    "platform": "http_sse",
-    "session_id": "session-456",
-    "user_id": "user-789",
-    "client_id": "client-abc"
+    "platform": "slack",
+    "channel_id": "C1234567890",
+    "user_id": "U1234567890",
+    "thread_ts": "1234567890.123456"
 }
 context_manager.store_context(task_id, context)
 
@@ -299,7 +341,7 @@ context_manager.store_context(task_id, context)
 retrieved_context = context_manager.get_context(task_id)
 if retrieved_context:
     # Send response back to original platform
-    session_id = retrieved_context["session_id"]
+    channel_id = retrieved_context["channel_id"]
 
 # Session management for web interfaces
 session_manager = SessionManager(
@@ -322,48 +364,10 @@ async def get_session_info(request: Request):
     }
 ```
 
-### 4. Real-time Streaming with Server-Sent Events
+### 5. Advanced Integration: Combining Multiple Gateways
 
 ```python
 import asyncio
-import httpx
-import json
-from solace_agent_mesh.gateway.http_sse.sse_manager import SSEManager
-from solace_agent_mesh.gateway.http_sse.sse_event_buffer import SSEEventBuffer
+from solace_agent_mesh.gateway.slack.app import Sl
 
-# Server-side SSE management
-sse_buffer = SSEEventBuffer(max_queue_size=100, max_age_seconds=300)
-sse_manager = SSEManager(max_queue_size=100, event_buffer=sse_buffer)
-
-# Create SSE connection for a task
-task_id = "task-123"
-sse_queue = sse_manager.create_sse_connection(task_id)
-
-# Send events to connected clients
-sse_manager.send_event(
-    task_id=task_id,
-    event_data={"message": "Task started", "progress": 0},
-    event_type="task_update"
-)
-
-# Client-side SSE consumption
-async def listen_to_task_events(task_id: str):
-    async with httpx.AsyncClient() as client:
-        async with client.stream(
-            "GET", 
-            f"http://localhost:8000/api/v1/sse/subscribe/{task_id}",
-            headers={"Accept": "text/event-stream"}
-        ) as response:
-            async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    event_data = line[6:]  # Remove "data: " prefix
-                    try:
-                        parsed_data = json.loads(event_data)
-                        print(f"Received event: {parsed_data}")
-                    except json.JSONDecodeError:
-                        print(f"Received raw data: {event_data}")
-```
-
-### 5. Database
-
-# content_hash: 0b7ed0154e912abecea7634ace04f072596af9b37780b6093ab5585b700d3d39
+# content_hash: 39731f2779a4f0ef42b1948f8441baf5b76eff10fbfc48def5fbb270fa334f6b

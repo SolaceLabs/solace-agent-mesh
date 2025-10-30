@@ -714,6 +714,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 "is_streaming": is_streaming_request,
                 "statusTopic": status_topic_from_peer,
                 "replyToTopic": reply_topic_from_peer,
+                "original_solace_message": message,
                 "a2a_user_config": a2a_user_config,
                 "effective_session_id": effective_session_id,
                 "is_run_based_session": is_run_based_session,
@@ -752,10 +753,6 @@ async def handle_a2a_request(component, message: SolaceMessage):
             task_context = TaskExecutionContext(
                 task_id=logical_task_id, a2a_context=a2a_context
             )
-
-            # Store the original Solace message in TaskExecutionContext instead of a2a_context
-            # This avoids serialization issues when a2a_context is stored in ADK session state
-            task_context.set_original_solace_message(message)
 
             # Store auth token for peer delegation using generic security storage
             if hasattr(component, "trust_manager") and component.trust_manager:

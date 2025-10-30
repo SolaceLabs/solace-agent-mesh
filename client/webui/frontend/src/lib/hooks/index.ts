@@ -1,5 +1,4 @@
 export * from "./useAgentCards";
-export * from "./useArtifactRendering";
 export * from "./useArtifacts";
 export * from "./useAuthContext";
 export * from "./useBeforeUnload";

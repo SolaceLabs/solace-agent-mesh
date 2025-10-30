@@ -1,0 +1,74 @@
+test_case_id: "builtin_signal_artifact_not_found_error_001"
+description: |
+  Tests the 'signal_artifact_for_return' tool's error handling when the
+  specified artifact filename does not exist.
+tags: ["all","agent","tools","builtin_artifact_tools"]
+skip_intermediate_events: true
+
+# No setup_artifacts for the target file.
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_signal_error_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please try to signal 'non_existent_signal_target.txt', version 0."
+  external_context:
+    a2a_session_id: "session_signal_error_artifact_001"
+
+llm_interactions:
+  # Step 1: LLM calls signal_artifact_for_return for a non-existent file
+  - step_id: "llm_calls_signal_non_existent_artifact"
+    static_response:
+      id: "chatcmpl-signal-nonexistent-artifact-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_signal_nonexistent"
+                type: "function"
+                function:
+                  name: "signal_artifact_for_return"
+                  arguments: '{"filename": "non_existent_signal_target.txt", "version": 0}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool error result and formulates final response
+  - step_id: "llm_final_response_after_signal_error"
+    expected_request: # After signal_artifact_for_return tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+            filename: "non_existent_signal_target.txt"
+            version: 0
+          # The message from FileNotFoundError in the tool is like:
+          # "Artifact 'non_existent_signal_target.txt' version 0 not found."
+          # (because list_versions would be empty or not contain version 0)
+          response_contains: "Artifact 'non_existent_signal_target.txt' version 0 not found"
+    static_response:
+      id: "chatcmpl-signal-nonexistent-artifact-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I couldn't signal 'non_existent_signal_target.txt' (v0) because it was not found."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_signal_error_artifact_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "I couldn't signal 'non_existent_signal_target.txt' (v0) because it was not found."
+    # No assert_artifact_state as no artifact should be involved or changed.

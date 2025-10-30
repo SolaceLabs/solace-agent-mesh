@@ -10,7 +10,6 @@ interface UseArtifactsReturn {
     isLoading: boolean;
     error: string | null;
     refetch: () => Promise<void>;
-    setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
 }
 
 /**
@@ -42,12 +41,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
                 throw new Error(errorData.message || `Failed to fetch artifacts. ${response.statusText}`);
             }
             const data: ArtifactInfo[] = await response.json();
-            // Ensure all artifacts have URIs
-            const artifactsWithUris = data.map(artifact => ({
-                ...artifact,
-                uri: artifact.uri || `artifact://${sessionId}/${artifact.filename}`,
-            }));
-            setArtifacts(artifactsWithUris);
+            setArtifacts(data);
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : "Failed to fetch artifacts.";
             setError(errorMessage);
@@ -66,6 +60,5 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         isLoading,
         error,
         refetch: fetchArtifacts,
-        setArtifacts,
     };
 };

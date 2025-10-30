@@ -61,20 +61,8 @@ Retrieves a JSON string containing the full metadata of a specified artifact.
 - **Syntax**: `«artifact_meta:filename[:version]»`
 - **Example**: `«artifact_meta:report.csv»`
 
-##### `artifact_return`
-**This is the primary way to return an artifact to the user.** It attaches the specified artifact to the message as a file attachment. The embed itself is removed from the text during gateway processing.
-
-- **Syntax**: `«artifact_return:filename[:version]»`
-- **Resolution**: Late-stage (processed by gateway before sending to user)
-- **Examples**:
-  - `«artifact_return:report.pdf»` - Returns the latest version of report.pdf
-  - `«artifact_return:data.csv:3»` - Returns version 3 of data.csv
-- **Note**: `artifact_return` is not necessary if the artifact was just created in the same response, since newly created artifacts are automatically attached to messages.
-
 ##### `artifact_content`
 Embeds the content of an artifact, with support for a chain of transformations. This is the most advanced embed type.
-
-**Note**: If this embed resolves to binary content (like an image), it will be automatically converted into an attached file, similar to `artifact_return`.
 
 **Modifiers (Data Transformations)**
 Modifiers are applied sequentially to transform the data.

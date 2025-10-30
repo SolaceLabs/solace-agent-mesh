@@ -1,6 +1,6 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+import type { AgentCardInfo, ArtifactInfo, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
 
 export interface ChatState {
     configCollectFeedback: boolean;
@@ -22,7 +22,6 @@ export interface ChatState {
     artifacts: ArtifactInfo[];
     artifactsLoading: boolean;
     artifactsRefetch: () => Promise<void>;
-    setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
     taskIdInSidePanel: string | null;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
@@ -41,8 +40,6 @@ export interface ChatState {
     currentPreviewedVersionNumber: number | null;
     previewFileContent: FileAttachment | null;
     submittedFeedback: Record<string, { type: "up" | "down"; text: string }>;
-    // Artifact Rendering State
-    artifactRenderingState: ArtifactRenderingState;
 }
 
 export interface ChatActions {
@@ -75,21 +72,11 @@ export interface ChatActions {
     confirmBatchDeleteArtifacts: () => Promise<void>;
     setIsBatchDeleteModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 
-    setPreviewArtifact: (artifact: ArtifactInfo | null) => void;
+    setPreviewArtifact: React.Dispatch<React.SetStateAction<ArtifactInfo | null>>;
     openArtifactForPreview: (artifactFilename: string, autoRun?: boolean) => Promise<FileAttachment | null>;
     navigateArtifactVersion: (artifactFilename: string, targetVersion: number) => Promise<FileAttachment | null>;
 
     openMessageAttachmentForPreview: (file: FileAttachment, autoRun?: boolean) => void;
-
-    /** Artifact Display and Cache Management */
-    markArtifactAsDisplayed: (filename: string, displayed: boolean) => void;
-    downloadAndResolveArtifact: (filename: string) => Promise<FileAttachment | null>;
-
-    /** Artifact Rendering Actions */
-    toggleArtifactExpanded: (filename: string) => void;
-    isArtifactExpanded: (filename: string) => boolean;
-    setArtifactRenderingState: React.Dispatch<React.SetStateAction<ArtifactRenderingState>>;
-
     /* Session Management Actions */
     updateSessionName: (sessionId: string, newName: string, showNotification?: boolean) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
