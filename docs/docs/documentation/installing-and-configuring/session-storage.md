@@ -1,6 +1,6 @@
 ---
 title: Session Storage
-sidebar_position: 40
+sidebar_position: 350
 ---
 
 # Configuring Session Storage
@@ -25,7 +25,7 @@ This architecture allows:
 - Agents to maintain their own conversation context and memory
 - Multiple agents in a conversation to share the same session ID while maintaining isolated storage
 
-### What Gets Stored Where
+### Where Data Is Stored
 
 The WebUI Gateway database stores:
 - Session metadata (session ID, user ID, timestamps)
@@ -73,63 +73,7 @@ Use this for:
 - Multi-turn interactive experiences
 - Any deployment where users expect conversation continuity
 
----
-
-### Scenario B: Only WebUI Gateway Has Persistence (Broken Experience)
-
-```yaml
-# WebUI Gateway Configuration
-session_service:
-  type: "sql"
-  database_url: "${WEB_UI_GATEWAY_DATABASE_URL}"
-```
-
-```yaml
-# Agent Configuration
-session_service:
-  type: "memory"  # No database
-```
-
-What happens:
-- User sees full chat history in the UI
-- Agent receives session ID but has no database to store context
-- Agent processes current message but forgets previous turns
-- The UI shows history, but the agent acts like every message is the first one
-
-The UI misleads the user by showing conversation history that the agent cannot actually use. Users get frustrated when the agent does not remember what they just said.
-
-Avoid this scenario because it creates a confusing and broken user experience.
-
----
-
-### Scenario C: Only Agents Have Persistence (Limited Experience)
-
-```yaml
-# WebUI Gateway Configuration
-session_service:
-  type: "memory"  # No database
-```
-
-```yaml
-# Agent Configuration
-session_service:
-  type: "sql"
-  database_url: "${AGENT_DATABASE_URL}"
-  default_behavior: "PERSISTENT"
-```
-
-What happens:
-- User sees no chat history in the UI after browser refresh
-- Agents maintain conversation context internally
-- Conversation works but UI does not show history
-
-Use this for:
-- Rare scenarios where UI history is not needed
-- Headless or API-only deployments without WebUI
-
----
-
-### Scenario D: Neither Has Persistence (Ephemeral Only)
+### Scenario B: Neither Has Persistence (Ephemeral Only)
 
 ```yaml
 # WebUI Gateway Configuration
@@ -159,7 +103,57 @@ Do not use for:
 - Multi-turn conversations
 - Any scenario requiring conversation continuity
 
----
+### Scenario C: Only Agents Have Persistence (Limited Experience)
+
+```yaml
+# WebUI Gateway Configuration
+session_service:
+  type: "memory"  # No database
+```
+
+```yaml
+# Agent Configuration
+session_service:
+  type: "sql"
+  database_url: "${AGENT_DATABASE_URL}"
+  default_behavior: "PERSISTENT"
+```
+
+What happens:
+- User sees no chat history in the UI after browser refresh
+- Agents maintain conversation context internally
+- Conversation works but UI does not show history
+
+Use this for:
+- Rare scenarios where UI history is not needed
+- Headless or API-only deployments without WebUI
+
+### Scenario D: Only WebUI Gateway Has Persistence (Broken Experience)
+
+```yaml
+# WebUI Gateway Configuration
+session_service:
+  type: "sql"
+  database_url: "${WEB_UI_GATEWAY_DATABASE_URL}"
+```
+
+```yaml
+# Agent Configuration
+session_service:
+  type: "memory"  # No database
+```
+
+:::warning Broken Experience
+What happens:
+- User sees full chat history in the UI
+- Agent receives session ID but has no database to store context
+- Agent processes current message but forgets previous turns
+- The UI shows history, but the agent acts like every message is the first one
+
+The UI misleads the user by showing conversation history that the agent cannot actually use. Users get frustrated when the agent does not remember what they just said.
+
+Avoid this scenario because it creates a confusing and broken user experience.
+:::
 
 ## Configuring WebUI Gateway Session Storage
 
@@ -167,7 +161,7 @@ The WebUI Gateway requires two configuration elements to enable persistent sessi
 
 ### Environment Variables
 
-SESSION_SECRET_KEY (Required)
+`SESSION_SECRET_KEY` (Required)
 
 A secret key used to sign session cookies. This must be the same across all instances if you run multiple pods or processes.
 
@@ -175,7 +169,7 @@ A secret key used to sign session cookies. This must be the same across all inst
 export SESSION_SECRET_KEY="your-secret-key-here"
 ```
 
-WEB_UI_GATEWAY_DATABASE_URL (Required for persistent mode)
+`WEB_UI_GATEWAY_DATABASE_URL` (Required for persistent mode)
 
 The database connection string specifying where to store session data.
 
@@ -219,8 +213,6 @@ Limitations:
 - Cannot be shared across multiple instances
 - No built-in replication or backup
 
----
-
 #### PostgreSQL (Production)
 
 PostgreSQL provides robust, scalable database suitable for production deployments.
@@ -246,8 +238,6 @@ Connection string format:
 ```
 postgresql://[user[:password]@][host][:port]/[dbname][?param1=value1&...]
 ```
-
----
 
 #### MySQL/MariaDB (Production)
 
@@ -275,8 +265,6 @@ mysql+pymysql://[user[:password]@][host][:port]/[database]
 ```
 
 Agent Mesh uses `pymysql` as the Python driver.
-
----
 
 ## Configuring Agent Session Storage
 
@@ -367,8 +355,6 @@ agents:
 
 For complete details on ADK session configuration options, see the [ADK Configuration Reference](./configurations.md#session_service).
 
----
-
 ## Migrating from Ephemeral to Persistent
 
 Moving from ephemeral mode to persistent mode can be done without losing active sessions.
@@ -439,8 +425,6 @@ Database initialization happens once on first startup. Subsequent restarts conne
 
 Migration adds new storage without affecting existing sessions.
 
----
-
 ## Verification and Testing
 
 After configuring session storage, verify everything works correctly.
@@ -477,8 +461,6 @@ Agent persistence:
 5. Continue the conversation in the same session
 6. Verify agent still remembers previous conversation context
 
----
-
 ## Troubleshooting
 
 ### Database Connection Errors
@@ -492,8 +474,6 @@ Solutions:
 - Verify credentials have correct permissions
 - For PostgreSQL/MySQL, ensure database exists (create it first if needed)
 
----
-
 ### Migration Errors
 
 Error: `Alembic migration failed` or `Database schema error`
@@ -503,8 +483,6 @@ Solutions:
 - Verify no other instances are running migrations simultaneously
 - For existing databases, ensure they don't have conflicting schemas
 - Check application logs for detailed error messages
-
----
 
 ### Sessions Not Persisting
 
@@ -522,8 +500,6 @@ Agent solutions:
 - Check agent logs for database connection errors
 - Test that agent can write to its database
 
----
-
 ### Agent Can't Remember Previous Conversation
 
 Symptom: UI shows chat history, but agent acts like every message is the first one
@@ -536,8 +512,6 @@ Solution:
 - Restart agent
 - Verify agent database tables are created
 - Test multi-turn conversation
-
----
 
 ## Next Steps
 

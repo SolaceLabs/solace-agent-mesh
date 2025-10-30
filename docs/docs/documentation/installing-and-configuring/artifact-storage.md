@@ -1,6 +1,6 @@
 ---
 title: Artifact Storage
-sidebar_position: 50
+sidebar_position: 360
 ---
 
 # Configuring Artifact Storage
