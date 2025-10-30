@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi import Request as FastAPIRequest
 from sqlalchemy.orm import Session as DBSession
 
-from src.solace_agent_mesh.gateway.http_sse.services.project_service import ProjectService
+from ....gateway.http_sse.services.project_service import ProjectService
 
 from ....agent.utils.artifact_helpers import (
     get_artifact_info_list,
