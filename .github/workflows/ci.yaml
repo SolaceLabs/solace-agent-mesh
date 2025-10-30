@@ -130,21 +130,20 @@ jobs:
       - name: Set Registry Type
         id: set_registry
         run: |
+          use_ecr=false
           # Determine if we should use ECR (don't expose the actual registry URL)
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+          if [[ ("${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}") || "${{ github.ref_name }}" == "test-build-opt" ]]; then
             # Check if ECR registry is available
             ecr_registry="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
             if [[ -n "${ecr_registry}" && "${ecr_registry}" != "" ]]; then
-              echo "use_ecr=true" >> $GITHUB_OUTPUT
+              use_ecr=true
               echo "Will use ECR registry for default branch push"
             else
-              echo "use_ecr=false" >> $GITHUB_OUTPUT
               echo "ECR registry not available, will use GitHub repository"
-            fi
           else
-            echo "use_ecr=false" >> $GITHUB_OUTPUT
             echo "Will use GitHub repository for PR/branch build"
           fi
+          echo "use_ecr=${use_ecr}" >> $GITHUB_OUTPUT
 
   # ----------------------------------------------------
   # PHASE 1 & 2: Multiplatform Builds (Always Both Platforms)
@@ -182,25 +181,45 @@ jobs:
         if: fromJSON(needs.prepare-metadata.outputs.docker_push)
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
+      - name: Login to GitHub Container Registry
+        if: ${{ !fromJSON(needs.prepare-metadata.outputs.use_ecr) }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Determine Image Name and Cache Configuration
         id: image_name
         run: |
           if [[ "${{ fromJSON(needs.prepare-metadata.outputs.use_ecr) }}" == "true" ]]; then
             image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
+            cache_registry="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
             echo "Using ECR registry: ${image_name}"
           else
-            image_name="${{ github.repository }}"
-            echo "Using GitHub repository: ${image_name}"
+            image_name="ghcr.io/${{ github.repository }}"
+            cache_registry="ghcr.io/${{ github.repository }}"
+            echo "Using GitHub Container Registry: ${image_name}"
           fi
           echo "image_name=${image_name}" >> $GITHUB_OUTPUT
 
           # Configure cache settings
-          cache_ref="${image_name}:buildcache-${{ matrix.platform.tag_suffix }}"
+          # Use lowercase for GHCR compatibility
+          cache_ref="${cache_registry,,}:buildcache-${{ matrix.platform.tag_suffix }}"
           echo "cache_ref=${cache_ref}" >> $GITHUB_OUTPUT
 
-          echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
-          echo "cache_to=type=registry,ref=${cache_ref},mode=max" >> $GITHUB_OUTPUT
-          echo "Using registry cache (can read and write)"
+          # For PR builds, we can read from registry cache but write to gha cache
+          # For push builds, we can read and write to registry cache
+          if [[ "${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}" == "true" || "${{ github.ref_name }}" == "test-build-opt" ]]; then
+            echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
+            echo "cache_to=type=registry,ref=${cache_ref},mode=max" >> $GITHUB_OUTPUT
+            echo "Using registry cache (read/write) for branch push"
+          else
+            # PR builds: read from registry cache (best effort), write to gha cache
+            echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
+            echo "cache_to=type=gha,scope=${{ matrix.platform.tag_suffix }},mode=max" >> $GITHUB_OUTPUT
+            echo "Using registry cache (read-only) + gha cache (write) for PR"
+          fi
 
       - name: Build and Push Platform-Specific Image
         uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
@@ -236,6 +255,14 @@ jobs:
         if: fromJSON(needs.prepare-metadata.outputs.docker_push)
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
+      - name: Login to GitHub Container Registry
+        if: ${{ !fromJSON(needs.prepare-metadata.outputs.use_ecr) }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
@@ -247,9 +274,11 @@ jobs:
             image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
             echo "Using ECR registry: ${image_name}"
           else
-            image_name="${{ github.repository }}"
-            echo "Using GitHub repository: ${image_name}"
+            image_name="ghcr.io/${{ github.repository }}"
+            echo "Using GitHub Container Registry: ${image_name}"
           fi
+          # Lowercase for GHCR compatibility
+          image_name="${image_name,,}"
 
           # Reconstruct tags
           version="${{ needs.prepare-metadata.outputs.version }}"
