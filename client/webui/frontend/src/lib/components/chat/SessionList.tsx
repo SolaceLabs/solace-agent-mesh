@@ -11,6 +11,7 @@ import { Badge } from "@/lib/components/ui/badge";
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui/select";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
+import { SessionSearch } from "@/lib/components/chat/SessionSearch";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -299,9 +300,24 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         return sessions.filter(session => session.projectName === selectedProject);
     }, [sessions, selectedProject]);
 
+    // Get the project ID for the selected project name (for search filtering)
+    const selectedProjectId = useMemo(() => {
+        if (selectedProject === "all") return null;
+        const project = projects.find(p => p.name === selectedProject);
+        return project?.id || null;
+    }, [selectedProject, projects]);
+
     return (
         <div className="flex h-full flex-col gap-4 py-6 pl-6">
             <div className="flex flex-col gap-3">
+                {/* Session Search */}
+                <div className="pr-4">
+                    <SessionSearch
+                        onSessionSelect={handleSwitchSession}
+                        projectId={selectedProjectId}
+                    />
+                </div>
+
                 <div className="text-lg">
                     Chat Session History
                 </div>
@@ -332,7 +348,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     <ul>
                         {filteredSessions.map(session => (
                             <li key={session.id} className="group my-2 pr-4">
-                                <div className={`flex items-center justify-between rounded px-4 py-2 ${session.id === sessionId ? "bg-muted" : ""}`}>
+                                <div className={`flex items-center gap-2 rounded px-4 py-2 ${session.id === sessionId ? "bg-muted" : ""}`}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}
@@ -345,16 +361,16 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     handleRename();
                                                 }
                                             }}
-                                            className="flex-grow bg-transparent focus:outline-none"
+                                            className="flex-1 min-w-0 bg-transparent focus:outline-none"
                                         />
                                     ) : (
-                                        <button onClick={() => handleSessionClick(session.id)} className="flex-grow cursor-pointer text-left">
-                                            <div className="flex items-center justify-between gap-2">
+                                        <button onClick={() => handleSessionClick(session.id)} className="flex-1 min-w-0 cursor-pointer text-left">
+                                            <div className="flex items-center gap-2">
                                                 <div className="flex flex-col gap-1 min-w-0 flex-1">
                                                     <span className="truncate font-semibold" title={getSessionDisplayName(session)}>
                                                         {getSessionDisplayName(session)}
                                                     </span>
-                                                    <span className="text-muted-foreground text-xs">{formatSessionDate(session.updatedTime)}</span>
+                                                    <span className="text-muted-foreground text-xs truncate">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
                                                 {session.projectName && (
                                                     <Badge
@@ -367,7 +383,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                             </div>
                                         </button>
                                     )}
-                                    <div className="flex items-center">
+                                    <div className="flex items-center flex-shrink-0">
                                         {editingSessionId === session.id ? (
                                             <>
                                                 <Button variant="ghost" size="sm" onClick={handleRename} className="h-8 w-8 p-0">

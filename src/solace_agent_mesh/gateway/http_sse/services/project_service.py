@@ -75,6 +75,11 @@ class ProjectService:
         if not user_id:
             raise ValueError("User ID is required to create a project")
 
+        # Check for duplicate project name for this user
+        existing_projects = self.project_repository.get_user_projects(user_id)
+        if any(p.name.lower() == name.strip().lower() for p in existing_projects):
+            raise ValueError(f"A project with the name '{name.strip()}' already exists")
+
         # Create the project
         project_domain = self.project_repository.create_project(
             name=name.strip(),

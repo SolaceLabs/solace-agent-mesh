@@ -72,7 +72,6 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                             </label>
                             <Input
                                 id="project-name"
-                                placeholder="Enter project name"
                                 value={name}
                                 onChange={e => setName(e.target.value)}
                                 disabled={isSubmitting}
@@ -82,11 +81,10 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                         
                         <div className="space-y-2">
                             <label htmlFor="project-description" className="text-sm font-medium">
-                                Description <span className="text-muted-foreground text-xs">(optional)</span>
+                                Description
                             </label>
                             <Textarea
                                 id="project-description"
-                                placeholder="Enter project description"
                                 value={description}
                                 onChange={e => setDescription(e.target.value)}
                                 disabled={isSubmitting}
@@ -104,7 +102,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                         >
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isSubmitting || !name.trim()}>
+                        <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting ? "Creating..." : "Create Project"}
                         </Button>
                     </DialogFooter>

@@ -22,7 +22,12 @@ export const ArtifactDeleteDialog: React.FC = () => {
                         ?
                     </DialogTitle>
                     <DialogDescription className="flex flex-col gap-2">
-                        <div>This file will be permanently deleted. </div>
+                        <div>
+                            {artifactToDelete.source === 'project'
+                                ? 'This will remove the file from this chat session. The file will remain in the project.'
+                                : 'This file will be permanently deleted.'
+                            }
+                        </div>
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex justify-end gap-2">

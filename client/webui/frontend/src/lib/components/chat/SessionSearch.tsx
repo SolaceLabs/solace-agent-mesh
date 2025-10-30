@@ -33,7 +33,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
 
     const apiPrefix = `${configServerUrl}/api/v1`;
 
-    const performSearch = useCallback(async (query: string) => {
+    const performSearch = useCallback(async (query: string, currentProjectId: string | null | undefined) => {
         if (!query.trim()) {
             setSearchResults([]);
             setShowResults(false);
@@ -44,12 +44,12 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
         try {
             const params = new URLSearchParams({
                 query: query.trim(),
-                page_number: "1",
-                page_size: "20",
+                pageNumber: "1",
+                pageSize: "20",
             });
 
-            if (projectId) {
-                params.append("project_id", projectId);
+            if (currentProjectId) {
+                params.append("projectId", currentProjectId);
             }
 
             const response = await authenticatedFetch(
@@ -70,11 +70,11 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
         } finally {
             setIsSearching(false);
         }
-    }, [apiPrefix, projectId]);
+    }, [apiPrefix]);
 
     useEffect(() => {
-        performSearch(debouncedSearchQuery);
-    }, [debouncedSearchQuery, performSearch]);
+        performSearch(debouncedSearchQuery, projectId);
+    }, [debouncedSearchQuery, projectId, performSearch]);
 
     const handleClear = () => {
         setSearchQuery("");
@@ -87,13 +87,15 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
         handleClear();
     };
 
+    const placeholder = projectId ? "Search within selected project" : "Search within chats";
+
     return (
         <div className="relative w-full">
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                     type="text"
-                    placeholder="Search within chats"
+                    placeholder={placeholder}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9 pr-9"

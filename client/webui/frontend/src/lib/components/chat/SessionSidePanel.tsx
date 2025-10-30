@@ -3,19 +3,15 @@ import React from "react";
 import { PanelLeftIcon } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
-import { useChatContext } from "@/lib/hooks";
 
 import { ChatSessions } from "./ChatSessions";
 import { ChatSessionDialog } from "./ChatSessionDialog";
-import { SessionSearch } from "./SessionSearch";
 
 interface SessionSidePanelProps {
     onToggle: () => void;
 }
 
 export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle }) => {
-    const { handleSwitchSession } = useChatContext();
-
     return (
         <div className={`bg-background flex h-full w-100 flex-col border-r`}>
             <div className="flex items-center justify-between px-4 pt-[35px] pb-3">
@@ -24,11 +20,6 @@ export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle }) 
                 </Button>
 
                 <ChatSessionDialog buttonText="New Chat" />
-            </div>
-
-            {/* Session Search */}
-            <div className="px-4 pb-3">
-                <SessionSearch onSessionSelect={handleSwitchSession} />
             </div>
 
             {/* Chat Sessions */}

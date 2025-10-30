@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 
-import { FolderOpen } from "lucide-react";
+import { PanelsTopLeft } from "lucide-react";
 
 import { useChatContext, useDownload } from "@/lib/hooks";
 import { formatBytes } from "@/lib/utils/format";
 import type { ArtifactInfo } from "@/lib/types";
+import { Badge } from "@/lib/components/ui";
 
 import { ArtifactDetails } from "./ArtifactDetails";
 import { getFileIcon } from "../file/fileUtils";
@@ -23,12 +24,16 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview,
     const [isExpanded, setIsExpanded] = useState(false);
 
     const getArtifactBadge = (artifact: ArtifactInfo) => {
-        console.log("arttifact",artifact)
         if (artifact.source === 'project') {
             return {
                 label: 'Project',
-                icon: <FolderOpen className="h-3 w-3" />,
-                className: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+                icon: <PanelsTopLeft className="h-3 w-3" />,
+                badgeComponent: (
+                    <Badge type="info">
+                        <PanelsTopLeft className="h-3 w-3" />
+                        Project
+                    </Badge>
+                ),
                 readonly: !isProjectManagementContext
             };
         }

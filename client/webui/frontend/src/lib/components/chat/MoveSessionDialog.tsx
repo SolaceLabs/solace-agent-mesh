@@ -22,13 +22,13 @@ export const MoveSessionDialog = ({
     projects,
     currentProjectId
 }: MoveSessionDialogProps) => {
-    const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+    const [selectedProjectId, setSelectedProjectId] = useState<string | null | "">(null);
     const [isMoving, setIsMoving] = useState(false);
 
     // Reset selected project when dialog opens
     useEffect(() => {
         if (isOpen) {
-            setSelectedProjectId(null);
+            setSelectedProjectId("");
         }
     }, [isOpen]);
 
@@ -51,25 +51,56 @@ export const MoveSessionDialog = ({
     // Filter out the current project from the list
     const availableProjects = projects.filter(p => p.id !== currentProjectId);
 
+    const getDescription = () => {
+        if (currentProjectId) {
+            return `Move "${session.name || 'Untitled Session'}" to a different project or remove it from the current project.`;
+        }
+        return `Move "${session.name || 'Untitled Session'}" to a project.`;
+    };
+
+    const getNoProjectLabel = () => {
+        if (currentProjectId) {
+            return "No Project (Remove from current)";
+        }
+        return "No Project";
+    };
+
+    const getPlaceholder = () => {
+        if (currentProjectId) {
+            return "Select a project";
+        }
+        return "Select a project to move to";
+    };
+
+    // Disable move button if no selection made or if selecting the same state
+    const isMoveDisabled = isMoving || selectedProjectId === "" ||
+                          (selectedProjectId === null && !currentProjectId);
+
+    const handleClose = () => {
+        if (!isMoving) {
+            onClose();
+        }
+    };
+
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Move Chat Session</DialogTitle>
                     <DialogDescription>
-                        Move "{session.name || 'Untitled Session'}" to a different project or remove it from the current project.
+                        {getDescription()}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
                     <Select
-                        value={selectedProjectId || "none"}
+                        value={selectedProjectId === null ? "none" : (selectedProjectId || "")}
                         onValueChange={(value) => setSelectedProjectId(value === "none" ? null : value)}
                     >
-                        <SelectTrigger className="rounded-md">
-                            <SelectValue placeholder="Select a project" />
+                        <SelectTrigger className="w-full rounded-md">
+                            <SelectValue placeholder={getPlaceholder()} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="none">No Project (Remove from current)</SelectItem>
+                            {currentProjectId && <SelectItem value="none">{getNoProjectLabel()}</SelectItem>}
                             {availableProjects.map((project) => (
                                 <SelectItem key={project.id} value={project.id}>
                                     {project.name}
@@ -79,10 +110,10 @@ export const MoveSessionDialog = ({
                     </Select>
                 </div>
                 <DialogFooter>
-                    <Button variant="ghost" onClick={onClose} disabled={isMoving}>
+                    <Button variant="ghost" onClick={handleClose} disabled={isMoving}>
                         Cancel
                     </Button>
-                    <Button onClick={handleConfirm} disabled={isMoving}>
+                    <Button onClick={handleConfirm} disabled={isMoveDisabled}>
                         {isMoving ? "Moving..." : "Move"}
                     </Button>
                 </DialogFooter>

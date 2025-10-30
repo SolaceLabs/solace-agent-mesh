@@ -17,7 +17,7 @@ interface ArtifactDetailsProps {
     badge?: {
         label: string;
         icon: React.ReactNode;
-        className: string;
+        badgeComponent: React.ReactNode;
         readonly?: boolean;
     } | null;
 }
@@ -34,12 +34,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, 
                         <div className="truncate text-sm" title={artifactInfo.filename}>
                             {artifactInfo.filename}
                         </div>
-                        {badge && (
-                            <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${badge.className}`}>
-                                {badge.icon}
-                                <span>{badge.label}</span>
-                            </div>
-                        )}
+                        {badge && badge.badgeComponent}
                     </div>
                     <div className="truncate text-xs" title={formatRelativeTime(artifactInfo.last_modified)}>
                         {formatRelativeTime(artifactInfo.last_modified)}

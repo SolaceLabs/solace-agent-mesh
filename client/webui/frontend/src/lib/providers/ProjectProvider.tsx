@@ -77,10 +77,18 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({
-                        detail: `Failed to create project: ${response.statusText}`,
-                    }));
-                    throw new Error(errorData.detail || `Failed to create project: ${response.statusText}`);
+                    const responseText = await response.text();
+                    
+                    let errorMessage = `Failed to create project: ${response.statusText}`;
+                    try {
+                        const errorData = JSON.parse(responseText);
+                        errorMessage = errorData.detail || errorData.message || errorMessage;
+                    } catch {
+                        if (responseText && responseText.length < 200) {
+                            errorMessage = responseText;
+                        }
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const newProject: Project = await response.json();
@@ -90,9 +98,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 return newProject;
             } catch (err: unknown) {
-                console.error("Error creating project:", err);
                 const errorMessage = err instanceof Error ? err.message : "Could not create project.";
-                setError(errorMessage);
                 throw new Error(errorMessage);
             }
         },

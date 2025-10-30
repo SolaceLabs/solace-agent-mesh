@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Plus, RefreshCcw } from "lucide-react";
 
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { ProjectListSidebar } from "./ProjectListSidebar";
@@ -29,6 +29,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         selectedProject,
         setSelectedProject,
         setActiveProject,
+        refetch,
     } = useProjectContext();
     const { handleSwitchSession, handleNewSession } = useChatContext();
 
@@ -102,9 +103,13 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
             <Header
                 title="Projects"
                 buttons={[
-                    <Button key="create-project" variant="ghost" onClick={handleCreateNew} className="flex items-center gap-2">
+                    <Button key="create-project" variant="outline" onClick={handleCreateNew} className="flex items-center gap-2">
                         <Plus className="h-4 w-4" />
                         Create Project
+                    </Button>,
+                    <Button key="refresh-projects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
+                        <RefreshCcw className="size-4" />
+                        Refresh
                     </Button>
                 ]}
             />
