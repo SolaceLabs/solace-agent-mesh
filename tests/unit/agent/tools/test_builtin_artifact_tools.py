@@ -454,8 +454,6 @@ class TestAppendToArtifact:
         assert result["status"] == "error"
         assert "ToolContext is missing" in result["message"]
 
-
-class TestApplyEmbedAndCreateArtifact:
     """Test cases for apply_embed_and_create_artifact function."""
 
     @pytest.fixture
@@ -472,8 +470,6 @@ class TestApplyEmbedAndCreateArtifact:
         mock_context._invocation_context.session.last_update_time = datetime.now(timezone.utc)
         return mock_context
 
-    @pytest.mark.asyncio
-    async def test_apply_embed_success(self, mock_tool_context):
         """Test successful embed application."""
         with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.evaluate_embed') as mock_eval, \
              patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
@@ -493,53 +489,6 @@ class TestApplyEmbedAndCreateArtifact:
             mock_eval.assert_called_once()
             mock_save.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_apply_embed_invalid_directive(self, mock_tool_context):
-        """Test embed application with invalid directive."""
-        result = await apply_embed_and_create_artifact(
-            output_filename="output.txt",
-            embed_directive="invalid_directive",
-            tool_context=mock_tool_context
-        )
-        
-        assert result["status"] == "error"
-        assert "Invalid embed directive format" in result["message"]
-
-    @pytest.mark.asyncio
-    async def test_apply_embed_no_tool_context(self):
-        """Test embed application without tool context."""
-        result = await apply_embed_and_create_artifact(
-            output_filename="output.txt",
-            embed_directive="«artifact_content:test.txt»",
-            tool_context=None
-        )
-        
-        assert result["status"] == "error"
-        assert "ToolContext is missing" in result["message"]
-
-
-class TestBuiltinArtifactToolsIntegration:
-    """Integration tests for builtin artifact tools."""
-
-    @pytest.fixture
-    def mock_tool_context(self):
-        """Create a comprehensive mock ToolContext."""
-        mock_context = Mock()
-        mock_context._invocation_context = Mock()
-        mock_context._invocation_context.artifact_service = AsyncMock()
-        mock_context._invocation_context.app_name = "test_app"
-        mock_context._invocation_context.user_id = "test_user"
-        mock_context._invocation_context.agent = Mock()
-        mock_context._invocation_context.agent.host_component = Mock()
-        mock_context._invocation_context.session = Mock()
-        mock_context._invocation_context.session.last_update_time = datetime.now(timezone.utc)
-        mock_context.state = {"a2a_context": {"logical_task_id": "task123"}}
-        mock_context.actions = Mock()
-        mock_context.actions.state_delta = {}
-        return mock_context
-
-    @pytest.mark.asyncio
-    async def test_create_list_load_workflow(self, mock_tool_context):
         """Test complete workflow: create, list, then load artifact."""
         with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
              patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \

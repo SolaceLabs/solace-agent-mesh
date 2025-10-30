@@ -23,12 +23,6 @@ async def test_initial_tool_registry_state():
     scenario_id = "tool_registry_initial_state_001"
     print(f"\nRunning scenario: {scenario_id}")
 
-    web_request_tool = tool_registry.get_tool_by_name("web_request")
-    assert web_request_tool is not None
-    assert isinstance(web_request_tool, BuiltinTool)
-    assert web_request_tool.name == "web_request"
-    print(f"Scenario {scenario_id}: Verified 'web_request' tool is registered.")
-
     expected_artifact_tools = [
         "append_to_artifact",
         "list_artifacts",

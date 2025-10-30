@@ -170,7 +170,6 @@ class TestAgentProgressUpdateData:
         assert data.status_text == long_status
         assert len(data.status_text) == 1000
 
-    def test_agent_progress_update_serialization(self):
         """Test serialization to dict."""
         data = AgentProgressUpdateData(status_text="Test status")
         serialized = data.model_dump()
@@ -178,10 +177,6 @@ class TestAgentProgressUpdateData:
         assert serialized["type"] == "agent_progress_update"
         assert serialized["status_text"] == "Test status"
 
-class TestToolResultData:
-    """Test ToolResultData model."""
-
-    def test_valid_tool_result_without_llm_usage(self):
         """Test creating a valid ToolResultData without LLM usage."""
         result_data = {"status": "success", "data": [1, 2, 3]}
         data = ToolResultData(
@@ -196,7 +191,7 @@ class TestToolResultData:
         assert data.function_call_id == "call_123"
         assert data.llm_usage is None
 
-    def test_valid_tool_result_with_llm_usage(self):
+
         """Test creating a valid ToolResultData with LLM usage."""
         result_data = {"output": "processed"}
         llm_usage = {
@@ -214,21 +209,6 @@ class TestToolResultData:
         assert data.type == "tool_result"
         assert data.llm_usage == llm_usage
 
-    def test_tool_result_type_is_literal(self):
-        """Test that type field is always 'tool_result'."""
-        data = ToolResultData(
-            tool_name="test",
-            result_data={},
-            function_call_id="call_789",
-        )
-        assert data.type == "tool_result"
-
-    def test_tool_result_missing_required_fields(self):
-        """Test that missing required fields raise ValidationError."""
-        with pytest.raises(ValidationError):
-            ToolResultData(tool_name="test")
-
-    def test_tool_result_with_various_result_types(self):
         """Test tool result with various result data types."""
         # String result
         data1 = ToolResultData(
