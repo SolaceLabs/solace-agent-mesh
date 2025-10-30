@@ -135,11 +135,11 @@ Agents move through distinct states as you create, edit, and deploy them.
 
 **Running** agents move to the Active tab and become available for user interactions. Once deployed, agents cannot be deleted—you must undeploy them first to remove them from the system.
 
-**Deployment Failed** is displayed if your agent failed to deployed
+**Deployment Failed** is displayed if your agent failed to deploy for any reason. Verfy all agent configuration and try again or contact an adminstrator.
 
-**Sync Status** tracking helps you manage configuration drift for deployed agents. When you deploy an agent, the system records its configuration. If you later edit the agent's configuration in the UI, the system detects this mismatch and will continue to display the `Running` agent in the active section and display the updated agent in the inactive section. Both tiles will display with `Undeployed changes`. This visibility helps you understand when deployed agents don't match their stored configurations, though the specific synchronization mechanism depends on your deployment approach. The `Preview Updates` action surfaced in the agent side panel can help compare the running agent with its undeployed configuration.
+**Sync Status** tracking helps you manage configuration drift for deployed agents. When you deploy an agent, the system records its configuration. If you later edit the agent's configuration in the UI, the system detects this mismatch. The system will continue to display the `Running` agent in the active section and also display the agent updates as `Not Deployed` in the inactive section. Both tiles will show `Undeployed changes`. This visibility helps you understand when deployed agents don't match their stored configurations, though the specific synchronization mechanism depends on your deployment approach. The `Preview Updates` action surfaced in the agent side panel can help compare the running agent with its undeployed configuration.
 
-You can edit agent configurations (of agents built with agent builder) at any time, whether they're deployed or not. Changes to deployed agents may require redeployment to take effect, depending on your deployment method.
+You can edit agent configurations (of agents built with agent builder) at any time, whether they're deployed or not. Changes to deployed agents will require the `Deploy Updates` action to take effect in the `Running` agent.
 
 Downloading agents as YAML files provides portability and version control. You can use these files to:
 
