@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Bot, Save, X } from "lucide-react";
+import { Bot, Pencil } from "lucide-react";
 
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui";
 import { useAgentCards } from "@/lib/hooks";
 import type { Project } from "@/lib/types/projects";
 
@@ -40,25 +40,45 @@ export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({
     const displayName = currentAgent?.displayName || project.defaultAgentId || "None";
 
     return (
-        <div className="border-b">
-            <div className="flex items-center justify-between px-4 py-3">
-                <h3 className="text-sm font-semibold text-foreground">Default Agent</h3>
-                {!isEditing && (
+        <>
+            <div className="border-b">
+                <div className="flex items-center justify-between px-4 py-3">
+                    <h3 className="text-sm font-semibold text-foreground">Default Agent</h3>
                     <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setIsEditing(true)}
                         disabled={agentsLoading}
+                        className="h-8 w-8 p-0"
+                        tooltip="Edit"
                     >
-                        <Bot className="h-4 w-4 mr-2" />
-                        Edit
+                        <Pencil className="h-4 w-4" />
                     </Button>
-                )}
+                </div>
+
+                <div className="px-4 pb-3">
+                    <div className="text-sm text-muted-foreground rounded-md bg-muted p-2.5 flex items-center">
+                        {project.defaultAgentId ? (
+                            <div className="flex items-center gap-2">
+                                <Bot className="h-4 w-4" />
+                                <span>{displayName}</span>
+                            </div>
+                        ) : (
+                            <span className="w-full text-center">No default agent set.</span>
+                        )}
+                    </div>
+                </div>
             </div>
 
-            <div className="px-4 pb-3">
-                {isEditing ? (
-                    <div className="space-y-2">
+            <Dialog open={isEditing} onOpenChange={setIsEditing}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Default Agent</DialogTitle>
+                        <DialogDescription>
+                            Select the default agent for this project. This agent will be used when starting new chats in this project.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
                         <Select
                             value={selectedAgentId || "none"}
                             onValueChange={(value) => setSelectedAgentId(value === "none" ? null : value)}
@@ -78,39 +98,24 @@ export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({
                                 ))}
                             </SelectContent>
                         </Select>
-                        <div className="flex gap-2">
-                            <Button
-                                size="sm"
-                                onClick={handleSave}
-                                disabled={isSaving || agentsLoading}
-                            >
-                                <Save className="h-4 w-4 mr-2" />
-                                Save
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleCancel}
-                                disabled={isSaving}
-                            >
-                                <X className="h-4 w-4 mr-2" />
-                                Cancel
-                            </Button>
-                        </div>
                     </div>
-                ) : (
-                    <div className="text-sm text-muted-foreground rounded-md bg-muted p-2.5 flex items-center">
-                        {project.defaultAgentId ? (
-                            <div className="flex items-center gap-2">
-                                <Bot className="h-4 w-4" />
-                                <span>{displayName}</span>
-                            </div>
-                        ) : (
-                            <span className="italic">No default agent set.</span>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
+                    <DialogFooter>
+                        <Button
+                            variant="ghost"
+                            onClick={handleCancel}
+                            disabled={isSaving}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleSave}
+                            disabled={isSaving || agentsLoading}
+                        >
+                            Save
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 };

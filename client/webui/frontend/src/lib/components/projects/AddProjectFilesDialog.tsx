@@ -100,7 +100,7 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({
                     )}
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+                    <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
                         Cancel
                     </Button>
                     <Button onClick={handleConfirmClick} disabled={isSubmitting || fileList.length === 0}>

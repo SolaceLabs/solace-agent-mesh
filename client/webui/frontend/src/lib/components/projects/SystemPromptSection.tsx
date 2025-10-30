@@ -43,9 +43,10 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => setIsEditing(true)}
+                        className="h-8 w-8 p-0"
+                        tooltip="Edit"
                     >
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Edit
+                        <Pencil className="h-4 w-4" />
                     </Button>
                 )}
             </div>
@@ -82,8 +83,8 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
                         </div>
                     </div>
                 ) : (
-                    <div className="text-sm text-muted-foreground whitespace-pre-wrap rounded-md bg-muted p-3 min-h-[120px] max-h-[400px] overflow-y-auto">
-                        {project.systemPrompt || <span className="italic">No instructions provided.</span>}
+                    <div className={`text-sm text-muted-foreground whitespace-pre-wrap rounded-md bg-muted p-3 min-h-[120px] max-h-[400px] overflow-y-auto ${!project.systemPrompt ? 'flex items-center justify-center' : ''}`}>
+                        {project.systemPrompt || "No instructions provided."}
                     </div>
                 )}
             </div>

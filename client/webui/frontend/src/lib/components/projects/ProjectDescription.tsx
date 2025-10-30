@@ -43,9 +43,8 @@ export const ProjectDescription: React.FC<ProjectDescriptionProps> = ({
             <div className="flex items-start justify-between mb-2">
                 <h3 className="text-sm font-semibold text-foreground">Description</h3>
                 {!isEditing && (
-                    <Button variant="ghost" size="sm" onClick={onToggleEdit}>
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Edit
+                    <Button variant="ghost" size="sm" onClick={onToggleEdit} className="h-8 w-8 p-0" tooltip="Edit">
+                        <Pencil className="h-4 w-4" />
                     </Button>
                 )}
             </div>
@@ -79,9 +78,9 @@ export const ProjectDescription: React.FC<ProjectDescriptionProps> = ({
                     </div>
                 </div>
             ) : (
-                <p className="text-sm text-muted-foreground">
-                    {project.description || <span className="italic">No description provided.</span>}
-                </p>
+                <div className={`text-sm text-muted-foreground ${!project.description ? 'rounded-md bg-muted p-3 text-center' : ''}`}>
+                    {project.description || "No description provided."}
+                </div>
             )}
         </div>
     );

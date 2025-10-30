@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "@/lib/components/ui/input";
 import { Button } from "@/lib/components/ui/button";
+import { Badge } from "@/lib/components/ui/badge";
 import { useDebounce } from "@/lib/hooks/useDebounce";
 import { useConfigContext } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
@@ -92,7 +93,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                     type="text"
-                    placeholder="Search chats..."
+                    placeholder="Search within chats"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9 pr-9"
@@ -123,14 +124,19 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
                                     onClick={() => handleSessionClick(session.id)}
                                     className="w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
                                 >
-                                    <div className="font-medium">
-                                        {session.name || "Untitled Session"}
-                                    </div>
-                                    {session.projectName && (
-                                        <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={`Project: ${session.projectName}`}>
-                                            Project: {session.projectName}
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                        <div className="font-medium truncate flex-1">
+                                            {session.name || "Untitled Session"}
                                         </div>
-                                    )}
+                                        {session.projectName && (
+                                            <Badge
+                                                variant="outline"
+                                                className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm flex-shrink-0"
+                                            >
+                                                {session.projectName}
+                                            </Badge>
+                                        )}
+                                    </div>
                                     <div className="text-xs text-muted-foreground">
                                         {new Date(session.updatedTime).toLocaleDateString()}
                                     </div>

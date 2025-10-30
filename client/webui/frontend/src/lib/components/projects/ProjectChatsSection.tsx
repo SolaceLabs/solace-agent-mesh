@@ -64,7 +64,7 @@ export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({
                     {sessions.map((session) => (
                         <div
                             key={session.id}
-                            className="p-3 border rounded-md hover:bg-accent/50 cursor-pointer transition-colors"
+                            className="p-3 border rounded-md hover:bg-accent/50 cursor-pointer transition-colors shadow-sm"
                             onClick={() => onChatClick(session.id)}
                             role="button"
                             tabIndex={0}

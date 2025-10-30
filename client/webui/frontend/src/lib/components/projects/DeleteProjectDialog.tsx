@@ -33,12 +33,12 @@ export const DeleteProjectDialog = ({
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose} disabled={isDeleting}>
+                    <Button variant="ghost" onClick={onClose} disabled={isDeleting}>
                         Cancel
                     </Button>
-                    <Button 
-                        variant="destructive" 
-                        onClick={onConfirm} 
+                    <Button
+                        variant="outline"
+                        onClick={onConfirm}
                         disabled={isDeleting}
                     >
                         {isDeleting ? "Deleting..." : "Delete Project"}

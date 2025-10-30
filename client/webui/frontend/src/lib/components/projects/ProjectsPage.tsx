@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 
 import { CreateProjectDialog } from "./CreateProjectDialog";
@@ -81,16 +81,28 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         }
     };
 
+    // Listen for navigate-to-project events from SessionList
+    useEffect(() => {
+        const handleNavigateToProject = (event: CustomEvent) => {
+            const { projectId } = event.detail;
+            const project = projects.find(p => p.id === projectId);
+            if (project) {
+                setSelectedProject(project);
+            }
+        };
+
+        window.addEventListener("navigate-to-project", handleNavigateToProject as EventListener);
+        return () => {
+            window.removeEventListener("navigate-to-project", handleNavigateToProject as EventListener);
+        };
+    }, [projects, setSelectedProject]);
+
     return (
         <div className="flex h-full w-full flex-col">
             <Header
-                title={selectedProject ? selectedProject.name : "Projects"}
-                breadcrumbs={selectedProject ? [
-                    { label: "Projects", onClick: () => setSelectedProject(null) },
-                    { label: selectedProject.name }
-                ] : undefined}
+                title="Projects"
                 buttons={[
-                    <Button key="create-project" onClick={handleCreateNew} className="flex items-center gap-2">
+                    <Button key="create-project" variant="ghost" onClick={handleCreateNew} className="flex items-center gap-2">
                         <Plus className="h-4 w-4" />
                         Create Project
                     </Button>

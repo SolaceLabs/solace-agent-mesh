@@ -3,10 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PanelLeftIcon } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
-import { Header, type BreadcrumbItem } from "@/lib/components/header";
+import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
 import type { TextPart } from "@/lib/types";
-import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
+import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui";
 import { Spinner } from "@/lib/components/ui/spinner";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useTaskContext } from "@/lib/hooks";
@@ -37,12 +37,8 @@ const PANEL_SIZES_OPEN = {
     sidePanelSizes: { ...PANEL_SIZES_CLOSED.sidePanelSizes, max: 50 },
 };
 
-interface ChatPageProps {
-    onNavigateToProjects?: () => void;
-}
-
-export function ChatPage({ onNavigateToProjects }: ChatPageProps) {
-    const { activeProject, setActiveProject, setSelectedProject } = useProjectContext();
+export function ChatPage() {
+    const { activeProject } = useProjectContext();
     const { agents, sessionName, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, isLoadingSession, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -92,28 +88,7 @@ export function ChatPage({ onNavigateToProjects }: ChatPageProps) {
         setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
     }, [isSessionSidePanelCollapsed]);
 
-    // Build breadcrumbs based on active project and session
-    const breadcrumbs = useMemo((): BreadcrumbItem[] | undefined => {
-        if (!activeProject) {
-            return undefined;
-        }
-
-        const crumbs: BreadcrumbItem[] = [
-            {
-                label: "Projects",
-                onClick: () => {
-                    setActiveProject(null);
-                    setSelectedProject(null);
-                    onNavigateToProjects?.();
-                }
-            },
-            {
-                label: activeProject.name,
-            }
-        ];
-
-        return crumbs;
-    }, [activeProject, setActiveProject, setSelectedProject]);
+    const breadcrumbs = undefined;
 
     // Determine the page title
     const pageTitle = useMemo(() => {
@@ -200,7 +175,19 @@ export function ChatPage({ onNavigateToProjects }: ChatPageProps) {
             </div>
             <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                 <Header
-                    title={pageTitle}
+                    title={
+                        <div className="flex items-center gap-3">
+                            <span>{pageTitle}</span>
+                            {activeProject && (
+                                <Badge
+                                    variant="outline"
+                                    className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm"
+                                >
+                                    {activeProject.name}
+                                </Badge>
+                            )}
+                        </div>
+                    }
                     breadcrumbs={breadcrumbs}
                     leadingAction={
                         isSessionSidePanelCollapsed ? (

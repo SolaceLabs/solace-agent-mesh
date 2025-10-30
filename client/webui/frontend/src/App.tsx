@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 import { AgentMeshPage, ChatPage, bottomNavigationItems, getTopNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
 import { ProjectsPage } from "@/lib/components/projects";
@@ -13,6 +13,25 @@ function AppContent() {
 
     // Enable beforeunload warning when chat data is present
     useBeforeUnload();
+
+    // Listen for navigate-to-project events
+    useEffect(() => {
+        const handleNavigateToProject = (event: CustomEvent) => {
+            if (projectsEnabled && !event.detail.handled) {
+                setActiveNavItem("projects");
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent("navigate-to-project", {
+                        detail: { ...event.detail, handled: true }
+                    }));
+                }, 100);
+            }
+        };
+
+        window.addEventListener("navigate-to-project", handleNavigateToProject as EventListener);
+        return () => {
+            window.removeEventListener("navigate-to-project", handleNavigateToProject as EventListener);
+        };
+    }, [projectsEnabled]);
 
     // Get filtered navigation items based on feature flags
     const topNavigationItems = useMemo(() => {
@@ -44,7 +63,7 @@ function AppContent() {
     const renderMainContent = () => {
         switch (activeNavItem) {
             case "chat":
-                return <ChatPage onNavigateToProjects={projectsEnabled ? () => setActiveNavItem("projects") : undefined} />;
+                return <ChatPage />;
             case "agentMesh":
                 return <AgentMeshPage />;
             case "projects":
@@ -53,7 +72,7 @@ function AppContent() {
                     return <ProjectsPage onProjectActivated={() => setActiveNavItem("chat")} />;
                 }
                 // Fallback to chat if projects are disabled but somehow navigated here
-                return <ChatPage onNavigateToProjects={undefined} />;
+                return <ChatPage />;
         }
     };
 

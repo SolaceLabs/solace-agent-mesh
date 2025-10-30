@@ -96,10 +96,10 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                     </div>
                     
                     <DialogFooter>
-                        <Button 
-                            type="button" 
-                            variant="outline" 
-                            onClick={handleClose} 
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={handleClose}
                             disabled={isSubmitting}
                         >
                             Cancel

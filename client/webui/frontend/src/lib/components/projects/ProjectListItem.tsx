@@ -1,8 +1,7 @@
 import React from "react";
-import { Calendar, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 import type { Project } from "@/lib/types/projects";
-import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
 
 interface ProjectListItemProps {
@@ -21,9 +20,9 @@ export const ProjectListItem: React.FC<ProjectListItemProps> = ({ project, isSel
     return (
         <div
             className={`
-                group cursor-pointer border-b px-4 py-3 transition-colors
+                group cursor-pointer px-4 py-2 transition-colors
                 hover:bg-accent/50
-                ${isSelected ? "bg-accent border-l-4 border-l-primary" : "border-l-4 border-l-transparent"}
+                ${isSelected ? "bg-accent" : ""}
             `}
             onClick={onClick}
             role="button"
@@ -41,14 +40,10 @@ export const ProjectListItem: React.FC<ProjectListItemProps> = ({ project, isSel
                         {project.name}
                     </h3>
                     {project.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-2" title={project.description}>
+                        <p className="text-sm text-muted-foreground line-clamp-2" title={project.description}>
                             {project.description}
                         </p>
                     )}
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        <span>{formatTimestamp(project.updatedAt || project.createdAt)}</span>
-                    </div>
                 </div>
                 {onDelete && (
                     <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">

@@ -65,7 +65,7 @@ export const MoveSessionDialog = ({
                         value={selectedProjectId || "none"}
                         onValueChange={(value) => setSelectedProjectId(value === "none" ? null : value)}
                     >
-                        <SelectTrigger>
+                        <SelectTrigger className="rounded-md">
                             <SelectValue placeholder="Select a project" />
                         </SelectTrigger>
                         <SelectContent>
@@ -79,7 +79,7 @@ export const MoveSessionDialog = ({
                     </Select>
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose} disabled={isMoving}>
+                    <Button variant="ghost" onClick={onClose} disabled={isMoving}>
                         Cancel
                     </Button>
                     <Button onClick={handleConfirm} disabled={isMoving}>
