@@ -11,23 +11,23 @@ This guide explains how to configure storage for artifacts—files and data crea
 
 Artifacts are files and data created by agents during task execution. Examples include generated reports, analysis results, processed documents, or any files that agents produce for users. Agent Mesh provides built-in tools for agents to create, manage, and reference artifacts.
 
-**Key characteristics:**
-- **Automatic Versioning**: Each time an artifact is updated, a new version is created (v0, v1, v2, etc.)
-- **User-Scoped**: Artifacts belong to specific users and sessions
-- **Retrievable**: Users can access, download, and view artifact history
-- **Tool-Driven**: Agents use built-in tools to create and manage artifacts
+Key characteristics:
+- Automatic versioning: Each time an artifact is updated, a new version is created (v0, v1, v2, etc.)
+- User-scoped: Artifacts belong to specific users and sessions
+- Retrievable: Users can access, download, and view artifact history
+- Tool-driven: Agents use built-in tools to create and manage artifacts
 
 ### Artifact Storage vs Session Storage
 
-Unlike session storage (which is separate for WebUI Gateway and each agent), **artifact storage is shared across all agents and gateways in your deployment**.
+Unlike session storage (which is separate for WebUI Gateway and each agent), artifact storage is shared across all agents and gateways in your deployment.
 
-**How It Works:**
-- All agents and gateways connect to the **same artifact storage backend**
+How it works:
+- All agents and gateways connect to the same artifact storage backend
 - Artifacts are scoped by `(user_id, session_id, app_name)` to maintain isolation
 - Any agent or gateway can access artifacts within their scope
 - This allows agents to share files and data within a conversation
 
-**Example:**
+Example:
 ```yaml
 # WebUI Gateway and all agents share this artifact storage
 artifact_service:
@@ -36,7 +36,7 @@ artifact_service:
   region: "us-west-2"
 ```
 
-**Contrast with Session Storage:**
+Contrast with session storage:
 - Session storage: Each agent has its own separate database
 - Artifact storage: All agents and gateways share the same storage backend
 
@@ -58,34 +58,34 @@ Agent Mesh supports multiple storage backends for artifacts. Choose based on you
 
 In-memory storage keeps artifacts in application memory. This is the default and suitable only for testing.
 
-**Characteristics:**
+Characteristics:
 - All artifacts lost on application restart
 - No external dependencies
 - Fastest access (no network calls)
 - Single instance only
 
-**Use only for:** Initial testing, development prototyping
+Use only for initial testing and development prototyping.
 
 ### Filesystem Storage
 
 Filesystem storage saves artifacts to local disk directories. This is suitable for development and local testing.
 
-**Characteristics:**
+Characteristics:
 - Artifacts stored in transparent directory structure
 - Data persists across restarts
 - Single instance only (not shared across pods)
 - Simple backup (copy directories)
 
-**Use only for:** Local development, single-machine deployments
+Use only for local development and single-machine deployments.
 
-**Configuration:**
+Configuration:
 ```yaml
 artifact_service:
   type: "filesystem"
   base_path: "/tmp/sam-artifacts"
 ```
 
-**Storage Structure:**
+Storage structure:
 ```
 /tmp/sam-artifacts/
 ├── app-name/
@@ -109,14 +109,14 @@ artifact_service:
 
 S3 storage uses Amazon S3 for artifact persistence. This is the recommended production backend for AWS deployments.
 
-**Characteristics:**
+Characteristics:
 - Highly durable (99.999999999% durability)
 - Scalable to any size
 - Access from any location
 - Automatic backups and redundancy
 - IAM-based security
 
-**Configuration:**
+Configuration:
 ```yaml
 artifact_service:
   type: "s3"
@@ -124,21 +124,22 @@ artifact_service:
   region: "us-west-2"
 ```
 
-**Environment Variables:**
+Environment variables:
 ```bash
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
 export AWS_REGION="us-west-2"
 ```
 
-**IAM Permissions Required:**
+IAM permissions required:
+
 The credentials must have these permissions for the bucket:
 - `s3:GetObject`
 - `s3:PutObject`
 - `s3:DeleteObject`
 - `s3:ListBucket`
 
-**Example IAM Policy:**
+Example IAM policy:
 ```json
 {
   "Version": "2012-10-17",
@@ -164,13 +165,13 @@ The credentials must have these permissions for the bucket:
 
 S3-compatible storage allows any storage service that implements the S3 API to work with Agent Mesh. This includes on-premises solutions and services from cloud providers other than AWS.
 
-**Characteristics:**
+Characteristics:
 - Works with any S3-compatible API implementation
 - Custom endpoints for private or on-premises storage
 - Same versioning and management as AWS S3
 - Requires compatible storage service
 
-**Configuration:**
+Configuration:
 ```yaml
 artifact_service:
   type: "s3"
@@ -178,7 +179,7 @@ artifact_service:
   endpoint_url: "${S3_ENDPOINT_URL}"
 ```
 
-**Environment Variables:**
+Environment variables:
 ```bash
 export S3_ENDPOINT_URL="https://storage.example.com"
 export S3_ACCESS_KEY_ID="your-access-key"
@@ -186,36 +187,39 @@ export S3_SECRET_ACCESS_KEY="your-secret-key"
 export AWS_REGION="us-east-1"  # Required but can be arbitrary for S3-compatible endpoints
 ```
 
-**Supported Services:**
+Supported services:
+
 This configuration works with any S3-compatible storage service, including self-hosted and cloud-provider solutions. Examples include storage services from various cloud providers and on-premises object storage systems.
 
 ### Google Cloud Storage (GCS)
 
 GCS storage uses Google Cloud Storage for artifact persistence. This is the recommended backend for Google Cloud deployments.
 
-**Characteristics:**
+Characteristics:
 - High availability and durability
 - Integration with Google Cloud ecosystem
 - Scalable and managed by Google
 - Fine-grained IAM controls
 
-**Configuration:**
+Configuration:
 ```yaml
 artifact_service:
   type: "gcs"
   bucket_name: "my-artifacts-bucket"
 ```
 
-**Authentication:**
+Authentication:
+
 GCS authentication uses Google Cloud Application Default Credentials. Set up via:
 
 ```bash
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
 ```
 
-Or configure via environment variables if using workload identity in Kubernetes.
+Or configure via environment variables if you use workload identity in Kubernetes.
 
-**Permissions Required:**
+Permissions required:
+
 The service account must have these roles on the bucket:
 - `roles/storage.objectViewer`
 - `roles/storage.objectCreator`
@@ -225,13 +229,13 @@ The service account must have these roles on the bucket:
 
 Agent Mesh automatically manages artifact versions, allowing users to access previous versions of files.
 
-**How Versioning Works:**
+How versioning works:
 - First artifact create: version 0
 - Append or update: version 1 (automatic increment)
 - Continue appending: version 2, 3, 4, etc.
 - Versions persist independently
 
-**Example Lifecycle:**
+Example lifecycle:
 ```
 Agent creates report.pdf
   → version 0 created
@@ -248,7 +252,8 @@ User can access any version:
 - Version history (list all versions)
 ```
 
-**Metadata:**
+Metadata:
+
 Each artifact version includes metadata:
 ```json
 {
@@ -358,21 +363,21 @@ Moving from one artifact storage backend to another requires no special migratio
 
 ### Before Migration
 
-**Understand the implications:**
+Understand the implications:
 - Existing artifacts stored in the old backend will not be accessible after switching
 - New artifacts will be stored in the new backend
 - If you need to preserve existing artifacts, export them first from the old storage
 
 ### Migration Steps
 
-**Step 1: Set Up New Storage Backend**
+Step 1: Set up new storage backend
 
 Create the new storage location:
 - For filesystem: `mkdir -p /path/to/new/storage`
 - For S3: Create bucket and set up credentials
 - For GCS: Create bucket and set up service account
 
-**Step 2: Update Configuration**
+Step 2: Update configuration
 
 Update your artifact service configuration:
 
@@ -391,7 +396,7 @@ artifact_service:
   region: "us-west-2"
 ```
 
-**Step 3: Set Environment Variables**
+Step 3: Set environment variables
 
 Configure credentials for the new backend:
 ```bash
@@ -400,11 +405,11 @@ export AWS_SECRET_ACCESS_KEY="your-secret"
 export AWS_REGION="us-west-2"
 ```
 
-**Step 4: Restart Application**
+Step 4: Restart application
 
 When the application restarts, it will use the new backend for all subsequent artifact operations.
 
-**Step 5: Verify**
+Step 5: Verify
 
 Test artifact creation and retrieval:
 1. Create a new artifact
@@ -415,7 +420,7 @@ Test artifact creation and retrieval:
 
 Like session data, artifact storage can be configured with automatic cleanup policies.
 
-**Configuration:**
+Configuration:
 ```yaml
 data_retention:
   enabled: true
@@ -423,12 +428,12 @@ data_retention:
   cleanup_interval_hours: 24
 ```
 
-**How It Works:**
+How it works:
 - Artifacts older than `task_retention_days` may be cleaned up
 - Cleanup runs every `cleanup_interval_hours`
 - Prevents unbounded storage growth
 
-**Note:** Check your specific artifact storage backend documentation for retention policies and best practices.
+Check your specific artifact storage backend documentation for retention policies and best practices.
 
 ## Verification and Testing
 
@@ -449,17 +454,17 @@ curl -X POST http://localhost:8000/api/v1/artifacts/upload \
 
 Check that the artifact was stored in your configured backend:
 
-**Filesystem:**
+Filesystem:
 ```bash
 ls -la /tmp/sam-artifacts/
 ```
 
-**S3:**
+S3:
 ```bash
 aws s3 ls s3://my-artifacts-bucket/ --recursive
 ```
 
-**GCS:**
+GCS:
 ```bash
 gsutil ls -r gs://my-artifacts-bucket/
 ```
@@ -483,9 +488,9 @@ curl http://localhost:8000/api/v1/artifacts/test-session
 
 ### Backend Connectivity Issues
 
-**Error**: `Failed to access storage` or `Connection refused`
+Error: `Failed to access storage` or `Connection refused`
 
-**Solutions:**
+Solutions:
 - Verify storage backend is running and accessible
 - Check network connectivity and firewall rules
 - Verify endpoint URL is correct (for S3-compatible)
@@ -494,9 +499,9 @@ curl http://localhost:8000/api/v1/artifacts/test-session
 
 ### Authentication Errors
 
-**Error**: `Access Denied` or `Unauthorized`
+Error: `Access Denied` or `Unauthorized`
 
-**Solutions:**
+Solutions:
 - Verify AWS/GCS credentials are correct
 - Confirm IAM/service account has required permissions
 - Check that credentials are set in environment variables
@@ -504,9 +509,9 @@ curl http://localhost:8000/api/v1/artifacts/test-session
 
 ### Artifact Not Found
 
-**Error**: `404 Not Found` when retrieving artifact
+Error: `404 Not Found` when retrieving artifact
 
-**Solutions:**
+Solutions:
 - Verify artifact was successfully created
 - Check that session ID is correct
 - Confirm storage backend has the artifact
@@ -514,9 +519,9 @@ curl http://localhost:8000/api/v1/artifacts/test-session
 
 ### Performance Issues
 
-**Slow artifact creation or retrieval:**
+Slow artifact creation or retrieval:
 
-**Solutions:**
+Solutions:
 - Check network latency to storage backend
 - Verify storage backend performance
 - Check for throttling or rate limiting

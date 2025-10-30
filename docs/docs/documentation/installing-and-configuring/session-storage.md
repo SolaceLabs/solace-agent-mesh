@@ -15,10 +15,10 @@ Agent Mesh uses a distributed session architecture where the WebUI Gateway and a
 
 When a user starts a conversation:
 
-1. **WebUI Gateway generates a session ID** (`web-session-<UUID>`)
-2. **WebUI Gateway sends the session ID** to the agent with each message
-3. **Agent receives the session ID** and uses it to look up or store its own session context
-4. **WebUI Gateway and agent store different data** in their own databases
+1. The WebUI Gateway generates a session ID (`web-session-<UUID>`)
+2. The WebUI Gateway sends the session ID to the agent with each message
+3. The agent receives the session ID and uses it to look up or store its own session context
+4. The WebUI Gateway and agent store different data in their own databases
 
 This architecture allows:
 - The WebUI Gateway to show conversation history in the user interface
@@ -27,25 +27,25 @@ This architecture allows:
 
 ### What Gets Stored Where
 
-**WebUI Gateway Database**:
+The WebUI Gateway database stores:
 - Session metadata (session ID, user ID, timestamps)
 - Chat history displayed in the UI
 - Message bubbles and formatted responses
 - Task metadata (agent names, status, feedback)
 
-**Agent Database** (per agent):
+Each agent database stores:
 - Agent's conversation context and memory
 - Message history from the agent's perspective
 - Agent internal state and tool execution history
 - Session events and actions
 
-**Key Insight**: These are **separate databases**. Each agent has its own independent database (with separate credentials), and the WebUI Gateway has its own database. They coordinate via the session ID.
+These are separate databases. Each agent has its own independent database (with separate credentials), and the WebUI Gateway has its own database. They coordinate via the session ID.
 
 ## Session Storage Scenarios
 
 The behavior of your deployment depends on whether the WebUI Gateway and agents have persistent storage enabled. Understanding these scenarios helps you configure correctly for your needs.
 
-### Scenario A: Both WebUI Gateway and Agents Have Persistence ✓ **RECOMMENDED**
+### Scenario A: Both WebUI Gateway and Agents Have Persistence (Recommended)
 
 ```yaml
 # WebUI Gateway Configuration
@@ -62,20 +62,20 @@ session_service:
   default_behavior: "PERSISTENT"
 ```
 
-**What Happens**:
+What happens:
 - User sees full chat history in the UI after restarts
 - Agents remember full conversation context across restarts
 - Multi-turn conversations work perfectly
 - Browser refresh preserves everything
 
-**Use This For**:
+Use this for:
 - Production deployments
 - Multi-turn interactive experiences
 - Any deployment where users expect conversation continuity
 
 ---
 
-### Scenario B: Only WebUI Gateway Has Persistence ✗ **BROKEN EXPERIENCE**
+### Scenario B: Only WebUI Gateway Has Persistence (Broken Experience)
 
 ```yaml
 # WebUI Gateway Configuration
@@ -90,20 +90,19 @@ session_service:
   type: "memory"  # No database
 ```
 
-**What Happens**:
-- User sees full chat history in the UI ✓
-- Agent receives session ID but has no database to store context ✗
-- Agent processes current message but forgets previous turns ✗
-- **User Experience**: UI shows history, but agent acts like every message is the first one
+What happens:
+- User sees full chat history in the UI
+- Agent receives session ID but has no database to store context
+- Agent processes current message but forgets previous turns
+- The UI shows history, but the agent acts like every message is the first one
 
-**Why This Breaks**:
-The UI misleads the user by showing conversation history that the agent cannot actually use. Users get frustrated: "Why can't the agent remember what I just said?"
+The UI misleads the user by showing conversation history that the agent cannot actually use. Users get frustrated when the agent does not remember what they just said.
 
-**Avoid This Scenario** - It creates a confusing and broken user experience.
+Avoid this scenario because it creates a confusing and broken user experience.
 
 ---
 
-### Scenario C: Only Agents Have Persistence ✗ **LIMITED EXPERIENCE**
+### Scenario C: Only Agents Have Persistence (Limited Experience)
 
 ```yaml
 # WebUI Gateway Configuration
@@ -119,18 +118,18 @@ session_service:
   default_behavior: "PERSISTENT"
 ```
 
-**What Happens**:
-- User sees NO chat history in the UI after browser refresh ✗
-- Agents maintain conversation context internally ✓
-- Conversation works but UI doesn't show history
+What happens:
+- User sees no chat history in the UI after browser refresh
+- Agents maintain conversation context internally
+- Conversation works but UI does not show history
 
-**Use This For**:
+Use this for:
 - Rare scenarios where UI history is not needed
 - Headless or API-only deployments without WebUI
 
 ---
 
-### Scenario D: Neither Has Persistence ✗ **EPHEMERAL ONLY**
+### Scenario D: Neither Has Persistence (Ephemeral Only)
 
 ```yaml
 # WebUI Gateway Configuration
@@ -144,18 +143,18 @@ session_service:
   type: "memory"
 ```
 
-**What Happens**:
+What happens:
 - Sessions exist only in browser cookies
 - No conversation history after browser refresh
 - No persistence across restarts
 - Everything lost when cookies expire
 
-**Use This For**:
+Use this for:
 - Local development and testing only
 - Rapid prototyping
 - Scenarios where no persistence is needed
 
-**Do Not Use For**:
+Do not use for:
 - Production deployments
 - Multi-turn conversations
 - Any scenario requiring conversation continuity
@@ -168,15 +167,15 @@ The WebUI Gateway requires two configuration elements to enable persistent sessi
 
 ### Environment Variables
 
-**SESSION_SECRET_KEY** (Required)
+SESSION_SECRET_KEY (Required)
 
-A secret key used to sign session cookies. This must be the same across all instances if running multiple pods or processes.
+A secret key used to sign session cookies. This must be the same across all instances if you run multiple pods or processes.
 
 ```bash
 export SESSION_SECRET_KEY="your-secret-key-here"
 ```
 
-**WEB_UI_GATEWAY_DATABASE_URL** (Required for persistent mode)
+WEB_UI_GATEWAY_DATABASE_URL (Required for persistent mode)
 
 The database connection string specifying where to store session data.
 
@@ -210,12 +209,12 @@ session_service:
 export WEB_UI_GATEWAY_DATABASE_URL="sqlite:///webui-gateway.db"
 ```
 
-**Advantages**:
+Advantages:
 - No external dependencies
 - Instant setup
 - Perfect for local development
 
-**Limitations**:
+Limitations:
 - Not suitable for production
 - Cannot be shared across multiple instances
 - No built-in replication or backup
@@ -236,14 +235,14 @@ session_service:
 export WEB_UI_GATEWAY_DATABASE_URL="postgresql://webui_user:secure_pass@db.example.com:5432/webui_db"
 ```
 
-**Advantages**:
+Advantages:
 - Production-grade reliability
 - Horizontal scalability (multiple instances share same database)
 - Cloud-managed options (AWS RDS, Google Cloud SQL, Azure Database)
 - Connection pooling support
 - ACID compliance
 
-**Connection String Format**:
+Connection string format:
 ```
 postgresql://[user[:password]@][host][:port]/[dbname][?param1=value1&...]
 ```
@@ -264,18 +263,18 @@ session_service:
 export WEB_UI_GATEWAY_DATABASE_URL="mysql+pymysql://webui_user:secure_pass@db.example.com:3306/webui_db"
 ```
 
-**Advantages**:
+Advantages:
 - Open-source and widely available
 - Strong community support
 - Cloud-managed options available
 - ACID compliance (with InnoDB)
 
-**Connection String Format**:
+Connection string format:
 ```
 mysql+pymysql://[user[:password]@][host][:port]/[database]
 ```
 
-**Note**: Agent Mesh uses `pymysql` as the Python driver.
+Agent Mesh uses `pymysql` as the Python driver.
 
 ---
 
@@ -294,7 +293,7 @@ session_service:
   default_behavior: "PERSISTENT"
 ```
 
-**Parameters**:
+Parameters:
 - `type`: `"memory"` (ephemeral) or `"sql"` (persistent)
 - `database_url`: Connection string for the agent's database
 - `default_behavior`: `"PERSISTENT"` (reuse sessions) or `"RUN_BASED"` (new session per run)
@@ -316,11 +315,11 @@ database_url: "${AGENT_DATABASE_URL, sqlite:///agent-session.db}"
 ### Database Isolation Between Agents
 
 Each agent should have:
-- **Its own separate database** (not just a schema)
-- **Its own separate credentials** (username and password)
-- **Complete isolation** from other agents' data
+- Its own separate database (not just a schema)
+- Its own separate credentials (username and password)
+- Complete isolation from other agents' data
 
-**Example for two agents**:
+Example for two agents:
 
 ```yaml
 # Agent A Configuration
@@ -415,7 +414,7 @@ When the application restarts:
 - Tables are created for session storage
 - No manual database setup required
 
-**Tables Created**:
+Tables created:
 - `sessions` - Session metadata
 - `chat_tasks` - Conversation messages
 - Supporting indexes for performance
@@ -434,11 +433,11 @@ Test that persistence is working:
 
 ### Migration Considerations
 
-**Existing cookies remain valid** - Sessions stored only in cookies before migration continue to work until cookies expire.
+Existing cookies remain valid. Sessions stored only in cookies before migration continue to work until cookies expire.
 
-**Database initialization** - Migrations run once on first startup. Subsequent restarts connect to existing database.
+Database initialization happens once on first startup. Subsequent restarts connect to the existing database.
 
-**No data loss** - Migration adds new storage without affecting existing sessions.
+Migration adds new storage without affecting existing sessions.
 
 ---
 
@@ -455,7 +454,7 @@ After configuring session storage, verify everything works correctly.
 
 ### For Persistent Mode (SQL)
 
-**WebUI Gateway Persistence**:
+WebUI Gateway persistence:
 
 1. Start a conversation and send a message
 2. Verify database connection: Check application logs for any database errors
@@ -469,7 +468,7 @@ After configuring session storage, verify everything works correctly.
    - Refresh browser
    - Verify conversation history is visible in UI
 
-**Agent Persistence**:
+Agent persistence:
 
 1. Start a multi-turn conversation with an agent
 2. Reference previous messages (e.g., "What did I ask about earlier?")
@@ -484,9 +483,9 @@ After configuring session storage, verify everything works correctly.
 
 ### Database Connection Errors
 
-**Error**: `Failed to connect to database` or `could not connect to server`
+Error: `Failed to connect to database` or `could not connect to server`
 
-**Solutions**:
+Solutions:
 - Verify database URL format is correct
 - Confirm database server is running and accessible
 - Check network connectivity (firewalls, security groups)
@@ -497,9 +496,9 @@ After configuring session storage, verify everything works correctly.
 
 ### Migration Errors
 
-**Error**: `Alembic migration failed` or `Database schema error`
+Error: `Alembic migration failed` or `Database schema error`
 
-**Solutions**:
+Solutions:
 - Check that database user has permissions to create tables
 - Verify no other instances are running migrations simultaneously
 - For existing databases, ensure they don't have conflicting schemas
@@ -509,15 +508,15 @@ After configuring session storage, verify everything works correctly.
 
 ### Sessions Not Persisting
 
-**Symptom**: Sessions lost after restart or don't appear in new browser tabs
+Symptom: Sessions lost after restart or don't appear in new browser tabs
 
-**WebUI Gateway Solutions**:
+WebUI Gateway solutions:
 - Confirm `session_service.type` is set to `"sql"` (not `"memory"`)
 - Verify `WEB_UI_GATEWAY_DATABASE_URL` environment variable is set
 - Check database connectivity
 - Verify tables were created by querying the database
 
-**Agent Solutions**:
+Agent solutions:
 - Confirm agent's `session_service.type` is set to `"sql"`
 - Verify agent's database URL environment variable is set
 - Check agent logs for database connection errors
@@ -527,11 +526,11 @@ After configuring session storage, verify everything works correctly.
 
 ### Agent Can't Remember Previous Conversation
 
-**Symptom**: UI shows chat history, but agent acts like every message is the first one
+Symptom: UI shows chat history, but agent acts like every message is the first one
 
-**Root Cause**: WebUI Gateway has persistence, but agent is using `type: "memory"`
+Root cause: WebUI Gateway has persistence, but agent is using `type: "memory"`
 
-**Solution**:
+Solution:
 - Configure agent with `session_service.type: "sql"`
 - Provide agent database URL via environment variable
 - Restart agent
