@@ -35,6 +35,10 @@ Role-based access control lets you define who can access which agents and featur
 
 SSO integration connects Agent Mesh Enterprise with your organization's identity provider, whether you use Azure, Google, Auth0, Okta, Keycloak, or another OAuth2-compliant system. The configuration process involves creating YAML files that define the authentication service and provider settings, then launching the container with the appropriate environment variables. For step-by-step configuration instructions, see [Enabling SSO](single-sign-on.md).
 
+### Agent Builder
+
+The Enterprise version includes Agent Builder, a visual interface for creating and managing agents without writing YAML configuration files directly. Agent Builder supports both AI-assisted generation from natural language descriptions and manual configuration for precise control over agent capabilities. You can create agents, assign toolsets and SQL connectors, manage agent lifecycles, and download configurations as YAML files for version control or infrastructure-as-code deployments. For comprehensive information about creating and managing agents, see [Agent Builder](agent-builder.md).
+
 ## What's Next
 
-After you complete the initial setup, you can begin developing agents and gateways using the same patterns and tools available in the Community edition. The Enterprise features operate transparently—your agents and tools work the same way, but with the added security, governance, and observability that production environments demand. 
+After you complete the initial setup and create agents using Agent Builder, you can begin deploying them to make them available for user interactions. The Enterprise features operate transparently—your agents and tools work the same way, but with the added security, governance, and observability that production environments demand.
