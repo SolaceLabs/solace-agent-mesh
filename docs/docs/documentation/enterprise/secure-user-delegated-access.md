@@ -381,7 +381,7 @@ Each tool in the manifest follows this format:
 
 The `inputSchema` is a standard JSON Schema (draft-07) that defines what parameters the tool accepts. This schema is used for validation and to help the AI model understand how to call the tool.
 
-**Note**: Complete sample MCP configurations will be provided in the examples directory for each of the tested remote MCP providers (Atlassian, Stripe, Cloudflare, Canva) to simplify setup.
+**Note**: Complete sample MCP configurations are available in the [examples/agents/remote-mcp directory](https://github.com/SolaceLabs/solace-agent-mesh/tree/main/examples/agents/remote-mcp) for each of the tested remote MCP providers (Atlassian, Stripe, Cloudflare, Canva) to simplify setup.
 
 ### Step 4: Deploy Configuration
 
