@@ -171,7 +171,7 @@ jobs:
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       - name: Configure AWS credentials
-        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
@@ -179,7 +179,7 @@ jobs:
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Login to Amazon ECR
-        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
       - name: Login to GitHub Container Registry
@@ -195,28 +195,32 @@ jobs:
         run: |
           if [[ "${{ fromJSON(needs.prepare-metadata.outputs.use_ecr) }}" == "true" ]]; then
             image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
-            cache_registry="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
             echo "Using ECR registry: ${image_name}"
           else
             image_name="ghcr.io/${{ github.repository }}"
-            cache_registry="ghcr.io/${{ github.repository }}"
             echo "Using GitHub Container Registry: ${image_name}"
           fi
-          echo "image_name=${image_name}" >> $GITHUB_OUTPUT
 
-          # Configure cache settings
-          # Use lowercase for GHCR compatibility
-          cache_ref="${cache_registry,,}:buildcache-${{ matrix.platform.tag_suffix }}"
+          # Lowercase for GHCR compatibility
+          image_name_lower="${image_name,,}"
+          echo "image_name=${image_name_lower}" >> $GITHUB_OUTPUT
+
+          # Configure cache settings - use the full image name with repository
+          cache_ref="${image_name_lower}:buildcache-${{ matrix.platform.tag_suffix }}"
           echo "cache_ref=${cache_ref}" >> $GITHUB_OUTPUT
+          echo "Cache reference: ${cache_ref}"
 
           # For PR builds, we can read from registry cache but write to gha cache
           # For push builds, we can read and write to registry cache
           if [[ "${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}" == "true" || "${{ github.ref_name }}" == "test-build-opt" ]]; then
+            # Use registry cache for both read and write
+            # Note: On first build, cache won't exist - that's okay, build will proceed without cache
             echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
             echo "cache_to=type=registry,ref=${cache_ref},mode=max" >> $GITHUB_OUTPUT
             echo "Using registry cache (read/write) for branch push"
           else
             # PR builds: read from registry cache (best effort), write to gha cache
+            # If registry cache doesn't exist, will fall back to no cache (first build)
             echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
             echo "cache_to=type=gha,scope=${{ matrix.platform.tag_suffix }},mode=max" >> $GITHUB_OUTPUT
             echo "Using registry cache (read-only) + gha cache (write) for PR"
@@ -245,7 +249,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
-        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
@@ -253,7 +257,7 @@ jobs:
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Login to Amazon ECR
-        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
       - name: Login to GitHub Container Registry
