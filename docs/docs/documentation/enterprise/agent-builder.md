@@ -182,6 +182,6 @@ Note: Agent Mesh does not validate the connector configuration. If the connector
 
 If you cannot delete an agent, check its deployment status. Only agents in `Not Deployed` status can be deleted. If the agent is running, you must undeploy it first.
 
-When deployed agents show as having `Undeployed changes`, this indicates the stored configuration differs from the deployed configuration. Review recent changes to the agent's settings and consider redeploying to apply those changes.
+When deployed agents show as having `Undeployed changes`, this indicates the stored configuration differs from the deployed configuration. Review recent changes to the agent's settings and consider deploying updates to apply those changes.
 
 Name uniqueness errors occur when attempting to create or rename an agent using a name that already exists. Choose a different name or modify the existing agent instead of creating a new one.
