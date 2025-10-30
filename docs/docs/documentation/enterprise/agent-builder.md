@@ -40,7 +40,7 @@ These AI-generated values are suggestions only. After the AI generates them, you
 
 **Option 2: Skip AI assistance**
 
-Click the secondary button to bypass AI assistance. You'll be prompted to manually enter the agent's name and description in a simple dialog. After providing these basic details and clicking continue, you proceed to the agent configuration form where the Agent Details section is pre-filled with your entered name and description. Other sections (instructions, toolsets, connectors, agent card) remain empty for you to configure. Minimally, the name, description and instructions must be completed before your agent can be deployed (See Agent Deployment)
+Click the secondary button to bypass AI assistance. You'll be prompted to manually enter the agent's name and description in a simple dialog. After providing these basic details and clicking continue, you proceed to the agent configuration form where the Agent Details section is pre-filled with your entered name and description. Other sections (instructions, toolsets, connectors, agent card) remain empty for you to configure. Minimally, the name, description and instructions must be completed before your agent can be deployed (see Agent Lifecycle and Management).
 
 ## Agent Configuration Form
 
