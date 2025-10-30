@@ -23,7 +23,11 @@ The deployment process involves adding the Helm chart repository, customizing va
 
 ## Using the Helm Quickstart
 
-The Solace Agent Mesh Helm quickstart includes pre-configured Helm values, deployment examples, and detailed documentation for common deployment scenarios. For the quickstart repository and installation files, see [solace-agent-mesh-helm-quickstart](https://github.com/SolaceProducts/solace-agent-mesh-helm-quickstart). For step-by-step deployment instructions, see the [Helm Deployment Guide](https://solaceproducts.github.io/solace-agent-mesh-helm-quickstart/docs-site/).
+The Solace Agent Mesh Helm quickstart includes pre-configured Helm values, deployment examples, and detailed documentation for common deployment scenarios.
+
+For the quickstart repository and installation files, see [solace-agent-mesh-helm-quickstart](https://github.com/SolaceProducts/solace-agent-mesh-helm-quickstart).
+
+For step-by-step deployment instructions, see the [Helm Deployment Guide](https://solaceproducts.github.io/solace-agent-mesh-helm-quickstart/docs-site/).
 
 ## Kubernetes Deployment Architecture
 
