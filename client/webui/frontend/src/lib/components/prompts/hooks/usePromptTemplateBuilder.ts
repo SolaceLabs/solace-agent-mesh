@@ -126,10 +126,13 @@ export function usePromptTemplateBuilder() {
 
             if (!response.ok) {
                 const error = await response.json();
-                throw new Error(error.detail || 'Failed to save template');
+                const errorMessage = error.message || error.detail || 'Failed to save template';
+                addNotification(errorMessage, 'error');
+                throw new Error(errorMessage);
             }
 
             setSaveStatus('success');
+            addNotification('Template saved successfully!', 'success');
             setIsLoading(false);
             return true;
         } catch (error) {
@@ -137,12 +140,15 @@ export function usePromptTemplateBuilder() {
             setSaveStatus('error');
             setIsLoading(false);
             
-            // Set error message
+            // Show error notification
             if (error instanceof Error) {
+                addNotification(error.message, 'error');
                 setValidationErrors(prev => ({
                     ...prev,
                     _general: error.message,
                 }));
+            } else {
+                addNotification('Failed to save template', 'error');
             }
             
             return false;

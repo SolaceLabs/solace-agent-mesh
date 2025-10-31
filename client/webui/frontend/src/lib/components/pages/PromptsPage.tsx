@@ -12,8 +12,10 @@ import { PromptDeleteDialog } from '@/lib/components/prompts/PromptDeleteDialog'
 import { EmptyState, Header } from '@/lib/components';
 import { Button } from '@/lib/components/ui';
 import { RefreshCcw } from 'lucide-react';
+import { useChatContext } from '@/lib/hooks';
 
 export const PromptsPage: React.FC = () => {
+    const { addNotification } = useChatContext();
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showAIBuilder, setShowAIBuilder] = useState(false);
@@ -88,13 +90,15 @@ export const PromptsPage: React.FC = () => {
                 setEditingGroup(null);
                 setShowManualForm(false);
                 fetchPromptGroups();
+                addNotification('Prompt updated successfully', 'success');
             } else {
                 const error = await response.json();
-                alert(error.detail || 'Failed to update prompt');
+                const errorMessage = error.message || error.detail || 'Failed to update prompt';
+                addNotification(errorMessage, 'error');
             }
         } catch (error) {
             console.error('Failed to update prompt:', error);
-            alert('Failed to update prompt');
+            addNotification('Network error: Failed to update prompt', 'error');
         }
     };
 
@@ -111,13 +115,15 @@ export const PromptsPage: React.FC = () => {
             if (response.ok) {
                 setShowManualForm(false);
                 fetchPromptGroups();
+                addNotification('Prompt created successfully', 'success');
             } else {
                 const error = await response.json();
-                alert(error.detail || 'Failed to create prompt');
+                const errorMessage = error.message || error.detail || 'Failed to create prompt';
+                addNotification(errorMessage, 'error');
             }
         } catch (error) {
             console.error('Failed to create prompt:', error);
-            alert('Failed to create prompt');
+            addNotification('Network error: Failed to create prompt', 'error');
         }
     };
 
@@ -132,13 +138,15 @@ export const PromptsPage: React.FC = () => {
             if (response.ok) {
                 setVersionHistoryGroup(null);
                 fetchPromptGroups();
+                addNotification('Version restored successfully', 'success');
             } else {
                 const error = await response.json();
-                alert(error.detail || 'Failed to restore version');
+                const errorMessage = error.message || error.detail || 'Failed to restore version';
+                addNotification(errorMessage, 'error');
             }
         } catch (error) {
             console.error('Failed to restore version:', error);
-            alert('Failed to restore version');
+            addNotification('Failed to restore version', 'error');
         }
     };
 
