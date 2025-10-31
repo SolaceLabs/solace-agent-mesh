@@ -1779,6 +1779,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
     const isSessionSwitchRef = useRef(false);
+    const isSessionMoveRef = useRef(false);
 
     useEffect(() => {
         const handleProjectDeleted = (deletedProjectId: string) => {
@@ -1795,9 +1796,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const handleSessionMoved = async (event: Event) => {
             const customEvent = event as CustomEvent;
             const { sessionId: movedSessionId, projectId: newProjectId } = customEvent.detail;
-            
+
             // If the moved session is the current session, update the project context
             if (movedSessionId === sessionId) {
+                // Set flag to prevent handleNewSession from being triggered by this project change
+                isSessionMoveRef.current = true;
+
                 if (newProjectId) {
                     // Session moved to a project - activate that project
                     const project = projects.find((p: Project) => p.id === newProjectId);
@@ -1820,18 +1824,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     useEffect(() => {
         // When the active project changes, reset the chat view to a clean slate
         // UNLESS the change was triggered by switching to a session (which handles its own state)
+        // OR by moving a session (which should not start a new session)
         // Only trigger when activating or switching projects, not when deactivating (going to null)
         const prevId = prevProjectIdRef.current;
         const currentId = activeProject?.id;
         const isActivatingOrSwitching = currentId !== undefined && prevId !== currentId;
 
-        if (isActivatingOrSwitching && !isSessionSwitchRef.current) {
+        if (isActivatingOrSwitching && !isSessionSwitchRef.current && !isSessionMoveRef.current) {
             console.log("Active project changed explicitly, resetting chat view and preserving project context.");
             handleNewSession(true); // Preserve the project context when switching projects
         }
         prevProjectIdRef.current = currentId;
-        // Reset the flag after processing
+        // Reset the flags after processing
         isSessionSwitchRef.current = false;
+        isSessionMoveRef.current = false;
     }, [activeProject, handleNewSession]);
 
     useEffect(() => {
