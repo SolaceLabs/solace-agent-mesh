@@ -74,7 +74,7 @@ employee_tools = ["holidays==0.81.0"]
 parallel = false
 installer = "uv"
 dependencies = [
-    "solace-agent-mesh[postgresql,gcs,vertex,employee_tools,s3]",
+    "solace-agent-mesh[gcs,vertex,employee_tools]",
     "pytest-asyncio",
     "pytest>=8.0.0",
     "pytest-mock>=3.0.0",
