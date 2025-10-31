@@ -425,42 +425,6 @@ Database initialization happens once on first startup. Subsequent restarts conne
 
 Migration adds new storage without affecting existing sessions.
 
-## Verification and Testing
-
-After configuring session storage, verify everything works correctly.
-
-### For Ephemeral Mode (Memory)
-
-1. Start a conversation and send a message to an agent
-2. Check browser cookies: Developer Tools → Application → Cookies
-3. You should see `session` cookie with session data
-4. Refresh the page - conversation disappears (expected for ephemeral mode)
-
-### For Persistent Mode (SQL)
-
-WebUI Gateway persistence:
-
-1. Start a conversation and send a message
-2. Verify database connection: Check application logs for any database errors
-3. Confirm tables created:
-   ```sql
-   SELECT * FROM sessions;
-   SELECT * FROM chat_tasks;
-   ```
-4. Test persistence:
-   - Restart the application
-   - Refresh browser
-   - Verify conversation history is visible in UI
-
-Agent persistence:
-
-1. Start a multi-turn conversation with an agent
-2. Reference previous messages (e.g., "What did I ask about earlier?")
-3. Verify agent responds with context from previous turns
-4. Restart the application
-5. Continue the conversation in the same session
-6. Verify agent still remembers previous conversation context
-
 ## Troubleshooting
 
 ### Database Connection Errors
