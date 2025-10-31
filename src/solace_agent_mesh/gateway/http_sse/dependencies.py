@@ -581,6 +581,20 @@ def get_project_service(
     """Dependency factory for ProjectService."""
     project_repository = ProjectRepository(db)
     return ProjectService(project_repository, component)
+
+
+def get_project_service_optional(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> ProjectService | None:
+    """Optional project service dependency that returns None if database is not configured."""
+    if SessionLocal is None:
+        log.debug("Database not configured, projects unavailable")
+        return None
+    db = SessionLocal()
+    project_repository = ProjectRepository(db)
+    return ProjectService(project_repository, component)
+
+
 def get_db_optional() -> Generator[Session | None, None, None]:
     """Optional database dependency that returns None if database is not configured."""
     if SessionLocal is None:

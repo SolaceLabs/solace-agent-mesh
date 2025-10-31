@@ -29,7 +29,7 @@ from ....agent.utils.artifact_helpers import (
 from ....common import a2a
 from ....gateway.http_sse.dependencies import (
     get_db,
-    get_project_service,
+    get_project_service_optional,
     get_sac_component,
     get_session_business_service,
     get_session_manager,
@@ -255,7 +255,7 @@ async def _submit_task(
     payload: SendMessageRequest | SendStreamingMessageRequest,
     session_manager: SessionManager,
     component: "WebUIBackendComponent",
-    project_service: ProjectService,
+    project_service: ProjectService | None,
     is_streaming: bool,
     session_service: SessionService | None = None,
 ):
@@ -389,12 +389,13 @@ async def _submit_task(
                     break
         
         # Project context injection - always inject for project sessions to ensure new files are available
+        # Skip if project_service is None (persistence disabled)
         modified_message = payload.params.message
-        if project_id and message_text:
+        if project_service and project_id and message_text:
             # Inject context for new sessions (includes full context + artifact copy)
             # For existing sessions, only copy new artifacts without re-injecting full context
             should_inject_full_context = not frontend_session_id
-            
+
             modified_message_text = await _inject_project_context(
                 project_id=project_id,
                 message_text=message_text,
@@ -405,28 +406,28 @@ async def _submit_task(
                 log_prefix=log_prefix,
                 inject_full_context=should_inject_full_context,
             )
-            
+
             # Update the message with project context if it was modified
             if modified_message_text != message_text:
                 # Create new text part with project context
                 new_text_part = a2a.create_text_part(modified_message_text)
-                
+
                 # Get existing parts and replace the first text part with the modified one
                 existing_parts = a2a.get_parts_from_message(payload.params.message)
                 new_parts = []
                 text_part_replaced = False
-                
+
                 for part in existing_parts:
                     if hasattr(part, "text") and not text_part_replaced:
                         new_parts.append(new_text_part)
                         text_part_replaced = True
                     else:
                         new_parts.append(part)
-                
+
                 # If no text part was found, add the new text part at the beginning
                 if not text_part_replaced:
                     new_parts.insert(0, new_text_part)
-                
+
                 # Update the message with the new parts
                 modified_message = a2a.update_message_parts(payload.params.message, new_parts)
 
@@ -631,7 +632,7 @@ async def send_task_to_agent(
     payload: SendMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    project_service: ProjectService = Depends(get_project_service),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
 ):
     """
     Submits a non-streaming task request to the specified agent.
@@ -654,7 +655,7 @@ async def subscribe_task_from_agent(
     payload: SendStreamingMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    project_service: ProjectService = Depends(get_project_service),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     session_service: SessionService = Depends(get_session_business_service),
 ):
     """

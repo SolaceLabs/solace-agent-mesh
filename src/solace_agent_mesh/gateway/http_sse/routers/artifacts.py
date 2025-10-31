@@ -43,7 +43,7 @@ from ....common.utils.embeds import (
 from ....common.utils.embeds.types import ResolutionMode
 from ....common.utils.mime_helpers import is_text_based_mime_type
 from ..dependencies import (
-    get_project_service,
+    get_project_service_optional,
     ValidatedUserConfig,
     get_sac_component,
     get_session_validator,
@@ -94,7 +94,7 @@ def _resolve_storage_context(
     project_id: str | None,
     user_id: str,
     validate_session: Callable[[str, str], bool],
-    project_service: ProjectService,
+    project_service: ProjectService | None,
     log_prefix: str
 ) -> tuple[str, str, str]:
     """
@@ -116,8 +116,14 @@ def _resolve_storage_context(
             )
         return user_id, session_id, "session"
 
-    # Priority 2: Project context
+    # Priority 2: Project context (only if persistence is enabled)
     elif project_id and project_id.strip() and project_id not in ["null", "undefined"]:
+        if project_service is None:
+            log.warning("%s Project context requested but persistence not enabled", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Project context requires database configuration.",
+            )
         try:
             project = project_service.get_project(project_id, user_id)
             if not project:
@@ -377,7 +383,7 @@ async def list_artifact_versions(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    project_service: ProjectService = Depends(get_project_service),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
     session_service: SessionService | None = Depends(get_session_business_service_optional),
     db: Session | None = Depends(get_db_optional),
@@ -493,7 +499,7 @@ async def list_artifacts(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    project_service: ProjectService = Depends(get_project_service),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
     session_service: SessionService | None = Depends(get_session_business_service_optional),
     db: Session | None = Depends(get_db_optional),
@@ -615,7 +621,7 @@ async def get_latest_artifact(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    project_service: ProjectService = Depends(get_project_service),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
     session_service: SessionService | None = Depends(get_session_business_service_optional),
     db: Session | None = Depends(get_db_optional),
@@ -801,7 +807,7 @@ async def get_specific_artifact_version(
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-    project_service: ProjectService = Depends(get_project_service),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
     session_service: SessionService | None = Depends(get_session_business_service_optional),
     db: Session | None = Depends(get_db_optional),
