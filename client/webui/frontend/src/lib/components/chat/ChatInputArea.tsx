@@ -9,10 +9,10 @@ import type { AgentCardInfo } from "@/lib/types";
 
 import { FileBadge } from "./file/FileBadge";
 import { PromptsCommand } from "./PromptsCommand";
-import { PastedTextBadge, PastedTextDialog, isLargeText, createPastedTextItem, getTextPreview, type PastedTextItem } from "./paste";
+import { PastedTextBadge, PastedTextDialog, PasteActionDialog, isLargeText, createPastedTextItem, getTextPreview, type PastedTextItem } from "./paste";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
-    const { isResponding, isCancelling, selectedAgentName, sessionId, handleSubmit, handleCancel } = useChatContext();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
 
     // File selection support
@@ -22,6 +22,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     // Pasted text support
     const [pastedTextItems, setPastedTextItems] = useState<PastedTextItem[]>([]);
     const [selectedPasteId, setSelectedPasteId] = useState<string | null>(null);
+    const [pendingPasteContent, setPendingPasteContent] = useState<string | null>(null);
+    const [showPasteActionDialog, setShowPasteActionDialog] = useState(false);
 
     // Chat input ref for focus management
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -101,12 +103,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             return;
         }
 
-        // Handle text pastes (NEW)
+        // Handle text pastes - show action dialog for large text
         const pastedText = clipboardData.getData('text');
         if (pastedText && isLargeText(pastedText)) {
             event.preventDefault(); // Prevent default paste for large text
-            const newItem = createPastedTextItem(pastedText);
-            setPastedTextItems(prev => [...prev, newItem]);
+            setPendingPasteContent(pastedText);
+            setShowPasteActionDialog(true);
         }
         // Small text pastes go through normally (no preventDefault)
     };
@@ -204,6 +206,64 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedPasteId(null);
     };
 
+    // Handle paste action dialog
+    const handlePasteAsText = () => {
+        if (pendingPasteContent) {
+            const newItem = createPastedTextItem(pendingPasteContent);
+            setPastedTextItems(prev => [...prev, newItem]);
+        }
+        setPendingPasteContent(null);
+        setShowPasteActionDialog(false);
+    };
+
+    const handleSaveAsArtifact = async (title: string, fileType: string) => {
+        if (!pendingPasteContent) return;
+
+        try {
+            // Determine MIME type
+            let mimeType = 'text/plain';
+            if (fileType !== 'auto') {
+                mimeType = fileType;
+            }
+
+            // Create a File object from the text content
+            const blob = new Blob([pendingPasteContent], { type: mimeType });
+            const file = new File([blob], title, { type: mimeType });
+
+            // Upload the artifact - uploadArtifactFile will create a session if needed
+            // and return the sessionId in the result
+            const result = await uploadArtifactFile(file, sessionId);
+
+            if (result) {
+                // If a new session was created, update our sessionId
+                if (result.sessionId && result.sessionId !== sessionId) {
+                    setSessionId(result.sessionId);
+                    console.log(`Session created via artifact upload: ${result.sessionId}`);
+                }
+                
+                addNotification(`Artifact "${title}" created successfully.`);
+                // Refresh artifacts panel
+                await artifactsRefetch();
+                
+                // Optionally open the files panel to show the new artifact
+                // openSidePanelTab('files');
+            } else {
+                addNotification(`Failed to create artifact "${title}".`, 'error');
+            }
+        } catch (error) {
+            console.error('Error saving artifact:', error);
+            addNotification(`Error creating artifact: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+        } finally {
+            setPendingPasteContent(null);
+            setShowPasteActionDialog(false);
+        }
+    };
+
+    const handleCancelPasteAction = () => {
+        setPendingPasteContent(null);
+        setShowPasteActionDialog(false);
+    };
+
     return (
         <div
             className={`rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
@@ -246,6 +306,15 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 onClose={handleClosePastedTextDialog}
                 content={pastedTextItems.find(item => item.id === selectedPasteId)?.content || ''}
                 title="Pasted Text Content"
+            />
+
+            {/* Paste Action Dialog */}
+            <PasteActionDialog
+                isOpen={showPasteActionDialog}
+                content={pendingPasteContent || ''}
+                onPasteAsText={handlePasteAsText}
+                onSaveAsArtifact={handleSaveAsArtifact}
+                onCancel={handleCancelPasteAction}
             />
 
             {/* Prompts Command Popover */}
