@@ -515,7 +515,7 @@ async def delete_session(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
-        deleted = session_service.soft_delete_session(
+        deleted = session_service.delete_session_with_notifications(
             db=db, session_id=session_id, user_id=user_id
         )
 
