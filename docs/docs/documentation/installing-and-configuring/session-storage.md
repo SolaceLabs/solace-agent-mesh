@@ -425,58 +425,6 @@ Database initialization happens once on first startup. Subsequent restarts conne
 
 Migration adds new storage without affecting existing sessions.
 
-## Troubleshooting
-
-### Database Connection Errors
-
-Error: `Failed to connect to database` or `could not connect to server`
-
-Solutions:
-- Verify database URL format is correct
-- Confirm database server is running and accessible
-- Check network connectivity (firewalls, security groups)
-- Verify credentials have correct permissions
-- For PostgreSQL/MySQL, ensure database exists (create it first if needed)
-
-### Migration Errors
-
-Error: `Alembic migration failed` or `Database schema error`
-
-Solutions:
-- Check that database user has permissions to create tables
-- Verify no other instances are running migrations simultaneously
-- For existing databases, ensure they don't have conflicting schemas
-- Check application logs for detailed error messages
-
-### Sessions Not Persisting
-
-Symptom: Sessions lost after restart or don't appear in new browser tabs
-
-WebUI Gateway solutions:
-- Confirm `session_service.type` is set to `"sql"` (not `"memory"`)
-- Verify `WEB_UI_GATEWAY_DATABASE_URL` environment variable is set
-- Check database connectivity
-- Verify tables were created by querying the database
-
-Agent solutions:
-- Confirm agent's `session_service.type` is set to `"sql"`
-- Verify agent's database URL environment variable is set
-- Check agent logs for database connection errors
-- Test that agent can write to its database
-
-### Agent Can't Remember Previous Conversation
-
-Symptom: UI shows chat history, but agent acts like every message is the first one
-
-Root cause: WebUI Gateway has persistence, but agent is using `type: "memory"`
-
-Solution:
-- Configure agent with `session_service.type: "sql"`
-- Provide agent database URL via environment variable
-- Restart agent
-- Verify agent database tables are created
-- Test multi-turn conversation
-
 ## Next Steps
 
 After configuring session storage, you may want to:
