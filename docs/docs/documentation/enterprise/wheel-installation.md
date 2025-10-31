@@ -141,26 +141,9 @@ Dynamic agent deployment through the UI or API is not supported when running fro
 
 All agents must be defined in configuration files before starting the application.
 
-### Custom Agent Code Requirements
+### Custom Agent Code
 
-For custom agents with Python code (tools, lifecycle functions), you must use configuration-based agents. This means:
-
-- Custom Python modules must be installed in your Python environment
-- Tool functions must be accessible via Python import paths
-- You cannot upload arbitrary Python code through the UI
-
-To use custom agent code:
-
-1. Package your custom tools as a Python module
-2. Install the module in the same environment as Agent Mesh Enterprise
-3. Reference the module in your agent configuration:
-
-```yaml
-tools:
-  - tool_type: python
-    component_module: "my_custom_tools.weather"
-    function_name: "get_weather"
-```
+To create custom agents with Python tools and lifecycle functions, follow the standard agent creation process. For detailed instructions on creating agents with custom code, see [Creating Agents](../developing/create-agents.md).
 
 ## Accessing the Web UI
 
