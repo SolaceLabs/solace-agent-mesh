@@ -1277,8 +1277,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isFinalizing.current = false;
         latestStatusText.current = null;
         sseEventSequenceRef.current = 0;
-        // Refresh artifacts (should be empty for new session)
-        await artifactsRefetch();
+        // Artifacts will be automatically refreshed by useArtifacts hook when sessionId changes
         // Success notification
         addNotification("New session started successfully.");
         
