@@ -2,7 +2,7 @@ import type { MessageFE } from "@/lib/types";
 import { Button, useChatContext } from "@/lib";
 
 export const AuthenticationMessage: React.FC<{ message: MessageFE }> = ({ message }) => {
-    const { handleCancel, setMessages } = useChatContext();
+    const { handleCancel, setMessages, isResponding, isCancelling } = useChatContext();
 
     if (message.authenticationLink) {
         const authenticationAttempted = message.authenticationLink.authenticationAttempted || false;
@@ -40,10 +40,10 @@ export const AuthenticationMessage: React.FC<{ message: MessageFE }> = ({ messag
                 <div className="font-semibold">Action Needed</div>
                 <div className="py-4">The "{targetAgent}" agent requires authentication.</div>
                 <div className="flex flex-row flex-wrap justify-end gap-2">
-                    <Button variant="ghost" onClick={handleRejectClick} disabled={authenticationAttempted || rejected}>
+                    <Button variant="ghost" onClick={handleRejectClick} disabled={authenticationAttempted || rejected || !isResponding || isCancelling}>
                         Reject
                     </Button>
-                    <Button onClick={handleAuthClick} disabled={authenticationAttempted || rejected}>
+                    <Button onClick={handleAuthClick} disabled={authenticationAttempted || rejected || !isResponding || isCancelling}>
                         {message.authenticationLink.text}
                     </Button>
                 </div>
