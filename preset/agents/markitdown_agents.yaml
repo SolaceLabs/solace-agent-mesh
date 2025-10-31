@@ -30,7 +30,7 @@ apps:
         - tool_type: builtin
           tool_name: "convert_file_to_markdown"
       session_service:
-        type: "${PERSISTENCE_TYPE, memory}"
+        type: "${PERSISTENCE_TYPE, sql}"
         database_url: "${AGENT_MARKITDOWN_DATABASE_URL, sqlite:///markitdown-agent.db}"
         default_behavior: "PERSISTENT"
       artifact_service: *default_artifact_service
