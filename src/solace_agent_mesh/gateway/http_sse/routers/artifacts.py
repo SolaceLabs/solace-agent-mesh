@@ -4,7 +4,7 @@ FastAPI router for managing session-specific artifacts via REST endpoints.
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from fastapi import (
     APIRouter,
@@ -13,6 +13,7 @@ from fastapi import (
     Form,
     HTTPException,
     Path,
+    Query,
     UploadFile,
     status,
     Request as FastAPIRequest,
@@ -42,6 +43,7 @@ from ....common.utils.embeds import (
 from ....common.utils.embeds.types import ResolutionMode
 from ....common.utils.mime_helpers import is_text_based_mime_type
 from ..dependencies import (
+    get_project_service_optional,
     ValidatedUserConfig,
     get_sac_component,
     get_session_validator,
@@ -51,6 +53,7 @@ from ..dependencies import (
     get_session_business_service_optional,
     get_db_optional,
 )
+from ..services.project_service import ProjectService
 
 
 from ..session_manager import SessionManager
@@ -84,6 +87,67 @@ class ArtifactUploadResponse(BaseModel):
 
 
 router = APIRouter()
+
+
+def _resolve_storage_context(
+    session_id: str,
+    project_id: str | None,
+    user_id: str,
+    validate_session: Callable[[str, str], bool],
+    project_service: ProjectService | None,
+    log_prefix: str
+) -> tuple[str, str, str]:
+    """
+    Resolve storage context from session or project parameters.
+
+    Returns:
+        tuple: (storage_user_id, storage_session_id, context_type)
+
+    Raises:
+        HTTPException: If no valid context found
+    """
+    # Priority 1: Session context
+    if session_id and session_id.strip() and session_id not in ["null", "undefined"]:
+        if not validate_session(session_id, user_id):
+            log.warning("%s Session validation failed", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found or access denied.",
+            )
+        return user_id, session_id, "session"
+
+    # Priority 2: Project context (only if persistence is enabled)
+    elif project_id and project_id.strip() and project_id not in ["null", "undefined"]:
+        if project_service is None:
+            log.warning("%s Project context requested but persistence not enabled", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Project context requires database configuration.",
+            )
+        try:
+            project = project_service.get_project(project_id, user_id)
+            if not project:
+                log.warning("%s Project not found or access denied", log_prefix)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Project not found or access denied.",
+                )
+            return project.user_id, f"project-{project_id}", "project"
+        except HTTPException:
+            raise
+        except Exception as e:
+            log.error("%s Error resolving project context: %s", log_prefix, e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to resolve project context"
+            )
+
+    # No valid context
+    log.warning("%s No valid context found", log_prefix)
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="No valid context provided.",
+    )
 
 
 @router.post(
@@ -311,33 +375,34 @@ async def upload_artifact_with_session(
 )
 async def list_artifact_versions(
     session_id: str = Path(
-        ..., title="Session ID", description="The session ID to get artifacts from"
+        ..., title="Session ID", description="The session ID to get artifacts from (or 'null' for project context)"
     ),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
+    project_id: Optional[str] = Query(None, description="Project ID for project context"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
+    session_service: SessionService | None = Depends(get_session_business_service_optional),
+    db: Session | None = Depends(get_db_optional),
 ):
     """
     Lists the available integer versions for a given artifact filename
-    associated with the current user and session ID.
+    associated with the specified context (session or project).
     """
 
     log_prefix = f"[ArtifactRouter:ListVersions:{filename}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
-    # Validate session exists and belongs to user
-    if not validate_session(session_id, user_id):
-        log.warning("%s Session validation failed or access denied.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied.",
-        )
+    # Resolve storage context
+    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+        session_id, project_id, user_id, validate_session, project_service, log_prefix
+    )
 
     if artifact_service is None:
-        log.error("%s Artifact service is not configured or available.", log_prefix)
+        log.error("%s Artifact service not available.", log_prefix)
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Artifact service is not configured.",
@@ -354,22 +419,56 @@ async def list_artifact_versions(
             detail=f"Version listing not supported by the configured '{type(artifact_service).__name__}' artifact service.",
         )
 
+    # Check if session belongs to a project (for fallback lookup)
+    session_project_id = None
+    if context_type == "session" and session_service and db:
+        try:
+            session_details = session_service.get_session_details(db, session_id, user_id)
+            if session_details and session_details.project_id:
+                session_project_id = session_details.project_id
+                log.info("%s Session belongs to project %s, will fallback to project if not found", log_prefix, session_project_id)
+        except Exception as e:
+            log.warning("%s Failed to lookup session project_id for fallback: %s", log_prefix, e)
+
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
+                log_prefix, context_type, storage_user_id, storage_session_id)
+
         versions = await artifact_service.list_versions(
             app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
+            user_id=storage_user_id,
+            session_id=storage_session_id,
             filename=filename,
         )
+
+        # If no versions found in session and session belongs to a project, try project storage
+        if not versions and session_project_id:
+            log.info("%s No versions found in session, trying project %s", log_prefix, session_project_id)
+            try:
+                project = project_service.get_project(session_project_id, user_id)
+                if project:
+                    project_storage_session_id = f"project-{session_project_id}"
+                    versions = await artifact_service.list_versions(
+                        app_name=app_name,
+                        user_id=project.user_id,
+                        session_id=project_storage_session_id,
+                        filename=filename,
+                    )
+                    if versions:
+                        log.info("%s Found versions in project storage: %s", log_prefix, versions)
+            except Exception as fallback_err:
+                log.warning("%s Project fallback failed: %s", log_prefix, fallback_err)
+
         log.info("%s Found versions: %s", log_prefix, versions)
         return versions
+
     except FileNotFoundError:
         log.warning("%s Artifact not found.", log_prefix)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Artifact '{filename}' not found for this session.",
+            detail=f"Artifact '{filename}' not found.",
         )
     except Exception as e:
         log.exception("%s Error listing artifact versions: %s", log_prefix, e)
@@ -393,35 +492,47 @@ async def list_artifact_versions(
 )
 async def list_artifacts(
     session_id: str = Path(
-        ..., title="Session ID", description="The session ID to list artifacts for"
+        ..., title="Session ID", description="The session ID to list artifacts for (or 'null' for project context)"
     ),
+    project_id: Optional[str] = Query(None, description="Project ID for project context"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
+    session_service: SessionService | None = Depends(get_session_business_service_optional),
+    db: Session | None = Depends(get_db_optional),
 ):
     """
     Lists detailed information (filename, size, type, modified date, uri)
-    for all artifacts associated with the specified user and session ID
-    by calling the artifact helper function.
+    for all artifacts associated with the specified context (session or project).
     """
 
     log_prefix = f"[ArtifactRouter:ListInfo] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
-    # Validate session exists and belongs to user
-    if not validate_session(session_id, user_id):
-        log.warning(
-            "%s Session validation failed for session_id=%s, user_id=%s",
-            log_prefix,
-            session_id,
-            user_id,
+    # Resolve storage context (projects vs sessions). This allows for project artiacts
+    # to be listed before a session is created.
+    try:
+        storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+            session_id, project_id, user_id, validate_session, project_service, log_prefix
         )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied.",
-        )
+    except HTTPException:
+        log.info("%s No valid context found, returning empty list", log_prefix)
+        return []
+
+    # Check if this session belongs to a project (for merged artifact listing)
+    # This handles the case where a chat has been moved to a project but artifacts haven't been copied yet
+    session_project_id = None
+    if (context_type == "session" and session_service and db):
+        try:
+            session_details = session_service.get_session_details(db, session_id, user_id)
+            if session_details and session_details.project_id:
+                session_project_id = session_details.project_id
+                log.info("%s Session belongs to project %s, will merge artifacts", log_prefix, session_project_id)
+        except Exception as e:
+            log.warning("%s Failed to lookup session project_id for artifact merging: %s", log_prefix, e)
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -433,22 +544,62 @@ async def list_artifacts(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
+                log_prefix, context_type, storage_user_id, storage_session_id)
+
+        # Fetch session artifacts
         artifact_info_list = await get_artifact_info_list(
             artifact_service=artifact_service,
             app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
+            user_id=storage_user_id,
+            session_id=storage_session_id,
         )
 
-        log.info(
-            "%s Returning %d artifact details.", log_prefix, len(artifact_info_list)
-        )
+        # If session belongs to a project, also fetch and merge project artifacts
+        if session_project_id:
+            log.info("%s Fetching project artifacts to merge with session artifacts", log_prefix)
+
+            try:
+                # Verify project access
+                project = project_service.get_project(session_project_id, user_id)
+                if project:
+                    # Construct project storage session ID
+                    project_storage_session_id = f"project-{session_project_id}"
+
+                    # Fetch project artifacts
+                    project_artifacts = await get_artifact_info_list(
+                        artifact_service=artifact_service,
+                        app_name=app_name,
+                        user_id=project.user_id,
+                        session_id=project_storage_session_id,
+                    )
+
+                    # Build set of filenames already in session to avoid duplicates
+                    session_filenames = {artifact.filename for artifact in artifact_info_list}
+
+                    # Add project artifacts that aren't already in session
+                    added_count = 0
+                    for project_artifact in project_artifacts:
+                        if project_artifact.filename not in session_filenames:
+                            artifact_info_list.append(project_artifact)
+                            added_count += 1
+
+                    log.info(
+                        "%s Merged artifacts: %d from session, %d from project, %d total",
+                        log_prefix, len(session_filenames), added_count, len(artifact_info_list)
+                    )
+                else:
+                    log.warning("%s Session references project %s but access denied or not found",
+                               log_prefix, session_project_id)
+            except Exception as e:
+                log.warning("%s Failed to merge project artifacts, returning session artifacts only: %s",
+                           log_prefix, e)
+
+        log.info("%s Returning %d artifact details.", log_prefix, len(artifact_info_list))
         return artifact_info_list
 
     except Exception as e:
-        log.exception(
-            "%s Error retrieving artifact details via helper: %s", log_prefix, e
-        )
+        log.exception("%s Error retrieving artifact details: %s", log_prefix, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve artifact details: {str(e)}",
@@ -462,23 +613,32 @@ async def list_artifacts(
 )
 async def get_latest_artifact(
     session_id: str = Path(
-        ..., title="Session ID", description="The session ID to get artifacts from"
+        ..., title="Session ID", description="The session ID to get artifacts from (or 'null' for project context)"
     ),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
+    project_id: Optional[str] = Query(None, description="Project ID for project context"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
+    session_service: SessionService | None = Depends(get_session_business_service_optional),
+    db: Session | None = Depends(get_db_optional),
 ):
     """
     Retrieves the content of the latest version of the specified artifact
-    associated with the current user and session ID.
+    associated with the specified context (session or project).
     """
     log_prefix = (
         f"[ArtifactRouter:GetLatest:{filename}] User={user_id}, Session={session_id} -"
     )
     log.info("%s Request received.", log_prefix)
+
+    # Resolve storage context
+    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+        session_id, project_id, user_id, validate_session, project_service, log_prefix
+    )
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -487,14 +647,50 @@ async def get_latest_artifact(
             detail="Artifact service is not configured.",
         )
 
+    # Check if session belongs to a project (for fallback lookup)
+    session_project_id = None
+    if context_type == "session" and session_service and db:
+        try:
+            session_details = session_service.get_session_details(db, session_id, user_id)
+            if session_details and session_details.project_id:
+                session_project_id = session_details.project_id
+                log.info("%s Session belongs to project %s, will fallback to project if not found", log_prefix, session_project_id)
+        except Exception as e:
+            log.warning("%s Failed to lookup session project_id for fallback: %s", log_prefix, e)
+
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
-        artifact_part = await artifact_service.load_artifact(
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=filename,
-        )
+
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
+                log_prefix, context_type, storage_user_id, storage_session_id)
+
+        # Try loading from session storage first
+        artifact_part = None
+        try:
+            artifact_part = await artifact_service.load_artifact(
+                app_name=app_name,
+                user_id=storage_user_id,
+                session_id=storage_session_id,
+                filename=filename,
+            )
+        except FileNotFoundError:
+            # Try project fallback if applicable
+            if session_project_id:
+                log.info("%s Artifact not found in session, trying project %s", log_prefix, session_project_id)
+                try:
+                    project = project_service.get_project(session_project_id, user_id)
+                    if project:
+                        project_storage_session_id = f"project-{session_project_id}"
+                        artifact_part = await artifact_service.load_artifact(
+                            app_name=app_name,
+                            user_id=project.user_id,
+                            session_id=project_storage_session_id,
+                            filename=filename,
+                        )
+                        if artifact_part:
+                            log.info("%s Found artifact in project storage", log_prefix)
+                except Exception as fallback_err:
+                    log.warning("%s Project fallback failed: %s", log_prefix, fallback_err)
 
         if artifact_part is None or artifact_part.inline_data is None:
             log.warning("%s Artifact not found or has no data.", log_prefix)
@@ -598,7 +794,7 @@ async def get_latest_artifact(
 )
 async def get_specific_artifact_version(
     session_id: str = Path(
-        ..., title="Session ID", description="The session ID to get artifacts from"
+        ..., title="Session ID", description="The session ID to get artifacts from (or 'null' for project context)"
     ),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
     version: int | str = Path(
@@ -606,26 +802,27 @@ async def get_specific_artifact_version(
         title="Version",
         description="The specific version number to retrieve, or 'latest'",
     ),
+    project_id: Optional[str] = Query(None, description="Project ID for project context"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
+    session_service: SessionService | None = Depends(get_session_business_service_optional),
+    db: Session | None = Depends(get_db_optional),
 ):
     """
     Retrieves the content of a specific version of the specified artifact
-    associated with the current user and session ID.
+    associated with the specified context (session or project).
     """
     log_prefix = f"[ArtifactRouter:GetVersion:{filename} v{version}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
-    # Validate session exists and belongs to user
-    if not validate_session(session_id, user_id):
-        log.warning("%s Session validation failed or access denied.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied.",
-        )
+    # Resolve storage context
+    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+        session_id, project_id, user_id, validate_session, project_service, log_prefix
+    )
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -634,14 +831,28 @@ async def get_specific_artifact_version(
             detail="Artifact service is not configured.",
         )
 
+    # Check if session belongs to a project (for fallback lookup)
+    session_project_id = None
+    if context_type == "session" and session_service and db:
+        try:
+            session_details = session_service.get_session_details(db, session_id, user_id)
+            if session_details and session_details.project_id:
+                session_project_id = session_details.project_id
+                log.info("%s Session belongs to project %s, will fallback to project if not found", log_prefix, session_project_id)
+        except Exception as e:
+            log.warning("%s Failed to lookup session project_id for fallback: %s", log_prefix, e)
+
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
+
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
+                log_prefix, context_type, storage_user_id, storage_session_id)
 
         load_result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
             app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
+            user_id=storage_user_id,
+            session_id=storage_session_id,
             filename=filename,
             version=version,
             load_metadata_only=False,
@@ -649,21 +860,52 @@ async def get_specific_artifact_version(
             log_identifier_prefix="[ArtifactRouter:GetVersion]",
         )
 
+        # If not found in session and session belongs to project, try project storage
         if load_result.get("status") != "success":
             error_message = load_result.get(
                 "message", f"Failed to load artifact '{filename}' version '{version}'."
             )
-            log.warning("%s %s", log_prefix, error_message)
-            if (
-                "not found" in error_message.lower()
-                or "no versions available" in error_message.lower()
-            ):
-                status_code = status.HTTP_404_NOT_FOUND
-            elif "invalid version" in error_message.lower():
-                status_code = status.HTTP_400_BAD_REQUEST
-            else:
-                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            raise HTTPException(status_code=status_code, detail=error_message)
+            is_not_found = "not found" in error_message.lower() or "no versions available" in error_message.lower()
+
+            # Try project fallback if applicable
+            if is_not_found and session_project_id:
+                log.info("%s Artifact not found in session, trying project %s", log_prefix, session_project_id)
+                try:
+                    project = project_service.get_project(session_project_id, user_id)
+                    if project:
+                        project_storage_session_id = f"project-{session_project_id}"
+                        load_result = await load_artifact_content_or_metadata(
+                            artifact_service=artifact_service,
+                            app_name=app_name,
+                            user_id=project.user_id,
+                            session_id=project_storage_session_id,
+                            filename=filename,
+                            version=version,
+                            load_metadata_only=False,
+                            return_raw_bytes=True,
+                            log_identifier_prefix="[ArtifactRouter:GetVersion:ProjectFallback]",
+                        )
+                        if load_result.get("status") == "success":
+                            log.info("%s Found artifact in project storage", log_prefix)
+                except Exception as fallback_err:
+                    log.warning("%s Project fallback failed: %s", log_prefix, fallback_err)
+
+            # Final error handling if still not successful
+            if load_result.get("status") != "success":
+                error_message = load_result.get(
+                    "message", f"Failed to load artifact '{filename}' version '{version}'."
+                )
+                log.warning("%s %s", log_prefix, error_message)
+                if (
+                    "not found" in error_message.lower()
+                    or "no versions available" in error_message.lower()
+                ):
+                    status_code = status.HTTP_404_NOT_FOUND
+                elif "invalid version" in error_message.lower():
+                    status_code = status.HTTP_400_BAD_REQUEST
+                else:
+                    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+                raise HTTPException(status_code=status_code, detail=error_message)
 
         data_bytes = load_result.get("raw_bytes")
         mime_type = load_result.get("mime_type", "application/octet-stream")

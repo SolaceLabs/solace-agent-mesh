@@ -4,3 +4,4 @@ export * from "./ChatProvider";
 export * from "./AuthProvider";
 export * from "./CsrfProvider";
 export * from "./ThemeProvider";
+export * from "./ProjectProvider";

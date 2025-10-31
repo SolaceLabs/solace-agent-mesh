@@ -12,4 +12,5 @@ export * from "./useDragAndDrop";
 export * from "./useMobile";
 export * from "./useTaskContext";
 export * from "./useThemeContext";
+export * from "./useProjectSessions";
 export * from "./useAgentSelection";

@@ -1,0 +1,27 @@
+test_case_id: test_delete_project
+description: Test DELETE /api/v1/projects/{id} removes project successfully
+tags: [projects, api]
+
+setup_projects:
+  - id: "project-to-delete"
+    name: "Project To Delete"
+    user_id: "sam_dev_user"
+    description: "This project will be deleted"
+    created_at_iso: "2024-01-10T10:00:00+00:00"
+
+expected_http_responses:
+  - description: "Delete project"
+    request:
+      method: DELETE
+      path: /api/v1/projects/project-to-delete
+      query_params:
+        user_id: "sam_dev_user"
+    expected_status_code: 204
+  
+  - description: "Verify project is deleted (should return 404)"
+    request:
+      method: GET
+      path: /api/v1/projects/project-to-delete
+      query_params:
+        user_id: "sam_dev_user"
+    expected_status_code: 404

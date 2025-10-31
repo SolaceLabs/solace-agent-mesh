@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Download, ChevronDown, Trash, Info, ChevronUp, CircleAlert } from "lucide-react";
 
-import { Button, Spinner } from "@/lib/components/ui";
+import { Button, Spinner, Badge } from "@/lib/components/ui";
 import { FileIcon } from "../file/FileIcon";
 import { cn } from "@/lib/utils";
 
@@ -35,9 +35,10 @@ export interface ArtifactBarProps {
     context?: "chat" | "list";
     isDeleted?: boolean; // If true, show as deleted
     version?: number; // Version number to display (e.g., 1, 2, 3)
+    source?: string; // Source of the artifact (e.g., "project")
 }
 
-export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description, mimeType, size, status, expandable = false, expanded = false, onToggleExpand, actions, bytesTransferred, error, expandedContent, context = "chat", isDeleted = false, version }) => {
+export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description, mimeType, size, status, expandable = false, expanded = false, onToggleExpand, actions, bytesTransferred, error, expandedContent, context = "chat", isDeleted = false, version, source }) => {
     const [contentForAnimation, setContentForAnimation] = useState(expandedContent);
 
     useEffect(() => {
@@ -146,8 +147,19 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({ filename, description,
                 {/* File Info Section */}
                 <div className="min-w-0 flex-1 py-1">
                     {/*Primary line: Description (if available) or Filename */}
-                    <div className="truncate text-sm leading-tight font-semibold" title={hasDescription ? description : filename}>
-                        {hasDescription ? displayDescription : filename.length > 50 ? `${filename.substring(0, 47)}...` : filename}
+                    <div className="flex items-center gap-2">
+                        <div className="truncate text-sm leading-tight font-semibold" title={hasDescription ? description : filename}>
+                            {hasDescription ? displayDescription : filename.length > 50 ? `${filename.substring(0, 47)}...` : filename}
+                        </div>
+                        {/* Project badge */}
+                        {source === "project" && (
+                            <Badge
+                                variant="outline"
+                                className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm"
+                            >
+                                Project
+                            </Badge>
+                        )}
                     </div>
 
                     {/* Secondary line: Filename (if description shown) or status */}

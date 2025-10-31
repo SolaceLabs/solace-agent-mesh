@@ -1,1 +1,1 @@
-export { Header, type Tab } from "./Header";
+export { Header, type Tab, type BreadcrumbItem } from "./Header";

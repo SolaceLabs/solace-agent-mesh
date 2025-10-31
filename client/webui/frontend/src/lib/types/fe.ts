@@ -78,6 +78,7 @@ export interface ArtifactInfo {
     isAccumulatedContentPlainText?: boolean; // Optional: True if accumulatedContent is plain text, false if base64
     isDisplayed?: boolean; // Optional: Tracks if artifact is currently visible to user
     needsEmbedResolution?: boolean; // Optional: Tracks if artifact needs download for embed resolution
+    source?: string; // Optional: Source of the artifact (e.g., "project")
 }
 
 /**
@@ -219,4 +220,6 @@ export interface Session {
     createdTime: string;
     updatedTime: string;
     name: string | null;
+    projectId?: string | null;
+    projectName?: string | null;
 }

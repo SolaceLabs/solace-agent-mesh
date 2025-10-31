@@ -10,3 +10,4 @@ export * from "./header";
 export * from "./pages";
 export * from "./agents";
 export * from "./jsonViewer";
+export * from "./projects";

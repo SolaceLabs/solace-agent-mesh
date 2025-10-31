@@ -1,16 +1,43 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { BrowserRouter } from "react-router-dom";
 
-import { AgentMeshPage, ChatPage, bottomNavigationItems, topNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
-import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
+import { AgentMeshPage, ChatPage, bottomNavigationItems, getTopNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
+import { ProjectsPage } from "@/lib/components/projects";
+import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
 
-import { useAuthContext, useBeforeUnload } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
 
 function AppContent() {
     const [activeNavItem, setActiveNavItem] = useState<string>("chat");
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
+    const { projectsEnabled } = useConfigContext();
 
     // Enable beforeunload warning when chat data is present
     useBeforeUnload();
+
+    // Listen for navigate-to-project events
+    useEffect(() => {
+        const handleNavigateToProject = (event: CustomEvent) => {
+            if (projectsEnabled && !event.detail.handled) {
+                setActiveNavItem("projects");
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent("navigate-to-project", {
+                        detail: { ...event.detail, handled: true }
+                    }));
+                }, 100);
+            }
+        };
+
+        window.addEventListener("navigate-to-project", handleNavigateToProject as EventListener);
+        return () => {
+            window.removeEventListener("navigate-to-project", handleNavigateToProject as EventListener);
+        };
+    }, [projectsEnabled]);
+
+    // Get filtered navigation items based on feature flags
+    const topNavigationItems = useMemo(() => {
+        return getTopNavigationItems(projectsEnabled ?? false);
+    }, [projectsEnabled]);
 
     if (useAuthorization && !isAuthenticated) {
         return (
@@ -40,6 +67,13 @@ function AppContent() {
                 return <ChatPage />;
             case "agentMesh":
                 return <AgentMeshPage />;
+            case "projects":
+                // Only render ProjectsPage if projects are enabled
+                if (projectsEnabled) {
+                    return <ProjectsPage onProjectActivated={() => setActiveNavItem("chat")} />;
+                }
+                // Fallback to chat if projects are disabled but somehow navigated here
+                return <ChatPage />;
         }
     };
 
@@ -58,11 +92,15 @@ function App() {
             <CsrfProvider>
                 <ConfigProvider>
                     <AuthProvider>
-                        <ChatProvider>
-                            <TaskProvider>
-                                <AppContent />
-                            </TaskProvider>
-                        </ChatProvider>
+                        <ProjectProvider>
+                            <BrowserRouter>
+                                <ChatProvider>
+                                    <TaskProvider>
+                                        <AppContent />
+                                    </TaskProvider>
+                                </ChatProvider>
+                            </BrowserRouter>
+                        </ProjectProvider>
                     </AuthProvider>
                 </ConfigProvider>
             </CsrfProvider>

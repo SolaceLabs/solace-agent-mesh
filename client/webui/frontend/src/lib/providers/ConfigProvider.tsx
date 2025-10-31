@@ -14,6 +14,11 @@ interface BackendConfig {
     frontend_bot_name: string;
     frontend_feature_enablement?: Record<string, boolean>;
     persistence_enabled?: boolean;
+    validation_limits?: {
+        projectNameMax?: number;
+        projectDescriptionMax?: number;
+        projectInstructionsMax?: number;
+    };
 }
 
 interface ConfigProviderProps {
@@ -87,6 +92,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     await fetchCsrfToken();
                 }
 
+                // Compute projectsEnabled from feature flags
+                const projectsEnabled = data.frontend_feature_enablement?.projects ?? false;
+
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
                     configServerUrl: data.frontend_server_url,
@@ -99,6 +107,8 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     configFeatureEnablement: data.frontend_feature_enablement ?? {},
                     frontend_use_authorization: data.frontend_use_authorization,
                     persistenceEnabled: data.persistence_enabled ?? false,
+                    projectsEnabled,
+                    validationLimits: data.validation_limits,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

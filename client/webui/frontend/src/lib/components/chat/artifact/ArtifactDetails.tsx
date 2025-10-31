@@ -11,12 +11,18 @@ interface ArtifactDetailsProps {
     artifactInfo: ArtifactInfo;
     isPreview?: boolean;
     isExpanded?: boolean;
-    onDelete?: (artifact: ArtifactInfo) => void;
+    onDelete?: () => void;
     onDownload?: (artifact: ArtifactInfo) => void;
     setIsExpanded?: (expanded: boolean) => void;
+    badge?: {
+        label: string;
+        icon: React.ReactNode;
+        badgeComponent: React.ReactNode;
+        readonly?: boolean;
+    } | null;
 }
 
-export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, isPreview = false, isExpanded = false, onDelete, onDownload, setIsExpanded }) => {
+export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, isPreview = false, isExpanded = false, onDelete, onDownload, setIsExpanded, badge }) => {
     const { previewedArtifactAvailableVersions, currentPreviewedVersionNumber, navigateArtifactVersion } = useChatContext();
     const versions = useMemo(() => previewedArtifactAvailableVersions ?? [], [previewedArtifactAvailableVersions]);
 
@@ -24,8 +30,11 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, 
         <div className="flex flex-row justify-between gap-1">
             <div className="flex min-w-0 items-center gap-4">
                 <div className="min-w-0">
-                    <div className="truncate text-sm" title={artifactInfo.filename}>
-                        {artifactInfo.filename}
+                    <div className="flex items-center gap-2">
+                        <div className="truncate text-sm" title={artifactInfo.filename}>
+                            {artifactInfo.filename}
+                        </div>
+                        {badge && badge.badgeComponent}
                     </div>
                     <div className="truncate text-xs" title={formatRelativeTime(artifactInfo.last_modified)}>
                         {formatRelativeTime(artifactInfo.last_modified)}
@@ -90,7 +99,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, 
                         onClick={e => {
                             e.preventDefault();
                             e.stopPropagation();
-                            onDelete(artifactInfo);
+                            onDelete();
                         }}
                         tooltip="Delete"
                     >

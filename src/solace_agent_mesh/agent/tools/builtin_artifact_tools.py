@@ -373,7 +373,7 @@ async def load_artifact(
 
     Args:
         filename: The name of the artifact to load. May contain embeds.
-        version: The specific version number to load. Must be explicitly provided.
+        version: The specific version number to load. Must be explicitly provided. Versions are 0-indexed.
         load_metadata_only (bool): If True, load only the metadata JSON. Default False.
         max_content_length (Optional[int]): Maximum character length for text content.
                                            If None, uses app configuration. Range: 100-100,000.
