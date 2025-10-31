@@ -97,7 +97,7 @@ Storage structure:
 S3 storage uses Amazon S3 for artifact persistence. This is the recommended production backend for AWS deployments.
 
 Characteristics:
-- Highly durable (99.999999999% durability)
+- Highly durable
 - Scalable to any size
 - Access from any location
 - Automatic backups and redundancy
@@ -421,55 +421,6 @@ How it works:
 - Prevents unbounded storage growth
 
 Check your specific artifact storage backend documentation for retention policies and best practices.
-
-## Verification and Testing
-
-After configuring artifact storage, verify that everything works correctly.
-
-### Create an Artifact
-
-Use the artifact creation API or have an agent create one:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/artifacts/upload \
-  -F "sessionId=test-session" \
-  -F "filename=test.txt" \
-  -F "file=@test.txt"
-```
-
-### Verify Storage
-
-Check that the artifact was stored in your configured backend:
-
-Filesystem:
-```bash
-ls -la /tmp/sam-artifacts/
-```
-
-S3:
-```bash
-aws s3 ls s3://my-artifacts-bucket/ --recursive
-```
-
-GCS:
-```bash
-gsutil ls -r gs://my-artifacts-bucket/
-```
-
-### List Artifacts
-
-Retrieve artifacts through the API:
-
-```bash
-curl http://localhost:8000/api/v1/artifacts/test-session
-```
-
-### Test Versioning
-
-1. Create an artifact
-2. Update the same filename
-3. List versions to confirm both v0 and v1 exist
-4. Retrieve each version independently
 
 ## Troubleshooting
 
