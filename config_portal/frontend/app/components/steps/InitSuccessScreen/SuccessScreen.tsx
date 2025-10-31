@@ -533,22 +533,27 @@ export default function SuccessScreen({
           </span>
         </div>
         <div className="flex space-x-4">
-          <Button
-            onClick={goToPreviousTab}
-            variant="outline"
-            type="button"
-            disabled={currentTabIndex === 0}
-          >
-            Previous
-          </Button>
-          {currentTabIndex < tabCount - 1 && (
-            <Button
-              onClick={goToNextTab}
-              type="button"
-            >
-              Next
-            </Button>
-          )}
+          <div className="w-24">
+            {currentTabIndex > 0 && (
+              <Button
+                onClick={goToPreviousTab}
+                variant="outline"
+                type="button"
+              >
+                Previous
+              </Button>
+            )}
+          </div>
+          <div className="w-20">
+            {currentTabIndex < tabCount - 1 && (
+              <Button
+                onClick={goToNextTab}
+                type="button"
+              >
+                Next
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
