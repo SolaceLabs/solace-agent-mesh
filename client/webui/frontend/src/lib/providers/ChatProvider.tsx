@@ -1787,9 +1787,45 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 handleNewSession(false);
             }
         };
-        
+
         registerProjectDeletedCallback(handleProjectDeleted);
     }, [activeProject, handleNewSession]);
+
+    useEffect(() => {
+        // Listen for session-moved events to update activeProject when current session is moved
+        const handleSessionMoved = (event: CustomEvent) => {
+            const { sessionId: movedSessionId, projectId: newProjectId } = event.detail;
+
+            // Only update if the moved session is the currently active session
+            if (movedSessionId === sessionId) {
+                console.log(`ChatProvider: Current session ${movedSessionId} was moved to project ${newProjectId}`);
+
+                // Set flag to prevent handleNewSession from being triggered by this project change
+                isSessionSwitchRef.current = true;
+
+                if (newProjectId) {
+                    // Session was moved to a project - activate project context
+                    const project = projects.find((p: Project) => p.id === newProjectId);
+                    if (project) {
+                        console.log(`ChatProvider: Activating project context: ${project.name}`);
+                        setActiveProject(project);
+                    } else {
+                        console.warn(`ChatProvider: Project ${newProjectId} not found in projects array`);
+                    }
+                } else {
+                    // Session was removed from project - deactivate project context
+                    console.log(`ChatProvider: Session removed from project, deactivating project context`);
+                    setActiveProject(null);
+                }
+            }
+        };
+
+        window.addEventListener("session-moved", handleSessionMoved as EventListener);
+
+        return () => {
+            window.removeEventListener("session-moved", handleSessionMoved as EventListener);
+        };
+    }, [sessionId, projects, setActiveProject]);
 
     useEffect(() => {
         // When the active project changes, reset the chat view to a clean slate
