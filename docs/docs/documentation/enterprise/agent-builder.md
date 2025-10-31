@@ -123,7 +123,7 @@ Once created, connectors become available for assignment to any agent. This reus
 
 The natural language to SQL conversion capability makes databases accessible through conversation, but this also means users can potentially request any data the connector can access. Plan your database permissions accordingly and consider what information should be available through agent interactions.
 
-Each agent can be assigned a maximum of 5 connectors. This limit helps manage complexity and prevent performance issues.
+Each agent can be assigned a limited number of connectors. This limit helps manage complexity and prevent performance issues.
 
 ## Agent Lifecycle and Management
 
@@ -162,7 +162,7 @@ The system enforces several validation rules to ensure agent configurations rema
 
 **Deletion Restrictions** prevent accidentally removing active agents. You cannot delete deployed agents directly. You must first undeploy them, which moves them back to `Not Deployed` status in the Inactive tab, and then you can delete them. This two-step process helps prevent service disruptions.
 
-**Connector Limits**: Each agent can have a maximum of 5 connectors. This restriction helps manage complexity and prevents performance issues that could arise from agents attempting to connect to too many databases simultaneously.
+**Connector Limits**: Each agent can have a limited number of connectors. This restriction helps manage complexity and prevents performance issues that could arise from agents attempting to connect to too many databases simultaneously.
 
 ## Troubleshooting Common Issues
 
