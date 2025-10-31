@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { BrowserRouter } from "react-router-dom";
 
 import { AgentMeshPage, ChatPage, bottomNavigationItems, getTopNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
 import { ProjectsPage } from "@/lib/components/projects";
@@ -92,11 +93,13 @@ function App() {
                 <ConfigProvider>
                     <AuthProvider>
                         <ProjectProvider>
-                            <ChatProvider>
-                                <TaskProvider>
-                                    <AppContent />
-                                </TaskProvider>
-                            </ChatProvider>
+                            <BrowserRouter>
+                                <ChatProvider>
+                                    <TaskProvider>
+                                        <AppContent />
+                                    </TaskProvider>
+                                </ChatProvider>
+                            </BrowserRouter>
                         </ProjectProvider>
                     </AuthProvider>
                 </ConfigProvider>
