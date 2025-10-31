@@ -14,6 +14,7 @@ all token management to SAM's OAuth2 service.
 import asyncio
 import logging
 import secrets
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode, urlparse, parse_qs
 
@@ -329,20 +330,69 @@ class OAuthFlowHandler:
                 status_code=500, detail="Internal error during token refresh"
             ) from e
 
+    async def handle_register(self, request: Request) -> Dict[str, Any]:
+        """
+        Handle dynamic client registration (RFC 7591).
+
+        Since we're proxying to SAM's OAuth2 service and using PKCE,
+        we return a "public client" configuration that doesn't require
+        client credentials.
+
+        Args:
+            request: FastAPI request object
+
+        Returns:
+            Client registration response with client_id
+        """
+        import uuid
+
+        log.info("Handling dynamic client registration request")
+
+        # Generate a unique client_id for this client
+        # In a public client PKCE flow, no client_secret is needed
+        client_id = f"mcp-client-{uuid.uuid4().hex[:12]}"
+
+        # Return RFC 7591 client registration response
+        return {
+            "client_id": client_id,
+            # No client_secret for public clients using PKCE
+            "client_id_issued_at": int(datetime.now(timezone.utc).timestamp()),
+            "grant_types": ["authorization_code", "refresh_token"],
+            "response_types": ["code"],
+            "redirect_uris": [self.callback_url],
+            "token_endpoint_auth_method": "none",  # Public client
+            # PKCE is required for security
+            "require_pkce": True,
+        }
+
     async def get_oauth_metadata(self) -> Dict[str, Any]:
         """
-        Get OAuth metadata for MCP clients.
+        Get OAuth 2.0 Authorization Server Metadata (RFC 8414).
 
-        Returns information about the OAuth endpoints that clients need
+        Returns standard OIDC/OAuth2 discovery metadata that clients need
         to implement the authorization flow.
 
         Returns:
-            Dictionary with authorization_url, token_url, scopes, etc.
+            Dictionary with standard OAuth 2.0 metadata fields
         """
+        # Build base URL for registration endpoint
+        registration_endpoint = f"{self.callback_base_url}/oauth/register"
+
         return {
-            "authorization_url": f"{self.callback_base_url}/oauth/authorize",
-            "token_url": f"{self.callback_base_url}/oauth/token",
-            "callback_url": self.callback_url,
-            "provider": self.oauth_provider,
+            # Standard OAuth 2.0 Authorization Server Metadata fields (RFC 8414)
+            "issuer": self.callback_base_url,
+            "authorization_endpoint": f"{self.callback_base_url}/oauth/authorize",
+            "token_endpoint": f"{self.callback_base_url}/oauth/token",
+            "registration_endpoint": registration_endpoint,  # Dynamic client registration
+            "response_types_supported": ["code"],
             "grant_types_supported": ["authorization_code", "refresh_token"],
+            "token_endpoint_auth_methods_supported": ["none"],  # Public client (no secret needed)
+
+            # Additional helpful fields
+            "scopes_supported": ["openid", "email", "profile", "offline_access"],
+            "code_challenge_methods_supported": ["S256"],  # PKCE required
+
+            # Custom fields for MCP client convenience (non-standard but helpful)
+            "mcp_callback_url": self.callback_url,
+            "mcp_provider": self.oauth_provider,
         }

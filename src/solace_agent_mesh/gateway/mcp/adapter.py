@@ -205,8 +205,22 @@ class McpAdapter(GatewayAdapter):
             )
             log.info("OAuth handler initialized")
 
-        # Create FastMCP server
-        self.mcp_server = FastMCP(name=config.mcp_server_name)
+        # Create FastMCP server with OAuth info in description if enabled
+        server_description = config.mcp_server_description
+        if config.enable_auth and not config.dev_mode:
+            oauth_authorize_url = f"http://{config.host}:{config.port}/oauth/authorize"
+            oauth_metadata_url = f"http://{config.host}:{config.port}/.well-known/oauth-authorization-server"
+            server_description = (
+                f"{config.mcp_server_description}\n\n"
+                f"🔒 Authentication: OAuth 2.0 required\n"
+                f"📋 Metadata: {oauth_metadata_url}\n"
+                f"🔐 Authorize: {oauth_authorize_url}"
+            )
+
+        self.mcp_server = FastMCP(
+            name=config.mcp_server_name,
+            instructions=server_description
+        )
 
         # Register artifact resource template if enabled
         if config.enable_artifact_resources:
@@ -280,14 +294,10 @@ class McpAdapter(GatewayAdapter):
         """
         Register OAuth endpoints with the FastMCP server.
 
-        Note: FastMCP HTTP server currently doesn't expose a way to add custom HTTP endpoints.
-        This is a known limitation. The OAuth handler is initialized and ready, but OAuth
-        endpoints would need to be exposed via a separate HTTP server or by modifying FastMCP.
+        OAuth endpoints are added to the underlying Starlette app in _run_mcp_server().
+        This method serves as documentation of the endpoints that will be exposed.
 
-        For now, this serves as documentation and preparation for when FastMCP supports
-        custom HTTP endpoints, or when we implement a separate HTTP server for OAuth.
-
-        OAuth endpoints that should be exposed:
+        OAuth endpoints that will be exposed:
         - GET /oauth/authorize - Initiates OAuth flow
         - GET /oauth/callback - Handles OAuth callback
         - POST /oauth/token - Token refresh endpoint
@@ -296,18 +306,78 @@ class McpAdapter(GatewayAdapter):
         if not self.oauth_handler:
             return
 
-        log.warning(
-            "OAuth handler initialized but endpoints not exposed. "
-            "FastMCP HTTP server does not currently support custom HTTP endpoints. "
-            "OAuth flow must be handled externally or via a separate HTTP server. "
-            "See documentation for workarounds."
+        log.info(
+            "OAuth endpoints will be added to HTTP server: "
+            "/oauth/authorize, /oauth/callback, /oauth/token, /.well-known/oauth-authorization-server"
         )
 
-        # TODO: Once FastMCP supports custom HTTP endpoints, register them here:
-        # - self.mcp_server.add_http_endpoint("GET", "/oauth/authorize", self._handle_oauth_authorize)
-        # - self.mcp_server.add_http_endpoint("GET", "/oauth/callback", self._handle_oauth_callback)
-        # - self.mcp_server.add_http_endpoint("POST", "/oauth/token", self._handle_oauth_token)
-        # - self.mcp_server.add_http_endpoint("GET", "/oauth/metadata", self._handle_oauth_metadata)
+    async def _handle_oauth_authorize(self, request):
+        """Handle GET /oauth/authorize - Initiates OAuth flow."""
+        from starlette.responses import RedirectResponse
+
+        redirect_uri = request.query_params.get("redirect_uri")
+        return await self.oauth_handler.handle_authorize(request, redirect_uri)
+
+    async def _handle_oauth_callback(self, request):
+        """Handle GET /oauth/callback - OAuth callback from provider."""
+        from starlette.responses import JSONResponse
+
+        code = request.query_params.get("code")
+        state = request.query_params.get("state")
+
+        try:
+            tokens = await self.oauth_handler.handle_callback(request, code, state)
+            return JSONResponse(tokens)
+        except Exception as e:
+            log.error("OAuth callback error: %s", e)
+            return JSONResponse(
+                {"error": "callback_failed", "error_description": str(e)},
+                status_code=400,
+            )
+
+    async def _handle_oauth_token_refresh(self, request):
+        """Handle POST /oauth/token - Token refresh."""
+        from starlette.responses import JSONResponse
+
+        try:
+            body = await request.json()
+            refresh_token = body.get("refresh_token")
+
+            if not refresh_token:
+                return JSONResponse(
+                    {"error": "invalid_request", "error_description": "Missing refresh_token"},
+                    status_code=400,
+                )
+
+            tokens = await self.oauth_handler.handle_refresh(refresh_token)
+            return JSONResponse(tokens)
+        except Exception as e:
+            log.error("Token refresh error: %s", e)
+            return JSONResponse(
+                {"error": "refresh_failed", "error_description": str(e)},
+                status_code=400,
+            )
+
+    async def _handle_oauth_register(self, request):
+        """Handle POST /oauth/register - Dynamic client registration."""
+        from starlette.responses import JSONResponse
+
+        try:
+            registration = await self.oauth_handler.handle_register(request)
+            return JSONResponse(registration, status_code=201)
+        except Exception as e:
+            log.error("Client registration error: %s", e)
+            return JSONResponse(
+                {"error": "registration_failed", "error_description": str(e)},
+                status_code=400,
+            )
+
+    async def _handle_oauth_metadata(self, request):
+        """Handle GET /.well-known/oauth-authorization-server - OAuth metadata."""
+        from starlette.responses import JSONResponse
+
+        metadata = await self.oauth_handler.get_oauth_metadata()
+        return JSONResponse(metadata)
 
     def _register_tool_for_skill(self, agent_card: AgentCard, skill: AgentSkill):
         """
@@ -395,6 +465,7 @@ class McpAdapter(GatewayAdapter):
         # Create Future and Queue for this task
         task_future = asyncio.Future()
         stream_queue = asyncio.Queue()
+        task_id = None  # Initialize to None so finally block can check it
 
         try:
             # Use FastMCP's client_id for connection-based session
@@ -605,6 +676,33 @@ class McpAdapter(GatewayAdapter):
                 self._cleanup_task(task_id)
                 return f"Error: {error_msg}"
 
+        except PermissionError as e:
+            # Authentication/authorization error - provide clear OAuth guidance
+            error_msg = f"Authentication required: {str(e)}"
+            log.warning("Authentication failed for MCP tool call: %s", e)
+
+            # Send error notification to client
+            await mcp_context.error(error_msg)
+
+            # Check if OAuth is configured
+            if config.enable_auth and not config.dev_mode:
+                # Provide OAuth endpoints in error message for client guidance
+                oauth_metadata_url = f"http://{config.host}:{config.port}/.well-known/oauth-authorization-server"
+                oauth_authorize_url = f"http://{config.host}:{config.port}/oauth/authorize"
+
+                detailed_error = (
+                    f"Authentication required. This MCP server requires OAuth authentication.\n\n"
+                    f"To authenticate:\n"
+                    f"1. Visit: {oauth_authorize_url}\n"
+                    f"2. Complete the OAuth flow\n"
+                    f"3. Use the returned access token in your MCP client configuration\n\n"
+                    f"OAuth metadata: {oauth_metadata_url}\n\n"
+                    f"Original error: {str(e)}"
+                )
+                return detailed_error
+            else:
+                return f"Error: {error_msg}"
+
         except Exception as e:
             error_msg = f"Error invoking agent {agent_name}: {str(e)}"
             log.exception(error_msg)
@@ -612,8 +710,8 @@ class McpAdapter(GatewayAdapter):
             return f"Error: {error_msg}"
 
         finally:
-            # Cleanup queue
-            if task_id in self.task_queues:
+            # Cleanup queue (only if task_id was assigned)
+            if task_id and task_id in self.task_queues:
                 del self.task_queues[task_id]
 
     async def _run_mcp_server(self):
@@ -627,13 +725,65 @@ class McpAdapter(GatewayAdapter):
                     config.host,
                     config.port,
                 )
-                # Run in a thread pool to avoid blocking
-                await asyncio.to_thread(
-                    self.mcp_server.run,
-                    transport="http",
-                    host=config.host,
-                    port=config.port,
-                )
+
+                # Get the underlying Starlette app and add OAuth routes if auth enabled
+                if config.enable_auth and self.oauth_handler:
+                    from starlette.routing import Route
+
+                    # Create the HTTP app
+                    http_app = self.mcp_server.http_app(transport="http")
+
+                    # Add OAuth routes to the Starlette app
+                    oauth_routes = [
+                        Route(
+                            "/oauth/authorize",
+                            self._handle_oauth_authorize,
+                            methods=["GET"],
+                        ),
+                        Route(
+                            "/oauth/callback",
+                            self._handle_oauth_callback,
+                            methods=["GET"],
+                        ),
+                        Route(
+                            "/oauth/token",
+                            self._handle_oauth_token_refresh,
+                            methods=["POST"],
+                        ),
+                        Route(
+                            "/oauth/register",
+                            self._handle_oauth_register,
+                            methods=["POST"],
+                        ),
+                        Route(
+                            "/.well-known/oauth-authorization-server",
+                            self._handle_oauth_metadata,
+                            methods=["GET"],
+                        ),
+                    ]
+
+                    # Add routes to the app
+                    http_app.router.routes.extend(oauth_routes)
+                    log.info("Added OAuth endpoints to HTTP server")
+
+                    # Run with uvicorn directly since we customized the app
+                    import uvicorn
+                    uvicorn_config = uvicorn.Config(
+                        http_app,
+                        host=config.host,
+                        port=config.port,
+                        log_level="info",
+                    )
+                    server = uvicorn.Server(uvicorn_config)
+                    await server.serve()
+                else:
+                    # Run normally without OAuth routes
+                    await asyncio.to_thread(
+                        self.mcp_server.run,
+                        transport="http",
+                        host=config.host,
+                        port=config.port,
+                    )
             elif config.transport == "stdio":
                 log.info("Starting MCP server on stdio transport")
                 # Run in a thread pool to avoid blocking
@@ -982,13 +1132,17 @@ class McpAdapter(GatewayAdapter):
         4. Retrieving user info and creating AuthClaims
 
         If auth is disabled or in dev mode, falls back to default_user_identity.
+        If auth is enabled and token validation fails, raises PermissionError.
 
         Args:
             external_input: Dictionary containing MCP request data
             endpoint_context: Optional endpoint-specific context
 
         Returns:
-            AuthClaims with authenticated user info, or None if auth fails
+            AuthClaims with authenticated user info, or None if auth is disabled
+
+        Raises:
+            PermissionError: If auth is enabled but authentication fails
         """
         config: McpAdapterConfig = self.context.adapter_config
 
@@ -1003,7 +1157,7 @@ class McpAdapter(GatewayAdapter):
                 raw_context={"dev_mode": True},
             )
 
-        # Authentication disabled - use default identity
+        # Authentication disabled - use default identity (return None to trigger fallback)
         if not config.enable_auth:
             log.debug(
                 "Auth disabled: Using default_user_identity=%s",
@@ -1022,7 +1176,9 @@ class McpAdapter(GatewayAdapter):
 
         if not access_token:
             log.warning("OAuth enabled but no access token found in MCP request")
-            return None
+            raise PermissionError(
+                "Authentication required: No access token provided in MCP request"
+            )
 
         # Validate token and get user info
         try:
@@ -1038,12 +1194,19 @@ class McpAdapter(GatewayAdapter):
                 return claims
             else:
                 log.warning("Token validation failed for MCP request")
-                return None
+                raise PermissionError(
+                    "Authentication failed: Invalid or expired access token"
+                )
 
+        except PermissionError:
+            # Re-raise PermissionError as-is
+            raise
         except Exception as e:
             log.error("Error during OAuth authentication: %s", e)
             # If OAuth service is unreachable, fail closed (reject request)
-            return None
+            raise PermissionError(
+                f"Authentication failed: Unable to validate token - {str(e)}"
+            ) from e
 
     async def prepare_task(
         self, external_input: Dict, endpoint_context: Optional[Dict[str, Any]] = None
