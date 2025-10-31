@@ -38,7 +38,7 @@ jobs:
       MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
       MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
   # ----------------------------------------------------
-  # PHASE 0: Prepare Metadata and Determine Build Strategy
+  # PHASE 0: Prepare Metadata and Determine Build Strategy Test
   # ----------------------------------------------------
   prepare-metadata:
     name: Prepare Build Metadata
