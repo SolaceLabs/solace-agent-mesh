@@ -1,4 +1,4 @@
-import { MessageCircle, Bot, SunMoon, PanelsTopLeft } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
@@ -16,7 +16,7 @@ const allTopNavigationItems: NavigationItem[] = [
     {
         id: "projects",
         label: "Projects",
-        icon: PanelsTopLeft,
+        icon: FolderOpen,
     }
 ];
 
