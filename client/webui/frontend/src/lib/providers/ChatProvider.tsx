@@ -339,13 +339,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string): Promise<{ uri: string; sessionId: string } | null> => {
+        async (file: File, overrideSessionId?: string, description?: string): Promise<{ uri: string; sessionId: string } | null> => {
             const effectiveSessionId = overrideSessionId || sessionId;
             const formData = new FormData();
             formData.append("upload_file", file);
             formData.append("filename", file.name);
             // Send sessionId as form field (can be empty string for new sessions)
             formData.append("sessionId", effectiveSessionId || "");
+            
+            // Add description as metadata if provided
+            if (description) {
+                const metadata = { description };
+                formData.append("metadata_json", JSON.stringify(metadata));
+            }
+            
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",

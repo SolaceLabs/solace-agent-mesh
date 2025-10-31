@@ -12,7 +12,7 @@ import { PromptsCommand } from "./PromptsCommand";
 import { PastedTextBadge, PastedTextDialog, PasteActionDialog, isLargeText, createPastedTextItem, getTextPreview, type PastedTextItem } from "./paste";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification } = useChatContext();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
 
     // File selection support
@@ -216,7 +216,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setShowPasteActionDialog(false);
     };
 
-    const handleSaveAsArtifact = async (title: string, fileType: string) => {
+    const handleSaveAsArtifact = async (title: string, fileType: string, description?: string) => {
         if (!pendingPasteContent) return;
 
         try {
@@ -232,7 +232,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             // Upload the artifact - uploadArtifactFile will create a session if needed
             // and return the sessionId in the result
-            const result = await uploadArtifactFile(file, sessionId);
+            const result = await uploadArtifactFile(file, sessionId, description);
 
             if (result) {
                 // If a new session was created, update our sessionId
@@ -315,6 +315,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 onPasteAsText={handlePasteAsText}
                 onSaveAsArtifact={handleSaveAsArtifact}
                 onCancel={handleCancelPasteAction}
+                existingArtifacts={artifacts.map(a => a.filename)}
             />
 
             {/* Prompts Command Popover */}

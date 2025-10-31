@@ -22,8 +22,9 @@ interface PasteActionDialogProps {
     isOpen: boolean;
     content: string;
     onPasteAsText: () => void;
-    onSaveAsArtifact: (title: string, type: string) => Promise<void>;
+    onSaveAsArtifact: (title: string, type: string, description?: string) => Promise<void>;
     onCancel: () => void;
+    existingArtifacts?: string[]; // List of existing artifact filenames
 }
 
 const FILE_TYPES = [
@@ -98,11 +99,19 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
     onPasteAsText,
     onSaveAsArtifact,
     onCancel,
+    existingArtifacts = [],
 }) => {
     const [showArtifactForm, setShowArtifactForm] = useState(false);
     const [title, setTitle] = useState("snippet.txt");
+    const [description, setDescription] = useState("");
     const [fileType, setFileType] = useState("auto");
     const [isSaving, setIsSaving] = useState(false);
+    const [userConfirmedOverwrite, setUserConfirmedOverwrite] = useState(false);
+    
+    // Check if current title exists in artifacts
+    const titleExists = existingArtifacts.includes(title);
+    // Show warning whenever title exists (even after confirmation)
+    const showOverwriteWarning = titleExists;
 
     // Auto-detect file type when form is shown
     useEffect(() => {
@@ -125,6 +134,11 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
             }
         }
     }, [fileType]);
+    
+    // Reset confirmation when title changes
+    useEffect(() => {
+        setUserConfirmedOverwrite(false);
+    }, [title]);
 
     const handlePasteAsText = () => {
         onPasteAsText();
@@ -136,12 +150,21 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
     };
 
     const handleSaveArtifact = async () => {
+        // Check if artifact already exists and user hasn't confirmed
+        if (titleExists && !userConfirmedOverwrite) {
+            // First click on duplicate name - show warning and require confirmation
+            setUserConfirmedOverwrite(true);
+            return;
+        }
+        
+        // Either no conflict OR user has confirmed overwrite - proceed with save
         setIsSaving(true);
         try {
-            await onSaveAsArtifact(title, fileType);
+            await onSaveAsArtifact(title, fileType, description.trim() || undefined);
             resetForm();
         } catch (error) {
             console.error("Error saving artifact:", error);
+            // Don't reset form on error so user can try again
         } finally {
             setIsSaving(false);
         }
@@ -155,8 +178,10 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
     const resetForm = () => {
         setShowArtifactForm(false);
         setTitle("snippet.txt");
+        setDescription("");
         setFileType("auto");
         setIsSaving(false);
+        setUserConfirmedOverwrite(false);
     };
 
     const charCount = content.length;
@@ -227,12 +252,27 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
 
                 <div className="flex-1 overflow-y-auto space-y-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="title">Title (optional)</Label>
+                        <Label htmlFor="title">Filename</Label>
                         <Input
                             id="title"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="snippet.txt"
+                        />
+                        {showOverwriteWarning && (
+                            <p className="text-sm text-yellow-600 dark:text-yellow-500">
+                                ⚠️ An artifact with this name already exists. {userConfirmedOverwrite ? "Click again to confirm overwrite." : "Saving will create a new version."}
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="description">Description (optional)</Label>
+                        <Input
+                            id="description"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Brief description of this artifact"
                         />
                     </div>
 
@@ -270,7 +310,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
                         Cancel
                     </Button>
                     <Button onClick={handleSaveArtifact} disabled={isSaving || !title.trim()}>
-                        {isSaving ? "Saving..." : "Save Artifact"}
+                        {isSaving ? "Saving..." : (titleExists && userConfirmedOverwrite) ? "Overwrite & Save" : titleExists ? "Confirm Overwrite" : "Save Artifact"}
                     </Button>
                 </DialogFooter>
             </DialogContent>
