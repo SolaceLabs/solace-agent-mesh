@@ -9,6 +9,7 @@ import type { AgentCardInfo } from "@/lib/types";
 
 import { FileBadge } from "./file/FileBadge";
 import { PromptsCommand } from "./PromptsCommand";
+import { PastedTextBadge, PastedTextDialog, isLargeText, createPastedTextItem, getTextPreview, type PastedTextItem } from "./paste";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const { isResponding, isCancelling, selectedAgentName, sessionId, handleSubmit, handleCancel } = useChatContext();
@@ -17,6 +18,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
+    // Pasted text support
+    const [pastedTextItems, setPastedTextItems] = useState<PastedTextItem[]>([]);
+    const [selectedPasteId, setSelectedPasteId] = useState<string | null>(null);
 
     // Chat input ref for focus management
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -32,6 +37,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     useEffect(() => {
         setInputValue("");
         setShowPromptsCommand(false);
+        setPastedTextItems([]);
+        setSelectedPasteId(null);
     }, [sessionId]);
 
     // Focus the chat input when isResponding becomes false
@@ -74,31 +81,57 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         if (isResponding) return;
 
         const clipboardData = event.clipboardData;
-        if (!clipboardData || !clipboardData.files || clipboardData.files.length === 0) return;
+        if (!clipboardData) return;
 
-        if (clipboardData.files.length > 0) {
+        // Handle file pastes (existing logic)
+        if (clipboardData.files && clipboardData.files.length > 0) {
             event.preventDefault(); // Prevent the default paste behavior for files
+            
+            // Filter out duplicates based on name, size, and last modified time
+            const newFiles = Array.from(clipboardData.files).filter(newFile =>
+                !selectedFiles.some(existingFile =>
+                    existingFile.name === newFile.name &&
+                    existingFile.size === newFile.size &&
+                    existingFile.lastModified === newFile.lastModified
+                )
+            );
+            if (newFiles.length > 0) {
+                setSelectedFiles(prev => [...prev, ...newFiles]);
+            }
+            return;
         }
 
-        // Filter out duplicates based on name, size, and last modified time
-        const newFiles = Array.from(clipboardData.files).filter(newFile => !selectedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size && existingFile.lastModified === newFile.lastModified));
-        if (newFiles.length > 0) {
-            setSelectedFiles(prev => [...prev, ...newFiles]);
+        // Handle text pastes (NEW)
+        const pastedText = clipboardData.getData('text');
+        if (pastedText && isLargeText(pastedText)) {
+            event.preventDefault(); // Prevent default paste for large text
+            const newItem = createPastedTextItem(pastedText);
+            setPastedTextItems(prev => [...prev, newItem]);
         }
+        // Small text pastes go through normally (no preventDefault)
     };
 
     const handleRemoveFile = (index: number) => {
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0), [isResponding, inputValue, selectedFiles]);
+    const isSubmittingEnabled = useMemo(
+        () => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pastedTextItems.length !== 0),
+        [isResponding, inputValue, selectedFiles, pastedTextItems]
+    );
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
         if (isSubmittingEnabled) {
-            // Pass inputValue directly as required parameter
-            await handleSubmit(event, selectedFiles, inputValue.trim());
+            // Combine input value with pasted text items
+            const pastedTexts = pastedTextItems.map(item => item.content).join('\n\n');
+            const fullMessage = [inputValue.trim(), pastedTexts]
+                .filter(Boolean)
+                .join('\n\n');
+            
+            await handleSubmit(event, selectedFiles, fullMessage);
             setSelectedFiles([]);
+            setPastedTextItems([]);
             setInputValue("");
             scrollToBottom?.();
         }
@@ -158,6 +191,19 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }, 100);
     };
 
+    // Handle pasted text management
+    const handleRemovePastedText = (id: string) => {
+        setPastedTextItems(prev => prev.filter(item => item.id !== id));
+    };
+
+    const handleViewPastedText = (id: string) => {
+        setSelectedPasteId(id);
+    };
+
+    const handleClosePastedTextDialog = () => {
+        setSelectedPasteId(null);
+    };
+
     return (
         <div
             className={`rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
@@ -177,6 +223,30 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     ))}
                 </div>
             )}
+
+            {/* Pasted Text Items */}
+            {pastedTextItems.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                    {pastedTextItems.map((item, index) => (
+                        <PastedTextBadge
+                            key={item.id}
+                            id={item.id}
+                            index={index + 1}
+                            textPreview={getTextPreview(item.content)}
+                            onClick={() => handleViewPastedText(item.id)}
+                            onRemove={() => handleRemovePastedText(item.id)}
+                        />
+                    ))}
+                </div>
+            )}
+
+            {/* Pasted Text Dialog */}
+            <PastedTextDialog
+                isOpen={selectedPasteId !== null}
+                onClose={handleClosePastedTextDialog}
+                content={pastedTextItems.find(item => item.id === selectedPasteId)?.content || ''}
+                title="Pasted Text Content"
+            />
 
             {/* Prompts Command Popover */}
             <PromptsCommand
