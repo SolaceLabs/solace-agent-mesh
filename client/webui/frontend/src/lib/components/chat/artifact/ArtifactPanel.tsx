@@ -3,8 +3,9 @@ import React, { useMemo, useState } from "react";
 import { ArrowDown, ArrowLeft, Ellipsis, FileText, Loader2 } from "lucide-react";
 
 import { Button } from "@/lib/components";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useDownload } from "@/lib/hooks";
 import type { ArtifactInfo } from "@/lib/types";
+import { formatBytes } from "@/lib/utils/format";
 
 import { ArtifactCard } from "./ArtifactCard";
 import { ArtifactDeleteDialog } from "./ArtifactDeleteDialog";
@@ -12,6 +13,7 @@ import { ArtifactPreviewContent } from "./ArtifactPreviewContent";
 import { SortOption, SortPopover, type SortOptionType } from "./ArtifactSortPopover";
 import { ArtifactMorePopover } from "./ArtifactMorePopover";
 import { ArtifactDeleteAllDialog } from "./ArtifactDeleteAllDialog";
+import { ArtifactDetails } from "./ArtifactDetails";
 
 const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo) => number> = {
     [SortOption.NameAsc]: (a1, a2) => a1.filename.localeCompare(a2.filename),
@@ -21,9 +23,11 @@ const sortFunctions: Record<SortOptionType, (a1: ArtifactInfo, a2: ArtifactInfo)
 };
 
 export const ArtifactPanel: React.FC = () => {
-    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact, artifactsRefetch } = useChatContext();
+    const { artifacts, artifactsLoading, previewArtifact, setPreviewArtifact, artifactsRefetch, openDeleteModal } = useChatContext();
+    const { onDownload } = useDownload();
 
     const [sortOption, setSortOption] = useState<SortOptionType>(SortOption.DateDesc);
+    const [isPreviewInfoExpanded, setIsPreviewInfoExpanded] = useState(false);
     const sortedArtifacts = useMemo(() => {
         if (artifactsLoading) return [];
 
@@ -91,7 +95,38 @@ export const ArtifactPanel: React.FC = () => {
                 )}
                 {previewArtifact && (
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-                        <ArtifactCard key={previewArtifact.filename} artifact={previewArtifact} isPreview={true} />
+                        <div className="border-b px-4 py-3">
+                            <ArtifactDetails
+                                artifactInfo={previewArtifact}
+                                isPreview={true}
+                                isExpanded={isPreviewInfoExpanded}
+                                setIsExpanded={setIsPreviewInfoExpanded}
+                                onDelete={() => openDeleteModal(previewArtifact)}
+                                onDownload={() => onDownload(previewArtifact)}
+                            />
+                        </div>
+                        {isPreviewInfoExpanded && (
+                            <div className="border-b px-4 py-3">
+                                <div className="space-y-2 text-sm">
+                                    {previewArtifact.description && (
+                                        <div>
+                                            <span className="text-secondary-foreground">Description:</span>
+                                            <div className="mt-1">{previewArtifact.description}</div>
+                                        </div>
+                                    )}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <span className="text-secondary-foreground">Size:</span>
+                                            <div>{formatBytes(previewArtifact.size)}</div>
+                                        </div>
+                                        <div>
+                                            <span className="text-secondary-foreground">Type:</span>
+                                            <div>{previewArtifact.mime_type || 'Unknown'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
                             <ArtifactPreviewContent artifact={previewArtifact} />
                         </div>

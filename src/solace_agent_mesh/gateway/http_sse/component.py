@@ -95,7 +95,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
         app_config = component_config.get("app_config", {})
         resolve_uris = app_config.get("resolve_artifact_uris_in_gateway", True)
 
-        super().__init__(resolve_artifact_uris_in_gateway=resolve_uris, **kwargs)
+        # HTTP SSE gateway configuration:
+        # - supports_inline_artifact_resolution=True: Artifacts are converted to FileParts
+        #   during embed resolution and rendered inline in the web UI
+        # - filter_tool_data_parts=False: Web UI displays all parts including tool execution details
+        super().__init__(
+            resolve_artifact_uris_in_gateway=resolve_uris,
+            supports_inline_artifact_resolution=True,
+            filter_tool_data_parts=False,
+            **kwargs
+        )
         log.info("%s Initializing Web UI Backend Component...", self.log_identifier)
 
         try:
@@ -258,10 +267,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
             if self.database_url:
                 # SessionLocal will be initialized later in setup_dependencies
                 # We'll pass a lambda that returns SessionLocal when called
-                session_factory = (
-                    lambda: dependencies.SessionLocal()
-                    if dependencies.SessionLocal
-                    else None
+                session_factory = lambda: (
+                    dependencies.SessionLocal() if dependencies.SessionLocal else None
                 )
 
             self.data_retention_service = DataRetentionService(
@@ -1711,9 +1718,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 (summary_str[:100] + "...") if len(summary_str) > 100 else summary_str
             )
         except Exception:
-            details["payload_summary"]["params_preview"] = (
-                "[Could not serialize payload]"
-            )
+            details["payload_summary"][
+                "params_preview"
+            ] = "[Could not serialize payload]"
 
         return details
 
@@ -1935,52 +1942,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
         """Returns the instance of the ConfigResolver."""
         return self._config_resolver
 
-    async def _resolve_embeds_for_persistence(
-        self, message_content: str, session_id: str, user_id: str, log_identifier: str
-    ) -> str:
-        """
-        Resolves embeds in a message for database storage.
-        Returns the resolved text.
-
-        Args:
-            message_content: The message text that may contain embeds
-            session_id: The A2A session ID
-            user_id: The user ID
-            log_identifier: Logging identifier
-
-        Returns:
-            The message with embeds resolved (or original if resolution fails)
-        """
-        try:
-            embed_context = {
-                "artifact_service": self.shared_artifact_service,
-                "session_context": {
-                    "app_name": self.gateway_id,
-                    "user_id": user_id,
-                    "session_id": session_id,
-                },
-                "config": self.get_embed_config(),
-            }
-
-            resolved_text, _, _ = await resolve_embeds_in_string(
-                text=message_content,
-                context=embed_context,
-                resolver_func=evaluate_embed,
-                types_to_resolve=EARLY_EMBED_TYPES,
-                log_identifier=log_identifier,
-                config=embed_context["config"],
-            )
-
-            return resolved_text
-
-        except Exception as e:
-            log.warning(
-                "%s Error resolving embeds for storage: %s. Using original message.",
-                log_identifier,
-                e,
-            )
-            return message_content
-
     def _start_listener(self) -> None:
         """
         GDK Hook: Starts the FastAPI/Uvicorn server.
@@ -2190,7 +2151,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             return
 
-        log.debug(
+        log.info(
             "%s Sending final response for A2A Task ID %s to SSE Task ID %s.",
             log_id_prefix,
             a2a_task_id,
@@ -2206,7 +2167,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             await self.sse_manager.send_event(
                 task_id=sse_task_id, event_data=sse_payload, event_type="final_response"
             )
-            log.info(
+            log.debug(
                 "%s Successfully sent final_response via SSE for A2A Task ID %s.",
                 log_id_prefix,
                 a2a_task_id,

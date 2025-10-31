@@ -129,7 +129,7 @@ class SamAgentComponent(SamComponentBase):
         super().__init__(info, **kwargs)
         self.agent_name = self.get_config("agent_name")
         log.info("%s Initializing agent: %s (A2A ADK Host Component)...", self.log_identifier, self.agent_name)
-        
+
         # Initialize the agent registry for health tracking
         self.agent_registry = AgentRegistry()
         try:
@@ -437,9 +437,11 @@ class SamAgentComponent(SamComponentBase):
                     "%s Agent card publishing interval not configured or invalid, card will not be published periodically.",
                     self.log_identifier,
                 )
-                
+
             # Set up health check timer if enabled
-            health_check_interval_seconds = self.agent_discovery_config.get("health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS)
+            health_check_interval_seconds = self.agent_discovery_config.get(
+                "health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS
+            )
             if health_check_interval_seconds > 0:
                 log.info(
                     "%s Scheduling agent health check every %d seconds.",
@@ -457,7 +459,7 @@ class SamAgentComponent(SamComponentBase):
                     "%s Agent health check interval not configured or invalid, health checks will not run periodically.",
                     self.log_identifier,
                 )
-                
+
             log.info(
                 "%s Initialized agent: %s",
                 self.log_identifier,
@@ -496,6 +498,16 @@ class SamAgentComponent(SamComponentBase):
         # Create event and process asynchronously
         event = Event(EventType.MESSAGE, message)
         await process_event(self, event)
+
+    def handle_timer_event(self, timer_data: Dict[str, Any]):
+        """Handles timer events for agent card publishing and health checks."""
+        log.debug("%s Received timer event: %s", self.log_identifier, timer_data)
+        timer_id = timer_data.get("timer_id")
+
+        if timer_id == self._card_publish_timer_id:
+            publish_agent_card(self)
+        elif timer_id == self.HEALTH_CHECK_TIMER_ID:
+            self._check_agent_health()
 
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
         """
@@ -1872,7 +1884,7 @@ class SamAgentComponent(SamComponentBase):
                 log_id,
                 len(signals_found),
             )
-            for _signal_index, signal_data_tuple in signals_found:
+            for _signal_index, signal_data_tuple, _placeholder in signals_found:
                 if (
                     isinstance(signal_data_tuple, tuple)
                     and len(signal_data_tuple) == 3
@@ -1888,6 +1900,7 @@ class SamAgentComponent(SamComponentBase):
                     await self._publish_agent_status_signal_update(
                         status_text, a2a_context
                     )
+                    resolved_text = resolved_text.replace(_placeholder, "")
 
         return resolved_text, unprocessed_tail
 
@@ -3308,79 +3321,93 @@ class SamAgentComponent(SamComponentBase):
         For now, using the agent name, but could be made more robust (e.g., hostname + agent name).
         """
         return self.agent_name
-        
+
     def _check_agent_health(self):
         """
         Checks the health of peer agents and de-registers unresponsive ones.
         This is called periodically by the health check timer.
         Uses TTL-based expiration to determine if an agent is unresponsive.
         """
-            
+
         log.debug("%s Performing agent health check...", self.log_identifier)
-        
-        ttl_seconds = self.agent_discovery_config.get("health_check_ttl_seconds", HEALTH_CHECK_TTL_SECONDS)
-        health_check_interval = self.agent_discovery_config.get("health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS)
-        
+
+        ttl_seconds = self.agent_discovery_config.get(
+            "health_check_ttl_seconds", HEALTH_CHECK_TTL_SECONDS
+        )
+        health_check_interval = self.agent_discovery_config.get(
+            "health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS
+        )
+
         log.debug(
             "%s Health check configuration: interval=%d seconds, TTL=%d seconds",
             self.log_identifier,
             health_check_interval,
-            ttl_seconds
+            ttl_seconds,
         )
 
         # Validate configuration values
-        if ttl_seconds <= 0 or health_check_interval <= 0 or ttl_seconds < health_check_interval:
+        if (
+            ttl_seconds <= 0
+            or health_check_interval <= 0
+            or ttl_seconds < health_check_interval
+        ):
             log.error(
                 "%s agent_health_check_ttl_seconds (%d) and agent_health_check_interval_seconds (%d) must be positive and TTL must be greater than interval.",
                 self.log_identifier,
                 ttl_seconds,
-                health_check_interval
+                health_check_interval,
             )
-            raise ValueError(f"Invalid health check configuration. agent_health_check_ttl_seconds ({ttl_seconds}) and agent_health_check_interval_seconds ({health_check_interval}) must be positive and TTL must be greater than interval.")
-        
+            raise ValueError(
+                f"Invalid health check configuration. agent_health_check_ttl_seconds ({ttl_seconds}) and agent_health_check_interval_seconds ({health_check_interval}) must be positive and TTL must be greater than interval."
+            )
+
         # Get all agent names from the registry
         agent_names = self.agent_registry.get_agent_names()
         total_agents = len(agent_names)
         agents_to_deregister = []
-        
-        log.debug("%s Checking health of %d peer agents", self.log_identifier, total_agents)
-        
+
+        log.debug(
+            "%s Checking health of %d peer agents", self.log_identifier, total_agents
+        )
+
         for agent_name in agent_names:
             # Skip our own agent
             if agent_name == self.agent_name:
                 continue
-                
+
             # Check if the agent's TTL has expired
-            is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(agent_name, ttl_seconds)
-            
+            is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(
+                agent_name, ttl_seconds
+            )
+
             if is_expired:
                 log.warning(
                     "%s Agent '%s' TTL has expired. De-registering. Time since last seen: %d seconds (TTL: %d seconds)",
                     self.log_identifier,
                     agent_name,
                     time_since_last_seen,
-                    ttl_seconds
+                    ttl_seconds,
                 )
                 agents_to_deregister.append(agent_name)
-            
+
         # De-register unresponsive agents
         for agent_name in agents_to_deregister:
             self._deregister_agent(agent_name)
-            
+
         log.debug(
             "%s Agent health check completed. Total agents: %d, De-registered: %d",
             self.log_identifier,
             total_agents,
-            len(agents_to_deregister)
+            len(agents_to_deregister),
         )
-        
+
     def _deregister_agent(self, agent_name: str):
         """
         De-registers an agent from the registry and publishes a de-registration event.
         """
         # Remove from registry
         registry_removed = self.agent_registry.remove_agent(agent_name)
-        
+
         # Always remove from peer_agents regardless of registry result
         peer_removed = False
         if agent_name in self.peer_agents:
@@ -3389,18 +3416,18 @@ class SamAgentComponent(SamComponentBase):
             log.info(
                 "%s Removed agent '%s' from peer_agents dictionary",
                 self.log_identifier,
-                agent_name
+                agent_name,
             )
-        
+
         # Publish de-registration event if agent was in either data structure
         if registry_removed or peer_removed:
             try:
                 # Create a de-registration event topic
                 namespace = self.get_config("namespace")
                 deregistration_topic = f"{namespace}/a2a/events/agent/deregistered"
-                
+
                 current_time = time.time()
-                
+
                 # Create the payload
                 deregistration_payload = {
                     "event_type": "agent.deregistered",
@@ -3408,28 +3435,27 @@ class SamAgentComponent(SamComponentBase):
                     "reason": "health_check_failure",
                     "metadata": {
                         "timestamp": current_time,
-                        "deregistered_by": self.agent_name
-                    }
+                        "deregistered_by": self.agent_name,
+                    },
                 }
-                
+
                 # Publish the event
                 self.publish_a2a_message(
-                    payload=deregistration_payload,
-                    topic=deregistration_topic
+                    payload=deregistration_payload, topic=deregistration_topic
                 )
-                
+
                 log.info(
                     "%s Published de-registration event for agent '%s' to topic '%s'",
                     self.log_identifier,
                     agent_name,
-                    deregistration_topic
+                    deregistration_topic,
                 )
             except Exception as e:
                 log.error(
                     "%s Failed to publish de-registration event for agent '%s': %s",
                     self.log_identifier,
                     agent_name,
-                    e
+                    e,
                 )
 
     async def _resolve_early_embeds_and_handle_signals(
@@ -3485,6 +3511,7 @@ class SamAgentComponent(SamComponentBase):
 
         try:
             from ...common.utils.embeds.constants import EARLY_EMBED_TYPES
+            from ...common.utils.embeds.types import ResolutionMode
             from ...common.utils.embeds.resolver import (
                 evaluate_embed,
                 resolve_embeds_in_string,
@@ -3496,6 +3523,7 @@ class SamAgentComponent(SamComponentBase):
                     context=context_for_embeds,
                     resolver_func=evaluate_embed,
                     types_to_resolve=EARLY_EMBED_TYPES,
+                    resolution_mode=ResolutionMode.TOOL_PARAMETER,
                     log_identifier=method_context_log_identifier,
                     config=resolver_config,
                 )

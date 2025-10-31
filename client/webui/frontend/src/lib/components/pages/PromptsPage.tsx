@@ -162,12 +162,6 @@ export const PromptsPage: React.FC = () => {
 
             {isLoading ? (
                 <EmptyState title="Loading prompts..." variant="loading" />
-            ) : promptGroups.length === 0 ? (
-                <EmptyState 
-                    variant="noImage" 
-                    title="No prompts found" 
-                    subtitle="Create your first prompt to get started." 
-                />
             ) : (
                 <div className="relative flex-1 p-4">
                     <PromptMeshCards

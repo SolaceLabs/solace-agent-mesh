@@ -26,7 +26,7 @@ except ImportError:
 
 from google.adk.artifacts import BaseArtifactService
 
-from .types import DataFormat
+from .types import DataFormat, ResolutionMode
 
 
 def _apply_jsonpath(
@@ -661,6 +661,7 @@ async def _apply_template(
             context=context,
             resolver_func=evaluate_embed,
             types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
+            resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
             log_identifier=f"{log_id}[TemplateEmbeds]",
             config=resolver_config,
             max_depth=resolver_config.get("gateway_recursive_embed_depth", 12),

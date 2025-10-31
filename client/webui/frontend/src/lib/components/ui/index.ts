@@ -5,6 +5,7 @@ export { Textarea } from "./textarea";
 export { Input } from "./input";
 export { Label } from "./label";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
+export { Spinner } from "./spinner";
 export * from "./dialog";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
 export { Pagination, PaginationContent, PaginationLink, PaginationItem, PaginationPrevious, PaginationNext, PaginationEllipsis } from "./pagination";

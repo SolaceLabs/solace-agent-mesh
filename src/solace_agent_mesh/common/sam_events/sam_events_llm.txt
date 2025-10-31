@@ -101,4 +101,4 @@ topic = SamEventService.get_event_topic("my_namespace", "session.deleted")
 print(topic)  # Returns the proper SAM events topic
 ```
 
-# content_hash: e2f1353fe6841458c68f294efc03e1fdbac3632f78507e6e58044bb0c59919af
+# content_hash: 2a249adbac594bbf8a551a6b4f606218b7b8fce41753efe31954b8acc50cc126

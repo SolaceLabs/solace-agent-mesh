@@ -4,6 +4,8 @@ Feedback repository implementation using SQLAlchemy.
 
 from sqlalchemy.orm import Session as DBSession
 
+from ..shared.pagination import PaginationParams
+from ..shared.types import UserId
 from .entities import Feedback
 from .interfaces import IFeedbackRepository
 from .models import FeedbackModel
@@ -27,6 +29,51 @@ class FeedbackRepository(IFeedbackRepository):
         session.flush()
         session.refresh(model)
         return self._model_to_entity(model)
+
+    def search(
+        self,
+        session: DBSession,
+        user_id: UserId,
+        start_date: int | None = None,
+        end_date: int | None = None,
+        task_id: str | None = None,
+        session_id: str | None = None,
+        rating: str | None = None,
+        pagination: PaginationParams | None = None,
+    ) -> list[Feedback]:
+        """
+        Search feedback with flexible filtering.
+        All filters are optional and can be combined.
+        """
+        query = session.query(FeedbackModel)
+
+        # User filter (unless admin querying all users)
+        if user_id != "*":
+            query = query.filter(FeedbackModel.user_id == user_id)
+
+        # Time-based filters
+        if start_date:
+            query = query.filter(FeedbackModel.created_time >= start_date)
+        if end_date:
+            query = query.filter(FeedbackModel.created_time <= end_date)
+
+        # Resource-based filters
+        if task_id:
+            query = query.filter(FeedbackModel.task_id == task_id)
+        if session_id:
+            query = query.filter(FeedbackModel.session_id == session_id)
+        if rating:
+            query = query.filter(FeedbackModel.rating == rating)
+
+        # Order by most recent first
+        query = query.order_by(FeedbackModel.created_time.desc())
+
+        # Apply pagination
+        if pagination:
+            query = query.offset(pagination.offset).limit(pagination.page_size)
+
+        models = query.all()
+        return [self._model_to_entity(model) for model in models]
 
     def delete_feedback_older_than(self, session: DBSession, cutoff_time_ms: int, batch_size: int) -> int:
         """

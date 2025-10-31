@@ -25,6 +25,7 @@ The `utils` directory provides a collection of helper modules designed to suppor
 - `format_metadata_for_llm(metadata: Dict[str, Any]) -> str` - Formats metadata into LLM-friendly text
 - `decode_and_get_bytes(content_str: str, mime_type: str, log_identifier: str) -> Tuple[bytes, str]` - Decodes content based on MIME type (base64 for binary, UTF-8 for text)
 - `generate_artifact_metadata_summary(component: "SamAgentComponent", artifact_identifiers: List[Dict[str, Any]], user_id: str, session_id: str, app_name: str, header_text: Optional[str] = None) -> str` - Generates YAML summary of multiple artifacts' metadata
+- `process_artifact_upload(artifact_service: BaseArtifactService, component: Any, user_id: str, session_id: str, filename: str, content_bytes: bytes, mime_type: str, metadata_json: Optional[str] = None, log_prefix: str = "[ArtifactUpload]") -> Dict[str, Any]` - Common logic for processing artifact uploads with validation and storage
 
 **Constants/Variables:**
 - `METADATA_SUFFIX: str` - Suffix for metadata files (".metadata.json")
@@ -40,7 +41,8 @@ from solace_agent_mesh.agent.utils.artifact_helpers import (
     get_artifact_info_list,
     ensure_correct_extension,
     format_artifact_uri,
-    parse_artifact_uri
+    parse_artifact_uri,
+    process_artifact_upload
 )
 
 async def artifact_example():
@@ -59,6 +61,18 @@ async def artifact_example():
         mime_type="text/csv",
         metadata_dict={"source": "user_upload", "description": "Employee data"},
         timestamp=datetime.now(timezone.utc)
+    )
+    
+    # Process artifact upload (higher-level function)
+    upload_result = await process_artifact_upload(
+        artifact_service=service,
+        component=component,
+        user_id="user123",
+        session_id="session456",
+        filename="data.csv",
+        content_bytes=csv_data,
+        mime_type="text/csv",
+        metadata_json='{"description": "Uploaded data"}'
     )
     
     # Load artifact content
@@ -135,4 +149,4 @@ def my_tool(callback_context):
     # "session123:tool456" -> "session123"
 ```
 
-# content_hash: a47bd4722e780a6a8146c6913cb0cbb053515a6f17dac92171ba79aef00d61b0
+# content_hash: b9691e1ea5f36ef138caa844b72f38b76652ea8cf79d1814e7a5f7362b922ffa
