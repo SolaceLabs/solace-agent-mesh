@@ -1792,6 +1792,32 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [activeProject, handleNewSession]);
 
     useEffect(() => {
+        const handleSessionMoved = async (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { sessionId: movedSessionId, projectId: newProjectId } = customEvent.detail;
+            
+            // If the moved session is the current session, update the project context
+            if (movedSessionId === sessionId) {
+                if (newProjectId) {
+                    // Session moved to a project - activate that project
+                    const project = projects.find((p: Project) => p.id === newProjectId);
+                    if (project) {
+                        setActiveProject(project);
+                    }
+                } else {
+                    // Session moved out of project - deactivate project context
+                    setActiveProject(null);
+                }
+            }
+        };
+
+        window.addEventListener("session-moved", handleSessionMoved);
+        return () => {
+            window.removeEventListener("session-moved", handleSessionMoved);
+        };
+    }, [sessionId, projects, setActiveProject]);
+
+    useEffect(() => {
         // When the active project changes, reset the chat view to a clean slate
         // UNLESS the change was triggered by switching to a session (which handles its own state)
         // Only trigger when activating or switching projects, not when deactivating (going to null)
