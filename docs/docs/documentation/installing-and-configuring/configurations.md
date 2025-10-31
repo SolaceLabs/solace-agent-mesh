@@ -166,90 +166,21 @@ The `services` section in `shared_config.yaml` is used to configure various serv
 
 ### Session Service
 
-The session service manages conversation history and context persistence across agent interactions. When you configure this service, you determine whether your agents remember previous conversations and how long that memory persists. This persistence allows agents to maintain context across multiple interactions and remember previous tasks, which enables more coherent and contextual conversations with users.
-
-The session service supports two storage backends. You can use in-memory storage for temporary sessions that exist only during the application runtime, or you can use SQL database storage for persistent sessions that survive application restarts. The preset configurations default to SQL with SQLite databases, which provides persistence while remaining simple to set up for local development and testing.
+The session service manages conversation history and context persistence across agent interactions. This service determines whether your agents remember previous conversations and how long that memory persists. The preset agent configurations default to SQL with SQLite for persistent sessions. For detailed information about session storage backends, architecture, and configuration examples, see [Session Storage](./session-storage.md).
 
 | Parameter | Options | Description | Default |
 | :--- | :--- | :--- | :--- |
-| `type` | `memory`, `sql` | The storage backend for session data. The `memory` option stores sessions in application memory and loses all data when the application restarts. The `sql` option stores sessions in a database and preserves data across restarts. | `sql` |
-| `database_url` | Database URL string | The connection string for your database. You must provide this parameter when you set `type` to `sql`. The URL format supports both SQLite (`sqlite:///path/to/db.db`) for local file-based storage and PostgreSQL (`postgresql://user:pass@host:port/dbname`) for external database servers. | (none) |
-| `default_behavior` | `PERSISTENT`, `RUN_BASED` | The retention policy for session history. The `PERSISTENT` option keeps session history indefinitely, while `RUN_BASED` clears history between distinct task runs. | `PERSISTENT` |
-
-#### Choosing a Storage Backend
-
-The storage backend you choose depends on your deployment environment and persistence requirements. For local development and testing, SQLite provides database persistence without requiring you to set up an external database server. The database files are created automatically in your working directory, making it easy to inspect and manage session data during development.
-
-For production deployments on Kubernetes or other container orchestration platforms, PostgreSQL offers better scalability and reliability. You can configure multiple agent instances to share a single PostgreSQL database, which enables load balancing and ensures that session data remains available even if individual agent instances restart or fail. This shared database approach also simplifies backup and disaster recovery procedures because all session data resides in a single external system.
-
-#### Configuration Examples
-
-The following examples demonstrate the three main configuration patterns for different deployment scenarios.
-
-For local development and Docker deployments, SQLite provides file-based persistence:
-
-```yaml
-session_service:
-  type: "sql"
-  database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite:///orchestrator-agent.db}"
-  default_behavior: "PERSISTENT"
-```
-
-For production Kubernetes deployments, PostgreSQL offers scalable shared storage:
-
-```yaml
-session_service:
-  type: "sql"
-  database_url: "${ORCHESTRATOR_DATABASE_URL, postgresql://user:password@postgres-host:5432/sam_db}"
-  default_behavior: "PERSISTENT"
-```
-
-For testing scenarios where you need to verify behavior without persistence overhead, in-memory storage provides the fastest option:
-
-```yaml
-session_service:
-  type: "memory"
-  default_behavior: "PERSISTENT"
-```
-
-#### Configuring Database URLs with Environment Variables
-
-Each component in the preset configurations uses a dedicated environment variable for its database URL. This design allows you to configure all components to use different databases if needed, although most deployments use a single shared database. You can override these environment variables to switch from the default SQLite configuration to PostgreSQL or any other supported database.
-
-The following table lists the environment variables for each preset component:
-
-| Component | Environment Variable | Default SQLite Path |
-| :--- | :--- | :--- |
-| Web UI Gateway | `WEB_UI_GATEWAY_DATABASE_URL` | `sqlite:///webui-gateway.db` |
-| Orchestrator Agent | `ORCHESTRATOR_DATABASE_URL` | `sqlite:///orchestrator-agent.db` |
-| Web Agent | `AGENT_WEB_DATABASE_URL` | `sqlite:///web-agent.db` |
-| Markitdown Agent | `AGENT_MARKITDOWN_DATABASE_URL` | `sqlite:///markitdown-agent.db` |
-| Mermaid Agent | `AGENT_MERMAID_DATABASE_URL` | `sqlite:///mermaid-agent.db` |
-
-To configure all components to use PostgreSQL, you set each environment variable to point to your PostgreSQL server:
-
-```bash
-export WEB_UI_GATEWAY_DATABASE_URL="postgresql://user:password@postgres-host:5432/sam_db"
-export ORCHESTRATOR_DATABASE_URL="postgresql://user:password@postgres-host:5432/sam_db"
-export AGENT_WEB_DATABASE_URL="postgresql://user:password@postgres-host:5432/sam_db"
-export AGENT_MARKITDOWN_DATABASE_URL="postgresql://user:password@postgres-host:5432/sam_db"
-export AGENT_MERMAID_DATABASE_URL="postgresql://user:password@postgres-host:5432/sam_db"
-```
+| `type` | `memory`, `sql` | The storage backend for session data. The `memory` option stores sessions in application memory. The `sql` option stores sessions in a database. | `sql` |
+| `database_url` | Database URL string | The connection string for your database. Required when `type` is `sql`. Supports SQLite (`sqlite:///path/to/db.db`) and PostgreSQL (`postgresql://user:pass@host:port/dbname`). | (none) |
+| `default_behavior` | `PERSISTENT`, `RUN_BASED` | The retention policy for session history. The `PERSISTENT` option keeps session history indefinitely, while `RUN_BASED` clears history between runs. | `PERSISTENT` |
 
 :::tip
-When you deploy to Kubernetes using Helm, you set these environment variables in your Helm values file to point all components to your PostgreSQL service. This approach eliminates the need to manage persistent volumes for SQLite files because the session data lives in your external database.
-:::
-
-:::info
-SQLite creates database files using relative paths in your application's working directory. For Docker containers, this directory is typically `/app`. If you mount a volume at this location, your SQLite data persists across container restarts. However, for production deployments with multiple replicas or complex orchestration requirements, PostgreSQL provides a more robust solution because it supports concurrent access from multiple agent instances.
+The preset agent configurations default to SQL with SQLite databases. You can configure PostgreSQL by setting database URL environment variables as described in the [Session Storage](./session-storage.md) guide.
 :::
 
 ### Artifact Service
 
-The `artifact_service` is responsible for managing artifacts, which are files or data generated by agents, such as generated documents, processed data files, and intermediate results.
-
-
-
+The `artifact_service` is responsible for managing artifacts, which are files or data generated by agents, such as generated documents, processed data files, and intermediate results. For detailed information about artifact storage backends, versioning, and production configurations, see [Artifact Storage](./artifact-storage.md).
 
 | Parameter | Options | Description | Default |
 | :--- | :--- | :--- | :--- |
