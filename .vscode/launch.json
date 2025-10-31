@@ -65,7 +65,7 @@
             }
         },
         {
-            "name": "SAM (slack gateway)",
+            "name": "SAM (test with Slack)",
             "type": "debugpy",
             "request": "launch",
             "module": "solace_ai_connector.main",

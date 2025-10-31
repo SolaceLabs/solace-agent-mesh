@@ -1,1057 +1,638 @@
 ---
-title: Create Gateways
+title: Create Custom Gateways
 sidebar_position: 430
 ---
 
-# Create Gateways
+# Create Custom Gateways
 
-Gateways in Agent Mesh serve as bridges between external systems and the A2A (Agent-to-Agent) ecosystem. They enable your agents to receive information from and send responses to diverse external platforms like chat systems, web applications, IoT devices, APIs, and file systems.
+Gateway adapters connect external systems to the Agent Mesh through custom interfaces. They translate between platform-specific formats (Slack messages, HTTP requests, webhook payloads) and the standardized A2A protocol that agents understand. Gateway adapters handle platform events, extract user identity, and deliver agent responses back to users in the appropriate format.
 
-This guide walks you through the steps of creating custom gateways, from basic concepts to advanced implementations.
+This guide walks you through creating custom gateways using the gateway adapter pattern.
 
-## What Are Gateways?
-
-A gateway acts as a translator and coordinator that:
-
-1. **Receives** events, messages, or data from external systems
-2. **Authenticates** and authorizes external interactions
-3. **Translates** external data into standardized A2A `Task` format
-4. **Submits** tasks to target A2A agents for processing
-5. **Receives** responses and status updates from agents
-6. **Translates** A2A responses back to external system format
-7. **Sends** results back to the originating external system
-
-## Quick Start: Creating Your First Gateway
-
-You can create a gateway directly using the Agent Mesh CLI `sam add gateway`:
-
-```bash
-sam add gateway my-custom-gateway
-```
-
-This command:
-- Launches an interactive setup (or use `--gui` for browser-based configuration)
-- Generates the necessary files and configuration
-- Sets up the basic gateway structure
-
-### CLI Options
-
-You can customize the gateway creation with these options:
-
-```bash
-sam add gateway my-gateway \
-    --namespace "myorg/dev" \
-    --gateway-id "my-custom-gw-id" \
-    --artifact-service-type "filesystem" \
-    --artifact-service-base-path "var/data/my-gateway-artifacts" \
-    --system-purpose "This gateway processes external data feeds" \
-    --response-format "Agents should respond with structured JSON"
-```
-
-For a complete list of options, run:
-```bash
-sam add gateway --help
-```
-## Gateway Architecture
-
-Every Agent Mesh gateway consists of two main components:
-
-### Gateway App
-Gateway App (`app.py`):
-- Defines configuration schema
-- Manages gateway-level settings
-- Links to the gateway component
-
-### Gateway Component
-Gateway Component (`component.py`):
-- Contains the core business logic
-- Handles external system integration
-- Implements required abstract methods
-
-## Step-by-Step Tutorial
-
-Let's create a practical example, **Directory Monitor Gateway**, a gateway that monitors a directory for new files and sends them to agents for processing.
-
-You can create a gateway using either `sam add gateway <your_gateway_name>` command directly or `sam plugin create <your_gateway_plugin_name> --type gateway` command as gateway plugin.
-
-:::tip[Gateway as plugin]
-
-Gateways can also be implemented as plugins. This allows you to easily package your gateway logic and reuse it across different projects. 
-
-To create a plugin of type gateway, use the `sam plugin create <your_gateway_plugin_name> --type gateway` command.
-
-For a complete list of options, run:
-```bash
-sam plugin create --help
-```
-
-To create a gateway instance based on a plugin, use the `sam plugin add <your_gateway_name> --plugin <your_gateway_plugin>` command.
-
-For a complete list of options, run:
-```bash
-sam plugin add --help
-```
-
-Although the specific directory structure may differ from standalone gateways, the core concepts remain the same. The core files remain the same: app.py, component.py, and the YAML configuration file.
+:::tip[In one sentence]
+Gateway adapters are custom interfaces that connect external platforms to the agent mesh by translating events and responses between platform formats and the A2A protocol.
 :::
 
+## Key Functions
 
-### Step 1: Generate the Gateway Structure
+Gateway adapters provide the following capabilities:
 
-This tutorial shows you how to create a new gateway with the `sam add gateway` command.
+1. **Platform Integration**: Connect external systems such as Slack, webhooks, REST APIs, or custom protocols to the agent mesh. Handle incoming events, commands, and messages from these platforms.
 
-```bash
-sam add gateway dir-monitor
+2. **Authentication**: Extract user identity from platform events (OAuth tokens, API keys, platform user IDs) and integrate with identity providers for user enrichment.
+
+3. **Message Translation**: Convert platform-specific message formats into standardized content that agents can process. Transform agent responses back into platform-native formats.
+
+4. **Streaming Responses**: Deliver real-time updates from agents to users as they are generated. Handle text streaming, status updates, and progress indicators.
+
+5. **File Management**: Process file uploads from users and deliver agent-generated artifacts (reports, images, data files) back to the platform in the appropriate format.
+
+6. **Built-in Services**: Access state management for maintaining conversation context, timer scheduling for delayed operations, and feedback collection for gathering user ratings.
+
+## Architecture Overview
+
+Gateway adapters work alongside a generic gateway component to connect platforms to the agent mesh:
+
+- **Gateway Adapter**: Your platform-specific code that receives events from external systems and formats responses for delivery back to users
+- **Generic Gateway Component**: Handles A2A protocol communication, authentication flow, user enrichment, message routing, and artifact management
+
+The following diagram illustrates the complete flow from external platform to agent mesh and back:
+
+```mermaid
+sequenceDiagram
+    participant Platform as External Platform
+    participant Adapter as Gateway Adapter
+    participant Generic as Generic Gateway
+    participant Mesh as Agent Mesh
+
+    rect rgba(234, 234, 234, 1)
+        Note over Platform,Adapter: 1. External Event Arrives
+        Platform->>Adapter: Platform Event
+    end
+
+    rect rgba(234, 234, 234, 1)
+        Note over Adapter,Generic: 2. Adapter Processes Event
+        Adapter->>Adapter: extract_auth_claims()
+        Adapter->>Adapter: prepare_task()
+        Adapter->>Generic: handle_external_input(SamTask)
+    end
+
+    rect rgba(234, 234, 234, 1)
+        Note over Generic,Mesh: 3. Generic Gateway Handles A2A
+        Generic->>Generic: Authenticate & Enrich User
+        Generic->>Generic: Convert to A2A Format
+        Generic->>Mesh: Submit A2A Task
+    end
+
+    rect rgba(234, 234, 234, 1)
+        Note over Mesh,Adapter: 4. Response Flow
+        Mesh-->>Generic: A2A Updates
+        Generic->>Generic: Convert to SAM Types
+        Generic->>Adapter: handle_update(SamUpdate)
+        Adapter->>Platform: Platform Response
+    end
+
+    %%{init: {
+        'theme': 'base',
+        'themeVariables': {
+            'actorBkg': '#00C895',
+            'actorBorder': '#00C895',
+            'actorTextColor': '#000000',
+            'noteBkgColor': '#FFF7C2',
+            'noteTextColor': '#000000',
+            'noteBorderColor': '#FFF7C2'
+        }
+    }}%%
 ```
 
-This creates:
-- `configs/gateways/dir_monitor_config.yaml` - Configuration file
-- `src/dir_monitor/app.py` - Gateway app class
-- `src/dir_monitor/component.py` - Gateway component class
+## Core Concepts
 
-### Step 2: Define Configuration Schema
+### The Gateway Adapter Contract
 
-Define Configuration Schema (`app.py`)
+Gateway adapters extend the `GatewayAdapter` base class and implement methods for handling platform-specific events:
+
+- Extract authentication information from platform events
+- Convert platform events into standardized task format
+- Format and send responses back to the platform
+
+### The Gateway Context
+
+When your adapter initializes, it receives a `GatewayContext` object that provides access to framework services:
+
+- Task submission and cancellation
+- Artifact loading and management
+- User feedback collection
+- State management (task-level and session-level)
+- Timer scheduling
+
+### The Type System
+
+Gateway adapters use a standardized type system for messages:
+
+- **SamTask**: An inbound request with content parts and metadata
+- **SamUpdate**: An outbound update containing one or more content parts
+- **SamTextPart**: Text content in tasks or updates
+- **SamFilePart**: File content with bytes or URI
+- **SamDataPart**: Structured data with metadata
+- **AuthClaims**: User authentication information
+- **ResponseContext**: Context provided with each outbound callback
+
+## Adapter Lifecycle
+
+Gateway adapters follow a simple lifecycle:
+
+### Initialization
+
+The `init()` method is called when the gateway starts:
 
 ```python
-# src/dir_monitor/app.py
-from typing import Any, Dict, List, Type
-from solace_ai_connector.common.log import log
-from solace_agent_mesh.gateway.base.app import BaseGatewayApp
-from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
-from .component import DirMonitorGatewayComponent
-
-# Module info required by SAC
-info = {
-    "class_name": "DirMonitorGatewayApp",
-    "description": "Custom App class for the A2A DirMonitor Gateway.",
-}
-
-class DirMonitorGatewayApp(BaseGatewayApp):
+async def init(self, context: GatewayContext) -> None:
     """
-    Directory Monitor Gateway App
-    Extends BaseGatewayApp with directory monitoring specific configuration.
+    Initialize the gateway adapter.
+
+    This is where you should:
+    - Store the context for later use
+    - Start platform listeners (WebSocket, HTTP server, etc.)
+    - Connect to external services
     """
-
-    # Define gateway-specific configuration parameters
-    SPECIFIC_APP_SCHEMA_PARAMS: List[Dict[str, Any]] = [
-        {
-            "name": "directory_path",
-            "required": True,
-            "type": "string",
-            "description": "The directory path to monitor for changes.",
-        },
-        {
-            "name": "target_agent_name",
-            "required": False,
-            "type": "string",
-            "default": "OrchestratorAgent",
-            "description": "The A2A agent to send tasks to.",
-        },
-        {
-            "name": "default_user_identity",
-            "required": False,
-            "type": "string",
-            "default": "dir_monitor_user",
-            "description": "Default user identity for A2A tasks.",
-        },
-        {
-            "name": "error_directory_path",
-            "required": True,
-            "type": "string",
-            "description": "Directory to move files if processing fails.",
-        },
-    ]
-
-    def __init__(self, app_info: Dict[str, Any], **kwargs):
-        log_prefix = app_info.get("name", "DirMonitorGatewayApp")
-        log.info("[%s] Initializing Directory Monitor Gateway App...", log_prefix)
-        super().__init__(app_info=app_info, **kwargs)
-        log.info("[%s] Directory Monitor Gateway App initialized.", self.name)
-
-    def _get_gateway_component_class(self) -> Type[BaseGatewayComponent]:
-        """Returns the gateway component class for this app."""
-        return DirMonitorGatewayComponent
+    self.context = context
+    # Initialize your platform connection
+    await self.start_platform_listener()
 ```
 
-### Step 3: Implement Core Logic
+### Active Processing
 
-Implement Core Logic (`component.py`)
+During normal operation, the generic gateway calls your adapter methods:
+
+- `extract_auth_claims()` - Extract user identity from platform events
+- `prepare_task()` - Convert platform events to SamTask format
+- `handle_update()` - Process updates from agents
+- `handle_task_complete()` - Handle task completion
+- `handle_error()` - Handle errors
+
+### Cleanup
+
+The `cleanup()` method is called during shutdown:
 
 ```python
-# src/dir_monitor/component.py
-import asyncio
-import os
-import shutil
-import mimetypes
-import threading
-from typing import Any, Dict, List, Optional, Tuple, Union
-from datetime import datetime, timezone
-
-from solace_ai_connector.common.log import log
-
-# Import watchdog for file system monitoring
-try:
-    from watchdog.observers import Observer
-    from watchdog.events import FileSystemEventHandler
-    WATCHDOG_AVAILABLE = True
-except ImportError:
-    WATCHDOG_AVAILABLE = False
-    Observer = None
-    FileSystemEventHandler = None
-
-from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
-from solace_agent_mesh.common.types import (
-    Part as A2APart,
-    TextPart,
-    FilePart,
-    Task,
-    TaskStatusUpdateEvent,
-    TaskArtifactUpdateEvent,
-    JSONRPCError,
-    FileContent,
-)
-from solace_agent_mesh.agent.utils.artifact_helpers import save_artifact_with_metadata
-
-# Component info
-info = {
-    "class_name": "DirMonitorGatewayComponent",
-    "description": "Monitors directories for new files and processes them via A2A agents.",
-}
-
-class DirMonitorGatewayComponent(BaseGatewayComponent):
+async def cleanup(self) -> None:
     """
-    Directory Monitor Gateway Component
-    Watches a directory and creates A2A tasks for new files.
+    Clean up resources on shutdown.
+
+    This is where you should:
+    - Stop platform listeners
+    - Close connections
+    - Release resources
     """
+    await self.stop_platform_listener()
+```
 
-    def __init__(self, **kwargs: Any):
-        super().__init__(**kwargs)
-        log.info("%s Initializing Directory Monitor Gateway Component...", self.log_identifier)
+## Implementing an Adapter
 
-        # Check if watchdog is available
-        if not WATCHDOG_AVAILABLE:
-            log.error("%s Watchdog library not found. Install with: pip install watchdog", 
-                     self.log_identifier)
-            raise ImportError("Watchdog library required for directory monitoring")
+### Required Configuration
 
-        # Load configuration
-        try:
-            self.directory_path = self.get_config("directory_path")
-            self.target_agent_name = self.get_config("target_agent_name", "OrchestratorAgent")
-            self.default_user_identity_id = self.get_config("default_user_identity", "dir_monitor_user")
-            self.error_directory_path = self.get_config("error_directory_path")
+Define a configuration model for your adapter using Pydantic:
 
-            # Validate directories
-            if not os.path.isdir(self.directory_path):
-                raise ValueError(f"Monitor directory not found: {self.directory_path}")
-            
-            os.makedirs(self.error_directory_path, exist_ok=True)
-            log.info("%s Monitoring: %s, Error dir: %s", 
-                    self.log_identifier, self.directory_path, self.error_directory_path)
+```python
+from pydantic import BaseModel, Field
 
-        except Exception as e:
-            log.error("%s Configuration error: %s", self.log_identifier, e)
-            raise
+class MyAdapterConfig(BaseModel):
+    """Configuration model for MyAdapter."""
 
-        # Initialize monitoring components
-        self.observer: Optional[Observer] = None
-        self.watchdog_thread: Optional[threading.Thread] = None
+    api_token: str = Field(..., description="API token for the platform.")
+    webhook_url: str = Field(..., description="Webhook URL to listen on.")
+    timeout_seconds: int = Field(default=30, description="Request timeout.")
+```
 
-        log.info("%s Directory Monitor Gateway Component initialized.", self.log_identifier)
+Set the `ConfigModel` class attribute:
 
-    class DirWatchEventHandler(FileSystemEventHandler):
-        """Handles file system events from Watchdog."""
-        
-        def __init__(self, component_ref: 'DirMonitorGatewayComponent'):
-            super().__init__()
-            self.component_ref = component_ref
-            self.log_identifier = f"{component_ref.log_identifier}[FileHandler]"
+```python
+from solace_agent_mesh.gateway.adapter.base import GatewayAdapter
 
-        def on_created(self, event):
-            if event.is_directory:
-                return
+class MyAdapter(GatewayAdapter):
+    ConfigModel = MyAdapterConfig
+```
 
-            file_path = event.src_path
-            log.info("%s New file detected: %s", self.log_identifier, file_path)
+### Authentication: extract_auth_claims()
 
-            # Bridge to async loop
-            if self.component_ref.async_loop and self.component_ref.async_loop.is_running():
-                asyncio.run_coroutine_threadsafe(
-                    self.component_ref._process_new_file(file_path),
-                    self.component_ref.async_loop
-                )
-            else:
-                log.error("%s Async loop not available for file: %s", 
-                         self.log_identifier, file_path)
+Extract user identity from platform events:
 
-    def generate_uuid(self) -> str:
-        """Generate a unique identifier."""
-        import uuid
-        return str(uuid.uuid4())
+```python
+async def extract_auth_claims(
+    self,
+    external_input: Dict,
+    endpoint_context: Optional[Dict[str, Any]] = None,
+) -> Optional[AuthClaims]:
+    """
+    Extract authentication claims from platform input.
 
-    def _start_listener(self) -> None:
-        """Start the directory monitoring listener."""
-        log_id_prefix = f"{self.log_identifier}[StartListener]"
-        log.info("%s Starting directory monitor for: %s", log_id_prefix, self.directory_path)
+    Return AuthClaims with user info, or None to use config-based auth.
+    """
+    user_id = external_input.get("user_id")
+    user_email = external_input.get("user_email")
 
-        if not WATCHDOG_AVAILABLE:
-            log.error("%s Watchdog not available", log_id_prefix)
-            self.stop_signal.set()
-            return
-
-        # Set up file system observer
-        self.observer = Observer()
-        event_handler = self.DirWatchEventHandler(self)
-        self.observer.schedule(event_handler, self.directory_path, recursive=False)
-
-        # Start observer in separate thread
-        self.watchdog_thread = threading.Thread(
-            target=self._run_observer,
-            name=f"{self.name}_WatchdogThread",
-            daemon=True
+    if user_id and user_email:
+        return AuthClaims(
+            id=user_email,
+            email=user_email,
+            source="platform_api",
+            raw_context={"platform_user_id": user_id}
         )
-        self.watchdog_thread.start()
-        log.info("%s Directory monitor started", log_id_prefix)
 
-    def _run_observer(self):
-        """Run the watchdog observer."""
-        if not self.observer:
-            return
-            
-        log_id_prefix = f"{self.log_identifier}[Observer]"
-        try:
-            log.info("%s Starting file system observer...", log_id_prefix)
-            self.observer.start()
-            
-            # Wait for stop signal
-            while not self.stop_signal.is_set() and self.observer.is_alive():
-                self.stop_signal.wait(timeout=1)
-                
-            log.info("%s Observer loop exiting", log_id_prefix)
-        except Exception as e:
-            log.exception("%s Observer error: %s", log_id_prefix, e)
-            self.stop_signal.set()
-        finally:
-            if self.observer.is_alive():
-                self.observer.stop()
-            self.observer.join()
-            log.info("%s Observer stopped", log_id_prefix)
-
-    def _stop_listener(self) -> None:
-        """Stop the directory monitoring listener."""
-        log_id_prefix = f"{self.log_identifier}[StopListener]"
-        log.info("%s Stopping directory monitor...", log_id_prefix)
-        
-        if self.observer and self.observer.is_alive():
-            log.info("%s Stopping observer...", log_id_prefix)
-            self.observer.stop()
-        
-        if self.watchdog_thread and self.watchdog_thread.is_alive():
-            log.info("%s Joining observer thread...", log_id_prefix)
-            self.watchdog_thread.join(timeout=5)
-            if self.watchdog_thread.is_alive():
-                log.warning("%s Observer thread did not join cleanly", log_id_prefix)
-        
-        log.info("%s Directory monitor stopped", log_id_prefix)
-
-    async def _process_new_file(self, file_path: str):
-        """Process a newly detected file."""
-        log_id_prefix = f"{self.log_identifier}[ProcessFile:{os.path.basename(file_path)}]"
-        log.info("%s Processing new file: %s", log_id_prefix, file_path)
-        
-        error_context = {
-            "file_path": file_path,
-            "a2a_session_id": f"dir_monitor-error-{self.generate_uuid()}"
-        }
-
-        try:
-            # Step 1: Authenticate and enrich user
-            user_identity_profile = await self.authenticate_and_enrich_user(file_path)
-            if not user_identity_profile:
-                log.error("%s Authentication failed for file: %s", log_id_prefix, file_path)
-                error_obj = JSONRPCError(code=-32001, message="Authentication failed")
-                await self._send_error_to_external(error_context, error_obj)
-                return
-
-            # Step 2: Translate external input to A2A format
-            target_agent_name, a2a_parts, external_request_context = await self._translate_external_input(
-                file_path, user_identity_profile
-            )
-
-            if not target_agent_name or not a2a_parts:
-                log.error("%s Failed to translate file to A2A task: %s", log_id_prefix, file_path)
-                error_obj = JSONRPCError(code=-32002, message="Failed to translate file to A2A task")
-                final_error_context = {**error_context, **external_request_context}
-                await self._send_error_to_external(final_error_context, error_obj)
-                return
-
-            # Step 3: Submit A2A task
-            log.info("%s Submitting A2A task for file: %s to agent: %s", 
-                    log_id_prefix, file_path, target_agent_name)
-            await self.submit_a2a_task(
-                target_agent_name=target_agent_name,
-                a2a_parts=a2a_parts,
-                external_request_context=external_request_context,
-                user_identity=user_identity_profile
-            )
-            log.info("%s A2A task submitted for file: %s", log_id_prefix, file_path)
-
-        except FileNotFoundError:
-            log.error("%s File not found during processing: %s", log_id_prefix, file_path)
-        except Exception as e:
-            log.exception("%s Unexpected error processing file %s: %s", log_id_prefix, file_path, e)
-            error_obj = JSONRPCError(code=-32000, message=f"Unexpected error: {e}")
-            await self._send_error_to_external(error_context, error_obj)
-
-    async def _extract_initial_claims(self, external_event_data: Any) -> Optional[Dict[str, Any]]:
-        """Extract user identity claims from file event."""
-        file_path = str(external_event_data)
-        log_id_prefix = f"{self.log_identifier}[ExtractClaims:{os.path.basename(file_path)}]"
-        
-        claims = {
-            "id": self.default_user_identity_id,
-            "source": "dir_monitor",
-            "file_path": file_path
-        }
-        log.debug("%s Extracted claims for file %s: %s", log_id_prefix, file_path, claims)
-        return claims
-
-    async def _translate_external_input(
-        self, external_event_data: Any, authenticated_user_identity: Dict[str, Any]
-    ) -> Tuple[Optional[str], List[A2APart], Dict[str, Any]]:
-        """Translate file event to A2A task format."""
-        file_path = str(external_event_data)
-        log_id_prefix = f"{self.log_identifier}[TranslateInput:{os.path.basename(file_path)}]"
-
-        user_id_for_a2a = authenticated_user_identity.get("id", self.default_user_identity_id)
-        a2a_session_id = f"dir_monitor-session-{self.generate_uuid()}"
-        
-        # Prepare external request context
-        external_request_context: Dict[str, Any] = {
-            "file_path": file_path,
-            "user_id_for_a2a": user_id_for_a2a,
-            "app_name_for_artifacts": self.gateway_id,
-            "user_id_for_artifacts": user_id_for_a2a,
-            "a2a_session_id": a2a_session_id,
-        }
-        a2a_parts: List[A2APart] = []
-
-        try:
-            # Check if file exists
-            if not os.path.exists(file_path):
-                log.error("%s File does not exist: %s", log_id_prefix, file_path)
-                raise FileNotFoundError(f"File not found: {file_path}")
-
-            # Read file content
-            with open(file_path, "rb") as f:
-                content_bytes = f.read()
-            
-            # Determine MIME type
-            mime_type, _ = mimetypes.guess_type(file_path)
-            if mime_type is None:
-                mime_type = "application/octet-stream"
-
-            # Save file as artifact
-            if not self.shared_artifact_service:
-                log.error("%s Artifact service not available for file: %s", 
-                         log_id_prefix, os.path.basename(file_path))
-                return None, [], external_request_context
-
-            artifact_metadata = {
-                "source": "dir_monitor_gateway",
-                "original_filename": os.path.basename(file_path),
-                "detected_mime_type": mime_type,
-                "processing_timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            }
-
-            log.debug("%s Saving artifact for file: %s", log_id_prefix, file_path)
-            save_result = await save_artifact_with_metadata(
-                artifact_service=self.shared_artifact_service,
-                app_name=self.gateway_id,
-                user_id=str(user_id_for_a2a),
-                session_id=a2a_session_id,
-                filename=os.path.basename(file_path),
-                content_bytes=content_bytes,
-                mime_type=mime_type,
-                metadata_dict=artifact_metadata,
-                timestamp=datetime.now(timezone.utc),
-            )
-
-            if save_result["status"] not in ["success", "partial_success"]:
-                log.error("%s Failed to save file as artifact: %s", 
-                         log_id_prefix, save_result.get("message"))
-                return None, [], external_request_context
-
-            # Create artifact URI
-            data_version = save_result.get("data_version", 0)
-            artifact_uri = f"artifact://{self.gateway_id}/{str(user_id_for_a2a)}/{a2a_session_id}/{os.path.basename(file_path)}?version={data_version}"
-            
-            log.info("%s Saved file as artifact: %s", log_id_prefix, artifact_uri)
-
-            # Create A2A parts
-            file_content_obj = FileContent(
-                name=os.path.basename(file_path),
-                uri=artifact_uri,
-                mimeType=mime_type
-            )
-            a2a_parts.append(FilePart(file=file_content_obj))
-            a2a_parts.append(TextPart(
-                text=f"Please analyze and summarize the content of: {os.path.basename(file_path)}"
-            ))
-
-            log.info("%s Successfully translated file %s into A2A parts", log_id_prefix, file_path)
-            return self.target_agent_name, a2a_parts, external_request_context
-
-        except Exception as e:
-            log.exception("%s Error translating file %s: %s", log_id_prefix, file_path, e)
-            return None, [], external_request_context
-
-    async def _send_final_response_to_external(
-        self, external_request_context: Dict[str, Any], task_data: Task
-    ) -> None:
-        """Handle final response from A2A agent."""
-        log_id_prefix = f"{self.log_identifier}[SendFinalResponse]"
-        file_path = external_request_context.get("file_path", "Unknown file")
-        task_id = task_data.id
-
-        # Extract summary from response
-        summary_text = "Summary not available."
-        if task_data.status and task_data.status.message and task_data.status.message.parts:
-            for part in task_data.status.message.parts:
-                if isinstance(part, TextPart):
-                    summary_text = part.text
-                    break
-        
-        log.info("%s Task %s completed for file '%s'. Status: %s", 
-                log_id_prefix, task_id, os.path.basename(file_path), 
-                task_data.status.state if task_data.status else "Unknown")
-        log.info("%s Summary: %s", log_id_prefix, summary_text[:200] + "..." if len(summary_text) > 200 else summary_text)
-
-    async def _send_error_to_external(
-        self, external_request_context: Dict[str, Any], error_data: JSONRPCError
-    ) -> None:
-        """Handle errors by moving files to error directory."""
-        log_id_prefix = f"{self.log_identifier}[SendError]"
-        file_path = external_request_context.get("file_path")
-        
-        log.error("%s A2A Error for file '%s'. Code: %s, Message: %s",
-                 log_id_prefix, 
-                 os.path.basename(file_path) if file_path else "Unknown file",
-                 error_data.code, error_data.message)
-
-        # Move problematic file to error directory
-        if file_path and os.path.exists(file_path):
-            try:
-                os.makedirs(self.error_directory_path, exist_ok=True)
-                base_name = os.path.basename(file_path)
-                error_file_path = os.path.join(self.error_directory_path, base_name)
-                
-                # Handle filename conflicts
-                counter = 0
-                while os.path.exists(error_file_path):
-                    counter += 1
-                    name, ext = os.path.splitext(base_name)
-                    error_file_path = os.path.join(self.error_directory_path, f"{name}_error_{counter}{ext}")
-
-                shutil.move(file_path, error_file_path)
-                log.info("%s Moved problematic file %s to %s", log_id_prefix, file_path, error_file_path)
-            except Exception as e:
-                log.exception("%s Failed to move file %s to error directory: %s",
-                             log_id_prefix, file_path, e)
-
-    async def _send_update_to_external(
-        self,
-        external_request_context: Dict[str, Any],
-        event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent],
-        is_final_chunk_of_update: bool,
-    ) -> None:
-        """Handle intermediate updates (optional for this gateway)."""
-        log_id_prefix = f"{self.log_identifier}[SendUpdate]"
-        task_id = event_data.id
-        file_path = external_request_context.get("file_path", "Unknown file")
-        
-        log.debug("%s Received update for task %s (file %s). Updates not processed by this gateway.",
-                 log_id_prefix, task_id, os.path.basename(file_path))
-
-    def cleanup(self):
-        """Clean up resources."""
-        log.info("%s Cleaning up Directory Monitor Gateway Component...", self.log_identifier)
-        super().cleanup()
-        log.info("%s Directory Monitor Gateway Component cleanup finished.", self.log_identifier)
-```
-
-### Step 4: Configure the Gateway
-
-Configure the Gateway (`dir_monitor_config.yaml`)
-
-```yaml
-# configs/gateways/dir_monitor_config.yaml
-log:
-  stdout_log_level: INFO
-  log_file_level: DEBUG
-  log_file: "dir_monitor_gateway.log"
-
-!include ../shared_config.yaml
-
-apps:
-  - name: dir_monitor_gateway_app
-    app_base_path: .
-    app_module: src.dir_monitor.app
-
-    broker:
-      <<: *broker_connection
-
-    app_config:
-      namespace: ${NAMESPACE}
-      gateway_id: dir-monitor-gateway
-      
-      # Artifact service configuration
-      artifact_service: *default_artifact_service
-
-      # System purpose for A2A context
-      system_purpose: >
-        This system monitors directories for new files and processes them automatically.
-        Analyze and summarize file contents. Always provide useful insights about the files.
-        Your external name is Directory Monitor Agent.
-
-      response_format: >
-        Responses should be clear, concise, and professionally formatted.
-        Provide structured analysis of file contents in Markdown format.
-
-      # Gateway-specific configuration
-      directory_path: /path/to/monitor/directory
-      error_directory_path: /path/to/error/directory
-      target_agent_name: "OrchestratorAgent"
-      default_user_identity: "dir_monitor_system"
-```
-
-### Step 5: Install Dependencies
-
-Add required dependencies to your project:
-
-```bash
-pip install watchdog
-```
-
-### Step 6: Run Your Gateway
-
-```bash
-sam run configs/gateways/dir_monitor_config.yaml
-```
-
-## Advanced Gateway Patterns
-
-### Authentication and Authorization
-
-Gateways can implement sophisticated authentication:
-
-```python
-async def _extract_initial_claims(self, external_event_data: Any) -> Optional[Dict[str, Any]]:
-    """Extract user claims with API key validation."""
-    request = external_event_data.get("request")
-    
-    # Validate API key
-    api_key = request.headers.get("X-API-Key")
-    if not api_key or not self._validate_api_key(api_key):
-        return None
-    
-    # Extract user information
-    user_id = request.headers.get("X-User-ID", "anonymous")
-    
-    return {
-        "id": user_id,
-        "source": "api_gateway",
-        "api_key_hash": hashlib.sha256(api_key.encode()).hexdigest()[:8],
-        "roles": self._get_user_roles(user_id)
-    }
-```
-
-### File Handling with Artifacts
-
-For gateways that handle files:
-
-```python
-async def _save_file_as_artifact(self, file_content: bytes, filename: str, 
-                                mime_type: str, session_id: str) -> Optional[str]:
-    """Save file content as artifact and return URI."""
-    if not self.shared_artifact_service:
-        return None
-    
-    try:
-        save_result = await save_artifact_with_metadata(
-            artifact_service=self.shared_artifact_service,
-            app_name=self.gateway_id,
-            user_id="system",
-            session_id=session_id,
-            filename=filename,
-            content_bytes=file_content,
-            mime_type=mime_type,
-            metadata_dict={
-                "source": "my_gateway",
-                "upload_timestamp": datetime.now(timezone.utc).isoformat()
-            },
-            timestamp=datetime.now(timezone.utc)
-        )
-        
-        if save_result["status"] in ["success", "partial_success"]:
-            version = save_result.get("data_version", 0)
-            return f"artifact://{self.gateway_id}/system/{session_id}/{filename}?version={version}"
-            
-    except Exception as e:
-        log.error("Failed to save artifact: %s", e)
-    
     return None
 ```
 
-### Streaming Responses
+### Inbound: prepare_task()
 
-Handle streaming responses from agents:
-
-```python
-async def _send_update_to_external(
-    self, external_request_context: Dict[str, Any],
-    event_data: Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent],
-    is_final_chunk_of_update: bool
-) -> None:
-    """Send streaming updates to external system."""
-    if isinstance(event_data, TaskStatusUpdateEvent):
-        if event_data.status and event_data.status.message:
-            for part in event_data.status.message.parts:
-                if isinstance(part, TextPart):
-                    # Send partial text to external system
-                    await self._send_partial_response(
-                        external_request_context,
-                        part.text,
-                        is_final=is_final_chunk_of_update
-                    )
-```
-
-### Error Handling and Retry Logic
-
-Implement robust error handling:
+Convert platform events into standardized task format:
 
 ```python
-async def _process_with_retry(self, data: Any, max_retries: int = 3):
-    """Process data with retry logic."""
-    for attempt in range(max_retries):
-        try:
-            return await self._process_data(data)
-        except TemporaryError as e:
-            if attempt < max_retries - 1:
-                wait_time = 2 ** attempt  # Exponential backoff
-                log.warning("Attempt %d failed, retrying in %ds: %s", 
-                           attempt + 1, wait_time, e)
-                await asyncio.sleep(wait_time)
-            else:
-                raise
-        except PermanentError:
-            # Don't retry permanent errors
-            raise
-```
+async def prepare_task(
+    self,
+    external_input: Dict,
+    endpoint_context: Optional[Dict[str, Any]] = None,
+) -> SamTask:
+    """
+    Prepare a task from platform input.
 
+    This method is called after authentication succeeds. Convert your
+    platform's event format into a SamTask with parts.
+    """
+    message_text = external_input.get("message", "")
+    conversation_id = external_input.get("conversation_id")
 
-## Best Practices
+    # Create content parts
+    parts = [self.context.create_text_part(message_text)]
 
-### 1. Configuration Management
-- Use environment variables for sensitive data
-- Provide sensible defaults
-- Validate configuration at startup
-
-### 2. Error Handling
-- Implement comprehensive error handling
-- Use appropriate HTTP status codes
-- Log errors with sufficient context
-- Provide meaningful error messages
-
-### 3. Security
-- Validate all external inputs
-- Use secure authentication methods
-- Implement rate limiting where appropriate
-- Store secrets securely (use environment variables)
-- Follow principle of least privilege
-
-### 4. Performance
-- Use async/await for I/O operations
-- Implement connection pooling for external APIs
-- Monitor resource usage
-- Handle backpressure appropriately
-
-### 5. Monitoring and Logging
-- Use structured logging
-- Include correlation IDs
-- Monitor key metrics (latency, error rates, throughput)
-- Set up health checks
-
-## Common Gateway Patterns
-
-### HTTP/REST API Gateway
-
-For HTTP-based integrations:
-
-```python
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import HTTPBearer
-
-class HTTPAPIGatewayComponent(BaseGatewayComponent):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.app = FastAPI()
-        self.security = HTTPBearer()
-        self._setup_routes()
-    
-    def _setup_routes(self):
-        @self.app.post("/webhook/{endpoint_id}")
-        async def webhook_handler(endpoint_id: str, request: Request,
-                                token: str = Depends(self.security)):
-            # Authenticate request
-            user_identity = await self.authenticate_and_enrich_user({
-                "token": token,
-                "endpoint_id": endpoint_id,
-                "request": request
-            })
-            
-            if not user_identity:
-                raise HTTPException(status_code=401, detail="Unauthorized")
-            
-            # Process webhook
-            body = await request.json()
-            target_agent, parts, context = await self._translate_external_input(
-                body, user_identity
-            )
-            
-            task_id = await self.submit_a2a_task(
-                target_agent_name=target_agent,
-                a2a_parts=parts,
-                external_request_context=context,
-                user_identity=user_identity
-            )
-            
-            return {"task_id": task_id, "status": "accepted"}
-```
-
-### WebSocket Gateway
-
-For real-time bidirectional communication:
-
-```python
-import websockets
-import json
-
-class WebSocketGatewayComponent(BaseGatewayComponent):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.connections = {}
-    
-    async def _start_listener(self):
-        """Start WebSocket server."""
-        self.server = await websockets.serve(
-            self.handle_websocket,
-            self.get_config("websocket_host", "localhost"),
-            self.get_config("websocket_port", 8765)
-        )
-        log.info("%s WebSocket server started", self.log_identifier)
-    
-    async def handle_websocket(self, websocket, path):
-        """Handle WebSocket connections."""
-        connection_id = self.generate_uuid()
-        self.connections[connection_id] = websocket
-        
-        try:
-            async for message in websocket:
-                data = json.loads(message)
-                await self.process_websocket_message(connection_id, data)
-        except websockets.exceptions.ConnectionClosed:
-            log.info("%s WebSocket connection closed: %s", self.log_identifier, connection_id)
-        finally:
-            self.connections.pop(connection_id, None)
-    
-    async def process_websocket_message(self, connection_id: str, data: dict):
-        """Process incoming WebSocket message."""
-        user_identity = await self.authenticate_and_enrich_user({
-            "connection_id": connection_id,
-            "data": data
-        })
-        
-        if user_identity:
-            target_agent, parts, context = await self._translate_external_input(
-                data, user_identity
-            )
-            context["connection_id"] = connection_id
-            
-            await self.submit_a2a_task(
-                target_agent_name=target_agent,
-                a2a_parts=parts,
-                external_request_context=context,
-                user_identity=user_identity
-            )
-    
-    async def _send_final_response_to_external(self, context: Dict[str, Any], task_data: Task):
-        """Send response back via WebSocket."""
-        connection_id = context.get("connection_id")
-        websocket = self.connections.get(connection_id)
-        
-        if websocket:
-            response = {
-                "task_id": task_data.id,
-                "status": task_data.status.state.value if task_data.status else "unknown",
-                "result": self._extract_text_from_task(task_data)
-            }
-            await websocket.send(json.dumps(response))
-```
-
-### Message Queue Gateway
-
-For integration with message queues:
-
-```python
-import asyncio
-import aio_pika
-
-class MessageQueueGatewayComponent(BaseGatewayComponent):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.connection = None
-        self.channel = None
-    
-    async def _start_listener(self):
-        """Connect to message queue and start consuming."""
-        connection_url = self.get_config("rabbitmq_url")
-        queue_name = self.get_config("input_queue_name")
-        
-        self.connection = await aio_pika.connect_robust(connection_url)
-        self.channel = await self.connection.channel()
-        
-        queue = await self.channel.declare_queue(queue_name, durable=True)
-        await queue.consume(self.process_message)
-        
-        log.info("%s Started consuming from queue: %s", self.log_identifier, queue_name)
-    
-    async def process_message(self, message: aio_pika.IncomingMessage):
-        """Process incoming queue message."""
-        async with message.process():
-            try:
-                data = json.loads(message.body.decode())
-                
-                user_identity = await self.authenticate_and_enrich_user(data)
-                if not user_identity:
-                    log.warning("%s Authentication failed for message", self.log_identifier)
-                    return
-                
-                target_agent, parts, context = await self._translate_external_input(
-                    data, user_identity
+    # Handle file attachments if present
+    if "attachments" in external_input:
+        for attachment in external_input["attachments"]:
+            file_bytes = await self._download_attachment(attachment)
+            parts.append(
+                self.context.create_file_part_from_bytes(
+                    name=attachment["filename"],
+                    content_bytes=file_bytes,
+                    mime_type=attachment["mime_type"]
                 )
-                context["message_id"] = message.message_id
-                context["reply_to"] = message.reply_to
-                
-                await self.submit_a2a_task(
-                    target_agent_name=target_agent,
-                    a2a_parts=parts,
-                    external_request_context=context,
-                    user_identity=user_identity
-                )
-                
-            except Exception as e:
-                log.exception("%s Error processing message: %s", self.log_identifier, e)
-    
-    async def _send_final_response_to_external(self, context: Dict[str, Any], task_data: Task):
-        """Send response back to reply queue."""
-        reply_to = context.get("reply_to")
-        if reply_to and self.channel:
-            response = {
-                "task_id": task_data.id,
-                "status": task_data.status.state.value if task_data.status else "unknown",
-                "result": self._extract_text_from_task(task_data)
-            }
-            
-            await self.channel.default_exchange.publish(
-                aio_pika.Message(json.dumps(response).encode()),
-                routing_key=reply_to
             )
+
+    return SamTask(
+        parts=parts,
+        session_id=conversation_id,
+        target_agent=self.context.config.get("default_agent_name", "default"),
+        platform_context={
+            "conversation_id": conversation_id,
+            # Store any platform-specific data needed for responses
+        }
+    )
 ```
 
-## Packaging as a Plugin
+### Outbound: handle_update()
 
-For distribution and reusability, package your gateway as a plugin:
+Process updates from agents and send them to your platform:
 
-### 1. Create Plugin Structure
+```python
+async def handle_update(self, update: SamUpdate, context: ResponseContext) -> None:
+    """
+    Handle an update from the agent.
 
-The following structure is created when running the `sam plugin create my-gateway-plugin --type gateway` command:
-
-```
-my-gateway-plugin/
-├── pyproject.toml
-├── README.md
-├── src/
-│   └── sam_my_gateway/
-│       ├── __init__.py
-│       ├── app.py
-│       ├── component.py
-├── config.yaml
-└── examples/
-    └── my_gateway_example.yaml
-```
-
-### 2. Configure `pyproject.toml`
-
-Update the `pyproject.toml` file to include your gateway dependencies:
-
-```toml
-...
-dependencies = [
-    "watchdog>=3.0.0",  # Add your specific dependencies
-]
-...
+    By default, this dispatches to individual part handlers.
+    Override for custom batch processing.
+    """
+    # Default implementation handles each part type
+    for part in update.parts:
+        if isinstance(part, SamTextPart):
+            await self.handle_text_chunk(part.text, context)
+        elif isinstance(part, SamFilePart):
+            await self.handle_file(part, context)
+        elif isinstance(part, SamDataPart):
+            await self.handle_data_part(part, context)
 ```
 
-### 3. Build and Install
+Implement individual part handlers:
+
+```python
+async def handle_text_chunk(self, text: str, context: ResponseContext) -> None:
+    """Handle streaming text chunk from the agent."""
+    conversation_id = context.platform_context["conversation_id"]
+    await self.platform_api.send_message(conversation_id, text)
+
+async def handle_file(self, file_part: SamFilePart, context: ResponseContext) -> None:
+    """Handle file/artifact from the agent."""
+    conversation_id = context.platform_context["conversation_id"]
+    await self.platform_api.upload_file(
+        conversation_id,
+        filename=file_part.name,
+        content=file_part.content_bytes
+    )
+
+async def handle_data_part(self, data_part: SamDataPart, context: ResponseContext) -> None:
+    """Handle structured data part from the agent."""
+    # Check for special data part types
+    if data_part.data.get("type") == "agent_progress_update":
+        status_text = data_part.data.get("status_text")
+        if status_text:
+            await self.handle_status_update(status_text, context)
+
+async def handle_status_update(self, status_text: str, context: ResponseContext) -> None:
+    """Handle agent status update (progress indicator)."""
+    conversation_id = context.platform_context["conversation_id"]
+    await self.platform_api.update_status(conversation_id, status_text)
+```
+
+### Completion: handle_task_complete()
+
+Handle task completion notification:
+
+```python
+async def handle_task_complete(self, context: ResponseContext) -> None:
+    """Handle task completion notification."""
+    conversation_id = context.platform_context["conversation_id"]
+    await self.platform_api.send_message(
+        conversation_id,
+        "✅ Task complete."
+    )
+```
+
+### Error Handling: handle_error()
+
+Handle errors from the agent or gateway:
+
+```python
+async def handle_error(self, error: SamError, context: ResponseContext) -> None:
+    """Handle error from the agent or gateway."""
+    conversation_id = context.platform_context.get("conversation_id")
+
+    if error.category == "CANCELED":
+        error_message = "🛑 Task canceled."
+    else:
+        error_message = f"❌ Error: {error.message}"
+
+    if conversation_id:
+        await self.platform_api.send_message(conversation_id, error_message)
+```
+
+## Gateway Context Services
+
+The `GatewayContext` provides access to framework services:
+
+### Task Management
+
+```python
+# Submit a new task to the agent mesh
+task_id = await self.context.handle_external_input(
+    external_input=platform_event,
+    endpoint_context={"source": "webhook"}
+)
+
+# Cancel an in-flight task
+await self.context.cancel_task(task_id)
+```
+
+### Artifact Management
+
+```python
+# Load artifact content
+content_bytes = await self.context.load_artifact_content(
+    context=response_context,
+    filename="report.pdf",
+    version="latest"
+)
+
+# List available artifacts
+artifacts = await self.context.list_artifacts(response_context)
+for artifact in artifacts:
+    print(f"{artifact.filename}: {artifact.version}")
+```
+
+### Feedback Collection
+
+```python
+# Submit user feedback
+feedback = SamFeedback(
+    task_id=task_id,
+    session_id=session_id,
+    rating="up",  # or "down"
+    comment="Great response!",
+    user_id=user_id
+)
+await self.context.submit_feedback(feedback)
+```
+
+### State Management
+
+```python
+# Task-level state (expires after 1 hour)
+self.context.set_task_state(task_id, "status_message_id", message_id)
+message_id = self.context.get_task_state(task_id, "status_message_id")
+
+# Session-level state (expires after 24 hours)
+self.context.set_session_state(session_id, "user_preferences", preferences)
+preferences = self.context.get_session_state(session_id, "user_preferences")
+```
+
+### Timer Management
+
+```python
+# Schedule a one-time callback
+timer_id = self.context.add_timer(
+    delay_ms=5000,
+    callback=self.my_async_callback
+)
+
+# Schedule a recurring callback
+timer_id = self.context.add_timer(
+    delay_ms=1000,
+    callback=self.my_async_callback,
+    interval_ms=1000
+)
+
+# Cancel a timer
+self.context.cancel_timer(timer_id)
+```
+
+## Configuration
+
+Configure a gateway adapter in your YAML file:
+
+```yaml
+apps:
+  - name: my_gateway_app
+    app_base_path: .
+    app_module: solace_agent_mesh.gateway.generic.app
+
+    broker:
+      # Broker connection configuration
+      <<: *broker_connection
+
+    app_config:
+      # Required: namespace for A2A topics
+      namespace: ${NAMESPACE}
+
+      # Required: path to your adapter class
+      gateway_adapter: my_package.adapters.MyAdapter
+
+      # Adapter-specific configuration
+      adapter_config:
+        api_token: ${MY_PLATFORM_API_TOKEN}
+        webhook_url: ${WEBHOOK_URL}
+        timeout_seconds: 30
+
+      # Standard gateway configuration
+      default_agent_name: OrchestratorAgent
+
+      # Artifact service configuration
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/artifacts"
+        artifact_scope: "namespace"
+
+      # System purpose and response format
+      system_purpose: >
+        The system is an AI assistant that helps users
+        accomplish tasks through natural language interaction.
+
+      response_format: >
+        Responses should be clear, concise, and formatted
+        appropriately for the platform.
+```
+
+## Example: Slack Adapter
+
+The Slack gateway adapter demonstrates a complete implementation of the adapter pattern. It handles:
+
+- **Socket Mode Connection**: Maintains WebSocket connection to Slack
+- **Event Handling**: Processes messages, mentions, slash commands, and button actions
+- **Message Queuing**: Manages streaming updates with proper ordering
+- **File Uploads**: Handles artifact uploads to Slack
+- **Markdown Conversion**: Converts standard Markdown to Slack format
+- **Feedback Collection**: Provides thumbs up/down buttons for user feedback
+
+Key highlights from the Slack adapter implementation:
+
+### Configuration Model
+
+```python
+class SlackAdapterConfig(BaseModel):
+    slack_bot_token: str = Field(..., description="Slack Bot Token (xoxb-...).")
+    slack_app_token: str = Field(..., description="Slack App Token (xapp-...).")
+    slack_initial_status_message: str = Field(
+        "Got it, thinking...",
+        description="Message posted to Slack upon receiving a user request."
+    )
+    correct_markdown_formatting: bool = Field(
+        True,
+        description="Attempt to convert common Markdown to Slack's format."
+    )
+    feedback_enabled: bool = Field(
+        False,
+        description="Enable thumbs up/down feedback buttons."
+    )
+```
+
+### Authentication with Caching
+
+The Slack adapter extracts user email from Slack's API and caches the results:
+
+```python
+async def extract_auth_claims(
+    self,
+    external_input: Dict,
+    endpoint_context: Optional[Dict[str, Any]] = None,
+) -> Optional[AuthClaims]:
+    slack_user_id = external_input.get("user")
+
+    # Check cache first
+    if cached_email := self.get_cached_email(slack_user_id):
+        return AuthClaims(id=cached_email, email=cached_email, source="slack_api")
+
+    # Fetch from Slack API
+    profile = await self.slack_app.client.users_profile_get(user=slack_user_id)
+    user_email = profile.get("profile", {}).get("email")
+
+    if user_email:
+        self.cache_email(slack_user_id, user_email)
+        return AuthClaims(id=user_email, email=user_email, source="slack_api")
+```
+
+### Streaming Updates with Message Queue
+
+The Slack adapter uses a message queue to handle streaming updates efficiently:
+
+```python
+async def handle_update(self, update: SamUpdate, context: ResponseContext) -> None:
+    task_id = context.task_id
+    queue = await self._get_or_create_queue(task_id, channel_id, thread_ts)
+
+    for part in update.parts:
+        if isinstance(part, SamTextPart):
+            await queue.queue_text_update(part.text)
+        elif isinstance(part, SamFilePart):
+            await queue.queue_file_upload(part.name, part.content_bytes)
+```
+
+For the complete Slack adapter implementation, see `src/solace_agent_mesh/gateway/slack/adapter.py`.
+
+## Creating Your Own Adapter
+
+### Option 1: Create as a Plugin (Recommended)
+
+For reusable adapters that you plan to share or use across multiple projects:
 
 ```bash
-# Build the plugin
-sam plugin build
-
-# Install plugin from local wheel file
-sam plugin add my-gateway --plugin dist/sam_my_gateway-0.1.0-py3-none-any.whl
+sam plugin create my-gateway-plugin
 ```
 
-## Troubleshooting
+Select "Gateway Plugin" when prompted. This creates a complete plugin structure with:
 
-### Common Issues
+- Python package structure
+- Sample adapter implementation
+- Configuration template
+- Build tooling
 
-#### Gateway Fails to Start
-- Check configuration schema validation
-- Verify all required parameters are provided
-- Ensure external dependencies are installed
+After implementing your adapter, build and distribute:
 
-#### Tasks Not Reaching Agents
-- Verify namespace configuration matches agents
-- Check Solace broker connectivity
-- Confirm agent names are correct
+```bash
+cd my-gateway-plugin
+sam plugin build
+```
 
-#### Authentication Failures
-- Validate user identity extraction logic
-- Check authorization service configuration
-- Verify claims format matches expectations
+For more information on plugins, see [Plugins](../components/plugins.md).
 
-#### File/Artifact Issues
-- Ensure artifact service is properly configured
-- Check file permissions and paths
-- Verify artifact URI construction
+### Option 2: Add to Existing Project
 
-### Debugging Tips
+For project-specific adapters, create your adapter class in your project:
 
-1. **Enable Debug Logging**:
-   ```yaml
-   log:
-     stdout_log_level: DEBUG
-     log_file_level: DEBUG
-   ```
+1. Create your adapter module:
 
-2. **Use Test Agents**:
-   Create simple echo agents for testing gateway integration
+```python
+# my_project/gateways/my_adapter.py
+from solace_agent_mesh.gateway.adapter.base import GatewayAdapter
+from solace_agent_mesh.gateway.adapter.types import (
+    AuthClaims,
+    GatewayContext,
+    ResponseContext,
+    SamTask,
+    SamUpdate
+)
 
-3. **Monitor Solace Topics**:
-   Use Solace monitoring tools to trace message flow
+class MyAdapter(GatewayAdapter):
+    async def init(self, context: GatewayContext) -> None:
+        self.context = context
+        # Initialize your platform connection
 
-4. **Add Correlation IDs**:
-   Include unique identifiers in logs for request tracing
+    async def prepare_task(self, external_input, endpoint_context=None) -> SamTask:
+        # Convert platform event to SamTask
+        pass
+
+    async def handle_update(self, update: SamUpdate, context: ResponseContext) -> None:
+        # Send update to platform
+        pass
+```
+
+2. Reference it in your configuration:
+
+```yaml
+app_config:
+  gateway_adapter: my_project.gateways.my_adapter.MyAdapter
+  adapter_config:
+    # Your adapter configuration
+```
+
+## Advanced: Full Custom Gateways
+
+For most use cases, gateway adapters provide all the functionality you need to connect external platforms to the agent mesh. However, if you have highly specialized requirements, you can create a full custom gateway that implements the complete gateway lifecycle and A2A protocol handling from scratch.
+
+Consider a full custom gateway only if you need:
+
+- Highly specialized authentication flows not supported by the standard flow
+- Custom A2A protocol behavior or extensions
+- Complex multi-stage processing pipelines with custom state management
+- Fine-grained control over every aspect of the gateway lifecycle
+
+Full custom gateways extend `BaseGatewayComponent` directly and implement all protocol handling manually. This approach requires significantly more code and expertise but provides complete control over the gateway behavior.
+
+## Related Documentation
+
+- [Gateways](../components/gateways.md) - Overview of gateway concepts and types
+- [Plugins](../components/plugins.md) - Creating and distributing gateway plugins

@@ -1,0 +1,51 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "FeedbackEvent",
+    "description": "Schema for a user feedback event published by a gateway.",
+    "type": "object",
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "A unique identifier for this feedback submission."
+        },
+        "session_id": {
+            "type": "string",
+            "description": "The A2A session ID associated with the task."
+        },
+        "task_id": {
+            "type": "string",
+            "description": "The ID of the task this feedback is for."
+        },
+        "user_id": {
+            "type": "string",
+            "description": "The identifier of the user who provided the feedback."
+        },
+        "rating": {
+            "type": "string",
+            "enum": ["up", "down"],
+            "description": "The rating provided by the user."
+        },
+        "comment": {
+            "type": ["string", "null"],
+            "description": "Optional text comment provided by the user."
+        },
+        "created_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The ISO 8601 timestamp (UTC) when the feedback was submitted."
+        },
+        "gateway_id": {
+            "type": "string",
+            "description": "The ID of the gateway that collected the feedback."
+        }
+    },
+    "required": [
+        "id",
+        "session_id",
+        "task_id",
+        "user_id",
+        "rating",
+        "created_time",
+        "gateway_id"
+    ]
+}

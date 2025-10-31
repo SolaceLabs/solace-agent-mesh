@@ -40,6 +40,27 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "description": "Unique ID for this gateway instance. Auto-generated if omitted.",
         },
         {
+            "name": "default_agent_name",
+            "required": False,
+            "type": "string",
+            "default": None,
+            "description": "Default agent to route messages to if not specified by the platform or user.",
+        },
+        {
+            "name": "system_purpose",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": "Detailed description of the system's overall purpose, to be optionally used by agents.",
+        },
+        {
+            "name": "response_format",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": "General guidelines on how agent responses should be structured, to be optionally used by agents.",
+        },
+        {
             "name": "artifact_service",
             "required": True,
             "type": "object",
@@ -144,8 +165,14 @@ class BaseGatewayApp(App):
 
         base_params = BaseGatewayApp.app_schema.get("config_parameters", [])
 
-        merged_config_parameters = list(base_params)
-        merged_config_parameters.extend(specific_params)
+        # Start with the child's parameters to give them precedence.
+        merged_config_parameters = list(specific_params)
+        specific_param_names = {p["name"] for p in specific_params}
+
+        # Add base parameters only if they are not already defined in the child.
+        for base_param in base_params:
+            if base_param["name"] not in specific_param_names:
+                merged_config_parameters.append(base_param)
 
         cls.app_schema = {"config_parameters": merged_config_parameters}
         log.debug(

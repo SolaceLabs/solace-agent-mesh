@@ -76,20 +76,6 @@ class WebUIBackendApp(BaseGatewayApp):
             "description": "If true, the gateway will resolve artifact:// URIs found in A2A messages and embed the content as bytes before sending to the UI. If false, URIs are passed through.",
         },
         {
-            "name": "system_purpose",
-            "required": False,
-            "type": "string",
-            "default": "",
-            "description": "Detailed description of the system's overall purpose, to be optionally used by agents.",
-        },
-        {
-            "name": "response_format",
-            "required": False,
-            "type": "string",
-            "default": "",
-            "description": "General guidelines on how agent responses should be structured, to be optionally used by agents.",
-        },
-        {
             "name": "model",
             "required": False,
             "type": "dict",
