@@ -43,7 +43,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
             try {
                 await onSave(editedPrompt.trim());
                 setIsEditing(false);
-            } catch (err) {
+            } catch {
                 // Error will be handled by parent component
             }
         } else {

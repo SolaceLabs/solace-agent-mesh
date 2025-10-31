@@ -192,7 +192,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                                 // Check if it's a Pydantic validation error array
                                 if (Array.isArray(errorData.detail)) {
                                     const validationErrors = errorData.detail
-                                        .map((err: any) => {
+                                        .map((err: { loc?: string[]; msg: string }) => {
                                             const field = err.loc?.join('.') || 'field';
                                             return `${field}: ${err.msg}`;
                                         })
