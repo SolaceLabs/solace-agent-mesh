@@ -15,7 +15,7 @@ Once you've configured the agent in the form and saved it, the agent appears in 
 
 Use the "Refresh" button next to "Create Agent" to update the displayed agent list and sync deployment status information from the backend.
 
-## Optional AI Assistance
+## Creating Agents
 
 When you click "Create Agent" from the Agents page, the AI assistance dialog opens by default. This dialog provides two options for how to begin configuring your agent.
 
@@ -33,14 +33,14 @@ When you submit your description, the AI analyzes it and generates suggested val
 - A detailed description field explaining the agent's purpose
 - System instructions that define how the agent should behave
 - Appropriate toolsets based on the capabilities mentioned in your description
-- Appropriate connectors (if available, see Connectors) based on your description
+- Appropriate connectors (if available, see [Connectors](#connectors)) based on your description
 - Default settings for skills and communication modes
 
 These AI-generated values are suggestions only. After the AI generates them, you proceed to the configuration form where you can review, modify, or completely rewrite any of these values before saving the agent. 
 
 **Option 2: Skip AI assistance**
 
-Click the secondary button to bypass AI assistance. You'll be prompted to manually enter the agent's name and description in a simple dialog. After providing these basic details and clicking continue, you proceed to the agent configuration form where the Agent Details section is pre-filled with your entered name and description. Other sections (instructions, toolsets, connectors, agent card) remain empty for you to configure. Minimally, the name, description and instructions must be completed before your agent can be deployed (see Agent Lifecycle and Management).
+Click the secondary button to bypass AI assistance. You'll be prompted to manually enter the agent's name and description in a simple dialog. After providing these basic details and clicking continue, you proceed to the agent configuration form where the Agent Details section is pre-filled with your entered name and description. Other sections (instructions, toolsets, connectors, agent card) remain empty for you to configure. Minimally, the name, description and instructions must be completed before your agent can be deployed (see [Agent Lifecycle and Management](#agent-lifecycle-and-management)).
 
 ## Agent Configuration Form
 
