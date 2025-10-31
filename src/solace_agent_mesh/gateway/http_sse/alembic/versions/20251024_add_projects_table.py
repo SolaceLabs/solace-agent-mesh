@@ -22,7 +22,8 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = inspect(bind)
     existing_tables = inspector.get_table_names()
-    
+    dialect_name = bind.dialect.name
+
     # Create projects table if it doesn't exist
     # Note: This table is created without is_global and created_by_user_id columns
     # as those were removed in the squashed migration
@@ -37,17 +38,45 @@ def upgrade() -> None:
             sa.Column('updated_at', sa.BigInteger(), nullable=True),
             sa.PrimaryKeyConstraint('id')
         )
-    
+
     # Add project_id column to sessions if it doesn't exist
     sessions_columns = [col['name'] for col in inspector.get_columns('sessions')]
     if 'project_id' not in sessions_columns:
-        op.add_column('sessions', sa.Column('project_id', sa.String(), nullable=True))
-        
-        # Add index on project_id for better query performance
-        op.create_index('ix_sessions_project_id', 'sessions', ['project_id'])
-        
-        # Add foreign key constraint
-        try:
+        if dialect_name == 'sqlite':
+            # SQLite doesn't support ALTER TABLE ADD CONSTRAINT, recreate table
+            op.create_table(
+                'sessions_new',
+                sa.Column('id', sa.String(), nullable=False),
+                sa.Column('name', sa.String(), nullable=True),
+                sa.Column('user_id', sa.String(), nullable=False),
+                sa.Column('agent_id', sa.String(), nullable=True),
+                sa.Column('created_time', sa.BigInteger(), nullable=False),
+                sa.Column('updated_time', sa.BigInteger(), nullable=False),
+                sa.Column('project_id', sa.String(), nullable=True),
+                sa.ForeignKeyConstraint(['project_id'], ['projects.id']),
+                sa.PrimaryKeyConstraint('id')
+            )
+
+            # Copy data from old table
+            op.execute("""
+                INSERT INTO sessions_new (id, name, user_id, agent_id, created_time, updated_time)
+                SELECT id, name, user_id, agent_id, created_time, updated_time
+                FROM sessions
+            """)
+
+            # Drop old table
+            op.drop_table('sessions')
+
+            # Rename new table
+            op.rename_table('sessions_new', 'sessions')
+
+            # Recreate indexes
+            op.create_index('ix_sessions_user_id', 'sessions', ['user_id'])
+            op.create_index('ix_sessions_project_id', 'sessions', ['project_id'])
+        else:
+            # PostgreSQL, MySQL - standard ALTER TABLE
+            op.add_column('sessions', sa.Column('project_id', sa.String(), nullable=True))
+            op.create_index('ix_sessions_project_id', 'sessions', ['project_id'])
             op.create_foreign_key(
                 'fk_sessions_project_id',
                 'sessions',
@@ -55,31 +84,51 @@ def upgrade() -> None:
                 ['project_id'],
                 ['id']
             )
-        except Exception as e:
-            print(f"Warning: Could not create foreign key constraint: {e}")
 
 
 def downgrade() -> None:
     """Downgrade schema - removes project-related changes."""
     bind = op.get_bind()
     inspector = inspect(bind)
-    
+    dialect_name = bind.dialect.name
+
     # Drop project_id column from sessions if it exists
     sessions_columns = [col['name'] for col in inspector.get_columns('sessions')]
     if 'project_id' in sessions_columns:
-        try:
+        if dialect_name == 'sqlite':
+            # SQLite doesn't support ALTER TABLE DROP CONSTRAINT, recreate table
+            op.create_table(
+                'sessions_old',
+                sa.Column('id', sa.String(), nullable=False),
+                sa.Column('name', sa.String(), nullable=True),
+                sa.Column('user_id', sa.String(), nullable=False),
+                sa.Column('agent_id', sa.String(), nullable=True),
+                sa.Column('created_time', sa.BigInteger(), nullable=False),
+                sa.Column('updated_time', sa.BigInteger(), nullable=False),
+                sa.PrimaryKeyConstraint('id')
+            )
+
+            # Copy data from current table (excluding project_id)
+            op.execute("""
+                INSERT INTO sessions_old (id, name, user_id, agent_id, created_time, updated_time)
+                SELECT id, name, user_id, agent_id, created_time, updated_time
+                FROM sessions
+            """)
+
+            # Drop current table
+            op.drop_table('sessions')
+
+            # Rename old table back
+            op.rename_table('sessions_old', 'sessions')
+
+            # Recreate index on user_id
+            op.create_index('ix_sessions_user_id', 'sessions', ['user_id'])
+        else:
+            # PostgreSQL, MySQL - standard ALTER TABLE
             op.drop_constraint('fk_sessions_project_id', 'sessions', type_='foreignkey')
-        except Exception as e:
-            print(f"Warning: Could not drop foreign key constraint: {e}")
-        
-        # Drop index on project_id
-        try:
             op.drop_index('ix_sessions_project_id', 'sessions')
-        except Exception as e:
-            print(f"Warning: Could not drop index: {e}")
-        
-        op.drop_column('sessions', 'project_id')
-    
+            op.drop_column('sessions', 'project_id')
+
     # Drop projects table if it exists
     existing_tables = inspector.get_table_names()
     if 'projects' in existing_tables:
