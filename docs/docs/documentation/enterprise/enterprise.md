@@ -37,7 +37,7 @@ SSO integration connects Agent Mesh Enterprise with your organization's identity
 
 ### Agent Builder
 
-The Enterprise version includes Agent Builder, a visual interface for creating and managing agents without writing YAML configuration files directly. Agent Builder supports both AI-assisted generation from natural language descriptions and manual configuration for precise control over agent capabilities. You can create agents, assign toolsets and SQL connectors, manage agent lifecycles, and download configurations as YAML files for version control or infrastructure-as-code deployments. For comprehensive information about creating and managing agents, see [Agent Builder](agent-builder.md).
+The Enterprise version includes Agent Builder, a visual interface for creating and managing agents without writing configuration files directly. Agent Builder supports both AI-assisted generation from natural language descriptions and manual configuration for precise control over agent capabilities. You can create agents, assign toolsets and SQL connectors, manage agent lifecycles, and download configurations as YAML files for version control or infrastructure-as-code deployments. For comprehensive information about creating and managing agents, see [Agent Builder](agent-builder.md).
 
 ## What's Next
 
