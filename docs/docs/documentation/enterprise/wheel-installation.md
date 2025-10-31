@@ -5,7 +5,7 @@ sidebar_position: 6
 
 # Running Agent Mesh Enterprise from Wheel File
 
-You can run Agent Mesh Enterprise directly from a Python wheel file without using Docker containers. This approach provides more control over your Python environment and allows for easier integration with existing Python-based deployments.
+You can run Agent Mesh Enterprise directly from a Python wheel file without using Docker containers. This approach gives you direct control over your Python environment and integrates with existing Python-based deployments.
 
 ## Prerequisites
 
@@ -23,80 +23,32 @@ Download the Agent Mesh Enterprise wheel file from the [Solace Product Portal](h
 
 The wheel file follows the naming pattern:
 ```
-solace_agent_mesh-<version>-py3-none-any.whl
+solace_agent_mesh_enterprise-<version>-py3-none-any.whl
 ```
 
 ## Step 2: Install the Wheel File
 
-Install the wheel file using pip or uv:
+You can install the wheel file with either pip or uv.
 
-Using pip:
+If you use pip, run:
 ```bash
-pip install solace_agent_mesh-<version>-py3-none-any.whl
+pip install solace_agent_mesh_enterprise-<version>-py3-none-any.whl
 ```
 
-Using uv:
+If you use uv, run:
 ```bash
-uv pip install solace_agent_mesh-<version>-py3-none-any.whl
+uv pip install solace_agent_mesh_enterprise-<version>-py3-none-any.whl
 ```
 
 This installation provides the `solace-agent-mesh` CLI tool and the Agent Mesh Enterprise framework.
 
 ## Step 3: Prepare Your Configuration
 
-Agent Mesh Enterprise requires configuration files that define your agents, gateways, and system settings.
+Agent Mesh Enterprise requires configuration files that define your agents, gateways, and system settings. The `solace-agent-mesh init` command creates the project directory structure, environment variables, and configuration files you need.
 
-### Configuration Directory Structure
+Follow the project setup steps in the [Creating and Running an Agent Mesh Project](../installing-and-configuring/run-project.md#create-your-project) guide to initialize your configuration. You can use the web-based interface or command-line options to configure your project settings.
 
-Create a project directory with the following structure:
-
-```
-my-sam-project/
-├── configs/
-│   ├── shared_config.yaml
-│   ├── agents/
-│   │   └── orchestrator.yaml
-│   └── gateways/
-│       └── webui.yaml
-└── .env
-```
-
-### Environment Variables
-
-Create a `.env` file with your credentials:
-
-```bash
-# LLM Configuration
-LLM_SERVICE_API_KEY=<your-llm-api-key>
-LLM_SERVICE_ENDPOINT=<your-llm-endpoint>
-LLM_SERVICE_PLANNING_MODEL_NAME=<your-model-name>
-LLM_SERVICE_GENERAL_MODEL_NAME=<your-model-name>
-
-# Namespace
-NAMESPACE=<your-namespace>
-
-# Solace Broker (for production)
-SOLACE_DEV_MODE=false
-SOLACE_BROKER_URL=<your-broker-url>
-SOLACE_BROKER_VPN=<your-broker-vpn>
-SOLACE_BROKER_USERNAME=<your-username>
-SOLACE_BROKER_PASSWORD=<your-password>
-```
-
-For development mode with an embedded broker, set:
-```bash
-SOLACE_DEV_MODE=true
-```
-
-### Configuration Files
-
-You need to provide YAML configuration files for your deployment. You can either:
-
-1. Use the community edition's `sam init` command to generate starter configurations
-2. Create configurations manually based on your requirements
-3. Copy configurations from an existing Agent Mesh project
-
-For configuration file structure and options, see [Configuring Agent Mesh](../installing-and-configuring/configurations.md).
+After initialization, your project directory contains the necessary `configs/` directory with agent and gateway configurations, plus a `.env` file with your credentials.
 
 ## Step 4: Run Agent Mesh Enterprise
 
@@ -106,10 +58,7 @@ Start Agent Mesh Enterprise using the `solace-agent-mesh run` command:
 solace-agent-mesh run
 ```
 
-This command:
-- Loads environment variables from your `.env` file
-- Starts all agents and gateways defined in your `configs/` directory
-- Launches the web UI (if configured)
+This command loads environment variables from your `.env` file, starts all agents and gateways defined in your `configs/` directory, and launches the web UI if you configured one.
 
 ### Running Specific Components
 
@@ -121,7 +70,7 @@ solace-agent-mesh run configs/agents/orchestrator.yaml configs/gateways/webui.ya
 
 ### Using the Short Alias
 
-You can use the `sam` alias instead of the full command name:
+The `sam` alias provides a shorter alternative to the full command name:
 
 ```bash
 sam run
@@ -133,13 +82,7 @@ When running from a wheel file, certain features have limitations compared to th
 
 ### No Dynamic Agent Deployment
 
-Dynamic agent deployment through the UI or API is not supported when running from a wheel file. You cannot:
-
-- Deploy new agents at runtime through the web interface
-- Upload agent configurations through the API
-- Dynamically add or remove agents without restarting
-
-All agents must be defined in configuration files before starting the application.
+Dynamic agent deployment through the UI or API is not supported when running from a wheel file. You cannot deploy new agents at runtime through the web interface, upload agent configurations through the API, or dynamically add or remove agents without restarting. All agents must be defined in configuration files before you start the application.
 
 ### Custom Agent Code
 
@@ -153,8 +96,4 @@ If you specified a different port in your gateway configuration, use that port i
 
 ## Next Steps
 
-After running Agent Mesh Enterprise from the wheel file:
-
-- Configure [Single Sign-On](./single-sign-on.md) for authentication
-- Set up [Role-Based Access Control](./rbac-setup-guide.md) for authorization
-- Review [deployment options](../deploying/deployment-options.md) for production considerations
+After running Agent Mesh Enterprise from the wheel file, you can configure authentication and authorization for your deployment. For information about setting up authentication, see [Single Sign-On](./single-sign-on.md). For information about configuring authorization, see [Role-Based Access Control](./rbac-setup-guide.md). For production deployment considerations, see [deployment options](../deploying/deployment-options.md).
