@@ -49,19 +49,53 @@ jobs:
       MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
 
   build_and_push_docker:
-    name: Build and Push Docker Image
+    name: Pull from ECR and Push to DockerHub
     needs: release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           ref: ${{ needs.release.outputs.commit_hash }}
 
-      - name: Build and Push Docker Image to DockerHub
+      - name: Get Commit Hash
+        id: get_commit_hash
+        run: |
+          echo "short_sha=$(git rev-parse HEAD | cut -c1-10)" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Pull from ECR and Push to DockerHub
         uses: ./.github/actions/push-docker
         with:
           version_tag: ${{ needs.release.outputs.new_version }}
           push_latest: true
           docker_username: ${{ secrets.DOCKER_USERNAME }}
           docker_password: ${{ secrets.DOCKER_PASSWORD }}
+          source_registry: ${{ secrets.SAM_AWS_ECR_REGISTRY }}
+          source_image_tag: ${{ needs.release.outputs.new_version }}-${{ steps.get_commit_hash.outputs.short_sha }}
+
+      - name: Verify image is in DockerHub
+        run: |
+          set -e
+          IMAGE="solace/solace-agent-mesh"
+          VERSION="${{ needs.release.outputs.new_version }}"
+          DOCKERHUB_URL="https://hub.docker.com/v2/repositories/${IMAGE}/tags/${VERSION}"
+
+          echo "Checking DockerHub for ${IMAGE}:${VERSION}..."
+          http_code=$(curl -s -o /dev/null -w "%{http_code}" "$DOCKERHUB_URL")
+
+          if [ "$http_code" -ne 200 ]; then
+            echo "❌ Image tag ${IMAGE}:${VERSION} NOT found on DockerHub!"
+            exit 1
+          fi
+
+          echo "✅ Image tag ${IMAGE}:${VERSION} exists on DockerHub."
