@@ -40,6 +40,14 @@ from ..adapter.types import (
 )
 from ..base.component import BaseGatewayComponent
 
+# Try to import enterprise auth handler
+try:
+    from solace_agent_mesh_enterprise.gateway.auth import SAMOAuth2Handler
+    ENTERPRISE_AUTH_AVAILABLE = True
+except ImportError:
+    ENTERPRISE_AUTH_AVAILABLE = False
+    SAMOAuth2Handler = None
+
 log = logging.getLogger(__name__)
 
 info = {
@@ -112,6 +120,12 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         self.artifact_service = self.shared_artifact_service
         # `gateway_id`, `namespace`, `config` are available from base classes.
 
+        # --- Setup Authentication ---
+        # Base class already called _setup_auth() during super().__init__(),
+        # but adapter_config wasn't available yet. Call again now that it's set.
+        if hasattr(self, 'adapter_config'):
+            self._setup_auth()
+
         # --- Register Agent Registry Callbacks ---
         # Wire up callbacks so the adapter is notified of agent changes
         self.agent_registry._on_agent_added = self._on_agent_added
@@ -120,6 +134,76 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             "%s Agent registry callbacks registered for dynamic adapter updates.",
             self.log_identifier,
         )
+
+    def _setup_auth(self) -> None:
+        """
+        Setup authentication handler if enabled in config.
+
+        Uses enterprise SAMOAuth2Handler if available and auth is enabled.
+        Falls back gracefully if enterprise module is not installed.
+
+        Note: This method is called twice:
+        1. During BaseGatewayComponent.__init__() (adapter_config not yet available)
+        2. After adapter_config is set in GenericGatewayComponent.__init__()
+        """
+        # Early exit if adapter_config not yet set
+        if not hasattr(self, 'adapter_config'):
+            log.debug("%s _setup_auth() called before adapter_config set, skipping", self.log_identifier)
+            return
+
+        log.debug("%s adapter_config type: %s", self.log_identifier, type(self.adapter_config))
+
+        # Check enable_auth from adapter_config (not app_config)
+        # Handle both Pydantic models (use getattr) and plain dicts (use .get())
+        if isinstance(self.adapter_config, dict):
+            enable_auth = self.adapter_config.get('enable_auth', False)
+            log.debug("%s adapter_config is dict, keys: %s", self.log_identifier, list(self.adapter_config.keys()))
+        else:
+            # Pydantic model or other object
+            enable_auth = getattr(self.adapter_config, 'enable_auth', False)
+            log.debug("%s adapter_config is Pydantic model, enable_auth=%s", self.log_identifier, enable_auth)
+
+        log.info("%s Authentication check: enable_auth=%s (from adapter_config)", self.log_identifier, enable_auth)
+
+        if not enable_auth:
+            log.debug("%s Authentication disabled in config", self.log_identifier)
+            return
+
+        if not ENTERPRISE_AUTH_AVAILABLE:
+            log.warning(
+                "%s Authentication enabled but enterprise module not available. "
+                "Install solace-agent-mesh-enterprise to enable OAuth2 authentication.",
+                self.log_identifier
+            )
+            return
+
+        try:
+            # Build config dict for SAMOAuth2Handler from adapter_config
+            # Handler expects: oauth_proxy_url, external_auth_service_url, external_auth_provider, callback_url
+            auth_config = {}
+
+            # Try to get config from adapter_config (Pydantic model or dict)
+            if hasattr(self.adapter_config, '__dict__'):
+                # Pydantic model
+                auth_config = self.adapter_config.__dict__.copy()
+            elif isinstance(self.adapter_config, dict):
+                # Plain dict
+                auth_config = self.adapter_config.copy()
+
+            # Ensure callback_url is set (construct from host/port if not provided)
+            if 'callback_url' not in auth_config and 'callback_uri' not in auth_config:
+                # Try to construct from host and port
+                host = auth_config.get('host', 'localhost')
+                port = auth_config.get('port', 8080)
+                auth_config['callback_url'] = f"http://{host}:{port}/oauth/callback"
+                log.debug("%s Constructed callback_url: %s", self.log_identifier, auth_config['callback_url'])
+
+            # Initialize enterprise OAuth2 handler
+            self.auth_handler = SAMOAuth2Handler(auth_config)
+            log.info("%s OAuth2 authentication enabled via enterprise module", self.log_identifier)
+        except Exception as e:
+            log.error("%s Failed to initialize OAuth2 authentication: %s", self.log_identifier, e, exc_info=True)
+            self.auth_handler = None
 
     def _on_agent_added(self, agent_card: Any) -> None:
         """Called when a new agent is added to the registry."""

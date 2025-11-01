@@ -75,7 +75,15 @@ async def auth_callback(
 ):
     """
     Handles the callback from the OIDC provider by calling an external exchange service.
+
+    If this is a gateway OAuth flow (detected by gateway_oauth_active in session),
+    redirects to the gateway OAuth callback handler for gateway code generation.
     """
+    # Check if this is a gateway OAuth flow
+    if request.session.get('gateway_oauth_active'):
+        log.info("Detected gateway OAuth flow, redirecting to gateway OAuth callback handler")
+        return RedirectResponse(url="/api/v1/gateway-oauth/callback", status_code=302)
+
     code = request.query_params.get("code")
 
     if not code:

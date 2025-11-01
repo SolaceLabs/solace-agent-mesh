@@ -8,7 +8,7 @@ Agents are dynamically discovered from the agent registry and exposed as callabl
 import asyncio
 import base64
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
 from a2a.types import AgentCard, AgentSkill
@@ -38,7 +38,6 @@ from ..adapter.types import (
     SamTextPart,
     SamUpdate,
 )
-from .oauth_handler import OAuthFlowHandler
 from .utils import sanitize_tool_name, format_agent_skill_description
 
 log = logging.getLogger(__name__)
@@ -136,7 +135,6 @@ class McpAdapter(GatewayAdapter):
     def __init__(self):
         self.context: Optional[GatewayContext] = None
         self.mcp_server: Optional[FastMCP] = None
-        self.oauth_handler: Optional[OAuthFlowHandler] = None
         self.tool_to_agent_map: Dict[str, tuple[str, str]] = (
             {}
         )  # tool_name -> (agent_name, skill_id)
@@ -194,16 +192,8 @@ class McpAdapter(GatewayAdapter):
                 config.default_user_identity,
             )
 
-        # Initialize OAuth handler if authentication is enabled
-        if config.enable_auth:
-            callback_base_url = f"http://{config.host}:{config.port}"
-            self.oauth_handler = OAuthFlowHandler(
-                oauth_service_url=config.external_auth_service_url,
-                oauth_provider=config.external_auth_provider,
-                callback_base_url=callback_base_url,
-                callback_path="/oauth/callback",
-            )
-            log.info("OAuth handler initialized")
+        # OAuth authentication is handled by the generic gateway's auth_handler
+        # (enterprise feature, see GenericGatewayComponent._setup_auth)
 
         # Create FastMCP server with OAuth info in description if enabled
         server_description = config.mcp_server_description
@@ -226,8 +216,8 @@ class McpAdapter(GatewayAdapter):
         if config.enable_artifact_resources:
             self._register_artifact_resource_template()
 
-        # Register OAuth endpoints if authentication is enabled
-        if config.enable_auth and self.oauth_handler:
+        # Register OAuth endpoints if authentication is enabled and handler is available
+        if config.enable_auth and hasattr(self.context, 'auth_handler') and self.context.auth_handler:
             self._register_oauth_endpoints()
 
         # Register tools dynamically from agent registry
@@ -298,86 +288,139 @@ class McpAdapter(GatewayAdapter):
         This method serves as documentation of the endpoints that will be exposed.
 
         OAuth endpoints that will be exposed:
-        - GET /oauth/authorize - Initiates OAuth flow
-        - GET /oauth/callback - Handles OAuth callback
-        - POST /oauth/token - Token refresh endpoint
+        - GET /oauth/authorize - Initiates OAuth flow (via enterprise auth handler)
+        - GET /oauth/callback - Handles OAuth callback (via enterprise auth handler)
         - GET /.well-known/oauth-authorization-server - OAuth metadata
+
+        The actual OAuth logic is handled by the enterprise SAMOAuth2Handler,
+        these routes just delegate to it.
         """
-        if not self.oauth_handler:
+        if not self.context.auth_handler:
             return
 
         log.info(
             "OAuth endpoints will be added to HTTP server: "
-            "/oauth/authorize, /oauth/callback, /oauth/token, /.well-known/oauth-authorization-server"
+            "/oauth/authorize, /oauth/callback, /.well-known/oauth-authorization-server"
         )
 
     async def _handle_oauth_authorize(self, request):
-        """Handle GET /oauth/authorize - Initiates OAuth flow."""
+        """
+        Handle GET /oauth/authorize - Initiates OAuth flow.
+
+        Delegates to enterprise auth handler (SAMOAuth2Handler).
+        """
         from starlette.responses import RedirectResponse
 
-        redirect_uri = request.query_params.get("redirect_uri")
-        return await self.oauth_handler.handle_authorize(request, redirect_uri)
+        result = await self.context.auth_handler.handle_authorize(request)
+
+        # Handle dict response (convert to redirect)
+        if isinstance(result, dict):
+            return RedirectResponse(
+                url=result.get("redirect_url"),
+                status_code=result.get("status_code", 302)
+            )
+
+        # Already a redirect response
+        return result
 
     async def _handle_oauth_callback(self, request):
-        """Handle GET /oauth/callback - OAuth callback from provider."""
-        from starlette.responses import JSONResponse
+        """
+        Handle GET /oauth/callback - OAuth callback from SAM OAuth2 service.
 
-        code = request.query_params.get("code")
-        state = request.query_params.get("state")
+        Delegates to enterprise auth handler (SAMOAuth2Handler) which handles
+        the gateway code exchange for tokens.
+        """
+        from starlette.responses import JSONResponse, HTMLResponse
 
         try:
-            tokens = await self.oauth_handler.handle_callback(request, code, state)
-            return JSONResponse(tokens)
+            result = await self.context.auth_handler.handle_callback(request)
+
+            # If result is already an HTMLResponse (e.g., success page), return it
+            if isinstance(result, HTMLResponse):
+                return result
+
+            # Otherwise return as JSON
+            return JSONResponse(result)
+        except ValueError as e:
+            log.error("OAuth callback validation error: %s", e)
+            return JSONResponse(
+                {"error": "invalid_request", "error_description": str(e)},
+                status_code=400,
+            )
         except Exception as e:
             log.error("OAuth callback error: %s", e)
             return JSONResponse(
                 {"error": "callback_failed", "error_description": str(e)},
-                status_code=400,
-            )
-
-    async def _handle_oauth_token_refresh(self, request):
-        """Handle POST /oauth/token - Token refresh."""
-        from starlette.responses import JSONResponse
-
-        try:
-            body = await request.json()
-            refresh_token = body.get("refresh_token")
-
-            if not refresh_token:
-                return JSONResponse(
-                    {"error": "invalid_request", "error_description": "Missing refresh_token"},
-                    status_code=400,
-                )
-
-            tokens = await self.oauth_handler.handle_refresh(refresh_token)
-            return JSONResponse(tokens)
-        except Exception as e:
-            log.error("Token refresh error: %s", e)
-            return JSONResponse(
-                {"error": "refresh_failed", "error_description": str(e)},
-                status_code=400,
-            )
-
-    async def _handle_oauth_register(self, request):
-        """Handle POST /oauth/register - Dynamic client registration."""
-        from starlette.responses import JSONResponse
-
-        try:
-            registration = await self.oauth_handler.handle_register(request)
-            return JSONResponse(registration, status_code=201)
-        except Exception as e:
-            log.error("Client registration error: %s", e)
-            return JSONResponse(
-                {"error": "registration_failed", "error_description": str(e)},
-                status_code=400,
+                status_code=500,
             )
 
     async def _handle_oauth_metadata(self, request):
-        """Handle GET /.well-known/oauth-authorization-server - OAuth metadata."""
+        """
+        Handle GET /.well-known/oauth-authorization-server - OAuth metadata.
+
+        Returns RFC 8414 compliant OAuth 2.0 Authorization Server Metadata.
+        """
         from starlette.responses import JSONResponse
 
-        metadata = await self.oauth_handler.get_oauth_metadata()
+        config: McpAdapterConfig = self.context.adapter_config
+
+        metadata = {
+            "issuer": f"http://{config.host}:{config.port}",
+            "authorization_endpoint": f"http://{config.host}:{config.port}/oauth/authorize",
+            "token_endpoint": f"http://{config.host}:{config.port}/oauth/token",
+            "registration_endpoint": f"http://{config.host}:{config.port}/oauth/register",
+            "response_types_supported": ["code"],
+            "grant_types_supported": ["authorization_code", "refresh_token"],
+            "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic", "none"],
+            "code_challenge_methods_supported": ["S256"],
+        }
+
         return JSONResponse(metadata)
+
+    async def _handle_oauth_register(self, request):
+        """
+        Handle POST /oauth/register - Dynamic client registration (RFC 7591).
+
+        For MCP gateways with pre-configured OAuth, we accept any registration
+        and return a success response. The actual OAuth flow uses the gateway's
+        pre-configured credentials with the OAuth2 service.
+        """
+        from starlette.responses import JSONResponse
+        import secrets
+
+        try:
+            # Parse the registration request (if provided)
+            body = await request.json() if request.method == "POST" else {}
+
+            # Generate client credentials (these are for Claude Code's records only,
+            # the actual OAuth flow uses the gateway's pre-configured credentials)
+            client_id = secrets.token_urlsafe(16)
+            client_secret = secrets.token_urlsafe(32)
+
+            # Return RFC 7591 compliant registration response
+            response = {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "client_id_issued_at": int(datetime.now(timezone.utc).timestamp()),
+                "client_secret_expires_at": 0,  # Never expires
+                "grant_types": ["authorization_code", "refresh_token"],
+                "response_types": ["code"],
+                "token_endpoint_auth_method": "none",  # PKCE, no client secret needed
+            }
+
+            # Include any requested redirect URIs
+            if "redirect_uris" in body:
+                response["redirect_uris"] = body["redirect_uris"]
+
+            log.info("Dynamic client registration: client_id=%s", client_id)
+            return JSONResponse(response, status_code=201)
+
+        except Exception as e:
+            log.error("Client registration error: %s", e)
+            return JSONResponse(
+                {"error": "invalid_request", "error_description": str(e)},
+                status_code=400,
+            )
 
     def _register_tool_for_skill(self, agent_card: AgentCard, skill: AgentSkill):
         """
@@ -727,13 +770,21 @@ class McpAdapter(GatewayAdapter):
                 )
 
                 # Get the underlying Starlette app and add OAuth routes if auth enabled
-                if config.enable_auth and self.oauth_handler:
+                log.info(
+                    "OAuth endpoint check: enable_auth=%s, has_auth_handler=%s, auth_handler=%s",
+                    config.enable_auth,
+                    hasattr(self.context, 'auth_handler'),
+                    getattr(self.context, 'auth_handler', None)
+                )
+
+                if config.enable_auth and hasattr(self.context, 'auth_handler') and self.context.auth_handler:
                     from starlette.routing import Route
 
                     # Create the HTTP app
                     http_app = self.mcp_server.http_app(transport="http")
 
                     # Add OAuth routes to the Starlette app
+                    # These routes delegate to the enterprise auth handler (SAMOAuth2Handler)
                     oauth_routes = [
                         Route(
                             "/oauth/authorize",
@@ -744,11 +795,6 @@ class McpAdapter(GatewayAdapter):
                             "/oauth/callback",
                             self._handle_oauth_callback,
                             methods=["GET"],
-                        ),
-                        Route(
-                            "/oauth/token",
-                            self._handle_oauth_token_refresh,
-                            methods=["POST"],
                         ),
                         Route(
                             "/oauth/register",
@@ -764,7 +810,13 @@ class McpAdapter(GatewayAdapter):
 
                     # Add routes to the app
                     http_app.router.routes.extend(oauth_routes)
-                    log.info("Added OAuth endpoints to HTTP server")
+                    log.info("Added OAuth endpoints to HTTP server (delegating to enterprise auth handler)")
+
+                    # Debug: Log all registered routes
+                    log.info("All registered routes:")
+                    for route in http_app.router.routes:
+                        if hasattr(route, 'path'):
+                            log.info("  - %s %s", getattr(route, 'methods', ['GET']), route.path)
 
                     # Run with uvicorn directly since we customized the app
                     import uvicorn

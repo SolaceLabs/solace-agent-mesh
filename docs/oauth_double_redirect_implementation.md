@@ -1,5 +1,36 @@
 # OAuth Double-Redirect Implementation for SAM OAuth2 Service
 
+> **NOTE:** This document describes changes needed in the `solace-agent-mesh-enterprise` repository only.
+> The MCP gateway adapter changes (in `solace-agent-mesh` community repo) have already been implemented.
+
+## Implementation Status
+
+### ✅ Already Completed (Community Repo)
+
+The following changes have been implemented in `solace-agent-mesh`:
+
+- **`src/solace_agent_mesh/gateway/mcp/oauth_handler.py`**
+  - ✅ Updated `handle_authorize()` to use `gateway_redirect_uri` parameter
+  - ✅ Updated `handle_callback()` to handle tokens from URL fragments
+  - ✅ Added HTML/JavaScript for browser-based token extraction
+
+### 📋 Required Changes (Enterprise Repo)
+
+You need to make the following changes in `solace-agent-mesh-enterprise`:
+
+1. **`configs/auth/oauth2_config.yaml`** (see section 1)
+   - Add `gateway_redirect_whitelist` security configuration
+   - Add `strict_redirect_validation` option
+
+2. **`src/services/oauth2_service.py`** (see section 2)
+   - Add `_validate_gateway_redirect_uri()` method (~60 lines)
+   - Modify `/login` endpoint to support `gateway_redirect_uri` parameter (~100 lines)
+   - Modify `/callback` endpoint to redirect with tokens in fragment (~90 lines)
+
+**Total effort:** ~250 lines of code changes in enterprise repo
+
+---
+
 ## Problem Statement
 
 Currently, SAM's OAuth2 service requires every gateway's callback URI to be registered in the OAuth provider (e.g., Azure AD). This creates operational overhead when:
@@ -389,15 +420,17 @@ async def callback(
         )
 ```
 
-### 3. Update MCP Gateway OAuth Handler
+### 3. MCP Gateway OAuth Handler Changes
 
-**File: `/Users/edfunnekotter/github/solace-agent-mesh/src/solace_agent_mesh/gateway/mcp/oauth_handler.py`**
+> **✅ ALREADY IMPLEMENTED** - This section is for reference only.
+> The MCP gateway changes have already been applied to the community repo.
+> The code shown below is what has been implemented - no action needed.
 
-#### 3.1. Modify `handle_authorize` Method
+**File: `src/solace_agent_mesh/gateway/mcp/oauth_handler.py`**
 
-**Current code (lines 162-196):**
+#### 3.1. Modified `handle_authorize` Method
 
-Replace with this updated version:
+The `handle_authorize` method has been updated to use `gateway_redirect_uri` parameter for double-redirect mode:
 
 ```python
 async def handle_authorize(
@@ -437,11 +470,9 @@ async def handle_authorize(
     return RedirectResponse(url=auth_url, status_code=302)
 ```
 
-#### 3.2. Modify `handle_callback` Method
+#### 3.2. Modified `handle_callback` Method
 
-**Current code (lines 198-273):**
-
-Replace with this updated version:
+The `handle_callback` method has been updated to handle tokens from URL fragments in double-redirect mode:
 
 ```python
 async def handle_callback(
@@ -757,20 +788,22 @@ log.info(f"Double-redirect mode: {session.get('double_redirect_mode')}")
 
 ## Summary of Changes
 
-### Files Modified
+### Files to Modify (Enterprise Repo Only)
 
 1. **`configs/auth/oauth2_config.yaml`**
    - Add `gateway_redirect_whitelist` configuration
    - Add `strict_redirect_validation` option
 
-2. **`oauth2_service.py`** (enterprise repo)
+2. **`src/services/oauth2_service.py`**
    - Add `_validate_gateway_redirect_uri()` method
    - Modify `/login` endpoint to support `gateway_redirect_uri` parameter
    - Modify `/callback` endpoint to redirect with tokens in fragment
 
-3. **`gateway/mcp/oauth_handler.py`** (community repo)
-   - Update `handle_authorize()` to pass `gateway_redirect_uri`
-   - Update `handle_callback()` to handle token extraction from fragment
+### Files Already Modified (Community Repo)
+
+3. **`src/solace_agent_mesh/gateway/mcp/oauth_handler.py`** ✅
+   - Updated `handle_authorize()` to pass `gateway_redirect_uri`
+   - Updated `handle_callback()` to handle token extraction from fragment
 
 ### Total Lines of Code
 

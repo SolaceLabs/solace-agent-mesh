@@ -21,6 +21,7 @@ from ...common.services.identity_service import (
     create_identity_service,
 )
 from .task_context import TaskContextManager
+from .auth_interface import AuthHandler
 from ...common.a2a.types import ContentPart
 from a2a.types import (
     Message as A2AMessage,
@@ -184,9 +185,64 @@ class BaseGatewayComponent(SamComponentBase):
             self.log_identifier,
         )
 
+        # Authentication handler (optional, enterprise feature)
+        self.auth_handler: Optional[AuthHandler] = None
+
+        # Setup authentication if enabled (subclasses override _setup_auth)
+        self._setup_auth()
+
         log.info(
             "%s Initialized Base Gateway Component.", self.log_identifier
         )
+
+    def _setup_auth(self) -> None:
+        """
+        Setup authentication handler if enabled.
+
+        This method is called during initialization and can be overridden
+        by subclasses to customize auth setup. The default implementation
+        does nothing - subclasses should override to enable auth.
+
+        Example override in subclass:
+            def _setup_auth(self):
+                if self.get_config('enable_auth', False):
+                    from enterprise.auth import SAMOAuth2Handler
+                    self.auth_handler = SAMOAuth2Handler(self.config)
+        """
+        # Base implementation: no auth
+        # Subclasses (like GenericGateway) override to enable auth
+        pass
+
+    async def _inject_auth_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
+        """
+        Inject authentication headers if authenticated.
+
+        This helper method should be called before making outgoing HTTP requests
+        to add authentication headers (e.g., Bearer tokens) to the request.
+
+        Args:
+            headers: Existing headers dictionary
+
+        Returns:
+            Headers dictionary with auth headers added (if authenticated)
+
+        Example:
+            headers = {"Content-Type": "application/json"}
+            headers = await self._inject_auth_headers(headers)
+            # headers now includes Authorization if authenticated
+        """
+        if self.auth_handler:
+            try:
+                auth_headers = await self.auth_handler.get_auth_headers()
+                headers.update(auth_headers)
+            except Exception as e:
+                log.warning(
+                    "%s Failed to get auth headers: %s",
+                    self.log_identifier,
+                    e
+                )
+
+        return headers
 
     async def authenticate_and_enrich_user(
         self, external_event_data: Any
