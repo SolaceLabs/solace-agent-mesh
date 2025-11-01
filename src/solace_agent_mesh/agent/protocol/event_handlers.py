@@ -27,7 +27,7 @@ from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.common.message import Message as SolaceMessage
 
 from ...agent.adk.callbacks import _publish_data_part_status_update
-from ...agent.adk.runner import run_adk_async_task_thread_wrapper
+from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wrapper
 from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
 from ...common.a2a import (
@@ -488,6 +488,34 @@ async def handle_a2a_request(component, message: SolaceMessage):
                                 component.log_identifier,
                                 logical_task_id,
                                 sub_task_info,
+                            )
+                else:
+                    # No peer sub-tasks - check if task is paused and needs immediate finalization
+                    if task_context.get_is_paused():
+                        log.info(
+                            "%s Task %s is paused with no peer sub-tasks. Scheduling immediate finalization.",
+                            component.log_identifier,
+                            logical_task_id,
+                        )
+                        loop = component.get_async_loop()
+                        if loop and loop.is_running():
+                            task_context.set_paused(False)
+
+                            asyncio.run_coroutine_threadsafe(
+                                component.finalize_task_with_cleanup(
+                                    task_context.a2a_context,
+                                    is_paused=False,
+                                    exception=TaskCancelledError(
+                                        f"Task {logical_task_id} cancelled while paused."
+                                    )
+                                ),
+                                loop,
+                            )
+                        else:
+                            log.error(
+                                "%s Cannot finalize cancelled paused task %s - event loop not available.",
+                                component.log_identifier,
+                                logical_task_id,
                             )
             else:
                 log.info(

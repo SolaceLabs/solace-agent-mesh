@@ -755,6 +755,14 @@ class SamAgentComponent(SamComponentBase):
         paused_invocation_id = correlation_data.get("invocation_id")
         log_retrigger = f"{self.log_identifier}[RetriggerManager:{logical_task_id}]"
 
+        # Clear paused state - task is resuming now
+        task_context.set_paused(False)
+        log.debug(
+            "%s Task %s resuming from paused state with peer responses.",
+            log_retrigger,
+            logical_task_id,
+        )
+
         try:
             effective_session_id = original_task_context.get("effective_session_id")
             user_id = original_task_context.get("user_id")

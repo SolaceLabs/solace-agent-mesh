@@ -124,6 +124,15 @@ async def run_adk_async_task_thread_wrapper(
             a2a_context,
         )
 
+        # Mark task as paused if it's waiting for peer response or user input
+        if task_context and is_paused:
+            task_context.set_paused(True)
+            log.debug(
+                "%s Task %s marked as paused, waiting for peer response or user input.",
+                component.log_identifier,
+                logical_task_id,
+            )
+
         log.debug(
             "%s ADK task %s awaited and completed (Paused: %s).",
             component.log_identifier,
