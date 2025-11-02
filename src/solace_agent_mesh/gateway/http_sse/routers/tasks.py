@@ -279,33 +279,6 @@ async def _submit_task(
         )
 
     log.info("%sReceived request for agent: %s", log_prefix, agent_name)
-    
-    # If project_id not in metadata, check if session has a project_id in database
-    # This handles cases where sessions are moved to projects after creation
-    if not project_id and session_service:
-        from ....gateway.http_sse.dependencies import SessionLocal
-        if SessionLocal is not None:
-            # Get the session ID from the request first
-            temp_frontend_session_id = None
-            if (
-                hasattr(payload.params.message, "context_id")
-                and payload.params.message.context_id
-            ):
-                context_id = payload.params.message.context_id
-                if isinstance(context_id, str) and context_id.strip():
-                    temp_frontend_session_id = context_id.strip()
-            
-            if temp_frontend_session_id:
-                db = SessionLocal()
-                try:
-                    session_details = session_service.get_session_details(db, temp_frontend_session_id, None)
-                    if session_details and session_details.project_id:
-                        project_id = session_details.project_id
-                        log.info("%sFound project_id %s from session database for session %s", log_prefix, project_id, temp_frontend_session_id)
-                except Exception as e:
-                    log.warning("%sFailed to lookup session project_id: %s", log_prefix, e)
-                finally:
-                    db.close()
 
     try:
         user_identity = await component.authenticate_and_enrich_user(request)
@@ -336,6 +309,21 @@ async def _submit_task(
 
         user_id = user_identity.get("id")
         from ....gateway.http_sse.dependencies import SessionLocal
+
+        # If project_id not in metadata, check if session has a project_id in database
+        # This handles cases where sessions are moved to projects after creation
+        if not project_id and session_service and frontend_session_id:
+            if SessionLocal is not None:
+                db = SessionLocal()
+                try:
+                    session_details = session_service.get_session_details(db, frontend_session_id, user_id)
+                    if session_details and session_details.project_id:
+                        project_id = session_details.project_id
+                        log.info("%sFound project_id %s from session database for session %s", log_prefix, project_id, frontend_session_id)
+                except Exception as e:
+                    log.warning("%sFailed to lookup session project_id: %s", log_prefix, e)
+                finally:
+                    db.close()
 
         if frontend_session_id:
             session_id = frontend_session_id
