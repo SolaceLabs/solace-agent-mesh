@@ -1,0 +1,78 @@
+test_case_id: "builtin_signal_artifact_version_not_found_error_001"
+description: |
+  Tests the 'signal_artifact_for_return' tool's error handling when the
+  specified artifact version does not exist for a known filename.
+tags: ["all","agent","tools","builtin_artifact_tools"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "existing_doc_for_signal_version_test.txt"
+    content: "This is version 0 of the document."
+    mime_type: "text/plain"
+    metadata:
+      description: "Base document for signal version not found test"
+      mime_type: "text/plain"
+      size_bytes: 33
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_signal_version_error_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please try to signal version 99 of 'existing_doc_for_signal_version_test.txt'."
+  external_context:
+    a2a_session_id: "session_signal_version_error_artifact_001"
+
+llm_interactions:
+  # Step 1: LLM calls signal_artifact_for_return for a non-existent version
+  - step_id: "llm_calls_signal_non_existent_version"
+    static_response:
+      id: "chatcmpl-signal-nonexistent-version-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_signal_nonexistent_version"
+                type: "function"
+                function:
+                  name: "signal_artifact_for_return"
+                  arguments: '{"filename": "existing_doc_for_signal_version_test.txt", "version": 99}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool error result and formulates final response
+  - step_id: "llm_final_response_after_signal_version_error"
+    expected_request: # After signal_artifact_for_return tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: "error"
+            filename: "existing_doc_for_signal_version_test.txt"
+            version: 99
+          response_contains: "Artifact 'existing_doc_for_signal_version_test.txt' version 99 not found"
+    static_response:
+      id: "chatcmpl-signal-nonexistent-version-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "I couldn't signal version 99 of 'existing_doc_for_signal_version_test.txt' as that version was not found."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_signal_version_error_artifact_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "I couldn't signal version 99 of 'existing_doc_for_signal_version_test.txt' as that version was not found."
+    # No assert_artifact_state as no artifact should be involved or changed.

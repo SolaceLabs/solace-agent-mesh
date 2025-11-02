@@ -1,7 +1,7 @@
 """Unit tests for LiteLlm prompt caching functionality."""
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, MagicMock, patch
 from google.genai.types import Content, Part, GenerateContentConfig
 from google.adk.models.llm_request import LlmRequest
 

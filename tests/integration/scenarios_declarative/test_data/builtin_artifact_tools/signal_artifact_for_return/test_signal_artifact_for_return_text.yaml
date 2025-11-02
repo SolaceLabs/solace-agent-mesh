@@ -1,0 +1,138 @@
+test_case_id: "builtin_signal_artifact_for_return_text_001"
+description: |
+  Tests the 'signal_artifact_for_return' tool for a text artifact.
+  Verifies the tool's success response and that a TaskArtifactUpdateEvent
+  is subsequently published by the host component with the artifact's content.
+# We need to see intermediate events to catch TaskArtifactUpdateEvent
+tags: ["all","agent","tools","builtin_artifact_tools"]
+skip_intermediate_events: true
+
+setup_artifacts:
+  - filename: "signal_text_doc.txt"
+    content: "This is the text to be returned." # Length 32
+    mime_type: "text/plain"
+    metadata:
+      description: "A sample text document for signal_artifact_for_return."
+      mime_type: "text/plain" # For .metadata.json
+      size_bytes: 32
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "declarative_signal_text_tester@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Please signal 'signal_text_doc.txt', version 0, for return."
+  external_context:
+    a2a_session_id: "session_signal_text_artifact_001"
+
+llm_interactions:
+  # Step 1: LLM decides to call signal_artifact_for_return
+  - step_id: "llm_calls_signal_artifact"
+    static_response:
+      id: "chatcmpl-signal-text-artifact-1"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            tool_calls:
+              - id: "tool_call_signal_text_doc"
+                type: "function"
+                function:
+                  name: "signal_artifact_for_return"
+                  arguments: '{"filename": "signal_text_doc.txt", "version": 0}'
+          finish_reason: "tool_calls"
+
+  # Step 2: LLM receives tool result and formulates final response
+  # The actual artifact data is sent via TaskArtifactUpdateEvent, not in the tool response to LLM.
+  - step_id: "llm_final_response_after_signal"
+    expected_request: # After signal_artifact_for_return tool call
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_json_matches:
+            status: success
+    static_response:
+      id: "chatcmpl-signal-text-artifact-2"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - message:
+            role: "assistant"
+            content: "Okay, I've signaled 'signal_text_doc.txt' (v0) to be returned to you."
+          finish_reason: "stop"
+
+expected_gateway_output:
+  # Since skip_intermediate_events is false, we must list events in the order they appear.
+  # The key events are the TaskArtifactUpdateEvent and the final response.
+  # Other events like LLM invocation/response and tool invocation also occur.
+
+  # LLM Call 1 (that decides to call the tool)
+  - type: "status_update"
+    event_purpose: "llm_invocation"
+    # Not asserting specific data for brevity, but could be added:
+    # expected_llm_data_contains:
+    #   model: "test-llm-model" # Or whatever is configured
+
+  - type: "status_update"
+    event_purpose: "llm_response" # LLM response containing the tool_calls
+    # Assert that the LLM indeed decided to call the tool
+    expected_llm_data_contains:
+      content: # Actual structure is nested under 'content.parts[0].function_call'
+        parts:
+          - function_call:
+              name: "signal_artifact_for_return"
+              # Optionally, assert arguments if they are stable and important here:
+              # args:
+              #   filename: "signal_text_doc.txt"
+              #   version: 0
+
+  # Tool execution phase
+  - type: "status_update"
+    event_purpose: "tool_invocation_start"
+    expected_tool_name: "signal_artifact_for_return"
+    # Can add expected_tool_args_contain if needed
+
+  - type: "status_update" # Event carrying the direct JSON output from the tool
+    event_purpose: "generic_text_update" # ADK function_response is often wrapped as this
+
+  # LLM Call 2 (that formulates the final text reply)
+  - type: "status_update"
+    event_purpose: "llm_invocation" # This is the 5th event
+
+  - type: "status_update" # This is the 7th event: llm_response event that finalizes the text stream
+    event_purpose: "llm_response"
+    final_flag: false
+    expected_llm_data_contains: # The content of an llm_response event is in its metadata
+      content:
+        parts:
+          - text: "Okay, I've signaled 'signal_text_doc.txt' (v0) to be returned to you."
+        # role: "model" # Optionally assert role
+
+  - type: "status_update"
+    event_purpose: "generic_text_update"
+
+  # Final Task object
+  - type: "final_response"
+    kind: "task"
+    id: "*"
+    contextId: "session_signal_text_artifact_001"
+    status:
+      state: "completed"
+      message:
+        kind: "message"
+        messageId: "*"
+        role: "agent"
+        parts:
+          - kind: "text"
+            text_exact: "Okay, I've signaled 'signal_text_doc.txt' (v0) to be returned to you."
+    # We can also assert the original artifact was not changed.
+    assert_artifact_state:
+      - filename: "signal_text_doc.txt"
+        user_id: "declarative_signal_text_tester@example.com"
+        session_id: "session_signal_text_artifact_001"
+        version: 0
+        expected_content_text: "This is the text to be returned."
+        expected_metadata_contains:
+          description: "A sample text document for signal_artifact_for_return."
+          mime_type: "text/plain"
+          size_bytes: 32
