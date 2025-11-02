@@ -25,6 +25,9 @@ apps:
         database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui-gateway.db}"
         default_behavior: "PERSISTENT"
 
+      platform_service:
+        database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform.db}"
+
       artifact_service: *default_artifact_service
 
       model: *general_model
