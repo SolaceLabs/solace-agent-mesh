@@ -235,11 +235,11 @@ async def _inject_project_context(
         # Inject all gathered context into the message, ending with user query
         # Only modify message text if we're injecting full context (new sessions)
         modified_message_text = message_text
-        if inject_full_context and context_parts:
+        if context_parts:
             project_context = "\n".join(context_parts)
             modified_message_text = f"{project_context}\n\nUSER QUERY:\n{message_text}"
             log.info("%sInjected full project context for project: %s", log_prefix, project_id)
-        elif not inject_full_context:
+        else:
             log.debug("%sSkipped full context injection for existing session, but ensured new artifacts are copied", log_prefix)
                 
         return modified_message_text
