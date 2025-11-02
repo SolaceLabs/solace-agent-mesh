@@ -44,6 +44,17 @@ class WebUIBackendFactory:
                 Path(self._temp_dir.name) / f"test_webui_gateway_{uuid.uuid4().hex}.db"
             )
             db_url = f"sqlite:///{db_path}"
+        
+        # Ensure parent directory exists for SQLite databases
+        if db_url.startswith("sqlite"):
+            # Extract file path from SQLite URL
+            db_file_path = db_url.replace("sqlite:///", "").replace("sqlite://", "")
+            if db_file_path:  # Only process non-empty paths
+                db_path_obj = Path(db_file_path)
+                parent_dir = db_path_obj.parent
+                if parent_dir and str(parent_dir) != ".":
+                    parent_dir.mkdir(parents=True, exist_ok=True)
+                    log.info(f"[WebUIBackendFactory] Ensured parent directory exists: {parent_dir}")
 
         # Create a mock WebUIBackendComponent
         mock_component = Mock(spec=WebUIBackendComponent)
