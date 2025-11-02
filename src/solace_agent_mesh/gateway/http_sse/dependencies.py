@@ -65,6 +65,7 @@ def init_database(database_url: str):
     """Initialize database with appropriate configuration based on database dialect."""
     global SessionLocal
     if SessionLocal is None:
+        from pathlib import Path
         from sqlalchemy import event, pool
         from sqlalchemy.engine.url import make_url
 
@@ -74,6 +75,17 @@ def init_database(database_url: str):
         engine_kwargs = {}
 
         if dialect_name == "sqlite":
+            # Ensure parent directory exists for SQLite databases
+            if database_url.startswith("sqlite"):
+                # Extract file path from SQLite URL
+                db_file_path = database_url.replace("sqlite:///", "").replace("sqlite://", "")
+                if db_file_path:  # Only process non-empty paths (not in-memory databases)
+                    db_path_obj = Path(db_file_path)
+                    parent_dir = db_path_obj.parent
+                    if parent_dir and str(parent_dir) != ".":
+                        parent_dir.mkdir(parents=True, exist_ok=True)
+                        log.info(f"Ensured parent directory exists for SQLite database: {parent_dir}")
+
             engine_kwargs = {
                 "poolclass": pool.StaticPool,
                 "connect_args": {"check_same_thread": False}
