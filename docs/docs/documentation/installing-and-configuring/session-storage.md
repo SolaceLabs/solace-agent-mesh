@@ -177,6 +177,20 @@ The database connection string specifying where to store session data.
 export WEB_UI_GATEWAY_DATABASE_URL="postgresql://user:pass@host:5432/webui_db"
 ```
 
+`PLATFORM_DATABASE_URL` (Optional, required for enterprise features)
+
+The database connection string for platform features such as agents, connectors, and deployments. If not configured, platform endpoints return 501 (Not Implemented).
+
+```bash
+export PLATFORM_DATABASE_URL="postgresql://user:pass@host:5432/platform_db"
+```
+
+For development, you can use SQLite:
+
+```bash
+export PLATFORM_DATABASE_URL="sqlite:///platform.db"
+```
+
 ### Gateway Configuration File
 
 Update your WebUI Gateway configuration to use the database:
@@ -185,6 +199,9 @@ Update your WebUI Gateway configuration to use the database:
 session_service:
   type: "sql"
   database_url: "${WEB_UI_GATEWAY_DATABASE_URL}"
+
+platform_service:
+  database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform.db}"
 ```
 
 ### Database Backend Options
