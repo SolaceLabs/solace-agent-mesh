@@ -1,7 +1,7 @@
 import React from "react";
 import { Download, Trash } from "lucide-react";
 
-import { Button } from "@/lib/components/ui";
+import { Button, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/lib/components/ui";
 import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
 import type { ArtifactInfo } from "@/lib/types";
 import { getFileIcon } from "../chat/file/fileUtils";
@@ -12,20 +12,16 @@ interface DocumentListItemProps {
     onDelete?: () => void;
 }
 
-export const DocumentListItem: React.FC<DocumentListItemProps> = ({
-    artifact,
-    onDownload,
-    onDelete,
-}) => {
+export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, onDownload, onDelete }) => {
     return (
-        <div className="flex items-center justify-between p-2 hover:bg-accent/50 rounded-md group">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="hover:bg-accent/50 group flex items-center justify-between rounded-md p-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
                 {getFileIcon(artifact, "h-4 w-4 flex-shrink-0 text-muted-foreground")}
                 <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate" title={artifact.filename}>
+                    <p className="text-foreground truncate text-sm font-medium" title={artifact.filename}>
                         {artifact.filename}
                     </p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="text-muted-foreground flex items-center gap-2 text-xs">
                         {artifact.last_modified && (
                             <span className="truncate" title={formatRelativeTime(artifact.last_modified)}>
                                 {formatRelativeTime(artifact.last_modified)}
@@ -40,26 +36,30 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({
                     </div>
                 </div>
             </div>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onDownload}
-                    className="h-8 w-8 p-0"
-                    tooltip="Download"
-                >
+            <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <Button variant="ghost" size="sm" onClick={onDownload} className="h-8 w-8 p-0" tooltip="Download">
                     <Download className="h-4 w-4" />
                 </Button>
                 {onDelete && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={onDelete}
-                        className="h-8 w-8 p-0"
-                        tooltip="Delete"
-                    >
-                        <Trash className="h-4 w-4" />
-                    </Button>
+                    <Dialog>
+                        <DialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" tooltip="Delete">
+                                <Trash className="h-4 w-4" />
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Delete {artifact.filename}?</DialogTitle>
+                                <DialogDescription>This action cannot be undone. This file will be permanently removed from the project.</DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter>
+                                <DialogClose asChild>
+                                    <Button variant="ghost">Cancel</Button>
+                                </DialogClose>
+                                <Button onClick={onDelete}>Delete</Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 )}
             </div>
         </div>
