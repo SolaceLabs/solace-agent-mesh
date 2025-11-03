@@ -21,10 +21,11 @@ export const ProjectDetailPanel: React.FC<ProjectDetailPanelProps> = ({
     onChatClick,
     onStartNewChat,
 }) => {
-    const { updateProject } = useProjectContext();
+    const { updateProject, projects } = useProjectContext();
     const [isEditingName, setIsEditingName] = useState(false);
     const [isEditingDescription, setIsEditingDescription] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [nameError, setNameError] = useState<string | null>(null);
 
     // Placeholder state
     if (!selectedProject) {
@@ -52,13 +53,26 @@ export const ProjectDetailPanel: React.FC<ProjectDetailPanelProps> = ({
     }
 
     const handleSaveName = async (name: string) => {
+        // Check for duplicate project names (case-insensitive)
+        const trimmedName = name.trim();
+        const isDuplicate = projects.some(
+            p => p.id !== selectedProject.id && p.name.toLowerCase() === trimmedName.toLowerCase()
+        );
+        
+        if (isDuplicate) {
+            setNameError("A project with this name already exists");
+            return;
+        }
+        
+        setNameError(null);
         setIsSaving(true);
         try {
-            const updateData: UpdateProjectData = { name };
+            const updateData: UpdateProjectData = { name: trimmedName };
             await updateProject(selectedProject.id, updateData);
             setIsEditingName(false);
         } catch (error) {
             console.error("Failed to update project name:", error);
+            setNameError(error instanceof Error ? error.message : "Failed to update project name");
         } finally {
             setIsSaving(false);
         }
@@ -88,9 +102,13 @@ export const ProjectDetailPanel: React.FC<ProjectDetailPanelProps> = ({
             <ProjectHeader
                 project={selectedProject}
                 isEditing={isEditingName}
-                onToggleEdit={() => setIsEditingName(!isEditingName)}
+                onToggleEdit={() => {
+                    setIsEditingName(!isEditingName);
+                    setNameError(null);
+                }}
                 onSave={handleSaveName}
                 isSaving={isSaving}
+                error={nameError}
             />
 
             <ProjectDescription
