@@ -9,7 +9,12 @@ import type { AgentCardInfo } from "@/lib/types";
 
 import { FileBadge } from "./file/FileBadge";
 import { PromptsCommand } from "./PromptsCommand";
-import { PastedTextBadge, PastedTextDialog, PasteActionDialog, isLargeText, createPastedTextItem, getTextPreview, type PastedTextItem } from "./paste";
+import {
+    PastedTextBadge,
+    PasteActionDialog,
+    isLargeText,
+    type PastedArtifactItem
+} from "./paste";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts } = useChatContext();
@@ -19,11 +24,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-    // Pasted text support
-    const [pastedTextItems, setPastedTextItems] = useState<PastedTextItem[]>([]);
-    const [selectedPasteId, setSelectedPasteId] = useState<string | null>(null);
+    // Pasted artifact support
+    const [pastedArtifactItems, setPastedArtifactItems] = useState<PastedArtifactItem[]>([]);
     const [pendingPasteContent, setPendingPasteContent] = useState<string | null>(null);
-    const [showPasteActionDialog, setShowPasteActionDialog] = useState(false);
+    const [showArtifactForm, setShowArtifactForm] = useState(false);
 
     // Context text from selection
     const [contextText, setContextText] = useState<string | null>(null);
@@ -38,12 +42,17 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     // Prompts command state
     const [showPromptsCommand, setShowPromptsCommand] = useState(false);
 
-    // Clear input when session changes
+    // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
+    const prevSessionIdRef = useRef<string | null>(sessionId);
+    
     useEffect(() => {
-        setInputValue("");
-        setShowPromptsCommand(false);
-        setPastedTextItems([]);
-        setSelectedPasteId(null);
+        // Only clear if session actually changed (not just initialized)
+        if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId) {
+            setInputValue("");
+            setShowPromptsCommand(false);
+            setPastedArtifactItems([]);
+        }
+        prevSessionIdRef.current = sessionId;
         setContextText(null);
     }, [sessionId]);
 
@@ -134,7 +143,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }, 100);
     };
 
-    const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const handlePaste = async (event: ClipboardEvent<HTMLTextAreaElement>) => {
         if (isResponding) return;
 
         const clipboardData = event.clipboardData;
@@ -158,14 +167,69 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             return;
         }
 
-        // Handle text pastes - show action dialog for large text
+        // Handle text pastes - show artifact form for large text
         const pastedText = clipboardData.getData('text');
         if (pastedText && isLargeText(pastedText)) {
-            event.preventDefault(); // Prevent default paste for large text
+            // Large text - show artifact creation form
+            event.preventDefault();
             setPendingPasteContent(pastedText);
-            setShowPasteActionDialog(true);
+            setShowArtifactForm(true);
         }
         // Small text pastes go through normally (no preventDefault)
+    };
+
+    const handleSaveAsArtifact = async (title: string, fileType: string, description?: string) => {
+        if (!pendingPasteContent) return;
+
+        try {
+            // Determine MIME type
+            let mimeType = 'text/plain';
+            if (fileType !== 'auto') {
+                mimeType = fileType;
+            }
+
+            // Create a File object from the text content
+            const blob = new Blob([pendingPasteContent], { type: mimeType });
+            const file = new File([blob], title, { type: mimeType });
+
+            // Upload the artifact
+            const result = await uploadArtifactFile(file, sessionId, description);
+
+            if (result) {
+                // If a new session was created, update our sessionId
+                if (result.sessionId && result.sessionId !== sessionId) {
+                    setSessionId(result.sessionId);
+                }
+                
+                // Create a badge item for this pasted artifact
+                const artifactItem: PastedArtifactItem = {
+                    id: `paste-artifact-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                    artifactId: result.uri,
+                    filename: title,
+                    timestamp: Date.now(),
+                };
+                setPastedArtifactItems(prev => {
+                    return [...prev, artifactItem];
+                });
+                
+                addNotification(`Artifact "${title}" created from pasted content.`);
+                // Refresh artifacts panel
+                await artifactsRefetch();
+            } else {
+                addNotification(`Failed to create artifact from pasted content.`, 'error');
+            }
+        } catch (error) {
+            console.error('Error saving artifact:', error);
+            addNotification(`Error creating artifact: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+        } finally {
+            setPendingPasteContent(null);
+            setShowArtifactForm(false);
+        }
+    };
+
+    const handleCancelArtifactForm = () => {
+        setPendingPasteContent(null);
+        setShowArtifactForm(false);
     };
 
     const handleRemoveFile = (index: number) => {
@@ -173,27 +237,21 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     };
 
     const isSubmittingEnabled = useMemo(
-        () => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pastedTextItems.length !== 0),
-        [isResponding, inputValue, selectedFiles, pastedTextItems]
+        () => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0),
+        [isResponding, inputValue, selectedFiles]
     );
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
         if (isSubmittingEnabled) {
-            // Combine input value with pasted text items
-            const pastedTexts = pastedTextItems.map(item => item.content).join('\n\n');
-            let fullMessage = [inputValue.trim(), pastedTexts]
-                .filter(Boolean)
-                .join('\n\n');
-            
-            // Include context if present - put it AFTER the user's message
+            let fullMessage = inputValue.trim()
             if (contextText) {
                 fullMessage = `${fullMessage}\n\nContext: "${contextText}"`;
             }
             
             await handleSubmit(event, selectedFiles, fullMessage);
             setSelectedFiles([]);
-            setPastedTextItems([]);
+            setPastedArtifactItems([]);
             setInputValue("");
             setContextText(null);
             scrollToBottom?.();
@@ -254,79 +312,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }, 100);
     };
 
-    // Handle pasted text management
-    const handleRemovePastedText = (id: string) => {
-        setPastedTextItems(prev => prev.filter(item => item.id !== id));
-    };
-
-    const handleViewPastedText = (id: string) => {
-        setSelectedPasteId(id);
-    };
-
-    const handleClosePastedTextDialog = () => {
-        setSelectedPasteId(null);
-    };
-
-    // Handle paste action dialog
-    const handlePasteAsText = () => {
-        if (pendingPasteContent) {
-            const newItem = createPastedTextItem(pendingPasteContent);
-            setPastedTextItems(prev => [...prev, newItem]);
-        }
-        setPendingPasteContent(null);
-        setShowPasteActionDialog(false);
-    };
-
-    const handleSaveAsArtifact = async (title: string, fileType: string, description?: string) => {
-        if (!pendingPasteContent) return;
-
-        try {
-            // Determine MIME type
-            let mimeType = 'text/plain';
-            if (fileType !== 'auto') {
-                mimeType = fileType;
-            }
-
-            // Create a File object from the text content
-            const blob = new Blob([pendingPasteContent], { type: mimeType });
-            const file = new File([blob], title, { type: mimeType });
-
-            // Upload the artifact - uploadArtifactFile will create a session if needed
-            // and return the sessionId in the result
-            const result = await uploadArtifactFile(file, sessionId, description);
-
-            if (result) {
-                // If a new session was created, update our sessionId
-                if (result.sessionId && result.sessionId !== sessionId) {
-                    setSessionId(result.sessionId);
-                    console.log(`Session created via artifact upload: ${result.sessionId}`);
-                }
-                
-                addNotification(`Artifact "${title}" created successfully.`);
-                // Refresh artifacts panel
-                await artifactsRefetch();
-                
-                // Optionally open the files panel to show the new artifact
-                // openSidePanelTab('files');
-            } else {
-                addNotification(`Failed to create artifact "${title}".`, 'error');
-            }
-        } catch (error) {
-            console.error('Error saving artifact:', error);
-            addNotification(`Error creating artifact: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
-        } finally {
-            setPendingPasteContent(null);
-            setShowPasteActionDialog(false);
-        }
-    };
-
-    const handleCancelPasteAction = () => {
-        setPendingPasteContent(null);
-        setShowPasteActionDialog(false);
-    };
-
-    const handleRemoveContext = () => {
-        setContextText(null);
+    // Handle pasted artifact management
+    const handleRemovePastedArtifact = (id: string) => {
+        setPastedArtifactItems(prev => prev.filter(item => item.id !== id));
     };
 
     return (
@@ -349,54 +337,30 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 </div>
             )}
 
-            {/* Pasted Text Items */}
-            {pastedTextItems.length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                    {pastedTextItems.map((item, index) => (
-                        <PastedTextBadge
-                            key={item.id}
-                            id={item.id}
-                            index={index + 1}
-                            textPreview={getTextPreview(item.content)}
-                            onClick={() => handleViewPastedText(item.id)}
-                            onRemove={() => handleRemovePastedText(item.id)}
-                        />
-                    ))}
-                </div>
-            )}
+            {/* Pasted Artifact Items */}
+            {(() => {
+                return pastedArtifactItems.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-2">
+                        {pastedArtifactItems.map((item, index) => (
+                            <PastedTextBadge
+                                key={item.id}
+                                id={item.id}
+                                index={index + 1}
+                                textPreview={item.filename}
+                                onClick={() => {}} // No action needed - artifact is already created
+                                onRemove={() => handleRemovePastedArtifact(item.id)}
+                            />
+                        ))}
+                    </div>
+                );
+            })()}
 
-            {/* Context Text Badge */}
-            {contextText && (
-                <div className="mb-2 flex items-center gap-2">
-                    <Badge variant="secondary" className="flex items-center gap-2 px-3 py-1">
-                        <span className="text-xs font-medium">Context:</span>
-                        <span className="text-xs max-w-[200px] truncate">{contextText}</span>
-                        <button
-                            onClick={handleRemoveContext}
-                            className="ml-1 hover:bg-[var(--color-error-wMain)] hover:text-white rounded-full p-0.5 transition-colors"
-                            aria-label="Remove context"
-                        >
-                            <X className="h-3 w-3" />
-                        </button>
-                    </Badge>
-                </div>
-            )}
-
-            {/* Pasted Text Dialog */}
-            <PastedTextDialog
-                isOpen={selectedPasteId !== null}
-                onClose={handleClosePastedTextDialog}
-                content={pastedTextItems.find(item => item.id === selectedPasteId)?.content || ''}
-                title="Pasted Text Content"
-            />
-
-            {/* Paste Action Dialog */}
+            {/* Artifact Creation Dialog */}
             <PasteActionDialog
-                isOpen={showPasteActionDialog}
+                isOpen={showArtifactForm}
                 content={pendingPasteContent || ''}
-                onPasteAsText={handlePasteAsText}
                 onSaveAsArtifact={handleSaveAsArtifact}
-                onCancel={handleCancelPasteAction}
+                onCancel={handleCancelArtifactForm}
                 existingArtifacts={artifacts.map(a => a.filename)}
             />
 

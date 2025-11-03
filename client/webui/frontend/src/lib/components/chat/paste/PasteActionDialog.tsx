@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { FileText, Save } from "lucide-react";
 
 import {
     Dialog,
@@ -18,10 +17,11 @@ import {
     SelectValue,
 } from "@/lib/components/ui";
 
+import { generateArtifactDescription } from "./pasteUtils";
+
 interface PasteActionDialogProps {
     isOpen: boolean;
     content: string;
-    onPasteAsText: () => void;
     onSaveAsArtifact: (title: string, type: string, description?: string) => Promise<void>;
     onCancel: () => void;
     existingArtifacts?: string[]; // List of existing artifact filenames
@@ -96,12 +96,10 @@ const getExtensionFromMimeType = (mimeType: string): string => {
 export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
     isOpen,
     content,
-    onPasteAsText,
     onSaveAsArtifact,
     onCancel,
     existingArtifacts = [],
 }) => {
-    const [showArtifactForm, setShowArtifactForm] = useState(false);
     const [title, setTitle] = useState("snippet.txt");
     const [description, setDescription] = useState("");
     const [fileType, setFileType] = useState("auto");
@@ -113,16 +111,20 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
     // Show warning whenever title exists (even after confirmation)
     const showOverwriteWarning = titleExists;
 
-    // Auto-detect file type when form is shown
+    // Auto-detect file type and generate description when dialog opens
     useEffect(() => {
-        if (showArtifactForm && content) {
+        if (isOpen && content) {
             const detectedType = detectFileType(content);
             setFileType(detectedType);
             // Update title with appropriate extension
             const extension = getExtensionFromMimeType(detectedType);
             setTitle(`snippet.${extension}`);
+            // Generate and set description
+            const generatedDescription = generateArtifactDescription(content);
+            setDescription(generatedDescription);
         }
-    }, [showArtifactForm, content]);
+    }, [isOpen, content]);
+
 
     // Update title when file type changes
     useEffect(() => {
@@ -140,14 +142,6 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
         setUserConfirmedOverwrite(false);
     }, [title]);
 
-    const handlePasteAsText = () => {
-        onPasteAsText();
-        resetForm();
-    };
-
-    const handleShowArtifactForm = () => {
-        setShowArtifactForm(true);
-    };
 
     const handleSaveArtifact = async () => {
         // Check if artifact already exists and user hasn't confirmed
@@ -176,7 +170,6 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
     };
 
     const resetForm = () => {
-        setShowArtifactForm(false);
         setTitle("snippet.txt");
         setDescription("");
         setFileType("auto");
@@ -187,59 +180,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
     const charCount = content.length;
     const lineCount = content.split('\n').length;
 
-    if (!showArtifactForm) {
-        // Initial choice dialog
-        return (
-            <Dialog open={isOpen} onOpenChange={handleCancel}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>What would you like to do with this text?</DialogTitle>
-                        <DialogDescription>
-                            {charCount} characters, {lineCount} lines
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="flex flex-col gap-3 py-4">
-                        <Button
-                            variant="outline"
-                            className="h-auto flex-col items-start gap-2 p-4"
-                            onClick={handlePasteAsText}
-                        >
-                            <div className="flex items-center gap-2">
-                                <FileText className="size-5" />
-                                <span className="font-semibold">Paste as Text</span>
-                            </div>
-                            <span className="text-sm text-muted-foreground">
-                                Include in your next message
-                            </span>
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            className="h-auto flex-col items-start gap-2 p-4"
-                            onClick={handleShowArtifactForm}
-                        >
-                            <div className="flex items-center gap-2">
-                                <Save className="size-5" />
-                                <span className="font-semibold">Save as Artifact</span>
-                            </div>
-                            <span className="text-sm text-muted-foreground">
-                                Save for agent to access and reference
-                            </span>
-                        </Button>
-                    </div>
-
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={handleCancel}>
-                            Cancel
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        );
-    }
-
-    // Artifact form dialog
+    // Artifact form dialog - always shown now
     return (
         <Dialog open={isOpen} onOpenChange={handleCancel}>
             <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
@@ -258,6 +199,12 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="snippet.txt"
+                            autoFocus={false}
+                            onFocus={(e) => {
+                                setTimeout(() => {
+                                    e.target.setSelectionRange(e.target.value.length, e.target.value.length);
+                                }, 0);
+                            }}
                         />
                         {showOverwriteWarning && (
                             <p className="text-sm text-yellow-600 dark:text-yellow-500">
