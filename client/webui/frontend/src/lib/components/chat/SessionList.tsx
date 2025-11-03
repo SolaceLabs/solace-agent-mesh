@@ -10,6 +10,7 @@ import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { SessionSearch } from "@/lib/components/chat/SessionSearch";
 import {
@@ -373,12 +374,19 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     <span className="text-muted-foreground text-xs truncate">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
                                                 {session.projectName && (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="max-w-[120px] text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm justify-start flex-shrink-0"
-                                                    >
-                                                        <span className="truncate block">{session.projectName}</span>
-                                                    </Badge>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="max-w-[120px] text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm justify-start flex-shrink-0"
+                                                            >
+                                                                <span className="truncate block">{session.projectName}</span>
+                                                            </Badge>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            {session.projectName}
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                 )}
                                             </div>
                                         </button>
