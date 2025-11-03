@@ -188,6 +188,11 @@ def get_sam_events_topic(namespace: str, category: str, action: str) -> str:
     return f"{namespace.rstrip('/')}/sam/events/{category}/{action}"
 
 
+def get_feedback_topic(namespace: str) -> str:
+    """Returns the topic for publishing user feedback events."""
+    return f"{namespace.rstrip('/')}/sam/v1/feedback/submit"
+
+
 def get_sam_events_subscription_topic(namespace: str, category: str) -> str:
     """Returns SAM system events subscription topic."""
     if not namespace:
