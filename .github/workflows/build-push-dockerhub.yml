@@ -1,5 +1,8 @@
 name: Build and Push to DockerHub
 on:
+  push:
+    branches:
+      - push-docker
   workflow_call:
     inputs:
       version:
