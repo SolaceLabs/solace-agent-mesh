@@ -491,7 +491,7 @@ When using SSO, it’s important to understand how the authentication flow works
 ### How the OAuth2 Flow Works
 
 1. A user visits the `FRONTEND_AUTH_LOGIN_URL` (for example, `http://localhost:8000/api/v1/auth/login`).
-2. The WebUI Gateway calls the `EXTERNAL_AUTH_SERVICE_URL` (typically `http://localhost:9000`) and passes the `EXTERNAL_AUTH_PROVIDER` value (such as `azure` or `keycloak`).
+2. The WebUI Gateway calls the `EXTERNAL_AUTH_SERVICE_URL` (typically `http://localhost:9000`) and passes the `EXTERNAL_AUTH_PROVIDER` value (such as `azure` or `keycloak` or `auth0`, or `google`).
 3. The OAuth2 service looks up the provider in `oauth2_config.yaml` and automatically constructs the correct authorization request using the provider’s `issuer`, `client_id`, `redirect_uri`, and `scope`.
 4. The user is redirected to the IdP (e.g., Azure AD, Auth0, or Keycloak) for login.
 5. After successful login, the IdP redirects back to `EXTERNAL_AUTH_CALLBACK` (for example, `http://localhost:8000/api/v1/auth/callback`).
@@ -507,9 +507,9 @@ When using SSO, it’s important to understand how the authentication flow works
 |-----------|----------|----------|
 | `FRONTEND_AUTH_LOGIN_URL` | The frontend endpoint that triggers authentication. It should **not** include OAuth query parameters. | `http://localhost:8000/api/v1/auth/login` |
 | `EXTERNAL_AUTH_SERVICE_URL` | URL of the OAuth2 authentication service. | `http://localhost:9000` |
-| `EXTERNAL_AUTH_PROVIDER` | The IdP name as defined under `providers:` in `oauth2_config.yaml`. | `keycloak` |
+| `EXTERNAL_AUTH_PROVIDER` | The IdP name as defined under `providers:` in `oauth2_config.yaml`. | `azure` or `keycloak` |
 | `EXTERNAL_AUTH_CALLBACK` | Callback URI used after login. Must match the redirect URI registered with your IdP. | `http://localhost:8000/api/v1/auth/callback` |
-| `FRONTEND_REDIRECT_URL` | (Optional) Where users are redirected after login completes. | `http://localhost:8000/home` |
+| `FRONTEND_REDIRECT_URL` | Where users are redirected after login completes. | `http://localhost:8000` |
 
 ## Security Considerations for Production
 
