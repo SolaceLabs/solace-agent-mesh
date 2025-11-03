@@ -5,7 +5,7 @@ sidebar_position: 35
 
 # Logging
 
-This guide covers everything you need to effectively configure and manage logging in your Agent Mesh applications. Understanding logging configuration is essential for troubleshooting, monitoring system behavior, and maintaining production deployments. 
+This guide covers the essential information you need to effectively configure and manage logging in your Agent Mesh applications. Proper logging configuration is critical for troubleshooting issues, monitoring system behavior, and maintaining reliable production deployments.
 
 Agent Mesh uses [Python's built-in logging module](https://docs.python.org/3/library/logging.html) to provide flexible and powerful logging capabilities.
 
@@ -18,18 +18,12 @@ This approach provides several advantages:
 
 ## Configuration
 
-Agent Mesh supports three configuration formats: 
-
-1. **INI format** - Uses Python's [fileConfig](https://docs.python.org/3/library/logging.config.html#configuration-file-format)
-2. **JSON format** - Uses Python's [dictConfig](https://docs.python.org/3/library/logging.config.html#logging.config.dictConfig)
-3. **YAML format** - Uses Python's [dictConfig](https://docs.python.org/3/library/logging.config.html#logging.config.dictConfig)
+Agent Mesh supports logging configuration as either a YAML or JSON file. Both formats leverage Python's [dictConfig](https://docs.python.org/3/library/logging.config.html#logging.config.dictConfig) method for advanced logging features.
 
 To provide a logging configuration, set the `LOGGING_CONFIG_PATH=path/to/logging_config.yaml` environment variable in your `.env` file or with the `export` command.
 
 :::info
-YAML and JSON configurations are recommended because they support advanced features unavailable in the INI format.
-
-Refer to [Python’s official dictConfig documentation](https://docs.python.org/3/library/logging.config.html#configuration-dictionary-schema) for information on the syntax and supported options.
+While the INI format using [Python's fileConfig()](https://docs.python.org/3/library/logging.config.html#configuration-file-format) is still supported by Agent Mesh, it is not recommended due to its limitations compared to YAML and JSON formats.
 :::
 
 :::info[Agent/Gateway Specific Logging Configuration]
@@ -158,7 +152,7 @@ Structured logging outputs log messages in JSON format, making them easier to pa
 
 Enabling structured logging includes two steps:
 
-**Step 1: Configure the JSON Formatter**
+**Step 1: Use the JSON Formatter**
 
 Modify the handler of your choice to use the `jsonFormatter`:
 
@@ -182,7 +176,7 @@ handlers:
 
 Log aggregation systems often expect contextual fields to be included in log records for better filtering, grouping, and analysis. 
 
-To add fields that describe the application instance to every log record, use [python-json-logger's static_fields feature](https://nhairs.github.io/python-json-logger/latest/quickstart/#static-fields) as shown below:
+To add contextual info to every log record, use [python-json-logger's static_fields feature](https://nhairs.github.io/python-json-logger/latest/quickstart/#static-fields) as shown below:
 
 ```yaml
   jsonFormatter:
@@ -207,7 +201,7 @@ With this configuration, all JSON log records will automatically include the spe
 }
 ```
 
-Notice that environment variable substitution can be used for greater flexibility.
+Notice that environment variable substitution can be used for increased flexibility. 
 
 ## Common Configuration Scenarios
 
