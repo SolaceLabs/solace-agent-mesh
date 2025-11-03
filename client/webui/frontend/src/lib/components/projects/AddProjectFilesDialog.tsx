@@ -21,6 +21,15 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({
 }) => {
     const [fileDescriptions, setFileDescriptions] = useState<Record<string, string>>({});
 
+    // Helper function to truncate filename for placeholder
+    const getTruncatedPlaceholder = (filename: string, maxLength: number = 50): string => {
+        if (filename.length <= maxLength) {
+            return `Add a description for ${filename} (optional)`;
+        }
+        const truncated = filename.substring(0, maxLength) + '...';
+        return `Add a description for ${truncated} (optional)`;
+    };
+
     useEffect(() => {
         // Reset descriptions when the dialog is opened with new files
         if (isOpen) {
@@ -70,12 +79,12 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({
                     {fileList.length > 0 ? (
                         <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2">
                             {fileList.map((file, index) => (
-                                <Card key={index} className="bg-muted/50">
-                                    <CardContent className="p-3">
-                                        <div className="flex items-center gap-3">
+                                <Card key={index} className="bg-muted/50 overflow-hidden">
+                                    <CardContent className="p-3 overflow-hidden">
+                                        <div className="flex items-center gap-3 min-w-0">
                                             <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-foreground truncate" title={file.name}>
+                                            <div className="flex-1 min-w-0 overflow-hidden">
+                                                <p className="text-sm font-medium text-foreground break-all line-clamp-2" title={file.name}>
                                                     {file.name}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
@@ -84,12 +93,13 @@ export const AddProjectFilesDialog: React.FC<AddProjectFilesDialogProps> = ({
                                             </div>
                                         </div>
                                         <Textarea
-                                            placeholder={`Add a description for ${file.name} (optional)`}
+                                            placeholder={getTruncatedPlaceholder(file.name)}
                                             className="bg-background text-foreground placeholder:text-muted-foreground mt-2"
                                             rows={2}
                                             disabled={isSubmitting}
                                             value={fileDescriptions[file.name] || ""}
                                             onChange={e => handleFileDescriptionChange(file.name, e.target.value)}
+                                            title={`Add a description for ${file.name} (optional)`}
                                         />
                                     </CardContent>
                                 </Card>
