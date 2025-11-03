@@ -490,7 +490,9 @@ When using SSO, it’s important to understand how the authentication flow works
 
 ### How the OAuth2 Flow Works
 
-1. A user visits the `FRONTEND_AUTH_LOGIN_URL` (for example, `http://localhost:8000/api/v1/auth/login`).
+1. A user opens the frontend application (for example, `http://localhost:8000`).  
+   - The frontend checks whether a valid access token exists (e.g., in local storage or cookies).  
+   - If no valid token is found or the token has expired, the frontend automatically calls the backend endpoint defined by `FRONTEND_AUTH_LOGIN_URL` (for example, `http://localhost:8000/api/v1/auth/login`) to start the authentication process.  
 2. The WebUI Gateway calls the `EXTERNAL_AUTH_SERVICE_URL` (typically `http://localhost:9000`) and passes the `EXTERNAL_AUTH_PROVIDER` value (such as `azure` or `keycloak` or `auth0`, or `google`).
 3. The OAuth2 service looks up the provider in `oauth2_config.yaml` and automatically constructs the correct authorization request using the provider’s `issuer`, `client_id`, `redirect_uri`, and `scope`.
 4. The user is redirected to the IdP (e.g., Azure AD, Auth0, or Keycloak) for login.
