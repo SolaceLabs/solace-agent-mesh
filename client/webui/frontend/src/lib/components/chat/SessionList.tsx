@@ -360,9 +360,14 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         <button onClick={() => handleSessionClick(session.id)} className="flex-1 min-w-0 cursor-pointer text-left">
                                             <div className="flex items-center gap-2">
                                                 <div className="flex flex-col gap-1 min-w-0 flex-1">
-                                                    <span className="truncate font-semibold" title={getSessionDisplayName(session)}>
-                                                        {getSessionDisplayName(session)}
-                                                    </span>
+                                                    <Tooltip delayDuration={300}>
+                                                        <TooltipTrigger className="truncate font-semibold text-left border-0 bg-transparent p-0 hover:bg-transparent w-full">
+                                                            {getSessionDisplayName(session)}
+                                                        </TooltipTrigger>
+                                                        <TooltipContent side="right">
+                                                            <p>{getSessionDisplayName(session)}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                     <span className="text-muted-foreground text-xs truncate">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
                                                 {session.projectName && (
