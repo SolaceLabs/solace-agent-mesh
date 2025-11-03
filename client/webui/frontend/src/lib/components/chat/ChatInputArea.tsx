@@ -1,9 +1,9 @@
 import React, { useRef, useState, useEffect, useMemo } from "react";
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 
-import { Ban, Paperclip, Send, X } from "lucide-react";
+import { Ban, Paperclip, Send } from "lucide-react";
 
-import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge } from "@/lib/components/ui";
+import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { useChatContext, useDragAndDrop, useAgentSelection } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
 
@@ -17,7 +17,7 @@ import {
 } from "./paste";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts } = useChatContext();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
 
     // File selection support
@@ -317,6 +317,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setPastedArtifactItems(prev => prev.filter(item => item.id !== id));
     };
 
+    const handleViewPastedArtifact = (filename: string) => {
+        // Find the artifact in the artifacts list
+        const artifact = artifacts.find(a => a.filename === filename);
+        if (artifact) {
+            // Use the existing artifact preview functionality
+            setPreviewArtifact(artifact);
+            openSidePanelTab('files');
+        }
+    };
+
     return (
         <div
             className={`rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
@@ -347,7 +357,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                                 id={item.id}
                                 index={index + 1}
                                 textPreview={item.filename}
-                                onClick={() => {}} // No action needed - artifact is already created
+                                onClick={() => handleViewPastedArtifact(item.filename)}
                                 onRemove={() => handleRemovePastedArtifact(item.id)}
                             />
                         ))}
