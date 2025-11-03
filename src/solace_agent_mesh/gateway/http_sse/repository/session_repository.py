@@ -218,8 +218,7 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         """
         Search sessions by name/title only.
 
-        Uses PostgreSQL full-text search when available (for queries >= 3 chars),
-        falls back to ILIKE for SQLite or short queries.
+        Uses PostgreSQL full-text search when available, falls back to ILIKE for SQLite or short queries.
         """
         # Base query - only non-deleted sessions for the user
         base_query = db_session.query(SessionModel).filter(

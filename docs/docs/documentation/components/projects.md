@@ -23,7 +23,7 @@ Projects are organizational containers that group related chat sessions and know
 
 5. **Soft Delete**: Projects and sessions can be safely deleted with the ability to recover them if needed (logical delete).
 
-6. **Search Capabilities**: Search across all sessions within a project or across all projects to quickly find relevant conversations.
+6. **Search Capabilities**: Search chat titles within a project or across all projects to quickly find relevant conversations.
 
 7. **Session Mobility**: Move chat sessions between projects to reorganize your work as needs evolve.
 
@@ -178,14 +178,6 @@ When project endpoints return 501 Not Implemented:
 - **Explicitly disabled**: Remove `projects.enabled: false` or set to `true`
 - **Feature flag disabled**: Set `frontend_feature_enablement.projects: true`
 
-### Search Not Working
-
-If session search is not returning results:
-
-1. **Check PostgreSQL Extension**: Ensure `pg_trgm` extension is enabled
-2. **Verify Indexes**: Check that GIN indexes are created on search columns
-3. **Query Format**: Use simple search terms without special characters
-4. **Permissions**: Ensure user has access to the sessions being searched
 
 ## Performance Considerations
 
@@ -201,8 +193,8 @@ Project artifacts use the configured artifact store. See [Configurations - Artif
 
 ### Search Performance
 
-- **Full-Text Search**: Uses PostgreSQL `pg_trgm` for efficient fuzzy matching
-- **GIN Indexes**: Optimized indexes for fast text search
+- **Title Search**: Uses PostgreSQL full-text search with ILIKE fallback for SQLite
+- **Database Indexes**: Optimized indexes for fast title text search
 - **Query Optimization**: Subquery pattern avoids N+1 queries
 
 ## Security
