@@ -484,6 +484,35 @@ If you encounter issues, check that:
 - Both ports (8000 and 9000) are accessible from your network
 - The configuration files are properly mounted in the container
 
+## Understanding the OAuth2 Flow and Environment Variables
+
+When using SSO, it’s important to understand how the authentication flow works between the WebUI Gateway, the OAuth2 service, and your identity provider (IdP). This section clarifies the purpose of each variable and common configuration mistakes.
+
+### How the OAuth2 Flow Works
+
+1. A user opens the frontend application (for example, `http://localhost:8000`).  
+   - The frontend checks whether a valid access token exists (e.g., in local storage or cookies).  
+   - If no valid token is found or the token has expired, the frontend automatically calls the backend endpoint defined by `FRONTEND_AUTH_LOGIN_URL` (for example, `http://localhost:8000/api/v1/auth/login`) to start the authentication process.  
+2. The WebUI Gateway calls the `EXTERNAL_AUTH_SERVICE_URL` (typically `http://localhost:9000`) and passes the `EXTERNAL_AUTH_PROVIDER` value (such as `azure` or `keycloak` or `auth0`, or `google`).
+3. The OAuth2 service looks up the provider in `oauth2_config.yaml` and automatically constructs the correct authorization request using the provider’s `issuer`, `client_id`, `redirect_uri`, and `scope`.
+4. The user is redirected to the IdP (e.g., Azure AD, Auth0, or Keycloak) for login.
+5. After successful login, the IdP redirects back to `EXTERNAL_AUTH_CALLBACK` (for example, `http://localhost:8000/api/v1/auth/callback`).
+6. The OAuth2 service exchanges the authorization code for tokens and finalizes authentication.
+
+> **Note:**  
+> You do *not* need to manually append `client_id`, `scope`, or `redirect_uri` query parameters to the login URL.  
+> The OAuth2 service automatically handles these based on the selected provider in `oauth2_config.yaml`.
+
+### Common Environment Variables
+
+| Variable | Purpose | Example |
+|-----------|----------|----------|
+| `FRONTEND_AUTH_LOGIN_URL` | The frontend endpoint that triggers authentication. It should **not** include OAuth query parameters. | `http://localhost:8000/api/v1/auth/login` |
+| `EXTERNAL_AUTH_SERVICE_URL` | URL of the OAuth2 authentication service. | `http://localhost:9000` |
+| `EXTERNAL_AUTH_PROVIDER` | The IdP name as defined under `providers:` in `oauth2_config.yaml`. | `azure` or `keycloak` |
+| `EXTERNAL_AUTH_CALLBACK` | Callback URI used after login. Must match the redirect URI registered with your IdP. | `http://localhost:8000/api/v1/auth/callback` |
+| `FRONTEND_REDIRECT_URL` | Where users are redirected after login completes. | `http://localhost:8000` |
+
 ## Security Considerations for Production
 
 When deploying SSO in a production environment, follow these security best practices:
