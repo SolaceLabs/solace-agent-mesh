@@ -11,6 +11,19 @@ from ..base.config import BaseProxyAppConfig, ProxiedAgentConfig
 from ....common.utils.pydantic_utils import SamConfigBase
 
 
+class HttpHeaderConfig(SamConfigBase):
+    """Configuration for a single HTTP header."""
+
+    name: str = Field(
+        ...,
+        description="The HTTP header name (e.g., 'X-API-Key', 'Authorization').",
+    )
+    value: str = Field(
+        ...,
+        description="The HTTP header value.",
+    )
+
+
 class AuthenticationConfig(SamConfigBase):
     """Authentication configuration for downstream A2A agents."""
 
@@ -127,6 +140,21 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
     authentication: Optional[AuthenticationConfig] = Field(
         default=None,
         description="Authentication details for the downstream agent.",
+    )
+    use_auth_for_agent_card: bool = Field(
+        default=False,
+        description="If true, applies the configured authentication to agent card fetching. "
+        "If false, agent card requests are made without authentication.",
+    )
+    agent_card_headers: Optional[List[HttpHeaderConfig]] = Field(
+        default=None,
+        description="Custom HTTP headers to include when fetching the agent card. "
+        "These headers override any authentication headers if both are present.",
+    )
+    task_headers: Optional[List[HttpHeaderConfig]] = Field(
+        default=None,
+        description="Custom HTTP headers to include when invoking A2A tasks. "
+        "These headers override any authentication headers if both are present.",
     )
 
 

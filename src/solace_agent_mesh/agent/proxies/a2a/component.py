@@ -100,11 +100,80 @@ class A2AProxyComponent(BaseProxyComponent):
         """
         return self._agent_config_by_name.get(agent_name)
 
+    async def _build_headers(
+        self,
+        agent_name: str,
+        agent_config: Dict[str, Any],
+        custom_headers_key: str,
+        use_auth: bool = True,
+    ) -> Dict[str, str]:
+        """
+        Builds HTTP headers for requests, applying authentication and custom headers.
+
+        Args:
+            agent_name: The name of the agent.
+            agent_config: The agent configuration dictionary.
+            custom_headers_key: Key to look up custom headers in config ('agent_card_headers' or 'task_headers').
+            use_auth: Whether to apply authentication headers.
+
+        Returns:
+            Dictionary of HTTP headers with custom headers overriding auth headers.
+        """
+        headers: Dict[str, str] = {}
+
+        # Step 1: Add authentication headers if requested
+        if use_auth:
+            auth_config = agent_config.get("authentication")
+            if auth_config:
+                auth_type = auth_config.get("type")
+
+                # Determine auth type (with backward compatibility)
+                if not auth_type:
+                    scheme = auth_config.get("scheme", "bearer")
+                    auth_type = "static_bearer" if scheme == "bearer" else "static_apikey"
+
+                # Apply authentication based on type
+                if auth_type == "static_bearer":
+                    token = auth_config.get("token")
+                    if token:
+                        headers["Authorization"] = f"Bearer {token}"
+                elif auth_type == "static_apikey":
+                    token = auth_config.get("token")
+                    if token:
+                        headers["X-API-Key"] = token
+                elif auth_type == "oauth2_client_credentials":
+                    # Fetch OAuth token
+                    try:
+                        access_token = await self._fetch_oauth2_token(agent_name, auth_config)
+                        headers["Authorization"] = f"Bearer {access_token}"
+                    except Exception as e:
+                        log.error(
+                            "%s Failed to obtain OAuth 2.0 token for headers: %s",
+                            self.log_identifier,
+                            e,
+                        )
+                        # Continue without auth header - let the request fail downstream
+
+        # Step 2: Add custom headers (these override auth headers)
+        custom_headers_list = agent_config.get(custom_headers_key)
+        if custom_headers_list:
+            for header_config in custom_headers_list:
+                header_name = header_config.get("name")
+                header_value = header_config.get("value")
+                if header_name and header_value:
+                    headers[header_name] = header_value
+
+        return headers
+
     async def _fetch_agent_card(
         self, agent_config: Dict[str, Any]
     ) -> Optional[AgentCard]:
         """
         Fetches the AgentCard from a downstream A2A agent via HTTPS.
+
+        Applies authentication and custom headers based on configuration:
+        - If use_auth_for_agent_card=true, applies the configured authentication
+        - Custom agent_card_headers override authentication headers
         """
         agent_name = agent_config.get("name")
         agent_url = agent_config.get("url")
@@ -116,8 +185,27 @@ class A2AProxyComponent(BaseProxyComponent):
             return None
 
         try:
+            # Build headers based on configuration
+            use_auth = agent_config.get("use_auth_for_agent_card", False)
+            headers = await self._build_headers(
+                agent_name=agent_name,
+                agent_config=agent_config,
+                custom_headers_key="agent_card_headers",
+                use_auth=use_auth,
+            )
+
+            if headers:
+                log.debug(
+                    "%s Fetching agent card with %d custom header(s) (auth=%s)",
+                    log_identifier,
+                    len(headers),
+                    use_auth,
+                )
+            else:
+                log.debug("%s Fetching agent card without authentication", log_identifier)
+
             log.info("%s Fetching agent card from %s", log_identifier, agent_url)
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(headers=headers) as client:
                 resolver = A2ACardResolver(httpx_client=client, base_url=agent_url)
                 agent_card = await resolver.get_agent_card()
                 return agent_card
@@ -629,7 +717,18 @@ class A2AProxyComponent(BaseProxyComponent):
             agent_timeout = default_timeout
         log.info("Using timeout of %ss for agent '%s'.", agent_timeout, agent_name)
 
-        # Create a new httpx client with the specific timeout for this agent
+        # Build custom headers for task invocation
+        # Note: We build headers here but apply them via the httpx client
+        # The A2A SDK's AuthInterceptor will add auth headers via the credential store,
+        # but we want custom headers to override those, so we apply them at the client level
+        task_headers = await self._build_headers(
+            agent_name=agent_name,
+            agent_config=agent_config,
+            custom_headers_key="task_headers",
+            use_auth=False,  # Auth will be handled by AuthInterceptor below
+        )
+
+        # Create a new httpx client with the specific timeout and custom headers for this agent
         # httpx.Timeout requires explicit values for connect, read, write, and pool
         httpx_client_for_agent = httpx.AsyncClient(
             timeout=httpx.Timeout(
@@ -637,8 +736,17 @@ class A2AProxyComponent(BaseProxyComponent):
                 read=agent_timeout,
                 write=agent_timeout,
                 pool=agent_timeout,
-            )
+            ),
+            headers=task_headers if task_headers else None,
         )
+
+        if task_headers:
+            log.info(
+                "%s Applied %d custom task header(s) for agent '%s'",
+                self.log_identifier,
+                len(task_headers),
+                agent_name,
+            )
 
         # Setup authentication if configured
         auth_config = agent_config.get("authentication")
