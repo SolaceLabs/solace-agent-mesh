@@ -12,7 +12,6 @@ from ..shared import now_epoch_ms
 from .entities import Session
 from .interfaces import ISessionRepository
 from .models import CreateSessionModel, SessionModel, UpdateSessionModel
-from .models.chat_task_model import ChatTaskModel
 
 
 class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepository):
@@ -217,8 +216,8 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         project_id: str | None = None
     ) -> list[Session]:
         """
-        Search sessions by name or content.
-        
+        Search sessions by name/title only.
+
         Uses PostgreSQL full-text search when available (for queries >= 3 chars),
         falls back to ILIKE for SQLite or short queries.
         """
@@ -237,49 +236,15 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         use_fts = dialect_name == 'postgresql' and len(query.strip()) >= 3
 
         if use_fts:
-            # PostgreSQL full-text search for better performance
-            matching_chat_tasks = (
-                db_session.query(ChatTaskModel.session_id)
-                .filter(
-                    or_(
-                        func.to_tsvector('english', func.coalesce(ChatTaskModel.user_message, ''))
-                            .op('@@')(func.plainto_tsquery('english', query)),
-                        func.to_tsvector('english', ChatTaskModel.message_bubbles)
-                            .op('@@')(func.plainto_tsquery('english', query))
-                    )
-                )
-                .distinct()
-                .subquery()
-            )
-
+            # PostgreSQL full-text search on session name for better performance
             search_query = base_query.filter(
-                or_(
-                    func.to_tsvector('english', func.coalesce(SessionModel.name, ''))
-                        .op('@@')(func.plainto_tsquery('english', query)),
-                    SessionModel.id.in_(matching_chat_tasks)
-                )
+                func.to_tsvector('english', func.coalesce(SessionModel.name, ''))
+                    .op('@@')(func.plainto_tsquery('english', query))
             )
         else:
             # ILIKE search for SQLite or short queries
             search_pattern = f"%{query}%"
-            matching_chat_tasks = (
-                db_session.query(ChatTaskModel.session_id)
-                .filter(
-                    or_(
-                        ChatTaskModel.user_message.ilike(search_pattern),
-                        ChatTaskModel.message_bubbles.ilike(search_pattern)
-                    )
-                )
-                .distinct()
-                .subquery()
-            )
-
-            search_query = base_query.filter(
-                or_(
-                    SessionModel.name.ilike(search_pattern),
-                    SessionModel.id.in_(matching_chat_tasks)
-                )
-            )
+            search_query = base_query.filter(SessionModel.name.ilike(search_pattern))
 
         # Eager load project relationship
         search_query = search_query.options(joinedload(SessionModel.project))
@@ -299,8 +264,8 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         project_id: str | None = None
     ) -> int:
         """
-        Count search results for pagination.
-        
+        Count search results for pagination (title-only search).
+
         Uses same database-agnostic logic as search() method for consistency.
         """
         # Base query - only non-deleted sessions for the user
@@ -316,48 +281,14 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         use_fts = dialect_name == 'postgresql' and len(query.strip()) >= 3
 
         if use_fts:
-            # PostgreSQL full-text search
-            matching_chat_tasks = (
-                db_session.query(ChatTaskModel.session_id)
-                .filter(
-                    or_(
-                        func.to_tsvector('english', func.coalesce(ChatTaskModel.user_message, ''))
-                            .op('@@')(func.plainto_tsquery('english', query)),
-                        func.to_tsvector('english', ChatTaskModel.message_bubbles)
-                            .op('@@')(func.plainto_tsquery('english', query))
-                    )
-                )
-                .distinct()
-                .subquery()
-            )
-
+            # PostgreSQL full-text search on session name
             search_query = base_query.filter(
-                or_(
-                    func.to_tsvector('english', func.coalesce(SessionModel.name, ''))
-                        .op('@@')(func.plainto_tsquery('english', query)),
-                    SessionModel.id.in_(matching_chat_tasks)
-                )
+                func.to_tsvector('english', func.coalesce(SessionModel.name, ''))
+                    .op('@@')(func.plainto_tsquery('english', query))
             )
         else:
             # ILIKE search for SQLite or short queries
             search_pattern = f"%{query}%"
-            matching_chat_tasks = (
-                db_session.query(ChatTaskModel.session_id)
-                .filter(
-                    or_(
-                        ChatTaskModel.user_message.ilike(search_pattern),
-                        ChatTaskModel.message_bubbles.ilike(search_pattern)
-                    )
-                )
-                .distinct()
-                .subquery()
-            )
-
-            search_query = base_query.filter(
-                or_(
-                    SessionModel.name.ilike(search_pattern),
-                    SessionModel.id.in_(matching_chat_tasks)
-                )
-            )
+            search_query = base_query.filter(SessionModel.name.ilike(search_pattern))
 
         return search_query.count()

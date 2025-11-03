@@ -37,35 +37,20 @@ depends_on = None
 
 def upgrade() -> None:
     """
-    Add GIN indexes for full-text search on chat_tasks table (PostgreSQL only).
-    
-    Creates three indexes:
-    1. idx_chat_tasks_user_message_fts - For searching user messages
-    2. idx_chat_tasks_message_bubbles_fts - For searching full conversation content
-    3. idx_sessions_name_fts - For searching session names
-    
-    Note: Silently skips index creation for non-PostgreSQL databases (e.g., SQLite).
+    Add GIN index for full-text search on session names (PostgreSQL only).
+
+    Creates one index:
+    1. idx_sessions_name_fts - For searching session names/titles
+
+    Note: Chat content indexes removed - search is title-only.
+    Silently skips index creation for non-PostgreSQL databases (e.g., SQLite).
     """
     # Get database connection and check dialect
     conn = op.get_bind()
     dialect_name = conn.dialect.name
-    
-    # Only create FTS indexes for PostgreSQL
+
+    # Only create FTS index for PostgreSQL
     if dialect_name == 'postgresql':
-        # Create GIN index for user_message full-text search
-        op.execute("""
-            CREATE INDEX IF NOT EXISTS idx_chat_tasks_user_message_fts
-            ON chat_tasks
-            USING gin(to_tsvector('english', COALESCE(user_message, '')))
-        """)
-        
-        # Create GIN index for message_bubbles full-text search
-        op.execute("""
-            CREATE INDEX IF NOT EXISTS idx_chat_tasks_message_bubbles_fts
-            ON chat_tasks
-            USING gin(to_tsvector('english', message_bubbles))
-        """)
-        
         # Create GIN index for session name full-text search
         op.execute("""
             CREATE INDEX IF NOT EXISTS idx_sessions_name_fts
@@ -78,15 +63,13 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """
-    Remove full-text search indexes (PostgreSQL only).
-    
+    Remove full-text search index (PostgreSQL only).
+
     Note: Downgrading will revert to slower ILIKE-based search.
     Silently skips for non-PostgreSQL databases.
     """
     conn = op.get_bind()
     dialect_name = conn.dialect.name
-    
+
     if dialect_name == 'postgresql':
-        op.execute("DROP INDEX IF EXISTS idx_chat_tasks_user_message_fts")
-        op.execute("DROP INDEX IF EXISTS idx_chat_tasks_message_bubbles_fts")
         op.execute("DROP INDEX IF EXISTS idx_sessions_name_fts")
