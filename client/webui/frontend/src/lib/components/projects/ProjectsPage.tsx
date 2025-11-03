@@ -34,8 +34,15 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     } = useProjectContext();
     const { handleSwitchSession, handleNewSession } = useChatContext();
 
-    // Use React Router's useSearchParams for URL-based navigation
-    const [searchParams, setSearchParams] = useSearchParams();
+    // Use React Router's useSearchParams for URL-based navigation (if available)
+    let searchParams: URLSearchParams | null = null;
+    let setSearchParams: ((params: URLSearchParams) => void) | null = null;
+    try {
+        [searchParams, setSearchParams] = useSearchParams();
+    } catch (e) {
+        // Router not available - will use event-based navigation only
+        console.debug("Router not available, using event-based navigation only");
+    }
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
         setIsCreating(true);
