@@ -368,10 +368,6 @@ agents:
     session_service: *default_session_service
 ```
 
-### Learn More About ADK Session Configuration
-
-For complete details on ADK session configuration options, see the [ADK Configuration Reference](./configurations.md#session_service).
-
 ## Migrating from Ephemeral to Persistent
 
 Moving from ephemeral mode to persistent mode can be done without losing active sessions.
