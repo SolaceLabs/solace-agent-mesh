@@ -54,9 +54,13 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, on
                             </DialogHeader>
                             <DialogFooter>
                                 <DialogClose asChild>
-                                    <Button variant="ghost">Cancel</Button>
+                                    <Button variant="ghost" title="Cancel">
+                                        Cancel
+                                    </Button>
                                 </DialogClose>
-                                <Button onClick={onDelete}>Delete</Button>
+                                <Button variant="outline" onClick={onDelete} title="Delete">
+                                    Delete
+                                </Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
