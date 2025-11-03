@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { Plus, RefreshCcw } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
 
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { ProjectListSidebar } from "./ProjectListSidebar";
@@ -33,9 +32,6 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         refetch,
     } = useProjectContext();
     const { handleSwitchSession, handleNewSession } = useChatContext();
-
-    // Use React Router's useSearchParams for URL-based navigation
-    const [searchParams, setSearchParams] = useSearchParams();
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
         setIsCreating(true);
@@ -86,27 +82,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         }
     };
 
-    // Handle URL-based navigation for apps using React Router (e.g., enterprise app with HashRouter)
-    // Reads projectId from URL params and auto-selects the project
-    useEffect(() => {
-        if (searchParams && projects.length > 0) {
-            const projectId = searchParams.get("projectId");
-            if (projectId) {
-                const project = projects.find(p => p.id === projectId);
-                if (project) {
-                    setSelectedProject(project);
-
-                    if (setSearchParams) {
-                        const newParams = new URLSearchParams(searchParams);
-                        newParams.delete("projectId");
-                        setSearchParams(newParams);
-                    }
-                }
-            }
-        }
-    }, [searchParams, projects, setSelectedProject, setSearchParams]);
-
-    // Handle event-based navigation for apps using state-based routing (Community)
+    // Handle event-based navigation for state-based routing
     // Listens for navigate-to-project events and selects the project
     useEffect(() => {
         const handleNavigateToProject = (event: CustomEvent) => {
