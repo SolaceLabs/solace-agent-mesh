@@ -260,37 +260,18 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         return `Session ${sessionId.substring(0, 8)}`;
     };
 
-    // Get unique project names from sessions, sorted by most recent activity
+    // Get unique project names from sessions, sorted alphabetically
     const projectNames = useMemo(() => {
-        // Create a map of project name to most recent session update timestamp
-        const projectLastActivity = new Map<string, number>();
+        const uniqueProjectNames = new Set<string>();
         
         sessions.forEach(session => {
-            if (session.projectName && session.updatedTime) {
-                try {
-                    // Convert ISO string to timestamp for reliable comparison
-                    const timestamp = new Date(session.updatedTime).getTime();
-                    if (!isNaN(timestamp)) {
-                        const existingTimestamp = projectLastActivity.get(session.projectName);
-                        if (!existingTimestamp || timestamp > existingTimestamp) {
-                            projectLastActivity.set(session.projectName, timestamp);
-                        }
-                    }
-                } catch (error) {
-                    // If date parsing fails, skip this session
-                    console.warn(`Failed to parse updatedTime for session ${session.id}:`, error);
-                }
+            if (session.projectName) {
+                uniqueProjectNames.add(session.projectName);
             }
         });
         
-        // Sort projects by most recent activity (descending), then alphabetically as fallback
-        return Array.from(projectLastActivity.entries())
-            .sort((a, b) => {
-                const timeDiff = b[1] - a[1];
-                if (timeDiff !== 0) return timeDiff;
-                return a[0].localeCompare(b[0]);
-            })
-            .map(([name]) => name);
+        // Sort projects alphabetically
+        return Array.from(uniqueProjectNames).sort((a, b) => a.localeCompare(b));
     }, [sessions]);
 
     // Filter sessions by selected project
