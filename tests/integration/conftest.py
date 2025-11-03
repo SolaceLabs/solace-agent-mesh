@@ -56,6 +56,8 @@ def test_db_engine():
     """
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "test_integration.db"
+        # Ensure parent directory exists (for remote environments)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
         database_url = f"sqlite:///{db_path}"
         print(f"\n[SessionFixture] Creating test database at: {database_url}")
 
