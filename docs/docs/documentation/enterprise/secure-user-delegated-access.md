@@ -64,7 +64,7 @@ When a user attempts to use an MCP tool that requires OAuth2 authentication, Age
 
 From an administrator's perspective, this flow is transparent once configured. Users experience a one-time authentication prompt per MCP tool, after which their access works seamlessly.
 
-### Credential Storage and Lifecycle
+### Credential Storage
 
 Agent Mesh Enterprise manages user credentials through a dedicated credential service with several important characteristics:
 
@@ -88,7 +88,7 @@ Understanding the credential lifecycle helps you plan operational procedures:
 
 4. **Revocation**: Users or administrators can revoke credentials at the MCP provider level. When Agent Mesh Enterprise attempts to use revoked credentials, the request fails and the user must re-authenticate.
 
-5. **Removal**: Credentials are removed from storage when they expire (TTL timeout) or when the agent is restarted (if using memory storage)
+5. **Deletion**: Credentials are marked as deleted when they expire (TTL timeout), but are retained in the persistence layer for audit purposes. With memory storage, credentials are removed from storage when the agent is restarted.
 
 ## Prerequisites
 
