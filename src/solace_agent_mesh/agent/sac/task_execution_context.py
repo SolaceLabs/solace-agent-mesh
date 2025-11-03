@@ -36,6 +36,7 @@ class TaskExecutionContext:
         self.artifact_signals_to_return: List[Dict[str, Any]] = []
         self.event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.lock: threading.Lock = threading.Lock()
+        self.is_paused: bool = False  # Track if task is paused waiting for peer/auth
 
         # Token usage tracking
         self.total_input_tokens: int = 0
@@ -58,6 +59,26 @@ class TaskExecutionContext:
     def is_cancelled(self) -> bool:
         """Checks if the cancellation event has been set."""
         return self.cancellation_event.is_set()
+
+    def set_paused(self, paused: bool) -> None:
+        """
+        Marks the task as paused (waiting for peer response or user input).
+
+        Args:
+            paused: True if task is paused, False if resuming.
+        """
+        with self.lock:
+            self.is_paused = paused
+
+    def get_is_paused(self) -> bool:
+        """
+        Checks if the task is currently paused.
+
+        Returns:
+            True if task is paused (waiting for peer/auth), False otherwise.
+        """
+        with self.lock:
+            return self.is_paused
 
     def append_to_streaming_buffer(self, text: str) -> None:
         """Appends a chunk of text to the main streaming buffer."""

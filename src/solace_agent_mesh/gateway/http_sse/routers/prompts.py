@@ -4,14 +4,14 @@ Adapted for SAM fork.
 """
 
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 
 from ..services.prompt_builder_assistant import PromptBuilderAssistant
 
-from ..dependencies import get_db, get_user_id
+from ..dependencies import get_db, get_user_id, get_sac_component, get_api_config
 from ..repository.models import PromptGroupModel, PromptModel
 from .dto.prompt_dto import (
     PromptGroupCreate,
@@ -26,7 +26,52 @@ from .dto.prompt_dto import (
 from ..shared import now_epoch_ms
 from solace_ai_connector.common.log import log
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..component import WebUIBackendComponent
+
 router = APIRouter()
+
+
+def check_prompts_enabled(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    api_config: Dict[str, Any] = Depends(get_api_config),
+) -> None:
+    """
+    Dependency to check if prompts feature is enabled.
+    Raises HTTPException if prompts are disabled.
+    """
+    # Check if persistence is enabled (required for prompts)
+    persistence_enabled = api_config.get("persistence_enabled", False)
+    if not persistence_enabled:
+        log.warning("Prompts API called but persistence is not enabled")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Prompts feature requires persistence to be enabled. Please configure session_service.type as 'sql'."
+        )
+    
+    # Check explicit prompt_library config
+    prompt_library_config = component.get_config("prompt_library", {})
+    if isinstance(prompt_library_config, dict):
+        prompts_explicitly_enabled = prompt_library_config.get("enabled", True)
+        if not prompts_explicitly_enabled:
+            log.warning("Prompts API called but prompt library is explicitly disabled in config")
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Prompt library feature is disabled. Please enable it in the configuration."
+            )
+    
+    # Check frontend_feature_enablement override
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    if "promptLibrary" in feature_flags:
+        prompts_flag = feature_flags.get("promptLibrary", True)
+        if not prompts_flag:
+            log.warning("Prompts API called but prompts are disabled via feature flag")
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Prompt library feature is disabled via feature flag."
+            )
 
 
 # ============================================================================
@@ -37,6 +82,7 @@ router = APIRouter()
 async def get_all_prompt_groups(
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
 ):
     """
     Get all prompt groups for quick access (used by "/" command).
@@ -99,6 +145,7 @@ async def list_prompt_groups(
     search: Optional[str] = None,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
 ):
     """
     List all prompt groups for the current user with optional filtering.
@@ -177,6 +224,7 @@ async def get_prompt_group(
     group_id: str,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
 ):
     """Get a specific prompt group by ID."""
     try:
@@ -237,6 +285,7 @@ async def create_prompt_group(
     group_data: PromptGroupCreate,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
 ):
     """
     Create a new prompt group with an initial prompt.
@@ -337,6 +386,7 @@ async def update_prompt_group(
     group_data: PromptGroupUpdate,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
 ):
     """Update a prompt group's metadata and optionally create a new version if prompt text changed."""
     try:
@@ -451,6 +501,7 @@ async def delete_prompt_group(
     group_id: str,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
 ):
     """Delete a prompt group and all its prompts."""
     try:
@@ -491,6 +542,7 @@ async def list_prompts_in_group(
     group_id: str,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
 ):
     """List all prompt versions in a group."""
     try:
@@ -538,6 +590,7 @@ async def create_prompt_version(
     prompt_data: PromptCreate,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
 ):
     """Create a new prompt version in a group."""
     try:
@@ -603,6 +656,7 @@ async def make_prompt_production(
     prompt_id: str,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
 ):
     """Set a prompt as the production version for its group."""
     try:
@@ -654,6 +708,7 @@ async def delete_prompt(
     prompt_id: str,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
 ):
     """Delete a specific prompt version."""
     try:
@@ -731,6 +786,7 @@ async def prompt_builder_chat(
     request: PromptBuilderChatRequest,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
 ):
     """
     Handle conversational prompt template building using LLM.

@@ -104,6 +104,7 @@ def clean_db_fixture(test_db_engine):
                 "chat_messages",
                 "tasks",
                 "sessions",
+                "projects",
                 "users",
             ]
             for table_name in tables_to_clean:
@@ -950,6 +951,53 @@ def shared_solace_connector(
         model_suffix="config-context",
     )
 
+    # Generic Gateway test apps
+    minimal_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "MinimalTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.MinimalAdapter",
+        "adapter_config": {
+            "default_user_id": "minimal-user@example.com",
+            "default_target_agent": "TestAgent",
+        },
+        "artifact_service": {"type": "test_in_memory"},
+        "default_user_identity": "default-user@example.com",
+    }
+
+    auth_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "AuthTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.AuthTestAdapter",
+        "adapter_config": {
+            "require_token": False,
+            "valid_token": "valid-test-token",
+        },
+        "artifact_service": {"type": "test_in_memory"},
+        "default_user_identity": "fallback-user@example.com",
+    }
+
+    file_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "FileTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.FileAdapter",
+        "adapter_config": {
+            "max_file_size": 1024 * 1024,
+        },
+        "artifact_service": {"type": "test_in_memory"},
+    }
+
+    dispatching_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "DispatchingTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.DispatchingAdapter",
+        "adapter_config": {
+            "default_user_id": "dispatch-user@example.com",
+            "default_target_agent": "TestAgent",
+        },
+        "artifact_service": {"type": "test_in_memory"},
+        "default_user_identity": "default-dispatch@example.com",
+    }
+
     app_infos = [
         {
             "name": "WebUIBackendApp",
@@ -966,6 +1014,30 @@ def shared_solace_connector(
                 "task_logging": {"enabled": True},
                 "artifact_service": {"type": "test_in_memory"},
             },
+        },
+        {
+            "name": "MinimalGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": minimal_gateway_config,
+        },
+        {
+            "name": "AuthGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": auth_gateway_config,
+        },
+        {
+            "name": "FileGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": file_gateway_config,
+        },
+        {
+            "name": "DispatchingGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": dispatching_gateway_config,
         },
         {
             "name": "TestSamAgentApp",

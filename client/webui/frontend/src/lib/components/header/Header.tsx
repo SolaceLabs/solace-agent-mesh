@@ -15,7 +15,7 @@ export interface Tab {
 }
 
 export interface HeaderProps {
-    title: string;
+    title: string | React.ReactNode;
     breadcrumbs?: BreadcrumbItem[];
     tabs?: Tab[];
     buttons?: React.ReactNode[];
@@ -51,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({ title, breadcrumbs, tabs, button
             {leadingAction && <div className="mr-4 flex items-center pt-[35px]">{leadingAction}</div>}
 
             {/* Title */}
-            <div className="truncate pt-[35px] text-xl text-nowrap">{title}</div>
+            <div className="flex items-center pt-[35px] text-xl">{title}</div>
 
             {/* Tabs */}
             {tabs && tabs.length > 0 && (

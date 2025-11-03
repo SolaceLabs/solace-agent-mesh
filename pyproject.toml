@@ -60,21 +60,21 @@ dependencies = [
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
     "alembic==1.16.5",
-    "openai==1.99.9"
+    "openai==1.99.9",
+    "boto3==1.40.37",
+    "psycopg2-binary==2.9.10"
 ]
 
 [project.optional-dependencies]
 gcs = ["google-cloud-storage==2.19.0"]
-s3 = ["boto3==1.40.37"]
 vertex = ["google-cloud-aiplatform==1.120.0"]
 employee_tools = ["holidays==0.81.0"]
-postgresql = ["psycopg2-binary==2.9.10"]
 
 [tool.hatch.envs.hatch-test]
 parallel = false
 installer = "uv"
 dependencies = [
-    "solace-agent-mesh[postgresql,gcs,vertex,employee_tools,s3]",
+    "solace-agent-mesh[gcs,vertex,employee_tools]",
     "pytest-asyncio",
     "pytest>=8.0.0",
     "pytest-mock>=3.0.0",

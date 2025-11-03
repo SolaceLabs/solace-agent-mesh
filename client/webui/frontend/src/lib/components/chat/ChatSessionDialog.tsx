@@ -25,7 +25,7 @@ export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ buttonText
     const { persistenceEnabled } = useConfigContext();
 
     return persistenceEnabled ? (
-        <NewChatButton text={buttonText} onClick={handleNewSession} />
+        <NewChatButton text={buttonText} onClick={() => handleNewSession()} />
     ) : (
         <Dialog>
             <DialogTrigger asChild>
@@ -44,7 +44,7 @@ export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ buttonText
                     </DialogClose>
 
                     <DialogClose asChild>
-                        <Button variant="default" onClick={handleNewSession}>
+                        <Button variant="default" onClick={() => handleNewSession()}>
                             Start New Chat
                         </Button>
                     </DialogClose>

@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session as DBSession
 from ..shared.pagination import PaginationParams
 from ..shared.types import SessionId, UserId
 from .entities import Feedback, Session, Task, TaskEvent
+from .entities.project import Project
+from ..routers.dto.requests.project_requests import ProjectFilter
 
 if TYPE_CHECKING:
     from .entities import ChatTask
@@ -19,14 +21,14 @@ class ISessionRepository(ABC):
 
     @abstractmethod
     def find_by_user(
-        self, session: DBSession, user_id: UserId, pagination: PaginationParams | None = None
+        self, session: DBSession, user_id: UserId, pagination: PaginationParams | None = None, project_id: str | None = None
     ) -> list[Session]:
-        """Find all sessions for a specific user."""
+        """Find all sessions for a specific user, optionally filtered by project."""
         pass
 
     @abstractmethod
-    def count_by_user(self, session: DBSession, user_id: UserId) -> int:
-        """Count total sessions for a specific user."""
+    def count_by_user(self, session: DBSession, user_id: UserId, project_id: str | None = None) -> int:
+        """Count total sessions for a specific user, optionally filtered by project."""
         pass
 
     @abstractmethod
@@ -44,6 +46,41 @@ class ISessionRepository(ABC):
     @abstractmethod
     def delete(self, session: DBSession, session_id: SessionId, user_id: UserId) -> bool:
         """Delete a session belonging to a user."""
+        pass
+
+    @abstractmethod
+    def soft_delete(self, session: DBSession, session_id: SessionId, user_id: UserId) -> bool:
+        """Soft delete a session belonging to a user."""
+        pass
+
+    @abstractmethod
+    def move_to_project(
+        self, session: DBSession, session_id: SessionId, user_id: UserId, new_project_id: str | None
+    ) -> Session | None:
+        """Move a session to a different project."""
+        pass
+
+    @abstractmethod
+    def search(
+        self,
+        session: DBSession,
+        user_id: UserId,
+        query: str,
+        pagination: PaginationParams | None = None,
+        project_id: str | None = None
+    ) -> list[Session]:
+        """Search sessions by name or content."""
+        pass
+
+    @abstractmethod
+    def count_search_results(
+        self,
+        session: DBSession,
+        user_id: UserId,
+        query: str,
+        project_id: str | None = None
+    ) -> int:
+        """Count search results for pagination."""
         pass
 
 
@@ -159,4 +196,44 @@ class IChatTaskRepository(ABC):
     @abstractmethod
     def delete_by_session(self, session: DBSession, session_id: SessionId) -> bool:
         """Delete all tasks for a session."""
+        pass
+
+
+class IProjectRepository(ABC):
+    """Interface for project repository operations."""
+
+    @abstractmethod
+    def create_project(self, name: str, user_id: str, description: Optional[str] = None,
+                      system_prompt: Optional[str] = None) -> Project:
+        """Create a new user project."""
+        pass
+
+    @abstractmethod
+    def get_user_projects(self, user_id: str) -> list[Project]:
+        """Get all projects owned by a specific user."""
+        pass
+
+    @abstractmethod
+    def get_filtered_projects(self, project_filter: ProjectFilter) -> list[Project]:
+        """Get projects based on filter criteria."""
+        pass
+
+    @abstractmethod
+    def get_by_id(self, project_id: str, user_id: str) -> Optional[Project]:
+        """Get a project by its ID, ensuring user access."""
+        pass
+
+    @abstractmethod
+    def update(self, project_id: str, user_id: str, update_data: dict) -> Optional[Project]:
+        """Update a project with the given data, ensuring user access."""
+        pass
+
+    @abstractmethod
+    def delete(self, project_id: str, user_id: str) -> bool:
+        """Delete a project by its ID, ensuring user access."""
+        pass
+
+    @abstractmethod
+    def soft_delete(self, project_id: str, user_id: str) -> bool:
+        """Soft delete a project by its ID, ensuring user access."""
         pass

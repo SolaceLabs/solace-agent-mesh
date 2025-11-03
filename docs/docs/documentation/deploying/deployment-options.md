@@ -69,49 +69,7 @@ dist
 
 Kubernetes excels at managing containerized applications at scale, providing features like automatic scaling, rolling updates, and self-healing capabilities. When your Agent Mesh deployment needs to handle varying loads or requires high availability, Kubernetes becomes the preferred orchestration platform.
 
-The following example shows a basic Kubernetes Deployment configuration that you can customize based on your specific requirements:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: solace-agent-mesh
-  labels:
-    app: solace-agent-mesh
-spec:
-  replicas: 1  # Adjust based on load
-  selector:
-    matchLabels:
-      app: solace-agent-mesh
-  template:
-    metadata:
-      labels:
-        app: solace-agent-mesh
-    spec:
-      containers:
-        - name: solace-agent-mesh
-          image: your-registry/solace-agent-mesh:latest
-          
-          envFrom:
-          - secretRef:
-              name: solace-agent-mesh-secrets # Configure secrets in a Kubernetes Secret
-
-          command: ["solace-agent-mesh", "run", "--system-env"]
-          args:
-            - "configs/main_orchestrator.yaml"
-            - "configs/gateway/webui.yaml"
-            # Add any other components you want to run here
-
-          ports:
-            - containerPort: 8000  # Adjust based on your service ports
-
-          volumeMounts:
-            - name: shared-storage
-              mountPath: /tmp/solace-agent-mesh
-      volumes:
-        - name: shared-storage
-          emptyDir: {}
-```
+Agent Mesh provides Helm charts for Kubernetes deployments that handle resource management, scaling, and configuration. For prerequisites, Helm setup, and production configurations, see [Kubernetes](./kubernetes-deployment.md).
 
 ### Separating and Scaling Components
 
@@ -155,7 +113,7 @@ The Solace event broker serves as the communication backbone for your agent mesh
 
 Solace Cloud-managed event brokers offer built-in high availability, automatic scaling, security updates, and professional support. These managed services eliminate the operational overhead of maintaining event broker infrastructure while providing enterprise-grade reliability and performance.
 
-For more information about cloud-managed options, see [Solace Cloud](https://solace.com/products/event-broker/). For detailed configuration instructions, see [Configuring the Event Broker Connection](../installing-and-configuring/configurations.md#configuring-the-event-broker-connection).
+For more information about cloud-managed options, see [Solace Cloud](https://solace.com/products/event-broker/). For detailed configuration instructions, see [Configuring the Event Broker Connection](../installing-and-configuring/configurations.md#event-broker-connection).
 
 
 ### Setting up Queue Templates

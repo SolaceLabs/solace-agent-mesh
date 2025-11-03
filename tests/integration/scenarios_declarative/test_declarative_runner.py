@@ -292,6 +292,51 @@ async def _setup_scenario_environment(
         finally:
             db_session.close()
 
+    setup_projects_spec = declarative_scenario.get("setup_projects", [])
+    if setup_projects_spec:
+        from sqlalchemy.orm import sessionmaker
+        from solace_agent_mesh.gateway.http_sse.repository.models import ProjectModel
+        from datetime import datetime, timezone
+        import uuid
+
+        Session = sessionmaker(bind=test_db_engine)
+        db_session = Session()
+        try:
+            for project_spec in setup_projects_spec:
+                created_at_iso = project_spec.get("created_at_iso")
+                created_at_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+                if created_at_iso:
+                    created_at_ms = int(
+                        datetime.fromisoformat(created_at_iso).timestamp() * 1000
+                    )
+
+                updated_at_ms = None
+                if project_spec.get("updated_at_iso"):
+                    updated_at_ms = int(
+                        datetime.fromisoformat(
+                            project_spec.get("updated_at_iso")
+                        ).timestamp()
+                        * 1000
+                    )
+
+                new_project = ProjectModel(
+                    id=project_spec.get("id", f"setup-project-{uuid.uuid4().hex}"),
+                    name=project_spec["name"],
+                    user_id=project_spec.get("user_id"),
+                    description=project_spec.get("description"),
+                    system_prompt=project_spec.get("system_prompt"),
+                    default_agent_id=project_spec.get("default_agent_id"),
+                    created_at=created_at_ms,
+                    updated_at=updated_at_ms,
+                )
+                db_session.add(new_project)
+            db_session.commit()
+            print(
+                f"Scenario {scenario_id}: Setup {len(setup_projects_spec)} projects directly in the database."
+            )
+        finally:
+            db_session.close()
+
 
 async def _execute_gateway_actions(
     actions: List[Dict[str, Any]],

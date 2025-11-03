@@ -1,7 +1,14 @@
-import { MessageCircle, Bot, SunMoon, Command } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen, Command } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
+/**
+ * Get filtered top navigation items based on feature flags.
+ * This is the single source of truth for navigation items.
+ *
+ * @param featureFlags - Feature flags from backend config
+ * @returns Filtered navigation items based on enabled features
+ */
 export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): NavigationItem[] => {
     const items: NavigationItem[] = [
         {
@@ -16,9 +23,20 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
         },
     ];
     
+    // Add projects only if explicitly enabled (requires SQL persistence)
+    // Default to false if flag is undefined to be safe
+    const projectsEnabled = featureFlags?.projects ?? false;
+    if (projectsEnabled) {
+        items.push({
+            id: "projects",
+            label: "Projects",
+            icon: FolderOpen,
+        });
+    }
+    
     // Add prompts only if explicitly enabled (requires SQL persistence)
-    // Default to true if flag is undefined, but respect explicit false
-    const promptLibraryEnabled = featureFlags?.promptLibrary ?? true;
+    // Default to false if flag is undefined to be safe
+    const promptLibraryEnabled = featureFlags?.promptLibrary ?? false;
     if (promptLibraryEnabled) {
         items.push({
             id: "prompts",
@@ -30,7 +48,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
     return items;
 };
 
-// Backward compatibility: export static items for components that don't use feature flags yet
+// Backward compatibility: export static items with all features for components that don't use feature flags yet
 export const topNavigationItems: NavigationItem[] = [
     {
         id: "chat",
@@ -41,6 +59,11 @@ export const topNavigationItems: NavigationItem[] = [
         id: "agentMesh",
         label: "Agents",
         icon: Bot,
+    },
+    {
+        id: "projects",
+        label: "Projects",
+        icon: FolderOpen,
     },
     {
         id: "prompts",
