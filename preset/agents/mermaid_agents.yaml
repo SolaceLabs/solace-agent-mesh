@@ -54,7 +54,7 @@ apps:
         skills:
         - id: "mermaid_diagram_generator"
           name: "Mermaid Diagram Generator"
-          description: "Generates a PNG image from Mermaid diagram syntax. Requires detailed data. Input: mermaid_syntax (string), output_filename (string, optional)."
+          description: "Converts Mermaid syntax into visual PNG diagrams, supporting flowcharts, sequence diagrams, class diagrams, and other Mermaid diagram types. Input: mermaid_syntax (string)."
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
       inter_agent_communication:
