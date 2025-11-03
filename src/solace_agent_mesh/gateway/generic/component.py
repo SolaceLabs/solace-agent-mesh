@@ -246,9 +246,22 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         user_identity = None
         try:
             # 1. Authentication & Enrichment
-            auth_claims = await self.adapter.extract_auth_claims(
-                external_input, endpoint_context
-            )
+            # Try enterprise authentication first, fallback to adapter-based auth
+            try:
+                from solace_agent_mesh_enterprise.gateway.auth import authenticate_request
+
+                auth_claims = await authenticate_request(
+                    adapter=self.adapter,
+                    external_input=external_input,
+                    endpoint_context=endpoint_context,
+                )
+                log.debug("%s Using enterprise authentication", log_id_prefix)
+            except ImportError:
+                # Enterprise package not available, use adapter-based auth
+                log.debug("%s Enterprise package not available, using adapter auth", log_id_prefix)
+                auth_claims = await self.adapter.extract_auth_claims(
+                    external_input, endpoint_context
+                )
 
             # The final user_identity is a dictionary, not the Pydantic model.
             # It's built from claims and potentially enriched by an identity service.

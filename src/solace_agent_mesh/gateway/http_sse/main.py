@@ -19,8 +19,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
 from ...common import a2a
-from ...gateway.adapter import oauth_utils
 from ...gateway.http_sse import dependencies
+
+# Import OAuth utilities from enterprise package
+try:
+    from solace_agent_mesh_enterprise.gateway.auth.internal import oauth_utils
+except ImportError:
+    # Enterprise package not available - these functions will raise errors
+    oauth_utils = None
 from ...gateway.http_sse.routers import (
     agent_cards,
     artifacts,
@@ -50,6 +56,25 @@ app = FastAPI(
 # Global flag to track if dependencies have been initialized
 _dependencies_initialized = False
 
+# Global component instance (set during setup_dependencies)
+_component = None
+
+def get_gateway_oauth_proxy():
+    """
+    Get the OAuth proxy instance from the component.
+
+    The enterprise setup_oauth_proxy_routes() function stores the proxy
+    on component.gateway_oauth_proxy for access by auth callback routes.
+
+    Returns:
+        GatewayOAuthProxy instance or None if not configured
+    """
+    # Get the component instance (stored globally during app creation)
+    global _component
+    if _component and hasattr(_component, "gateway_oauth_proxy"):
+        return _component.gateway_oauth_proxy
+    return None
+
 
 def _extract_access_token(request: FastAPIRequest) -> str:
     auth_header = request.headers.get("Authorization")
@@ -73,10 +98,15 @@ async def _validate_token(
     auth_service_url: str, auth_provider: str, access_token: str
 ) -> bool:
     """
-    Validate token using shared OAuth utilities.
+    Validate token using enterprise OAuth utilities.
 
-    This is a thin wrapper for backward compatibility with existing code.
+    Requires enterprise package to be installed.
     """
+    if oauth_utils is None:
+        raise ImportError(
+            "Enterprise package required for OAuth authentication. "
+            "Install: pip install solace-agent-mesh-enterprise"
+        )
     return await oauth_utils.validate_token_with_oauth_service(
         auth_service_url, auth_provider, access_token
     )
@@ -86,10 +116,15 @@ async def _get_user_info(
     auth_service_url: str, auth_provider: str, access_token: str
 ) -> dict:
     """
-    Get user info using shared OAuth utilities.
+    Get user info using enterprise OAuth utilities.
 
-    This is a thin wrapper for backward compatibility with existing code.
+    Requires enterprise package to be installed.
     """
+    if oauth_utils is None:
+        raise ImportError(
+            "Enterprise package required for OAuth authentication. "
+            "Install: pip install solace-agent-mesh-enterprise"
+        )
     return await oauth_utils.get_user_info_from_oauth_service(
         auth_service_url, auth_provider, access_token
     )
@@ -97,11 +132,17 @@ async def _get_user_info(
 
 def _extract_user_identifier(user_info: dict) -> str:
     """
-    Extract user identifier using shared OAuth utilities.
+    Extract user identifier using enterprise OAuth utilities.
 
-    This is a thin wrapper for backward compatibility with existing code.
+    Requires enterprise package to be installed.
     Returns fallback value if extraction fails.
     """
+    if oauth_utils is None:
+        raise ImportError(
+            "Enterprise package required for OAuth authentication. "
+            "Install: pip install solace-agent-mesh-enterprise"
+        )
+
     user_identifier = oauth_utils.extract_user_identifier(user_info)
 
     if not user_identifier:
@@ -525,11 +566,14 @@ def setup_dependencies(
 
     This function is idempotent and safe to call multiple times.
     """
-    global _dependencies_initialized
+    global _dependencies_initialized, _component
 
     if _dependencies_initialized:
         log.debug("[setup_dependencies] Dependencies already initialized, skipping")
         return
+
+    # Store component globally for access by get_gateway_oauth_proxy()
+    _component = component
 
     dependencies.set_component_instance(component)
 
@@ -549,6 +593,11 @@ def setup_dependencies(
 
     _setup_middleware(component)
     _setup_routers()
+
+    log.error("DEBUG: About to call _setup_oauth_proxy_routes()")
+    _setup_oauth_proxy_routes(component)  # Setup gateway OAuth proxy if enterprise is available
+    log.error("DEBUG: Finished calling _setup_oauth_proxy_routes()")
+
     _setup_static_files()
 
     _dependencies_initialized = True
@@ -626,6 +675,28 @@ def _setup_routers() -> None:
         )
     except Exception as e:
         log.warning("Failed to load enterprise routers and exception handlers: %s", e)
+
+
+def _setup_oauth_proxy_routes(component: "WebUIBackendComponent") -> None:
+    """
+    Setup OAuth proxy routes using enterprise module.
+
+    This allows WebUI to act as an OAuth proxy for other gateways (like MCP).
+    Delegates to enterprise implementation.
+
+    Args:
+        component: WebUIBackendComponent instance
+    """
+    try:
+        from solace_agent_mesh_enterprise.gateway.auth import setup_oauth_proxy_routes
+
+        setup_oauth_proxy_routes(app, component)
+        log.info("OAuth proxy routes setup completed")
+
+    except ImportError:
+        log.debug("Enterprise package not available - OAuth proxy routes not configured")
+    except Exception as e:
+        log.error("Failed to setup OAuth proxy routes: %s", e, exc_info=True)
 
 
 def _setup_static_files() -> None:

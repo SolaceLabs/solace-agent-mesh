@@ -90,17 +90,16 @@ class SamUpdate(BaseModel):
 
 
 class AuthClaims(BaseModel):
-    """Authentication claims extracted from a platform event."""
+    """
+    Authentication claims extracted from a platform event.
+
+    """
 
     id: Optional[str] = Field(
         default=None,
         description="Primary user identifier. If None, generic gateway uses auth_config default.",
     )
     email: Optional[str] = None
-    token: Optional[str] = Field(
-        default=None, description="Bearer token or API key for token-based auth flows."
-    )
-    token_type: Optional[Literal["bearer", "api_key"]] = None
     source: str = Field(default="platform", description="Authentication source.")
     raw_context: Dict[str, Any] = Field(
         default_factory=dict, description="Platform-specific auth context."
@@ -167,14 +166,15 @@ class GatewayContext:
         raise NotImplementedError
 
     async def load_artifact_content(
-        self, context: "ResponseContext", filename: str, version: Union[int, str] = "latest"
+        self,
+        context: "ResponseContext",
+        filename: str,
+        version: Union[int, str] = "latest",
     ) -> Optional[bytes]:
         """Loads the raw byte content of an artifact."""
         raise NotImplementedError
 
-    async def list_artifacts(
-        self, context: "ResponseContext"
-    ) -> List["ArtifactInfo"]:
+    async def list_artifacts(self, context: "ResponseContext") -> List["ArtifactInfo"]:
         """Lists all artifacts available in the user's context."""
         raise NotImplementedError
 

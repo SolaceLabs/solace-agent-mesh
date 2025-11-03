@@ -25,7 +25,6 @@ from mcp.types import (
 from pydantic import BaseModel, Field
 
 from ...common.utils.mime_helpers import is_text_based_file
-from ..adapter import oauth_utils
 from ..adapter.base import GatewayAdapter
 from ..adapter.types import (
     AuthClaims,
@@ -89,6 +88,18 @@ class McpAdapterConfig(BaseModel):
         default=False,
         description="Development mode - bypass auth and use default_user_identity (WARNING: insecure, dev only)",
     )
+    user_id_claim: str = Field(
+        default="email",
+        description="OAuth claim to use as user ID for SAM audit logs (options: 'email', 'sub', 'upn', 'preferred_username')",
+    )
+    oauth_proxy_url: str = Field(
+        default="http://localhost:8000",
+        description="URL of WebUI gateway OAuth proxy for triple-redirect flow (MCP → WebUI → Azure)",
+    )
+    session_secret_key: Optional[str] = Field(
+        default=None,
+        description="Secret key for session encryption (auto-generated if not provided)",
+    )
 
     # File handling configuration
     inline_image_max_bytes: int = Field(
@@ -151,11 +162,23 @@ class McpAdapter(GatewayAdapter):
             {}
         )  # agent_name -> list of tool names
 
+        # Store MCP context for enterprise authentication
+        # Enterprise auth extractors will access this to extract tokens
+        self._current_mcp_context: Optional[Any] = None
+
         # Resource management for artifact access
         # Track which artifacts exist per session for resource listing
         self.session_artifacts: Dict[str, Dict[str, Dict[str, Any]]] = (
             {}
         )  # session_id -> {filename -> metadata}
+
+        # OAuth authorization codes for triple-redirect flow
+        # Maps authorization code -> {tokens, created_at, code_challenge, redirect_uri}
+        self.oauth_codes: Dict[str, Dict[str, Any]] = {}
+
+        # OAuth state storage for authorize -> callback flow
+        # Maps internal_state -> {client_redirect_uri, client_state, code_challenge, created_at, ttl_seconds}
+        self.oauth_states: Dict[str, Dict[str, Any]] = {}
 
     async def init(self, context: GatewayContext) -> None:
         """Initialize the MCP server and register tools from discovered agents."""
@@ -303,55 +326,247 @@ class McpAdapter(GatewayAdapter):
             "/oauth/authorize, /oauth/callback, /.well-known/oauth-authorization-server"
         )
 
+    def _cleanup_expired_oauth_states(self):
+        """
+        Remove expired OAuth states to prevent memory leaks.
+        Called at the start of each authorize request.
+        """
+        import time
+        now = time.time()
+        expired = [
+            state for state, data in self.oauth_states.items()
+            if now - data['created_at'] > data['ttl_seconds']
+        ]
+        for state in expired:
+            del self.oauth_states[state]
+        if expired:
+            log.debug("Cleaned up %d expired OAuth states", len(expired))
+
     async def _handle_oauth_authorize(self, request):
         """
-        Handle GET /oauth/authorize - Initiates OAuth flow.
+        Handle GET /oauth/authorize - Initiates triple-redirect OAuth flow.
 
-        Delegates to enterprise auth handler (SAMOAuth2Handler).
+        Triple-redirect flow (MCP-specific):
+        1. MCP Client → MCP /oauth/authorize
+        2. MCP → WebUI /gateway-oauth/authorize
+        3. WebUI → Azure AD (handled by WebUI)
+        4. Azure → WebUI callback
+        5. WebUI → MCP /oauth/callback (with gateway code)
+        6. MCP redirects to client's redirect_uri (with authorization code)
+
+        Query params from MCP client:
+            response_type: "code" (required)
+            client_id: Client ID from registration
+            redirect_uri: Client's callback URI (e.g., http://127.0.0.1:PORT/callback)
+            scope: Requested scopes
+            state: CSRF protection token
+            code_challenge: PKCE challenge (optional)
+            code_challenge_method: "S256" (optional)
+
+        Returns:
+            Redirect to WebUI OAuth proxy
         """
         from starlette.responses import RedirectResponse
+        from urllib.parse import urlencode
+        import secrets
+        import time
 
-        result = await self.context.auth_handler.handle_authorize(request)
+        config: McpAdapterConfig = self.context.adapter_config
 
-        # Handle dict response (convert to redirect)
-        if isinstance(result, dict):
-            return RedirectResponse(
-                url=result.get("redirect_url"),
-                status_code=result.get("status_code", 302)
+        # Extract query parameters from MCP client
+        query_params = dict(request.query_params)
+        redirect_uri = query_params.get("redirect_uri")
+        state = query_params.get("state")
+        code_challenge = query_params.get("code_challenge")
+        code_challenge_method = query_params.get("code_challenge_method")
+
+        if not redirect_uri:
+            from starlette.responses import JSONResponse
+            return JSONResponse(
+                {"error": "invalid_request", "error_description": "Missing redirect_uri"},
+                status_code=400
             )
 
-        # Already a redirect response
-        return result
+        # Clean up expired OAuth states
+        self._cleanup_expired_oauth_states()
+
+        # Store client's OAuth request in memory for callback
+        # Generate internal state to correlate callback with this request
+        internal_state = secrets.token_urlsafe(32)
+
+        self.oauth_states[internal_state] = {
+            'client_redirect_uri': redirect_uri,
+            'client_state': state,
+            'code_challenge': code_challenge,
+            'code_challenge_method': code_challenge_method,
+            'created_at': time.time(),
+            'ttl_seconds': 300  # 5 minutes
+        }
+
+        log.info("Stored OAuth state for internal_state=%s", internal_state)
+
+        # Build MCP's callback URI (where WebUI will send gateway code)
+        mcp_callback_uri = f"http://{config.host}:{config.port}/oauth/callback"
+
+        # Redirect to WebUI OAuth proxy with internal state
+        proxy_params = {
+            "gateway_uri": mcp_callback_uri,
+            "state": internal_state
+        }
+
+        proxy_url = f"{config.oauth_proxy_url}/api/v1/gateway-oauth/authorize?{urlencode(proxy_params)}"
+
+        log.info(
+            "MCP OAuth: Redirecting to WebUI proxy for triple-redirect flow. Client redirect_uri=%s",
+            redirect_uri
+        )
+
+        return RedirectResponse(url=proxy_url, status_code=302)
 
     async def _handle_oauth_callback(self, request):
         """
-        Handle GET /oauth/callback - OAuth callback from SAM OAuth2 service.
+        Handle GET /oauth/callback - OAuth callback from WebUI OAuth proxy.
 
-        Delegates to enterprise auth handler (SAMOAuth2Handler) which handles
-        the gateway code exchange for tokens.
+        This is step 5 in the triple-redirect flow:
+        1. MCP Client → MCP /oauth/authorize
+        2. MCP → WebUI /gateway-oauth/authorize
+        3. WebUI → Azure AD (handled by WebUI)
+        4. Azure → WebUI callback
+        5. **WebUI → MCP /oauth/callback (with gateway code)** ← WE ARE HERE
+        6. MCP redirects to client's redirect_uri (with authorization code)
+
+        Query params from WebUI:
+            code: Gateway code (single-use, short-lived)
+            state: Internal state we sent in step 2
+
+        Returns:
+            Redirect to client's redirect_uri with authorization code
         """
-        from starlette.responses import JSONResponse, HTMLResponse
+        from starlette.responses import JSONResponse, RedirectResponse
+        from urllib.parse import urlencode
+        import secrets
+        import httpx
+        import time
+
+        config: McpAdapterConfig = self.context.adapter_config
+
+        # Extract gateway code and state from WebUI
+        gateway_code = request.query_params.get("code")
+        returned_state = request.query_params.get("state")
+
+        if not gateway_code:
+            log.error("MCP OAuth callback: Missing gateway code from WebUI")
+            return JSONResponse(
+                {"error": "invalid_request", "error_description": "Missing code parameter"},
+                status_code=400
+            )
+
+        # Look up OAuth state from in-memory storage
+        state_data = self.oauth_states.get(returned_state)
+        if not state_data:
+            log.error("MCP OAuth callback: Invalid or expired state parameter: %s", returned_state)
+            return JSONResponse(
+                {"error": "invalid_request", "error_description": "Invalid or expired state"},
+                status_code=400
+            )
+
+        # Check expiration
+        age = time.time() - state_data['created_at']
+        if age > state_data['ttl_seconds']:
+            log.error("MCP OAuth callback: State expired (age=%.1fs)", age)
+            del self.oauth_states[returned_state]
+            return JSONResponse(
+                {"error": "invalid_request", "error_description": "State expired"},
+                status_code=400
+            )
+
+        # Get client's redirect info from stored state
+        client_redirect_uri = state_data['client_redirect_uri']
+        client_state = state_data['client_state']
+        code_challenge = state_data['code_challenge']
+        code_challenge_method = state_data['code_challenge_method']
+
+        # Delete state (one-time use)
+        del self.oauth_states[returned_state]
+
+        log.info("Retrieved OAuth state for internal_state=%s, client_redirect_uri=%s",
+                 returned_state, client_redirect_uri)
 
         try:
-            result = await self.context.auth_handler.handle_callback(request)
+            # Exchange gateway code for actual OAuth tokens from WebUI proxy
+            mcp_callback_uri = f"http://{config.host}:{config.port}/oauth/callback"
 
-            # If result is already an HTMLResponse (e.g., success page), return it
-            if isinstance(result, HTMLResponse):
-                return result
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                exchange_response = await client.post(
+                    f"{config.oauth_proxy_url}/api/v1/gateway-oauth/exchange",
+                    json={
+                        "code": gateway_code,
+                        "gateway_uri": mcp_callback_uri
+                    }
+                )
 
-            # Otherwise return as JSON
-            return JSONResponse(result)
-        except ValueError as e:
-            log.error("OAuth callback validation error: %s", e)
+                if exchange_response.status_code != 200:
+                    log.error(
+                        "MCP OAuth: Gateway code exchange failed: %d %s",
+                        exchange_response.status_code,
+                        exchange_response.text
+                    )
+                    return JSONResponse(
+                        {"error": "token_exchange_failed", "error_description": "Failed to exchange gateway code"},
+                        status_code=502
+                    )
+
+                tokens = exchange_response.json()
+                access_token = tokens.get("access_token")
+                refresh_token = tokens.get("refresh_token")
+
+            if not access_token:
+                log.error("MCP OAuth: No access token in exchange response")
+                return JSONResponse(
+                    {"error": "token_exchange_failed", "error_description": "No access token returned"},
+                    status_code=502
+                )
+
+            # Generate authorization code for MCP client
+            # This code will be exchanged for tokens via /oauth/token endpoint
+            authorization_code = secrets.token_urlsafe(32)
+
+            # Store tokens associated with this authorization code (short-lived)
+            self.oauth_codes[authorization_code] = {
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+                'created_at': time.time(),
+                'code_challenge': code_challenge,
+                'redirect_uri': client_redirect_uri,
+                'ttl_seconds': 300  # 5 minutes
+            }
+
+            # Build redirect to client with authorization code
+            params = {"code": authorization_code}
+            if client_state:
+                params["state"] = client_state
+
+            separator = '&' if '?' in client_redirect_uri else '?'
+            redirect_url = f"{client_redirect_uri}{separator}{urlencode(params)}"
+
+            log.info(
+                "MCP OAuth: Successfully exchanged gateway code, redirecting to client at %s",
+                client_redirect_uri
+            )
+
+            return RedirectResponse(url=redirect_url, status_code=302)
+
+        except httpx.RequestError as e:
+            log.error("MCP OAuth: Failed to connect to WebUI proxy for code exchange: %s", e)
             return JSONResponse(
-                {"error": "invalid_request", "error_description": str(e)},
-                status_code=400,
+                {"error": "proxy_unavailable", "error_description": str(e)},
+                status_code=503
             )
         except Exception as e:
-            log.error("OAuth callback error: %s", e)
+            log.error("MCP OAuth callback error: %s", e, exc_info=True)
             return JSONResponse(
                 {"error": "callback_failed", "error_description": str(e)},
-                status_code=500,
+                status_code=500
             )
 
     async def _handle_oauth_metadata(self, request):
@@ -420,6 +635,140 @@ class McpAdapter(GatewayAdapter):
             return JSONResponse(
                 {"error": "invalid_request", "error_description": str(e)},
                 status_code=400,
+            )
+
+    async def _handle_oauth_token(self, request):
+        """
+        Handle POST /oauth/token - Token exchange endpoint.
+
+        This is the final step of the triple-redirect OAuth flow where Claude Code
+        exchanges the authorization code for access/refresh tokens.
+
+        Request body (form-urlencoded):
+            grant_type: "authorization_code" or "refresh_token"
+            code: Authorization code (for authorization_code grant)
+            redirect_uri: Must match the redirect_uri from /oauth/authorize
+            code_verifier: PKCE code verifier (if code_challenge was used)
+            refresh_token: Refresh token (for refresh_token grant)
+
+        Returns:
+            JSON with tokens:
+            {
+                "access_token": "...",
+                "refresh_token": "...",
+                "token_type": "Bearer",
+                "expires_in": 3600
+            }
+        """
+        from starlette.responses import JSONResponse
+        import time
+        import hashlib
+        import base64
+
+        try:
+            # Parse form-urlencoded body
+            body = await request.form()
+            grant_type = body.get("grant_type")
+            code = body.get("code")
+            redirect_uri = body.get("redirect_uri")
+            code_verifier = body.get("code_verifier")
+            refresh_token = body.get("refresh_token")
+
+            if grant_type == "authorization_code":
+                # Validate required parameters
+                if not code:
+                    return JSONResponse(
+                        {"error": "invalid_request", "error_description": "Missing code parameter"},
+                        status_code=400
+                    )
+
+                # Look up authorization code
+                if not hasattr(self, 'oauth_codes') or code not in self.oauth_codes:
+                    log.warning("MCP OAuth token: Invalid or expired authorization code")
+                    return JSONResponse(
+                        {"error": "invalid_grant", "error_description": "Invalid or expired authorization code"},
+                        status_code=400
+                    )
+
+                code_data = self.oauth_codes[code]
+
+                # Check expiration
+                age = time.time() - code_data['created_at']
+                if age > code_data['ttl_seconds']:
+                    log.warning("MCP OAuth token: Authorization code expired (age: %.1fs)", age)
+                    del self.oauth_codes[code]
+                    return JSONResponse(
+                        {"error": "invalid_grant", "error_description": "Authorization code has expired"},
+                        status_code=400
+                    )
+
+                # Validate redirect_uri matches
+                if redirect_uri != code_data['redirect_uri']:
+                    log.error(
+                        "MCP OAuth token: Redirect URI mismatch. Expected=%s, Got=%s",
+                        code_data['redirect_uri'],
+                        redirect_uri
+                    )
+                    return JSONResponse(
+                        {"error": "invalid_grant", "error_description": "Redirect URI mismatch"},
+                        status_code=400
+                    )
+
+                # Validate PKCE if code_challenge was used
+                if code_data.get('code_challenge'):
+                    if not code_verifier:
+                        log.error("MCP OAuth token: Missing code_verifier for PKCE")
+                        return JSONResponse(
+                            {"error": "invalid_grant", "error_description": "code_verifier required for PKCE"},
+                            status_code=400
+                        )
+
+                    # Verify code_challenge = BASE64URL(SHA256(code_verifier))
+                    verifier_hash = hashlib.sha256(code_verifier.encode('ascii')).digest()
+                    computed_challenge = base64.urlsafe_b64encode(verifier_hash).decode('ascii').rstrip('=')
+
+                    if computed_challenge != code_data['code_challenge']:
+                        log.error("MCP OAuth token: PKCE verification failed")
+                        return JSONResponse(
+                            {"error": "invalid_grant", "error_description": "Invalid code_verifier"},
+                            status_code=400
+                        )
+
+                # Get tokens and delete code (one-time use)
+                access_token = code_data['access_token']
+                refresh_token = code_data['refresh_token']
+                del self.oauth_codes[code]
+
+                log.info("MCP OAuth: Successfully exchanged authorization code for tokens")
+
+                return JSONResponse({
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                    "token_type": "Bearer",
+                    "expires_in": 3600  # 1 hour (this is just a hint, actual expiry managed by OAuth2 service)
+                })
+
+            elif grant_type == "refresh_token":
+                # For refresh token grant, we need to call the OAuth2 service to get new tokens
+                # This requires the WebUI proxy to support refresh token exchange
+                log.warning("MCP OAuth: Refresh token grant not yet implemented")
+                return JSONResponse(
+                    {"error": "unsupported_grant_type", "error_description": "Refresh token grant not yet implemented"},
+                    status_code=400
+                )
+
+            else:
+                log.warning("MCP OAuth token: Unsupported grant_type: %s", grant_type)
+                return JSONResponse(
+                    {"error": "unsupported_grant_type", "error_description": f"Unsupported grant_type: {grant_type}"},
+                    status_code=400
+                )
+
+        except Exception as e:
+            log.error("MCP OAuth token error: %s", e, exc_info=True)
+            return JSONResponse(
+                {"error": "server_error", "error_description": str(e)},
+                status_code=500
             )
 
     def _register_tool_for_skill(self, agent_card: AgentCard, skill: AgentSkill):
@@ -537,37 +886,12 @@ class McpAdapter(GatewayAdapter):
                     f"mcp_context.client_id not available, using fallback: {client_id}"
                 )
 
-            # Extract access token from MCP context for OAuth authentication
-            # The token can be provided by the MCP client in various ways
-            access_token = None
-            if config.enable_auth and not config.dev_mode:
-                try:
-                    # Try to get token from mcp_context metadata/headers
-                    # FastMCP may provide this in different ways depending on transport
-                    if hasattr(mcp_context, "request_context"):
-                        # HTTP transport might have headers
-                        request_ctx = mcp_context.request_context
-                        if isinstance(request_ctx, dict):
-                            access_token = oauth_utils.extract_bearer_token_from_dict(
-                                request_ctx
-                            )
+            # Store MCP context for enterprise authentication
+            # Enterprise auth extractors will access this to extract Bearer tokens
+            self._current_mcp_context = mcp_context
 
-                    # Try metadata attribute
-                    if not access_token and hasattr(mcp_context, "metadata"):
-                        metadata = mcp_context.metadata
-                        if isinstance(metadata, dict):
-                            access_token = oauth_utils.extract_bearer_token_from_dict(
-                                metadata
-                            )
-
-                    if not access_token:
-                        log.warning(
-                            "OAuth enabled but no access token found in MCP context for tool call"
-                        )
-                except Exception as e:
-                    log.warning(f"Error extracting access token from MCP context: {e}")
-
-            # Create external input dict with client_id and optional token
+            # Create external input dict with client_id
+            # NOTE: Token extraction is now handled by enterprise auth
             external_input = {
                 "tool_name": tool_name,
                 "agent_name": agent_name,
@@ -576,11 +900,6 @@ class McpAdapter(GatewayAdapter):
                 "mcp_client_id": client_id,
                 "timestamp": datetime.utcnow().isoformat(),
             }
-
-            # Add token to external_input if OAuth is enabled
-            if access_token:
-                external_input["access_token"] = access_token
-                log.debug("Added access token to external_input for authentication")
 
             # Submit to SAM via the generic gateway with endpoint_context
             task_id = await self.context.handle_external_input(
@@ -770,21 +1089,17 @@ class McpAdapter(GatewayAdapter):
                 )
 
                 # Get the underlying Starlette app and add OAuth routes if auth enabled
-                log.info(
-                    "OAuth endpoint check: enable_auth=%s, has_auth_handler=%s, auth_handler=%s",
-                    config.enable_auth,
-                    hasattr(self.context, 'auth_handler'),
-                    getattr(self.context, 'auth_handler', None)
-                )
+                # For triple-redirect flow, MCP adapter handles OAuth directly (no auth_handler needed)
+                log.info("OAuth endpoint check: enable_auth=%s", config.enable_auth)
 
-                if config.enable_auth and hasattr(self.context, 'auth_handler') and self.context.auth_handler:
+                if config.enable_auth:
                     from starlette.routing import Route
 
                     # Create the HTTP app
                     http_app = self.mcp_server.http_app(transport="http")
 
                     # Add OAuth routes to the Starlette app
-                    # These routes delegate to the enterprise auth handler (SAMOAuth2Handler)
+                    # These routes implement the triple-redirect OAuth flow
                     oauth_routes = [
                         Route(
                             "/oauth/authorize",
@@ -795,6 +1110,11 @@ class McpAdapter(GatewayAdapter):
                             "/oauth/callback",
                             self._handle_oauth_callback,
                             methods=["GET"],
+                        ),
+                        Route(
+                            "/oauth/token",
+                            self._handle_oauth_token,
+                            methods=["POST"],
                         ),
                         Route(
                             "/oauth/register",
@@ -810,7 +1130,7 @@ class McpAdapter(GatewayAdapter):
 
                     # Add routes to the app
                     http_app.router.routes.extend(oauth_routes)
-                    log.info("Added OAuth endpoints to HTTP server (delegating to enterprise auth handler)")
+                    log.info("Added OAuth endpoints to HTTP server (triple-redirect flow via WebUI proxy)")
 
                     # Debug: Log all registered routes
                     log.info("All registered routes:")
@@ -1171,94 +1491,10 @@ class McpAdapter(GatewayAdapter):
 
     # --- Required GatewayAdapter Methods ---
 
-    async def extract_auth_claims(
-        self, external_input: Dict, endpoint_context: Optional[Dict[str, Any]] = None
-    ) -> Optional[AuthClaims]:
-        """
-        Extract authentication claims from MCP request.
-
-        This method implements OAuth authentication by:
-        1. Checking if auth is enabled and not in dev mode
-        2. Extracting bearer token from external_input
-        3. Validating token against SAM's OAuth2 service
-        4. Retrieving user info and creating AuthClaims
-
-        If auth is disabled or in dev mode, falls back to default_user_identity.
-        If auth is enabled and token validation fails, raises PermissionError.
-
-        Args:
-            external_input: Dictionary containing MCP request data
-            endpoint_context: Optional endpoint-specific context
-
-        Returns:
-            AuthClaims with authenticated user info, or None if auth is disabled
-
-        Raises:
-            PermissionError: If auth is enabled but authentication fails
-        """
-        config: McpAdapterConfig = self.context.adapter_config
-
-        # Dev mode bypass (insecure, for development only)
-        if config.dev_mode:
-            log.debug(
-                "Dev mode: Using default_user_identity=%s", config.default_user_identity
-            )
-            return AuthClaims(
-                id=config.default_user_identity,
-                source="mcp_dev",
-                raw_context={"dev_mode": True},
-            )
-
-        # Authentication disabled - use default identity (return None to trigger fallback)
-        if not config.enable_auth:
-            log.debug(
-                "Auth disabled: Using default_user_identity=%s",
-                config.default_user_identity,
-            )
-            return AuthClaims(id=config.default_user_identity, source="mcp")
-
-        # OAuth authentication enabled - extract and validate token
-        log.debug("OAuth authentication enabled, extracting token from request")
-
-        # Extract token from external_input (could be in headers, metadata, or direct field)
-        access_token = oauth_utils.extract_bearer_token_from_dict(
-            external_input,
-            token_keys=["access_token", "token", "Authorization", "authorization"],
-        )
-
-        if not access_token:
-            log.warning("OAuth enabled but no access token found in MCP request")
-            raise PermissionError(
-                "Authentication required: No access token provided in MCP request"
-            )
-
-        # Validate token and get user info
-        try:
-            claims = await oauth_utils.validate_and_create_auth_claims(
-                auth_service_url=config.external_auth_service_url,
-                auth_provider=config.external_auth_provider,
-                access_token=access_token,
-                source="mcp",
-            )
-
-            if claims:
-                log.info("Successfully authenticated MCP user: %s", claims.id)
-                return claims
-            else:
-                log.warning("Token validation failed for MCP request")
-                raise PermissionError(
-                    "Authentication failed: Invalid or expired access token"
-                )
-
-        except PermissionError:
-            # Re-raise PermissionError as-is
-            raise
-        except Exception as e:
-            log.error("Error during OAuth authentication: %s", e)
-            # If OAuth service is unreachable, fail closed (reject request)
-            raise PermissionError(
-                f"Authentication failed: Unable to validate token - {str(e)}"
-            ) from e
+    # NOTE: extract_auth_claims() has been removed!
+    # Authentication is now handled by enterprise auth in generic gateway.
+    # The MCP adapter just stores _current_mcp_context for enterprise extractors.
+    # See: solace_agent_mesh_enterprise.gateway.auth.authenticate_request()
 
     async def prepare_task(
         self, external_input: Dict, endpoint_context: Optional[Dict[str, Any]] = None
