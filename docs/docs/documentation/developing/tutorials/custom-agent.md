@@ -53,7 +53,7 @@ You can create an agent either by using the `sam add agent` command or by creati
 
 For information and recommendations about these options, see [`Agent or Plugin: Which To use?`](../../components/plugins.md#agent-or-plugin-which-to-use).
 
-For an example of plugin agents, see the [Create Agents](../create-agents.md#step-1-initialize-your-agent) guide.
+For an example of plugin agents, see the [Create Agents](../create-agents.md#creating-your-first-agent-step-by-step) guide.
 :::
 
 Follow the steps on the GUI to create a new agent named "Weather Agent". We can update the tools/skills section directly in the configuration file later.

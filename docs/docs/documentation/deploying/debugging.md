@@ -33,7 +33,7 @@ This isolation approach is particularly effective when you suspect issues with a
 
 STIM files serve as your detailed forensic evidence when debugging complex issues. These comprehensive traces capture every aspect of how requests flow through your system, making them invaluable for understanding problems that span multiple agents or involve timing-sensitive interactions.
 
-[STIM files](./observability.md#stimulus-logs) provide the most complete picture available of stimulus lifecycles. Unlike real-time monitoring tools that show current activity, STIM files preserve historical data that you can analyze repeatedly and share with team members for collaborative debugging.
+[STIM files](./observability.md#examining-stimulus-logs) provide the most complete picture available of stimulus lifecycles. Unlike real-time monitoring tools that show current activity, STIM files preserve historical data that you can analyze repeatedly and share with team members for collaborative debugging.
 
 Each `.stim` file contains a complete record of all Solace event broker events related to a single stimulus, from the initial user request through every agent interaction to the final response delivery. This comprehensive coverage makes STIM files particularly useful for debugging issues that involve:
 
