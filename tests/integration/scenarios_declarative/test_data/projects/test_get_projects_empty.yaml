@@ -1,0 +1,15 @@
+test_case_id: "projects_get_empty_004"
+description: "Tests GET /api/v1/projects returns paginated response structure"
+tags: ["projects", "crud"]
+
+expected_http_responses:
+  - description: "GET /api/v1/projects should return paginated response with projects array"
+    request:
+      method: "GET"
+      path: "/api/v1/projects"
+      query_params:
+        user_id: "nonexistent_user_99999"
+    expected_status_code: 200
+    text_contains:
+      - '"projects":'
+      - '"total":'

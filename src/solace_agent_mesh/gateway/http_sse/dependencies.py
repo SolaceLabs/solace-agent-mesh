@@ -5,9 +5,11 @@ managed by the WebUIBackendComponent.
 
 import logging
 from collections.abc import Callable, Generator
-from typing import TYPE_CHECKING, Any
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Optional
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status, Path, Query
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -17,7 +19,7 @@ from ...common.services.identity_service import BaseIdentityService
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.task_context import TaskContextManager
 from ...gateway.http_sse.services.agent_card_service import AgentCardService
-from ...gateway.http_sse.services.data_retention_service import DataRetentionService
+from ...gateway.http_sse.services.project_service import ProjectService
 from ...gateway.http_sse.services.feedback_service import FeedbackService
 from ...gateway.http_sse.services.people_service import PeopleService
 from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
@@ -26,6 +28,7 @@ from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .repository import SessionRepository
 from .repository.interfaces import ITaskRepository
+from .repository.project_repository import ProjectRepository
 from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
 
@@ -587,6 +590,21 @@ def get_db_optional() -> Generator[Session | None, None, None]:
         finally:
             db.close()
 
+def get_project_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> ProjectService:
+    """Dependency factory for ProjectService."""
+    return ProjectService(component=component)
+
+
+def get_project_service_optional(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> ProjectService | None:
+    """Optional project service dependency that returns None if database is not configured."""
+    if SessionLocal is None:
+        log.debug("Database not configured, projects unavailable")
+        return None
+    return ProjectService(component=component)
 
 def get_session_business_service_optional(
     component: "WebUIBackendComponent" = Depends(get_sac_component),

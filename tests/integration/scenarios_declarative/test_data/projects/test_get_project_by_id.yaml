@@ -1,0 +1,27 @@
+test_case_id: test_get_project_by_id
+description: Test GET /api/v1/projects/{id} returns specific project
+tags: [projects, api]
+
+setup_projects:
+  - id: "test-project-123"
+    name: "Specific Test Project"
+    user_id: "sam_dev_user"
+    description: "A specific project for testing"
+    system_prompt: "You are a specialized assistant"
+    created_at_iso: "2024-01-15T10:00:00+00:00"
+    updated_at_iso: "2024-01-16T15:30:00+00:00"
+
+expected_http_responses:
+  - description: "Get project by ID"
+    request:
+      method: GET
+      path: /api/v1/projects/test-project-123
+      query_params:
+        user_id: "sam_dev_user"
+    expected_status_code: 200
+    text_contains:
+      - '"id":"test-project-123"'
+      - '"name":"Specific Test Project"'
+      - '"userId":"sam_dev_user"'
+      - '"description":"A specific project for testing"'
+      - '"systemPrompt":"You are a specialized assistant"'

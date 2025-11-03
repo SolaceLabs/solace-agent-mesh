@@ -28,7 +28,7 @@ def test_submit_feedback_persists_to_database(
     """
     # Arrange: Create a session and a task using the gateway adapter
     session = gateway_adapter.create_session(
-        user_id="feedback_user", agent_name="TestAgent"
+        user_id="sam_dev_user", agent_name="TestAgent"
     )
     task = gateway_adapter.send_message(session.id, "Task for feedback")
 
@@ -74,7 +74,7 @@ def test_submit_multiple_feedback_records(
     """
     # Arrange: Create a session and a task
     session = gateway_adapter.create_session(
-        user_id="multi_feedback_user", agent_name="TestAgent"
+        user_id="sam_dev_user", agent_name="TestAgent"
     )
     task = gateway_adapter.send_message(session.id, "Task for multiple feedback")
 
@@ -218,7 +218,7 @@ def test_feedback_publishing_with_include_task_info_none(
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
     session = gateway_adapter.create_session(
-        user_id="none_user", agent_name="TestAgent"
+        user_id="sam_dev_user", agent_name="TestAgent"
     )
     task = gateway_adapter.send_message(session.id, "Task for none test")
 
@@ -445,7 +445,7 @@ def test_feedback_publishing_disabled_skips_event_but_saves_to_db(
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
     session = gateway_adapter.create_session(
-        user_id="disabled_user", agent_name="TestAgent"
+        user_id="sam_dev_user", agent_name="TestAgent"
     )
     task = gateway_adapter.send_message(session.id, "Task for disabled test")
 
@@ -501,7 +501,7 @@ def test_feedback_publishing_uses_custom_topic(
     monkeypatch.setattr(component, "publish_a2a", mock_publish_func)
 
     session = gateway_adapter.create_session(
-        user_id="custom_topic_user", agent_name="TestAgent"
+        user_id="sam_dev_user", agent_name="TestAgent"
     )
     task = gateway_adapter.send_message(session.id, "Task for custom topic test")
 
@@ -546,7 +546,7 @@ def test_feedback_publishing_failure_does_not_break_saving(
     )
 
     session = gateway_adapter.create_session(
-        user_id="resilience_user", agent_name="TestAgent"
+        user_id="sam_dev_user", agent_name="TestAgent"
     )
     task = gateway_adapter.send_message(session.id, "Task for resilience test")
 
@@ -676,7 +676,7 @@ def test_feedback_publishing_with_missing_task(
 
     # We don't create a task, just a session
     session = gateway_adapter.create_session(
-        user_id="missing_task_user", agent_name="TestAgent"
+        user_id="sam_dev_user", agent_name="TestAgent"
     )
     fake_task_id = f"task-{uuid.uuid4().hex[:8]}"
 

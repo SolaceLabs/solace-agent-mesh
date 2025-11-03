@@ -13,6 +13,7 @@ export interface ChatState {
     notifications: Notification[];
     isCancelling: boolean;
     latestStatusText: React.RefObject<string | null>;
+    isLoadingSession: boolean;
     // Agents
     agents: AgentCardInfo[];
     agentsError: string | null;
@@ -50,7 +51,7 @@ export interface ChatActions {
     setSessionName: React.Dispatch<React.SetStateAction<string | null>>;
     setMessages: React.Dispatch<React.SetStateAction<MessageFE[]>>;
     setTaskIdInSidePanel: React.Dispatch<React.SetStateAction<string | null>>;
-    handleNewSession: () => void;
+    handleNewSession: (preserveProjectContext?: boolean) => void;
     handleSwitchSession: (sessionId: string) => Promise<void>;
     handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null) => Promise<void>;
     handleCancel: () => void;

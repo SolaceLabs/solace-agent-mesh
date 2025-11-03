@@ -103,6 +103,8 @@ class SqliteProvider(DatabaseProvider):
         else:
             # New mode - create our own temporary SQLite
             temp_path = Path(self._agent_temp_dir.name) / "gateway.db"
+            # Ensure parent directory exists
+            temp_path.parent.mkdir(parents=True, exist_ok=True)
             gateway_url = f"sqlite:///{temp_path}"
             self._sync_engines["gateway"] = sa.create_engine(
                 gateway_url, connect_args={"check_same_thread": False}
@@ -113,6 +115,8 @@ class SqliteProvider(DatabaseProvider):
 
         # Setup Agents
         agent_temp_path = Path(self._agent_temp_dir.name)
+        # Ensure agent temp directory exists
+        agent_temp_path.mkdir(parents=True, exist_ok=True)
         for name in agent_names:
             agent_path = agent_temp_path / f"agent_{name}.db"
             agent_sync_engine = sa.create_engine(

@@ -1,0 +1,12 @@
+test_case_id: "projects_create_validation_003"
+description: "Tests project creation validation - missing required name field"
+tags: ["projects", "validation", "error"]
+
+expected_http_responses:
+  - description: "Attempt to create project without name should fail"
+    request:
+      method: "POST"
+      path: "/api/v1/projects"
+      json_body:
+        description: "Project without name"
+    expected_status_code: 422

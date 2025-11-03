@@ -1,0 +1,25 @@
+test_case_id: test_unauthorized_update
+description: Test that users cannot update other users' projects
+tags: []
+
+setup_projects:
+  - id: "user1-project-update-001"
+    name: "User 1 Project"
+    user_id: "user1"
+    description: "Private project for user1"
+    system_prompt: "Original prompt"
+    created_at_iso: "2024-01-01T10:00:00+00:00"
+
+expected_http_responses:
+  - description: "User2 trying to update User1's project should get 404"
+    request:
+      method: PUT
+      path: /api/v1/projects/user1-project-update-001
+      query_params:
+        user_id: "user2"
+      json_body:
+        name: "Hacked Name"
+        description: "Hacked Description"
+    expected_status_code: 404
+    text_contains:
+      - "Resource not found"
