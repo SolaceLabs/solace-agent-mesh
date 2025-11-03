@@ -263,21 +263,32 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     // Get unique project names from sessions, sorted alphabetically
     const projectNames = useMemo(() => {
         const uniqueProjectNames = new Set<string>();
+        let hasUnassignedChats = false;
         
         sessions.forEach(session => {
             if (session.projectName) {
                 uniqueProjectNames.add(session.projectName);
+            } else {
+                hasUnassignedChats = true;
             }
         });
         
-        // Sort projects alphabetically
-        return Array.from(uniqueProjectNames).sort((a, b) => a.localeCompare(b));
+        const sortedNames = Array.from(uniqueProjectNames).sort((a, b) => a.localeCompare(b));
+        
+        if (hasUnassignedChats) {
+            sortedNames.unshift("(No Project)");
+        }
+        
+        return sortedNames;
     }, [sessions]);
 
     // Filter sessions by selected project
     const filteredSessions = useMemo(() => {
         if (selectedProject === "all") {
             return sessions;
+        }
+        if (selectedProject === "(No Project)") {
+            return sessions.filter(session => !session.projectName);
         }
         return sessions.filter(session => session.projectName === selectedProject);
     }, [sessions, selectedProject]);
