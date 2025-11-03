@@ -67,20 +67,27 @@ async def _inject_project_context(
 ) -> str:
     """
     Helper function to inject project context and copy artifacts to session.
-    
+
     Args:
         inject_full_context: If True, injects full project context (name, description, instructions).
                            If False, only copies new artifacts without modifying message text.
                            This allows existing sessions to get new project files without
                            re-injecting the full context on every message.
-    
+
     Returns the modified message text with project context injected (if inject_full_context=True).
     """
     if not project_id or not message_text:
         return message_text
-    
+
+    from ....gateway.http_sse.dependencies import SessionLocal
+
+    if SessionLocal is None:
+        log.warning("%sProject context injection skipped: database not configured", log_prefix)
+        return message_text
+
+    db = SessionLocal()
     try:
-        project = project_service.get_project(project_id, user_id)
+        project = project_service.get_project(db, project_id, user_id)
         if not project:
             return message_text
         
@@ -243,11 +250,13 @@ async def _inject_project_context(
             log.debug("%sSkipped full context injection for existing session, but ensured new artifacts are copied", log_prefix)
                 
         return modified_message_text
-        
+
     except Exception as e:
         log.warning("%sFailed to inject project context: %s", log_prefix, e)
         # Continue without injection - don't fail the request
         return message_text
+    finally:
+        db.close()
 
 
 async def _submit_task(

@@ -7,9 +7,10 @@ import { useChatContext } from "@/lib/hooks";
 
 interface ArtifactMorePopoverProps {
     children: React.ReactNode;
+    hideDeleteAll?: boolean;
 }
 
-export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({ children }) => {
+export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({ children, hideDeleteAll = false }) => {
     const { artifactsRefetch, setIsBatchDeleteModalOpen } = useChatContext();
 
     const menuActions: MenuAction[] = [
@@ -22,7 +23,7 @@ export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({ childr
             icon: <RefreshCcw />,
             iconPosition: "left",
         },
-        {
+        ...(hideDeleteAll ? [] : [{
             id: "deleteAll",
             label: "Delete All",
             onClick: () => {
@@ -31,7 +32,7 @@ export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({ childr
             icon: <Trash />,
             iconPosition: "left",
             divider: true,
-        },
+        }]),
     ];
 
     return (

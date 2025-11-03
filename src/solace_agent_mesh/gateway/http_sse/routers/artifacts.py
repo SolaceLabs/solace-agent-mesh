@@ -124,8 +124,19 @@ def _resolve_storage_context(
                 status_code=status.HTTP_501_NOT_IMPLEMENTED,
                 detail="Project context requires database configuration.",
             )
+
+        from ....gateway.http_sse.dependencies import SessionLocal
+
+        if SessionLocal is None:
+            log.warning("%s Project context requested but database not configured", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Project context requires database configuration.",
+            )
+
+        db = SessionLocal()
         try:
-            project = project_service.get_project(project_id, user_id)
+            project = project_service.get_project(db, project_id, user_id)
             if not project:
                 log.warning("%s Project not found or access denied", log_prefix)
                 raise HTTPException(
@@ -141,6 +152,8 @@ def _resolve_storage_context(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to resolve project context"
             )
+        finally:
+            db.close()
 
     # No valid context
     log.warning("%s No valid context found", log_prefix)

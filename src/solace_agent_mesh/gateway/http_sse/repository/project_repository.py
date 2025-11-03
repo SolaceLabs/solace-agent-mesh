@@ -33,7 +33,7 @@ class ProjectRepository(IProjectRepository):
             created_at=now_epoch_ms(),
         )
         self.db.add(model)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(model)
         return self._model_to_entity(model)
 
@@ -126,7 +126,7 @@ class ProjectRepository(IProjectRepository):
                 setattr(model, field, value)
         
         model.updated_at = now_epoch_ms()
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(model)
         return self._model_to_entity(model)
 
@@ -136,7 +136,7 @@ class ProjectRepository(IProjectRepository):
             ProjectModel.id == project_id,
             ProjectModel.user_id == user_id  # Only allow deletion of user's own projects
         ).delete()
-        self.db.commit()
+        self.db.flush()
         return result > 0
 
     def soft_delete(self, project_id: str, user_id: str) -> bool:
@@ -153,7 +153,7 @@ class ProjectRepository(IProjectRepository):
         model.deleted_at = now_epoch_ms()
         model.deleted_by = user_id
         model.updated_at = now_epoch_ms()
-        self.db.commit()
+        self.db.flush()
         return True
 
     def _model_to_entity(self, model: ProjectModel) -> Project:

@@ -36,7 +36,7 @@ export const downloadBlob = (blob: Blob, filename?: string) => {
     }
 };
 
-export const downloadFile = async (file: FileAttachment, sessionId?: string) => {
+export const downloadFile = async (file: FileAttachment, sessionId?: string, projectId?: string) => {
     try {
         let blob: Blob;
         let filename = file.name;
@@ -61,10 +61,19 @@ export const downloadFile = async (file: FileAttachment, sessionId?: string) => 
             const version = parsedUri.version || "latest";
 
             // Construct the API URL to fetch the artifact content
-            // Include sessionId if provided
-            const apiUrl = sessionId
-                ? `/api/v1/artifacts/${encodeURIComponent(sessionId)}/${encodeURIComponent(filename)}/versions/${version}`
-                : `/api/v1/artifacts/${encodeURIComponent(filename)}/versions/${version}`;
+            // Priority 1: Session context (active chat)
+            let apiUrl: string;
+            if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+                apiUrl = `/api/v1/artifacts/${encodeURIComponent(sessionId)}/${encodeURIComponent(filename)}/versions/${version}`;
+            }
+            // Priority 2: Project context (pre-session, project artifacts)
+            else if (projectId) {
+                apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version}?project_id=${projectId}`;
+            }
+            // Fallback: no context (will likely fail but let backend handle it)
+            else {
+                apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version}`;
+            }
 
             const response = await authenticatedFetch(apiUrl, { credentials: "include" });
             if (!response.ok) {

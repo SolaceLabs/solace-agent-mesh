@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
+import { useProjectContext } from "@/lib/providers";
 import type { FileAttachment } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
@@ -36,6 +37,7 @@ type ArtifactMessageProps = (
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
     const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion } = useChatContext();
+    const { activeProject } = useProjectContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [fetchedContent, setFetchedContent] = useState<string | null>(null);
@@ -45,6 +47,9 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
 
     const artifact = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
     const context = props.context || "chat";
+
+    // Check if this artifact is from a project (should not be deletable)
+    const isProjectArtifact = artifact?.source === "project";
 
     // Extract version from URI if available
     const version = useMemo(() => {
@@ -119,11 +124,11 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         }
 
         if (fileToDownload) {
-            downloadFile(fileToDownload, sessionId);
+            downloadFile(fileToDownload, sessionId, activeProject?.id);
         } else {
             console.error(`No file to download for artifact: ${props.name}`);
         }
-    }, [artifact, fileAttachment, sessionId, props.name]);
+    }, [artifact, fileAttachment, sessionId, activeProject?.id, props.name]);
 
     const handleDeleteClick = useCallback(() => {
         if (artifact) {
@@ -238,7 +243,21 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 if (!parsedUri) throw new Error("Invalid artifact URI.");
 
                 const { filename, version } = parsedUri;
-                const apiUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
+
+                // Construct API URL based on context
+                // Priority 1: Session context (active chat)
+                let apiUrl: string;
+                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+                    apiUrl = `/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
+                }
+                // Priority 2: Project context (pre-session, project artifacts)
+                else if (activeProject?.id) {
+                    apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version || "latest"}?project_id=${activeProject.id}`;
+                }
+                // Fallback: no context (will likely fail but let backend handle it)
+                else {
+                    apiUrl = `/api/v1/artifacts/null/${encodeURIComponent(filename)}/versions/${version || "latest"}`;
+                }
 
                 const response = await authenticatedFetch(apiUrl);
                 if (!response.ok) throw new Error(`Failed to fetch artifact content: ${response.statusText}`);
@@ -269,7 +288,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         };
 
         fetchContentFromUri();
-    }, [props.status, shouldRender, fileAttachment, sessionId, isLoading, fetchedContent, artifact?.accumulatedContent, fileName, isExpanded, artifact]);
+    }, [props.status, shouldRender, fileAttachment, sessionId, activeProject?.id, isLoading, fetchedContent, artifact?.accumulatedContent, fileName, isExpanded, artifact]);
 
     // Prepare actions for the artifact bar
     const actions = useMemo(() => {
@@ -279,7 +298,8 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
             return {
                 onInfo: handleInfoClick,
                 onDownload: props.status === "completed" ? handleDownloadClick : undefined,
-                onDelete: artifact && props.status === "completed" ? handleDeleteClick : undefined,
+                // Hide delete button for artifacts with source="project" (they came from project files)
+                onDelete: artifact && props.status === "completed" && !isProjectArtifact ? handleDeleteClick : undefined,
             };
         } else {
             // In chat context, show preview, download, and info actions
@@ -290,7 +310,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 onInfo: handleInfoClick,
             };
         }
-    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick]);
+    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, isProjectArtifact]);
 
     // Get description from global artifacts instead of message parts
     const artifactFromGlobal = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);

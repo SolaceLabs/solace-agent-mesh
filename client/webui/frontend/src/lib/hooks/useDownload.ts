@@ -14,19 +14,23 @@ import { useProjectContext } from "../providers/ProjectProvider";
  * @param artifact - The artifact to download
  */
 const downloadArtifactFile = async (
-    apiPrefix: string, 
-    sessionId: string | null, 
-    activeProjectId: string | null, 
+    apiPrefix: string,
+    sessionId: string | null,
+    activeProjectId: string | null,
     artifact: ArtifactInfo
 ) => {
     let url: string;
-    
-    // Determine the correct URL based on context
+
+    // Priority 1: Session context (active chat)
     if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
         url = `${apiPrefix}/api/v1/artifacts/${sessionId}/${encodeURIComponent(artifact.filename)}`;
-    } else if (activeProjectId) {
+    }
+    // Priority 2: Project context (pre-session, project artifacts)
+    else if (activeProjectId) {
         url = `${apiPrefix}/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${activeProjectId}`;
-    } else {
+    }
+    // No valid context
+    else {
         throw new Error("No valid context for artifact download");
     }
 

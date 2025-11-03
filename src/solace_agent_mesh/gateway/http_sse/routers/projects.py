@@ -14,9 +14,10 @@ from fastapi import (
     File,
     UploadFile,
 )
+from sqlalchemy.orm import Session
 from solace_ai_connector.common.log import log
 
-from ..dependencies import get_project_service, get_sac_component, get_api_config
+from ..dependencies import get_project_service, get_sac_component, get_api_config, get_db
 from ..services.project_service import ProjectService
 from ..shared.auth_utils import get_current_user
 from ....common.a2a.types import ArtifactInfo
@@ -90,6 +91,7 @@ async def create_project(
     files: Optional[List[UploadFile]] = File(None),
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):
     """
@@ -126,6 +128,7 @@ async def create_project(
                 pass
 
         project = await project_service.create_project(
+            db=db,
             name=request_dto.name,
             user_id=request_dto.user_id,
             description=request_dto.description,
@@ -164,6 +167,7 @@ async def create_project(
 async def get_user_projects(
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):
     """
@@ -175,7 +179,7 @@ async def get_user_projects(
     try:
         request_dto = GetProjectsRequest(user_id=user_id)
 
-        projects = project_service.get_user_projects(request_dto.user_id)
+        projects = project_service.get_user_projects(db, request_dto.user_id)
         
         project_responses = [
             ProjectResponse(
@@ -209,6 +213,7 @@ async def get_project(
     project_id: str,
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):
     """
@@ -230,7 +235,8 @@ async def get_project(
         request_dto = GetProjectRequest(project_id=project_id, user_id=user_id)
 
         project = project_service.get_project(
-            project_id=request_dto.project_id, 
+            db=db,
+            project_id=request_dto.project_id,
             user_id=request_dto.user_id
         )
         
@@ -273,6 +279,7 @@ async def get_project_artifacts(
     project_id: str,
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):
     """
@@ -283,7 +290,7 @@ async def get_project_artifacts(
 
     try:
         artifacts = await project_service.get_project_artifacts(
-            project_id=project_id, user_id=user_id
+            db=db, project_id=project_id, user_id=user_id
         )
         return artifacts
     except ValueError as e:
@@ -312,6 +319,7 @@ async def add_project_artifacts(
     file_metadata: Optional[str] = Form(None, alias="fileMetadata"),
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):
     """
@@ -330,6 +338,7 @@ async def add_project_artifacts(
                 pass
 
         results = await project_service.add_artifacts_to_project(
+            db=db,
             project_id=project_id,
             user_id=user_id,
             files=files,
@@ -361,6 +370,7 @@ async def delete_project_artifact(
     filename: str,
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):
     """
@@ -371,6 +381,7 @@ async def delete_project_artifact(
 
     try:
         success = await project_service.delete_artifact_from_project(
+            db=db,
             project_id=project_id,
             user_id=user_id,
             filename=filename,
@@ -407,6 +418,7 @@ async def update_project(
     request: UpdateProjectRequest,
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):
     """
@@ -429,6 +441,7 @@ async def update_project(
         
         # Pass only explicitly set fields to the service
         kwargs = {
+            'db': db,
             'project_id': project_id,
             'user_id': user_id,
             'name': update_fields.get('name', ...),
@@ -436,7 +449,7 @@ async def update_project(
             'system_prompt': update_fields.get('system_prompt', ...),
             'default_agent_id': update_fields.get('default_agent_id', ...),
         }
-        
+
         project = project_service.update_project(**kwargs)
         
         if not project:
@@ -483,6 +496,7 @@ async def delete_project(
     project_id: str,
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
     _: None = Depends(check_projects_enabled),
 ):
     """
@@ -495,6 +509,7 @@ async def delete_project(
         request_dto = DeleteProjectRequest(project_id=project_id, user_id=user_id)
 
         success = project_service.soft_delete_project(
+            db=db,
             project_id=request_dto.project_id,
             user_id=request_dto.user_id
         )
