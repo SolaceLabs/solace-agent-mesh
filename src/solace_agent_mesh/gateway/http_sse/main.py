@@ -411,7 +411,18 @@ def _run_community_migrations(database_url: str) -> None:
     This includes sessions, chat_messages tables and their indexes.
     """
     try:
+        from pathlib import Path
         from sqlalchemy import create_engine
+
+        # Ensure parent directory exists for SQLite databases
+        if database_url.startswith("sqlite"):
+            db_file_path = database_url.replace("sqlite:///", "").replace("sqlite://", "")
+            if db_file_path:  # Only process non-empty paths (not in-memory databases)
+                db_path_obj = Path(db_file_path)
+                parent_dir = db_path_obj.parent
+                if parent_dir and str(parent_dir) != ".":
+                    parent_dir.mkdir(parents=True, exist_ok=True)
+                    log.info(f"Ensured parent directory exists for SQLite database: {parent_dir}")
 
         log.info("Starting community migrations...")
         engine = create_engine(database_url)
