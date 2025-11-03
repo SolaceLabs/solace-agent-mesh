@@ -23,7 +23,10 @@ export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({ childr
             icon: <RefreshCcw />,
             iconPosition: "left",
         },
-        ...(hideDeleteAll ? [] : [{
+    ];
+
+    if (!hideDeleteAll) {
+        menuActions.push({
             id: "deleteAll",
             label: "Delete All",
             onClick: () => {
@@ -32,8 +35,8 @@ export const ArtifactMorePopover: React.FC<ArtifactMorePopoverProps> = ({ childr
             icon: <Trash />,
             iconPosition: "left",
             divider: true,
-        }]),
-    ];
+        });
+    }
 
     return (
         <Popover>
