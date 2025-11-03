@@ -4,14 +4,16 @@ import { BrowserRouter } from "react-router-dom";
 import { AgentMeshPage, ChatPage, bottomNavigationItems, getTopNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
 import { ProjectsPage } from "@/lib/components/projects";
 import { PromptsPage } from "@/lib/components/pages/PromptsPage";
+import { TextSelectionProvider, SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
 
 import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
 
-function AppContent() {
+function AppContentInner() {
     const [activeNavItem, setActiveNavItem] = useState<string>("chat");
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
     const { configFeatureEnablement, projectsEnabled } = useConfigContext();
+    const { isMenuOpen, menuPosition, selectedText, clearSelection } = useTextSelection();
 
     // Get navigation items based on feature flags
     const topNavItems = useMemo(
@@ -88,7 +90,21 @@ function AppContent() {
             <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={activeNavItem} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             <main className="h-full w-full flex-1 overflow-auto">{renderMainContent()}</main>
             <ToastContainer />
+            <SelectionContextMenu
+                isOpen={isMenuOpen}
+                position={menuPosition}
+                selectedText={selectedText || ''}
+                onClose={clearSelection}
+            />
         </div>
+    );
+}
+
+function AppContent() {
+    return (
+        <TextSelectionProvider>
+            <AppContentInner />
+        </TextSelectionProvider>
     );
 }
 

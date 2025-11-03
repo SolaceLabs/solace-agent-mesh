@@ -1,9 +1,9 @@
 import React, { useRef, useState, useEffect, useMemo } from "react";
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 
-import { Ban, Paperclip, Send } from "lucide-react";
+import { Ban, Paperclip, Send, X } from "lucide-react";
 
-import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge } from "@/lib/components/ui";
 import { useChatContext, useDragAndDrop, useAgentSelection } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
 
@@ -25,6 +25,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [pendingPasteContent, setPendingPasteContent] = useState<string | null>(null);
     const [showPasteActionDialog, setShowPasteActionDialog] = useState(false);
 
+    // Context text from selection
+    const [contextText, setContextText] = useState<string | null>(null);
+
     // Chat input ref for focus management
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
     const prevIsRespondingRef = useRef<boolean>(isResponding);
@@ -41,6 +44,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setShowPromptsCommand(false);
         setPastedTextItems([]);
         setSelectedPasteId(null);
+        setContextText(null);
     }, [sessionId]);
 
     // Focus the chat input when isResponding becomes false
@@ -67,6 +71,43 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             window.removeEventListener("focus-chat-input", handleFocusChatInput);
         };
     }, []);
+
+    // Handle follow-up question from text selection
+    useEffect(() => {
+        const handleFollowUp = async (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { text, prompt, autoSubmit } = customEvent.detail;
+            setContextText(text);
+            
+            // If a prompt is provided, pre-fill the input
+            if (prompt) {
+                setInputValue(prompt + " ");
+                
+                if (autoSubmit) {
+                    // Small delay to ensure state is updated
+                    setTimeout(async () => {
+                        const fullMessage = `${prompt}\n\nContext: "${text}"`;
+                        const fakeEvent = new Event('submit') as any;
+                        await handleSubmit(fakeEvent, [], fullMessage);
+                        setContextText(null);
+                        setInputValue("");
+                        scrollToBottom?.();
+                    }, 50);
+                    return;
+                }
+            }
+            
+            // Focus the input for custom questions
+            setTimeout(() => {
+                chatInputRef.current?.focus();
+            }, 100);
+        };
+
+        window.addEventListener('follow-up-question', handleFollowUp);
+        return () => {
+            window.removeEventListener('follow-up-question', handleFollowUp);
+        };
+    }, [handleSubmit, scrollToBottom]);
 
     const handleFileSelect = () => {
         if (!isResponding) {
@@ -141,14 +182,20 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         if (isSubmittingEnabled) {
             // Combine input value with pasted text items
             const pastedTexts = pastedTextItems.map(item => item.content).join('\n\n');
-            const fullMessage = [inputValue.trim(), pastedTexts]
+            let fullMessage = [inputValue.trim(), pastedTexts]
                 .filter(Boolean)
                 .join('\n\n');
+            
+            // Include context if present - put it AFTER the user's message
+            if (contextText) {
+                fullMessage = `${fullMessage}\n\nContext: "${contextText}"`;
+            }
             
             await handleSubmit(event, selectedFiles, fullMessage);
             setSelectedFiles([]);
             setPastedTextItems([]);
             setInputValue("");
+            setContextText(null);
             scrollToBottom?.();
         }
     };
@@ -278,6 +325,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setShowPasteActionDialog(false);
     };
 
+    const handleRemoveContext = () => {
+        setContextText(null);
+    };
+
     return (
         <div
             className={`rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
@@ -311,6 +362,23 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                             onRemove={() => handleRemovePastedText(item.id)}
                         />
                     ))}
+                </div>
+            )}
+
+            {/* Context Text Badge */}
+            {contextText && (
+                <div className="mb-2 flex items-center gap-2">
+                    <Badge variant="secondary" className="flex items-center gap-2 px-3 py-1">
+                        <span className="text-xs font-medium">Context:</span>
+                        <span className="text-xs max-w-[200px] truncate">{contextText}</span>
+                        <button
+                            onClick={handleRemoveContext}
+                            className="ml-1 hover:bg-[var(--color-error-wMain)] hover:text-white rounded-full p-0.5 transition-colors"
+                            aria-label="Remove context"
+                        >
+                            <X className="h-3 w-3" />
+                        </button>
+                    </Badge>
                 </div>
             )}
 
