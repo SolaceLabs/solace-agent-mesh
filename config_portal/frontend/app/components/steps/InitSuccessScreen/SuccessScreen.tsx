@@ -289,7 +289,7 @@ export default function SuccessScreen({
               Start the Service
             </h3>
             <p className="text-gray-600 mb-4">
-              To start Solace Agent Mesh directly, go back to your terminal window and run:
+              To start Solace Agent Mesh directly, return to your terminal and run:
             </p>
             <div className="bg-gray-800 text-gray-200 p-4 rounded-md font-mono text-sm mb-4 flex items-center justify-between group relative">
               <code>sam run</code>
