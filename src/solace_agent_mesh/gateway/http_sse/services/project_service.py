@@ -162,6 +162,44 @@ class ProjectService:
         db_projects = project_repository.get_user_projects(user_id)
         return db_projects
 
+    async def get_user_projects_with_counts(self, db, user_id: str) -> List[tuple[Project, int]]:
+        """
+        Get all projects owned by a specific user with artifact counts.
+
+        Args:
+            db: Database session
+            user_id: The user ID
+            
+        Returns:
+            List[tuple[Project, int]]: List of tuples (project, artifact_count)
+        """
+        self.logger.debug(f"Retrieving projects with artifact counts for user {user_id}")
+        projects = self.get_user_projects(db, user_id)
+        
+        if not self.artifact_service:
+            # If no artifact service, return projects with 0 counts
+            return [(project, 0) for project in projects]
+        
+        # Fetch artifact counts for all projects
+        projects_with_counts = []
+        for project in projects:
+            storage_session_id = f"project-{project.id}"
+            try:
+                artifacts = await get_artifact_info_list(
+                    artifact_service=self.artifact_service,
+                    app_name=self.app_name,
+                    user_id=project.user_id,
+                    session_id=storage_session_id,
+                )
+                artifact_count = len(artifacts)
+            except Exception as e:
+                self.logger.warning(f"Failed to get artifact count for project {project.id}: {e}")
+                artifact_count = 0
+            
+            projects_with_counts.append((project, artifact_count))
+        
+        return projects_with_counts
+
     async def get_project_artifacts(self, db, project_id: str, user_id: str) -> List[ArtifactInfo]:
         """
         Get a list of artifacts for a given project.

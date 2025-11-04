@@ -22,8 +22,8 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
 
     return (
         <>
-            <div className="border-b">
-                <div className="flex items-center justify-between px-4 py-3">
+            <div className="mb-6">
+                <div className="flex items-center justify-between px-4 mb-3">
                     <h3 className="text-sm font-semibold text-foreground">Instructions</h3>
                     <Button
                         variant="ghost"
@@ -36,7 +36,7 @@ export const SystemPromptSection: React.FC<SystemPromptSectionProps> = ({
                     </Button>
                 </div>
 
-                <div className="px-4 pb-3">
+                <div className="px-4">
                     <div className={`text-sm text-muted-foreground whitespace-pre-wrap rounded-md bg-muted p-3 min-h-[120px] max-h-[400px] overflow-y-auto ${!project.systemPrompt ? 'flex items-center justify-center' : ''}`}>
                         {project.systemPrompt || "No instructions provided."}
                     </div>

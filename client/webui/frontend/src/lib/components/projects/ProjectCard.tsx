@@ -1,7 +1,7 @@
 import React from "react";
-import { Calendar, User } from "lucide-react";
+import { Calendar, User, FileText } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/components/ui";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Badge } from "@/lib/components/ui";
 import type { Project } from "@/lib/types/projects";
 import { formatTimestamp } from "@/lib/utils/format";
 
@@ -16,9 +16,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) =>
     };
 
     return (
-        <Card 
+        <Card
             className={`
-                h-[200px] w-full cursor-pointer transition-all duration-200 
+                h-[400px] w-full sm:w-[380px] flex-shrink-0 cursor-pointer transition-all duration-200
                 hover:shadow-lg hover:scale-[1.02] bg-card border
                 ${onClick ? 'hover:bg-accent/50' : ''}
             `}
@@ -27,12 +27,18 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) =>
             tabIndex={onClick ? 0 : undefined}
         >
             <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                    <div className="min-w-0 flex-1">
-                        <CardTitle className="truncate text-lg font-semibold text-foreground" title={project.name}>
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                        <CardTitle className="truncate text-lg font-semibold text-foreground break-words" title={project.name}>
                             {project.name}
                         </CardTitle>
                     </div>
+                    {project.artifactCount !== undefined && project.artifactCount !== null && (
+                        <Badge variant="secondary" className="flex items-center gap-1 shrink-0">
+                            <FileText className="h-3 w-3" />
+                            <span>{project.artifactCount}</span>
+                        </Badge>
+                    )}
                 </div>
             </CardHeader>
             

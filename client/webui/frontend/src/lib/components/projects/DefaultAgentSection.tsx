@@ -41,8 +41,8 @@ export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({
 
     return (
         <>
-            <div className="border-b">
-                <div className="flex items-center justify-between px-4 py-3">
+            <div className="mb-6">
+                <div className="flex items-center justify-between px-4 mb-3">
                     <h3 className="text-sm font-semibold text-foreground">Default Agent</h3>
                     <Button
                         variant="ghost"
@@ -56,7 +56,7 @@ export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({
                     </Button>
                 </div>
 
-                <div className="px-4 pb-3">
+                <div className="px-4">
                     <div className="text-sm text-muted-foreground rounded-md bg-muted p-2.5 flex items-center">
                         {project.defaultAgentId ? (
                             <div className="flex items-center gap-2">

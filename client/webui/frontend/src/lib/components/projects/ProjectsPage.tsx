@@ -2,13 +2,11 @@ import React, { useState, useEffect } from "react";
 import { Plus, RefreshCcw } from "lucide-react";
 
 import { CreateProjectDialog } from "./CreateProjectDialog";
-import { ProjectListSidebar } from "./ProjectListSidebar";
-import { ProjectDetailPanel } from "./ProjectDetailPanel";
-import { ProjectMetadataSidebar } from "./ProjectMetadataSidebar";
+import { ProjectsListView } from "./ProjectsListView";
+import { ProjectDetailView } from "./ProjectDetailView";
 import { useProjectContext } from "@/lib/providers";
 import { useChatContext } from "@/lib/hooks";
 import type { Project } from "@/lib/types/projects";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
 
@@ -21,17 +19,17 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     const [isCreating, setIsCreating] = useState(false);
 
     const {
-        projects,
         isLoading,
-        error,
         createProject,
-        deleteProject,
         selectedProject,
         setSelectedProject,
         setActiveProject,
         refetch,
+        searchQuery,
+        setSearchQuery,
+        filteredProjects,
     } = useProjectContext();
-    const { handleSwitchSession, handleNewSession } = useChatContext();
+    const { handleNewSession } = useChatContext();
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
         setIsCreating(true);
@@ -55,14 +53,18 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         setSelectedProject(project);
     };
 
-    const handleCreateNew = () => {
-        setShowCreateDialog(true);
+    const handleBackToList = () => {
+        setSelectedProject(null);
     };
 
-    const handleChatClick = async (sessionId: string) => {
-        // Switch to the session first, which will activate the project automatically
-        await handleSwitchSession(sessionId);
+    const handleChatClick = async () => {
+        // Start a new session
+        await handleNewSession(true);
         onProjectActivated();
+    };
+
+    const handleCreateNew = () => {
+        setShowCreateDialog(true);
     };
 
     const handleStartNewChat = async () => {
@@ -87,7 +89,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     useEffect(() => {
         const handleNavigateToProject = (event: CustomEvent) => {
             const { projectId } = event.detail;
-            const project = projects.find(p => p.id === projectId);
+            const project = filteredProjects.find(p => p.id === projectId);
             if (project) {
                 setSelectedProject(project);
             }
@@ -97,65 +99,50 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         return () => {
             window.removeEventListener("navigate-to-project", handleNavigateToProject as EventListener);
         };
-    }, [projects, setSelectedProject]);
+    }, [filteredProjects, setSelectedProject]);
+
+    // Determine if we should show list or detail view
+    const showDetailView = selectedProject !== null;
 
     return (
         <div className="flex h-full w-full flex-col">
-            <Header
-                title="Projects"
-                buttons={[
-                    <Button key="create-project" variant="outline" onClick={handleCreateNew} className="flex items-center gap-2">
-                        <Plus className="h-4 w-4" />
-                        Create Project
-                    </Button>,
-                    <Button key="refresh-projects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
-                        <RefreshCcw className="size-4" />
-                        Refresh
-                    </Button>
-                ]}
-            />
+            {!showDetailView && (
+                <Header
+                    title="Projects"
+                    buttons={[
+                        <Button key="create-project" variant="outline" onClick={handleCreateNew} className="flex items-center gap-2">
+                            <Plus className="h-4 w-4" />
+                            Create Project
+                        </Button>,
+                        <Button key="refresh-projects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
+                            <RefreshCcw className="size-4" />
+                            Refresh
+                        </Button>
+                    ]}
+                />
+            )}
+            
             <div className="flex-1 min-h-0">
-                <ResizablePanelGroup direction="horizontal" className="h-full">
-                    {/* Left Sidebar - Project List */}
-                    <ResizablePanel
-                        defaultSize={20}
-                        minSize={15}
-                        maxSize={30}
-                        className="min-w-[200px]"
-                    >
-                        <ProjectListSidebar
-                            projects={projects}
-                            selectedProject={selectedProject}
-                            isLoading={isLoading}
-                            error={error}
-                            onProjectSelect={handleProjectSelect}
-                            onCreateNew={handleCreateNew}
-                            onProjectDelete={deleteProject}
-                        />
-                    </ResizablePanel>
-
-                    <ResizableHandle />
-
-                    {/* Center Panel - Project Details */}
-                    <ResizablePanel defaultSize={55} minSize={40}>
-                        <ProjectDetailPanel
-                            selectedProject={selectedProject}
-                            onCreateNew={handleCreateNew}
-                            onChatClick={handleChatClick}
-                            onStartNewChat={handleStartNewChat}
-                        />
-                    </ResizablePanel>
-
-                    <ResizableHandle />
-
-                    {/* Right Sidebar - Metadata */}
-                    <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-                        <ProjectMetadataSidebar selectedProject={selectedProject} />
-                    </ResizablePanel>
-                </ResizablePanelGroup>
+                {showDetailView ? (
+                    <ProjectDetailView
+                        project={selectedProject}
+                        onBack={handleBackToList}
+                        onStartNewChat={handleStartNewChat}
+                        onChatClick={handleChatClick}
+                    />
+                ) : (
+                    <ProjectsListView
+                        projects={filteredProjects}
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        onProjectClick={handleProjectSelect}
+                        onCreateNew={handleCreateNew}
+                        isLoading={isLoading}
+                    />
+                )}
             </div>
             
-            {/* Simple Create Dialog */}
+            {/* Create Project Dialog */}
             <CreateProjectDialog
                 isOpen={showCreateDialog}
                 onClose={() => setShowCreateDialog(false)}
