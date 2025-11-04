@@ -10,6 +10,7 @@ import { Button } from "@/lib/components/ui/button";
 import { Badge } from "@/lib/components/ui/badge";
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { SessionSearch } from "@/lib/components/chat/SessionSearch";
 import {
@@ -259,43 +260,35 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         return `Session ${sessionId.substring(0, 8)}`;
     };
 
-    // Get unique project names from sessions, sorted by most recent activity
+    // Get unique project names from sessions, sorted alphabetically
     const projectNames = useMemo(() => {
-        // Create a map of project name to most recent session update timestamp
-        const projectLastActivity = new Map<string, number>();
+        const uniqueProjectNames = new Set<string>();
+        let hasUnassignedChats = false;
         
         sessions.forEach(session => {
-            if (session.projectName && session.updatedTime) {
-                try {
-                    // Convert ISO string to timestamp for reliable comparison
-                    const timestamp = new Date(session.updatedTime).getTime();
-                    if (!isNaN(timestamp)) {
-                        const existingTimestamp = projectLastActivity.get(session.projectName);
-                        if (!existingTimestamp || timestamp > existingTimestamp) {
-                            projectLastActivity.set(session.projectName, timestamp);
-                        }
-                    }
-                } catch (error) {
-                    // If date parsing fails, skip this session
-                    console.warn(`Failed to parse updatedTime for session ${session.id}:`, error);
-                }
+            if (session.projectName) {
+                uniqueProjectNames.add(session.projectName);
+            } else {
+                hasUnassignedChats = true;
             }
         });
         
-        // Sort projects by most recent activity (descending), then alphabetically as fallback
-        return Array.from(projectLastActivity.entries())
-            .sort((a, b) => {
-                const timeDiff = b[1] - a[1];
-                if (timeDiff !== 0) return timeDiff;
-                return a[0].localeCompare(b[0]);
-            })
-            .map(([name]) => name);
+        const sortedNames = Array.from(uniqueProjectNames).sort((a, b) => a.localeCompare(b));
+        
+        if (hasUnassignedChats) {
+            sortedNames.unshift("(No Project)");
+        }
+        
+        return sortedNames;
     }, [sessions]);
 
     // Filter sessions by selected project
     const filteredSessions = useMemo(() => {
         if (selectedProject === "all") {
             return sessions;
+        }
+        if (selectedProject === "(No Project)") {
+            return sessions.filter(session => !session.projectName);
         }
         return sessions.filter(session => session.projectName === selectedProject);
     }, [sessions, selectedProject]);
@@ -367,18 +360,25 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         <button onClick={() => handleSessionClick(session.id)} className="flex-1 min-w-0 cursor-pointer text-left">
                                             <div className="flex items-center gap-2">
                                                 <div className="flex flex-col gap-1 min-w-0 flex-1">
-                                                    <span className="truncate font-semibold" title={getSessionDisplayName(session)}>
+                                                    <span className="truncate font-semibold">
                                                         {getSessionDisplayName(session)}
                                                     </span>
                                                     <span className="text-muted-foreground text-xs truncate">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
                                                 {session.projectName && (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="max-w-[120px] text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm justify-start flex-shrink-0"
-                                                    >
-                                                        <span className="truncate block">{session.projectName}</span>
-                                                    </Badge>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="max-w-[120px] text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm justify-start flex-shrink-0"
+                                                            >
+                                                                <span className="truncate block">{session.projectName}</span>
+                                                            </Badge>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            {session.projectName}
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                 )}
                                             </div>
                                         </button>

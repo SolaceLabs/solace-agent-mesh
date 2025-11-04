@@ -10,6 +10,7 @@ interface ProjectHeaderProps {
     onToggleEdit: () => void;
     onSave: (name: string) => Promise<void>;
     isSaving: boolean;
+    error?: string | null;
 }
 
 export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
@@ -18,6 +19,7 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
     onToggleEdit,
     onSave,
     isSaving,
+    error,
 }) => {
     const [editedName, setEditedName] = useState(project.name);
 
@@ -42,36 +44,41 @@ export const ProjectHeader: React.FC<ProjectHeaderProps> = ({
         <div className="border-b px-6 py-4">
             <div className="flex items-center justify-between">
                 {isEditing ? (
-                    <div className="flex items-center gap-2 flex-1">
-                        <Input
-                            value={editedName}
-                            onChange={(e) => setEditedName(e.target.value)}
-                            className="text-2xl font-bold"
-                            disabled={isSaving}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    handleSave();
-                                } else if (e.key === "Escape") {
-                                    handleCancel();
-                                }
-                            }}
-                        />
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleSave}
-                            disabled={isSaving || !editedName.trim()}
-                        >
-                            <Save className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleCancel}
-                            disabled={isSaving}
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
+                    <div className="flex flex-col gap-2 flex-1">
+                        <div className="flex items-center gap-2">
+                            <Input
+                                value={editedName}
+                                onChange={(e) => setEditedName(e.target.value)}
+                                className="text-2xl font-bold"
+                                disabled={isSaving}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        handleSave();
+                                    } else if (e.key === "Escape") {
+                                        handleCancel();
+                                    }
+                                }}
+                            />
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleSave}
+                                disabled={isSaving || !editedName.trim()}
+                            >
+                                <Save className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleCancel}
+                                disabled={isSaving}
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        {error && (
+                            <p className="text-sm text-destructive">{error}</p>
+                        )}
                     </div>
                 ) : (
                     <>
