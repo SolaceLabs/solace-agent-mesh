@@ -9,6 +9,7 @@ import { PromptGroupForm } from '@/lib/components/prompts/PromptGroupForm';
 import { PromptMeshCards } from '@/lib/components/prompts/PromptMeshCards';
 import { VersionHistoryDialog } from '@/lib/components/prompts/VersionHistoryDialog';
 import { PromptDeleteDialog } from '@/lib/components/prompts/PromptDeleteDialog';
+import { GeneratePromptDialog } from '@/lib/components/prompts/GeneratePromptDialog';
 import { EmptyState, Header } from '@/lib/components';
 import { Button } from '@/lib/components/ui';
 import { RefreshCcw } from 'lucide-react';
@@ -19,6 +20,8 @@ export const PromptsPage: React.FC = () => {
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showAIBuilder, setShowAIBuilder] = useState(false);
+    const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+    const [initialMessage, setInitialMessage] = useState<string | null>(null);
     const [showManualForm, setShowManualForm] = useState(false);
     const [editingGroup, setEditingGroup] = useState<PromptGroup | null>(null);
     const [versionHistoryGroup, setVersionHistoryGroup] = useState<PromptGroup | null>(null);
@@ -150,16 +153,41 @@ export const PromptsPage: React.FC = () => {
         }
     };
 
+    // Handle AI builder generation
+    const handleGeneratePrompt = (taskDescription: string) => {
+        setInitialMessage(taskDescription);
+        setShowGenerateDialog(false);
+        setShowAIBuilder(true);
+    };
+
+    // Show AI Builder as full page view
+    if (showAIBuilder) {
+        return (
+            <PromptTemplateBuilder
+                onBack={() => {
+                    setShowAIBuilder(false);
+                    setInitialMessage(null);
+                }}
+                onSuccess={() => {
+                    setShowAIBuilder(false);
+                    setInitialMessage(null);
+                    fetchPromptGroups();
+                }}
+                initialMessage={initialMessage}
+            />
+        );
+    }
+
     return (
         <div className="flex h-full w-full flex-col">
             <Header
                 title="Prompts"
                 buttons={[
-                    <Button 
-                        data-testid="refreshPrompts" 
-                        disabled={isLoading} 
-                        variant="ghost" 
-                        title="Refresh Prompts" 
+                    <Button
+                        data-testid="refreshPrompts"
+                        disabled={isLoading}
+                        variant="ghost"
+                        title="Refresh Prompts"
                         onClick={() => fetchPromptGroups()}
                     >
                         <RefreshCcw className="size-4" />
@@ -178,23 +206,13 @@ export const PromptsPage: React.FC = () => {
                             setEditingGroup(null);
                             setShowManualForm(true);
                         }}
-                        onAIAssisted={() => setShowAIBuilder(true)}
+                        onAIAssisted={() => setShowGenerateDialog(true)}
                         onEdit={handleEdit}
                         onDelete={handleDeleteClick}
                         onViewVersions={setVersionHistoryGroup}
                     />
                 </div>
             )}
-
-            {/* AI-Assisted Builder Dialog */}
-            <PromptTemplateBuilder
-                isOpen={showAIBuilder}
-                onClose={() => setShowAIBuilder(false)}
-                onSuccess={() => {
-                    setShowAIBuilder(false);
-                    fetchPromptGroups();
-                }}
-            />
 
             {/* Manual Form Dialog */}
             {showManualForm && (
@@ -226,6 +244,13 @@ export const PromptsPage: React.FC = () => {
                     promptName={deletingPrompt.name}
                 />
             )}
+
+            {/* Generate Prompt Dialog */}
+            <GeneratePromptDialog
+                isOpen={showGenerateDialog}
+                onClose={() => setShowGenerateDialog(false)}
+                onGenerate={handleGeneratePrompt}
+            />
         </div>
     );
 };

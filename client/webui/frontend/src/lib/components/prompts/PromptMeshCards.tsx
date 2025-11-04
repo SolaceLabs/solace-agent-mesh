@@ -69,20 +69,25 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
         setSelectedCategories([]);
     };
 
+    // Check if library is empty (no prompts at all)
+    const isLibraryEmpty = prompts.length === 0;
+
     return (
         <div className="h-full w-full pt-12 pl-12">
-            <div className="mb-4 flex items-center gap-2">
-                <input
-                    type="text"
-                    data-testid="promptSearchInput"
-                    placeholder="Search..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="bg-background rounded-md border px-3 py-2"
-                />
-                
-                {/* Category Filter Dropdown */}
-                {categories.length > 0 && (
+            {/* Only show search/filter when we have prompts */}
+            {!isLibraryEmpty && (
+                <div className="mb-4 flex items-center gap-2">
+                    <input
+                        type="text"
+                        data-testid="promptSearchInput"
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="bg-background rounded-md border px-3 py-2"
+                    />
+                    
+                    {/* Category Filter Dropdown */}
+                    {categories.length > 0 && (
                     <div className="relative">
                         <button
                             onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
@@ -138,8 +143,9 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                             </>
                         )}
                     </div>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
 
             {filteredPrompts.length === 0 && searchQuery ? (
                 <EmptyState 
@@ -151,11 +157,19 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                         onClick: () => setSearchQuery("") 
                     }]} 
                 />
+            ) : isLibraryEmpty ? (
+                /* Center the Create Prompt Card when library is empty */
+                <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+                    <CreatePromptCard
+                        onManualCreate={onManualCreate}
+                        onAIAssisted={onAIAssisted}
+                    />
+                </div>
             ) : (
                 <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
                     <div className="flex flex-wrap gap-10">
                         {/* Create New Prompt Card - Always first */}
-                        <CreatePromptCard 
+                        <CreatePromptCard
                             onManualCreate={onManualCreate}
                             onAIAssisted={onAIAssisted}
                         />

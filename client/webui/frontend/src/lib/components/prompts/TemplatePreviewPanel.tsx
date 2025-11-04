@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit, CheckCircle, FileText } from 'lucide-react';
+import { Pencil, FileText } from 'lucide-react';
 import { Button, Badge, Card, CardContent, CardHeader, CardTitle } from '@/lib/components/ui';
 import type { TemplateConfig } from './hooks/usePromptTemplateBuilder';
 
@@ -14,7 +14,6 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
     config,
     onEditManually,
     highlightedFields,
-    isReadyToSave,
 }) => {
     const hasContent = config.name || config.prompt_text;
 
@@ -119,7 +118,7 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
     return (
         <div className="flex h-full flex-col">
             {/* Header */}
-            <div className="border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 px-4 py-3">
+            <div className="border-b px-4 py-3">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
@@ -127,25 +126,15 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
                         </div>
                         <div>
                             <h3 className="font-semibold text-sm">Template Preview</h3>
-                            <p className="text-xs text-muted-foreground">
-                                Live preview of your template
-                            </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        {isReadyToSave && (
-                            <Badge variant="default" className="animate-pulse">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Ready to Save
-                            </Badge>
-                        )}
                         <Button
                             onClick={onEditManually}
                             variant="outline"
                             size="sm"
-                            disabled={!hasContent}
                         >
-                            <Edit className="h-3 w-3 mr-1" />
+                            <Pencil className="h-3 w-3 mr-1" />
                             Edit Manually
                         </Button>
                     </div>
@@ -169,10 +158,10 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
                     <>
                         {/* Basic Info */}
                         <Card>
-                            <CardHeader className="pb-3">
+                            <CardHeader className="pb-0">
                                 <CardTitle className="text-base">Basic Information</CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-3">
+                            <CardContent className="space-y-3 pt-2">
                                 {renderField('Template Name', config.name, 'name')}
                                 {renderField('Description', config.description, 'description')}
                                 {renderField('Category', config.category, 'category')}
@@ -182,44 +171,35 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
 
                         {/* Prompt Text */}
                         <Card>
-                            <CardHeader className="pb-3">
+                            <CardHeader className="pb-0">
                                 <CardTitle className="text-base">Prompt Template</CardTitle>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="pt-2">
                                 {renderPromptText()}
                             </CardContent>
                         </Card>
 
                         {/* Variables */}
                         <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-base flex items-center gap-2">
-                                    Detected Variables
-                                    {config.detected_variables && config.detected_variables.length > 0 && (
-                                        <Badge variant="secondary" className="text-xs">
-                                            {config.detected_variables.length}
-                                        </Badge>
-                                    )}
-                                </CardTitle>
+                            <CardHeader className="pb-0">
+                                <CardTitle className="text-base">Variables</CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                {renderVariables()}
+                            <CardContent className="space-y-3 pt-2">
+                                {config.detected_variables && config.detected_variables.length > 0 ? (
+                                    <>
+                                        <p className="text-sm text-muted-foreground leading-relaxed">
+                                            Variables are placeholder values that make your prompt flexible and reusable. Variables are enclosed in double brackets like <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">{'{{VARIABLE_NAME}}'}</code>. You will be asked to fill in these variable values whenever you use this prompt. The prompt above has the following variables:
+                                        </p>
+                                        {renderVariables()}
+                                    </>
+                                ) : (
+                                    <div className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-lg">
+                                        No variables detected yet
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
 
-                        {/* Validation Status */}
-                        {config.name && config.prompt_text && (
-                            <Card className="border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20">
-                                <CardContent className="pt-6">
-                                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-                                        <CheckCircle className="h-5 w-5" />
-                                        <span className="text-sm font-medium">
-                                            Template looks good! Ready to save.
-                                        </span>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
                     </>
                 )}
             </div>

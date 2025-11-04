@@ -1,9 +1,5 @@
 import React, { useState } from 'react';
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
     Button,
     Input,
     Textarea,
@@ -19,26 +15,26 @@ import {
     CardHeader,
     CardTitle,
 } from '@/lib/components/ui';
-import { Sparkles, CheckCircle, Loader2, AlertCircle, Check } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { Header } from '@/lib/components/header';
 import { usePromptTemplateBuilder } from './hooks/usePromptTemplateBuilder';
 import { PromptBuilderChat } from './PromptBuilderChat';
 import { TemplatePreviewPanel } from './TemplatePreviewPanel';
 
 interface PromptTemplateBuilderProps {
-    isOpen: boolean;
-    onClose: () => void;
+    onBack: () => void;
     onSuccess?: () => void;
+    initialMessage?: string | null;
 }
 
 export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
-    isOpen,
-    onClose,
+    onBack,
     onSuccess,
+    initialMessage,
 }) => {
     const {
         config,
         updateConfig,
-        validateConfig,
         saveTemplate,
         resetConfig,
         validationErrors,
@@ -48,15 +44,18 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
     const [builderMode, setBuilderMode] = useState<'manual' | 'ai-assisted'>('ai-assisted');
     const [isReadyToSave, setIsReadyToSave] = useState(false);
     const [highlightedFields, setHighlightedFields] = useState<string[]>([]);
-    const [showValidationSuccess, setShowValidationSuccess] = useState(false);
 
     const handleClose = () => {
         resetConfig();
         setBuilderMode('ai-assisted');
         setIsReadyToSave(false);
         setHighlightedFields([]);
-        onClose();
+        onBack();
     };
+
+    // Check if there are any validation errors
+    const hasValidationErrors = Object.keys(validationErrors).length > 0;
+    const validationErrorMessages = Object.values(validationErrors).filter(Boolean);
 
     const handleSave = async () => {
         const success = await saveTemplate();
@@ -76,19 +75,11 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
         setHighlightedFields(updatedFields);
         setTimeout(() => {
             setHighlightedFields([]);
-        }, 3000);
+        }, 6000); // 6 seconds
     };
 
     const handleSwitchToManual = () => {
         setBuilderMode('manual');
-    };
-
-    const handleValidate = async () => {
-        const isValid = await validateConfig();
-        if (isValid) {
-            setShowValidationSuccess(true);
-            setTimeout(() => setShowValidationSuccess(false), 3000);
-        }
     };
 
     const ModeSelector = () => (
@@ -120,22 +111,53 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
     );
 
     return (
-        <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="!w-[75vw] !max-w-[1400px] max-h-[90vh]">
-                <DialogHeader>
-                    <div className="flex items-center justify-between gap-4">
-                        <DialogTitle className="flex items-center gap-2">
-                            <Sparkles className="h-5 w-5" />
-                            Create Prompt Template
-                        </DialogTitle>
+        <div className="flex h-full flex-col">
+            {/* Header with breadcrumbs */}
+            <Header
+                title="Create Prompt Template"
+                breadcrumbs={[
+                    { label: "Prompts", onClick: handleClose },
+                    { label: "Create Template" }
+                ]}
+                buttons={[
+                    <div key="mode-selector">
                         <ModeSelector />
                     </div>
-                </DialogHeader>
+                ]}
+            />
 
+            {/* Error Banner */}
+            {hasValidationErrors && (
+                <div className="bg-destructive/10 border-b border-destructive/20 px-8 py-3">
+                    <div className="flex items-start gap-2">
+                        <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                            <p className="text-sm font-medium text-destructive mb-1">Please fix the following errors:</p>
+                            <ul className="text-sm text-destructive/90 list-disc list-inside space-y-0.5">
+                                {validationErrorMessages.map((error, index) => (
+                                    <li key={index}>{error}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Content area with left and right panels */}
+            <div className="flex flex-1 min-h-0">
                 {builderMode === 'ai-assisted' ? (
-                    /* AI-Assisted Mode - Split View */
-                    <div className="flex gap-4 h-[calc(90vh-180px)]">
-                        <div className="w-[60%] border rounded-lg overflow-hidden">
+                    <>
+                        {/* Left Panel - AI Chat */}
+                        <div className="w-[40%] overflow-hidden border-r">
+                            <PromptBuilderChat
+                                onConfigUpdate={handleConfigUpdate}
+                                currentConfig={config}
+                                onReadyToSave={setIsReadyToSave}
+                                initialMessage={initialMessage}
+                            />
+                        </div>
+                        {/* Right Panel - Template Preview */}
+                        <div className="w-[60%] overflow-hidden bg-muted/30">
                             <TemplatePreviewPanel
                                 config={config}
                                 onEditManually={handleSwitchToManual}
@@ -143,17 +165,11 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                                 isReadyToSave={isReadyToSave}
                             />
                         </div>
-                        <div className="w-[40%] border rounded-lg overflow-hidden">
-                            <PromptBuilderChat
-                                onConfigUpdate={handleConfigUpdate}
-                                currentConfig={config}
-                                onReadyToSave={setIsReadyToSave}
-                            />
-                        </div>
-                    </div>
+                    </>
                 ) : (
-                    /* Manual Mode - Form View */
-                    <div className="space-y-4 max-h-[calc(90vh-180px)] overflow-y-auto px-1">
+                    /* Manual Mode - Full Width Form */
+                    <div className="flex-1 overflow-y-auto px-8 py-6">
+                        <div className="max-w-4xl mx-auto space-y-4">
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">Template Configuration</CardTitle>
@@ -279,50 +295,30 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                                 )}
                             </CardContent>
                         </Card>
+                        </div>
                     </div>
                 )}
+            </div>
 
-                {/* Footer Actions */}
-                <div className="flex justify-between pt-6 border-t">
-                    <Button variant="outline" onClick={handleClose} disabled={isLoading}>
-                        Cancel
-                    </Button>
-                    <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={handleValidate}
-                            disabled={isLoading}
-                            className={showValidationSuccess ? 'border-green-500 text-green-600' : ''}
-                        >
-                            {showValidationSuccess ? (
-                                <>
-                                    <Check className="h-4 w-4 mr-2" />
-                                    Valid!
-                                </>
-                            ) : (
-                                'Validate'
-                            )}
-                        </Button>
-                        <Button
-                            onClick={handleSave}
-                            disabled={isLoading || !config.name || !config.prompt_text}
-                            className={isReadyToSave && builderMode === 'ai-assisted' ? 'animate-pulse' : ''}
-                        >
-                            {isLoading ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Saving...
-                                </>
-                            ) : (
-                                <>
-                                    <CheckCircle className="h-4 w-4 mr-2" />
-                                    Save Template
-                                </>
-                            )}
-                        </Button>
-                    </div>
-                </div>
-            </DialogContent>
-        </Dialog>
+            {/* Footer Actions */}
+            <div className="flex justify-end gap-2 p-4 border-t">
+                <Button variant="outline" onClick={handleClose} disabled={isLoading}>
+                    Cancel
+                </Button>
+                <Button
+                    onClick={handleSave}
+                    disabled={isLoading}
+                >
+                    {isLoading ? (
+                        <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        'Save'
+                    )}
+                </Button>
+            </div>
+        </div>
     );
 };

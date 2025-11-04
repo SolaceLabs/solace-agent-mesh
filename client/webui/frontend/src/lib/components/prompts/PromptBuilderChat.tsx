@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Send, Loader2, Sparkles, User } from 'lucide-react';
+import { Send, Loader2, Sparkles } from 'lucide-react';
 import { Button, Input, Badge } from '@/lib/components/ui';
 import type { TemplateConfig } from './hooks/usePromptTemplateBuilder';
 
@@ -20,17 +20,20 @@ interface PromptBuilderChatProps {
     onConfigUpdate: (config: Partial<TemplateConfig>) => void;
     currentConfig: TemplateConfig;
     onReadyToSave: (ready: boolean) => void;
+    initialMessage?: string | null;
 }
 
 export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
     onConfigUpdate,
     currentConfig,
     onReadyToSave,
+    initialMessage,
 }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isInitializing, setIsInitializing] = useState(true);
+    const [hasUserMessage, setHasUserMessage] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -43,7 +46,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
         scrollToBottom();
     }, [messages]);
 
-    // Initialize chat with greeting
+    // Initialize chat with greeting and optionally send initial message
     useEffect(() => {
         const initChat = async () => {
             try {
@@ -57,6 +60,60 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                         timestamp: new Date(),
                     },
                 ]);
+
+                // If there's an initial message, send it automatically
+                if (initialMessage) {
+                    setHasUserMessage(true);
+                    const userMessage: Message = {
+                        role: 'user',
+                        content: initialMessage,
+                        timestamp: new Date(),
+                    };
+                    setMessages(prev => [...prev, userMessage]);
+                    setIsLoading(true);
+
+                    // Send the message to the API
+                    try {
+                        const chatResponse = await fetch('/api/v1/prompts/chat', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                message: initialMessage,
+                                conversation_history: [
+                                    {
+                                        role: 'assistant',
+                                        content: data.message,
+                                    },
+                                ],
+                                current_template: currentConfig,
+                            }),
+                        });
+
+                        if (chatResponse.ok) {
+                            const chatData: ChatResponse = await chatResponse.json();
+                            
+                            const assistantMessage: Message = {
+                                role: 'assistant',
+                                content: chatData.message,
+                                timestamp: new Date(),
+                            };
+                            setMessages(prev => [...prev, assistantMessage]);
+
+                            if (Object.keys(chatData.template_updates).length > 0) {
+                                onConfigUpdate(chatData.template_updates);
+                            }
+
+                            onReadyToSave(chatData.ready_to_save);
+                        }
+                    } catch (error) {
+                        console.error('Error sending initial message:', error);
+                    } finally {
+                        setIsLoading(false);
+                    }
+                }
             } catch (error) {
                 console.error('Failed to initialize chat:', error);
                 setMessages([
@@ -72,7 +129,15 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
         };
 
         initChat();
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Only run once on mount
+
+    // Auto-focus input when component mounts and is not loading
+    useEffect(() => {
+        if (!isInitializing && !isLoading && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isInitializing, isLoading]);
 
     const handleSend = async () => {
         if (!input.trim() || isLoading) return;
@@ -86,6 +151,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
         setMessages((prev) => [...prev, userMessage]);
         setInput('');
         setIsLoading(true);
+        setHasUserMessage(true);
 
         try {
             const response = await fetch('/api/v1/prompts/chat', {
@@ -168,17 +234,12 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
     return (
         <div className="flex h-full flex-col">
             {/* Header */}
-            <div className="border-b bg-gradient-to-r from-primary/5 to-primary/10 px-4 py-3">
+            <div className="border-b px-4 py-3">
                 <div className="flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
                         <Sparkles className="h-4 w-4 text-primary" />
                     </div>
-                    <div>
-                        <h3 className="font-semibold text-sm">AI Template Builder</h3>
-                        <p className="text-xs text-muted-foreground">
-                            Describe your task and I'll create a template
-                        </p>
-                    </div>
+                    <h3 className="font-semibold text-sm">AI Template Builder</h3>
                 </div>
             </div>
 
@@ -187,21 +248,15 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                 {messages.map((message, index) => (
                     <div
                         key={index}
-                        className={`flex gap-3 ${
+                        className={`flex ${
                             message.role === 'user' ? 'justify-end' : 'justify-start'
                         }`}
                     >
-                        {message.role === 'assistant' && (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                                <Bot className="h-4 w-4 text-primary" />
-                            </div>
-                        )}
-
                         <div
                             className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                                 message.role === 'user'
                                     ? 'bg-primary text-primary-foreground'
-                                    : 'bg-muted'
+                                    : ''
                             }`}
                         >
                             <div className="whitespace-pre-wrap text-sm leading-relaxed">
@@ -214,22 +269,13 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                                 })}
                             </div>
                         </div>
-
-                        {message.role === 'user' && (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                                <User className="h-4 w-4 text-primary" />
-                            </div>
-                        )}
                     </div>
                 ))}
 
                 {/* Loading indicator */}
                 {isLoading && (
-                    <div className="flex gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                            <Bot className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="flex items-center gap-2 rounded-2xl bg-muted px-4 py-3">
+                    <div className="flex justify-start">
+                        <div className="flex items-center gap-2 rounded-2xl px-4 py-3">
                             <Loader2 className="h-4 w-4 animate-spin" />
                             <span className="text-sm text-muted-foreground">Thinking...</span>
                         </div>
@@ -241,21 +287,23 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
 
             {/* Input Area */}
             <div className="border-t bg-background p-4">
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                     <Input
                         ref={inputRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        placeholder="Describe your recurring task..."
+                        placeholder={hasUserMessage ? "Type your message..." : "Describe your recurring task..."}
                         disabled={isLoading}
                         className="flex-1"
                     />
                     <Button
                         onClick={handleSend}
                         disabled={!input.trim() || isLoading}
+                        variant="ghost"
                         size="icon"
                         className="shrink-0"
+                        tooltip="Send message"
                     >
                         {isLoading ? (
                             <Loader2 className="h-4 w-4 animate-spin" />

@@ -35,7 +35,7 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
                         title={aiAssistedEnabled ? undefined : "AI-Assisted Builder requires LLM configuration"}
                     >
                         <Sparkles className="h-5 w-5" />
-                        <span className="font-medium">AI-Assisted Builder</span>
+                        <span className="font-medium">Build with AI</span>
                         {!aiAssistedEnabled && <span className="text-xs">(Disabled)</span>}
                     </button>
 
@@ -48,14 +48,8 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
                         }`}
                     >
                         <Pencil className="h-5 w-5" />
-                        <span className="font-medium">Manual Creation</span>
+                        <span className="font-medium">Create Manually</span>
                     </button>
-                </div>
-
-                <div className="text-xs text-muted-foreground text-center max-w-xs">
-                    {aiAssistedEnabled
-                        ? 'AI-Assisted helps you build prompts through conversation, while Manual gives you direct control'
-                        : 'AI-Assisted Builder requires LLM configuration. Use Manual Creation to build prompts.'}
                 </div>
             </div>
         </div>
