@@ -9,6 +9,7 @@ export interface Project {
     description?: string | null;
     systemPrompt?: string | null;
     defaultAgentId?: string | null;
+    artifactCount?: number | null;
     createdAt: string; // ISO string
     updatedAt: string; // ISO string
 }
@@ -69,4 +70,7 @@ export interface ProjectContextValue extends UseProjectsReturn {
     removeFileFromProject: (projectId: string, filename: string) => Promise<void>;
     updateProject: (projectId: string, data: UpdateProjectData) => Promise<Project>;
     deleteProject: (projectId: string) => Promise<void>;
+    searchQuery: string;
+    setSearchQuery: (query: string) => void;
+    filteredProjects: Project[];
 }

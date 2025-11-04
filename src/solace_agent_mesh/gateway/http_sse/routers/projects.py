@@ -165,6 +165,7 @@ async def create_project(
 
 @router.get("/projects", response_model=ProjectListResponse)
 async def get_user_projects(
+    include_artifact_count: bool = False,
     user: dict = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
     db: Session = Depends(get_db),
@@ -172,28 +173,51 @@ async def get_user_projects(
 ):
     """
     Get all projects owned by the authenticated user.
+    
+    Args:
+        include_artifact_count: If True, includes artifact count for each project
     """
     user_id = user.get("id")
-    log.info(f"Fetching projects for user_id: {user_id}")
+    log.info(f"Fetching projects for user_id: {user_id}, include_artifact_count: {include_artifact_count}")
 
     try:
         request_dto = GetProjectsRequest(user_id=user_id)
 
-        projects = project_service.get_user_projects(db, request_dto.user_id)
-        
-        project_responses = [
-            ProjectResponse(
-                id=p.id,
-                name=p.name,
-                user_id=p.user_id,
-                description=p.description,
-                system_prompt=p.system_prompt,
-                default_agent_id=p.default_agent_id,
-                created_at=p.created_at,
-                updated_at=p.updated_at,
-            )
-            for p in projects
-        ]
+        if include_artifact_count:
+            # Fetch projects with artifact counts
+            projects_with_counts = await project_service.get_user_projects_with_counts(db, request_dto.user_id)
+            
+            project_responses = [
+                ProjectResponse(
+                    id=p.id,
+                    name=p.name,
+                    user_id=p.user_id,
+                    description=p.description,
+                    system_prompt=p.system_prompt,
+                    default_agent_id=p.default_agent_id,
+                    artifact_count=count,
+                    created_at=p.created_at,
+                    updated_at=p.updated_at,
+                )
+                for p, count in projects_with_counts
+            ]
+        else:
+            # Fetch projects without counts (faster)
+            projects = project_service.get_user_projects(db, request_dto.user_id)
+            
+            project_responses = [
+                ProjectResponse(
+                    id=p.id,
+                    name=p.name,
+                    user_id=p.user_id,
+                    description=p.description,
+                    system_prompt=p.system_prompt,
+                    default_agent_id=p.default_agent_id,
+                    created_at=p.created_at,
+                    updated_at=p.updated_at,
+                )
+                for p in projects
+            ]
         
         return ProjectListResponse(
             projects=project_responses,

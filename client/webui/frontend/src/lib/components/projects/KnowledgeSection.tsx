@@ -96,8 +96,8 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     };
 
     return (
-        <div className="border-b">
-            <div className="flex items-center justify-between px-4 py-3">
+        <div className="mb-6">
+            <div className="flex items-center justify-between px-4 mb-3">
                 <div className="flex items-center gap-2">
                     <h3 className="text-foreground text-sm font-semibold">Knowledge</h3>
                     {!isLoading && artifacts.length > 0 && <span className="text-muted-foreground text-xs">({artifacts.length})</span>}

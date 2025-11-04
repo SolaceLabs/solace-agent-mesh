@@ -8,6 +8,7 @@ import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/
 import type { TextPart } from "@/lib/types";
 import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui";
 import { Spinner } from "@/lib/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useTaskContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
@@ -178,13 +179,21 @@ export function ChatPage() {
                 <Header
                     title={
                         <div className="flex items-center gap-3">
-                            <span>{pageTitle}</span>
+                            <Tooltip delayDuration={300}>
+                                <TooltipTrigger className="truncate max-w-[400px] cursor-default text-left border-0 bg-transparent p-0 hover:bg-transparent font-inherit text-inherit">
+                                    {pageTitle}
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                    <p>{pageTitle}</p>
+                                </TooltipContent>
+                            </Tooltip>
                             {activeProject && (
                                 <Badge
                                     variant="outline"
-                                    className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm"
+                                    className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm max-w-[200px]"
+                                    title={activeProject.name}
                                 >
-                                    {activeProject.name}
+                                    <span className="block truncate text-left">{activeProject.name}</span>
                                 </Badge>
                             )}
                         </div>
