@@ -9,7 +9,7 @@ from cli.utils import (
 from cli import __version__ as cli_version
 from .official_registry import is_official_plugin
 
-PLUGIN_TYPES = ["agent", "gateway", "custom"]
+PLUGIN_TYPES = ["agent", "gateway", "tool", "custom"]
 
 DEFAULT_PLUGIN_TYPE = "agent"
 DEFAULT_AUTHOR_NAME = "Your Name"
@@ -107,7 +107,7 @@ def setup_plugin_type_src(plugin_type: str, src_path: pathlib.Path, replacements
         except IOError as e:
             error_exit(f"Error writing {src_path / 'component.py'}: {e}")
 
-    elif plugin_type == "custom":
+    elif plugin_type == "custom" or plugin_type == "tool":
         # --- generate app.py ---
         placeholders = {
             **replacements,
@@ -132,7 +132,7 @@ def setup_plugin_type_src(plugin_type: str, src_path: pathlib.Path, replacements
 
 @click.command("create")
 @click.argument("plugin_name_arg")
-@click.option("--type", "type_opt", help="Plugin type. Options: agent, gateway, custom")
+@click.option("--type", "type_opt", help="Plugin type. Options: agent, gateway, tool, custom")
 @click.option("--author-name", "author_name_opt", help="Author's name.")
 @click.option("--author-email", "author_email_opt", help="Author's email.")
 @click.option("--description", "description_opt", help="Plugin description.")

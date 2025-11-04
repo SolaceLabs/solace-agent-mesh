@@ -112,6 +112,11 @@ def add_plugin_component_cmd(
         target_dir = pathlib.Path("configs/gateways")
     else:
         target_dir = pathlib.Path("configs/plugins")
+    
+    # Print config.yaml contents for tool plugins
+    if plugin_type == "tool":
+        click.echo("\nTool usage sample:")
+        click.echo(plugin_config_content)
     try:
         ensure_directory_exists(target_dir)
     except Exception as e:
