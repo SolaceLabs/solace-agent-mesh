@@ -233,22 +233,29 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     async def handle_async():
                         await handler(cache_data)
 
-                    future = asyncio.run_coroutine_threadsafe(
-                        handle_async(),
-                        self._async_loop
-                    )
+                    try:
+                        future = asyncio.run_coroutine_threadsafe(
+                            handle_async(),
+                            self._async_loop
+                        )
 
-                    def on_done(f):
-                        try:
-                            f.result()
-                        except Exception as e:
-                            log.error(
-                                "%s Error in async cache expiry handler: %s",
-                                self.log_identifier,
-                                e,
-                                exc_info=True
-                            )
-                    future.add_done_callback(on_done)
+                        def on_done(f):
+                            try:
+                                f.result()
+                            except Exception as e:
+                                log.error(
+                                    "%s Error in async cache expiry handler: %s",
+                                    self.log_identifier,
+                                    e,
+                                    exc_info=True
+                                )
+                        future.add_done_callback(on_done)
+                    except RuntimeError as e:
+                        log.error(
+                            "%s Failed to schedule async CACHE_EXPIRY handler (event loop may be stopping): %s",
+                            self.log_identifier,
+                            e
+                        )
                 else:
                     log.error(
                         "%s Cannot handle async CACHE_EXPIRY: event loop not available",

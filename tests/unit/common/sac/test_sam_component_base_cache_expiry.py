@@ -4,7 +4,7 @@ import threading
 import time
 import unittest
 from typing import Any, Dict
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from solace_ai_connector.common.event import Event, EventType
 
