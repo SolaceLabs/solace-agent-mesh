@@ -41,7 +41,7 @@ class TestCreateOrchestratorConfig:
         
         assert result is True
         assert (temp_project_dir / "configs" / "shared_config.yaml").exists()
-        assert (temp_project_dir / "configs" / "logging_config.ini").exists()
+        assert (temp_project_dir / "configs" / "logging_config.yaml").exists()
         assert (temp_project_dir / "configs" / "agents" / "main_orchestrator.yaml").exists()
 
     def test_invalid_agent_name_skip_interactive(self, temp_project_dir, mocker, mock_templates):
@@ -140,7 +140,7 @@ class TestCreateOrchestratorConfig:
         # Mock to fail on logging config write
         original_open = open
         def mock_open(file, *args, **kwargs):
-            if "logging_config.ini" in str(file):
+            if "logging_config.yaml" in str(file):
                 raise IOError("Write error")
             return original_open(file, *args, **kwargs)
         

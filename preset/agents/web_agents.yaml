@@ -45,7 +45,7 @@ apps:
         skills:
           - id: "web_request"
             name: "Web Request"
-            description: "Fetches content from a URL."
+            description: "Fetches and processes content from web URLs."
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
       inter_agent_communication:

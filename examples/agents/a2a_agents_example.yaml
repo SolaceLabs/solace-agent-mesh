@@ -111,9 +111,12 @@ apps:
         defaultInputModes: ["text", "file"] # Can take files as input
         defaultOutputModes: ["text", "file"] # Outputs markdown file
         skills:
-        - id: "convert_file_to_markdown"
-          name: "Markdown Converter"
-          description: "Converts various file types to Markdown format."
+        - id: "document_conversion"
+          name: Document Conversion
+          description: Converts various file formats (PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) into clean, readable Markdown format for easier processing and analysis.
+        - id: "content_extraction"
+          name: Content Extraction
+          description: Analyzes and extracts specific information from documents based on natural language instructions, transforming raw content into structured, useful data.
 
       # --- Discovery & Communication ---
       agent_card_publishing: { interval_seconds: 10 }
@@ -167,7 +170,7 @@ apps:
         skills:
         - id: "mermaid_diagram_generator"
           name: "Mermaid Diagram Generator"
-          description: "Generates a PNG image from Mermaid diagram syntax. Input: mermaid_syntax (string), output_filename (string, optional)."
+          description: "Converts Mermaid syntax into visual PNG diagrams, supporting flowcharts, sequence diagrams, class diagrams, and other Mermaid diagram types. Input: mermaid_syntax (string)."
 
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
@@ -220,7 +223,7 @@ apps:
         skills:
           - id: "web_request"
             name: "Web Request"
-            description: "Fetches content from a URL."
+            description: "Fetches and processes content from web URLs."
 
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }

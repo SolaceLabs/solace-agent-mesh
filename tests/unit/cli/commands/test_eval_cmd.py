@@ -44,7 +44,7 @@ def logging_config_file(tmp_path):
     """Create a temporary logging config file"""
     configs_dir = tmp_path / "configs"
     configs_dir.mkdir()
-    logging_config = configs_dir / "logging_config.ini"
+    logging_config = configs_dir / "logging_config.yaml"
     logging_config.write_text("""
 [loggers]
 keys=root
