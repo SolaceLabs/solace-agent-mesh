@@ -18,8 +18,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) =>
     return (
         <Card
             className={`
-                h-[400px] w-full sm:w-[380px] flex-shrink-0 cursor-pointer transition-all duration-200
-                hover:shadow-lg hover:scale-[1.02] bg-card border
+                h-[280px] w-full sm:w-[380px] flex-shrink-0 cursor-pointer transition-all duration-200
+                hover:shadow-lg hover:scale-[1.02] bg-card border overflow-hidden
                 ${onClick ? 'hover:bg-accent/50' : ''}
             `}
             onClick={handleClick}
@@ -28,8 +28,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) =>
         >
             <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1 overflow-hidden">
-                        <CardTitle className="truncate text-lg font-semibold text-foreground break-words" title={project.name}>
+                    <div className="min-w-0 flex-1">
+                        <CardTitle className="line-clamp-2 text-lg font-semibold text-foreground leading-tight" title={project.name}>
                             {project.name}
                         </CardTitle>
                     </div>

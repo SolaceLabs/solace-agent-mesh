@@ -1,4 +1,5 @@
 export { CreateProjectDialog } from "./CreateProjectDialog";
+export { CreateProjectCard } from "./CreateProjectCard";
 export { AddProjectFilesDialog } from "./AddProjectFilesDialog";
 export { ProjectCard } from "./ProjectCard";
 export { ProjectList } from "./ProjectList";

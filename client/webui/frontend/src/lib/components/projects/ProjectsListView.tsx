@@ -1,8 +1,8 @@
 import React from "react";
-import { FolderOpen, Plus } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 
-import { Button } from "@/lib/components/ui";
 import { ProjectCard } from "./ProjectCard";
+import { CreateProjectCard } from "./CreateProjectCard";
 import type { Project } from "@/lib/types/projects";
 
 interface ProjectsListViewProps {
@@ -42,28 +42,16 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
                             <p className="text-sm text-muted-foreground">Loading projects...</p>
                         </div>
                     </div>
-                ) : projects.length === 0 && !searchQuery ? (
-                    <div className="flex flex-col items-center justify-center p-12 text-center">
-                        <FolderOpen className="mb-4 h-16 w-16 text-muted-foreground" />
-                        <h3 className="mb-2 text-lg font-semibold text-foreground">No projects yet</h3>
-                        <p className="mb-4 text-sm text-muted-foreground">Create your first project to get started</p>
-                        <Button onClick={onCreateNew}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Create Project
-                        </Button>
-                    </div>
                 ) : projects.length === 0 && searchQuery ? (
                     <div className="flex flex-col items-center justify-center p-12 text-center">
                         <FolderOpen className="mb-4 h-16 w-16 text-muted-foreground" />
                         <h3 className="mb-2 text-lg font-semibold text-foreground">No projects found</h3>
-                        <p className="mb-4 text-sm text-muted-foreground">Try adjusting your search terms</p>
-                        <Button onClick={() => onSearchChange("")} variant="default">
-                            Clear Search
-                        </Button>
+                        <p className="text-sm text-muted-foreground">Try adjusting your search terms</p>
                     </div>
                 ) : (
                     <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
                         <div className="flex flex-wrap gap-10">
+                            <CreateProjectCard onClick={onCreateNew} />
                             {projects.map((project) => (
                                 <ProjectCard
                                     key={project.id}
