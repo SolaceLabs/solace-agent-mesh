@@ -216,9 +216,7 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         project_id: str | None = None
     ) -> list[Session]:
         """
-        Search sessions by name/title only.
-
-        Uses PostgreSQL full-text search when available, falls back to ILIKE for SQLite or short queries.
+        Search sessions by name/title only using ILIKE.
         """
         # Base query - only non-deleted sessions for the user
         base_query = db_session.query(SessionModel).filter(
@@ -230,20 +228,9 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         if project_id is not None:
             base_query = base_query.filter(SessionModel.project_id == project_id)
 
-        # Detect database dialect
-        dialect_name = db_session.bind.dialect.name
-        use_fts = dialect_name == 'postgresql' and len(query.strip()) >= 3
-
-        if use_fts:
-            # PostgreSQL full-text search on session name for better performance
-            search_query = base_query.filter(
-                func.to_tsvector('english', func.coalesce(SessionModel.name, ''))
-                    .op('@@')(func.plainto_tsquery('english', query))
-            )
-        else:
-            # ILIKE search for SQLite or short queries
-            search_pattern = f"%{query}%"
-            search_query = base_query.filter(SessionModel.name.ilike(search_pattern))
+        # ILIKE search on session name
+        search_pattern = f"%{query}%"
+        search_query = base_query.filter(SessionModel.name.ilike(search_pattern))
 
         # Eager load project relationship
         search_query = search_query.options(joinedload(SessionModel.project))
@@ -264,8 +251,6 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
     ) -> int:
         """
         Count search results for pagination (title-only search).
-
-        Uses same database-agnostic logic as search() method for consistency.
         """
         # Base query - only non-deleted sessions for the user
         base_query = db_session.query(SessionModel).filter(
@@ -276,18 +261,8 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         if project_id is not None:
             base_query = base_query.filter(SessionModel.project_id == project_id)
 
-        dialect_name = db_session.bind.dialect.name
-        use_fts = dialect_name == 'postgresql' and len(query.strip()) >= 3
-
-        if use_fts:
-            # PostgreSQL full-text search on session name
-            search_query = base_query.filter(
-                func.to_tsvector('english', func.coalesce(SessionModel.name, ''))
-                    .op('@@')(func.plainto_tsquery('english', query))
-            )
-        else:
-            # ILIKE search for SQLite or short queries
-            search_pattern = f"%{query}%"
-            search_query = base_query.filter(SessionModel.name.ilike(search_pattern))
+        # ILIKE search on session name
+        search_pattern = f"%{query}%"
+        search_query = base_query.filter(SessionModel.name.ilike(search_pattern))
 
         return search_query.count()

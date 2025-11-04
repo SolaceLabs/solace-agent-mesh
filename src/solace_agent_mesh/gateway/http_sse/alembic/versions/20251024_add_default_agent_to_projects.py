@@ -1,7 +1,7 @@
 """add default agent to projects
 
 Revision ID: default_agent_001
-Revises: fts_indexes_001
+Revises: soft_del_search_001
 Create Date: 2025-01-24 01:13:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'default_agent_001'
-down_revision = 'fts_indexes_001'
+down_revision = 'soft_del_search_001'
 branch_labels = None
 depends_on = None
 
