@@ -25,12 +25,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
 
     return (
         <Card
-            className={`group bg-card flex h-[196px] w-full flex-shrink-0 cursor-pointer flex-col border py-4 transition-all duration-200 sm:w-[380px] ${onClick ? "hover:bg-accent/50" : ""} `}
+            className={`group bg-card flex h-[196px] w-full flex-shrink-0 cursor-pointer flex-col gap-4 border py-4 transition-all duration-200 sm:w-[380px] ${onClick ? "hover:bg-accent/50" : ""} `}
             onClick={() => onClick?.()}
             role={onClick ? "button" : undefined}
             tabIndex={onClick ? 0 : undefined}
         >
-            <CardHeader className="pb-3">
+            <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                     <div className="max-w-[225px] min-w-0">
                         <CardTitle className="text-foreground truncate text-lg font-semibold" title={project.name}>
@@ -57,7 +57,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
             <CardContent className="flex flex-1 flex-col justify-between">
                 <div>
                     {project.description ? (
-                        <CardDescription className="line-clamp-2" title={project.description}>
+                        <CardDescription className="line-clamp-3" title={project.description}>
                             {project.description}
                         </CardDescription>
                     ) : (
