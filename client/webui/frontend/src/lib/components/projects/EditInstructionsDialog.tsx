@@ -116,7 +116,7 @@ export const EditInstructionsDialog: React.FC<EditInstructionsDialogProps> = ({
                         disabled={isSaving}
                     >
                         <X className="h-4 w-4 mr-2" />
-                        Cancel
+                        Discard Changes
                     </Button>
                     <Button
                         onClick={handleSave}
