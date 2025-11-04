@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Save, X, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 import {
     Dialog,
@@ -115,15 +115,13 @@ export const EditInstructionsDialog: React.FC<EditInstructionsDialogProps> = ({
                         onClick={handleCancel}
                         disabled={isSaving}
                     >
-                        <X className="h-4 w-4 mr-2" />
-                        Cancel
+                        Discard Changes
                     </Button>
                     <Button
                         onClick={handleSave}
                         disabled={isSaving || isOverLimit}
                     >
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Instructions
+                        Save
                     </Button>
                 </DialogFooter>
             </DialogContent>
