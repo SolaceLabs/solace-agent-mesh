@@ -262,12 +262,6 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                             <div className="whitespace-pre-wrap text-sm leading-relaxed">
                                 {message.content}
                             </div>
-                            <div className="mt-1 text-xs opacity-70">
-                                {message.timestamp.toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                })}
-                            </div>
                         </div>
                     </div>
                 ))}

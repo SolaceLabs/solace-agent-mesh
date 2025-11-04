@@ -15,7 +15,8 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
     onEditManually,
     highlightedFields,
 }) => {
-    const hasContent = config.name || config.prompt_text;
+    // Only show content when we have actual prompt text, not just metadata
+    const hasContent = config.prompt_text && config.prompt_text.trim().length > 0;
 
     const renderField = (label: string, value: string | undefined, fieldName: string) => {
         const isHighlighted = highlightedFields.includes(fieldName);
@@ -23,8 +24,8 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
 
         return (
             <div
-                className={`space-y-1 p-3 rounded-lg transition-all duration-300 ${
-                    isHighlighted ? 'bg-primary/10 ring-2 ring-primary' : 'bg-muted/50'
+                className={`space-y-1 py-2 transition-all duration-300 ${
+                    isHighlighted ? 'bg-primary/10 -mx-3 px-3 rounded-lg ring-2 ring-primary' : ''
                 }`}
             >
                 <div className="flex items-center justify-between">
@@ -63,8 +64,8 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
 
         return (
             <div
-                className={`space-y-1 p-3 rounded-lg transition-all duration-300 ${
-                    isHighlighted ? 'bg-primary/10 ring-2 ring-primary' : 'bg-muted/50'
+                className={`space-y-1 py-2 transition-all duration-300 ${
+                    isHighlighted ? 'bg-primary/10 -mx-3 px-3 rounded-lg ring-2 ring-primary' : ''
                 }`}
             >
                 <div className="flex items-center justify-between">
@@ -92,7 +93,7 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
 
         if (variables.length === 0) {
             return (
-                <div className="text-sm text-muted-foreground italic p-3 bg-muted/50 rounded-lg">
+                <div className="text-sm text-muted-foreground italic py-2">
                     No variables detected yet
                 </div>
             );
@@ -100,8 +101,8 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
 
         return (
             <div
-                className={`p-3 rounded-lg transition-all duration-300 ${
-                    isHighlighted ? 'bg-primary/10 ring-2 ring-primary' : 'bg-muted/50'
+                className={`py-2 transition-all duration-300 ${
+                    isHighlighted ? 'bg-primary/10 -mx-3 px-3 rounded-lg ring-2 ring-primary' : ''
                 }`}
             >
                 <div className="flex flex-wrap gap-2">
@@ -142,7 +143,7 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
                 {!hasContent ? (
                     <div className="flex flex-col items-center justify-center h-full text-center p-8">
                         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
@@ -157,11 +158,11 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
                 ) : (
                     <>
                         {/* Basic Info */}
-                        <Card>
-                            <CardHeader className="pb-0">
+                        <Card className="border-0 shadow-none">
+                            <CardHeader className="pb-0 px-0 pl-3">
                                 <CardTitle className="text-base">Basic Information</CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-3 pt-2">
+                            <CardContent className="space-y-1 pt-2">
                                 {renderField('Template Name', config.name, 'name')}
                                 {renderField('Description', config.description, 'description')}
                                 {renderField('Category', config.category, 'category')}
@@ -170,8 +171,8 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
                         </Card>
 
                         {/* Prompt Text */}
-                        <Card>
-                            <CardHeader className="pb-0">
+                        <Card className="border-0 shadow-none">
+                            <CardHeader className="pb-0 px-0 pl-3">
                                 <CardTitle className="text-base">Prompt Template</CardTitle>
                             </CardHeader>
                             <CardContent className="pt-2">
@@ -180,8 +181,8 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
                         </Card>
 
                         {/* Variables */}
-                        <Card>
-                            <CardHeader className="pb-0">
+                        <Card className="border-0 shadow-none">
+                            <CardHeader className="pb-0 px-0 pl-3">
                                 <CardTitle className="text-base">Variables</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-3 pt-2">
