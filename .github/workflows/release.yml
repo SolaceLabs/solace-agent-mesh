@@ -51,7 +51,7 @@ jobs:
   build_and_push_docker:
     name: Build and Push to DockerHub
     needs: release
-    uses: SolaceLabs/solace-agent-mesh/.github/workflows/build-push-dockerhub.yml@push-docker
+    uses: SolaceLabs/solace-agent-mesh/.github/workflows/build-push-dockerhub.yml@main
     with:
       version: ${{ needs.release.outputs.new_version }}
       commit_hash: ${{ needs.release.outputs.commit_hash }}
