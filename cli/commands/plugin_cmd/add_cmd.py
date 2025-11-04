@@ -115,27 +115,29 @@ def add_plugin_component_cmd(
     
     # Print config.yaml contents for tool plugins
     if plugin_type == "tool":
+        click.echo(f"'{module_name}' has been installed.")
         click.echo("\nTool usage sample:")
         click.echo(plugin_config_content)
-    try:
-        ensure_directory_exists(target_dir)
-    except Exception as e:
-        return error_exit(f"Error creating target directory {target_dir}: {e}")
+    else:
+        try:
+            ensure_directory_exists(target_dir)
+        except Exception as e:
+            return error_exit(f"Error creating target directory {target_dir}: {e}")
 
-    target_filename = f"{component_formats['KEBAB_CASE_NAME']}.yaml"
-    target_path = target_dir / target_filename
+        target_filename = f"{component_formats['KEBAB_CASE_NAME']}.yaml"
+        target_path = target_dir / target_filename
 
-    try:
-        with open(target_path, "w", encoding="utf-8") as f:
-            f.write(processed_config_content)
-        click.echo(f"  Created component configuration: {target_path}")
-        click.echo(
-            click.style(
-                f"Component '{component_name}' created successfully from plugin '{module_name}'.",
-                fg="green",
+        try:
+            with open(target_path, "w", encoding="utf-8") as f:
+                f.write(processed_config_content)
+            click.echo(f"  Created component configuration: {target_path}")
+            click.echo(
+                click.style(
+                    f"Component '{component_name}' created successfully from plugin '{module_name}'.",
+                    fg="green",
+                )
             )
-        )
-    except IOError as e:
-        return error_exit(
-            f"Error writing component configuration file {target_path}: {e}"
-        )
+        except IOError as e:
+            return error_exit(
+                f"Error writing component configuration file {target_path}: {e}"
+            )
