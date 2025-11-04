@@ -123,7 +123,7 @@ export const EditInstructionsDialog: React.FC<EditInstructionsDialogProps> = ({
                         disabled={isSaving || isOverLimit}
                     >
                         <Save className="h-4 w-4 mr-2" />
-                        Save Instructions
+                        Save
                     </Button>
                 </DialogFooter>
             </DialogContent>
