@@ -11,6 +11,7 @@ interface ProjectsListViewProps {
     onSearchChange: (query: string) => void;
     onProjectClick: (project: Project) => void;
     onCreateNew: () => void;
+    onDelete: (project: Project) => void;
     isLoading?: boolean;
 }
 
@@ -20,6 +21,7 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
     onSearchChange,
     onProjectClick,
     onCreateNew,
+    onDelete,
     isLoading = false,
 }) => {
     return (
@@ -57,6 +59,7 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
                                     key={project.id}
                                     project={project}
                                     onClick={() => onProjectClick(project)}
+                                    onDelete={onDelete}
                                 />
                             ))}
                         </div>

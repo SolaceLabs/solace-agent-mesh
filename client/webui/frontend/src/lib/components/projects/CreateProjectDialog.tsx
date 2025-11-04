@@ -2,6 +2,7 @@ import React, { useState } from "react";
 
 import { Button, Input, Textarea } from "@/lib/components/ui";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
+import { MessageBanner } from "@/lib/components/common";
 
 interface CreateProjectDialogProps {
     isOpen: boolean;
@@ -61,9 +62,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                     
                     <div className="space-y-4 py-4">
                         {error && (
-                            <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-2 rounded">
-                                {error}
-                            </div>
+                            <MessageBanner variant="error" message={error} />
                         )}
                         
                         <div className="space-y-2">
@@ -76,6 +75,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                                 onChange={e => setName(e.target.value)}
                                 disabled={isSubmitting}
                                 required
+                                maxLength={255}
                             />
                         </div>
                         
@@ -89,7 +89,11 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                                 onChange={e => setDescription(e.target.value)}
                                 disabled={isSubmitting}
                                 rows={3}
+                                maxLength={1000}
                             />
+                            <div className="text-xs text-muted-foreground text-right">
+                                {description.length}/1000 characters
+                            </div>
                         </div>
                     </div>
                     

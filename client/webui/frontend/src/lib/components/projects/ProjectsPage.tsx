@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { RefreshCcw } from "lucide-react";
 
 import { CreateProjectDialog } from "./CreateProjectDialog";
+import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { ProjectsListView } from "./ProjectsListView";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { useProjectContext } from "@/lib/providers";
@@ -17,6 +18,9 @@ interface ProjectsPageProps {
 export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }) => {
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const {
         isLoading,
@@ -28,8 +32,9 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         searchQuery,
         setSearchQuery,
         filteredProjects,
+        deleteProject,
     } = useProjectContext();
-    const { handleNewSession } = useChatContext();
+    const { handleNewSession, handleSwitchSession } = useChatContext();
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
         setIsCreating(true);
@@ -61,14 +66,37 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         setSelectedProject(null);
     };
 
-    const handleChatClick = async () => {
-        // Start a new session
-        await handleNewSession(true);
+    const handleChatClick = async (sessionId: string) => {
+
+        if (selectedProject) {
+            setActiveProject(selectedProject);
+        }
+        await handleSwitchSession(sessionId);
         onProjectActivated();
     };
 
     const handleCreateNew = () => {
         setShowCreateDialog(true);
+    };
+
+    const handleDeleteClick = (project: Project) => {
+        setProjectToDelete(project);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!projectToDelete) return;
+
+        setIsDeleting(true);
+        try {
+            await deleteProject(projectToDelete.id);
+            setIsDeleteDialogOpen(false);
+            setProjectToDelete(null);
+        } catch (error) {
+            console.error("Failed to delete project:", error);
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     const handleStartNewChat = async () => {
@@ -137,6 +165,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                         onSearchChange={setSearchQuery}
                         onProjectClick={handleProjectSelect}
                         onCreateNew={handleCreateNew}
+                        onDelete={handleDeleteClick}
                         isLoading={isLoading}
                     />
                 )}
@@ -148,6 +177,18 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                 onClose={() => setShowCreateDialog(false)}
                 onSubmit={handleCreateProject}
                 isSubmitting={isCreating}
+            />
+
+            {/* Delete Project Dialog */}
+            <DeleteProjectDialog
+                isOpen={isDeleteDialogOpen}
+                onClose={() => {
+                    setIsDeleteDialogOpen(false);
+                    setProjectToDelete(null);
+                }}
+                onConfirm={handleDeleteConfirm}
+                project={projectToDelete}
+                isDeleting={isDeleting}
             />
         </div>
     );

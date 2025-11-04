@@ -1,13 +1,15 @@
 import React, { useState } from "react";
-import { ArrowLeft, Pencil, Check, X } from "lucide-react";
+import { ArrowLeft, Pencil, Check, X, Trash2 } from "lucide-react";
 
 import { Button, Input, Textarea } from "@/lib/components/ui";
+import { MessageBanner } from "@/lib/components/common";
 import { useProjectContext } from "@/lib/providers";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
 import { KnowledgeSection } from "./KnowledgeSection";
 import { ProjectChatsSection } from "./ProjectChatsSection";
+import { DeleteProjectDialog } from "./DeleteProjectDialog";
 
 interface ProjectDetailViewProps {
     project: Project;
@@ -22,13 +24,15 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     onStartNewChat,
     onChatClick,
 }) => {
-    const { updateProject, projects } = useProjectContext();
+    const { updateProject, projects, deleteProject } = useProjectContext();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(project.name);
     const [editedDescription, setEditedDescription] = useState(project.description || "");
     const [nameError, setNameError] = useState<string | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
         setError(null);
@@ -101,85 +105,123 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         setIsEditing(false);
         setNameError(null);
     };
+    const handleDeleteClick = () => {
+        setIsDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        setIsDeleting(true);
+        try {
+            await deleteProject(project.id);
+            setIsDeleteDialogOpen(false);
+            // Navigate back to list after successful deletion
+            onBack();
+        } catch (error) {
+            console.error("Failed to delete project:", error);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
 
     return (
         <div className="flex h-full">
             {/* Left Panel - Project Title and Chats */}
             <div className="w-[60%] overflow-y-auto border-r">
-                <div className="sticky top-0 z-10 bg-background border-b py-4">
-                    <div className="px-6">
-                        <Button
-                            variant="ghost"
-                            onClick={onBack}
-                            className="mb-4 flex items-center gap-2 text-muted-foreground hover:text-foreground -ml-2"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                            Back to all projects
-                        </Button>
-                    </div>
+                <div className="sticky top-0 z-10 bg-background border-b py-4 px-6">
+                    <Button
+                        variant="ghost"
+                        onClick={onBack}
+                        className="mb-4 flex items-center gap-2 text-muted-foreground hover:text-foreground -ml-2"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                        Back to all projects
+                    </Button>
                     
                     {isEditing ? (
-                        <div className="space-y-2 px-6">
-                            <div className="flex items-center gap-2">
+                        <div className="space-y-3">
+                            <div>
                                 <Input
                                     value={editedName}
                                     onChange={(e) => setEditedName(e.target.value)}
-                                    className="text-2xl font-bold flex-1"
+                                    className="text-xl font-bold"
                                     disabled={isSaving}
                                     placeholder="Project name"
+                                    maxLength={255}
                                 />
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={handleSave}
+                            </div>
+                            <div>
+                                <Textarea
+                                    value={editedDescription}
+                                    onChange={(e) => setEditedDescription(e.target.value)}
+                                    className="text-sm resize-none"
+                                    placeholder="Project description (optional)"
+                                    rows={3}
                                     disabled={isSaving}
-                                    className="h-8 w-8 p-0"
-                                >
-                                    <Check className="h-4 w-4" />
-                                </Button>
+                                    maxLength={1000}
+                                />
+                                <div className="mt-1 text-xs text-muted-foreground text-right">
+                                    {editedDescription.length}/1000 characters
+                                </div>
+                            </div>
+                            {nameError && (
+                                <MessageBanner variant="error" message={nameError} />
+                            )}
+                            <div className="flex items-center justify-end gap-2">
                                 <Button
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
                                     onClick={handleCancelEdit}
                                     disabled={isSaving}
-                                    className="h-8 w-8 p-0"
+                                    className="gap-1"
                                 >
                                     <X className="h-4 w-4" />
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={handleSave}
+                                    disabled={isSaving}
+                                    className="gap-1"
+                                >
+                                    <Check className="h-4 w-4" />
+                                    Save
                                 </Button>
                             </div>
-                            <Textarea
-                                value={editedDescription}
-                                onChange={(e) => setEditedDescription(e.target.value)}
-                                className="text-sm resize-none"
-                                placeholder="Project description (optional)"
-                                rows={2}
-                                disabled={isSaving}
-                            />
-                            {nameError && (
-                                <div className="text-sm text-destructive">{nameError}</div>
-                            )}
                         </div>
                     ) : (
-                        <div className="flex items-start gap-2 px-6">
+                        <div className="flex items-start gap-2">
                             <div className="flex-1 min-w-0">
-                                <h1 className="text-2xl font-bold mb-1">{project.name}</h1>
+                                <h1 className="text-xl font-bold mb-1">{project.name}</h1>
                                 {project.description && (
                                     <p className="text-sm text-muted-foreground">{project.description}</p>
                                 )}
                             </div>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                    setIsEditing(true);
-                                    setEditedName(project.name);
-                                    setEditedDescription(project.description || "");
-                                }}
-                                className="h-8 w-8 p-0 flex-shrink-0"
-                                title="Edit project"
-                            >
-                                <Pencil className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                        setIsEditing(true);
+                                        setEditedName(project.name);
+                                        setEditedDescription(project.description || "");
+                                    }}
+                                    className="h-8 w-8 p-0 flex-shrink-0"
+                                    title="Edit project"
+                                >
+                                    <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleDeleteClick}
+                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
+                                    title="Delete project"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -213,6 +255,13 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
                 <KnowledgeSection project={project} />
             </div>
+            <DeleteProjectDialog
+                isOpen={isDeleteDialogOpen}
+                onClose={() => setIsDeleteDialogOpen(false)}
+                onConfirm={handleDeleteConfirm}
+                project={project}
+                isDeleting={isDeleting}
+            />
         </div>
     );
 };
