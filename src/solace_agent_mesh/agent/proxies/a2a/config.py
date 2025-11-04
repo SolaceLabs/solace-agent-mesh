@@ -146,6 +146,12 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
         description="If true, applies the configured authentication to agent card fetching. "
         "If false, agent card requests are made without authentication.",
     )
+    use_agent_card_url: bool = Field(
+        default=True,
+        description="If true, uses the URL from the agent card for task invocations. "
+        "If false, uses the configured URL directly for task invocations. "
+        "Note: The configured URL is always used to fetch the agent card itself.",
+    )
     agent_card_headers: Optional[List[HttpHeaderConfig]] = Field(
         default=None,
         description="Custom HTTP headers to include when fetching the agent card. "

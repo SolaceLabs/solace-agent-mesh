@@ -710,6 +710,20 @@ class A2AProxyComponent(BaseProxyComponent):
             log.error(f"Agent card not found for '{agent_name}' in registry.")
             return None
 
+        # Check if we should use the configured URL or the agent card URL
+        use_agent_card_url = agent_config.get("use_agent_card_url", True)
+        if not use_agent_card_url:
+            # Override the agent card URL with the configured URL
+            configured_url = agent_config.get("url")
+            log.info(
+                "%s Overriding agent card URL with configured URL for agent '%s': %s",
+                self.log_identifier,
+                agent_name,
+                configured_url,
+            )
+            # Create a modified copy of the agent card with the configured URL
+            agent_card = agent_card.model_copy(update={"url": configured_url})
+
         # Resolve timeout - ensure we always have a valid timeout value
         default_timeout = self.get_config("default_request_timeout_seconds", 300)
         agent_timeout = agent_config.get("request_timeout_seconds")
