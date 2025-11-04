@@ -41,29 +41,25 @@ Setting up the Teams integration requires creating several Azure resources. You 
 
 ### Step 1: Create Azure App Registration
 
-The App Registration establishes your bot's identity within Azure Active Directory. Begin by navigating to the Azure Portal at https://portal.azure.com. In the portal, go to Azure Active Directory and then select App registrations. Click New registration to create a new app.
+The App Registration establishes your bot's identity within Azure Active Directory. Go to https://portal.azure.com, then navigate to Azure Active Directory and select `App registrations`. Click `New registration`.
 
-For the registration name, enter SAM Teams Bot or another descriptive name for your organization. Under supported account types, select Accounts in this organizational directory only (Single tenant). This configuration restricts the bot to users within your Azure AD tenant. Leave the redirect URI field blank because the bot does not require OAuth redirect flows.
+Enter a descriptive name like "SAM Teams Bot". Under `Supported account types`, select `Accounts in this organizational directory only (Single tenant)`. Leave the `Redirect URI` blank and click `Register`.
 
-After you click Register, Azure creates the app registration and displays its details. Take note of both the Application (client) ID and the Directory (tenant) ID—you need these values for subsequent steps. The Application ID identifies your bot, while the tenant ID specifies your organization's Azure AD tenant.
+Copy both the `Application (client) ID` and `Directory (tenant) ID` from the details page—you need both for later steps.
 
-Next, create a client secret that the bot uses to authenticate itself. Go to Certificates & secrets, then click New client secret. Enter SAM Bot Secret as the description, or use another name that helps you identify this secret later. Choose an expiration period based on your organization's security policies—options include 90 days, 180 days, or a custom duration.
+Next, go to `Certificates & secrets` and click `New client secret`. Enter a description like "SAM Bot Secret" and choose an expiration period. Click `Add`.
 
 :::danger[Save Your Secret]
-The client secret value is only shown once. Copy it immediately and store it securely.
+The client secret value appears only once. Copy it immediately and store it securely. This becomes your `TEAMS_BOT_PASSWORD` environment variable.
 :::
-
-After you create the secret, Azure displays its value. Copy this value immediately because Azure never displays it again. This value becomes your TEAMS_BOT_PASSWORD environment variable.
 
 ### Step 2: Create Azure Bot Service
 
-The Bot Service connects your bot to Microsoft Teams and other channels. In the Azure Portal, search for Azure Bot and click Create. You need to provide several configuration details.
+In the Azure Portal, search for `Azure Bot` and click `Create`. Enter a unique name like `sam-teams-bot`, select your subscription and resource group, and choose a pricing tier (F0 for development, S1 for production).
 
-For the bot handle, enter a globally unique name like sam-teams-bot. This name appears in the bot's URL and must be unique across all Azure Bot Services. Select your Azure subscription and either create a new resource group or use an existing one. Choose a pricing tier—F0 (Free) works for development and small deployments, while S1 (Standard) provides higher limits for production use.
+Under `Microsoft App ID`, select `Use existing app registration`. Paste the `Application (client) ID` from Step 1 into the `App ID` field and enter your Azure AD tenant ID in the `Tenant ID` field. Click `Review + create`, then `Create`.
 
-Under Microsoft App ID, select Use existing app registration. Paste the Application (client) ID from Step 1 into the App ID field. Enter your Azure AD tenant ID in the Tenant ID field. These values link the Bot Service to the App Registration you created earlier.
-
-Click Review + create, then click Create to deploy the bot resource. After deployment completes, navigate to the bot resource and go to its Configuration section. Set the messaging endpoint to your public URL followed by /api/messages, such as https://your-public-url.com/api/messages. The endpoint must use HTTPS and must be publicly accessible from the internet. Click Apply to save your configuration.
+After deployment, navigate to the bot resource and go to the `Configuration` section. Set the `Messaging endpoint` to your public HTTPS URL with `/api/messages` appended (e.g., `https://your-domain.com/api/messages`). This endpoint must be publicly accessible from the internet. Click `Apply`.
 
 :::tip[Development Setup]
 For local testing, use [ngrok](https://ngrok.com/) to expose your local port:
@@ -75,13 +71,11 @@ Then use the ngrok HTTPS URL as your messaging endpoint (e.g., `https://abc123.n
 
 ### Step 3: Add Teams Channel
 
-After you create the Bot Service, you need to enable the Microsoft Teams channel. In your Azure Bot resource, navigate to Channels and click the Microsoft Teams icon. The configuration page appears with options for calling and messaging.
-
-Leave calling disabled unless you need voice or video call features. Ensure that messaging is enabled—this allows the bot to send and receive text messages in Teams. Click Apply to activate the channel. Teams can now route messages to your bot through the messaging endpoint you configured.
+In your Azure Bot resource, navigate to `Channels` and click the `Microsoft Teams` icon. Leave `Calling` disabled and ensure `Messaging` is enabled. Click `Apply` to activate the channel.
 
 ### Step 4: Create Teams App Package
 
-Microsoft Teams requires a manifest file that describes your bot and its capabilities. Create a new directory to hold your Teams app files. In this directory, create a file named manifest.json with the following content:
+Create a new directory with a file named `manifest.json` containing the following:
 
 ```json
 {
@@ -125,24 +119,24 @@ Microsoft Teams requires a manifest file that describes your bot and its capabil
 }
 ```
 
-In the manifest, replace YOUR-APP-ID-HERE with your Azure App Registration ID (the Application client ID from Step 1). Replace YOUR-BOT-ID-HERE with your Azure Bot ID, which is typically the same as your App Registration ID. Update the developer fields with your organization's information and URLs.
+Replace `YOUR-APP-ID-HERE` with your `Application (client) ID` from Step 1 and `YOUR-BOT-ID-HERE` with your Azure Bot ID (usually the same as your App ID). Update the `developer` fields with your organization's information and URLs.
 
-The supportsFiles property enables file upload and download capabilities. The scopes array specifies where users can interact with the bot—personal conversations, team channels, and group chats. The permissions array grants the bot access to user identity information and the ability to message team members.
+The `supportsFiles` property enables file uploads and downloads. The `scopes` array specifies where users interact with the bot (personal, team, or group chat). The `permissions` array grants access to user identity and team messaging.
 
-Create two icon files for your bot. The color icon should be 192x192 pixels and display your bot's branding in full color. The outline icon should be 32x32 pixels, consisting of a white icon on a transparent background. Teams displays these icons in different contexts throughout its interface.
+Create two icon files:
 
 :::tip[Icon Requirements]
-- Color icon: 192x192 pixels, full color
-- Outline icon: 32x32 pixels, white icon on transparent background
+- `color.png`: 192x192 pixels, full color
+- `outline.png`: 32x32 pixels, white icon on transparent background
 :::
 
-After you create the icons, place them in the same directory as manifest.json. Create a ZIP file containing all three files (manifest.json, color.png, and outline.png). Name this file teams-app.zip.
+Create a ZIP file containing `manifest.json`, `color.png`, and `outline.png`. Name it `teams-app.zip`.
 
 ### Step 5: Upload Teams App
 
-Now you can install your bot in Microsoft Teams. Open Microsoft Teams and click Apps in the left sidebar. Click Manage your apps, then click Upload an app. Select Upload a custom app and choose your teams-app.zip file.
+Open Microsoft Teams and click `Apps` in the left sidebar. Click `Manage your apps`, then `Upload an app`. Select `Upload a custom app` and choose your `teams-app.zip` file.
 
-Teams validates the manifest and displays information about your bot. Click Add to install the bot in your Teams workspace. The bot now appears in your Apps list and users can start conversations with it.
+Click `Add` to install the bot in your Teams workspace.
 
 ## Configuring the Gateway
 
@@ -150,7 +144,7 @@ After you set up the Azure resources, you need to configure Agent Mesh Enterpris
 
 ### Environment Variables
 
-Your deployment needs three environment variables to authenticate with Microsoft Teams. Set TEAMS_BOT_ID to your Azure Bot ID (the Application client ID from Step 1). Set TEAMS_BOT_PASSWORD to the client secret value you copied when creating the secret. Set AZURE_TENANT_ID to your Directory tenant ID.
+Set three environment variables for Teams authentication:
 
 ```bash
 TEAMS_BOT_ID="your-azure-bot-id"
@@ -159,14 +153,10 @@ AZURE_TENANT_ID="your-azure-tenant-id"
 ```
 
 :::info[Tenant ID]
-The tenant ID is required for single-tenant authentication. Find it in Azure Portal → Azure Active Directory → Overview → Tenant ID.
+Find the tenant ID in Azure Portal → Azure Active Directory → Overview → `Tenant ID`. It enables single-tenant authentication, restricting bot access to your organization's Azure AD users.
 :::
 
-The tenant ID enables single-tenant authentication, which restricts bot access to users within your Azure AD tenant. You can find this ID in the Azure Portal by navigating to Azure Active Directory and looking at the Overview page.
-
 ### Docker Compose Example
-
-If you deploy using Docker Compose, add the environment variables to your service configuration. The following example shows how to configure the Agent Mesh Enterprise container with Teams Gateway support:
 
 ```yaml
 version: '3.8'
@@ -181,14 +171,13 @@ services:
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
       - NAMESPACE=your-namespace
       - SOLACE_BROKER_URL=ws://broker:8080
-    # ... other configuration
 ```
 
-The container exposes port 8080, which must match the port in your messaging endpoint configuration. The NAMESPACE variable defines the message broker topic namespace for your deployment. Set SOLACE_BROKER_URL to point to your Solace broker instance.
+Set `NAMESPACE` to your message broker topic namespace and `SOLACE_BROKER_URL` to your Solace broker instance.
 
 ### Kubernetes ConfigMap/Secret
 
-For Kubernetes deployments, store sensitive credentials in a Secret resource and configuration values in a ConfigMap. Create these resources in the same namespace as your Agent Mesh deployment:
+Create `Secret` and `ConfigMap` resources in your deployment namespace:
 
 ```yaml
 apiVersion: v1
@@ -210,11 +199,9 @@ data:
   http-port: "8080"
 ```
 
-Reference these resources in your deployment configuration to inject the values as environment variables into your pods.
+Reference these resources in your deployment to inject values as environment variables.
 
 ### Gateway Configuration Options
-
-The Teams Gateway accepts several configuration parameters in your YAML configuration file. These parameters control the gateway's behavior and integration with your Agent Mesh deployment:
 
 ```yaml
 component_name: teams-gateway
@@ -234,8 +221,13 @@ component_config:
     Provide clear, concise responses. Use markdown formatting when appropriate.
 ```
 
-The microsoft_app_tenant_id parameter enables single-tenant authentication and must match your Azure AD tenant ID. The default_agent_name specifies which agent handles incoming messages when users do not specify a particular agent. Set http_port to match the port exposed by your container and referenced in your messaging endpoint URL.
+Key parameters:
 
-When enable_typing_indicator is true, Teams displays a typing indicator while the agent processes requests. The buffer_update_interval_seconds parameter controls how frequently the gateway updates streaming responses—lower values provide more real-time updates but increase API calls to Teams. The initial_status_message appears when users first send a message, providing immediate feedback that the system received their request.
-
-Use system_purpose to define the bot's role and behavior guidelines that apply to all interactions. The response_format parameter provides instructions for how the agent should format its responses, such as using markdown for better readability in Teams.
+- `microsoft_app_tenant_id`: Required for single-tenant authentication; must match your Azure AD tenant ID
+- `default_agent_name`: Agent that handles incoming messages
+- `http_port`: Must match your container's exposed port
+- `enable_typing_indicator`: Shows typing indicator while processing requests
+- `buffer_update_interval_seconds`: Controls streaming response update frequency (lower = more real-time, higher = fewer API calls)
+- `initial_status_message`: Feedback shown when users first send a message
+- `system_purpose`: Defines the bot's role and behavior
+- `response_format`: Instructions for response formatting (e.g., markdown)
