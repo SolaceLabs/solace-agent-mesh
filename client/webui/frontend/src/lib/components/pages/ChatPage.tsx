@@ -190,9 +190,10 @@ export function ChatPage() {
                             {activeProject && (
                                 <Badge
                                     variant="outline"
-                                    className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm"
+                                    className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm max-w-[200px]"
+                                    title={activeProject.name}
                                 >
-                                    {activeProject.name}
+                                    <span className="block truncate text-left">{activeProject.name}</span>
                                 </Badge>
                             )}
                         </div>
