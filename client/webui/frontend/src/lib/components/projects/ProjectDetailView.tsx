@@ -106,18 +106,20 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         <div className="flex h-full">
             {/* Left Panel - Project Title and Chats */}
             <div className="w-[60%] overflow-y-auto border-r">
-                <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
-                    <Button
-                        variant="ghost"
-                        onClick={onBack}
-                        className="mb-4 flex items-center gap-2 text-muted-foreground hover:text-foreground"
-                    >
-                        <ArrowLeft className="h-4 w-4" />
-                        Back to all projects
-                    </Button>
+                <div className="sticky top-0 z-10 bg-background border-b py-4">
+                    <div className="px-6">
+                        <Button
+                            variant="ghost"
+                            onClick={onBack}
+                            className="mb-4 flex items-center gap-2 text-muted-foreground hover:text-foreground -ml-2"
+                        >
+                            <ArrowLeft className="h-4 w-4" />
+                            Back to all projects
+                        </Button>
+                    </div>
                     
                     {isEditing ? (
-                        <div className="space-y-2">
+                        <div className="space-y-2 px-6">
                             <div className="flex items-center gap-2">
                                 <Input
                                     value={editedName}
@@ -158,7 +160,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                             )}
                         </div>
                     ) : (
-                        <div className="flex items-start gap-2">
+                        <div className="flex items-start gap-2 px-6">
                             <div className="flex-1 min-w-0">
                                 <h1 className="text-2xl font-bold mb-1">{project.name}</h1>
                                 {project.description && (
