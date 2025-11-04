@@ -191,12 +191,6 @@ When project endpoints return 501 Not Implemented:
 
 Project artifacts use the configured artifact store. See [Configurations - Artifact Service](../installing-and-configuring/configurations.md#artifact-service) for more details.
 
-### Search Performance
-
-- **Title Search**: Uses PostgreSQL full-text search with ILIKE fallback for SQLite
-- **Database Indexes**: Optimized indexes for fast title text search
-- **Query Optimization**: Subquery pattern avoids N+1 queries
-
 ## Security
 
 ### Authorization
