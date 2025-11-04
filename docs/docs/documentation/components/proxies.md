@@ -214,7 +214,7 @@ The proxy maintains agent discovery and health monitoring through periodic agent
 
 When the proxy starts, it performs synchronous discovery of all configured agents by:
 
-1. Fetching agent cards from each external agent's `/.well-known/agent.json` endpoint.
+1. Fetching agent cards from each external agent's `/.well-known/agent-card.json` endpoint.
 2. Updating the local agent registry with agent capabilities.
 3. Publishing agent cards to the Agent Mesh discovery topic.
 
@@ -435,7 +435,7 @@ app:
 If an external agent does not appear in Agent Mesh:
 
 1. Check that the agent's URL is accessible from the proxy.
-2. Verify that the agent exposes `/.well-known/agent.json`.
+2. Verify that the agent exposes `/.well-known/agent-card.json`.
 3. Check the proxy logs for discovery errors.
 4. Ensure that `discovery_interval_seconds` is set appropriately and is more frequent than the `health_check_ttl_seconds` that is set on the calling agents and gateways.
 
@@ -465,3 +465,14 @@ If artifacts are not flowing correctly:
 3. Ensure that the artifact URIs are correctly formatted.
 4. Check the proxy logs for artifact save/load errors.
 
+### Issues Running A2A Samples with `Containerfile`
+
+If you encounter a `ValueError: Invalid context_id: ... is not a valid UUID.` when running A2A samples using a `Containerfile`, it may be due to outdated dependencies in the `uv.lock` file. This can happen if the sample is pinned to an older version of the `a2a-sdk` package. For more details, see [this GitHub issue](https://github.com/a2aproject/a2a-samples/issues/399).
+
+To resolve this, navigate to the sample's directory and upgrade the dependencies:
+
+```bash
+uv lock --upgrade
+```
+
+This will update the `uv.lock` file to use the latest version of `a2a-sdk`, which includes the necessary bug fixes.

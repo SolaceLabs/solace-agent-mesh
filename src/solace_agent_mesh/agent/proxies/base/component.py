@@ -340,7 +340,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                     continue
                 try:
                     # Use a synchronous client for this initial blocking call
-                    response = client.get(f"{agent_url}/.well-known/agent.json")
+                    response = client.get(f"{agent_url}/.well-known/agent-card.json")
                     response.raise_for_status()
                     agent_card = AgentCard.model_validate(response.json())
 
@@ -376,12 +376,13 @@ class BaseProxyComponent(ComponentBase, ABC):
                     continue
 
                 agent_alias = agent_config["name"]
-                card_for_proxy = modern_card.model_copy(deep=True)
-                card_for_proxy.name = agent_alias
-                self.agent_registry.add_or_update_agent(card_for_proxy)
+                # Create a copy for the registry to avoid modifying the original fetched card
+                card_for_registry = modern_card.model_copy(deep=True)
+                card_for_registry.name = agent_alias
+                self.agent_registry.add_or_update_agent(card_for_registry)
 
-                # Publish the modern card directly after updating its URL
-                card_to_publish = card_for_proxy.model_copy(deep=True)
+                # Create a separate copy for publishing
+                card_to_publish = card_for_registry.model_copy(deep=True)
                 card_to_publish.url = (
                     f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
                 )
@@ -557,10 +558,12 @@ class BaseProxyComponent(ComponentBase, ABC):
             "%s Publishing initially discovered agent cards...", self.log_identifier
         )
         for agent_alias in self.agent_registry.get_agent_names():
-            card_to_publish = self.agent_registry.get_agent(agent_alias)
-            if not card_to_publish:
+            original_card = self.agent_registry.get_agent(agent_alias)
+            if not original_card:
                 continue
 
+            # Create a copy for publishing to avoid modifying the card in the registry
+            card_to_publish = original_card.model_copy(deep=True)
             card_to_publish.url = (
                 f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
             )
