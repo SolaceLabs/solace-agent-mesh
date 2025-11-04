@@ -291,15 +291,15 @@ class SessionService:
         project_id: str | None = None
     ) -> PaginatedResponse[Session]:
         """
-        Search sessions by name or content.
-        
+        Search sessions by name/title only.
+
         Args:
             db: Database session
             user_id: User ID to filter sessions by
             query: Search query string
             pagination: Pagination parameters
             project_id: Optional project ID to filter sessions by
-            
+
         Returns:
             PaginatedResponse[Session]: Paginated search results
         """

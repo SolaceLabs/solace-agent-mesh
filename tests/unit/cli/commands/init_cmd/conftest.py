@@ -37,14 +37,23 @@ artifact_service:
 """
     
     mock_logging_config = """
-[loggers]
-keys=root
+version: 1
+disable_existing_loggers: false
 
-[handlers]
-keys=consoleHandler
+formatters:
+  simpleFormatter:
+    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
 
-[formatters]
-keys=simpleFormatter
+handlers:
+  consoleHandler:
+    class: logging.StreamHandler
+    formatter: simpleFormatter
+    stream: ext://sys.stdout
+
+root:
+  level: WARNING
+  handlers:
+    - consoleHandler
 """
     
     mock_orchestrator_config = """
@@ -84,7 +93,7 @@ session_service:__SESSION_SERVICE__
     def load_template_side_effect(name, parser=None, *args):
         templates = {
             "shared_config.yaml": mock_shared_config,
-            "logging_config_template.ini": mock_logging_config,
+            "logging_config_template.yaml": mock_logging_config,
             "main_orchestrator.yaml": mock_orchestrator_config,
             "webui.yaml": mock_webui_config,
         }

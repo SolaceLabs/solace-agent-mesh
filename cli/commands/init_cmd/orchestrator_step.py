@@ -336,8 +336,8 @@ def create_orchestrator_config(
         return False
 
     try:
-        logging_config_dest_path = project_root / "configs" / "logging_config.ini"
-        logging_template_content = load_template("logging_config_template.ini")
+        logging_config_dest_path = project_root / "configs" / "logging_config.yaml"
+        logging_template_content = load_template("logging_config_template.yaml")
         with open(logging_config_dest_path, "w", encoding="utf-8") as f:
             f.write(logging_template_content)
         click.echo(

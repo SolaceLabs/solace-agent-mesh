@@ -87,7 +87,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
         handleClear();
     };
 
-    const placeholder = projectId ? "Search within selected project" : "Search within chats";
+    const placeholder = "Search chats by title";
 
     return (
         <div className="relative w-full">
