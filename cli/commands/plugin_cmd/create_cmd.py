@@ -52,7 +52,7 @@ def setup_plugin_type_src(plugin_type: str, src_path: pathlib.Path, replacements
     except IOError as e:
         error_exit(f"Error writing {src_path / '__init__.py'}: {e}")
 
-    if plugin_type == "agent":
+    if plugin_type == "agent" or plugin_type == "tool":
         # --- Generate tools.py ---
         try:
             src_tools_py_content = load_template(
@@ -107,7 +107,7 @@ def setup_plugin_type_src(plugin_type: str, src_path: pathlib.Path, replacements
         except IOError as e:
             error_exit(f"Error writing {src_path / 'component.py'}: {e}")
 
-    elif plugin_type == "custom" or plugin_type == "tool":
+    elif plugin_type == "custom":
         # --- generate app.py ---
         placeholders = {
             **replacements,
