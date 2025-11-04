@@ -145,7 +145,7 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
                 transform: "translate(-50%, 0)",
             }}
         >
-            <div className="bg-background rounded-md border shadow-lg p-1 w-auto max-w-[160px]">
+            <div className={`bg-background rounded-md border shadow-lg p-1 w-auto ${!showCustomInput ? 'max-w-[160px]' : ''}`}>
                 {!showCustomInput ? (
                     <>
                         <Button
@@ -187,23 +187,24 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
                         <div className="mb-2 text-xs text-muted-foreground">
                             Ask about the selected text:
                         </div>
-                        <div className="flex gap-2">
+                        <div className="relative">
                             <ChatInput
                                 ref={inputRef}
                                 value={customQuery}
                                 onChange={(e) => setCustomQuery(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 placeholder="Type your question..."
-                                className="min-h-[60px] text-sm flex-1 bg-background"
+                                className="min-h-[60px] text-sm pr-10 bg-background"
                                 rows={2}
                             />
                             <Button
                                 size="icon"
+                                variant="ghost"
                                 onClick={handleCustomSubmit}
                                 disabled={!customQuery.trim()}
-                                className="self-end"
+                                className="absolute right-2 bottom-2 h-7 w-7"
                             >
-                                <Send className="h-4 w-4" />
+                                <Send className="h-3.5 w-3.5" />
                             </Button>
                         </div>
                     </div>
