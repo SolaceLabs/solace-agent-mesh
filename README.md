@@ -164,6 +164,7 @@ Want to go further? Here are some hands-on tutorials to help you get started:
 | 🗃️ **SQL Database Integration**<br>Enable Solace Agent Mesh to answer company-specific questions using a sample coffee company database.| **~10–15 min** | [SQL Database Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/sql-database) |
 | 🧠 **MCP Integration**<br>Integrating a Model Context Protocol (MCP) Servers into Solace Agent Mesh. | **~10–15 min** | [MCP Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/mcp-integration) |
 | 💬 **Slack Integration**<br>Chat with Solace Agent Mesh directly from Slack. | **~20–30 min** | [Slack Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/slack-integration) |
+| 👔 **Microsoft Teams Integration (Enterprise)**<br>Connect Solace Agent Mesh Enterprise to Microsoft Teams with Azure AD authentication. | **~30–40 min** | [Teams Integration Tutorial](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/developing/tutorials/teams-integration) |
 
 ---
 
