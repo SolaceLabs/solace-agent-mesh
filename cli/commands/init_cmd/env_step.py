@@ -21,7 +21,7 @@ ENV_DEFAULTS = {
     "SSL_KEYFILE": "",
     "SSL_CERTFILE": "",
     "SSL_KEYFILE_PASSWORD": "",
-    "LOGGING_CONFIG_PATH": "configs/logging_config.ini",
+    "LOGGING_CONFIG_PATH": "configs/logging_config.yaml",
     "S3_BUCKET_NAME": "",
     "S3_ENDPOINT_URL": "",
     "S3_REGION": "us-east-1",

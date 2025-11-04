@@ -13,7 +13,7 @@
             "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -25,7 +25,7 @@
             "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/agents/a2a_multimodal_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -37,7 +37,7 @@
             "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -49,7 +49,7 @@
             "args": "--envfile .env preset/agents/basic/main_orchestrator.yaml preset/agents/basic/webui.yaml preset/agents/markitdown_agents.yaml preset/agents/mermaid_agents.yaml preset/agents/web_agents.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -61,7 +61,7 @@
             "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/a2a_proxy_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -82,7 +82,7 @@
             "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -94,7 +94,7 @@
             "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/gateways/rest_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -106,7 +106,7 @@
             "args": "--envfile .env examples/agents/a2a_multimodal_example.yaml examples/gateways/webui_gateway_example.yaml ",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -118,7 +118,7 @@
             "args": "--envfile .env examples/agents/orchestrator_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -130,7 +130,7 @@
             "args": "--envfile .env examples/agents/a2a_agents_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -142,7 +142,7 @@
             "args": "--envfile .env examples/agents/a2a_mcp_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -154,7 +154,7 @@
             "args": "--envfile .env examples/gateways/slack_gateway_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -166,7 +166,7 @@
             "args": "--envfile .env examples/gateways/webhook_gateway_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -178,7 +178,7 @@
             "args": "--envfile .env examples/gateways/webui_gateway_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -190,7 +190,7 @@
             "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -202,7 +202,7 @@
             "args": "--envfile .env examples/agents/a2a_mcp_example.yaml examples/gateways/webui_gateway_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -214,7 +214,7 @@
             "args": "--envfile .env examples/gateways/event_mesh_gateway_example.yaml examples/agents/a2a_multimodal_example.yaml examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -226,7 +226,7 @@
             "args": "--env-file .env",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {
@@ -291,7 +291,7 @@
             ],
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         }
     ],

@@ -80,7 +80,7 @@ handlers:
 loggers:
   # Keys are logger names used in the application code
   solace_ai_connector:
-    level: ${LOGGING_SOLACE_AI_CONNECTOR_LEVEL, INFO}
+    level: ${LOGGING_SAC_LEVEL, INFO}
     handlers: []
   
   solace_agent_mesh:

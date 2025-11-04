@@ -1,0 +1,43 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  simpleFormatter:
+    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
+
+  jsonFormatter:
+    "()": pythonjsonlogger.jsonlogger.JsonFormatter
+    format: "%(asctime)s %(levelname)s %(threadName)s %(name)s %(message)s"
+
+handlers:
+  streamHandler:
+    class: logging.StreamHandler
+    formatter: simpleFormatter
+    stream: ext://sys.stdout
+
+  rotatingFileHandler:
+    class: logging.handlers.RotatingFileHandler
+    formatter: simpleFormatter
+    filename: sam.log
+    mode: a
+    maxBytes: 52428800
+    backupCount: 10
+
+loggers:
+  solace_ai_connector:
+    level: INFO
+    handlers: []
+
+  solace_agent_mesh:
+    level: INFO
+    handlers: []
+
+  sam_trace:
+    level: INFO
+    handlers: []
+
+root:
+  level: WARNING
+  handlers:
+    - streamHandler
+    - rotatingFileHandler
