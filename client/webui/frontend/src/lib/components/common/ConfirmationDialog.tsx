@@ -1,46 +1,60 @@
 import { Button } from "@/lib/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
-import type { ButtonVariant } from "@/lib/types/ui";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/lib/components/ui/dialog";
+import { DialogClose } from "@radix-ui/react-dialog";
 
-interface ConfirmationDialogProps {
+interface BaseDialogProps {
     title: string;
     message: string | React.ReactNode;
     onConfirm: () => void;
     onClose: () => void;
-    confirmVariant?: ButtonVariant;
 }
 
-export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ title, message, onClose, onConfirm, confirmVariant = "default" }) => {
+type ConfirmationDialogProps =
+    | (BaseDialogProps & {
+          triggerText: string;
+          trigger?: never;
+      })
+    | (BaseDialogProps & {
+          trigger: React.ReactNode;
+          triggerText?: never;
+      });
+
+export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ title, message, triggerText, trigger, onClose, onConfirm }) => {
     return (
-        <Dialog open={true} onOpenChange={() => onClose()}>
+        <Dialog>
+            <DialogTrigger asChild>{trigger ?? <Button>{triggerText}</Button>}</DialogTrigger>
             <DialogContent className="w-xl max-w-xl sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle className="flex max-w-[400px] flex-row gap-1">{title}</DialogTitle>
                     <DialogDescription>{message}</DialogDescription>
                 </DialogHeader>
 
-                <div className="flex justify-end gap-2">
-                    <Button
-                        variant="ghost"
-                        title="Cancel"
-                        onClick={event => {
-                            event.stopPropagation();
-                            onClose();
-                        }}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        title="Confirm"
-                        variant={confirmVariant}
-                        onClick={event => {
-                            event.stopPropagation();
-                            onConfirm();
-                        }}
-                    >
-                        Confirm
-                    </Button>
-                </div>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button
+                            variant="ghost"
+                            title="Cancel"
+                            onClick={event => {
+                                event.stopPropagation();
+                                onClose();
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                    </DialogClose>
+
+                    <DialogClose>
+                        <Button
+                            title="Confirm"
+                            onClick={event => {
+                                event.stopPropagation();
+                                onConfirm();
+                            }}
+                        >
+                            Confirm
+                        </Button>
+                    </DialogClose>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
