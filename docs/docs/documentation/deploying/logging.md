@@ -141,13 +141,15 @@ ${VARIABLE_NAME, default_value}
 ```
 Users can use variable names of their choice; the application will look for these environment variables at runtime and substitute their values accordingly. If the environment variable is not set, the provided default value will be used.
 
-## Structured Logging
+## Common Configuration Scenarios
+
+### Structured Logging
 
 Structured logging outputs log messages in JSON format, making them easier to parse, search, and analyze in log aggregation systems like Datadog, Splunk, Elasticsearch, and others.
 
-Enabling structured logging includes two steps:
+Enabling structured logging includes two steps.
 
-### Step 1: Enable JSON Formatter
+#### 1- Enable JSON Formatter
 
 Structured logging is enabled by assigning the `jsonFormatter`, which is provided in the default logging configuration, to one or more logging handlers in your configuration. This means log messages handled by those specific handlers will be output in structured JSON format.
 
@@ -167,7 +169,7 @@ handlers:
     stream: "ext://sys.stdout"
 ```
 
-### Step 2: Configure Contextual Info (Optional)
+#### 2- Configure Contextual Info (Optional)
 
 Log aggregation systems often expect contextual fields to be included in log records for better filtering, grouping, and analysis. For example, contextual fields like `service` and `env` can be added to each log record to indicate which service generated the log and the environment it ran in.
 
@@ -196,9 +198,7 @@ With this `jsonFormatter` configuration, all JSON log records will automatically
 }
 ```
 
-Notice that [environment variable substitution](#env-var-substitution) can be used for increased flexibility. 
-
-## Common Configuration Scenarios
+Notice that [environment variable substitution](#env-var-substitution) can be used for increased flexibility.
 
 ### Customizing Log Levels
 
