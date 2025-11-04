@@ -18,7 +18,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) =>
     return (
         <Card
             className={`
-                h-[280px] w-full sm:w-[380px] flex-shrink-0 cursor-pointer transition-all duration-200
+                h-[196px] w-full sm:w-[380px] flex-shrink-0 cursor-pointer transition-all duration-200
                 hover:shadow-lg hover:scale-[1.02] bg-card border overflow-hidden
                 ${onClick ? 'hover:bg-accent/50' : ''}
             `}
