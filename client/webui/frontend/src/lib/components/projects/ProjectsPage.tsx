@@ -42,6 +42,10 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
 
             const newProject = await createProject(formData);
             setShowCreateDialog(false);
+            
+            // Refetch projects to get artifact counts
+            await refetch();
+            
             // Auto-select the newly created project
             setSelectedProject(newProject);
         } finally {

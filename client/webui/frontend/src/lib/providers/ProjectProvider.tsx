@@ -106,8 +106,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 const newProject: Project = await response.json();
 
-                // Update local state
-                setProjects(prev => [newProject, ...prev]);
+                // Update local state with alphabetical sorting
+                setProjects(prev => {
+                    const updated = [newProject, ...prev];
+                    return updated.sort((a, b) => {
+                        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+                    });
+                });
 
                 return newProject;
             } catch (err: unknown) {
@@ -139,6 +144,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }
                 // Clear any previous errors on success
                 setError(null);
+                
+                // Refetch projects to update artifact counts
+                await fetchProjects();
             } catch (err: unknown) {
                 console.error("Error adding files to project:", err);
                 const errorMessage = err instanceof Error ? err.message : "Could not add files to project.";
@@ -146,7 +154,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix, projectsEnabled]
+        [apiPrefix, projectsEnabled, fetchProjects]
     );
 
     const removeFileFromProject = useCallback(
@@ -169,6 +177,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }
                 // Clear any previous errors on success
                 setError(null);
+                
+                // Refetch projects to update artifact counts
+                await fetchProjects();
             } catch (err: unknown) {
                 console.error("Error removing file from project:", err);
                 const errorMessage = err instanceof Error ? err.message : "Could not remove file from project.";
@@ -176,7 +187,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix, projectsEnabled]
+        [apiPrefix, projectsEnabled, fetchProjects]
     );
 
     const updateProject = useCallback(
