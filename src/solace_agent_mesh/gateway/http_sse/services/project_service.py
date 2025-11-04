@@ -7,7 +7,7 @@ import logging
 from fastapi import UploadFile
 from datetime import datetime, timezone
 
-from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifact_with_metadata
+from ....agent.utils.artifact_helpers import get_artifact_info_list, save_artifact_with_metadata, get_artifact_counts_batch
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -165,6 +165,7 @@ class ProjectService:
     async def get_user_projects_with_counts(self, db, user_id: str) -> List[tuple[Project, int]]:
         """
         Get all projects owned by a specific user with artifact counts.
+        Uses batch counting for efficiency.
 
         Args:
             db: Database session
@@ -176,29 +177,36 @@ class ProjectService:
         self.logger.debug(f"Retrieving projects with artifact counts for user {user_id}")
         projects = self.get_user_projects(db, user_id)
         
-        if not self.artifact_service:
-            # If no artifact service, return projects with 0 counts
+        if not self.artifact_service or not projects:
+            # If no artifact service or no projects, return projects with 0 counts
             return [(project, 0) for project in projects]
         
-        # Fetch artifact counts for all projects
-        projects_with_counts = []
-        for project in projects:
-            storage_session_id = f"project-{project.id}"
-            try:
-                artifacts = await get_artifact_info_list(
-                    artifact_service=self.artifact_service,
-                    app_name=self.app_name,
-                    user_id=project.user_id,
-                    session_id=storage_session_id,
-                )
-                artifact_count = len(artifacts)
-            except Exception as e:
-                self.logger.warning(f"Failed to get artifact count for project {project.id}: {e}")
-                artifact_count = 0
-            
-            projects_with_counts.append((project, artifact_count))
+        # Build list of session IDs for batch counting
+        session_ids = [f"project-{project.id}" for project in projects]
         
-        return projects_with_counts
+        try:
+            # Get all counts in a single batch operation
+            counts_by_session = await get_artifact_counts_batch(
+                artifact_service=self.artifact_service,
+                app_name=self.app_name,
+                user_id=user_id,
+                session_ids=session_ids,
+            )
+            
+            # Map counts back to projects
+            projects_with_counts = []
+            for project in projects:
+                storage_session_id = f"project-{project.id}"
+                artifact_count = counts_by_session.get(storage_session_id, 0)
+                projects_with_counts.append((project, artifact_count))
+            
+            self.logger.debug(f"Retrieved artifact counts for {len(projects)} projects in batch")
+            return projects_with_counts
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get artifact counts in batch: {e}")
+            # Fallback to 0 counts on error
+            return [(project, 0) for project in projects]
 
     async def get_project_artifacts(self, db, project_id: str, user_id: str) -> List[ArtifactInfo]:
         """

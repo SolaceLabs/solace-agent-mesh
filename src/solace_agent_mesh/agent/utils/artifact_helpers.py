@@ -796,6 +796,51 @@ async def get_latest_artifact_version(
         return None
 
 
+async def get_artifact_counts_batch(
+    artifact_service: BaseArtifactService,
+    app_name: str,
+    user_id: str,
+    session_ids: List[str],
+) -> Dict[str, int]:
+    """
+    Get artifact counts for multiple sessions in a batch operation.
+    
+    Args:
+        artifact_service: The artifact service instance.
+        app_name: The application name.
+        user_id: The user ID.
+        session_ids: List of session IDs to get counts for.
+    
+    Returns:
+        Dict mapping session_id to artifact_count (excluding metadata files)
+    """
+    log_prefix = f"[ArtifactHelper:get_counts_batch] App={app_name}, User={user_id} -"
+    counts: Dict[str, int] = {}
+    
+    try:
+        list_keys_method = getattr(artifact_service, "list_artifact_keys")
+        
+        for session_id in session_ids:
+            try:
+                keys = await list_keys_method(
+                    app_name=app_name, user_id=user_id, session_id=session_id
+                )
+                # Count only non-metadata files
+                count = sum(1 for key in keys if not key.endswith(METADATA_SUFFIX))
+                counts[session_id] = count
+                log.debug("%s Session %s has %d artifacts", log_prefix, session_id, count)
+            except Exception as e:
+                log.warning("%s Failed to get count for session %s: %s", log_prefix, session_id, e)
+                counts[session_id] = 0
+                
+    except Exception as e:
+        log.exception("%s Error in batch count operation: %s", log_prefix, e)
+        # Return 0 for all sessions on error
+        return {session_id: 0 for session_id in session_ids}
+    
+    return counts
+
+
 async def get_artifact_info_list(
     artifact_service: BaseArtifactService,
     app_name: str,
