@@ -219,6 +219,43 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     self.log_identifier,
                     timer_id,
                 )
+        elif event.event_type == EventType.CACHE_EXPIRY:  
+            import asyncio
+            import inspect
+
+            cache_data = event.data
+            handler = self.handle_cache_expiry_event
+
+            # Check if the handler is async
+            if inspect.iscoroutinefunction(handler):
+                # Schedule async handler on the event loop
+                if self._async_loop and self._async_loop.is_running():
+                    async def handle_async():
+                        await handler(cache_data)
+
+                    future = asyncio.run_coroutine_threadsafe(
+                        handle_async(),
+                        self._async_loop
+                    )
+
+                    def on_done(f):
+                        try:
+                            f.result()
+                        except Exception as e:
+                            log.error(
+                                "%s Error in async cache expiry handler: %s",
+                                self.log_identifier,
+                                e,
+                                exc_info=True
+                            )
+                    future.add_done_callback(on_done)
+                else:
+                    log.error(
+                        "%s Cannot handle async CACHE_EXPIRY: event loop not available",
+                        self.log_identifier
+                    )
+            else:
+                handler(cache_data)
         else:
             # Pass other event types to parent class
             super().process_event(event)
