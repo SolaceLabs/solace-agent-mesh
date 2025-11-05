@@ -906,8 +906,6 @@ apps:
         type: "filesystem"
         base_path: "/tmp/samv2"
         artifact_scope: namespace
-      credential_service:
-        type: "memory"
       enable_embed_resolution: true
       enable_artifact_content_instruction: true
       trust_manager:
