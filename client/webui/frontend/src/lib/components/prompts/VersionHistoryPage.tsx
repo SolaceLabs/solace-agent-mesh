@@ -214,7 +214,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
                 </div>
 
                 {/* Right Panel - Version Details */}
-                <div className="flex-1 overflow-y-auto bg-muted/30">
+                <div className="flex-1 overflow-y-auto bg-background">
                     {selectedVersion ? (
                         <div className="p-6">
                             <div className="max-w-4xl mx-auto space-y-6">
