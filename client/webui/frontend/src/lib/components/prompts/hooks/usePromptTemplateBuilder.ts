@@ -188,8 +188,8 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             if (config.category !== editingGroup?.category) updateData.category = config.category;
             if (config.command !== editingGroup?.command) updateData.command = config.command;
             
-            // Include prompt text only if creating new version
-            if (createNewVersion && config.prompt_text !== editingGroup?.production_prompt?.prompt_text) {
+            // Include prompt text if it changed (creates new version if createNewVersion is true)
+            if (config.prompt_text !== editingGroup?.production_prompt?.prompt_text) {
                 updateData.initial_prompt = config.prompt_text;
             }
 
