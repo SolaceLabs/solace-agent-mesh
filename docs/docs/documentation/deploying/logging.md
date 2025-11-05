@@ -23,18 +23,18 @@ Agent Mesh supports logging configuration as either a YAML or JSON file. Both fo
 To provide a logging configuration, set the `LOGGING_CONFIG_PATH=path/to/logging_config.yaml` environment variable in your `.env` file or with the `export` command.
 
 :::info
-While the INI format using [Python's fileConfig()](https://docs.python.org/3/library/logging.config.html#configuration-file-format) is still supported by Agent Mesh, it is not recommended due to its limitations compared to YAML and JSON formats.
+While the INI format using Python's `fileConfig()` is still supported by Agent Mesh, it is not recommended due to [its limitations](https://docs.python.org/3/library/logging.config.html#configuration-file-format) compared to YAML and JSON formats.
 :::
 
 :::info[Agent/Gateway Specific Logging Configuration]
-While individual agent and gateway YAML files may contain a `log:` section:
+While individual agent and gateway YAML files may contain a log section similar to the example below:
 ```
 log:
   stdout_log_level: INFO
   log_file_level: INFO
   log_file: my-agent.log
 ```
-using a dedicated logging configuration file (YAML, JSON) is the recommended and preferred approach. The simple `log:` section configuration has lower precedence and will only be active when a dedicated logging configuration file is not provided.
+using a dedicated logging configuration file (YAML, JSON) is the recommended approach. The simple `log:` section configuration has lower precedence and will only be active when a dedicated logging configuration file is not provided.
 :::
 
 ## Default Logging Configuration
@@ -116,16 +116,16 @@ Handlers determine where log messages go. The default configuration includes:
 - **`streamHandler`**: Outputs logs to the console (stdout) for immediate visibility
 - **`rotatingFileHandler`**: Writes logs to files with automatic rotation when size limits are reached.
 
-For complete details on handlers, see Python's [supported handlers documentation](https://docs.python.org/3/library/logging.handlers.html) 
+For complete details on handlers, see [Python's supported handlers documentation](https://docs.python.org/3/library/logging.handlers.html) 
 
 ### Formatters
 
-Formatters control the structure and appearance of log messages:
+Formatters control the structure and appearance of log messages. The default configuration includes:
 
-- **`simpleFormatter`**: Human-readable format including timestamp, level, thread, logger name, and message
-- **`jsonFormatter`**: Structured JSON format for log aggregation and analysis tools
+- **`simpleFormatter`**: Human-readable format including timestamp, level, thread, logger name, and message.
+- **`jsonFormatter`**: JSON format for log aggregation and analysis tools. See [Structured Logging](#structured-logging) for possible customizations.
 
-For complete details on formatters and available fields, see Python's [LogRecord attributes documentation](https://docs.python.org/3/library/logging.html#logrecord-attributes).
+Consult Python's documentation for complete details on [formatters](https://docs.python.org/3/library/logging.html#formatter-objects) and [available fields](https://docs.python.org/3/library/logging.html#logrecord-attributes).
 
 ### Understanding Effective Log Levels
 
@@ -143,7 +143,7 @@ Users can use variable names of their choice; the application will look for thes
 
 ## Common Configuration Scenarios
 
-### Structured Logging
+### Structured Logging {#structured-logging}
 
 Structured logging outputs log messages in JSON format, making them easier to parse, search, and analyze in log aggregation systems like Datadog, Splunk, Elasticsearch, and others.
 
@@ -204,6 +204,8 @@ Notice that [environment variable substitution](#env-var-substitution) can be us
 
 You can add loggers to control the log level of specific modules or external libraries in your application. This allows you to increase verbosity for troubleshooting specific components while keeping other parts of the system quiet.
 
+For instance, imagine you are troubleshooting an issue with the HTTP SSE gateway, and you also want to see more detailed logs coming from the google_adk external library, you can add the following loggers:
+
 ```yaml
 loggers:
   solace_ai_connector:
@@ -236,7 +238,7 @@ root:
 ```
 
 :::tip[Discovering Logger Names]
-To discover what logger names are available to control, temporarily set the root logger level to `DEBUG` and run your application. The logger names will be visible in the actual log output (shown in the logger name field). This is particularly useful for identifying logger names from external libraries you want to control.
+To discover what logger names are available to control, temporarily set the root logger level to `DEBUG` and run your application. The logger names will appear in each log entry, displayed as a dot-separated hierarchy. You can control verbosity at any level of the logger hierarchy. 
 
 Once you've identified the logger names you need, you can:
 1. Set the root logger level back to `WARNING` to reduce overall verbosity
