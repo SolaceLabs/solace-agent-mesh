@@ -1,0 +1,63 @@
+test_case_id: "proxy_headers_precedence_001"
+description: "Tests header precedence - documents current behavior where auth headers are NOT overridden by task_headers"
+tags: ["all", "proxy", "headers", "auth"]
+skip_intermediate_events: true
+
+# Note: This test documents the CURRENT behavior where task_headers do NOT override
+# authentication headers. The A2A SDK's AuthInterceptor adds auth headers after
+# the httpx client is configured, so custom Authorization headers in task_headers
+# don't take effect. This may be updated in the future if the implementation changes.
+
+# Configure downstream agent to expect the auth config token
+downstream_agent_auth:
+  enabled: true
+  type: "bearer"
+  expected_value: "original_auth_token"
+
+# Configure proxy with both authentication and custom task headers
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  authentication:
+    type: "static_bearer"
+    token: "original_auth_token"
+  task_headers:
+    - name: "X-Custom-Header"
+      value: "custom-value"
+    - name: "X-Request-Priority"
+      value: "high"
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "precedence_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Test request with custom headers alongside auth"
+  external_context:
+    a2a_session_id: "session_precedence_001"
+
+downstream_a2a_agent_responses:
+  - id: "task-precedence"
+    contextId: "session_precedence_001"
+    kind: "task"
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Request processed with auth and custom headers."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Request processed with auth and custom headers."
+
+# Assert that the auth header from authentication config was used
+assert_downstream_auth:
+  - request_index: 0
+    authorization_header:
+      exact: "Bearer original_auth_token"

@@ -190,6 +190,10 @@ markers = [
     "oauth: OAuth specific tests",
     "error_handling: Tests related to error handling and recovery",
     "cancellation: Tests related to task cancellation",
+    "headers: marks tests related to HTTP header handling",
+    "agent_card: marks tests related to agent card fetching and discovery",
+    "url: marks tests related to URL handling and routing",
+    "task: marks tests related to task invocation",
 ]
 
 [tool.hatch.metadata]
