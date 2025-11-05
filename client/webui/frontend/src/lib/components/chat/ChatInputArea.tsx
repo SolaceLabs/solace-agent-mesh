@@ -104,13 +104,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
-        if (isSubmittingEnabled) {
-            // Pass inputValue directly as required parameter
-            await handleSubmit(event, selectedFiles, inputValue.trim());
-            setSelectedFiles([]);
-            setInputValue("");
-            scrollToBottom?.();
-        }
+        if (!isSubmittingEnabled) return;
+
+        const trimmedInput = inputValue.trim();
+        const files = [...selectedFiles];
+
+        setInputValue("");
+        setSelectedFiles([]);
+
+        await handleSubmit(event, files, trimmedInput);
+        scrollToBottom?.();
     };
 
     const handleFilesDropped = (files: File[]) => {
