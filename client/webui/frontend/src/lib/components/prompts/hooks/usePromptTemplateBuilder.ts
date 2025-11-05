@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { detectVariables, validatePromptText } from '@/lib/utils/promptUtils';
 import { useChatContext } from '@/lib/hooks';
+import type { PromptGroup } from '@/lib/types/prompts';
 
 export interface TemplateConfig {
     name?: string;
@@ -18,9 +19,21 @@ export interface ValidationErrors {
     [key: string]: string | undefined;
 }
 
-export function usePromptTemplateBuilder() {
+export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
     const { addNotification } = useChatContext();
-    const [config, setConfig] = useState<TemplateConfig>({});
+    const [config, setConfig] = useState<TemplateConfig>(() => {
+        if (editingGroup) {
+            return {
+                name: editingGroup.name,
+                description: editingGroup.description,
+                category: editingGroup.category,
+                command: editingGroup.command,
+                prompt_text: editingGroup.production_prompt?.prompt_text || '',
+                detected_variables: detectVariables(editingGroup.production_prompt?.prompt_text || ''),
+            };
+        }
+        return {};
+    });
     const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
     const [isLoading, setIsLoading] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -155,6 +168,68 @@ export function usePromptTemplateBuilder() {
         }
     }, [config, validateConfig]);
 
+    const updateTemplate = useCallback(async (groupId: string, createNewVersion: boolean): Promise<boolean> => {
+        setIsLoading(true);
+        setSaveStatus('saving');
+
+        try {
+            // Validate first
+            const isValid = await validateConfig();
+            if (!isValid) {
+                setSaveStatus('error');
+                setIsLoading(false);
+                return false;
+            }
+
+            // Prepare update data
+            const updateData: any = {};
+            if (config.name !== editingGroup?.name) updateData.name = config.name;
+            if (config.description !== editingGroup?.description) updateData.description = config.description;
+            if (config.category !== editingGroup?.category) updateData.category = config.category;
+            if (config.command !== editingGroup?.command) updateData.command = config.command;
+            
+            // Include prompt text only if creating new version
+            if (createNewVersion && config.prompt_text !== editingGroup?.production_prompt?.prompt_text) {
+                updateData.initial_prompt = config.prompt_text;
+            }
+
+            // Call API to update prompt group
+            const response = await fetch(`/api/v1/prompts/groups/${groupId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify(updateData),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                const errorMessage = error.message || error.detail || 'Failed to update template';
+                addNotification(errorMessage, 'error');
+                throw new Error(errorMessage);
+            }
+
+            setSaveStatus('success');
+            const message = createNewVersion ? 'New version created successfully!' : 'Template updated successfully!';
+            addNotification(message, 'success');
+            setIsLoading(false);
+            return true;
+        } catch (error) {
+            console.error('Error updating template:', error);
+            setSaveStatus('error');
+            setIsLoading(false);
+            
+            if (error instanceof Error) {
+                addNotification(error.message, 'error');
+            } else {
+                addNotification('Failed to update template', 'error');
+            }
+            
+            return false;
+        }
+    }, [config, editingGroup, validateConfig, addNotification]);
+
     const resetConfig = useCallback(() => {
         setConfig({});
         setValidationErrors({});
@@ -166,6 +241,7 @@ export function usePromptTemplateBuilder() {
         updateConfig,
         validateConfig,
         saveTemplate,
+        updateTemplate,
         resetConfig,
         validationErrors,
         isLoading,

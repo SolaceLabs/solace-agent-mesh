@@ -5,6 +5,7 @@ import type { PromptGroup } from "@/lib/types/prompts";
 
 import { PromptDisplayCard } from "./PromptDisplayCard";
 import { CreatePromptCard } from "./CreatePromptCard";
+import { PromptDetailSidePanel } from "./PromptDetailSidePanel";
 import { EmptyState } from "../common";
 
 interface PromptMeshCardsProps {
@@ -24,13 +25,17 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
     onDelete,
     onViewVersions
 }) => {
-    const [expandedPromptId, setExpandedPromptId] = useState<string | null>(null);
+    const [selectedPrompt, setSelectedPrompt] = useState<PromptGroup | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
-    const handleToggleExpand = (promptId: string) => {
-        setExpandedPromptId(prev => (prev === promptId ? null : promptId));
+    const handlePromptClick = (prompt: PromptGroup) => {
+        setSelectedPrompt(prompt);
+    };
+
+    const handleCloseSidePanel = () => {
+        setSelectedPrompt(null);
     };
 
     // Extract unique categories
@@ -73,7 +78,8 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
     const isLibraryEmpty = prompts.length === 0;
 
     return (
-        <div className="h-full w-full pt-12 pl-12">
+        <div className="h-full w-full flex absolute inset-0">
+            <div className="flex-1 pt-12 pl-12 overflow-hidden">
             {/* Only show search/filter when we have prompts */}
             {!isLibraryEmpty && (
                 <div className="mb-4 flex items-center gap-2">
@@ -94,7 +100,7 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                             className="bg-background rounded-md border px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center gap-2"
                         >
                             <Filter size={16} />
-                            Categories
+                            Tags
                             {selectedCategories.length > 0 && (
                                 <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">
                                     {selectedCategories.length}
@@ -164,29 +170,43 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                         onManualCreate={onManualCreate}
                         onAIAssisted={onAIAssisted}
                     />
-                </div>
-            ) : (
-                <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
-                    <div className="flex flex-wrap gap-10">
-                        {/* Create New Prompt Card - Always first */}
-                        <CreatePromptCard
-                            onManualCreate={onManualCreate}
-                            onAIAssisted={onAIAssisted}
-                        />
-                        
-                        {/* Existing Prompt Cards */}
-                        {filteredPrompts.map(prompt => (
-                            <PromptDisplayCard
-                                key={prompt.id}
-                                prompt={prompt}
-                                isExpanded={expandedPromptId === prompt.id}
-                                onToggleExpand={() => handleToggleExpand(prompt.id)}
-                                onEdit={onEdit}
-                                onDelete={onDelete}
-                                onViewVersions={onViewVersions}
-                            />
-                        ))}
                     </div>
+                ) : (
+                    <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
+                        <div className="flex flex-wrap gap-10">
+                            {/* Create New Prompt Card - Always first */}
+                            <CreatePromptCard
+                                onManualCreate={onManualCreate}
+                                onAIAssisted={onAIAssisted}
+                            />
+                            
+                            {/* Existing Prompt Cards */}
+                            {filteredPrompts.map(prompt => (
+                                <PromptDisplayCard
+                                    key={prompt.id}
+                                    prompt={prompt}
+                                    isSelected={selectedPrompt?.id === prompt.id}
+                                    onPromptClick={() => handlePromptClick(prompt)}
+                                    onEdit={onEdit}
+                                    onDelete={onDelete}
+                                    onViewVersions={onViewVersions}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Side Panel - extends to top */}
+            {selectedPrompt && (
+                <div className="h-full">
+                    <PromptDetailSidePanel
+                        prompt={selectedPrompt}
+                        onClose={handleCloseSidePanel}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                        onViewVersions={onViewVersions}
+                    />
                 </div>
             )}
         </div>

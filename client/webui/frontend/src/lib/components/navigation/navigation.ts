@@ -1,4 +1,4 @@
-import { MessageCircle, Bot, SunMoon, FolderOpen, Command } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen, FileText } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
@@ -41,7 +41,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
         items.push({
             id: "prompts",
             label: "Prompts",
-            icon: Command,
+            icon: FileText,
         });
     }
     
@@ -68,7 +68,7 @@ export const topNavigationItems: NavigationItem[] = [
     {
         id: "prompts",
         label: "Prompts",
-        icon: Command,
+        icon: FileText,
     },
 ];
 

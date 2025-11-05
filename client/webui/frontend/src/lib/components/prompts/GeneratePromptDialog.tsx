@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Button, Textarea, Badge } from '@/lib/components/ui';
-import { X, FileText, Mail, Code } from 'lucide-react';
+import { MessageBanner } from '@/lib/components/common';
+import { FileText, Mail, Code, Sparkles } from 'lucide-react';
 
 interface GeneratePromptDialogProps {
     isOpen: boolean;
@@ -20,12 +21,16 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({
     onGenerate,
 }) => {
     const [taskDescription, setTaskDescription] = useState('');
+    const [showError, setShowError] = useState(false);
 
     const handleGenerate = () => {
-        if (taskDescription.trim()) {
-            onGenerate(taskDescription.trim());
-            setTaskDescription('');
+        if (!taskDescription.trim()) {
+            setShowError(true);
+            return;
         }
+        setShowError(false);
+        onGenerate(taskDescription.trim());
+        setTaskDescription('');
     };
 
     const handleSuggestionClick = (suggestion: string) => {
@@ -34,34 +39,41 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({
 
     const handleClose = () => {
         setTaskDescription('');
+        setShowError(false);
         onClose();
     };
 
+    const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setTaskDescription(e.target.value);
+        if (showError && e.target.value.trim()) {
+            setShowError(false);
+        }
+    };
+
     return (
-        <Dialog open={isOpen} onOpenChange={handleClose}>
+        <Dialog open={isOpen} onOpenChange={() => {}}>
             <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                    <div className="flex items-center justify-between">
-                        <DialogTitle className="text-xl">Generate a prompt</DialogTitle>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={handleClose}
-                            className="h-6 w-6"
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </div>
+                    <DialogTitle className="text-xl">Create Prompt</DialogTitle>
                     <DialogDescription className="text-base">
                         You can generate a prompt template by sharing basic details about your task.
                     </DialogDescription>
                 </DialogHeader>
 
+                {showError && (
+                    <MessageBanner
+                        variant="error"
+                        message="Please describe your task before generating a prompt."
+                        dismissible
+                        onDismiss={() => setShowError(false)}
+                    />
+                )}
+
                 <div className="space-y-4 py-4">
                     <Textarea
                         placeholder="Describe your task..."
                         value={taskDescription}
-                        onChange={(e) => setTaskDescription(e.target.value)}
+                        onChange={handleTextChange}
                         rows={6}
                         className="resize-none"
                         onKeyDown={(e) => {
@@ -91,13 +103,13 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({
                 </div>
 
                 <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={handleClose}>
+                    <Button variant="ghost" onClick={handleClose}>
                         Cancel
                     </Button>
                     <Button
                         onClick={handleGenerate}
-                        disabled={!taskDescription.trim()}
                     >
+                        <Sparkles className="h-4 w-4 mr-2" />
                         Generate
                     </Button>
                 </div>

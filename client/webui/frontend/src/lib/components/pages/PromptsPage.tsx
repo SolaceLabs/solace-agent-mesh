@@ -5,9 +5,8 @@
 import React, { useState, useEffect } from 'react';
 import type { PromptGroup } from '@/lib/types/prompts';
 import { PromptTemplateBuilder } from '@/lib/components/prompts/PromptTemplateBuilder';
-import { PromptGroupForm } from '@/lib/components/prompts/PromptGroupForm';
 import { PromptMeshCards } from '@/lib/components/prompts/PromptMeshCards';
-import { VersionHistoryDialog } from '@/lib/components/prompts/VersionHistoryDialog';
+import { VersionHistoryPage } from '@/lib/components/prompts/VersionHistoryPage';
 import { PromptDeleteDialog } from '@/lib/components/prompts/PromptDeleteDialog';
 import { GeneratePromptDialog } from '@/lib/components/prompts/GeneratePromptDialog';
 import { EmptyState, Header } from '@/lib/components';
@@ -19,11 +18,11 @@ export const PromptsPage: React.FC = () => {
     const { addNotification } = useChatContext();
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [showAIBuilder, setShowAIBuilder] = useState(false);
+    const [showBuilder, setShowBuilder] = useState(false);
     const [showGenerateDialog, setShowGenerateDialog] = useState(false);
     const [initialMessage, setInitialMessage] = useState<string | null>(null);
-    const [showManualForm, setShowManualForm] = useState(false);
     const [editingGroup, setEditingGroup] = useState<PromptGroup | null>(null);
+    const [builderInitialMode, setBuilderInitialMode] = useState<'manual' | 'ai-assisted'>('ai-assisted');
     const [versionHistoryGroup, setVersionHistoryGroup] = useState<PromptGroup | null>(null);
     const [deletingPrompt, setDeletingPrompt] = useState<{ id: string; name: string } | null>(null);
 
@@ -63,71 +62,30 @@ export const PromptsPage: React.FC = () => {
                 credentials: 'include',
             });
             if (response.ok) {
-                fetchPromptGroups();
+                // Close version history if it was open for this prompt
+                if (versionHistoryGroup?.id === deletingPrompt.id) {
+                    setVersionHistoryGroup(null);
+                }
+                await fetchPromptGroups();
                 setDeletingPrompt(null);
+                addNotification('Prompt deleted successfully', 'success');
+            } else {
+                setDeletingPrompt(null);
+                addNotification('Failed to delete prompt', 'error');
             }
         } catch (error) {
             console.error('Failed to delete prompt:', error);
+            setDeletingPrompt(null);
+            addNotification('Failed to delete prompt', 'error');
         }
     };
 
-    // Handle edit
+    // Handle edit - now uses builder
     const handleEdit = (group: PromptGroup) => {
+        setVersionHistoryGroup(null); // Close version history if open
         setEditingGroup(group);
-        setShowManualForm(true);
-    };
-
-    // Handle update
-    const handleUpdate = async (data: any) => {
-        if (!editingGroup) return;
-        
-        try {
-            const response = await fetch(`/api/v1/prompts/groups/${editingGroup.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify(data),
-            });
-            
-            if (response.ok) {
-                setEditingGroup(null);
-                setShowManualForm(false);
-                fetchPromptGroups();
-                addNotification('Prompt updated successfully', 'success');
-            } else {
-                const error = await response.json();
-                const errorMessage = error.message || error.detail || 'Failed to update prompt';
-                addNotification(errorMessage, 'error');
-            }
-        } catch (error) {
-            console.error('Failed to update prompt:', error);
-            addNotification('Network error: Failed to update prompt', 'error');
-        }
-    };
-
-    // Handle create
-    const handleCreate = async (data: any) => {
-        try {
-            const response = await fetch('/api/v1/prompts/groups', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify(data),
-            });
-            
-            if (response.ok) {
-                setShowManualForm(false);
-                fetchPromptGroups();
-                addNotification('Prompt created successfully', 'success');
-            } else {
-                const error = await response.json();
-                const errorMessage = error.message || error.detail || 'Failed to create prompt';
-                addNotification(errorMessage, 'error');
-            }
-        } catch (error) {
-            console.error('Failed to create prompt:', error);
-            addNotification('Network error: Failed to create prompt', 'error');
-        }
+        setBuilderInitialMode('manual');
+        setShowBuilder(true);
     };
 
     // Handle restore version
@@ -139,17 +97,16 @@ export const PromptsPage: React.FC = () => {
             });
             
             if (response.ok) {
-                setVersionHistoryGroup(null);
                 fetchPromptGroups();
-                addNotification('Version restored successfully', 'success');
+                addNotification('Version made active successfully', 'success');
             } else {
                 const error = await response.json();
-                const errorMessage = error.message || error.detail || 'Failed to restore version';
+                const errorMessage = error.message || error.detail || 'Failed to make version active';
                 addNotification(errorMessage, 'error');
             }
         } catch (error) {
-            console.error('Failed to restore version:', error);
-            addNotification('Failed to restore version', 'error');
+            console.error('Failed to make version active:', error);
+            addNotification('Failed to make version active', 'error');
         }
     };
 
@@ -157,27 +114,85 @@ export const PromptsPage: React.FC = () => {
     const handleGeneratePrompt = (taskDescription: string) => {
         setInitialMessage(taskDescription);
         setShowGenerateDialog(false);
-        setShowAIBuilder(true);
+        setEditingGroup(null);
+        setBuilderInitialMode('ai-assisted');
+        setShowBuilder(true);
     };
 
-    // Show AI Builder as full page view
-    if (showAIBuilder) {
+    // Show Builder as full page view (for both create and edit)
+    // Check this BEFORE version history so edit can override
+    if (showBuilder) {
         return (
-            <PromptTemplateBuilder
-                onBack={() => {
-                    setShowAIBuilder(false);
-                    setInitialMessage(null);
-                }}
-                onSuccess={() => {
-                    setShowAIBuilder(false);
-                    setInitialMessage(null);
-                    fetchPromptGroups();
-                }}
-                initialMessage={initialMessage}
-            />
+            <>
+                <PromptTemplateBuilder
+                    onBack={() => {
+                        setShowBuilder(false);
+                        setInitialMessage(null);
+                        setEditingGroup(null);
+                    }}
+                    onSuccess={() => {
+                        setShowBuilder(false);
+                        setInitialMessage(null);
+                        setEditingGroup(null);
+                        setBuilderInitialMode('ai-assisted');
+                        fetchPromptGroups();
+                    }}
+                    initialMessage={initialMessage}
+                    editingGroup={editingGroup}
+                    isEditing={!!editingGroup}
+                    initialMode={builderInitialMode}
+                />
+                
+                {/* Dialogs rendered globally */}
+                {deletingPrompt && (
+                    <PromptDeleteDialog
+                        key={`delete-${deletingPrompt.id}`}
+                        isOpen={true}
+                        onClose={() => setDeletingPrompt(null)}
+                        onConfirm={handleDeleteConfirm}
+                        promptName={deletingPrompt.name}
+                    />
+                )}
+                <GeneratePromptDialog
+                    isOpen={showGenerateDialog}
+                    onClose={() => setShowGenerateDialog(false)}
+                    onGenerate={handleGeneratePrompt}
+                />
+            </>
         );
     }
 
+    // Show Version History as full page view
+    if (versionHistoryGroup) {
+        return (
+            <>
+                <VersionHistoryPage
+                    group={versionHistoryGroup}
+                    onBack={() => setVersionHistoryGroup(null)}
+                    onBackToPromptDetail={() => {
+                        // Close version history and the prompt will remain selected in the side panel
+                        setVersionHistoryGroup(null);
+                    }}
+                    onEdit={handleEdit}
+                    onDeleteAll={handleDeleteClick}
+                    onRestoreVersion={handleRestoreVersion}
+                />
+                
+                {/* Dialogs rendered globally */}
+                {deletingPrompt && (
+                    <PromptDeleteDialog
+                        key={`delete-${deletingPrompt.id}`}
+                        isOpen={true}
+                        onClose={() => setDeletingPrompt(null)}
+                        onConfirm={handleDeleteConfirm}
+                        promptName={deletingPrompt.name}
+                    />
+                )}
+            </>
+        );
+    }
+
+    // Main prompts view
     return (
         <div className="flex h-full w-full flex-col">
             <Header
@@ -204,7 +219,8 @@ export const PromptsPage: React.FC = () => {
                         prompts={promptGroups}
                         onManualCreate={() => {
                             setEditingGroup(null);
-                            setShowManualForm(true);
+                            setBuilderInitialMode('manual');
+                            setShowBuilder(true);
                         }}
                         onAIAssisted={() => setShowGenerateDialog(true)}
                         onEdit={handleEdit}
@@ -214,30 +230,10 @@ export const PromptsPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Manual Form Dialog */}
-            {showManualForm && (
-                <PromptGroupForm
-                    group={editingGroup}
-                    onSubmit={editingGroup ? handleUpdate : handleCreate}
-                    onClose={() => {
-                        setShowManualForm(false);
-                        setEditingGroup(null);
-                    }}
-                />
-            )}
-
-            {/* Version History Dialog */}
-            {versionHistoryGroup && (
-                <VersionHistoryDialog
-                    group={versionHistoryGroup}
-                    onClose={() => setVersionHistoryGroup(null)}
-                    onRestore={handleRestoreVersion}
-                />
-            )}
-
             {/* Delete Confirmation Dialog */}
             {deletingPrompt && (
                 <PromptDeleteDialog
+                    key={`delete-${deletingPrompt.id}`}
                     isOpen={true}
                     onClose={() => setDeletingPrompt(null)}
                     onConfirm={handleDeleteConfirm}

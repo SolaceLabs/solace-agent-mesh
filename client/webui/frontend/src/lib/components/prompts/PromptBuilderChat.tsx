@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Loader2, Sparkles } from 'lucide-react';
-import { Button, Input, Badge } from '@/lib/components/ui';
+import { Button, Input } from '@/lib/components/ui';
 import type { TemplateConfig } from './hooks/usePromptTemplateBuilder';
 
 interface Message {
@@ -215,11 +215,6 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
         }
     };
 
-    const handleSuggestionClick = (suggestion: string) => {
-        setInput(suggestion);
-        inputRef.current?.focus();
-    };
-
     if (isInitializing) {
         return (
             <div className="flex h-full items-center justify-center">
@@ -305,25 +300,6 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                             <Send className="h-4 w-4" />
                         )}
                     </Button>
-                </div>
-
-                {/* Quick suggestions */}
-                <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="text-xs text-muted-foreground">Quick start:</span>
-                    {[
-                        'Code review template',
-                        'Bug report template',
-                        'Meeting notes template',
-                    ].map((suggestion) => (
-                        <Badge
-                            key={suggestion}
-                            variant="outline"
-                            className="cursor-pointer hover:bg-primary/10 transition-colors"
-                            onClick={() => handleSuggestionClick(suggestion)}
-                        >
-                            {suggestion}
-                        </Badge>
-                    ))}
                 </div>
             </div>
         </div>
