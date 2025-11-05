@@ -40,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({ title, breadcrumbs, tabs, button
                                     {crumb.label}
                                 </Button>
                             ) : (
-                                <div>{crumb.label}</div>
+                                <div className="max-w-[150px] truncate">{crumb.label}</div>
                             )}
                         </React.Fragment>
                     ))}
@@ -51,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({ title, breadcrumbs, tabs, button
             {leadingAction && <div className="mr-4 flex items-center pt-[35px]">{leadingAction}</div>}
 
             {/* Title */}
-            <div className="flex items-center pt-[35px] text-xl">{title}</div>
+            <div className="max-w-lg truncate pt-[35px] text-xl">{title}</div>
 
             {/* Tabs */}
             {tabs && tabs.length > 0 && (
