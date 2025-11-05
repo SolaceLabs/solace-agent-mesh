@@ -198,7 +198,7 @@ docker run -d \
   --name sam-enterprise \
   -p 8001:8000 \
   -v "$(pwd):/app" \
-  -e SAM_AUTHORIZATION_CONFIG="/app/config/auth/enterprise_config.yaml" \
+  -e SAM_AUTHORIZATION_CONFIG="/app/config/enterprise_config.yaml" \
   -e NAMESPACE=enterprise_prod \
   -e WEBUI_GATEWAY_ID=enterprise_gateway \
   -e ... list here all other necessary env vars ...
