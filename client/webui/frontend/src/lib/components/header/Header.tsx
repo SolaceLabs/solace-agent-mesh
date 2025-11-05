@@ -40,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({ title, breadcrumbs, tabs, button
                                     {crumb.label}
                                 </Button>
                             ) : (
-                                <div>{crumb.label}</div>
+                                <div className="max-w-[150px] truncate">{crumb.label}</div>
                             )}
                         </React.Fragment>
                     ))}
