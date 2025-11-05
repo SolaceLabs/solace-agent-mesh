@@ -1393,6 +1393,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: "Failed to update session name" }));
+
+                    if (response.status === 422) throw new Error("Invalid name");
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 addNotification("Session name updated successfully.");
