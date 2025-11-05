@@ -26,6 +26,7 @@ apps:
       instruction: |
         An agent that handles stripe operations. Use the tools to interact with stripe. Don't make up information.
         If you don't know the answer, just say that you don't know. Do not try to make up an answer.
+        Do NOT use parallel tool calls.
       
       # --- Tools Definition (including MCP) ---
       tools:

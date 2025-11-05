@@ -25,6 +25,7 @@ apps:
       model: *general_model
       instruction: |
         An agent that handles cloudflare operations.
+        Do NOT use parallel tool calls.
       
       # --- Tools Definition (including MCP) ---
       tools:
