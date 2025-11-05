@@ -280,7 +280,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
 
                                 {/* Chat Shortcut */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="template-command">Chat Shortcut (Optional)</Label>
+                                    <Label htmlFor="template-command">Chat Shortcut <span className="text-[var(--color-primary-wMain)]">*</span></Label>
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm text-muted-foreground">/</span>
                                         <Input
@@ -291,12 +291,6 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                                             className={validationErrors.command ? 'border-red-500' : ''}
                                         />
                                     </div>
-                                    {validationErrors.command && (
-                                        <p className="text-sm text-red-600 flex items-center gap-1">
-                                            <AlertCircle className="h-3 w-3" />
-                                            {validationErrors.command}
-                                        </p>
-                                    )}
                                     <p className="text-xs text-muted-foreground">
                                         Quick access shortcut for chat (letters, numbers, hyphens, underscores only)
                                     </p>

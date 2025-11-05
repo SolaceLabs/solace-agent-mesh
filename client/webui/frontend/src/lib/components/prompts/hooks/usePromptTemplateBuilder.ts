@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { detectVariables, validatePromptText } from '@/lib/utils/promptUtils';
 import { useChatContext } from '@/lib/hooks';
 import type { PromptGroup } from '@/lib/types/prompts';
+import { isReservedCommand } from '@/lib/constants/reservedCommands';
 
 export interface TemplateConfig {
     name?: string;
@@ -71,13 +72,15 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             errors.name = 'Template name must be less than 255 characters';
         }
 
-        // Validate command
-        if (config.command) {
-            if (!/^[a-zA-Z0-9_-]+$/.test(config.command)) {
-                errors.command = 'Command can only contain letters, numbers, hyphens, and underscores';
-            } else if (config.command.length > 50) {
-                errors.command = 'Command must be less than 50 characters';
-            }
+        // Validate command (now required)
+        if (!config.command || config.command.trim().length === 0) {
+            errors.command = 'Chat shortcut is required';
+        } else if (!/^[a-zA-Z0-9_-]+$/.test(config.command)) {
+            errors.command = 'Command can only contain letters, numbers, hyphens, and underscores';
+        } else if (config.command.length > 50) {
+            errors.command = 'Command must be less than 50 characters';
+        } else if (isReservedCommand(config.command)) {
+            errors.command = `'${config.command}' is a reserved command and cannot be used`;
         }
 
         // Validate prompt text
@@ -94,12 +97,9 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
         
         const isValid = Object.keys(errors).length === 0;
         
-        // Show notification to user
+        // Show notification to user only if valid (errors are shown in the UI banner)
         if (isValid) {
             addNotification('✓ Template is valid and ready to save!', 'success');
-        } else {
-            const errorMessages = Object.values(errors).join(', ');
-            addNotification(`Validation failed: ${errorMessages}`, 'error');
         }
         
         return isValid;

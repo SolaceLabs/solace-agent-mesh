@@ -43,6 +43,18 @@ function AppContentInner() {
         };
     }, [projectsEnabled]);
 
+    // Listen for create-template-from-session events
+    useEffect(() => {
+        const handleCreateTemplateFromSession = () => {
+            setActiveNavItem("prompts");
+        };
+
+        window.addEventListener("create-template-from-session", handleCreateTemplateFromSession);
+        return () => {
+            window.removeEventListener("create-template-from-session", handleCreateTemplateFromSession as EventListener);
+        };
+    }, []);
+
     if (useAuthorization && !isAuthenticated) {
         return (
             <div className="bg-background flex h-screen items-center justify-center">

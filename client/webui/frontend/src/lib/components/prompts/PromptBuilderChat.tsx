@@ -70,6 +70,10 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                         timestamp: new Date(),
                     };
                     setMessages(prev => [...prev, userMessage]);
+                    
+                    // Scroll to bottom after adding user message
+                    setTimeout(() => scrollToBottom(), 100);
+                    
                     setIsLoading(true);
 
                     // Send the message to the API
@@ -107,9 +111,28 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                             }
 
                             onReadyToSave(chatData.ready_to_save);
+                            
+                            // Scroll to bottom after AI response
+                            setTimeout(() => scrollToBottom(), 100);
+                        } else {
+                            const errorData = await chatResponse.json().catch(() => ({}));
+                            console.error('Prompt builder API error:', errorData);
+                            
+                            const errorMessage: Message = {
+                                role: 'assistant',
+                                content: 'The conversation history is too long for automatic processing. Please describe your task manually, and I\'ll help you create a template.',
+                                timestamp: new Date(),
+                            };
+                            setMessages(prev => [...prev, errorMessage]);
                         }
                     } catch (error) {
                         console.error('Error sending initial message:', error);
+                        const errorMessage: Message = {
+                            role: 'assistant',
+                            content: 'I encountered an error processing your request. Please try describing your task manually.',
+                            timestamp: new Date(),
+                        };
+                        setMessages(prev => [...prev, errorMessage]);
                     } finally {
                         setIsLoading(false);
                     }
@@ -208,6 +231,11 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
         }
     };
 
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        handleSend();
+    };
+
     const handleKeyPress = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -250,7 +278,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                         <div
                             className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                                 message.role === 'user'
-                                    ? 'bg-primary text-primary-foreground'
+                                    ? 'bg-[var(--message-background)]'
                                     : ''
                             }`}
                         >
@@ -276,7 +304,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
 
             {/* Input Area */}
             <div className="border-t bg-background p-4">
-                <div className="flex gap-2 items-center">
+                <form onSubmit={handleSubmit} className="relative">
                     <Input
                         ref={inputRef}
                         value={input}
@@ -284,14 +312,14 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                         onKeyPress={handleKeyPress}
                         placeholder={hasUserMessage ? "Type your message..." : "Describe your recurring task..."}
                         disabled={isLoading}
-                        className="flex-1"
+                        className="pr-12"
                     />
                     <Button
-                        onClick={handleSend}
+                        type="submit"
                         disabled={!input.trim() || isLoading}
                         variant="ghost"
                         size="icon"
-                        className="shrink-0"
+                        className="absolute right-2 top-1/2 -translate-y-1/2"
                         tooltip="Send message"
                     >
                         {isLoading ? (
@@ -300,7 +328,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                             <Send className="h-4 w-4" />
                         )}
                     </Button>
-                </div>
+                </form>
             </div>
         </div>
     );

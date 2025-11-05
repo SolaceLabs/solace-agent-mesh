@@ -1,18 +1,38 @@
 /**
  * Displays a popover with searchable prompt library when "/" is typed
+ * Also handles reserved commands like /create-template
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Command, Search } from 'lucide-react';
+import { Search, FileText } from 'lucide-react';
 import type { PromptGroup } from '@/lib/types/prompts';
+import type { MessageFE } from '@/lib/types';
 import { detectVariables } from '@/lib/utils/promptUtils';
 import { VariableDialog } from './VariableDialog';
+
+interface ReservedCommand {
+    command: string;
+    name: string;
+    description: string;
+    icon: typeof FileText;
+}
+
+const RESERVED_COMMANDS: ReservedCommand[] = [
+    {
+        command: 'create-template',
+        name: 'Create Template from Session',
+        description: 'Create a reusable prompt template from this conversation',
+        icon: FileText,
+    },
+];
 
 interface PromptsCommandProps {
     isOpen: boolean;
     onClose: () => void;
     textAreaRef: React.RefObject<HTMLTextAreaElement | null>;
     onPromptSelect: (promptText: string) => void;
+    messages?: MessageFE[];
+    onReservedCommand?: (command: string, context?: string) => void;
 }
 
 export const PromptsCommand: React.FC<PromptsCommandProps> = ({
@@ -20,6 +40,8 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
     onClose,
     textAreaRef,
     onPromptSelect,
+    messages = [],
+    onReservedCommand,
 }) => {
     const [searchValue, setSearchValue] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
@@ -55,6 +77,18 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
         fetchPromptGroups();
     }, [isOpen]);
 
+    // Filter reserved commands based on search
+    const filteredReservedCommands = useMemo(() => {
+        if (!searchValue) return RESERVED_COMMANDS;
+        
+        const search = searchValue.toLowerCase();
+        return RESERVED_COMMANDS.filter(cmd => 
+            cmd.command.toLowerCase().includes(search) ||
+            cmd.name.toLowerCase().includes(search) ||
+            cmd.description.toLowerCase().includes(search)
+        );
+    }, [searchValue]);
+
     // Filter prompt groups based on search
     const filteredGroups = useMemo(() => {
         if (!searchValue) return promptGroups;
@@ -68,8 +102,38 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
         );
     }, [promptGroups, searchValue]);
 
+    // Combine reserved commands and prompts for display
+    const allItems = useMemo(() => {
+        return [...filteredReservedCommands, ...filteredGroups];
+    }, [filteredReservedCommands, filteredGroups]);
+
+    // Format session history for context
+    const formatSessionHistory = useCallback((messages: MessageFE[]): string => {
+        return messages
+            .filter(m => !m.isStatusBubble && !m.isError && !m.authenticationLink)
+            .map(m => {
+                const role = m.isUser ? 'User' : 'Assistant';
+                const text = m.parts
+                    ?.filter(p => p.kind === 'text')
+                    .map(p => (p as any).text)
+                    .join('\n') || '';
+                return `${role}: ${text}`;
+            })
+            .join('\n\n');
+    }, []);
+
+    // Handle reserved command selection
+    const handleReservedCommandSelect = useCallback((cmd: ReservedCommand) => {
+        if (cmd.command === 'create-template' && onReservedCommand) {
+            const sessionHistory = formatSessionHistory(messages);
+            onReservedCommand(cmd.command, sessionHistory);
+            onClose();
+            setSearchValue('');
+        }
+    }, [messages, formatSessionHistory, onReservedCommand, onClose]);
+
     // Handle prompt selection
-    const handleSelect = useCallback((group: PromptGroup) => {
+    const handlePromptSelect = useCallback((group: PromptGroup) => {
         const promptText = group.production_prompt?.prompt_text || '';
         
         // Check for variables
@@ -86,6 +150,15 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
         }
     }, [onPromptSelect, onClose]);
 
+    // Handle item selection (reserved command or prompt)
+    const handleSelect = useCallback((item: ReservedCommand | PromptGroup) => {
+        if ('command' in item && RESERVED_COMMANDS.some(cmd => cmd.command === item.command)) {
+            handleReservedCommandSelect(item as ReservedCommand);
+        } else {
+            handlePromptSelect(item as PromptGroup);
+        }
+    }, [handleReservedCommandSelect, handlePromptSelect]);
+
     // Handle variable dialog completion
     const handleVariableSubmit = useCallback((processedPrompt: string) => {
         onPromptSelect(processedPrompt);
@@ -98,25 +171,27 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
     // Keyboard navigation
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
             onClose();
             setSearchValue('');
             textAreaRef.current?.focus();
         } else if (e.key === 'ArrowDown') {
             e.preventDefault();
-            setActiveIndex(prev => Math.min(prev + 1, filteredGroups.length - 1));
+            setActiveIndex(prev => Math.min(prev + 1, allItems.length - 1));
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
             setActiveIndex(prev => Math.max(prev - 1, 0));
         } else if (e.key === 'Enter' || e.key === 'Tab') {
             e.preventDefault();
-            if (filteredGroups[activeIndex]) {
-                handleSelect(filteredGroups[activeIndex]);
+            if (allItems[activeIndex]) {
+                handleSelect(allItems[activeIndex]);
             }
         } else if (e.key === 'Backspace' && searchValue === '') {
             onClose();
             textAreaRef.current?.focus();
         }
-    }, [filteredGroups, activeIndex, searchValue, handleSelect, onClose, textAreaRef]);
+    }, [allItems, activeIndex, searchValue, handleSelect, onClose, textAreaRef]);
 
     // Auto-focus input when opened
     useEffect(() => {
@@ -170,50 +245,98 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
                             <div className="flex items-center justify-center p-8">
                                 <div className="size-6 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
                             </div>
-                        ) : filteredGroups.length === 0 ? (
+                        ) : allItems.length === 0 ? (
                             <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
                                 {searchValue ? 'No prompts found' : 'No prompts available. Create one in the Prompts panel.'}
                             </div>
                         ) : (
                             <div className="p-2">
-                                {filteredGroups.map((group, index) => (
-                                    <button
-                                        key={group.id}
-                                        id={`prompt-item-${index}`}
-                                        onClick={() => handleSelect(group)}
-                                        className={`w-full rounded-md p-3 text-left transition-colors ${
-                                            index === activeIndex
-                                                ? 'bg-[var(--accent)]'
-                                                : 'hover:bg-[var(--accent)]'
-                                        }`}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <Command className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    {group.command && (
-                                                        <span className="font-mono text-xs text-[var(--primary)]">
-                                                            /{group.command}
+                                {/* Reserved Commands */}
+                                {filteredReservedCommands.length > 0 && (
+                                    <>
+                                        {filteredReservedCommands.map((cmd, index) => {
+                                            const Icon = cmd.icon;
+                                            return (
+                                                <button
+                                                    key={`reserved-${cmd.command}`}
+                                                    id={`prompt-item-${index}`}
+                                                    onClick={() => handleReservedCommandSelect(cmd)}
+                                                    className={`w-full rounded-md p-3 text-left transition-colors ${
+                                                        index === activeIndex
+                                                            ? 'bg-[var(--accent)]'
+                                                            : 'hover:bg-[var(--accent)]'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-start gap-3">
+                                                        <Icon className="mt-0.5 size-4 flex-shrink-0 text-[var(--primary)]" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="font-mono text-xs text-[var(--primary)]">
+                                                                    /{cmd.command}
+                                                                </span>
+                                                                <span className="font-medium text-sm">
+                                                                    {cmd.name}
+                                                                </span>
+                                                                <span className="rounded bg-[var(--primary)]/10 px-1.5 py-0.5 text-xs text-[var(--primary)]">
+                                                                    Reserved
+                                                                </span>
+                                                            </div>
+                                                            <p className="mt-1 text-xs text-[var(--muted-foreground)] line-clamp-2">
+                                                                {cmd.description}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                        {filteredGroups.length > 0 && (
+                                            <div className="my-2 border-t border-[var(--border)]" />
+                                        )}
+                                    </>
+                                )}
+
+                                {/* Regular Prompts */}
+                                {filteredGroups.map((group, index) => {
+                                    const actualIndex = filteredReservedCommands.length + index;
+                                    return (
+                                        <button
+                                            key={group.id}
+                                            id={`prompt-item-${actualIndex}`}
+                                            onClick={() => handlePromptSelect(group)}
+                                            className={`w-full rounded-md p-3 text-left transition-colors ${
+                                                actualIndex === activeIndex
+                                                    ? 'bg-[var(--accent)]'
+                                                    : 'hover:bg-[var(--accent)]'
+                                            }`}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <FileText className="mt-0.5 size-4 flex-shrink-0 text-[var(--muted-foreground)]" />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        {group.command && (
+                                                            <span className="font-mono text-xs text-[var(--primary)]">
+                                                                /{group.command}
+                                                            </span>
+                                                        )}
+                                                        <span className="font-medium text-sm">
+                                                            {group.name}
                                                         </span>
-                                                    )}
-                                                    <span className="font-medium text-sm">
-                                                        {group.name}
-                                                    </span>
-                                                    {group.category && (
-                                                        <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">
-                                                            {group.category}
-                                                        </span>
+                                                        {group.category && (
+                                                            <span className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">
+                                                                {group.category}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {group.description && (
+                                                        <p className="mt-1 text-xs text-[var(--muted-foreground)] line-clamp-2">
+                                                            {group.description}
+                                                        </p>
                                                     )}
                                                 </div>
-                                                {group.description && (
-                                                    <p className="mt-1 text-xs text-[var(--muted-foreground)] line-clamp-2">
-                                                        {group.description}
-                                                    </p>
-                                                )}
                                             </div>
-                                        </div>
-                                    </button>
-                                ))}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

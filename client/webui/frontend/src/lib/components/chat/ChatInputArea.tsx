@@ -17,7 +17,7 @@ import {
 } from "./paste";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab } = useChatContext();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
 
     // File selection support
@@ -312,6 +312,41 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }, 100);
     };
 
+    // Handle reserved command
+    const handleReservedCommand = (command: string, context?: string) => {
+        if (command === 'create-template') {
+            // Create enhanced message for AI builder
+            const enhancedMessage = context
+                ? `I want to create a reusable prompt template based on this conversation I just had:
+
+<conversation_history>
+${context}
+</conversation_history>
+
+Please help me create a prompt template by:
+
+1. **Analyzing the Pattern**: Identify the core task/question pattern in this conversation
+2. **Extracting Variables**: Determine which parts should be variables (use {{variable_name}} syntax)
+3. **Generalizing**: Make it reusable for similar tasks
+4. **Suggesting Metadata**: Recommend a name, description, category, and chat shortcut
+
+Focus on capturing what made this conversation successful so it can be reused with different inputs.`
+                : 'Help me create a new prompt template.';
+
+            // Store in sessionStorage before dispatching event
+            sessionStorage.setItem('pending-template-context', enhancedMessage);
+            
+            // Dispatch custom event to navigate to prompts page with context
+            window.dispatchEvent(new CustomEvent('create-template-from-session', {
+                detail: { initialMessage: enhancedMessage }
+            }));
+            
+            // Clear input
+            setInputValue('');
+            setShowPromptsCommand(false);
+        }
+    };
+
     // Handle pasted artifact management
     const handleRemovePastedArtifact = (id: string) => {
         setPastedArtifactItems(prev => prev.filter(item => item.id !== id));
@@ -380,6 +415,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 onClose={() => setShowPromptsCommand(false)}
                 textAreaRef={chatInputRef}
                 onPromptSelect={handlePromptSelect}
+                messages={messages}
+                onReservedCommand={handleReservedCommand}
             />
 
             {/* Chat Input */}

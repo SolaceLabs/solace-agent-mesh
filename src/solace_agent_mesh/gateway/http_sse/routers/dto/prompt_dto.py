@@ -131,10 +131,10 @@ class ChatMessage(BaseModel):
 class PromptBuilderChatRequest(BaseModel):
     """Schema for prompt builder chat request"""
     message: str = Field(
-        ..., 
-        min_length=1, 
-        max_length=5000, 
-        description="User message"
+        ...,
+        min_length=1,
+        max_length=200000,
+        description="User message (supports long conversation histories for template creation)"
     )
     conversation_history: List[ChatMessage] = Field(
         default_factory=list, 

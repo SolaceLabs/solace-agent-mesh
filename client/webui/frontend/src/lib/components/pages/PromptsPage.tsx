@@ -46,6 +46,36 @@ export const PromptsPage: React.FC = () => {
 
     useEffect(() => {
         fetchPromptGroups();
+        
+        // Check if there's a pending template creation from session
+        const pendingContext = sessionStorage.getItem('pending-template-context');
+        if (pendingContext) {
+            sessionStorage.removeItem('pending-template-context');
+            setInitialMessage(pendingContext);
+            setEditingGroup(null);
+            setBuilderInitialMode('ai-assisted');
+            setShowBuilder(true);
+        }
+    }, []);
+
+    // Listen for create-template-from-session event
+    useEffect(() => {
+        const handleCreateTemplateFromSession = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { initialMessage: message } = customEvent.detail;
+            
+            // If already on prompts page, open builder immediately
+            setInitialMessage(message);
+            setEditingGroup(null);
+            setBuilderInitialMode('ai-assisted');
+            setShowBuilder(true);
+            setVersionHistoryGroup(null); // Close version history if open
+        };
+
+        window.addEventListener('create-template-from-session', handleCreateTemplateFromSession);
+        return () => {
+            window.removeEventListener('create-template-from-session', handleCreateTemplateFromSession);
+        };
     }, []);
 
     // Delete prompt group
