@@ -77,17 +77,26 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
         fetchPromptGroups();
     }, [isOpen]);
 
-    // Filter reserved commands based on search
+    // Filter reserved commands based on search and availability
     const filteredReservedCommands = useMemo(() => {
-        if (!searchValue) return RESERVED_COMMANDS;
+        // Only show create-template if there are user messages in the session
+        const hasUserMessages = messages.some(m => m.isUser && !m.isStatusBubble);
+        const availableCommands = RESERVED_COMMANDS.filter(cmd => {
+            if (cmd.command === 'create-template') {
+                return hasUserMessages;
+            }
+            return true;
+        });
+        
+        if (!searchValue) return availableCommands;
         
         const search = searchValue.toLowerCase();
-        return RESERVED_COMMANDS.filter(cmd => 
+        return availableCommands.filter(cmd =>
             cmd.command.toLowerCase().includes(search) ||
             cmd.name.toLowerCase().includes(search) ||
             cmd.description.toLowerCase().includes(search)
         );
-    }, [searchValue]);
+    }, [searchValue, messages]);
 
     // Filter prompt groups based on search
     const filteredGroups = useMemo(() => {
