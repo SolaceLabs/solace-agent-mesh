@@ -47,48 +47,6 @@ from ....common import a2a
 from ....agent.utils.artifact_helpers import format_artifact_uri
 from ..base.component import BaseProxyComponent
 
-
-def normalize_context_id_to_uuid(context_id: Optional[str]) -> Optional[str]:
-    """
-    Normalizes a context_id to standard UUID format for downstream A2A agents.
-
-    Some downstream agents (e.g., AWS AgentCore) require context_id to be a valid UUID.
-    This function handles the internal 'web-session-{hex}' format used by the gateway
-    and converts it to standard UUID format with dashes.
-
-    Args:
-        context_id: The context ID, which may be in 'web-session-{hex}' format or already a UUID
-
-    Returns:
-        A standard UUID format string (e.g., 'bd35b84e-fdd3-4307-bf32-ea472d380c07')
-        or None if the input is None or invalid
-
-    Examples:
-        'web-session-bd35b84efdd34307bf32ea472d380c07' -> 'bd35b84e-fdd3-4307-bf32-ea472d380c07'
-        'bd35b84efdd34307bf32ea472d380c07' -> 'bd35b84e-fdd3-4307-bf32-ea472d380c07'
-        'bd35b84e-fdd3-4307-bf32-ea472d380c07' -> 'bd35b84e-fdd3-4307-bf32-ea472d380c07' (no change)
-    """
-    if not context_id:
-        return None
-
-    # Strip 'web-session-' prefix if present
-    if context_id.startswith("web-session-"):
-        context_id = context_id[len("web-session-"):]
-
-    # Try to convert to standard UUID format
-    try:
-        # If it's already a valid UUID format, this will work
-        normalized = str(uuid.UUID(context_id))
-        return normalized
-    except (ValueError, AttributeError):
-        # If conversion fails, return the original value
-        # (it might already be in a valid format for some agents)
-        log.warning(
-            "Failed to normalize context_id '%s' to UUID format. Using as-is.",
-            context_id[:50] if context_id else None,
-        )
-        return context_id
-
 if TYPE_CHECKING:
     from ..base.proxy_task_context import ProxyTaskContext
 
@@ -317,40 +275,21 @@ class A2AProxyComponent(BaseProxyComponent):
                     message_to_send = request.params.message
 
                     # Check if this is a RUN_BASED request by inspecting message metadata
-                    session_behavior = None
+                    # For RUN_BASED requests, omit context_id to indicate independent tasks
                     if message_to_send.metadata:
                         session_behavior = message_to_send.metadata.get("sessionBehavior")
                         if session_behavior:
                             session_behavior = str(session_behavior).upper()
-
-                    # Handle context_id based on session behavior
-                    # Some agents (e.g., AWS AgentCore) require context_id to be a valid UUID when present
-                    if message_to_send.context_id:
-                        if session_behavior == "RUN_BASED":
-                            # For RUN_BASED requests, omit context_id entirely
-                            # Each request is independent with no logical grouping
-                            log.debug(
-                                "%s RUN_BASED request detected. Omitting context_id (independent task)",
-                                log_identifier,
-                            )
-                            message_to_send = message_to_send.model_copy(
-                                update={"context_id": None}
-                            )
-                        else:
-                            # PERSISTENT or unspecified: normalize the session_id to UUID format
-                            normalized_context_id = normalize_context_id_to_uuid(
-                                message_to_send.context_id
-                            )
-                            if normalized_context_id != message_to_send.context_id:
+                            if session_behavior == "RUN_BASED" and message_to_send.context_id:
+                                # For RUN_BASED requests, omit context_id entirely
+                                # Each request is independent with no logical grouping
                                 log.debug(
-                                    "%s PERSISTENT request. Normalized context_id from '%s' to '%s' for downstream agent",
+                                    "%s RUN_BASED request detected. Omitting context_id "
+                                    "(independent task)",
                                     log_identifier,
-                                    message_to_send.context_id[:30],
-                                    normalized_context_id,
                                 )
-                                # Create a copy of the message with normalized context_id
                                 message_to_send = message_to_send.model_copy(
-                                    update={"context_id": normalized_context_id}
+                                    update={"context_id": None}
                                 )
 
                     # WORKAROUND: The A2A SDK has a bug in ClientTaskManager that breaks streaming.
@@ -1250,14 +1189,9 @@ class A2AProxyComponent(BaseProxyComponent):
                 "%s Received a direct Message response. Wrapping in a completed Task.",
                 log_identifier,
             )
-            # Normalize context_id for consistency (though this is going back to our gateway,
-            # we keep it normalized in case it's forwarded again or logged)
-            session_id = task_context.a2a_context.get("session_id")
-            normalized_context_id = normalize_context_id_to_uuid(session_id)
-
             final_task = Task(
                 id=task_context.task_id,
-                context_id=normalized_context_id,
+                context_id=task_context.a2a_context.get("session_id"),
                 status=TaskStatus(state=TaskState.completed, message=event_payload),
             )
 
