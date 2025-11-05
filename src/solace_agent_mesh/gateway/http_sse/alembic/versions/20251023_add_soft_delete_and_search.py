@@ -65,56 +65,15 @@ def upgrade() -> None:
             op.create_index('ix_projects_user_deleted', 'projects', ['user_id', 'deleted_at'])
         except Exception:
             pass
-    
-    # Enable pg_trgm extension for fuzzy text search (PostgreSQL only)
-    try:
-        op.execute('CREATE EXTENSION IF NOT EXISTS pg_trgm')
-    except Exception:
-        # Not PostgreSQL or extension already exists
-        pass
-    
-    # Create GIN indexes for text search on sessions
-    if 'sessions' in inspector.get_table_names():
-        try:
-            # Index on session name for fuzzy search
-            op.execute(
-                'CREATE INDEX IF NOT EXISTS ix_sessions_name_trgm ON sessions '
-                'USING gin (name gin_trgm_ops)'
-            )
-        except Exception:
-            pass
-    
-    # Create GIN indexes for text search on chat_tasks
-    if 'chat_tasks' in inspector.get_table_names():
-        try:
-            # Index on user_message for content search
-            op.execute(
-                'CREATE INDEX IF NOT EXISTS ix_chat_tasks_user_message_trgm ON chat_tasks '
-                'USING gin (user_message gin_trgm_ops)'
-            )
-        except Exception:
-            pass
 
 
 def downgrade() -> None:
     """Remove soft delete columns and search indexes."""
     bind = op.get_bind()
     inspector = inspect(bind)
-    
-    # Drop search indexes from chat_tasks
-    if 'chat_tasks' in inspector.get_table_names():
-        try:
-            op.execute('DROP INDEX IF EXISTS ix_chat_tasks_user_message_trgm')
-        except Exception:
-            pass
-    
-    # Drop search indexes from sessions
+
+    # Drop soft delete indexes from sessions
     if 'sessions' in inspector.get_table_names():
-        try:
-            op.execute('DROP INDEX IF EXISTS ix_sessions_name_trgm')
-        except Exception:
-            pass
-        
         try:
             op.drop_index('ix_sessions_user_deleted', table_name='sessions')
         except Exception:

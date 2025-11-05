@@ -1,6 +1,6 @@
 import React from "react";
 import { PluginViewData } from "../types";
-import { Box, GitMerge, CheckCircle, Tag, Cpu, Server } from "lucide-react";
+import { Box, GitMerge, CheckCircle, Tag, Cpu, Server, Wrench } from "lucide-react";
 
 const Button: React.FC<
   React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -57,6 +57,8 @@ const PluginCard: React.FC<PluginCardProps> = ({ plugin, onReadMore, onInstall }
         return <Cpu size={12} />;
       case "gateway":
         return <Server size={12} />;
+      case "tool":
+        return <Wrench size={12} />;
       default:
         return <Tag size={12} />;
     }

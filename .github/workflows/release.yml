@@ -49,19 +49,13 @@ jobs:
       MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
 
   build_and_push_docker:
-    name: Build and Push Docker Image
+    name: Build and Push to DockerHub
     needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.release.outputs.commit_hash }}
-
-      - name: Build and Push Docker Image to DockerHub
-        uses: ./.github/actions/push-docker
-        with:
-          version_tag: ${{ needs.release.outputs.new_version }}
-          push_latest: true
-          docker_username: ${{ secrets.DOCKER_USERNAME }}
-          docker_password: ${{ secrets.DOCKER_PASSWORD }}
+    uses: SolaceLabs/solace-agent-mesh/.github/workflows/build-push-dockerhub.yml@main
+    with:
+      version: ${{ needs.release.outputs.new_version }}
+      commit_hash: ${{ needs.release.outputs.commit_hash }}
+      push_latest: true
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}

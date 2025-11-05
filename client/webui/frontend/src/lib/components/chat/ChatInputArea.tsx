@@ -174,7 +174,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 <div>Agent: </div>
                 <Select value={selectedAgentName} onValueChange={handleAgentSelection} disabled={isResponding || agents.length === 0}>
                     <SelectTrigger className="w-[250px]">
-                        <SelectValue defaultValue={selectedAgentName} />
+                        <SelectValue placeholder="Select an agent..." />
                     </SelectTrigger>
                     <SelectContent>
                         {agents.map(agent => (

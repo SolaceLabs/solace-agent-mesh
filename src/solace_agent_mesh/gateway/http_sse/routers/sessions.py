@@ -79,7 +79,7 @@ async def search_sessions(
     session_service: SessionService = Depends(get_session_business_service),
 ):
     """
-    Search sessions by name or content.
+    Search sessions by name/title only.
     """
     user_id = user.get("id")
     log.info(

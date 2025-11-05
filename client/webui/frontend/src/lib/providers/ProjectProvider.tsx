@@ -1,8 +1,10 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState, useMemo } from "react";
 
 import { useConfigContext } from "@/lib/hooks";
 import type { Project, ProjectContextValue, ProjectListResponse, UpdateProjectData } from "@/lib/types/projects";
 import { authenticatedFetch } from "@/lib/utils/api";
+
+const LAST_VIEWED_PROJECT_KEY = "lastViewedProjectId";
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
 
@@ -21,8 +23,20 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const [currentProject, setCurrentProject] = useState<Project | null>(null);
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [activeProject, setActiveProject] = useState<Project | null>(null);
+    const [searchQuery, setSearchQuery] = useState<string>("");
 
     const apiPrefix = `${configServerUrl}/api/v1`;
+
+    // Computed filtered projects based on search query
+    const filteredProjects = useMemo(() => {
+        if (!searchQuery.trim()) return projects;
+        
+        const query = searchQuery.toLowerCase();
+        return projects.filter(project =>
+            project.name.toLowerCase().includes(query) ||
+            (project.description?.toLowerCase().includes(query) ?? false)
+        );
+    }, [projects, searchQuery]);
 
     const fetchProjects = useCallback(async () => {
         if (!projectsEnabled) {
@@ -34,7 +48,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsLoading(true);
         setError(null);
         try {
-            const response = await authenticatedFetch(`${apiPrefix}/projects`, {
+            // Fetch projects with artifact counts
+            const response = await authenticatedFetch(`${apiPrefix}/projects?include_artifact_count=true`, {
                 credentials: "include",
             });
 
@@ -46,11 +61,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
 
             const data: ProjectListResponse = await response.json();
-            // Sort projects by updatedAt (or createdAt if updatedAt is not available) in descending order
+            // Sort projects alphabetically by name (case-insensitive)
             const sortedProjects = [...data.projects].sort((a, b) => {
-                const dateA = new Date(a.updatedAt || a.createdAt).getTime();
-                const dateB = new Date(b.updatedAt || b.createdAt).getTime();
-                return dateB - dateA; // Descending order (latest first)
+                return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
             });
             setProjects(sortedProjects);
         } catch (err: unknown) {
@@ -93,8 +106,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 const newProject: Project = await response.json();
 
-                // Update local state
-                setProjects(prev => [newProject, ...prev]);
+                // Update local state with alphabetical sorting
+                setProjects(prev => {
+                    const updated = [newProject, ...prev];
+                    return updated.sort((a, b) => {
+                        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+                    });
+                });
 
                 return newProject;
             } catch (err: unknown) {
@@ -126,6 +144,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }
                 // Clear any previous errors on success
                 setError(null);
+                
+                // Refetch projects to update artifact counts
+                await fetchProjects();
             } catch (err: unknown) {
                 console.error("Error adding files to project:", err);
                 const errorMessage = err instanceof Error ? err.message : "Could not add files to project.";
@@ -133,7 +154,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix, projectsEnabled]
+        [apiPrefix, projectsEnabled, fetchProjects]
     );
 
     const removeFileFromProject = useCallback(
@@ -156,6 +177,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 }
                 // Clear any previous errors on success
                 setError(null);
+                
+                // Refetch projects to update artifact counts
+                await fetchProjects();
             } catch (err: unknown) {
                 console.error("Error removing file from project:", err);
                 const errorMessage = err instanceof Error ? err.message : "Could not remove file from project.";
@@ -163,7 +187,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 throw new Error(errorMessage);
             }
         },
-        [apiPrefix, projectsEnabled]
+        [apiPrefix, projectsEnabled, fetchProjects]
     );
 
     const updateProject = useCallback(
@@ -214,13 +238,11 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
                 const updatedProject: Project = await response.json();
 
-                // Update projects list and re-sort
+                // Update projects list and re-sort alphabetically
                 setProjects(prev => {
                     const updated = prev.map(p => (p.id === updatedProject.id ? updatedProject : p));
                     return updated.sort((a, b) => {
-                        const dateA = new Date(a.updatedAt || a.createdAt).getTime();
-                        const dateB = new Date(b.updatedAt || b.createdAt).getTime();
-                        return dateB - dateA; // Descending order (latest first)
+                        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
                     });
                 });
                 // Update current project if it's the one being edited
@@ -289,6 +311,29 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         fetchProjects();
     }, [fetchProjects]);
 
+    // Restore last viewed project from localStorage
+    useEffect(() => {
+        if (projects.length > 0 && !selectedProject) {
+            const savedProjectId = localStorage.getItem(LAST_VIEWED_PROJECT_KEY);
+            if (savedProjectId) {
+                const project = projects.find(p => p.id === savedProjectId);
+                if (project) {
+                    setSelectedProject(project);
+                }
+            }
+        }
+    }, [projects, selectedProject]);
+
+    // Enhanced setSelectedProject that persists to localStorage
+    const handleSetSelectedProject = useCallback((project: Project | null) => {
+        setSelectedProject(project);
+        if (project) {
+            localStorage.setItem(LAST_VIEWED_PROJECT_KEY, project.id);
+        } else {
+            localStorage.removeItem(LAST_VIEWED_PROJECT_KEY);
+        }
+    }, []);
+
     const value: ProjectContextValue = {
         projects,
         isLoading,
@@ -298,13 +343,16 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         currentProject,
         setCurrentProject,
         selectedProject,
-        setSelectedProject,
+        setSelectedProject: handleSetSelectedProject,
         activeProject,
         setActiveProject,
         addFilesToProject,
         removeFileFromProject,
         updateProject,
         deleteProject,
+        searchQuery,
+        setSearchQuery,
+        filteredProjects,
     };
 
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;

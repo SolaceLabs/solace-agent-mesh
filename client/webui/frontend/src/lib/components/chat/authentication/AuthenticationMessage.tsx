@@ -1,5 +1,5 @@
 import type { MessageFE } from "@/lib/types";
-import { Button, useChatContext } from "@/lib";
+import { Button, MessageBanner, useChatContext } from "@/lib";
 
 export const AuthenticationMessage: React.FC<{ message: MessageFE }> = ({ message }) => {
     const { handleCancel, setMessages, isResponding, isCancelling } = useChatContext();
@@ -36,22 +36,23 @@ export const AuthenticationMessage: React.FC<{ message: MessageFE }> = ({ messag
         const targetAgent = message.authenticationLink.targetAgent || "Agent";
 
         return (
-            <div className="w-max rounded-lg border p-4">
-                <div className="font-semibold">Action Needed</div>
-                <div className="py-4">The "{targetAgent}" agent requires authentication.</div>
-                <div className="flex flex-row flex-wrap justify-end gap-2">
-                    <Button variant="ghost" onClick={handleRejectClick} disabled={authenticationAttempted || rejected || !isResponding || isCancelling}>
-                        Reject
-                    </Button>
-                    <Button onClick={handleAuthClick} disabled={authenticationAttempted || rejected || !isResponding || isCancelling}>
-                        {message.authenticationLink.text}
-                    </Button>
+            <>
+                <div className="w-max rounded-lg border p-4">
+                    <div className="font-semibold">Action Needed</div>
+                    <div className="py-4">The "{targetAgent}" agent requires authentication.</div>
+                    <div className="flex flex-row flex-wrap justify-end gap-2">
+                        <Button variant="ghost" onClick={handleRejectClick} disabled={authenticationAttempted || rejected || !isResponding || isCancelling}>
+                            Reject
+                        </Button>
+                        <Button onClick={handleAuthClick} disabled={authenticationAttempted || rejected || !isResponding || isCancelling}>
+                            {message.authenticationLink.text}
+                        </Button>
+                    </div>
+                    <div className="text-muted-foreground text-center text-xs">{authenticationAttempted && <div className="mt-4">Authentication window has been opened. Complete the process in the new window.</div>}</div>
                 </div>
-                <div className="text-muted-foreground text-center text-xs">
-                    {rejected && <div className="mt-4">Authentication request rejected.</div>}
-                    {authenticationAttempted && <div className="mt-4">Authentication window has been opened. Complete the process in the new window.</div>}
-                </div>
-            </div>
+
+                {rejected && <MessageBanner message="Authentication request was rejected" />}
+            </>
         );
     }
 

@@ -53,7 +53,7 @@ def project_dir(tmp_path):
     
     # Create .env file
     env_file = project_path / ".env"
-    env_file.write_text("TEST_VAR=test_value\nLOGGING_CONFIG_PATH=configs/logging.ini")
+    env_file.write_text("TEST_VAR=test_value\nLOGGING_CONFIG_PATH=configs/logging.yaml")
     
     return project_path
 
@@ -390,7 +390,7 @@ class TestRunCommand:
             
             # Mock load_dotenv to set LOGGING_CONFIG_PATH
             def mock_load_env(*args, **kwargs):
-                os.environ["LOGGING_CONFIG_PATH"] = "configs/logging.ini"
+                os.environ["LOGGING_CONFIG_PATH"] = "configs/logging.yaml"
             
             mocker.patch("cli.commands.run_cmd.load_dotenv", side_effect=mock_load_env)
             mocker.patch("cli.commands.run_cmd.os.path.isabs", return_value=False)

@@ -289,14 +289,13 @@ def mock_oauth_server():
             # Explicitly pass through both agent card endpoint paths (old and new A2A spec)
             # This ensures the A2A SDK's fallback logic works correctly
             self.mock.route(path="/.well-known/agent-card.json").pass_through()
-            self.mock.route(path="/.well-known/agent.json").pass_through()
 
             print(f"\n[MockOAuthServer] Initializing respx mock")
             print(
                 f"[MockOAuthServer] Pass-through configured for: 127.0.0.1, localhost"
             )
             print(
-                f"[MockOAuthServer] Pass-through configured for agent card paths: /.well-known/agent-card.json, /.well-known/agent.json"
+                f"[MockOAuthServer] Pass-through configured for agent card path: /.well-known/agent-card.json"
             )
 
             self.mock.start()
@@ -604,7 +603,7 @@ def test_a2a_agent_server_harness(
 
     print(f"[TestA2AAgentServer] Server ready at {server.url}")
     print(
-        f"[TestA2AAgentServer] Agent card endpoint: {server.url}/.well-known/agent.json"
+        f"[TestA2AAgentServer] Agent card endpoint: {server.url}/.well-known/agent-card.json"
     )
     yield server
 
@@ -1675,7 +1674,7 @@ def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
     return AgentCard(
         name="test_agent",
         description="Test Agent Description",
-        url="http://test.com/test_path/agent.json",
+        url="http://test.com/test_path/agent-card.json",
         version="1.0.0",
         protocol_version="0.3.0",
         capabilities=AgentCapabilities(

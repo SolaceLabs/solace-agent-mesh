@@ -35,7 +35,7 @@ def eval_cmd(test_suite_config_path, verbose):
 
     # Set logging config path for evaluation
     project_root = Path.cwd()
-    logging_config_path = project_root / "configs" / "logging_config.ini"
+    logging_config_path = project_root / "configs" / "logging_config.yaml"
     if logging_config_path.exists():
         os.environ["LOGGING_CONFIG_PATH"] = str(logging_config_path.resolve())
 

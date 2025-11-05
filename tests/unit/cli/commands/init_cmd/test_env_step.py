@@ -88,7 +88,7 @@ class TestCreateEnvFile:
             "webui_ssl_certfile": "/path/to/cert",
             "webui_ssl_keyfile_password": "keypass",
             "webui_enable_embed_resolution": "true",
-            "logging_config_path": "configs/logging.ini",
+            "logging_config_path": "configs/logging.yaml",
             "s3_bucket_name": "my-bucket",
             "s3_endpoint_url": "https://s3.example.com",
             "s3_region": "us-west-2",
