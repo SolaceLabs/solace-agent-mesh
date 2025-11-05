@@ -155,12 +155,15 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
     agent_card_headers: Optional[List[HttpHeaderConfig]] = Field(
         default=None,
         description="Custom HTTP headers to include when fetching the agent card. "
-        "These headers override any authentication headers if both are present.",
+        "These headers are added alongside authentication headers.",
     )
     task_headers: Optional[List[HttpHeaderConfig]] = Field(
         default=None,
         description="Custom HTTP headers to include when invoking A2A tasks. "
-        "These headers override any authentication headers if both are present.",
+        "These headers are added alongside authentication headers. Note: The A2A SDK's "
+        "AuthInterceptor applies authentication headers after these are set, so custom "
+        "headers cannot override authentication. For custom auth, omit the 'authentication' "
+        "config and use task_headers to set auth headers directly.",
     )
 
 

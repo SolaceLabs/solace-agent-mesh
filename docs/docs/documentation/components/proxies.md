@@ -129,8 +129,8 @@ broker:
 - `proxied_agents`: A list of external agents to proxy. Each agent can have its own URL, authentication, and timeout settings (see Authentication Types below).
   - `use_auth_for_agent_card`: If true, applies the configured authentication when fetching agent cards. If false (default), agent card requests are made without authentication.
   - `use_agent_card_url`: If true (default), uses the URL from the agent card for task invocations. If false, uses the configured URL directly for all task invocations. Note: The configured URL is always used to fetch the agent card itself.
-  - `agent_card_headers`: Custom HTTP headers to include when fetching the agent card. These headers override any authentication headers if both are present.
-  - `task_headers`: Custom HTTP headers to include when invoking A2A tasks. These headers override any authentication headers if both are present.
+  - `agent_card_headers`: Custom HTTP headers to include when fetching the agent card. These headers are added alongside authentication headers.
+  - `task_headers`: Custom HTTP headers to include when invoking A2A tasks. These headers are added alongside authentication headers.
 - `artifact_service`: Configuration for storing artifacts. This is shared across all proxied agents. This is configured in the same manner as agents and gateways
 - `discovery_interval_seconds`: How often to refresh agent cards from all external agents (default: 60).
 - `default_request_timeout_seconds`: Default timeout for requests to external agents. Individual agents can override this (default: 300).
@@ -224,11 +224,11 @@ proxied_agents:
 
 When both authentication and custom headers are configured:
 
-1. **Authentication headers are applied first**: The proxy applies authentication headers (like `Authorization` or `X-API-Key`) based on the authentication type configured.
+1. **Authentication headers take precedence**: The proxy applies authentication headers (like `Authorization` or `X-API-Key`) based on the authentication type configured. These are applied by the A2A SDK's authentication layer after custom headers are set.
 
-2. **Custom headers override authentication headers**: If a custom header has the same name as an authentication header, the custom header value takes precedence.
+2. **Custom headers are for metadata, not authentication**: Custom headers should be used for non-authentication purposes such as API versioning, tenant identification, or request metadata. They cannot override authentication headers.
 
-This allows you to override authentication headers or provide alternative authentication mechanisms when needed.
+3. **For custom authentication**: If you need custom authentication logic, omit the `authentication` configuration block and use `task_headers` to set your custom authentication header directly.
 
 ### Use Cases
 
@@ -253,10 +253,14 @@ task_headers:
     value: "acme-corp"
 ```
 
-**Custom Authentication**: Override or supplement standard authentication:
+**Custom Authentication**: If you need custom authentication, omit the `authentication` block and use headers directly:
 
 ```yaml
-agent_card_headers:
+# Note: Do NOT configure the 'authentication' block if using custom auth headers
+task_headers:
+  - name: "Authorization"
+    value: "Bearer ${CUSTOM_AUTH_TOKEN}"
+  # Or use a custom auth scheme:
   - name: "X-Custom-Auth"
     value: "${CUSTOM_AUTH_TOKEN}"
 ```

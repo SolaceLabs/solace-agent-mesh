@@ -117,7 +117,9 @@ class A2AProxyComponent(BaseProxyComponent):
             use_auth: Whether to apply authentication headers.
 
         Returns:
-            Dictionary of HTTP headers with custom headers overriding auth headers.
+            Dictionary of HTTP headers. Custom headers are applied after auth headers.
+            Note: For task invocations, the A2A SDK's AuthInterceptor may further
+            modify authentication headers after these are set.
         """
         headers: Dict[str, str] = {}
 
