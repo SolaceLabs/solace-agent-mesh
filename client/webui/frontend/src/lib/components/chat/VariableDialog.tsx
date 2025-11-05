@@ -3,10 +3,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
 import type { PromptGroup } from '@/lib/types/prompts';
 import { detectVariables, replaceVariables } from '@/lib/utils/promptUtils';
 import { Button } from '@/lib/components/ui';
+import { MessageBanner } from '@/lib/components/common';
 
 interface VariableDialogProps {
     group: PromptGroup;
@@ -29,6 +29,7 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({
         });
         return initial;
     });
+    const [showError, setShowError] = useState(false);
 
     // Handle form submission
     const handleSubmit = (e: React.FormEvent) => {
@@ -37,6 +38,8 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({
         // Check if all variables have values
         const allFilled = variables.every(v => values[v]?.trim());
         if (!allFilled) {
+            setShowError(true);
+            setTimeout(() => setShowError(false), 3000);
             return;
         }
         
@@ -56,26 +59,25 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({
         return () => window.removeEventListener('keydown', handleEscape);
     }, [onClose]);
 
-    const allFilled = variables.every(v => values[v]?.trim());
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="w-full max-w-lg rounded-lg border border-[var(--border)] bg-[var(--background)] p-6 shadow-lg">
                 {/* Header */}
-                <div className="mb-4 flex items-start justify-between">
-                    <div>
-                        <h2 className="text-lg font-semibold">Fill in Variables</h2>
-                        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                            {group.name}
-                        </p>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="rounded-md p-1 hover:bg-[var(--accent)] transition-colors"
-                    >
-                        <X className="size-4" />
-                    </button>
+                <div className="mb-4">
+                    <h2 className="text-lg font-semibold">Fill in Variables</h2>
+                    <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                        {group.name}
+                    </p>
                 </div>
+
+                {/* Error Banner */}
+                {showError && (
+                    <MessageBanner
+                        variant="error"
+                        message="Please fill in all variables before inserting the prompt"
+                    />
+                )}
 
                 {/* Form */}
                 <form onSubmit={handleSubmit}>
@@ -114,7 +116,6 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({
                         </Button>
                         <Button
                             type="submit"
-                            disabled={!allFilled}
                         >
                             Insert Prompt
                         </Button>
