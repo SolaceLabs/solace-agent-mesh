@@ -13,13 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { SessionSearch } from "@/lib/components/chat/SessionSearch";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/lib/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/lib/components/ui/dropdown-menu";
 import type { Session } from "@/lib/types";
 import type { Project } from "@/lib/types/projects";
 
@@ -144,19 +138,10 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         if (editingSessionId) {
             const sessionIdToUpdate = editingSessionId;
             const newName = editingSessionName;
-            
-            // Update local state immediately for instant UI feedback
-            setSessions(prevSessions =>
-                prevSessions.map(s =>
-                    s.id === sessionIdToUpdate
-                        ? { ...s, name: newName }
-                        : s
-                )
-            );
-            
+
             // Clear editing state
             setEditingSessionId(null);
-            
+
             // Update backend (this will trigger new-chat-session event which refetches)
             await updateSessionName(sessionIdToUpdate, newName);
         }
@@ -185,20 +170,16 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         }
     };
 
-
     const handleMoveConfirm = async (targetProjectId: string | null) => {
         if (!sessionToMove) return;
 
         try {
-            const response = await authenticatedFetch(
-                `${configServerUrl}/api/v1/sessions/${sessionToMove.id}/project`,
-                {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ projectId: targetProjectId }),
-                    credentials: "include",
-                }
-            );
+            const response = await authenticatedFetch(`${configServerUrl}/api/v1/sessions/${sessionToMove.id}/project`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ projectId: targetProjectId }),
+                credentials: "include",
+            });
 
             if (!response.ok) {
                 throw new Error("Failed to move session");
@@ -211,9 +192,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                         ? {
                               ...s,
                               projectId: targetProjectId,
-                              projectName: targetProjectId
-                                  ? projects.find(p => p.id === targetProjectId)?.name || null
-                                  : null,
+                              projectName: targetProjectId ? projects.find(p => p.id === targetProjectId)?.name || null : null,
                           }
                         : s
                 )
@@ -264,7 +243,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const projectNames = useMemo(() => {
         const uniqueProjectNames = new Set<string>();
         let hasUnassignedChats = false;
-        
+
         sessions.forEach(session => {
             if (session.projectName) {
                 uniqueProjectNames.add(session.projectName);
@@ -272,13 +251,13 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 hasUnassignedChats = true;
             }
         });
-        
+
         const sortedNames = Array.from(uniqueProjectNames).sort((a, b) => a.localeCompare(b));
-        
+
         if (hasUnassignedChats) {
             sortedNames.unshift("(No Project)");
         }
-        
+
         return sortedNames;
     }, [sessions]);
 
@@ -305,15 +284,10 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             <div className="flex flex-col gap-3">
                 {/* Session Search */}
                 <div className="pr-4">
-                    <SessionSearch
-                        onSessionSelect={handleSwitchSession}
-                        projectId={selectedProjectId}
-                    />
+                    <SessionSearch onSessionSelect={handleSwitchSession} projectId={selectedProjectId} />
                 </div>
 
-                <div className="text-lg">
-                    Chat Session History
-                </div>
+                <div className="text-lg">Chat Session History</div>
 
                 {/* Project Filter - Only show when persistence is enabled */}
                 {persistenceEnabled && projectNames.length > 0 && (
@@ -335,7 +309,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     </div>
                 )}
             </div>
-            
+
             <div className="flex-1 overflow-y-auto">
                 {filteredSessions.length > 0 && (
                     <ul>
@@ -354,36 +328,29 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     handleRename();
                                                 }
                                             }}
-                                            className="flex-1 min-w-0 bg-transparent focus:outline-none"
+                                            className="min-w-0 flex-1 bg-transparent focus:outline-none"
                                         />
                                     ) : (
-                                        <button onClick={() => handleSessionClick(session.id)} className="flex-1 min-w-0 cursor-pointer text-left">
+                                        <button onClick={() => handleSessionClick(session.id)} className="min-w-0 flex-1 cursor-pointer text-left">
                                             <div className="flex items-center gap-2">
-                                                <div className="flex flex-col gap-1 min-w-0 flex-1">
-                                                    <span className="truncate font-semibold">
-                                                        {getSessionDisplayName(session)}
-                                                    </span>
-                                                    <span className="text-muted-foreground text-xs truncate">{formatSessionDate(session.updatedTime)}</span>
+                                                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                                    <span className="truncate font-semibold">{getSessionDisplayName(session)}</span>
+                                                    <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
                                                 {session.projectName && (
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Badge
-                                                                variant="outline"
-                                                                className="max-w-[120px] text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm justify-start flex-shrink-0"
-                                                            >
-                                                                <span className="truncate block">{session.projectName}</span>
+                                                            <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary max-w-[120px] flex-shrink-0 justify-start px-2 py-0.5 text-xs font-semibold shadow-sm">
+                                                                <span className="block truncate">{session.projectName}</span>
                                                             </Badge>
                                                         </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            {session.projectName}
-                                                        </TooltipContent>
+                                                        <TooltipContent>{session.projectName}</TooltipContent>
                                                     </Tooltip>
                                                 )}
                                             </div>
                                         </button>
                                     )}
-                                    <div className="flex items-center flex-shrink-0">
+                                    <div className="flex flex-shrink-0 items-center">
                                         {editingSessionId === session.id ? (
                                             <>
                                                 <Button variant="ghost" size="sm" onClick={handleRename} className="h-8 w-8 p-0">
@@ -396,30 +363,50 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         ) : (
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()}>
                                                         <MoreHorizontal size={16} />
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end" className="w-48">
                                                     {session.projectId && (
                                                         <>
-                                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleGoToProject(session); }}>
+                                                            <DropdownMenuItem
+                                                                onClick={e => {
+                                                                    e.stopPropagation();
+                                                                    handleGoToProject(session);
+                                                                }}
+                                                            >
                                                                 <PanelsTopLeft size={16} className="mr-2" />
                                                                 Go to Project
                                                             </DropdownMenuItem>
                                                             <DropdownMenuSeparator />
                                                         </>
                                                     )}
-                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditClick(session); }}>
+                                                    <DropdownMenuItem
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            handleEditClick(session);
+                                                        }}
+                                                    >
                                                         <Pencil size={16} className="mr-2" />
                                                         Rename
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveClick(session); }}>
+                                                    <DropdownMenuItem
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            handleMoveClick(session);
+                                                        }}
+                                                    >
                                                         <FolderInput size={16} className="mr-2" />
                                                         Move to Project
                                                     </DropdownMenuItem>
                                                     <DropdownMenuSeparator />
-                                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteClick(session); }}>
+                                                    <DropdownMenuItem
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            handleDeleteClick(session);
+                                                        }}
+                                                    >
                                                         <Trash2 size={16} className="mr-2" />
                                                         Delete
                                                     </DropdownMenuItem>
