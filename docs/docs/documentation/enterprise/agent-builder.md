@@ -61,9 +61,11 @@ For detailed information about creating and configuring connectors, see [Connect
 
 When you deploy an agent through Agent Builder, the deployment process involves several components working together to create running agent instances.
 
-The Gateway receives your deployment request and validates the agent configuration. It creates a deployment record in the database and publishes a deployment message to the Solace broker. The Deployer component (a separate service) receives this message and creates a running agent instance using the configuration you provided. The Deployer sends status updates back to the Gateway through heartbeat messages, and the Gateway updates the deployment status you see in the UI.
+The Gateway receives your deployment request and validates the agent configuration. It creates a deployment record in the database and publishes a deployment message to the Solace broker. The Deployer component (a separate containerized service) receives this message and creates a running agent instance using the configuration you provided. The Deployer sends status updates back to the Gateway through heartbeat messages, and the Gateway updates the deployment status you see in the UI.
 
-This architecture enables multiple Deployer instances to run for scalability and allows deployment operations to complete asynchronously without blocking the UI. You see status transitions (Deploying, Deployed, or Deployment Failed) as the Deployer works in the background.
+This architecture enables multiple Deployer instances to run independently for scalability and allows deployment operations to complete asynchronously without blocking the UI. You see status transitions (Deploying, Deployed, or Deployment Failed) as the Deployer works in the background.
+
+Agent deployments are currently only supported through Helm. The Deployer runs as a containerized service using the `sam-agent-deployer` image. For detailed deployment configuration and setup instructions, see the [Solace Agent Mesh Helm Quickstart](https://solaceproducts.github.io/solace-agent-mesh-helm-quickstart/docs-site/).
 
 ### Agent States
 
