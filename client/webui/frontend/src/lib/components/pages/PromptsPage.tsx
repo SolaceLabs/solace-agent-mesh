@@ -47,7 +47,6 @@ export const PromptsPage: React.FC = () => {
     useEffect(() => {
         fetchPromptGroups();
         
-        // Check if there's a pending template creation from session
         const pendingContext = sessionStorage.getItem('pending-template-context');
         if (pendingContext) {
             sessionStorage.removeItem('pending-template-context');
@@ -58,18 +57,16 @@ export const PromptsPage: React.FC = () => {
         }
     }, []);
 
-    // Listen for create-template-from-session event
     useEffect(() => {
         const handleCreateTemplateFromSession = (event: Event) => {
             const customEvent = event as CustomEvent;
             const { initialMessage: message } = customEvent.detail;
             
-            // If already on prompts page, open builder immediately
             setInitialMessage(message);
             setEditingGroup(null);
             setBuilderInitialMode('ai-assisted');
             setShowBuilder(true);
-            setVersionHistoryGroup(null); // Close version history if open
+            setVersionHistoryGroup(null); 
         };
 
         window.addEventListener('create-template-from-session', handleCreateTemplateFromSession);
@@ -78,7 +75,6 @@ export const PromptsPage: React.FC = () => {
         };
     }, []);
 
-    // Delete prompt group
     const handleDeleteClick = (id: string, name: string) => {
         setDeletingPrompt({ id, name });
     };
@@ -92,7 +88,6 @@ export const PromptsPage: React.FC = () => {
                 credentials: 'include',
             });
             if (response.ok) {
-                // Close version history if it was open for this prompt
                 if (versionHistoryGroup?.id === deletingPrompt.id) {
                     setVersionHistoryGroup(null);
                 }
@@ -110,15 +105,13 @@ export const PromptsPage: React.FC = () => {
         }
     };
 
-    // Handle edit - now uses builder
     const handleEdit = (group: PromptGroup) => {
-        setVersionHistoryGroup(null); // Close version history if open
+        setVersionHistoryGroup(null); 
         setEditingGroup(group);
         setBuilderInitialMode('manual');
         setShowBuilder(true);
     };
 
-    // Handle restore version
     const handleRestoreVersion = async (promptId: string) => {
         try {
             const response = await fetch(`/api/v1/prompts/${promptId}/make-production`, {
@@ -149,8 +142,24 @@ export const PromptsPage: React.FC = () => {
         setShowBuilder(true);
     };
 
-    // Show Builder as full page view (for both create and edit)
-    // Check this BEFORE version history so edit can override
+    // Handle use in chat
+    const handleUseInChat = (prompt: PromptGroup) => {
+        const promptText = prompt.production_prompt?.prompt_text || '';
+        
+        // Store prompt data in sessionStorage (including group for variable handling)
+        const promptData = JSON.stringify({
+            promptText,
+            groupId: prompt.id,
+            groupName: prompt.name
+        });
+        sessionStorage.setItem('pending-prompt-use', promptData);
+        
+        // Dispatch event to navigate to chat and use prompt
+        window.dispatchEvent(new CustomEvent('use-prompt-in-chat', {
+            detail: { promptText, groupId: prompt.id }
+        }));
+    };
+
     if (showBuilder) {
         return (
             <>
@@ -200,7 +209,6 @@ export const PromptsPage: React.FC = () => {
                     group={versionHistoryGroup}
                     onBack={() => setVersionHistoryGroup(null)}
                     onBackToPromptDetail={() => {
-                        // Close version history and the prompt will remain selected in the side panel
                         setVersionHistoryGroup(null);
                     }}
                     onEdit={handleEdit}
@@ -256,6 +264,7 @@ export const PromptsPage: React.FC = () => {
                         onEdit={handleEdit}
                         onDelete={handleDeleteClick}
                         onViewVersions={setVersionHistoryGroup}
+                        onUseInChat={handleUseInChat}
                     />
                 </div>
             )}

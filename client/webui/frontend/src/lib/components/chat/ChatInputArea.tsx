@@ -6,9 +6,12 @@ import { Ban, Paperclip, Send } from "lucide-react";
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { useChatContext, useDragAndDrop, useAgentSelection } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
+import type { PromptGroup } from "@/lib/types/prompts";
+import { detectVariables } from "@/lib/utils/promptUtils";
 
 import { FileBadge } from "./file/FileBadge";
 import { PromptsCommand } from "./PromptsCommand";
+import { VariableDialog } from "./VariableDialog";
 import {
     PastedTextBadge,
     PasteActionDialog,
@@ -29,23 +32,51 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [pendingPasteContent, setPendingPasteContent] = useState<string | null>(null);
     const [showArtifactForm, setShowArtifactForm] = useState(false);
 
-    // Context text from selection
     const [contextText, setContextText] = useState<string | null>(null);
 
-    // Chat input ref for focus management
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
     const prevIsRespondingRef = useRef<boolean>(isResponding);
 
-    // Local state for input value (no debouncing needed!)
     const [inputValue, setInputValue] = useState<string>("");
     
-    // Prompts command state
     const [showPromptsCommand, setShowPromptsCommand] = useState(false);
+    
+    const [showVariableDialog, setShowVariableDialog] = useState(false);
+    const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
 
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
     
     useEffect(() => {
+        // Check for pending prompt use on mount or session change
+        const promptData = sessionStorage.getItem('pending-prompt-use');
+        if (promptData) {
+            sessionStorage.removeItem('pending-prompt-use');
+            try {
+                const { promptText, groupId, groupName } = JSON.parse(promptData);
+                
+                // Check if prompt has variables
+                const variables = detectVariables(promptText);
+                if (variables.length > 0) {
+                    // Show variable dialog
+                    setPendingPromptGroup({
+                        id: groupId,
+                        name: groupName,
+                        production_prompt: { prompt_text: promptText }
+                    } as PromptGroup);
+                    setShowVariableDialog(true);
+                } else {
+                    setInputValue(promptText);
+                    setTimeout(() => {
+                        chatInputRef.current?.focus();
+                    }, 100);
+                }
+            } catch (error) {
+                console.error('Error parsing prompt data:', error);
+            }
+            return; // Don't clear input if we just set it
+        }
+        
         // Only clear if session actually changed (not just initialized)
         if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId) {
             setInputValue("");
@@ -56,7 +87,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setContextText(null);
     }, [sessionId]);
 
-    // Focus the chat input when isResponding becomes false
     useEffect(() => {
         if (prevIsRespondingRef.current && !isResponding) {
             // Small delay to ensure the input is fully enabled
@@ -80,6 +110,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             window.removeEventListener("focus-chat-input", handleFocusChatInput);
         };
     }, []);
+
 
     // Handle follow-up question from text selection
     useEffect(() => {
@@ -362,6 +393,16 @@ Focus on capturing what made this conversation successful so it can be reused wi
         }
     };
 
+    // Handle variable dialog submission from "Use in Chat"
+    const handleVariableSubmit = (processedPrompt: string) => {
+        setInputValue(processedPrompt);
+        setShowVariableDialog(false);
+        setPendingPromptGroup(null);
+        setTimeout(() => {
+            chatInputRef.current?.focus();
+        }, 100);
+    };
+
     return (
         <div
             className={`rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
@@ -418,6 +459,18 @@ Focus on capturing what made this conversation successful so it can be reused wi
                 messages={messages}
                 onReservedCommand={handleReservedCommand}
             />
+
+            {/* Variable Dialog for "Use in Chat" */}
+            {showVariableDialog && pendingPromptGroup && (
+                <VariableDialog
+                    group={pendingPromptGroup}
+                    onSubmit={handleVariableSubmit}
+                    onClose={() => {
+                        setShowVariableDialog(false);
+                        setPendingPromptGroup(null);
+                    }}
+                />
+            )}
 
             {/* Chat Input */}
             <ChatInput

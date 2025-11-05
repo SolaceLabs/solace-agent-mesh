@@ -55,6 +55,18 @@ function AppContentInner() {
         };
     }, []);
 
+    // Listen for use-prompt-in-chat events
+    useEffect(() => {
+        const handleUsePromptInChat = () => {
+            setActiveNavItem("chat");
+        };
+
+        window.addEventListener("use-prompt-in-chat", handleUsePromptInChat);
+        return () => {
+            window.removeEventListener("use-prompt-in-chat", handleUsePromptInChat as EventListener);
+        };
+    }, []);
+
     if (useAuthorization && !isAuthenticated) {
         return (
             <div className="bg-background flex h-screen items-center justify-center">

@@ -15,6 +15,7 @@ interface PromptMeshCardsProps {
     onEdit: (prompt: PromptGroup) => void;
     onDelete: (id: string, name: string) => void;
     onViewVersions?: (prompt: PromptGroup) => void;
+    onUseInChat?: (prompt: PromptGroup) => void;
 }
 
 export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
@@ -23,7 +24,8 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
     onAIAssisted,
     onEdit,
     onDelete,
-    onViewVersions
+    onViewVersions,
+    onUseInChat
 }) => {
     const [selectedPrompt, setSelectedPrompt] = useState<PromptGroup | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
@@ -190,6 +192,7 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                                     onEdit={onEdit}
                                     onDelete={onDelete}
                                     onViewVersions={onViewVersions}
+                                    onUseInChat={onUseInChat}
                                 />
                             ))}
                         </div>
@@ -206,6 +209,7 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                         onEdit={onEdit}
                         onDelete={onDelete}
                         onViewVersions={onViewVersions}
+                        onUseInChat={onUseInChat}
                     />
                 </div>
             )}

@@ -1,5 +1,5 @@
 import React from "react";
-import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User } from "lucide-react";
+import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MessageSquare } from "lucide-react";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { Button } from "@/lib/components/ui";
@@ -11,6 +11,7 @@ interface PromptDetailSidePanelProps {
     onEdit: (prompt: PromptGroup) => void;
     onDelete: (id: string, name: string) => void;
     onViewVersions?: (prompt: PromptGroup) => void;
+    onUseInChat?: (prompt: PromptGroup) => void;
 }
 
 export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
@@ -18,7 +19,8 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
     onClose,
     onEdit,
     onDelete,
-    onViewVersions
+    onViewVersions,
+    onUseInChat
 }) => {
     const { configFeatureEnablement } = useConfigContext();
     const versionHistoryEnabled = configFeatureEnablement?.promptVersionHistory ?? true;
@@ -37,6 +39,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
     const handleViewVersions = () => {
         if (onViewVersions) {
             onViewVersions(prompt);
+        }
+    };
+
+    const handleUseInChat = () => {
+        if (onUseInChat) {
+            onUseInChat(prompt);
         }
     };
 
@@ -125,6 +133,16 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
 
             {/* Footer Actions */}
             <div className="p-4 border-t space-y-2">
+                {onUseInChat && (
+                    <Button
+                        onClick={handleUseInChat}
+                        variant="default"
+                        className="w-full justify-start"
+                    >
+                        <MessageSquare size={14} className="mr-2" />
+                        Use in Chat
+                    </Button>
+                )}
                 <Button
                     onClick={handleEdit}
                     variant="outline"

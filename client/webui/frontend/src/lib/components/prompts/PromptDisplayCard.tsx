@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal } from "lucide-react";
+import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal, MessageSquare } from "lucide-react";
 
 import type { PromptGroup } from "@/lib/types/prompts";
 import { useConfigContext } from "@/lib/hooks";
@@ -18,9 +18,10 @@ interface PromptDisplayCardProps {
     onEdit: (prompt: PromptGroup) => void;
     onDelete: (id: string, name: string) => void;
     onViewVersions?: (prompt: PromptGroup) => void;
+    onUseInChat?: (prompt: PromptGroup) => void;
 }
 
-export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelected, onPromptClick, onEdit, onDelete, onViewVersions }) => {
+export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelected, onPromptClick, onEdit, onDelete, onViewVersions, onUseInChat }) => {
     const { configFeatureEnablement } = useConfigContext();
     const versionHistoryEnabled = configFeatureEnablement?.promptVersionHistory ?? true;
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -44,6 +45,14 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
         setDropdownOpen(false);
         if (onViewVersions) {
             onViewVersions(prompt);
+        }
+    };
+
+    const handleUseInChat = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setDropdownOpen(false);
+        if (onUseInChat) {
+            onUseInChat(prompt);
         }
     };
 
@@ -80,6 +89,12 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
                                 </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                {onUseInChat && (
+                                    <DropdownMenuItem onClick={handleUseInChat}>
+                                        <MessageSquare size={14} className="mr-2" />
+                                        Use in Chat
+                                    </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem onClick={handleEdit}>
                                     <Pencil size={14} className="mr-2" />
                                     Edit Prompt
