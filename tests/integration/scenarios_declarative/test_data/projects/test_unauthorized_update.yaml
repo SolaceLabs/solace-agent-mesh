@@ -22,4 +22,4 @@ expected_http_responses:
         description: "Hacked Description"
     expected_status_code: 404
     text_contains:
-      - "Resource not found"
+      - "Project not found"

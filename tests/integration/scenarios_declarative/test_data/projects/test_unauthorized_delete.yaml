@@ -19,4 +19,4 @@ expected_http_responses:
         user_id: "user2"
     expected_status_code: 404
     text_contains:
-      - "Resource not found"
+      - "Project not found"
