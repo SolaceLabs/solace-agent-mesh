@@ -75,8 +75,9 @@ llm_interactions:
             content: "I have received the artifacts from the proxied agent."
 
 expected_gateway_output:
+  - type: "status_update"
+    parts:
+      - type: "text"
+        text_contains: "I have received the artifacts from the proxied agent."
   - type: "final_response"
     task_state: "completed"
-    content_parts:
-      - type: "text"
-        text_exact: "I have received the artifacts from the proxied agent."

@@ -520,14 +520,34 @@ async def _assert_cancellation_sent(
                 f"without test_a2a_agent_server_harness."
             )
 
-        assert test_a2a_agent_server_harness.was_cancel_requested_for_task(task_id), (
-            f"Scenario {scenario_id}: Expected downstream agent to receive cancellation "
-            f"for task {task_id}, but it was not received."
-        )
-        print(
-            f"Scenario {scenario_id}: Verified downstream agent received cancellation "
-            f"for task {task_id}"
-        )
+        # The downstream agent receives the downstream task ID, not SAM's task ID
+        # If the spec provides a specific downstream_task_id to check, use that
+        # Otherwise, check if ANY cancel request was received (we may not know the downstream ID)
+        downstream_task_id = cancellation_spec.get("downstream_task_id")
+
+        if downstream_task_id:
+            # Check for specific downstream task ID
+            assert test_a2a_agent_server_harness.was_cancel_requested_for_task(
+                downstream_task_id
+            ), (
+                f"Scenario {scenario_id}: Expected downstream agent to receive cancellation "
+                f"for downstream task {downstream_task_id}, but it was not received."
+            )
+            print(
+                f"Scenario {scenario_id}: Verified downstream agent received cancellation "
+                f"for downstream task {downstream_task_id}"
+            )
+        else:
+            # Just verify that at least one cancel request was received
+            cancel_requests = test_a2a_agent_server_harness.get_cancel_requests()
+            assert len(cancel_requests) > 0, (
+                f"Scenario {scenario_id}: Expected downstream agent to receive at least one "
+                f"cancellation request, but none were received."
+            )
+            print(
+                f"Scenario {scenario_id}: Verified downstream agent received {len(cancel_requests)} "
+                f"cancellation request(s)"
+            )
 
 
 async def _assert_http_responses(
@@ -1786,10 +1806,9 @@ async def test_declarative_scenario(
         substitute_placeholders,
         create_test_context,
     )
-    
+
     test_context = create_test_context(
-        test_static_file_server=test_static_file_server,
-        test_llm_server=test_llm_server
+        test_static_file_server=test_static_file_server, test_llm_server=test_llm_server
     )
     declarative_scenario = substitute_placeholders(declarative_scenario, test_context)
 
@@ -2071,20 +2090,27 @@ async def test_declarative_scenario(
         )
     elif gateway_input_data:
         assertion_context_data = gateway_input_data
-        (
-            task_id,
-            all_captured_events,
-            aggregated_stream_text_for_final_assert,
-            text_from_terminal_event_for_final_assert,
-        ) = await _execute_gateway_and_collect_events(
-            test_gateway_app_instance, gateway_input_data, overall_timeout, scenario_id
-        )
 
-        # Execute post-input actions if specified
+        # Check if we have post-input actions (like cancel_task)
         gateway_actions_after_input = declarative_scenario.get(
             "gateway_actions_after_input", []
         )
+
         if gateway_actions_after_input:
+            # When we have actions to execute mid-flight, we need to:
+            # 1. Send the task immediately
+            # 2. Execute the actions (e.g., cancel) while task is in-flight
+            # 3. Then collect all events
+
+            task_id = await test_gateway_app_instance.send_test_input(
+                gateway_input_data
+            )
+            assert (
+                task_id
+            ), f"Scenario {scenario_id}: Failed to submit task via TestGatewayComponent."
+            print(f"Scenario {scenario_id}: Task {task_id} submitted.")
+
+            # Execute post-input actions (e.g., cancel) while task is running
             await _execute_gateway_actions(
                 gateway_actions_after_input,
                 test_gateway_app_instance,
@@ -2093,20 +2119,35 @@ async def test_declarative_scenario(
                 scenario_id,
             )
 
-            # Continue collecting events after actions
-            additional_events = (
-                await test_gateway_app_instance.get_all_captured_outputs(
-                    task_id, drain_timeout=overall_timeout
-                )
+            # Now collect all events (including responses to actions like cancellation)
+            all_captured_events = await get_all_task_events(
+                gateway_component=test_gateway_app_instance,
+                task_id=task_id,
+                overall_timeout=overall_timeout,
             )
-            all_captured_events.extend(additional_events)
+            assert (
+                all_captured_events
+            ), f"Scenario {scenario_id}: No events captured from gateway for task {task_id}."
 
-            # Re-extract outputs to include new events
+            # Extract outputs from all collected events
             (
                 _terminal_event_obj_for_text,
                 aggregated_stream_text_for_final_assert,
                 text_from_terminal_event_for_final_assert,
             ) = extract_outputs_from_event_list(all_captured_events, scenario_id)
+        else:
+            # No mid-flight actions, use the original flow
+            (
+                task_id,
+                all_captured_events,
+                aggregated_stream_text_for_final_assert,
+                text_from_terminal_event_for_final_assert,
+            ) = await _execute_gateway_and_collect_events(
+                test_gateway_app_instance,
+                gateway_input_data,
+                overall_timeout,
+                scenario_id,
+            )
     elif http_request_input:
         (
             task_id,
@@ -2567,6 +2608,9 @@ async def _assert_event_details(
                         or data.get("type") == "agent_status"
                     ):
                         text_to_assert_against = data.get("text", "")
+                        break
+                    elif data.get("type") == "agent_progress_update":
+                        text_to_assert_against = data.get("status_text", "")
                         break
 
         if "content_parts" in expected_spec and (

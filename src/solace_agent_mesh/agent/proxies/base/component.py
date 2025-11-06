@@ -7,8 +7,9 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import threading
+import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
 
 import httpx
 
@@ -77,16 +78,22 @@ class BaseProxyComponent(ComponentBase, ABC):
             "artifact_service", {"type": "memory"}
         )
         self.discovery_interval_sec = self.get_config("discovery_interval_seconds", 60)
+        self.task_state_ttl_minutes = self.get_config("task_state_ttl_minutes", 60)
+        self.task_cleanup_interval_minutes = self.get_config(
+            "task_cleanup_interval_minutes", 10
+        )
 
         self.agent_registry = AgentRegistry()
         self.artifact_service: Optional[BaseArtifactService] = None
-        self.active_tasks: Dict[str, ProxyTaskContext] = {}
+        # Store (timestamp, ProxyTaskContext) tuples for TTL-based cleanup
+        self.active_tasks: Dict[str, Tuple[float, ProxyTaskContext]] = {}
         self.active_tasks_lock = threading.Lock()
 
         self._async_loop: Optional[asyncio.AbstractEventLoop] = None
         self._async_thread: Optional[threading.Thread] = None
         self._async_init_future: Optional[concurrent.futures.Future] = None
         self._discovery_timer_id = f"proxy_discovery_{self.name}"
+        self._task_cleanup_timer_id = f"proxy_task_cleanup_{self.name}"
 
         try:
             # Initialize synchronous services first
@@ -158,8 +165,11 @@ class BaseProxyComponent(ComponentBase, ABC):
                 if not hasattr(event, "_proxy_message_handled"):
                     event._proxy_message_handled = message_handled
         elif event.event_type == EventType.TIMER:
-            if event.data.get("timer_id") == self._discovery_timer_id:
+            timer_id = event.data.get("timer_id")
+            if timer_id == self._discovery_timer_id:
                 await self._discover_and_publish_agents()
+            elif timer_id == self._task_cleanup_timer_id:
+                await self._cleanup_stale_tasks()
         else:
             log.debug(
                 "%s Ignoring unhandled event type: %s",
@@ -214,7 +224,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                     task_id=logical_task_id, a2a_context=a2a_context
                 )
                 with self.active_tasks_lock:
-                    self.active_tasks[logical_task_id] = task_context
+                    self.active_tasks[logical_task_id] = (time.time(), task_context)
 
                 log.info(
                     "%s Forwarding request for task %s to agent %s.",
@@ -228,12 +238,13 @@ class BaseProxyComponent(ComponentBase, ABC):
 
             elif isinstance(a2a_request.root, CancelTaskRequest):
                 logical_task_id = get_task_id_from_cancel_request(a2a_request)
-                
+
                 # Get the agent name from the topic (same as for send_message)
                 target_agent_name = topic.split("/")[-1]
-                
+
                 with self.active_tasks_lock:
-                    task_context = self.active_tasks.get(logical_task_id)
+                    task_entry = self.active_tasks.get(logical_task_id)
+                    task_context = task_entry[1] if task_entry else None
                 
                 if task_context:
                     log.info(
@@ -421,8 +432,8 @@ class BaseProxyComponent(ComponentBase, ABC):
         )
         self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
 
-    async def _publish_final_response(self, task: Task, a2a_context: Dict):
-        """Publishes the final Task object to the appropriate Solace topic."""
+    async def _publish_task_response(self, task: Task, a2a_context: Dict):
+        """Publishes a Task object to the reply topic."""
         target_topic = a2a_context.get("reply_to_topic")
         if not target_topic:
             log.warning(
@@ -552,6 +563,61 @@ class BaseProxyComponent(ComponentBase, ABC):
                             nack_e,
                         )
 
+    async def _cleanup_stale_tasks(self):
+        """
+        Removes task state older than configured TTL.
+        This prevents memory leaks from tasks that complete without sending terminal events
+        (e.g., due to agent crashes or network failures).
+        """
+        ttl_seconds = self.task_state_ttl_minutes * 60
+        cutoff_time = time.time() - ttl_seconds
+
+        with self.active_tasks_lock:
+            stale_task_ids = [
+                task_id
+                for task_id, (timestamp, _) in self.active_tasks.items()
+                if timestamp < cutoff_time
+            ]
+            for task_id in stale_task_ids:
+                del self.active_tasks[task_id]
+                log.warning(
+                    "%s Cleaned up stale task %s (exceeded TTL of %d minutes)",
+                    self.log_identifier,
+                    task_id,
+                    self.task_state_ttl_minutes,
+                )
+
+        if stale_task_ids:
+            log.info(
+                "%s Stale task cleanup removed %d tasks",
+                self.log_identifier,
+                len(stale_task_ids),
+            )
+
+    def _cleanup_task_state(self, task_id: str) -> None:
+        """
+        Cleans up state for a completed task.
+        Called when a terminal event is detected (Task with terminal state,
+        or TaskStatusUpdateEvent with final=true).
+
+        Args:
+            task_id: The ID of the task to clean up
+        """
+        with self.active_tasks_lock:
+            entry = self.active_tasks.pop(task_id, None)
+            if entry:
+                log.info(
+                    "%s Removed task %s from active_tasks (terminal event detected)",
+                    self.log_identifier,
+                    task_id,
+                )
+            else:
+                log.debug(
+                    "%s Task %s not found in active_tasks during cleanup (already removed)",
+                    self.log_identifier,
+                    task_id,
+                )
+
     def _publish_discovered_cards(self):
         """Publishes all agent cards currently in the registry."""
         log.info(
@@ -602,6 +668,21 @@ class BaseProxyComponent(ComponentBase, ABC):
                 self.discovery_interval_sec,
             )
 
+        # Schedule the recurring task cleanup timer
+        if self.task_cleanup_interval_minutes > 0:
+            cleanup_interval_ms = self.task_cleanup_interval_minutes * 60 * 1000
+            self.add_timer(
+                delay_ms=cleanup_interval_ms,
+                timer_id=self._task_cleanup_timer_id,
+                interval_ms=cleanup_interval_ms,
+            )
+            log.info(
+                "%s Scheduled recurring stale task cleanup every %d minutes (TTL: %d minutes).",
+                self.log_identifier,
+                self.task_cleanup_interval_minutes,
+                self.task_state_ttl_minutes,
+            )
+
         super().run()
 
     def clear_client_cache(self):
@@ -617,6 +698,7 @@ class BaseProxyComponent(ComponentBase, ABC):
         """Cleans up resources on component shutdown."""
         log.info("%s Cleaning up proxy component.", self.log_identifier)
         self.cancel_timer(self._discovery_timer_id)
+        self.cancel_timer(self._task_cleanup_timer_id)
 
         # Clear active tasks (no need to signal cancellation - downstream agents own their tasks)
         with self.active_tasks_lock:

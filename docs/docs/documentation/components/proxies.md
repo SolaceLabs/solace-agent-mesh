@@ -131,6 +131,7 @@ broker:
   - `use_agent_card_url`: If true (default), uses the URL from the agent card for task invocations. If false, uses the configured URL directly for all task invocations. Note: The configured URL is always used to fetch the agent card itself.
   - `agent_card_headers`: Custom HTTP headers to include when fetching the agent card. These headers are added alongside authentication headers.
   - `task_headers`: Custom HTTP headers to include when invoking A2A tasks. These headers are added alongside authentication headers.
+  - `convert_progress_updates`: If true (default), converts TextParts in status updates to AgentProgressUpdateData DataParts for consistent UI behavior. If false, preserves original text parts.
 - `artifact_service`: Configuration for storing artifacts. This is shared across all proxied agents. This is configured in the same manner as agents and gateways
 - `discovery_interval_seconds`: How often to refresh agent cards from all external agents (default: 60).
 - `default_request_timeout_seconds`: Default timeout for requests to external agents. Individual agents can override this (default: 300).
@@ -308,6 +309,39 @@ The proxy automatically generates metadata for saved artifacts, including:
 - `proxied_from_artifact_id`: The original artifact ID from the external agent
 - `description`: Extracted from the artifact or generated from context
 - `produced_artifacts`: A manifest of all artifacts created during task execution
+
+## Status Update Conversion
+
+The proxy can automatically convert text-based status updates from external A2A agents to match the native SAM agent format, ensuring consistent UI behavior across all agents in your mesh.
+
+### Conversion Scope
+
+The `convert_progress_updates` setting only affects intermediate status updates:
+
+- **Applies to**: `TaskStatusUpdateEvent` messages (streaming progress updates)
+- **Does not apply to**: Final `Task` responses, artifact content, or other message types
+
+This means that final responses from external agents remain as text parts, preserving the agent's intended final output format.
+
+### When to Disable
+
+Set `convert_progress_updates: false` if:
+
+- The external agent sends structured status updates that should be preserved exactly as-is
+- You have custom UI handling for text-based status updates
+- You need to preserve original TextParts for debugging or custom processing
+- The external agent already sends progress updates as DataParts
+
+Example configuration with conversion disabled:
+
+```yaml
+proxied_agents:
+  - name: "legacy-agent"
+    url: "https://legacy.example.com/agent"
+    convert_progress_updates: false  # Preserve original text parts
+```
+
+When disabled, all status update content passes through unchanged, allowing you to implement custom handling in your gateway or UI layer.
 
 ## Discovery and Health
 

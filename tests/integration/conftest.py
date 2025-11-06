@@ -823,7 +823,7 @@ def shared_solace_connector(
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",
         description="The main test agent (orchestrator)",
-        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied"],
+        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied", "TestAgent_Proxied_NoConvert"],
         tools=test_agent_tools,
         model_suffix="sam",
         inject_system_purpose=True,
@@ -1125,6 +1125,13 @@ def shared_solace_connector(
                         "name": "TestAgent_Proxied",
                         "url": test_a2a_agent_server_harness.url,
                         "request_timeout_seconds": 3,
+                        # convert_progress_updates defaults to true
+                    },
+                    {
+                        "name": "TestAgent_Proxied_NoConvert",
+                        "url": test_a2a_agent_server_harness.url,
+                        "request_timeout_seconds": 3,
+                        "convert_progress_updates": False,  # Disable text-to-data conversion
                     }
                 ],
                 "artifact_service": {"type": "test_in_memory"},
