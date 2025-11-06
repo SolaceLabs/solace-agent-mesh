@@ -1739,13 +1739,14 @@ class SamAgentComponent(SamComponentBase):
 
         try:
             from solace_agent_mesh_enterprise.auth.tool_auth import handle_tool_auth_event
-            auth_status_update = await handle_tool_auth_event(adk_event, self, a2a_context)
-            if auth_status_update:
-                await self._publish_status_update_with_buffer_flush(
-                    auth_status_update,
-                    a2a_context,
-                    skip_buffer_flush=False,
-                )
+            auth_status_updates = await handle_tool_auth_event(adk_event, self, a2a_context)
+            if auth_status_updates:
+                for auth_status_update in auth_status_updates:
+                    await self._publish_status_update_with_buffer_flush(
+                        auth_status_update,
+                        a2a_context,
+                        skip_buffer_flush=False,
+                    )
                 return
         except ImportError:
             pass
