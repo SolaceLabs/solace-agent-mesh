@@ -332,6 +332,24 @@ def database_inspector(database_manager):
     return DatabaseInspector(database_manager)
 
 
+@pytest.fixture
+def db_session_factory(api_client_factory):
+    """
+    Provides the SQLAlchemy session factory that matches the current database provider.
+    This ensures tests use the same database as the api_client (SQLite or PostgreSQL).
+    """
+    return api_client_factory.Session
+
+
+@pytest.fixture
+def db_engine(api_client_factory):
+    """
+    Provides the SQLAlchemy engine that matches the current database provider.
+    This ensures tests query the same database as the api_client.
+    """
+    return api_client_factory.engine
+
+
 # Export FastAPI testing fixtures
 __all__ = [
     "api_client",
