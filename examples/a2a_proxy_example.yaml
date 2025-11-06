@@ -58,3 +58,5 @@ apps:
         #     type: "static_bearer"
         #     token: "${SECURE_AGENT_TOKEN}"
         #   request_timeout_seconds: 180
+        #   # use_agent_card_url: false  # If true (default), uses URL from agent card for tasks.
+        #                                # If false, uses configured URL directly for all calls.

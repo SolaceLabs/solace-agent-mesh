@@ -96,6 +96,18 @@ app:
       - name: "external-data-agent"
         url: "https://api.example.com/agent"
         request_timeout_seconds: 120
+        # Optional: Apply auth to agent card fetching
+        # use_auth_for_agent_card: true
+        # Optional: Use configured URL instead of agent card URL for tasks
+        # use_agent_card_url: false
+        # Optional: Custom headers for agent card fetching
+        # agent_card_headers:
+        #   - name: "X-API-Version"
+        #     value: "v2"
+        # Optional: Custom headers for task invocations
+        # task_headers:
+        #   - name: "X-Tenant-ID"
+        #     value: "${TENANT_ID}"
       - name: "external-analytics-agent"
         url: "https://analytics.example.com/agent"
         request_timeout_seconds: 180
@@ -115,6 +127,10 @@ broker:
 
 - `namespace`: The topic prefix for A2A communication (for example, "myorg/production").
 - `proxied_agents`: A list of external agents to proxy. Each agent can have its own URL, authentication, and timeout settings (see Authentication Types below).
+  - `use_auth_for_agent_card`: If true, applies the configured authentication when fetching agent cards. If false (default), agent card requests are made without authentication.
+  - `use_agent_card_url`: If true (default), uses the URL from the agent card for task invocations. If false, uses the configured URL directly for all task invocations. Note: The configured URL is always used to fetch the agent card itself.
+  - `agent_card_headers`: Custom HTTP headers to include when fetching the agent card. These headers are added alongside authentication headers.
+  - `task_headers`: Custom HTTP headers to include when invoking A2A tasks. These headers are added alongside authentication headers.
 - `artifact_service`: Configuration for storing artifacts. This is shared across all proxied agents. This is configured in the same manner as agents and gateways
 - `discovery_interval_seconds`: How often to refresh agent cards from all external agents (default: 60).
 - `default_request_timeout_seconds`: Default timeout for requests to external agents. Individual agents can override this (default: 300).
@@ -122,6 +138,8 @@ broker:
 ## Authentication Types
 
 The proxy supports three authentication schemes for connecting to downstream agents. Each agent in the `proxied_agents` list can use a different authentication type, allowing you to integrate agents with varying security requirements in a single proxy instance.
+
+By default, authentication is only applied to A2A task invocations, not to agent card fetching. You can enable authentication for agent card fetching by setting `use_auth_for_agent_card: true` in the agent configuration.
 
 ### Static Bearer Token
 
@@ -134,6 +152,7 @@ proxied_agents:
     authentication:
       type: "static_bearer"
       token: "${AGENT_BEARER_TOKEN}"  # Use environment variable
+    # use_auth_for_agent_card: true  # Optional: Apply auth to agent card fetching
 ```
 
 ### Static API Key
@@ -147,6 +166,7 @@ proxied_agents:
     authentication:
       type: "static_apikey"
       token: "${AGENT_API_KEY}"
+    # use_auth_for_agent_card: true  # Optional: Apply auth to agent card fetching
 ```
 
 ### OAuth 2.0 Client Credentials
@@ -164,6 +184,7 @@ proxied_agents:
       client_secret: "${OAUTH_CLIENT_SECRET}"
       scope: "agent.read agent.write"  # Optional
       token_cache_duration_seconds: 3300  # Optional, default: 3300 (55 minutes)
+    # use_auth_for_agent_card: true  # Optional: Apply auth to agent card fetching
 ```
 
 The proxy caches OAuth tokens and automatically refreshes them when they expire. If a request receives a 401 Unauthorized response, the proxy invalidates the cached token and retries the request once with a fresh token.
@@ -171,6 +192,88 @@ The proxy caches OAuth tokens and automatically refreshes them when they expire.
 :::note[Security Best Practice]
 Always use environment variables for sensitive credentials. Never commit tokens or secrets directly in configuration files.
 :::
+
+## Custom HTTP Headers
+
+The proxy supports custom HTTP headers for both agent card fetching and A2A task invocations. This is useful for scenarios like API versioning, tenant identification, custom authentication schemes, or any other header-based requirements.
+
+### Header Configuration
+
+Custom headers are defined as name-value pairs and can be configured separately for agent card fetching (`agent_card_headers`) and task invocations (`task_headers`):
+
+```yaml
+proxied_agents:
+  - name: "custom-header-agent"
+    url: "https://api.example.com/agent"
+    authentication:
+      type: "static_bearer"
+      token: "${AGENT_TOKEN}"
+    agent_card_headers:
+      - name: "X-API-Version"
+        value: "v2"
+      - name: "X-Tenant-ID"
+        value: "${TENANT_ID}"
+    task_headers:
+      - name: "X-API-Version"
+        value: "v2"
+      - name: "X-Request-Priority"
+        value: "high"
+```
+
+### Header Precedence Rules
+
+When both authentication and custom headers are configured:
+
+1. **Authentication headers take precedence**: The proxy applies authentication headers (like `Authorization` or `X-API-Key`) based on the authentication type configured. These are applied by the A2A SDK's authentication layer after custom headers are set.
+
+2. **Custom headers are for metadata, not authentication**: Custom headers should be used for non-authentication purposes such as API versioning, tenant identification, or request metadata. They cannot override authentication headers.
+
+3. **For custom authentication**: If you need custom authentication logic, omit the `authentication` configuration block and use `task_headers` to set your custom authentication header directly.
+
+### Use Cases
+
+**API Versioning**: Specify the API version your integration requires:
+
+```yaml
+agent_card_headers:
+  - name: "X-API-Version"
+    value: "v2"
+task_headers:
+  - name: "X-API-Version"
+    value: "v2"
+```
+
+**Tenant Identification**: Pass tenant or organization identifiers:
+
+```yaml
+task_headers:
+  - name: "X-Tenant-ID"
+    value: "${TENANT_ID}"
+  - name: "X-Organization"
+    value: "acme-corp"
+```
+
+**Custom Authentication**: If you need custom authentication, omit the `authentication` block and use headers directly:
+
+```yaml
+# Note: Do NOT configure the 'authentication' block if using custom auth headers
+task_headers:
+  - name: "Authorization"
+    value: "Bearer ${CUSTOM_AUTH_TOKEN}"
+  # Or use a custom auth scheme:
+  - name: "X-Custom-Auth"
+    value: "${CUSTOM_AUTH_TOKEN}"
+```
+
+**Request Metadata**: Add metadata for tracking or routing:
+
+```yaml
+task_headers:
+  - name: "X-Request-Source"
+    value: "agent-mesh"
+  - name: "X-Request-Priority"
+    value: "high"
+```
 
 ## Artifact Handling
 
@@ -214,7 +317,7 @@ The proxy maintains agent discovery and health monitoring through periodic agent
 
 When the proxy starts, it performs synchronous discovery of all configured agents by:
 
-1. Fetching agent cards from each external agent's `/.well-known/agent.json` endpoint.
+1. Fetching agent cards from each external agent's `/.well-known/agent-card.json` endpoint.
 2. Updating the local agent registry with agent capabilities.
 3. Publishing agent cards to the Agent Mesh discovery topic.
 
@@ -232,6 +335,14 @@ The proxy transforms agent cards to make external agents appear as native Agent 
 - The `url` field is rewritten to use the Solace topic format (for example, `solace:myorg/production/agent/external-data-agent`).
 
 These agent cards allow other agents to interact with external agents using the standard A2A protocol over Solace event mesh, without knowing they are proxied.
+
+### URL Behavior
+
+The proxy handles URLs in two contexts:
+
+1. **Agent Card Fetching**: Always uses the configured URL in the `proxied_agents` list to fetch the agent card from the external agent's `/.well-known/agent-card.json` endpoint.
+
+2. **Task Invocations**: By default, uses the URL specified in the agent card returned by the external agent. This allows external agents to advertise their preferred endpoint (which may differ from the agent card endpoint). You can override this behavior by setting `use_agent_card_url: false` to always use the configured URL for both agent card fetching and task invocations.
 
 ## Task Lifecycle Management
 
@@ -389,6 +500,54 @@ proxied_agents:
     request_timeout_seconds: 600  # 10 minutes
 ```
 
+### Custom Headers with Authentication
+
+Combine authentication with custom headers for complex integration requirements:
+
+```yaml
+proxied_agents:
+  - name: "enterprise-agent"
+    url: "https://enterprise.example.com/agent"
+    authentication:
+      type: "oauth2_client_credentials"
+      token_url: "https://auth.example.com/oauth/token"
+      client_id: "${OAUTH_CLIENT_ID}"
+      client_secret: "${OAUTH_CLIENT_SECRET}"
+    use_auth_for_agent_card: true  # Apply OAuth to agent card fetching
+    agent_card_headers:
+      - name: "X-API-Version"
+        value: "v2"
+      - name: "X-Client-Type"
+        value: "agent-mesh"
+    task_headers:
+      - name: "X-API-Version"
+        value: "v2"
+      - name: "X-Tenant-ID"
+        value: "${TENANT_ID}"
+      - name: "X-Request-Priority"
+        value: "high"
+```
+
+### URL Override for Task Invocations
+
+By default, the proxy uses the URL from the agent card for task invocations. This allows external agents to specify their preferred endpoint. However, you can override this behavior by setting `use_agent_card_url: false`:
+
+```yaml
+proxied_agents:
+  - name: "fixed-url-agent"
+    url: "https://api.example.com/agent"
+    use_agent_card_url: false  # Always use the configured URL
+    authentication:
+      type: "static_bearer"
+      token: "${AGENT_TOKEN}"
+```
+
+**Important notes:**
+
+- The configured URL is always used to fetch the agent card, regardless of this setting
+- When `use_agent_card_url: false`, all task invocations use the configured URL
+- When `use_agent_card_url: true` (default), the agent card's URL is used for tasks
+
 ### Custom Artifact Service Scope
 
 Configure artifact storage scope for the proxy:
@@ -435,7 +594,7 @@ app:
 If an external agent does not appear in Agent Mesh:
 
 1. Check that the agent's URL is accessible from the proxy.
-2. Verify that the agent exposes `/.well-known/agent.json`.
+2. Verify that the agent exposes `/.well-known/agent-card.json`.
 3. Check the proxy logs for discovery errors.
 4. Ensure that `discovery_interval_seconds` is set appropriately and is more frequent than the `health_check_ttl_seconds` that is set on the calling agents and gateways.
 
@@ -465,3 +624,14 @@ If artifacts are not flowing correctly:
 3. Ensure that the artifact URIs are correctly formatted.
 4. Check the proxy logs for artifact save/load errors.
 
+### Issues Running A2A Samples with `Containerfile`
+
+If you encounter a `ValueError: Invalid context_id: ... is not a valid UUID.` when running A2A samples using a `Containerfile`, it may be due to outdated dependencies in the `uv.lock` file. This can happen if the sample is pinned to an older version of the `a2a-sdk` package. For more details, see [this GitHub issue](https://github.com/a2aproject/a2a-samples/issues/399).
+
+To resolve this, navigate to the sample's directory and upgrade the dependencies:
+
+```bash
+uv lock --upgrade
+```
+
+This will update the `uv.lock` file to use the latest version of `a2a-sdk`, which includes the necessary bug fixes.

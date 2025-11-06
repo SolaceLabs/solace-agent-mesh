@@ -1,0 +1,44 @@
+test_case_id: "proxy_use_configured_url_001"
+description: "Tests that the proxy uses the configured URL for tasks when use_agent_card_url is false"
+tags: ["all", "proxy", "url"]
+skip_intermediate_events: true
+
+# Configure proxy to use configured URL instead of agent card URL
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  use_agent_card_url: false
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "url_override_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Test request with URL override"
+  external_context:
+    a2a_session_id: "session_url_override_001"
+
+downstream_a2a_agent_responses:
+  - id: "task-url-override"
+    contextId: "session_url_override_001"
+    kind: "task"
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Request processed using configured URL."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Request processed using configured URL."
+
+# Note: This test verifies that use_agent_card_url: false doesn't break the flow.
+# The configured URL in the test fixture points to the same TestA2AAgentServer,
+# so the behavior difference is subtle. In a real scenario, this would route
+# requests to a different endpoint than what the agent card advertises.

@@ -789,7 +789,7 @@ The `client` directory provides a Python-based client library for Agent-to-Agent
 **Import:** `from src.solace_agent_mesh.common.client import A2ACardResolver`
 
 **Classes:**
-- `A2ACardResolver(base_url: str, agent_card_path: str = "/.well-known/agent.json")` - A client to discover and fetch an agent's capability card.
+- `A2ACardResolver(base_url: str, agent_card_path: str = "/.well-known/agent-card.json")` - A client to discover and fetch an agent's capability card.
   - `get_agent_card() -> AgentCard` - Makes an HTTP GET request to the constructed agent card URL, parses the JSON response, and returns it as an `AgentCard` object. Raises `A2AClientHTTPError` on network/status errors and `A2AClientJSONError` on parsing errors.
 
 **Usage Examples:**
@@ -803,7 +803,7 @@ resolver = A2ACardResolver(base_url="https://some-agent.ai")
 
 try:
     # Fetch the agent's capability card from the default path
-    # (https://some-agent.ai/.well-known/agent.json)
+    # (https://some-agent.ai/.well-known/agent-card.json)
     agent_card: AgentCard = resolver.get_agent_card()
     print(f"Successfully fetched card for agent: {agent_card.name}")
     print(f"Agent API URL: {agent_card.url}")
@@ -1265,7 +1265,7 @@ The `server` directory provides a complete, stand-alone Agent-to-Agent (A2A) com
   - `port: int` - The port the server will listen on.
   - `endpoint: str` - The main API endpoint path for receiving JSON-RPC requests.
   - `task_manager: TaskManager` - The handler responsible for all task-related business logic.
-  - `agent_card: AgentCard` - The metadata for the agent, served at `/.well-known/agent.json`.
+  - `agent_card: AgentCard` - The metadata for the agent, served at `/.well-known/agent-card.json`.
   
 **Usage Examples:**
 ```python
