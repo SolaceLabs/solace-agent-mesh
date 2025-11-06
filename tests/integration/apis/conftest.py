@@ -301,6 +301,28 @@ def db_provider(test_agents_list: list[str], db_provider_type):
 
     factory.app.dependency_overrides[get_db_optional] = override_get_db_optional
 
+    # Add override for get_feedback_service to use the test database
+    from solace_agent_mesh.gateway.http_sse.dependencies import (
+        get_feedback_service, 
+        get_task_repository,
+        get_sac_component
+    )
+    from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService
+
+    def override_get_feedback_service():
+        """Override to use factory's Session for FeedbackService."""
+        # Call get_sac_component() directly so test patches are picked up
+        component = get_sac_component()
+        task_repo = get_task_repository()
+        
+        return FeedbackService(
+            session_factory=factory.Session,  # Use test database
+            component=component,  # Will have test patches applied
+            task_repo=task_repo
+        )
+
+    factory.app.dependency_overrides[get_feedback_service] = override_get_feedback_service
+
     # Add session validator override to use the test database
     from solace_agent_mesh.gateway.http_sse.dependencies import get_session_validator
     from solace_agent_mesh.gateway.http_sse.repository import SessionRepository
