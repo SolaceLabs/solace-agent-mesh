@@ -14,6 +14,7 @@ from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
     WebUIBackendFactory,
 )
 from sqlalchemy import text
+from sqlalchemy.orm import sessionmaker
 
 from .infrastructure.database_inspector import DatabaseInspector
 from .infrastructure.database_manager import (
@@ -282,6 +283,55 @@ def db_provider(test_agents_list: list[str], db_provider_type):
 
     factory.app.dependency_overrides[get_current_user] = override_get_current_user
     factory.app.dependency_overrides[get_user_id] = override_get_user_id
+
+    # Add override for get_db_optional to use the test database
+    from solace_agent_mesh.gateway.http_sse.dependencies import get_db_optional
+
+    def override_get_db_optional():
+        """Override to use factory's Session for optional DB dependency."""
+        db = factory.Session()
+        try:
+            yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    factory.app.dependency_overrides[get_db_optional] = override_get_db_optional
+
+    # Add session validator override to use the test database
+    from solace_agent_mesh.gateway.http_sse.dependencies import get_session_validator
+    from solace_agent_mesh.gateway.http_sse.repository import SessionRepository
+
+    def override_get_session_validator():
+        """Override to use test database's Session factory for validation."""
+        def validate_with_test_database(session_id: str, user_id: str) -> bool:
+            try:
+                # Use the provider's engine to get a session from the same database
+                db = provider.get_sync_gateway_engine().connect()
+                try:
+                    from sqlalchemy.orm import Session as SQLASession
+                    # Create an ORM session from the connection
+                    session_maker = sessionmaker(bind=db)
+                    orm_session = session_maker()
+                    try:
+                        session_repository = SessionRepository()
+                        session_domain = session_repository.find_user_session(
+                            orm_session, session_id, user_id
+                        )
+                        return session_domain is not None
+                    finally:
+                        orm_session.close()
+                finally:
+                    db.close()
+            except Exception as e:
+                log.error(f"Session validation error: {e}")
+                return False
+        return validate_with_test_database
+
+    factory.app.dependency_overrides[get_session_validator] = override_get_session_validator
 
     # Store factory on provider so api_client_factory can access it
     provider.factory = factory
