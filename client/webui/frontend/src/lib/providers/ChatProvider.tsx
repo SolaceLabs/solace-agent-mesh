@@ -1358,8 +1358,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // This ensures that any components/hooks depending on sessionId
                 // will have the correct value when messages are cleared
                 setSessionId(newSessionId);
-
-                // Clear messages IMMEDIATELY after updating sessionId
                 setMessages([]);
 
                 // Reset other session-related state
@@ -1371,7 +1369,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
 
-                // Load session tasks
                 await loadSessionTasks(newSessionId);
             } catch (error) {
                 console.error(`${log_prefix} Failed to fetch session history:`, error);
