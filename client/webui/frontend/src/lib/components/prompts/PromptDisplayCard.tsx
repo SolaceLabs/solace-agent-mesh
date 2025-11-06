@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal, MessageSquare } from "lucide-react";
+import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal, MessageSquare, Star } from "lucide-react";
 
 import type { PromptGroup } from "@/lib/types/prompts";
 import { useConfigContext } from "@/lib/hooks";
@@ -19,9 +19,10 @@ interface PromptDisplayCardProps {
     onDelete: (id: string, name: string) => void;
     onViewVersions?: (prompt: PromptGroup) => void;
     onUseInChat?: (prompt: PromptGroup) => void;
+    onTogglePin?: (id: string, currentStatus: boolean) => void;
 }
 
-export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelected, onPromptClick, onEdit, onDelete, onViewVersions, onUseInChat }) => {
+export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelected, onPromptClick, onEdit, onDelete, onViewVersions, onUseInChat, onTogglePin }) => {
     const { configFeatureEnablement } = useConfigContext();
     const versionHistoryEnabled = configFeatureEnablement?.promptVersionHistory ?? true;
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -56,6 +57,13 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
         }
     };
 
+    const handleTogglePin = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onTogglePin) {
+            onTogglePin(prompt.id, prompt.is_pinned);
+        }
+    };
+
     return (
         <div
             className={`bg-card h-[200px] w-full flex-shrink-0 cursor-pointer rounded-lg sm:w-[380px] transition-all ${
@@ -75,7 +83,19 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
                                 </h2>
                             </div>
                         </div>
-                        <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                        <div className="flex items-center gap-1">
+                            {onTogglePin && (
+                                <button
+                                    onClick={handleTogglePin}
+                                    className={`p-1.5 rounded hover:bg-muted transition-colors ${
+                                        prompt.is_pinned ? 'text-primary' : 'text-muted-foreground'
+                                    }`}
+                                    title={prompt.is_pinned ? "Remove from favorites" : "Add to favorites"}
+                                >
+                                    <Star size={16} fill={prompt.is_pinned ? 'currentColor' : 'none'} />
+                                </button>
+                            )}
+                            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                             <DropdownMenuTrigger asChild>
                                 <button
                                     onClick={(e) => {
@@ -95,6 +115,12 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
                                         Use in Chat
                                     </DropdownMenuItem>
                                 )}
+                                {onTogglePin && (
+                                    <DropdownMenuItem onClick={handleTogglePin}>
+                                        <Star size={14} className="mr-2" fill={prompt.is_pinned ? 'currentColor' : 'none'} />
+                                        {prompt.is_pinned ? 'Remove from Favorites' : 'Add to Favorites'}
+                                    </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem onClick={handleEdit}>
                                     <Pencil size={14} className="mr-2" />
                                     Edit Prompt
@@ -111,6 +137,7 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
+                        </div>
                     </div>
                     <div className="flex flex-col flex-grow overflow-hidden px-4 pb-4 pt-0">
                         <div className="text-xs text-muted-foreground mb-2">

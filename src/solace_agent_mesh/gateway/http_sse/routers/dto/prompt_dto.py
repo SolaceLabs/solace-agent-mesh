@@ -98,6 +98,7 @@ class PromptGroupResponse(PromptGroupBase):
     author_name: Optional[str]
     production_prompt_id: Optional[str]
     is_shared: bool
+    is_pinned: bool
     created_at: int  # epoch milliseconds
     updated_at: int  # epoch milliseconds
     

@@ -38,6 +38,9 @@ class PromptGroupModel(Base):
     # Sharing (optional - for future enhancement)
     is_shared = Column(Boolean, default=False, nullable=False)
     
+    # User preferences
+    is_pinned = Column(Boolean, default=False, nullable=False, index=True)
+    
     # Timestamps - BigInteger (epoch milliseconds) to match SAM convention
     created_at = Column(BigInteger, nullable=False, default=now_epoch_ms)
     updated_at = Column(

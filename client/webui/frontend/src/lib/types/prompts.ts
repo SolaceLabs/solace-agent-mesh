@@ -22,6 +22,7 @@ export interface PromptGroup {
     author_name?: string;
     production_prompt_id?: string;
     is_shared: boolean;
+    is_pinned: boolean;
     created_at: number;  // epoch milliseconds
     updated_at: number;  // epoch milliseconds
     production_prompt?: Prompt;

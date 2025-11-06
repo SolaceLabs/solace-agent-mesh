@@ -17,6 +17,7 @@ interface PromptMeshCardsProps {
     onDelete: (id: string, name: string) => void;
     onViewVersions?: (prompt: PromptGroup) => void;
     onUseInChat?: (prompt: PromptGroup) => void;
+    onTogglePin?: (id: string, currentStatus: boolean) => void;
 }
 
 export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
@@ -26,7 +27,8 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
     onEdit,
     onDelete,
     onViewVersions,
-    onUseInChat
+    onUseInChat,
+    onTogglePin
 }) => {
     const [selectedPrompt, setSelectedPrompt] = useState<PromptGroup | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
@@ -52,18 +54,28 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
         return Array.from(cats).sort();
     }, [prompts]);
 
-    const filteredPrompts = prompts.filter(prompt => {
-        const matchesSearch =
-            prompt.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            prompt.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            prompt.command?.toLowerCase().includes(searchQuery.toLowerCase());
+    const filteredPrompts = useMemo(() => {
+        const filtered = prompts.filter(prompt => {
+            const matchesSearch =
+                prompt.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                prompt.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                prompt.command?.toLowerCase().includes(searchQuery.toLowerCase());
+            
+            const matchesCategory =
+                selectedCategories.length === 0 ||
+                (prompt.category && selectedCategories.includes(prompt.category));
+            
+            return matchesSearch && matchesCategory;
+        });
         
-        const matchesCategory =
-            selectedCategories.length === 0 ||
-            (prompt.category && selectedCategories.includes(prompt.category));
-        
-        return matchesSearch && matchesCategory;
-    });
+        // Sort: pinned first, then by created_at
+        return filtered.sort((a, b) => {
+            if (a.is_pinned !== b.is_pinned) {
+                return a.is_pinned ? -1 : 1;
+            }
+            return b.created_at - a.created_at;
+        });
+    }, [prompts, searchQuery, selectedCategories]);
 
     const toggleCategory = (category: string) => {
         setSelectedCategories(prev =>
@@ -197,6 +209,7 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                                     onDelete={onDelete}
                                     onViewVersions={onViewVersions}
                                     onUseInChat={onUseInChat}
+                                    onTogglePin={onTogglePin}
                                 />
                             ))}
                         </div>
@@ -217,6 +230,7 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                                 onDelete={onDelete}
                                 onViewVersions={onViewVersions}
                                 onUseInChat={onUseInChat}
+                                onTogglePin={onTogglePin}
                             />
                         </ResizablePanel>
                     </>

@@ -160,6 +160,40 @@ export const PromptsPage: React.FC = () => {
         }));
     };
 
+    const handleTogglePin = async (id: string, currentStatus: boolean) => {
+        try {
+            // Optimistic update
+            setPromptGroups(prev => prev.map(p =>
+                p.id === id ? { ...p, is_pinned: !currentStatus } : p
+            ));
+
+            const response = await fetch(`/api/v1/prompts/groups/${id}/pin`, {
+                method: 'PATCH',
+                credentials: 'include',
+            });
+
+            if (!response.ok) {
+                // Revert on error
+                setPromptGroups(prev => prev.map(p =>
+                    p.id === id ? { ...p, is_pinned: currentStatus } : p
+                ));
+                addNotification('Failed to update pin status', 'error');
+            } else {
+                addNotification(
+                    currentStatus ? 'Template unpinned' : 'Template pinned',
+                    'success'
+                );
+            }
+        } catch (error) {
+            // Revert on error
+            setPromptGroups(prev => prev.map(p =>
+                p.id === id ? { ...p, is_pinned: currentStatus } : p
+            ));
+            console.error('Failed to toggle pin:', error);
+            addNotification('Failed to update pin status', 'error');
+        }
+    };
+
     if (showBuilder) {
         return (
             <>
@@ -265,6 +299,7 @@ export const PromptsPage: React.FC = () => {
                         onDelete={handleDeleteClick}
                         onViewVersions={setVersionHistoryGroup}
                         onUseInChat={handleUseInChat}
+                        onTogglePin={handleTogglePin}
                     />
                 </div>
             )}

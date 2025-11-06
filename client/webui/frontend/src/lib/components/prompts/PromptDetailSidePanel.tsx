@@ -1,5 +1,5 @@
 import React from "react";
-import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MessageSquare, MoreHorizontal } from "lucide-react";
+import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MessageSquare, MoreHorizontal, Star } from "lucide-react";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -12,6 +12,7 @@ interface PromptDetailSidePanelProps {
     onDelete: (id: string, name: string) => void;
     onViewVersions?: (prompt: PromptGroup) => void;
     onUseInChat?: (prompt: PromptGroup) => void;
+    onTogglePin?: (id: string, currentStatus: boolean) => void;
 }
 
 export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
@@ -20,7 +21,8 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
     onEdit,
     onDelete,
     onViewVersions,
-    onUseInChat
+    onUseInChat,
+    onTogglePin
 }) => {
     const { configFeatureEnablement } = useConfigContext();
     const versionHistoryEnabled = configFeatureEnablement?.promptVersionHistory ?? true;
@@ -45,6 +47,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
     const handleUseInChat = () => {
         if (onUseInChat) {
             onUseInChat(prompt);
+        }
+    };
+
+    const handleTogglePin = () => {
+        if (onTogglePin && prompt) {
+            onTogglePin(prompt.id, prompt.is_pinned);
         }
     };
 
@@ -78,6 +86,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
                                     <DropdownMenuItem onClick={handleUseInChat}>
                                         <MessageSquare size={14} className="mr-2" />
                                         Use in Chat
+                                    </DropdownMenuItem>
+                                )}
+                                {onTogglePin && (
+                                    <DropdownMenuItem onClick={handleTogglePin}>
+                                        <Star size={14} className="mr-2" fill={prompt.is_pinned ? 'currentColor' : 'none'} />
+                                        {prompt.is_pinned ? 'Remove from Favorites' : 'Add to Favorites'}
                                     </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem onClick={handleEdit}>

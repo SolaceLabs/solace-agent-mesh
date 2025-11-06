@@ -91,7 +91,10 @@ async def get_all_prompt_groups(
     try:
         groups = db.query(PromptGroupModel).filter(
             PromptGroupModel.user_id == user_id
-        ).order_by(PromptGroupModel.created_at.desc()).all()
+        ).order_by(
+            PromptGroupModel.is_pinned.desc(),  # Pinned first
+            PromptGroupModel.created_at.desc()
+        ).all()
         
         # Fetch production prompts for each group
         result = []
@@ -106,6 +109,7 @@ async def get_all_prompt_groups(
                 "author_name": group.author_name,
                 "production_prompt_id": group.production_prompt_id,
                 "is_shared": group.is_shared,
+                "is_pinned": group.is_pinned,
                 "created_at": group.created_at,
                 "updated_at": group.updated_at,
                 "production_prompt": None,
@@ -168,7 +172,10 @@ async def list_prompt_groups(
             )
         
         total = query.count()
-        groups = query.order_by(PromptGroupModel.created_at.desc()).offset(skip).limit(limit).all()
+        groups = query.order_by(
+            PromptGroupModel.is_pinned.desc(),  # Pinned first
+            PromptGroupModel.created_at.desc()
+        ).offset(skip).limit(limit).all()
         
         # Fetch production prompts for each group
         result_groups = []
@@ -183,6 +190,7 @@ async def list_prompt_groups(
                 "author_name": group.author_name,
                 "production_prompt_id": group.production_prompt_id,
                 "is_shared": group.is_shared,
+                "is_pinned": group.is_pinned,
                 "created_at": group.created_at,
                 "updated_at": group.updated_at,
                 "production_prompt": None,
@@ -249,6 +257,7 @@ async def get_prompt_group(
             "author_name": group.author_name,
             "production_prompt_id": group.production_prompt_id,
             "is_shared": group.is_shared,
+            "is_pinned": group.is_pinned,
             "created_at": group.created_at,
             "updated_at": group.updated_at,
             "production_prompt": None,
@@ -318,6 +327,7 @@ async def create_prompt_group(
             author_name=None,  # Can be enhanced to get from user profile
             production_prompt_id=None,
             is_shared=False,
+            is_pinned=False,
             created_at=now_ms,
             updated_at=now_ms,
         )
@@ -356,6 +366,7 @@ async def create_prompt_group(
             author_name=new_group.author_name,
             production_prompt_id=new_group.production_prompt_id,
             is_shared=new_group.is_shared,
+            is_pinned=new_group.is_pinned,
             created_at=new_group.created_at,
             updated_at=new_group.updated_at,
             production_prompt=PromptResponse(
@@ -463,6 +474,79 @@ async def update_prompt_group(
             "author_name": group.author_name,
             "production_prompt_id": group.production_prompt_id,
             "is_shared": group.is_shared,
+            "is_pinned": group.is_pinned,
+            "created_at": group.created_at,
+            "updated_at": group.updated_at,
+            "production_prompt": None,
+        }
+        
+        if group.production_prompt_id:
+            prod_prompt = db.query(PromptModel).filter(
+                PromptModel.id == group.production_prompt_id
+            ).first()
+            if prod_prompt:
+                group_dict["production_prompt"] = {
+                    "id": prod_prompt.id,
+                    "prompt_text": prod_prompt.prompt_text,
+                    "group_id": prod_prompt.group_id,
+                    "user_id": prod_prompt.user_id,
+                    "version": prod_prompt.version,
+                    "created_at": prod_prompt.created_at,
+                    "updated_at": prod_prompt.updated_at,
+                }
+
+        return PromptGroupResponse(**group_dict)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        log.error(f"Error updating prompt group {group_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update prompt group"
+        )
+
+
+@router.patch("/groups/{group_id}/pin", response_model=PromptGroupResponse)
+async def toggle_pin_prompt(
+    group_id: str,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
+):
+    """Toggle pin status for a prompt group."""
+    try:
+        group = db.query(PromptGroupModel).filter(
+            PromptGroupModel.id == group_id,
+            PromptGroupModel.user_id == user_id,
+        ).first()
+        
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Prompt group not found"
+            )
+        
+        # Toggle pin status
+        group.is_pinned = not group.is_pinned
+        group.updated_at = now_epoch_ms()
+        
+        db.commit()
+        db.refresh(group)
+        
+        # Build response
+        group_dict = {
+            "id": group.id,
+            "name": group.name,
+            "description": group.description,
+            "category": group.category,
+            "command": group.command,
+            "user_id": group.user_id,
+            "author_name": group.author_name,
+            "production_prompt_id": group.production_prompt_id,
+            "is_shared": group.is_shared,
+            "is_pinned": group.is_pinned,
             "created_at": group.created_at,
             "updated_at": group.updated_at,
             "production_prompt": None,
@@ -489,10 +573,10 @@ async def update_prompt_group(
         raise
     except Exception as e:
         db.rollback()
-        log.error(f"Error updating prompt group {group_id}: {e}")
+        log.error(f"Error toggling pin for prompt group {group_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update prompt group"
+            detail="Failed to toggle pin status"
         )
 
 
