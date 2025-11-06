@@ -106,12 +106,13 @@ def add_plugin_component_cmd(
         processed_config_content = processed_config_content.replace(placeholder, value)
 
     plugin_type = _get_plugin_type_from_pyproject(plugin_path)
-    if plugin_type == "agent":
+    if plugin_type == "agent" or plugin_type == "tool":
         target_dir = pathlib.Path("configs/agents")
     elif plugin_type == "gateway":
         target_dir = pathlib.Path("configs/gateways")
     else:
         target_dir = pathlib.Path("configs/plugins")
+
     try:
         ensure_directory_exists(target_dir)
     except Exception as e:

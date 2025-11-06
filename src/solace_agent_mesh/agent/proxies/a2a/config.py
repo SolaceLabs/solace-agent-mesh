@@ -11,6 +11,19 @@ from ..base.config import BaseProxyAppConfig, ProxiedAgentConfig
 from ....common.utils.pydantic_utils import SamConfigBase
 
 
+class HttpHeaderConfig(SamConfigBase):
+    """Configuration for a single HTTP header."""
+
+    name: str = Field(
+        ...,
+        description="The HTTP header name (e.g., 'X-API-Key', 'Authorization').",
+    )
+    value: str = Field(
+        ...,
+        description="The HTTP header value.",
+    )
+
+
 class AuthenticationConfig(SamConfigBase):
     """Authentication configuration for downstream A2A agents."""
 
@@ -127,6 +140,30 @@ class A2AProxiedAgentConfig(ProxiedAgentConfig):
     authentication: Optional[AuthenticationConfig] = Field(
         default=None,
         description="Authentication details for the downstream agent.",
+    )
+    use_auth_for_agent_card: bool = Field(
+        default=False,
+        description="If true, applies the configured authentication to agent card fetching. "
+        "If false, agent card requests are made without authentication.",
+    )
+    use_agent_card_url: bool = Field(
+        default=True,
+        description="If true, uses the URL from the agent card for task invocations. "
+        "If false, uses the configured URL directly for task invocations. "
+        "Note: The configured URL is always used to fetch the agent card itself.",
+    )
+    agent_card_headers: Optional[List[HttpHeaderConfig]] = Field(
+        default=None,
+        description="Custom HTTP headers to include when fetching the agent card. "
+        "These headers are added alongside authentication headers.",
+    )
+    task_headers: Optional[List[HttpHeaderConfig]] = Field(
+        default=None,
+        description="Custom HTTP headers to include when invoking A2A tasks. "
+        "These headers are added alongside authentication headers. Note: The A2A SDK's "
+        "AuthInterceptor applies authentication headers after these are set, so custom "
+        "headers cannot override authentication. For custom auth, omit the 'authentication' "
+        "config and use task_headers to set auth headers directly.",
     )
 
 

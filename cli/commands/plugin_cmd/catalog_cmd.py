@@ -44,6 +44,7 @@ def run_flask_plugin_catalog(host, port, shared_data):
 
 @click.command("catalog", help="Launch the SAM Plugin catalog web interface.")
 @click.option(
+    "-p",
     "--port",
     default=5003,
     type=int,

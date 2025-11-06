@@ -261,6 +261,10 @@ export const processTaskForVisualization = (
             }
         }
 
+        // Skip rendering of cancel requests as not enough information is present yet to link to original task
+        const isCancellationRequest = event.payload_summary.method && event.payload_summary.method === "tasks/cancel";
+        if (isCancellationRequest) return;
+
         // USER REQUEST (for root task only)
         if (event.direction === "request" && currentEventNestingLevel === 0 && event.task_id === parentTaskObject.taskId) {
             flushAggregatedTextStep(currentEventOwningTaskId);

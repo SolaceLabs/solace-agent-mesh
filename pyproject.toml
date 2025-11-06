@@ -51,7 +51,8 @@ dependencies = [
     "GitPython==3.1.45",
     "Flask==3.0.3",
     "flask-cors==6.0.1",
-    "fastapi==0.117.1",
+    "fastapi==0.120.1",
+    "starlette==0.49.1",
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
@@ -193,6 +194,10 @@ markers = [
     "oauth: OAuth specific tests",
     "error_handling: Tests related to error handling and recovery",
     "cancellation: Tests related to task cancellation",
+    "headers: marks tests related to HTTP header handling",
+    "agent_card: marks tests related to agent card fetching and discovery",
+    "url: marks tests related to URL handling and routing",
+    "task: marks tests related to task invocation",
 ]
 
 [tool.hatch.metadata]
