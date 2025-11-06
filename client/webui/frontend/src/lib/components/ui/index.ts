@@ -9,6 +9,7 @@ export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, C
 export { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "./form";
 export { Spinner } from "./spinner";
 export * from "./dialog";
+export { ConfirmationDialog } from "./ConfirmationDialog";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
 export { Pagination, PaginationContent, PaginationLink, PaginationItem, PaginationPrevious, PaginationNext, PaginationEllipsis } from "./pagination";
 

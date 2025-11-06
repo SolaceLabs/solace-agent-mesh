@@ -35,7 +35,7 @@ CRITICAL RULES:
 1. You MUST respond with valid JSON in this exact format
 2. ONLY create placeholders for DATA that changes (names, paths, dates, numbers, specific values)
 3. Keep instructions, steps, requirements, and process descriptions as FIXED TEXT
-4. Use descriptive variable names in snake_case
+4. Use descriptive variable names in Title Case (e.g., {{File Path}}, {{Module Name}})
 5. Suggest appropriate categories (Development, Analysis, Documentation, Communication, Testing, etc.)
 6. Generate short command names (lowercase, hyphens only)
 
@@ -43,7 +43,7 @@ RESPONSE FORMAT (REQUIRED):
 {{
   "message": "your conversational response here",
   "template_updates": {{
-    "name": "Template Name",
+    "name": "Name",
     "category": "Category",
     "command": "command-name",
     "prompt_text": "Template with {{placeholders}} for variable data only",
@@ -54,10 +54,10 @@ RESPONSE FORMAT (REQUIRED):
 }}
 
 VARIABLE PLACEHOLDER RULES:
-- Use {{variable_name}} format for placeholders
+- Use {{Variable Name}} format for placeholders (Title Case with spaces)
 - ONLY for data that changes: file paths, names, dates, numbers, specific values
 - NOT for instructions, steps, or requirements
-- Use descriptive names: {{file_path}}, {{module_name}}, {{task_description}}
+- Use descriptive names: {{File Path}}, {{Module Name}}, {{Task Description}}
 
 EXAMPLES:
 
@@ -80,7 +80,7 @@ User: "The file path, module name, and specific security concerns"
     "name": "Code Review Template",
     "category": "Development",
     "command": "code-review",
-    "prompt_text": "Review the {{module_name}} module located at {{file_path}}.\\n\\nPlease perform a comprehensive code review focusing on:\\n1. Security vulnerabilities\\n2. Error handling\\n3. Code quality and best practices\\n4. Specific attention to: {{security_concerns}}\\n\\nProvide a detailed report with:\\n- List of issues with severity levels\\n- Specific code snippets that need attention\\n- Recommendations for improvements",
+    "prompt_text": "Review the {{Module Name}} module located at {{File Path}}.\\n\\nPlease perform a comprehensive code review focusing on:\\n1. Security vulnerabilities\\n2. Error handling\\n3. Code quality and best practices\\n4. Specific attention to: {{Security Concerns}}\\n\\nProvide a detailed report with:\\n- List of issues with severity levels\\n- Specific code snippets that need attention\\n- Recommendations for improvements",
     "description": "Template for code review with security focus"
   }},
   "confidence": 0.9,
@@ -106,7 +106,7 @@ User: "Bug description, steps to reproduce, and environment details"
     "name": "Bug Report Template",
     "category": "Testing",
     "command": "bug-report",
-    "prompt_text": "# Bug Report\\n\\n## Description\\n{{bug_description}}\\n\\n## Steps to Reproduce\\n{{steps_to_reproduce}}\\n\\n## Environment\\n{{environment_details}}\\n\\n## Expected Behavior\\nDescribe what should happen\\n\\n## Actual Behavior\\nDescribe what actually happens\\n\\n## Additional Context\\nAny other relevant information",
+    "prompt_text": "# Bug Report\\n\\n## Description\\n{{Bug Description}}\\n\\n## Steps to Reproduce\\n{{Steps To Reproduce}}\\n\\n## Environment\\n{{Environment Details}}\\n\\n## Expected Behavior\\nDescribe what should happen\\n\\n## Actual Behavior\\nDescribe what actually happens\\n\\n## Additional Context\\nAny other relevant information",
     "description": "Template for reporting bugs with structured format"
   }},
   "confidence": 0.9,

@@ -453,7 +453,9 @@ Focus on capturing what made this conversation successful so it can be reused wi
             {/* Prompts Command Popover */}
             <PromptsCommand
                 isOpen={showPromptsCommand}
-                onClose={() => setShowPromptsCommand(false)}
+                onClose={() => {
+                    setShowPromptsCommand(false);
+                }}
                 textAreaRef={chatInputRef}
                 onPromptSelect={handlePromptSelect}
                 messages={messages}
@@ -477,7 +479,7 @@ Focus on capturing what made this conversation successful so it can be reused wi
                 ref={chatInputRef}
                 value={inputValue}
                 onChange={handleInputChange}
-                placeholder="How can I help you today? (Type / for prompts)"
+                placeholder="How can I help you today? (Type '/' to insert a prompt)"
                 className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none"
                 rows={1}
                 onPaste={handlePaste}

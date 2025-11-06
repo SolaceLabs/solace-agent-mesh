@@ -7,6 +7,7 @@ import { PromptDisplayCard } from "./PromptDisplayCard";
 import { CreatePromptCard } from "./CreatePromptCard";
 import { PromptDetailSidePanel } from "./PromptDetailSidePanel";
 import { EmptyState } from "../common";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 
 interface PromptMeshCardsProps {
     prompts: PromptGroup[];
@@ -80,8 +81,10 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
     const isLibraryEmpty = prompts.length === 0;
 
     return (
-        <div className="h-full w-full flex absolute inset-0">
-            <div className="flex-1 pt-12 pl-12 overflow-hidden">
+        <div className="h-full w-full absolute inset-0">
+            <ResizablePanelGroup direction="horizontal" className="h-full">
+                <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={selectedPrompt ? 100 : 100}>
+                    <div className="h-full pt-12 pl-12 overflow-hidden">
             {/* Only show search/filter when we have prompts */}
             {!isLibraryEmpty && (
                 <div className="mb-4 flex items-center gap-2">
@@ -171,8 +174,9 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                     <CreatePromptCard
                         onManualCreate={onManualCreate}
                         onAIAssisted={onAIAssisted}
+                        isCentered={true}
                     />
-                    </div>
+                </div>
                 ) : (
                     <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
                         <div className="flex flex-wrap gap-10">
@@ -196,23 +200,28 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                                 />
                             ))}
                         </div>
+                        </div>
+                    )}
                     </div>
-                )}
-            </div>
+                </ResizablePanel>
 
-            {/* Side Panel - extends to top */}
-            {selectedPrompt && (
-                <div className="h-full">
-                    <PromptDetailSidePanel
-                        prompt={selectedPrompt}
-                        onClose={handleCloseSidePanel}
-                        onEdit={onEdit}
-                        onDelete={onDelete}
-                        onViewVersions={onViewVersions}
-                        onUseInChat={onUseInChat}
-                    />
-                </div>
-            )}
+                {/* Side Panel - resizable */}
+                {selectedPrompt && (
+                    <>
+                        <ResizableHandle />
+                        <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+                            <PromptDetailSidePanel
+                                prompt={selectedPrompt}
+                                onClose={handleCloseSidePanel}
+                                onEdit={onEdit}
+                                onDelete={onDelete}
+                                onViewVersions={onViewVersions}
+                                onUseInChat={onUseInChat}
+                            />
+                        </ResizablePanel>
+                    </>
+                )}
+            </ResizablePanelGroup>
         </div>
     );
 };

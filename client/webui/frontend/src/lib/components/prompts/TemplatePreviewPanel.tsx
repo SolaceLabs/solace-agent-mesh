@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileText } from 'lucide-react';
-import { Badge, CardTitle, Label, Input } from '@/lib/components/ui';
+import { Badge, CardTitle, Label } from '@/lib/components/ui';
 import type { TemplateConfig } from './hooks/usePromptTemplateBuilder';
 
 interface TemplatePreviewPanelProps {
@@ -21,36 +21,31 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
         const isEmpty = !value || value.trim().length === 0;
 
         return (
-            <div
-                className={`space-y-2 transition-all duration-300 ${
-                    isHighlighted ? 'bg-primary/10 -mx-3 px-3 rounded-lg ring-2 ring-primary' : ''
-                }`}
-            >
-                <div className="flex items-center justify-between">
+            <div className="space-y-2">
+                <div className="flex items-center gap-2">
                     <Label className="text-[var(--color-secondaryText-wMain)]">{label}</Label>
                     {isHighlighted && (
-                        <Badge variant="default" className="text-xs">
+                        <Badge variant="default" className="text-xs bg-primary text-primary-foreground">
                             Updated
                         </Badge>
                     )}
                 </div>
                 {isCommand ? (
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">/</span>
-                        <Input
-                            value={value || ''}
-                            disabled
-                            className="flex-1 disabled:opacity-100 disabled:text-foreground"
-                            placeholder={isEmpty ? `No ${label.toLowerCase()} yet` : ''}
-                        />
+                    <div className="text-sm p-3 rounded">
+                        {isEmpty ? (
+                            <span className="text-muted-foreground italic">No {label.toLowerCase()} yet</span>
+                        ) : (
+                            <span className="font-mono text-primary">/{value}</span>
+                        )}
                     </div>
                 ) : (
-                    <Input
-                        value={value || ''}
-                        disabled
-                        placeholder={isEmpty ? `No ${label.toLowerCase()} yet` : ''}
-                        className="disabled:opacity-100 disabled:text-foreground"
-                    />
+                    <div className="text-sm p-3 rounded">
+                        {isEmpty ? (
+                            <span className="text-muted-foreground italic">No {label.toLowerCase()} yet</span>
+                        ) : (
+                            value
+                        )}
+                    </div>
                 )}
             </div>
         );
@@ -76,19 +71,15 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
         };
 
         return (
-            <div
-                className={`space-y-2 transition-all duration-300 ${
-                    isHighlighted ? 'bg-primary/10 -mx-3 px-3 rounded-lg ring-2 ring-primary' : ''
-                }`}
-            >
-                <div className="flex items-center justify-between">
+            <div className="space-y-2">
+                <div className="flex items-center gap-2">
                     {isHighlighted && (
-                        <Badge variant="default" className="text-xs">
+                        <Badge variant="default" className="text-xs bg-primary text-primary-foreground">
                             Updated
                         </Badge>
                     )}
                 </div>
-                <div className="min-h-[288px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono whitespace-pre-wrap">
+                <div className="min-h-[288px] w-full rounded-md px-3 py-2 text-sm font-mono whitespace-pre-wrap">
                     {isEmpty ? (
                         <span className="text-muted-foreground italic">No prompt text yet</span>
                     ) : (
@@ -101,7 +92,6 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
 
     const renderVariables = () => {
         const variables = config.detected_variables || [];
-        const isHighlighted = highlightedFields.includes('detected_variables');
 
         if (variables.length === 0) {
             return (
@@ -112,11 +102,7 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
         }
 
         return (
-            <div
-                className={`py-2 transition-all duration-300 ${
-                    isHighlighted ? 'bg-primary/10 -mx-3 px-3 rounded-lg ring-2 ring-primary' : ''
-                }`}
-            >
+            <div className="py-2">
                 <div className="flex flex-wrap gap-2">
                     {variables.map((variable, index) => (
                         <span
@@ -164,16 +150,16 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
                         <div>
                             <CardTitle className="text-base mb-4">Basic Information</CardTitle>
                             <div className="space-y-6">
-                                {renderField('Template Name', config.name, 'name')}
+                                {renderField('Name', config.name, 'name')}
                                 {renderField('Description', config.description, 'description')}
                                 {renderField('Tag', config.category, 'category')}
                                 {renderField('Chat Shortcut', config.command, 'command', true)}
                             </div>
                         </div>
 
-                        {/* Prompt Template */}
+                        {/* Content */}
                         <div>
-                            <CardTitle className="text-base mb-4">Prompt Template</CardTitle>
+                            <CardTitle className="text-base mb-4">Content</CardTitle>
                             {renderPromptText()}
                         </div>
 
@@ -184,7 +170,7 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
                                 {config.detected_variables && config.detected_variables.length > 0 ? (
                                     <>
                                         <p className="text-sm text-muted-foreground leading-relaxed">
-                                            Variables are placeholder values that make your prompt flexible and reusable. Variables are enclosed in double brackets like <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">{'{{VARIABLE_NAME}}'}</code>. You will be asked to fill in these variable values whenever you use this prompt. The prompt above has the following variables:
+                                            Variables are placeholder values that make your prompt flexible and reusable. Variables are enclosed in double brackets like <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">{'{{Variable Name}}'}</code>. You will be asked to fill in these variable values whenever you use this prompt. The prompt above has the following variables:
                                         </p>
                                         {renderVariables()}
                                     </>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Button,
     Input,
@@ -14,10 +14,11 @@ import {
 import { Sparkles, Loader2, AlertCircle, Pencil } from 'lucide-react';
 import { Header } from '@/lib/components/header';
 import { usePromptTemplateBuilder } from './hooks/usePromptTemplateBuilder';
+import { useUnsavedChangesWarning } from '@/lib/hooks';
+import { useUnsavedChangesContext } from '@/lib/contexts';
 import { PromptBuilderChat } from './PromptBuilderChat';
 import { TemplatePreviewPanel } from './TemplatePreviewPanel';
 import type { PromptGroup } from '@/lib/types/prompts';
-import { MessageBanner } from '@/lib/components/common';
 
 interface PromptTemplateBuilderProps {
     onBack: () => void;
@@ -51,27 +52,80 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
     );
     const [isReadyToSave, setIsReadyToSave] = useState(false);
     const [highlightedFields, setHighlightedFields] = useState<string[]>([]);
-    const [showNoChangeWarning, setShowNoChangeWarning] = useState(false);
+    
+    // Track initial config for unsaved changes detection
+    const [initialConfig, setInitialConfig] = useState<typeof config | null>(null);
+    
+    // Global unsaved changes context
+    const { setHasUnsavedChanges: setGlobalUnsavedChanges, checkUnsavedChanges } = useUnsavedChangesContext();
 
-    // Pre-populate config when editing
+    // Pre-populate config when editing and capture initial state
     useEffect(() => {
         if (editingGroup && isEditing) {
-            updateConfig({
+            const initialData = {
                 name: editingGroup.name,
                 description: editingGroup.description,
                 category: editingGroup.category,
                 command: editingGroup.command,
                 prompt_text: editingGroup.production_prompt?.prompt_text || '',
+            };
+            updateConfig(initialData);
+            setInitialConfig(initialData);
+        } else {
+            // For new prompts, set empty initial config
+            setInitialConfig({
+                name: '',
+                description: '',
+                category: undefined,
+                command: '',
+                prompt_text: '',
             });
         }
     }, [editingGroup, isEditing]);
+    
+    // Check if there are unsaved changes
+    const hasUnsavedChanges = useMemo(() => {
+        if (!initialConfig) return false;
+        
+        return (
+            config.name !== initialConfig.name ||
+            config.description !== initialConfig.description ||
+            config.category !== initialConfig.category ||
+            config.command !== initialConfig.command ||
+            config.prompt_text !== initialConfig.prompt_text
+        );
+    }, [config, initialConfig]);
+    
+    // Update global unsaved changes state
+    useEffect(() => {
+        setGlobalUnsavedChanges(hasUnsavedChanges);
+        return () => {
+            // Clean up when component unmounts
+            setGlobalUnsavedChanges(false);
+        };
+    }, [hasUnsavedChanges, setGlobalUnsavedChanges]);
+    
+    // Unsaved changes warning
+    const { ConfirmNavigationDialog, confirmNavigation } = useUnsavedChangesWarning({
+        hasUnsavedChanges,
+    });
 
-    const handleClose = () => {
-        resetConfig();
-        setBuilderMode('ai-assisted');
-        setIsReadyToSave(false);
-        setHighlightedFields([]);
-        onBack();
+    const handleClose = (skipCheck = false) => {
+        const doClose = () => {
+            resetConfig();
+            setBuilderMode('ai-assisted');
+            setIsReadyToSave(false);
+            setHighlightedFields([]);
+            setInitialConfig(null);
+            onBack();
+        };
+
+        if (hasUnsavedChanges && !skipCheck) {
+            // Use global context to show styled dialog
+            checkUnsavedChanges(doClose);
+        } else {
+            doClose();
+        }
     };
 
     // Check if there are any validation errors
@@ -82,7 +136,10 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
         if (isEditing && editingGroup) {
             const success = await updateTemplate(editingGroup.id, false);
             if (success) {
-                handleClose();
+                // Clear unsaved state and close without check
+                setGlobalUnsavedChanges(false);
+                confirmNavigation();
+                handleClose(true); // Skip unsaved check
                 if (onSuccess) {
                     onSuccess();
                 }
@@ -90,7 +147,10 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
         } else {
             const success = await saveTemplate();
             if (success) {
-                handleClose();
+                // Clear unsaved state and close without check
+                setGlobalUnsavedChanges(false);
+                confirmNavigation();
+                handleClose(true); // Skip unsaved check
                 if (onSuccess) {
                     onSuccess();
                 }
@@ -101,16 +161,12 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
     const handleSaveNewVersion = async () => {
         if (!isEditing || !editingGroup) return;
         
-        // Check if prompt text has changed
-        if (config.prompt_text === editingGroup.production_prompt?.prompt_text) {
-            setShowNoChangeWarning(true);
-            setTimeout(() => setShowNoChangeWarning(false), 5000);
-            return;
-        }
-        
         const success = await updateTemplate(editingGroup.id, true);
         if (success) {
-            handleClose();
+            // Clear unsaved state and close without check
+            setGlobalUnsavedChanges(false);
+            confirmNavigation();
+            handleClose(true); // Skip unsaved check
             if (onSuccess) {
                 onSuccess();
             }
@@ -119,13 +175,26 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
 
     const handleConfigUpdate = (updates: Record<string, any>) => {
         console.log('PromptTemplateBuilder: Received config updates:', updates);
+        
+        // Filter to only fields that actually changed
+        const changedFields = Object.keys(updates).filter(key => {
+            const oldValue = (config as any)[key];
+            const newValue = updates[key];
+            
+            // Compare values, treating undefined/null/empty string as equivalent
+            const normalizedOld = oldValue === undefined || oldValue === null || oldValue === '' ? '' : oldValue;
+            const normalizedNew = newValue === undefined || newValue === null || newValue === '' ? '' : newValue;
+            
+            return normalizedOld !== normalizedNew;
+        });
+        
+        console.log('PromptTemplateBuilder: Changed fields:', changedFields);
+        
         updateConfig(updates);
         console.log('PromptTemplateBuilder: Config after update:', config);
-        const updatedFields = Object.keys(updates);
-        setHighlightedFields(updatedFields);
-        setTimeout(() => {
-            setHighlightedFields([]);
-        }, 6000); // 6 seconds
+        
+        // Only show badges for fields that actually changed
+        setHighlightedFields(changedFields);
     };
 
     const handleSwitchToManual = () => {
@@ -137,13 +206,17 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
     };
 
     return (
-        <div className="flex h-full flex-col">
+        <>
+            {/* Unsaved Changes Dialog */}
+            <ConfirmNavigationDialog />
+            
+            <div className="flex h-full flex-col">
             {/* Header with breadcrumbs */}
             <Header
-                title={isEditing ? "Edit Prompt Template" : "Create Prompt Template"}
+                title={isEditing ? "Edit Prompt" : "Create Prompt"}
                 breadcrumbs={[
-                    { label: "Prompts", onClick: handleClose },
-                    { label: isEditing ? "Edit Prompt Template" : "Create Prompt Template" }
+                    { label: "Prompts", onClick: () => handleClose() },
+                    { label: isEditing ? "Edit Prompt" : "Create Prompt" }
                 ]}
                 buttons={
                     builderMode === 'ai-assisted' ? [
@@ -169,14 +242,6 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                     ]
                 }
             />
-
-            {/* Warning Banner */}
-            {showNoChangeWarning && (
-                <MessageBanner
-                    variant="warning"
-                    message="No changes detected in prompt text. Please modify the prompt text to create a new version."
-                />
-            )}
 
             {/* Error Banner */}
             {hasValidationErrors && (
@@ -227,13 +292,13 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                             <div className="space-y-6">
                                 {/* Template Name */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="template-name">Template Name <span className="text-[var(--color-primary-wMain)]">*</span></Label>
+                                    <Label htmlFor="template-name">Name <span className="text-[var(--color-primary-wMain)]">*</span></Label>
                                     <Input
                                         id="template-name"
                                         placeholder="e.g., Code Review Template"
                                         value={config.name || ''}
                                         onChange={(e) => updateConfig({ name: e.target.value })}
-                                        className={validationErrors.name ? 'border-red-500' : ''}
+                                        className={`placeholder:text-muted-foreground/50 ${validationErrors.name ? 'border-red-500' : ''}`}
                                     />
                                     {validationErrors.name && (
                                         <p className="text-sm text-red-600 flex items-center gap-1">
@@ -248,9 +313,10 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                                     <Label htmlFor="template-description">Description</Label>
                                     <Input
                                         id="template-description"
-                                        placeholder="Brief description of what this template does"
+                                        placeholder="e.g., Reviews code for best practices and potential issues"
                                         value={config.description || ''}
                                         onChange={(e) => updateConfig({ description: e.target.value })}
+                                        className="placeholder:text-muted-foreground/50"
                                     />
                                 </div>
 
@@ -285,10 +351,10 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                                         <span className="text-sm text-muted-foreground">/</span>
                                         <Input
                                             id="template-command"
-                                            placeholder="code-review"
+                                            placeholder="e.g., code-review"
                                             value={config.command || ''}
                                             onChange={(e) => updateConfig({ command: e.target.value })}
-                                            className={validationErrors.command ? 'border-red-500' : ''}
+                                            className={`placeholder:text-muted-foreground/50 ${validationErrors.command ? 'border-red-500' : ''}`}
                                         />
                                     </div>
                                     <p className="text-xs text-muted-foreground">
@@ -298,74 +364,46 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                             </div>
                         </div>
 
-                        {/* Prompt Template Section */}
+                        {/* Content Section */}
                         <div>
-                            <CardTitle className="text-base mb-4">Prompt Template<span className="text-[var(--color-primary-wMain)]">*</span></CardTitle>
+                            <CardTitle className="text-base mb-4">Content<span className="text-[var(--color-primary-wMain)]">*</span></CardTitle>
                             <div className="space-y-2">
-                                <div className="relative">
-                                    <Textarea
-                                        id="template-prompt"
-                                        placeholder="Enter your prompt template here. Use {{variable_name}} for placeholders."
-                                        value={config.prompt_text || ''}
-                                        onChange={(e) => updateConfig({ prompt_text: e.target.value })}
-                                        rows={12}
-                                        className={`font-mono ${validationErrors.prompt_text ? 'border-red-500' : ''}`}
-                                        style={{
-                                            color: config.prompt_text ? 'transparent' : undefined,
-                                            caretColor: 'var(--foreground)'
-                                        }}
-                                    />
-                                    {config.prompt_text && (
-                                        <div
-                                            className="absolute inset-0 pointer-events-none px-3 py-2 text-sm font-mono whitespace-pre-wrap overflow-hidden"
-                                            style={{ lineHeight: '1.5' }}
-                                        >
-                                            {config.prompt_text.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
-                                                if (part.match(/\{\{[^}]+\}\}/)) {
-                                                    return (
-                                                        <span key={index} className="bg-primary/20 text-primary font-medium px-1 rounded">
-                                                            {part}
-                                                        </span>
-                                                    );
-                                                }
-                                                return <span key={index} className="text-foreground">{part}</span>;
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
+                                <Textarea
+                                    id="template-prompt"
+                                    placeholder="Enter your prompt template here. Use {{Variable Name}} for placeholders."
+                                    value={config.prompt_text || ''}
+                                    onChange={(e) => updateConfig({ prompt_text: e.target.value })}
+                                    rows={12}
+                                    className={`font-mono placeholder:text-muted-foreground/50 ${validationErrors.prompt_text ? 'border-red-500' : ''}`}
+                                />
                                 {validationErrors.prompt_text && (
                                     <p className="text-sm text-red-600 flex items-center gap-1">
                                         <AlertCircle className="h-3 w-3" />
                                         {validationErrors.prompt_text}
                                     </p>
                                 )}
-                                <p className="text-xs text-muted-foreground">
-                                    Use double curly braces for variables: {`{{variable_name}}`}
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Variables Section */}
-                        {config.detected_variables && config.detected_variables.length > 0 && (
-                            <div>
-                                <CardTitle className="text-base mb-4">Variables</CardTitle>
-                                <div className="space-y-3">
-                                    <p className="text-sm text-muted-foreground leading-relaxed">
-                                        Variables are placeholder values that make your prompt flexible and reusable. Variables are enclosed in double brackets like <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">{'{{VARIABLE_NAME}}'}</code>. You will be asked to fill in these variable values whenever you use this prompt. The prompt above has the following variables:
+                                
+                                {/* Variables info - always shown */}
+                                <div className="space-y-2">
+                                    <p className="text-sm text-muted-foreground">
+                                        Variables are placeholder values that make your prompt flexible and reusable. You will be asked to fill in these variable values whenever you use this prompt.
+                                        {config.detected_variables && config.detected_variables.length > 0 && ' Your prompt has the following variables:'}
                                     </p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {config.detected_variables.map((variable, index) => (
-                                            <span
-                                                key={index}
-                                                className="px-2 py-1 bg-primary/10 text-primary text-xs font-mono rounded"
-                                            >
-                                                {`{{${variable}}}`}
-                                            </span>
-                                        ))}
-                                    </div>
+                                    {config.detected_variables && config.detected_variables.length > 0 && (
+                                        <div className="flex flex-wrap gap-2">
+                                            {config.detected_variables.map((variable, index) => (
+                                                <span
+                                                    key={index}
+                                                    className="px-2 py-1 bg-primary/10 text-primary text-xs font-mono rounded"
+                                                >
+                                                    {`{{${variable}}}`}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        )}
+                        </div>
                         </div>
                     </div>
                 )}
@@ -373,7 +411,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
 
             {/* Footer Actions */}
             <div className="flex justify-end gap-2 p-4 border-t">
-                <Button variant="ghost" onClick={handleClose} disabled={isLoading}>
+                <Button variant="ghost" onClick={() => handleClose()} disabled={isLoading}>
                     {isEditing ? 'Discard Changes' : 'Cancel'}
                 </Button>
                 {isEditing && (
@@ -407,5 +445,6 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                 </Button>
             </div>
         </div>
+        </>
     );
 };

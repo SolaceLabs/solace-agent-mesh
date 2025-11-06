@@ -65,9 +65,9 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({
             <div className="w-full max-w-lg rounded-lg border border-[var(--border)] bg-[var(--background)] p-6 shadow-lg">
                 {/* Header */}
                 <div className="mb-4">
-                    <h2 className="text-lg font-semibold">Fill in Variables</h2>
+                    <h2 className="text-lg font-semibold">Insert {group.name}</h2>
                     <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                        {group.name}
+                        Variables represent placeholder information in the template. Enter a value for each placeholder below.
                     </p>
                 </div>
 
@@ -98,7 +98,6 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({
                                         [variable]: e.target.value
                                     }))}
                                     className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] min-h-[80px]"
-                                    placeholder={`Enter value for ${variable}...`}
                                     required
                                 />
                             </div>
@@ -109,7 +108,7 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({
                     <div className="mt-6 flex justify-end gap-2">
                         <Button
                             type="button"
-                            variant="outline"
+                            variant="ghost"
                             onClick={onClose}
                         >
                             Cancel

@@ -58,7 +58,7 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
 
     return (
         <div
-            className={`bg-card h-[280px] w-full flex-shrink-0 cursor-pointer rounded-lg sm:w-[380px] transition-all ${
+            className={`bg-card h-[200px] w-full flex-shrink-0 cursor-pointer rounded-lg sm:w-[380px] transition-all ${
                 isSelected ? 'ring-2 ring-primary ring-inset' : ''
             }`}
             onClick={onPromptClick}
@@ -116,7 +116,7 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
                         <div className="text-xs text-muted-foreground mb-2">
                             By {prompt.author_name || prompt.user_id}
                         </div>
-                        <div className="mb-3 text-sm leading-5 line-clamp-4">{prompt.description || "No description provided."}</div>
+                        <div className="mb-3 text-sm leading-5 line-clamp-2">{prompt.description || "No description provided."}</div>
                         <div className="mt-auto">
                             <div className="flex items-center gap-2 flex-wrap">
                                 {prompt.command && (

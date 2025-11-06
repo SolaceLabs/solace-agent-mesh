@@ -6,6 +6,7 @@ import { ProjectsPage } from "@/lib/components/projects";
 import { PromptsPage } from "@/lib/components/pages/PromptsPage";
 import { TextSelectionProvider, SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
+import { UnsavedChangesProvider, useUnsavedChangesContext } from "@/lib/contexts";
 
 import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
 
@@ -14,6 +15,7 @@ function AppContentInner() {
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
     const { configFeatureEnablement, projectsEnabled } = useConfigContext();
     const { isMenuOpen, menuPosition, selectedText, clearSelection } = useTextSelection();
+    const { checkUnsavedChanges } = useUnsavedChangesContext();
 
     // Get navigation items based on feature flags
     const topNavItems = useMemo(
@@ -76,17 +78,23 @@ function AppContentInner() {
     }
 
     const handleNavItemChange = (itemId: string) => {
-        const item = topNavItems.find(item => item.id === itemId) || bottomNavigationItems.find(item => item.id === itemId);
+        // Check for unsaved changes before navigating
+        checkUnsavedChanges(() => {
+            const item = topNavItems.find(item => item.id === itemId) || bottomNavigationItems.find(item => item.id === itemId);
 
-        if (item?.onClick && itemId !== "settings") {
-            item.onClick();
-        } else if (itemId !== "settings") {
-            setActiveNavItem(itemId);
-        }
+            if (item?.onClick && itemId !== "settings") {
+                item.onClick();
+            } else if (itemId !== "settings") {
+                setActiveNavItem(itemId);
+            }
+        });
     };
 
     const handleHeaderClick = () => {
-        setActiveNavItem("chat");
+        // Check for unsaved changes before navigating to chat
+        checkUnsavedChanges(() => {
+            setActiveNavItem("chat");
+        });
     };
 
     const renderMainContent = () => {
@@ -126,9 +134,11 @@ function AppContentInner() {
 
 function AppContent() {
     return (
-        <TextSelectionProvider>
-            <AppContentInner />
-        </TextSelectionProvider>
+        <UnsavedChangesProvider>
+            <TextSelectionProvider>
+                <AppContentInner />
+            </TextSelectionProvider>
+        </UnsavedChangesProvider>
     );
 }
 

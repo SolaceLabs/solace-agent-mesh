@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Pencil, Trash2, MoreHorizontal, Check } from 'lucide-react';
 import type { PromptGroup, Prompt } from '@/lib/types/prompts';
 import { Header } from '@/lib/components/header';
-import { Button, Input, Textarea, Label } from '@/lib/components/ui';
+import { Button, Label } from '@/lib/components/ui';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -186,10 +186,10 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
                                         <button
                                             key={version.id}
                                             onClick={() => setSelectedVersion(version)}
-                                            className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                                            className={`w-full text-left p-3 transition-colors ${
                                                 isSelected
-                                                    ? 'border-primary bg-primary/5'
-                                                    : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                                                    ? 'bg-primary/5'
+                                                    : 'hover:bg-muted/50'
                                             }`}
                                         >
                                             <div className="flex items-center justify-between mb-1">
@@ -214,7 +214,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
                 </div>
 
                 {/* Right Panel - Version Details */}
-                <div className="flex-1 overflow-y-auto bg-background">
+                <div className="flex-1 overflow-y-auto">
                     {selectedVersion ? (
                         <div className="p-6">
                             <div className="max-w-4xl mx-auto space-y-6">
@@ -249,31 +249,22 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
                                 </div>
 
                                 {/* Read-only version details */}
-                                <div className="bg-primary/5 border border-primary/20 rounded-lg p-6">
-                                    <p className="text-sm text-center text-primary mb-4">
-                                        Read Only version of the Prompt configuration
-                                    </p>
-
-                                    <div className="space-y-6">
+                                <div className="space-y-6">
                                         {/* Template Name */}
                                         <div className="space-y-2">
-                                            <Label className="text-[var(--color-secondaryText-wMain)]">Template Name</Label>
-                                            <Input
-                                                value={currentGroup.name}
-                                                disabled
-                                                className="disabled:opacity-100 disabled:text-foreground"
-                                            />
+                                            <Label className="text-[var(--color-secondaryText-wMain)]">Name</Label>
+                                            <div className="text-sm p-3 rounded">
+                                                {currentGroup.name}
+                                            </div>
                                         </div>
 
                                         {/* Description */}
                                         {currentGroup.description && (
                                             <div className="space-y-2">
                                                 <Label className="text-[var(--color-secondaryText-wMain)]">Description</Label>
-                                                <Input
-                                                    value={currentGroup.description}
-                                                    disabled
-                                                    className="disabled:opacity-100 disabled:text-foreground"
-                                                />
+                                                <div className="text-sm p-3 rounded">
+                                                    {currentGroup.description}
+                                                </div>
                                             </div>
                                         )}
 
@@ -281,13 +272,8 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
                                         {currentGroup.command && (
                                             <div className="space-y-2">
                                                 <Label className="text-[var(--color-secondaryText-wMain)]">Chat Shortcut</Label>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm text-muted-foreground">/</span>
-                                                    <Input
-                                                        value={currentGroup.command}
-                                                        disabled
-                                                        className="disabled:opacity-100 disabled:text-foreground"
-                                                    />
+                                                <div className="text-sm p-3 rounded">
+                                                    <span className="font-mono text-primary">/{currentGroup.command}</span>
                                                 </div>
                                             </div>
                                         )}
@@ -296,42 +282,26 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
                                         {currentGroup.category && (
                                             <div className="space-y-2">
                                                 <Label className="text-[var(--color-secondaryText-wMain)]">Tag</Label>
-                                                <Input
-                                                    value={currentGroup.category}
-                                                    disabled
-                                                    className="disabled:opacity-100 disabled:text-foreground"
-                                                />
+                                                <div className="text-sm p-3 rounded">
+                                                    {currentGroup.category}
+                                                </div>
                                             </div>
                                         )}
 
                                         {/* Prompt Text */}
                                         <div className="space-y-2">
-                                            <Label className="text-[var(--color-secondaryText-wMain)]">Prompt Text</Label>
-                                            <div className="relative">
-                                                <Textarea
-                                                    value={selectedVersion.prompt_text}
-                                                    disabled
-                                                    rows={12}
-                                                    className="font-mono disabled:opacity-100 disabled:text-foreground"
-                                                    style={{
-                                                        color: 'transparent',
-                                                    }}
-                                                />
-                                                <div
-                                                    className="absolute inset-0 pointer-events-none px-3 py-2 text-sm font-mono whitespace-pre-wrap overflow-hidden"
-                                                    style={{ lineHeight: '1.5' }}
-                                                >
-                                                    {selectedVersion.prompt_text.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
-                                                        if (part.match(/\{\{[^}]+\}\}/)) {
-                                                            return (
-                                                                <span key={index} className="bg-primary/20 text-primary font-medium px-1 rounded">
-                                                                    {part}
-                                                                </span>
-                                                            );
-                                                        }
-                                                        return <span key={index} className="text-foreground">{part}</span>;
-                                                    })}
-                                                </div>
+                                            <Label className="text-[var(--color-secondaryText-wMain)]">Content</Label>
+                                            <div className="p-3 rounded text-sm font-mono whitespace-pre-wrap break-words">
+                                                {selectedVersion.prompt_text.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
+                                                    if (part.match(/\{\{[^}]+\}\}/)) {
+                                                        return (
+                                                            <span key={index} className="bg-primary/20 text-primary font-medium px-1 rounded">
+                                                                {part}
+                                                            </span>
+                                                        );
+                                                    }
+                                                    return <span key={index}>{part}</span>;
+                                                })}
                                             </div>
                                         </div>
 
@@ -341,7 +311,6 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
                                                 Created: {formatPromptDate(selectedVersion.created_at)}
                                             </div>
                                         </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>

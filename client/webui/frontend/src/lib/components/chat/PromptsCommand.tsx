@@ -52,6 +52,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
     
     const inputRef = useRef<HTMLInputElement>(null);
     const popoverRef = useRef<HTMLDivElement>(null);
+    const backdropRef = useRef<HTMLDivElement>(null);
 
     // Fetch prompt groups when opened
     useEffect(() => {
@@ -77,26 +78,17 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
         fetchPromptGroups();
     }, [isOpen]);
 
-    // Filter reserved commands based on search and availability
-    const filteredReservedCommands = useMemo(() => {
+    // Reserved commands - always shown (not filtered), only check availability
+    const availableReservedCommands = useMemo(() => {
         // Only show create-template if there are user messages in the session
         const hasUserMessages = messages.some(m => m.isUser && !m.isStatusBubble);
-        const availableCommands = RESERVED_COMMANDS.filter(cmd => {
+        return RESERVED_COMMANDS.filter(cmd => {
             if (cmd.command === 'create-template') {
                 return hasUserMessages;
             }
             return true;
         });
-        
-        if (!searchValue) return availableCommands;
-        
-        const search = searchValue.toLowerCase();
-        return availableCommands.filter(cmd =>
-            cmd.command.toLowerCase().includes(search) ||
-            cmd.name.toLowerCase().includes(search) ||
-            cmd.description.toLowerCase().includes(search)
-        );
-    }, [searchValue, messages]);
+    }, [messages]);
 
     // Filter prompt groups based on search
     const filteredGroups = useMemo(() => {
@@ -111,10 +103,10 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
         );
     }, [promptGroups, searchValue]);
 
-    // Combine reserved commands and prompts for display
+    // Combine prompts and reserved commands for display (reserved at bottom)
     const allItems = useMemo(() => {
-        return [...filteredReservedCommands, ...filteredGroups];
-    }, [filteredReservedCommands, filteredGroups]);
+        return [...filteredGroups, ...availableReservedCommands];
+    }, [filteredGroups, availableReservedCommands]);
 
     // Format session history for context
     const formatSessionHistory = useCallback((messages: MessageFE[]): string => {
@@ -226,10 +218,18 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
 
     return (
         <>
-            <div className="absolute bottom-14 left-0 right-0 z-50 mx-auto max-w-2xl px-4">
-                <div 
+            {/* Backdrop */}
+            <div
+                ref={backdropRef}
+                className="fixed inset-0 z-40 bg-black/20"
+                onClick={onClose}
+            />
+            
+            <div className="fixed top-1/3 left-1/2 -translate-x-1/2 z-50 w-full max-w-[672px] px-4">
+                <div
                     ref={popoverRef}
-                    className="rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg"
+                    className="rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg flex flex-col"
+                    style={{ maxHeight: '60vh' }}
                 >
                     {/* Search Input */}
                     <div className="flex items-center gap-2 border-b border-[var(--border)] p-3">
@@ -249,7 +249,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
                     </div>
 
                     {/* Results List */}
-                    <div className="max-h-80 overflow-y-auto">
+                    <div className="flex-1 overflow-y-auto min-h-0">
                         {isLoading ? (
                             <div className="flex items-center justify-center p-8">
                                 <div className="size-6 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
@@ -259,61 +259,16 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
                                 {searchValue ? 'No prompts found' : 'No prompts available. Create one in the Prompts panel.'}
                             </div>
                         ) : (
-                            <div className="p-2">
-                                {/* Reserved Commands */}
-                                {filteredReservedCommands.length > 0 && (
-                                    <>
-                                        {filteredReservedCommands.map((cmd, index) => {
-                                            const Icon = cmd.icon;
-                                            return (
-                                                <button
-                                                    key={`reserved-${cmd.command}`}
-                                                    id={`prompt-item-${index}`}
-                                                    onClick={() => handleReservedCommandSelect(cmd)}
-                                                    className={`w-full rounded-md p-3 text-left transition-colors ${
-                                                        index === activeIndex
-                                                            ? 'bg-[var(--accent)]'
-                                                            : 'hover:bg-[var(--accent)]'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-start gap-3">
-                                                        <Icon className="mt-0.5 size-4 flex-shrink-0 text-[var(--primary)]" />
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-2 flex-wrap">
-                                                                <span className="font-mono text-xs text-[var(--primary)]">
-                                                                    /{cmd.command}
-                                                                </span>
-                                                                <span className="font-medium text-sm">
-                                                                    {cmd.name}
-                                                                </span>
-                                                                <span className="rounded bg-[var(--primary)]/10 px-1.5 py-0.5 text-xs text-[var(--primary)]">
-                                                                    Reserved
-                                                                </span>
-                                                            </div>
-                                                            <p className="mt-1 text-xs text-[var(--muted-foreground)] line-clamp-2">
-                                                                {cmd.description}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
-                                        {filteredGroups.length > 0 && (
-                                            <div className="my-2 border-t border-[var(--border)]" />
-                                        )}
-                                    </>
-                                )}
-
+                            <div className="p-2 flex flex-col">
                                 {/* Regular Prompts */}
                                 {filteredGroups.map((group, index) => {
-                                    const actualIndex = filteredReservedCommands.length + index;
                                     return (
                                         <button
                                             key={group.id}
-                                            id={`prompt-item-${actualIndex}`}
+                                            id={`prompt-item-${index}`}
                                             onClick={() => handlePromptSelect(group)}
                                             className={`w-full rounded-md p-3 text-left transition-colors ${
-                                                actualIndex === activeIndex
+                                                index === activeIndex
                                                     ? 'bg-[var(--accent)]'
                                                     : 'hover:bg-[var(--accent)]'
                                             }`}
@@ -346,6 +301,51 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
                                         </button>
                                     );
                                 })}
+                                
+                                {/* Reserved Commands - Always visible at bottom */}
+                                {availableReservedCommands.length > 0 && (
+                                    <>
+                                        {filteredGroups.length > 0 && (
+                                            <div className="my-2 border-t border-[var(--border)]" />
+                                        )}
+                                        {availableReservedCommands.map((cmd, index) => {
+                                            const actualIndex = filteredGroups.length + index;
+                                            const Icon = cmd.icon;
+                                            return (
+                                                <button
+                                                    key={`reserved-${cmd.command}`}
+                                                    id={`prompt-item-${actualIndex}`}
+                                                    onClick={() => handleReservedCommandSelect(cmd)}
+                                                    className={`w-full rounded-md p-3 text-left transition-colors ${
+                                                        actualIndex === activeIndex
+                                                            ? 'bg-[var(--accent)]'
+                                                            : 'hover:bg-[var(--accent)]'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-start gap-3">
+                                                        <Icon className="mt-0.5 size-4 flex-shrink-0 text-[var(--primary)]" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="font-mono text-xs text-[var(--primary)]">
+                                                                    /{cmd.command}
+                                                                </span>
+                                                                <span className="font-medium text-sm">
+                                                                    {cmd.name}
+                                                                </span>
+                                                                <span className="rounded bg-[var(--primary)]/10 px-1.5 py-0.5 text-xs text-[var(--primary)]">
+                                                                    Reserved
+                                                                </span>
+                                                            </div>
+                                                            <p className="mt-1 text-xs text-[var(--muted-foreground)] line-clamp-2">
+                                                                {cmd.description}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
