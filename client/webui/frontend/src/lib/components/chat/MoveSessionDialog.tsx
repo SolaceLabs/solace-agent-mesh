@@ -14,14 +14,7 @@ interface MoveSessionDialogProps {
     currentProjectId?: string | null;
 }
 
-export const MoveSessionDialog = ({
-    isOpen,
-    onClose,
-    onConfirm,
-    session,
-    projects,
-    currentProjectId
-}: MoveSessionDialogProps) => {
+export const MoveSessionDialog = ({ isOpen, onClose, onConfirm, session, projects, currentProjectId }: MoveSessionDialogProps) => {
     const [selectedProjectId, setSelectedProjectId] = useState<string | null | "">(null);
     const [isMoving, setIsMoving] = useState(false);
 
@@ -53,9 +46,9 @@ export const MoveSessionDialog = ({
 
     const getDescription = () => {
         if (currentProjectId) {
-            return `Move "${session.name || 'Untitled Session'}" to a different project or remove it from the current project.`;
+            return `Move "${session.name || "Untitled Session"}" to a different project or remove it from the current project.`;
         }
-        return `Move "${session.name || 'Untitled Session'}" to a project.`;
+        return `Move "${session.name || "Untitled Session"}" to a project.`;
     };
 
     const getNoProjectLabel = () => {
@@ -73,8 +66,7 @@ export const MoveSessionDialog = ({
     };
 
     // Disable move button if no selection made or if selecting the same state
-    const isMoveDisabled = isMoving || selectedProjectId === "" ||
-                          (selectedProjectId === null && !currentProjectId);
+    const isMoveDisabled = isMoving || selectedProjectId === "" || (selectedProjectId === null && !currentProjectId);
 
     const handleClose = () => {
         if (!isMoving) {
@@ -83,27 +75,22 @@ export const MoveSessionDialog = ({
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+        <Dialog open={isOpen} onOpenChange={open => !open && handleClose()}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Move Chat Session</DialogTitle>
-                    <DialogDescription>
-                        {getDescription()}
-                    </DialogDescription>
+                    <DialogDescription>{getDescription()}</DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
-                    <Select
-                        value={selectedProjectId === null ? "none" : (selectedProjectId || "")}
-                        onValueChange={(value) => setSelectedProjectId(value === "none" ? null : value)}
-                    >
+                    <Select value={selectedProjectId === null ? "none" : selectedProjectId || ""} onValueChange={value => setSelectedProjectId(value === "none" ? null : value)}>
                         <SelectTrigger className="w-full rounded-md">
                             <SelectValue placeholder={getPlaceholder()} />
                         </SelectTrigger>
                         <SelectContent>
                             {currentProjectId && <SelectItem value="none">{getNoProjectLabel()}</SelectItem>}
-                            {availableProjects.map((project) => (
+                            {availableProjects.map(project => (
                                 <SelectItem key={project.id} value={project.id}>
-                                    {project.name}
+                                    <p className="max-w-sm truncate">{project.name}</p>
                                 </SelectItem>
                             ))}
                         </SelectContent>
