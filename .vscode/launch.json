@@ -272,7 +272,7 @@
             "request": "launch",
             "module": "pytest",
             "args": [
-                "tests/integration/scenarios_programmatic/${input:programmaticTestPath}",
+                "tests/${input:programmaticTestPath}",
                 "-vv"
             ],
             "console": "integratedTerminal",
@@ -304,8 +304,8 @@
         },
         {
             "id": "programmaticTestPath",
-            "description": "Enter the test path name (e.g., test_basic_flows.py)",
-            "default": "test_basic_flows.py",
+            "description": "Enter the test path name (e.g., integration/...)",
+            "default": "integration/",
             "type": "promptString"
         }
     ]
