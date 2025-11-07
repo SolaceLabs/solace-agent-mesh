@@ -7,9 +7,9 @@ sidebar_position: 70
 
 This tutorial shows you how to integrate Microsoft Teams with Agent Mesh Enterprise, allowing users to interact with the system directly from Teams workspaces and channels.
 
-:::warning[Enterprise Feature - Docker Deployment Only]
-The Microsoft Teams Gateway is an Enterprise feature included in the Docker image. It is not available when installing via PyPI or wheel files. This feature requires:
-- Agent Mesh Enterprise Docker deployment
+:::warning[Enterprise Feature - Docker Image Only]
+The Microsoft Teams Gateway is an Enterprise feature included in the Docker image. It works with both Docker and Kubernetes deployments but is not available when installing via PyPI or wheel files. This feature requires:
+- Agent Mesh Enterprise Docker image (deployed via Docker or Kubernetes)
 - Azure Active Directory tenant access
 - Azure Bot Service setup
 :::
@@ -34,6 +34,38 @@ The Microsoft Teams Gateway connects your Agent Mesh deployment to Microsoft Tea
 When users send messages, the gateway streams responses back in real time, updating messages as the agent processes the request. The system automatically extracts user identities through Azure AD authentication, ensuring secure access control. To maintain performance and clarity, sessions reset automatically at midnight UTC each day.
 
 The gateway operates in single-tenant mode, meaning it works within your organization's Azure AD tenant. This approach provides better security and simpler management for enterprise deployments.
+
+## Bot Configuration: Multi-Tenant vs Single-Tenant
+
+Microsoft Teams bots can be configured as either **multi-tenant** or **single-tenant**. The difference is controlled by the `microsoft_app_tenant_id` field:
+
+### Single-Tenant (Recommended)
+Users from **your organization only** can access the bot.
+
+```yaml
+microsoft_app_id: ${TEAMS_BOT_ID}
+microsoft_app_password: ${TEAMS_BOT_PASSWORD}
+microsoft_app_tenant_id: ${AZURE_TENANT_ID}  # Include this line
+```
+
+### Multi-Tenant (Deprecated July 2025)
+Users from **any Azure AD organization** can access the bot.
+
+```yaml
+microsoft_app_id: ${TEAMS_BOT_ID}
+microsoft_app_password: ${TEAMS_BOT_PASSWORD}
+# Do NOT include microsoft_app_tenant_id
+```
+
+:::warning
+Multi-tenant apps are being deprecated by Microsoft after July 2025. Use single-tenant configuration for new deployments.
+:::
+
+**This guide uses single-tenant configuration throughout.**
+
+**Additional Configuration Resources:**
+- Bot Framework Portal: https://dev.botframework.com/bots
+- Teams Developer Portal: https://dev.teams.cloud.microsoft/
 
 ## Azure Setup
 
@@ -231,3 +263,16 @@ Key parameters:
 - `initial_status_message`: Feedback shown when users first send a message
 - `system_purpose`: Defines the bot's role and behavior
 - `response_format`: Instructions for response formatting (e.g., markdown)
+
+## Troubleshooting
+
+### Error: "App is missing service principal in tenant"
+
+This error occurs when using single-tenant configuration (with `microsoft_app_tenant_id` set) but the app isn't properly registered in that tenant.
+
+**Quick fixes:**
+1. Verify the `AZURE_TENANT_ID` matches your Azure AD tenant
+2. Use multi-tenant by removing `microsoft_app_tenant_id` (temporary workaround)
+3. Register service principal: `az ad sp create --id YOUR-APP-ID`
+
+**Verify your configuration:** https://dev.botframework.com/bots
