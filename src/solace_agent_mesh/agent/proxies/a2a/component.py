@@ -27,6 +27,7 @@ from a2a.types import (
     AgentCard,
     Artifact,
     CancelTaskRequest,
+    DataPart,
     Message,
     SendMessageRequest,
     SendStreamingMessageRequest,
@@ -44,6 +45,7 @@ from solace_ai_connector.common.log import log
 from datetime import datetime, timezone
 
 from ....common import a2a
+from ....common.data_parts import AgentProgressUpdateData
 from ....agent.utils.artifact_helpers import format_artifact_uri
 from ..base.component import BaseProxyComponent
 
@@ -323,20 +325,44 @@ class A2AProxyComponent(BaseProxyComponent):
                                 event, task_context, client, agent_name
                             )
                 elif isinstance(request, CancelTaskRequest):
-                    # Forward cancel request to downstream agent
+                    # Forward cancel request to downstream agent using the downstream task ID
+                    # The request.params.id contains SAM's task ID, but we need to send
+                    # the downstream agent's task ID for the cancel to work
+
+                    if not task_context.downstream_task_id:
+                        log.error(
+                            "%s Cannot forward cancel request: downstream task ID not yet captured for SAM task %s",
+                            log_identifier,
+                            task_context.task_id,
+                        )
+                        # Create an error response
+                        from a2a.types import InvalidRequestError
+                        error = InvalidRequestError(
+                            message=f"Cannot cancel task {task_context.task_id}: downstream task ID not available",
+                            data={"taskId": task_context.task_id}
+                        )
+                        # Publish error response
+                        await self._publish_error_response(error, task_context.a2a_context)
+                        break
+
                     log.info(
-                        "%s Forwarding cancel request for task %s to downstream agent.",
+                        "%s Forwarding cancel request for task %s (SAM ID: %s, downstream ID: %s) to downstream agent.",
                         log_identifier,
-                        request.params.id,
+                        task_context.downstream_task_id,
+                        task_context.task_id,
+                        task_context.downstream_task_id,
                     )
-                    # Use the modern client's cancel_task method
-                    # Note: Pass the entire params object (TaskIdParams) instead of just the id string
-                    # to work around an SDK bug where it doesn't properly handle string inputs
+
+                    # Create new params with the downstream task ID
+                    from a2a.types import TaskIdParams
+                    downstream_params = TaskIdParams(id=task_context.downstream_task_id)
+
+                    # Use the modern client's cancel_task method with the downstream task ID
                     result = await client.cancel_task(
-                        request.params, context=call_context
+                        downstream_params, context=call_context
                     )
                     # Publish the canceled task response
-                    await self._publish_final_response(result, task_context.a2a_context)
+                    await self._publish_task_response(result, task_context.a2a_context)
                 else:
                     log.warning(
                         "%s Unhandled request type for forwarding: %s",
@@ -370,6 +396,22 @@ class A2AProxyComponent(BaseProxyComponent):
 
             except A2AClientJSONRPCError as e:
                 # Handle JSON-RPC protocol errors
+
+                # Special case: Task already in terminal state (canceled/completed/failed)
+                # This is not a fatal error - the cancellation is effectively a no-op
+                if (e.error.code == -32002 and
+                    "cannot be canceled" in e.error.message.lower() and
+                    isinstance(request, CancelTaskRequest)):
+                    log.warning(
+                        "%s Task %s is already in terminal state: %s. Treating as successful cancellation.",
+                        log_identifier,
+                        task_context.downstream_task_id,
+                        e.error.message,
+                    )
+                    # Task is already done - return success (cancellation is effectively complete)
+                    # We don't need to publish a response because the task already sent its final response
+                    break
+
                 log.error(
                     "%s JSON-RPC error from agent '%s': %s",
                     log_identifier,
@@ -1123,6 +1165,79 @@ class A2AProxyComponent(BaseProxyComponent):
                 type(event_payload).__name__,
             )
 
+        # Convert TextParts to AgentProgressUpdateData for intermediate status updates if configured
+        # Only convert non-final status updates; final status updates are used to construct the final Task
+        if isinstance(event_payload, TaskStatusUpdateEvent) and not event_payload.final:
+            agent_config = self._get_agent_config(agent_name)
+            convert_progress = agent_config.get("convert_progress_updates", True) if agent_config else True
+
+            # DEBUG: Log config lookup results
+            log.info(
+                "%s DEBUG convert_progress_updates: agent_name='%s', agent_config_name='%s', agent_config_keys=%s, convert_progress_value=%s, convert_progress=%s",
+                log_identifier,
+                agent_name,
+                agent_config.get('name') if agent_config else None,
+                list(agent_config.keys()) if agent_config else None,
+                agent_config.get("convert_progress_updates") if agent_config else None,
+                convert_progress,
+            )
+
+            if convert_progress and event_payload.status and event_payload.status.message:
+                message = event_payload.status.message
+                original_parts = a2a.get_parts_from_message(message)
+
+                if original_parts:
+                    converted_parts = []
+                    text_parts_converted = 0
+
+                    for part in original_parts:
+                        if isinstance(part, TextPart) and part.text:
+                            # Convert TextPart to DataPart with AgentProgressUpdateData
+                            progress_data = AgentProgressUpdateData(
+                                type="agent_progress_update",
+                                status_text=part.text
+                            )
+                            data_part = DataPart(
+                                kind="data",
+                                data=progress_data.model_dump(),
+                                metadata=part.metadata
+                            )
+                            converted_parts.append(data_part)
+                            text_parts_converted += 1
+                        else:
+                            # Keep non-text parts as-is
+                            converted_parts.append(part)
+
+                    if text_parts_converted > 0:
+                        # Update the message with converted parts
+                        event_payload.status.message = a2a.update_message_parts(
+                            message, converted_parts
+                        )
+                        log.debug(
+                            "%s Converted %d TextPart(s) to AgentProgressUpdateData in status update",
+                            log_identifier,
+                            text_parts_converted,
+                        )
+
+        # Capture the downstream task ID before we replace it
+        # This is needed for forwarding cancellation requests to the downstream agent
+        downstream_id = None
+        if hasattr(event_payload, "task_id") and event_payload.task_id:
+            downstream_id = event_payload.task_id
+        elif hasattr(event_payload, "id") and event_payload.id:
+            downstream_id = event_payload.id
+
+        # Store the downstream task ID in the context if we haven't already
+        if downstream_id and not task_context.downstream_task_id:
+            task_context.downstream_task_id = downstream_id
+            log.debug(
+                "%s Captured downstream task ID: %s (SAM task ID: %s)",
+                log_identifier,
+                downstream_id,
+                task_context.task_id,
+            )
+
+        # Replace the downstream task ID with SAM's task ID for upstream responses
         original_task_id = task_context.task_id
         if hasattr(event_payload, "task_id") and event_payload.task_id:
             event_payload.task_id = original_task_id
@@ -1173,20 +1288,123 @@ class A2AProxyComponent(BaseProxyComponent):
                         Part(root=summary_message_part)
                     )
 
-        if isinstance(event_payload, (Task, TaskStatusUpdateEvent)):
-            if isinstance(event_payload, Task):
-                await self._publish_final_response(
-                    event_payload, task_context.a2a_context
+        # Convert text-only TaskArtifactUpdateEvents to TaskStatusUpdateEvents
+        # Some A2A agents send text content as artifacts, which SAM expects as status updates
+        if isinstance(event_payload, TaskArtifactUpdateEvent):
+            artifact = event_payload.artifact
+            if a2a.is_text_only_artifact(artifact):
+                log.info(
+                    "%s Converting text-only artifact to status update",
+                    log_identifier,
                 )
-            else:
-                await self._publish_status_update(
-                    event_payload, task_context.a2a_context
+                # Extract text from text-only artifact
+                text_content = "\n".join(a2a.get_text_content_from_artifact(artifact))
+
+                # Convert to status update
+                text_message = a2a.create_agent_text_message(
+                    text=text_content,
+                    task_id=event_payload.task_id,
+                    context_id=event_payload.context_id,
                 )
+
+                status_event = TaskStatusUpdateEvent(
+                    task_id=event_payload.task_id,
+                    context_id=event_payload.context_id,
+                    kind="status-update",
+                    status=TaskStatus(state=TaskState.working, message=text_message),
+                    final=False,
+                    metadata=event_payload.metadata,
+                )
+
+                # Replace event_payload with the converted status update
+                event_payload = status_event
+                log.info(
+                    "%s Converted text-only artifact (length: %d bytes) to status update",
+                    log_identifier,
+                    len(text_content.encode("utf-8")),
+                )
+
+        # Determine if this is a terminal event requiring cleanup
+        should_cleanup_task = False
+
+        # Route based on event type
+        if isinstance(event_payload, Task):
+            # Discard initial Task events (non-completed states)
+            # The final Task will be constructed from the final status update
+            if event_payload.status.state != TaskState.completed:
+                log.debug(
+                    "%s Discarding Task event with state=%s (not completed). Final Task will be constructed from final status update.",
+                    log_identifier,
+                    event_payload.status.state,
+                )
+                # Don't publish, don't cleanup - wait for final status update
+                return
+
+            # Forward completed Task to reply topic
+            await self._publish_task_response(event_payload, task_context.a2a_context)
+
+            # Completed Task is terminal - cleanup
+            should_cleanup_task = True
+            log.debug(
+                "%s Task in terminal state: %s",
+                log_identifier,
+                event_payload.status.state,
+            )
+
+        elif isinstance(event_payload, TaskStatusUpdateEvent):
+            # Forward status update to status topic
+            await self._publish_status_update(event_payload, task_context.a2a_context)
+
+            # Check if final event - construct and send Task
+            if event_payload.final:
+                log.info(
+                    "%s Received final status update (final=true). Constructing completed Task.",
+                    log_identifier,
+                )
+
+                # Construct Task from final status update
+                # Copy the status but ensure state is "completed"
+                final_task_status = TaskStatus(
+                    state=TaskState.completed,
+                    message=event_payload.status.message if event_payload.status else None,
+                )
+
+                final_task = Task(
+                    id=event_payload.task_id,
+                    context_id=event_payload.context_id,
+                    status=final_task_status,
+                    artifacts=None,  # Artifacts come via separate events
+                    metadata=event_payload.metadata,
+                )
+
+                # Add produced_artifacts metadata if any artifacts were processed
+                if produced_artifacts:
+                    if not final_task.metadata:
+                        final_task.metadata = {}
+                    final_task.metadata["produced_artifacts"] = produced_artifacts
+                    log.info(
+                        "%s Added manifest of %d produced artifacts to final Task metadata.",
+                        log_identifier,
+                        len(produced_artifacts),
+                    )
+
+                # Publish the constructed Task
+                await self._publish_task_response(final_task, task_context.a2a_context)
+
+                should_cleanup_task = True
+                log.debug(
+                    "%s Published final Task constructed from status update",
+                    log_identifier,
+                )
+
         elif isinstance(event_payload, TaskArtifactUpdateEvent):
+            # Forward artifact update to status topic
             await self._publish_artifact_update(event_payload, task_context.a2a_context)
+
         elif isinstance(event_payload, Message):
+            # Wrap Message in Task for gateway compatibility
             log.info(
-                "%s Received a direct Message response. Wrapping in a completed Task.",
+                "%s Received direct Message response. Wrapping in completed Task.",
                 log_identifier,
             )
             final_task = Task(
@@ -1195,7 +1413,7 @@ class A2AProxyComponent(BaseProxyComponent):
                 status=TaskStatus(state=TaskState.completed, message=event_payload),
             )
 
-            # Add produced_artifacts metadata to the wrapped Task if any artifacts were processed
+            # Add produced_artifacts metadata if any artifacts were processed
             if produced_artifacts:
                 final_task.metadata = {"produced_artifacts": produced_artifacts}
                 log.info(
@@ -1204,11 +1422,24 @@ class A2AProxyComponent(BaseProxyComponent):
                     len(produced_artifacts),
                 )
 
-            await self._publish_final_response(final_task, task_context.a2a_context)
+            await self._publish_task_response(final_task, task_context.a2a_context)
+            should_cleanup_task = True
+
         else:
             log.warning(
-                f"Received unhandled response payload type: {type(event_payload)}"
+                "%s Received unhandled response payload type: %s",
+                log_identifier,
+                type(event_payload).__name__,
             )
+
+        # Cleanup task state if terminal event detected
+        if should_cleanup_task:
+            log.info(
+                "%s Terminal event detected for task %s. Cleaning up state.",
+                log_identifier,
+                task_context.task_id,
+            )
+            self._cleanup_task_state(task_context.task_id)
 
     def clear_client_cache(self):
         """
