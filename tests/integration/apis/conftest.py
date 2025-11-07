@@ -323,6 +323,25 @@ def db_provider(test_agents_list: list[str], db_provider_type):
 
     factory.app.dependency_overrides[get_feedback_service] = override_get_feedback_service
 
+    # Add override for get_task_logger_service to use the test database
+    from solace_agent_mesh.gateway.http_sse.dependencies import get_task_logger_service
+    from solace_agent_mesh.gateway.http_sse.services.task_logger_service import TaskLoggerService
+
+    def override_get_task_logger_service():
+        """Override to use factory's Session for TaskLoggerService."""
+        # Get component via dependency to pick up test patches
+        component = get_sac_component()
+
+        # Get task logging config from component
+        task_logging_config = component.get_config("task_logging", {})
+
+        return TaskLoggerService(
+            session_factory=factory.Session,  # Use test database
+            config=task_logging_config
+        )
+
+    factory.app.dependency_overrides[get_task_logger_service] = override_get_task_logger_service
+
     # Add session validator override to use the test database
     from solace_agent_mesh.gateway.http_sse.dependencies import get_session_validator
     from solace_agent_mesh.gateway.http_sse.repository import SessionRepository
