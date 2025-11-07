@@ -1074,6 +1074,7 @@ def shared_solace_connector(
                 "namespace": "test_namespace",
                 "gateway_id": "TestHarnessGateway_01",
                 "artifact_service": {"type": "test_in_memory"},
+                "task_logging": {"enabled": False},
                 "system_purpose": "Test gateway system purpose for metadata validation",
                 "response_format": "Test gateway response format for metadata validation",
             },

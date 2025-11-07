@@ -322,7 +322,7 @@ async def _setup_scenario_environment(
                 new_project = ProjectModel(
                     id=project_spec.get("id", f"setup-project-{uuid.uuid4().hex}"),
                     name=project_spec["name"],
-                    user_id=project_spec.get("user_id"),
+                    user_id=project_spec.get("user_id", "sam_dev_user"),
                     description=project_spec.get("description"),
                     system_prompt=project_spec.get("system_prompt"),
                     default_agent_id=project_spec.get("default_agent_id"),
