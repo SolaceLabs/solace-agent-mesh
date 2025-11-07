@@ -269,7 +269,7 @@ export const PromptsPage: React.FC = () => {
         <div className="flex h-full w-full flex-col">
             <Header
                 title="Prompts"
-                buttons={[
+                buttons={promptGroups.length > 0 ? [
                     <Button
                         data-testid="refreshPrompts"
                         disabled={isLoading}
@@ -280,7 +280,7 @@ export const PromptsPage: React.FC = () => {
                         <RefreshCcw className="size-4" />
                         Refresh Prompts
                     </Button>,
-                ]}
+                ] : []}
             />
 
             {isLoading ? (

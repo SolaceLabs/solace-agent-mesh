@@ -18,11 +18,6 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
         return (
             <div className="w-full max-w-[960px] p-12">
                 <div className="flex h-full w-full flex-col items-center justify-center gap-8">
-                    {/* Large circular plus icon */}
-                    <div className="flex items-center justify-center w-32 h-32 rounded-full bg-muted/50">
-                        <Plus className="h-12 w-12 text-primary" strokeWidth={2} />
-                    </div>
-                    
                     {/* Title and description */}
                     <div className="flex flex-col items-center gap-3">
                         <h2 className="text-3xl font-semibold text-foreground">Create New Prompt</h2>
