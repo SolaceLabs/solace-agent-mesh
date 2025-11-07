@@ -1,18 +1,14 @@
 FROM python:3.11-slim AS base
 
-# Capture build platform information
-ARG TARGETARCH
-ARG TARGETPLATFORM
-
 ENV PYTHONUNBUFFERED=1
 
 # Install system dependencies and uv
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
-    git \
     curl \
-    ffmpeg && \
+    ffmpeg \
+    git && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/*
@@ -23,32 +19,110 @@ RUN curl -sL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Builder stage for creating wheels
+# ============================================================
+# UI Build Stages - Run in parallel with separate caches
+# ============================================================
+# These stages use registry cache with mode=max, which means:
+# - Each stage is cached independently in the registry
+# - Only stages with changed dependencies will rebuild
+# - Cache mounts persist across builds for faster npm installs
+# - Changes to docs/ won't invalidate config_portal or webui caches
+# ============================================================
+
+# Build Config Portal UI
+FROM base AS ui-config-portal
+WORKDIR /build/config_portal/frontend
+COPY config_portal/frontend/package*.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
+COPY config_portal/frontend ./
+RUN npm run build
+
+# Build WebUI
+FROM base AS ui-webui
+WORKDIR /build/client/webui/frontend
+COPY client/webui/frontend/package*.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
+COPY client/webui/frontend ./
+RUN npm run build
+
+# Build Documentation
+FROM base AS ui-docs
+WORKDIR /build/docs
+COPY docs/package*.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
+COPY docs ./
+COPY README.md ../README.md
+COPY cli/__init__.py ../cli/__init__.py
+RUN npm run build
+
+# ============================================================
+# Python Build Stage
+# ============================================================
+# This stage uses registry cache with mode=max for optimal caching:
+# - uv cache mount (/root/.cache/uv) speeds up package downloads
+# - Lock file changes only rebuild dependency installation layer
+# - Source code changes only rebuild the wheel build layer
+# - Independent from UI build stages - Python changes don't rebuild UI
+# ============================================================
+
+# Builder stage for creating wheels and runtime environment
 FROM base AS builder
 
 WORKDIR /app
 
 # Install hatch with cache mount (before copying deps for better layer caching)
 # This layer is invalidated only when base image changes, not when pyproject.toml changes
-RUN --mount=type=cache,target=/root/.cache/uv,id=uv-build-${TARGETARCH} \
+RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system hatch
 
-# Copy dependency files for metadata
-COPY pyproject.toml README.md ./
+# Sync dependencies from lock file directly into venv (cached layer)
+# This is the expensive step with 188 packages (~8s with cache, ~280MB downloads without)
+# Using lock file ensures reproducible builds with exact versions
+# --frozen ensures lock file isn't modified, --no-dev skips dev dependencies
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    UV_PROJECT_ENVIRONMENT=/opt/venv uv sync \
+        --frozen \
+        --no-dev \
+        --no-install-project
 
-# Copy remaining source code
-COPY . .
+# Copy Python source code and essential files (skip UI source code)
+COPY src ./src
+COPY cli ./cli
+COPY evaluation ./evaluation
+COPY templates ./templates
+COPY config_portal/__init__.py ./config_portal/__init__.py
+COPY config_portal/backend ./config_portal/backend
+COPY .github/helper_scripts ./.github/helper_scripts
+
+# Copy pre-built UI static assets from UI build stages
+COPY --from=ui-config-portal /build/config_portal/frontend/static ./config_portal/frontend/static
+COPY --from=ui-webui /build/client/webui/frontend/static ./client/webui/frontend/static
+COPY --from=ui-docs /build/docs/build ./docs/build
+
+COPY LICENSE ./LICENSE
+COPY README.md ./README.md
+COPY pyproject.toml ./pyproject.toml
 
 # Build the project wheel with cache mount
-# uv caches downloaded packages, no need for separate pip wheel step
-RUN --mount=type=cache,target=/root/.cache/uv,id=uv-build-${TARGETARCH} \
-    --mount=type=cache,target=/root/.npm,id=npm-${TARGETARCH} \
-    hatch build -t wheel
+# Set SAM_SKIP_UI_BUILD to skip npm builds since we already have static assets
+RUN --mount=type=cache,target=/root/.cache/uv \
+    SAM_SKIP_UI_BUILD=true hatch build -t wheel
+
+# Install only the wheel package (not dependencies, they're already installed)
+# This is fast since all deps are already in the venv
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python=/opt/venv/bin/python --no-deps /app/dist/solace_agent_mesh-*.whl
 
 # Runtime stage
 FROM python:3.11-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Install minimal runtime dependencies (no uv for licensing compliance)
 RUN apt-get update && \
@@ -57,34 +131,41 @@ RUN apt-get update && \
     ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Playwright early (large download, rarely changes)
-RUN python -m pip install --no-cache-dir playwright && \
-    playwright install-deps chromium
+# Install playwright temporarily just for browser installation (cached layer)
+# This is separate from the full venv to keep this layer cached
+# We'll use the playwright from the full venv at runtime
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --no-cache-dir playwright
 
-# Create non-root user
-RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai
+# Install Playwright system dependencies (cached layer)
+RUN playwright install-deps chromium
+
+# Install Playwright browsers with cache (cached layer)
+# This layer stays cached because it doesn't depend on builder stage
+# Registry cache with mode=max ensures this expensive download is cached
+# sharing=locked prevents concurrent builds from corrupting the cache
+RUN --mount=type=cache,target=/var/cache/playwright,sharing=locked \
+    PLAYWRIGHT_BROWSERS_PATH=/var/cache/playwright playwright install chromium
+
+# Create non-root user and Playwright cache directory
+RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai && \
+    mkdir -p /var/cache/playwright && \
+    chown -R solaceai:solaceai /var/cache/playwright
 
 WORKDIR /app
 RUN chown -R solaceai:solaceai /app /tmp
 
-# Switch to non-root user and install Playwright browser
-USER solaceai
-RUN playwright install chromium
+# Copy the pre-built virtual environment from builder
+# This avoids slow pip install in runtime (UV already did it)
+# Copied AFTER Playwright setup so Playwright layers stay cached
+COPY --from=builder /opt/venv /opt/venv
 
-# Install the Solace Agent Mesh package
-USER root
-COPY --from=builder /app/dist/solace_agent_mesh-*.whl /tmp/
+# Set Playwright to use the cached browser location
+ENV PLAYWRIGHT_BROWSERS_PATH=/var/cache/playwright
 
-# Use built-in pip for runtime installation (avoids uv licensing in final image)
-# uv is only used in build stage which is discarded
-RUN python -m pip install --no-cache-dir /tmp/solace_agent_mesh-*.whl && \
-    rm -rf /tmp/solace_agent_mesh-*.whl
-
-# Copy sample SAM applications
 COPY preset /preset
 
 USER solaceai
-
 # Required environment variables
 ENV CONFIG_PORTAL_HOST=0.0.0.0
 ENV FASTAPI_HOST=0.0.0.0

@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - test-build-opt
   pull_request:
     types: [opened, synchronize]
     branches:
@@ -37,7 +38,7 @@ jobs:
       MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
       MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
   # ----------------------------------------------------
-  # PHASE 0: Prepare Metadata and Determine Build Strategy
+  # PHASE 0: Prepare Metadata and Determine Build Strategy Test1
   # ----------------------------------------------------
   prepare-metadata:
     name: Prepare Build Metadata
@@ -54,6 +55,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+        with:
+          enable-cache: true
+
+      - name: Sync and verify uv.lock
+        run: |
+          # Sync lock file with pyproject.toml
+          uv lock --upgrade-package solace-agent-mesh
+          # Check if lock file was modified
+          if ! git diff --quiet uv.lock; then
+            echo "Warning: uv.lock was out of sync and has been updated"
+            # In CI, we just warn but continue. In development, developers should commit the updated lock file.
+          fi
+
       - name: Get Commit Hash
         id: get_commit_hash
         run: |
@@ -63,7 +79,7 @@ jobs:
       - name: Get Version from hatch
         id: get_version
         run: |
-          python3 -m pip install hatch
+          uv tool install hatch
           echo "version=$(hatch version)" >> $GITHUB_OUTPUT
           echo "Found version: $(hatch version)"
 
@@ -114,21 +130,21 @@ jobs:
       - name: Set Registry Type
         id: set_registry
         run: |
+          use_ecr=false
           # Determine if we should use ECR (don't expose the actual registry URL)
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+          if [[ ( "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ) || "${{ github.ref_name }}" == "test-build-opt" ]]; then
             # Check if ECR registry is available
             ecr_registry="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
             if [[ -n "${ecr_registry}" && "${ecr_registry}" != "" ]]; then
-              echo "use_ecr=true" >> $GITHUB_OUTPUT
+              use_ecr=true
               echo "Will use ECR registry for default branch push"
             else
-              echo "use_ecr=false" >> $GITHUB_OUTPUT
               echo "ECR registry not available, will use GitHub repository"
             fi
           else
-            echo "use_ecr=false" >> $GITHUB_OUTPUT
             echo "Will use GitHub repository for PR/branch build"
           fi
+          echo "use_ecr=${use_ecr}" >> $GITHUB_OUTPUT
 
   # ----------------------------------------------------
   # PHASE 1 & 2: Multiplatform Builds (Always Both Platforms)
@@ -155,7 +171,7 @@ jobs:
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       - name: Configure AWS credentials
-        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
@@ -163,20 +179,52 @@ jobs:
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Login to Amazon ECR
-        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
-      - name: Determine Image Name
+      - name: Login to GitHub Container Registry
+        if: ${{ !fromJSON(needs.prepare-metadata.outputs.use_ecr) }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine Image Name and Cache Configuration
         id: image_name
         run: |
           if [[ "${{ fromJSON(needs.prepare-metadata.outputs.use_ecr) }}" == "true" ]]; then
             image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
             echo "Using ECR registry: ${image_name}"
           else
-            image_name="${{ github.repository }}"
-            echo "Using GitHub repository: ${image_name}"
+            image_name="ghcr.io/${{ github.repository }}"
+            echo "Using GitHub Container Registry: ${image_name}"
           fi
-          echo "image_name=${image_name}" >> $GITHUB_OUTPUT
+
+          # Lowercase for GHCR compatibility
+          image_name_lower="${image_name,,}"
+          echo "image_name=${image_name_lower}" >> $GITHUB_OUTPUT
+
+          # Configure cache settings - use the full image name with repository
+          cache_ref="${image_name_lower}:buildcache-${{ matrix.platform.tag_suffix }}"
+          echo "cache_ref=${cache_ref}" >> $GITHUB_OUTPUT
+          echo "Cache reference: ${cache_ref}"
+
+          # For PR builds, we can read from registry cache but write to gha cache
+          # For push builds, we can read and write to registry cache
+          if [[ "${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}" == "true" || "${{ github.ref_name }}" == "test-build-opt" ]]; then
+            # Use registry cache for both read and write
+            # Note: On first build, cache won't exist - that's okay, build will proceed without cache
+            echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
+            echo "cache_to=type=registry,ref=${cache_ref},mode=max" >> $GITHUB_OUTPUT
+            echo "Using registry cache (read/write) for branch push"
+          else
+            # PR builds: read from registry cache (best effort), write to gha cache
+            # If registry cache doesn't exist, will fall back to no cache (first build)
+            echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
+            echo "cache_to=type=gha,scope=${{ matrix.platform.tag_suffix }},mode=max" >> $GITHUB_OUTPUT
+            echo "Using registry cache (read-only) + gha cache (write) for PR"
+          fi
 
       - name: Build and Push Platform-Specific Image
         uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
@@ -186,8 +234,10 @@ jobs:
           platforms: ${{ matrix.platform.name }}
           tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
           push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
-          cache-from: type=gha,scope=${{ matrix.platform.tag_suffix }}
-          cache-to: type=gha,scope=${{ matrix.platform.tag_suffix }},mode=max
+          cache-from: ${{ steps.image_name.outputs.cache_from }}
+          cache-to: ${{ steps.image_name.outputs.cache_to }}
+          provenance: false
+          sbom: false
 
   # ----------------------------------------------------
   # PHASE 3: Merge Multi-Platform Manifest (Always)
@@ -199,7 +249,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
-        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
@@ -207,8 +257,16 @@ jobs:
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Login to Amazon ECR
-        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Login to GitHub Container Registry
+        if: ${{ !fromJSON(needs.prepare-metadata.outputs.use_ecr) }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
@@ -221,20 +279,22 @@ jobs:
             image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
             echo "Using ECR registry: ${image_name}"
           else
-            image_name="${{ github.repository }}"
-            echo "Using GitHub repository: ${image_name}"
+            image_name="ghcr.io/${{ github.repository }}"
+            echo "Using GitHub Container Registry: ${image_name}"
           fi
-          
+          # Lowercase for GHCR compatibility
+          image_name="${image_name,,}"
+
           # Reconstruct tags
           version="${{ needs.prepare-metadata.outputs.version }}"
           release_tag="${{ needs.prepare-metadata.outputs.release_tag }}"
           short_sha="${{ needs.prepare-metadata.outputs.short_sha }}"
-          
+
           tags="${image_name}:${version}"
           tags="${tags},${image_name}:${version}-${short_sha}"
           tags="${tags},${image_name}:${release_tag}"
           tags="${tags},${image_name}:${release_tag}-${short_sha}"
-          
+
           echo "image_name=${image_name}" >> $GITHUB_OUTPUT
           echo "tags=${tags}" >> $GITHUB_OUTPUT
           echo "Created tags: ${tags}"
@@ -245,14 +305,15 @@ jobs:
           # Define the platform-specific tags
           AMD_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-amd64"
           ARM_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-arm64"
-          
+
           echo "AMD64 Tag: ${AMD_TAG}"
           echo "ARM64 Tag: ${ARM_TAG}"
-          
+
           # Convert comma-separated tags string to array and create manifest for each
           IFS=',' read -ra TAGS <<< "${{ steps.image_tags.outputs.tags }}"
           for TAG in "${TAGS[@]}"; do
             # Trim any whitespace
+            
             TAG=$(echo "$TAG" | xargs)
             echo "Creating manifest for tag: $TAG"
             docker buildx imagetools create \
@@ -260,7 +321,7 @@ jobs:
               "$AMD_TAG" \
               "$ARM_TAG"
           done
-          
+
           echo "Multi-platform manifest created successfully"
 
       - name: Update Release Manifest
