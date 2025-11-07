@@ -20,6 +20,7 @@ permissions:
 jobs:
   ci:
     uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_ci.yml@main
+    if: ${{!contains(github.ref_name , 'build-optimization')}}
     with:
       min-python-version: "3.10"
       max-python-version: "3.13"
@@ -50,7 +51,6 @@ jobs:
       release_tag: ${{ steps.release_tag.outputs.release_tag }}
       use_ecr: ${{ steps.set_registry.outputs.use_ecr }}
       docker_push: ${{ steps.set_build_params.outputs.docker_push }}
-      update_manifest: ${{ steps.set_build_params.outputs.update_manifest }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -95,56 +95,14 @@ jobs:
       - name: Set Build Params
         id: set_build_params
         run: |
-          if [[ "${{ github.event_name == 'push' }}" == "true" ]]; then
-            echo "docker_push=true" >> $GITHUB_OUTPUT
-            echo "Will push images for branch push"
-            
-            # Only update manifest for default branch pushes
-            if [[ "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
-              echo "update_manifest=true" >> $GITHUB_OUTPUT
-              echo "Will update release manifest for default branch push"
-            else
-              echo "update_manifest=false" >> $GITHUB_OUTPUT
-              echo "Will not update release manifest for non-default branch push"
-            fi
-          else
-            echo "docker_push=false" >> $GITHUB_OUTPUT
-            echo "update_manifest=false" >> $GITHUB_OUTPUT
-            echo "Will build but not push for PR"
+          docker_push=false
+          # Only update manifest for default branch pushes
+          if [[ "${{ github.event_name == 'push' }}" == "true" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+            docker_push=true
           fi
+          echo "Will Push Images: ${docker_push}"
+          echo "docker_push=${docker_push}" >> $GITHUB_OUTPUT
           echo "Always building multiplatform for all scenarios"
-
-      - name: Configure AWS credentials
-        if: fromJSON(steps.set_build_params.outputs.docker_push)
-        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
-        with:
-          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
-
-      - name: Login to Amazon ECR
-        if: fromJSON(steps.set_build_params.outputs.docker_push)
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
-
-      - name: Set Registry Type
-        id: set_registry
-        run: |
-          use_ecr=false
-          # Determine if we should use ECR (don't expose the actual registry URL)
-          if [[ ( "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ) || "${{ github.ref_name }}" == "test-build-opt" ]]; then
-            # Check if ECR registry is available
-            ecr_registry="${{ secrets.SAM_AWS_ECR_REGISTRY }}"
-            if [[ -n "${ecr_registry}" && "${ecr_registry}" != "" ]]; then
-              use_ecr=true
-              echo "Will use ECR registry for default branch push"
-            else
-              echo "ECR registry not available, will use GitHub repository"
-            fi
-          else
-            echo "Will use GitHub repository for PR/branch build"
-          fi
-          echo "use_ecr=${use_ecr}" >> $GITHUB_OUTPUT
 
   # ----------------------------------------------------
   # PHASE 1 & 2: Multiplatform Builds (Always Both Platforms)
@@ -179,11 +137,10 @@ jobs:
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Login to Amazon ECR
-        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
       - name: Login to GitHub Container Registry
-        if: ${{ !fromJSON(needs.prepare-metadata.outputs.use_ecr) }}
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
@@ -193,20 +150,11 @@ jobs:
       - name: Determine Image Name and Cache Configuration
         id: image_name
         run: |
-          if [[ "${{ fromJSON(needs.prepare-metadata.outputs.use_ecr) }}" == "true" ]]; then
-            image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
-            echo "Using ECR registry: ${image_name}"
-          else
-            image_name="ghcr.io/${{ github.repository }}"
-            echo "Using GitHub Container Registry: ${image_name}"
-          fi
-
-          # Lowercase for GHCR compatibility
-          image_name_lower="${image_name,,}"
-          echo "image_name=${image_name_lower}" >> $GITHUB_OUTPUT
+          image_name="${{ steps.login-ecr.outputs.registry }}/solace-agent-mesh"
+          echo "image_name=${image_name}" >> $GITHUB_OUTPUT
 
           # Configure cache settings - use the full image name with repository
-          cache_ref="${image_name_lower}:buildcache-${{ matrix.platform.tag_suffix }}"
+          cache_ref="${image_name}:buildcache-${{ matrix.platform.tag_suffix }}"
           echo "cache_ref=${cache_ref}" >> $GITHUB_OUTPUT
           echo "Cache reference: ${cache_ref}"
 

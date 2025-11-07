@@ -1,7 +1,5 @@
 FROM python:3.11-slim AS base
 
-ENV PYTHONUNBUFFERED=1
-
 # Install system dependencies and uv
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -73,6 +71,9 @@ FROM base AS builder
 
 WORKDIR /app
 
+ENV VIRTUAL_ENV=/opt/venv
+ENV UV_LINK_MODE=copy
+ENV UV_COMPILE_BYTECODE=1
 # Install hatch with cache mount (before copying deps for better layer caching)
 # This layer is invalidated only when base image changes, not when pyproject.toml changes
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -85,9 +86,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    UV_PROJECT_ENVIRONMENT=/opt/venv uv sync \
+    uv sync \
         --frozen \
         --no-dev \
+        --active \
         --no-install-project
 
 # Copy Python source code and essential files (skip UI source code)
@@ -116,7 +118,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Install only the wheel package (not dependencies, they're already installed)
 # This is fast since all deps are already in the venv
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --python=/opt/venv/bin/python --no-deps /app/dist/solace_agent_mesh-*.whl
+    uv pip install /app/dist/solace_agent_mesh-*.whl --active
 
 # Runtime stage
 FROM python:3.11-slim AS runtime
@@ -131,21 +133,15 @@ RUN apt-get update && \
     ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
+
 # Install playwright temporarily just for browser installation (cached layer)
 # This is separate from the full venv to keep this layer cached
 # We'll use the playwright from the full venv at runtime
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --no-cache-dir playwright
-
-# Install Playwright system dependencies (cached layer)
-RUN playwright install-deps chromium
-
-# Install Playwright browsers with cache (cached layer)
-# This layer stays cached because it doesn't depend on builder stage
-# Registry cache with mode=max ensures this expensive download is cached
-# sharing=locked prevents concurrent builds from corrupting the cache
-RUN --mount=type=cache,target=/var/cache/playwright,sharing=locked \
-    PLAYWRIGHT_BROWSERS_PATH=/var/cache/playwright playwright install chromium
+    --mount=type=cache,target=/root/.cache/playwright \
+    python -m pip install playwright && \
+    playwright install-deps chromium && \
+    playwright install chromium
 
 # Create non-root user and Playwright cache directory
 RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai && \
@@ -153,15 +149,12 @@ RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai && \
     chown -R solaceai:solaceai /var/cache/playwright
 
 WORKDIR /app
-RUN chown -R solaceai:solaceai /app /tmp
+RUN chown -R solaceai:solaceai /app
 
 # Copy the pre-built virtual environment from builder
 # This avoids slow pip install in runtime (UV already did it)
 # Copied AFTER Playwright setup so Playwright layers stay cached
 COPY --from=builder /opt/venv /opt/venv
-
-# Set Playwright to use the cached browser location
-ENV PLAYWRIGHT_BROWSERS_PATH=/var/cache/playwright
 
 COPY preset /preset
 
