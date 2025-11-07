@@ -3584,6 +3584,7 @@ class SamAgentComponent(SamComponentBase):
                 self.log_identifier,
                 e,
             )
+            self.cleanup()
             raise e
 
     def _pre_async_cleanup(self) -> None:
