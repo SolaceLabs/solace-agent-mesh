@@ -44,7 +44,7 @@ class WebUIBackendFactory:
                 Path(self._temp_dir.name) / f"test_webui_gateway_{uuid.uuid4().hex}.db"
             )
             db_url = f"sqlite:///{db_path}"
-        
+
         # Ensure parent directory exists for SQLite databases
         if db_url.startswith("sqlite"):
             # Extract file path from SQLite URL
