@@ -181,3 +181,42 @@ class GatewayAdapter:
                 conn.commit()
 
             return result.rowcount > 0
+
+    def seed_project(
+        self,
+        project_id: str,
+        name: str,
+        user_id: str,
+        description: str = None,
+        system_prompt: str = None,
+        default_agent_id: str = None,
+    ) -> dict:
+        """Seed a project in the database for testing."""
+        with self.db_manager.get_gateway_connection() as conn:
+            metadata = sa.MetaData()
+            metadata.reflect(bind=conn)
+            projects_table = metadata.tables["projects"]
+
+            now = now_epoch_ms()
+            query = sa.insert(projects_table).values(
+                id=project_id,
+                name=name,
+                user_id=user_id,
+                description=description,
+                system_prompt=system_prompt,
+                default_agent_id=default_agent_id,
+                created_at=now,
+                updated_at=now,
+            )
+            conn.execute(query)
+
+            if conn.in_transaction():
+                conn.commit()
+
+            # Fetch the created project
+            select_query = sa.select(projects_table).where(
+                projects_table.c.id == project_id
+            )
+            created_project = conn.execute(select_query).first()
+
+        return created_project._asdict() if created_project else None

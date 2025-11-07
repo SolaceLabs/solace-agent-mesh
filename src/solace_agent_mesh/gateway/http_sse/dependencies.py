@@ -24,6 +24,7 @@ from ...gateway.http_sse.services.feedback_service import FeedbackService
 from ...gateway.http_sse.services.people_service import PeopleService
 from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
 from ...gateway.http_sse.services.task_service import TaskService
+from ...gateway.http_sse.services.data_retention_service import DataRetentionService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .repository import SessionRepository
@@ -291,7 +292,7 @@ def get_feedback_service(
 
 def get_data_retention_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> "DataRetentionService | None":
+) -> DataRetentionService | None:
     """
     FastAPI dependency to get the DataRetentionService instance.
 
