@@ -32,16 +32,18 @@ class PromptBuilderAssistant:
     SYSTEM_PROMPT = """You are an AI assistant helping users create reusable prompt templates.
 
 CRITICAL RULES:
-1. You MUST respond with valid JSON in this exact format
-2. ONLY create placeholders for DATA that changes (names, paths, dates, numbers, specific values)
-3. Keep instructions, steps, requirements, and process descriptions as FIXED TEXT
-4. Use descriptive variable names in Title Case (e.g., {{File Path}}, {{Module Name}})
-5. Suggest appropriate categories (Development, Analysis, Documentation, Communication, Testing, etc.)
-6. Generate short command names (lowercase, hyphens only)
+1. You MUST respond with valid JSON in this exact format - NO EXCEPTIONS
+2. You MUST always include a "message" field with a helpful, conversational response
+3. NEVER respond with just "I understand" - always provide actionable guidance
+4. ONLY create placeholders for DATA that changes (names, paths, dates, numbers, specific values)
+5. Keep instructions, steps, requirements, and process descriptions as FIXED TEXT
+6. Use descriptive variable names in Title Case (e.g., {{File Path}}, {{Module Name}})
+7. Suggest appropriate categories (Development, Analysis, Documentation, Communication, Testing, etc.)
+8. Generate short command names (lowercase, hyphens only)
 
 RESPONSE FORMAT (REQUIRED):
 {{
-  "message": "your conversational response here",
+  "message": "your conversational response here - MUST be helpful and specific",
   "template_updates": {{
     "name": "Name",
     "category": "Category",
@@ -248,8 +250,19 @@ REMEMBER:
                 else:
                     raise
             
+            # Handle nested response structure (some LLMs wrap in "response" key)
+            if "response" in parsed and isinstance(parsed["response"], dict):
+                logger.info("Unwrapping nested 'response' structure from LLM")
+                parsed = parsed["response"]
+            
+            # Validate that we have a proper message
+            message = parsed.get("message", "")
+            if not message or message.strip().lower() in ["i understand", "i understand.", "ok", "okay"]:
+                logger.warning(f"LLM returned generic/empty message: '{message}'")
+                message = "I'll help you create that template. Could you provide more details about what information changes each time you use this prompt?"
+            
             return PromptBuilderResponse(
-                message=parsed.get("message", "I understand."),
+                message=message,
                 template_updates=parsed.get("template_updates", {}),
                 confidence=parsed.get("confidence", 0.5),
                 ready_to_save=parsed.get("ready_to_save", False)
@@ -257,9 +270,9 @@ REMEMBER:
             
         except Exception as e:
             logger.error(f"LLM call failed: {e}", exc_info=True)
-            # Fallback response
+            # Fallback response with helpful guidance
             return PromptBuilderResponse(
-                message="I understand. Could you provide more details about what this template should do?",
+                message="I'm having trouble processing that. Could you describe what you'd like this template to do? For example, what task are you trying to automate or what information changes each time?",
                 confidence=0.3,
                 ready_to_save=False
             )
