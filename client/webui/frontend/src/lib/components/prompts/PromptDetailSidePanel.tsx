@@ -1,5 +1,5 @@
 import React from "react";
-import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MessageSquare, MoreHorizontal, Star } from "lucide-react";
+import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MoreHorizontal, SquarePen } from "lucide-react";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -22,7 +22,6 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
     onDelete,
     onViewVersions,
     onUseInChat,
-    onTogglePin
 }) => {
     const { configFeatureEnablement } = useConfigContext();
     const versionHistoryEnabled = configFeatureEnablement?.promptVersionHistory ?? true;
@@ -47,12 +46,6 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
     const handleUseInChat = () => {
         if (onUseInChat) {
             onUseInChat(prompt);
-        }
-    };
-
-    const handleTogglePin = () => {
-        if (onTogglePin && prompt) {
-            onTogglePin(prompt.id, prompt.is_pinned);
         }
     };
 
@@ -82,18 +75,6 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                                {onUseInChat && (
-                                    <DropdownMenuItem onClick={handleUseInChat}>
-                                        <MessageSquare size={14} className="mr-2" />
-                                        Use in Chat
-                                    </DropdownMenuItem>
-                                )}
-                                {onTogglePin && (
-                                    <DropdownMenuItem onClick={handleTogglePin}>
-                                        <Star size={14} className="mr-2" fill={prompt.is_pinned ? 'currentColor' : 'none'} />
-                                        {prompt.is_pinned ? 'Remove from Favorites' : 'Add to Favorites'}
-                                    </DropdownMenuItem>
-                                )}
                                 <DropdownMenuItem onClick={handleEdit}>
                                     <Pencil size={14} className="mr-2" />
                                     Edit Prompt
@@ -130,31 +111,48 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {/* Description */}
-                <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground mb-2">Description</h3>
-                    <div className="bg-muted/50 p-3 rounded text-sm leading-relaxed">
-                        {prompt.description || "No description provided."}
+                {/* Description and Chat Shortcut - with background */}
+                <div className="bg-muted/50 p-4 rounded space-y-6">
+                    {/* Description */}
+                    <div>
+                        <h3 className="text-xs font-semibold text-muted-foreground mb-2">Description</h3>
+                        <div className="text-sm leading-relaxed">
+                            {prompt.description || "No description provided."}
+                        </div>
                     </div>
+
+                    {/* Chat Shortcut */}
+                    {prompt.command && (
+                        <div>
+                            <h3 className="text-xs font-semibold text-muted-foreground mb-2">Chat Shortcut</h3>
+                            <div>
+                                <span className="inline-block font-mono text-xs text-primary bg-primary/10 px-2 py-0.5 rounded">
+                                    /{prompt.command}
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* Chat Shortcut */}
-                {prompt.command && (
-                    <div>
-                        <h3 className="text-xs font-semibold text-muted-foreground mb-2">Chat Shortcut</h3>
-                        <div className="bg-muted/50 p-3 rounded">
-                            <span className="inline-block font-mono text-xs text-primary bg-primary/10 px-2 py-0.5 rounded">
-                                /{prompt.command}
-                            </span>
-                        </div>
+                {/* Start New Chat Button */}
+                {onUseInChat && (
+                    <div className="flex justify-center">
+                        <Button
+                            onClick={handleUseInChat}
+                            className="w-full max-w-xl bg-[var(--color-brand-wMain)] hover:bg-[var(--color-brand-wMain)]/90 text-white"
+                            size="lg"
+                        >
+                            <SquarePen className="h-4 w-4 mr-2" />
+                            Start New Chat
+                        </Button>
                     </div>
                 )}
 
-                {/* Prompt */}
+                {/* Content - no background */}
                 {prompt.production_prompt && (
                     <div>
-                        <h3 className="text-xs font-semibold text-muted-foreground mb-2">Prompt</h3>
-                        <div className="bg-muted/50 p-3 rounded text-xs font-mono whitespace-pre-wrap break-words">
+                        <h3 className="text-xs font-semibold text-muted-foreground mb-2">Content</h3>
+                        <div className="text-xs font-mono whitespace-pre-wrap break-words">
                             {prompt.production_prompt.prompt_text.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
                                 if (part.match(/\{\{[^}]+\}\}/)) {
                                     return (

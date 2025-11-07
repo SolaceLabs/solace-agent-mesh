@@ -56,7 +56,7 @@ export const GeneratePromptDialog: React.FC<GeneratePromptDialogProps> = ({
                 <DialogHeader>
                     <DialogTitle className="text-xl">Create Prompt</DialogTitle>
                     <DialogDescription className="text-base">
-                        You can generate a prompt template by sharing basic details about your task.
+                        You can generate a prompt by sharing basic details about your task. Alternatively, paste in an existing prompt and the AI will convert it into a re-usable prompt for you.
                     </DialogDescription>
                 </DialogHeader>
 

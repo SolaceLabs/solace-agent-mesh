@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { FileText } from 'lucide-react';
 import { Badge, CardTitle, Label } from '@/lib/components/ui';
 import type { TemplateConfig } from './hooks/usePromptTemplateBuilder';
@@ -15,6 +15,22 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
 }) => {
     // Only show content when we have actual prompt text, not just metadata
     const hasContent = config.prompt_text && config.prompt_text.trim().length > 0;
+    
+    // Track if we've ever had content before to distinguish initial generation from updates
+    const hadContentBeforeRef = useRef(false);
+    const previousHighlightedFieldsRef = useRef<string[]>([]);
+    
+    useEffect(() => {
+        // When highlightedFields changes, check if we had content before
+        if (highlightedFields.length > 0 && hasContent) {
+            if (!hadContentBeforeRef.current) {
+                hadContentBeforeRef.current = true;
+            }
+        }
+        previousHighlightedFieldsRef.current = highlightedFields;
+    }, [highlightedFields, hasContent]);
+    
+    const showBadges = hadContentBeforeRef.current && highlightedFields.length > 0;
 
     const renderField = (label: string, value: string | undefined, fieldName: string, isCommand: boolean = false) => {
         const isHighlighted = highlightedFields.includes(fieldName);
@@ -23,8 +39,8 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
         return (
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                    <Label className="text-[var(--color-secondaryText-wMain)]">{label}</Label>
-                    {isHighlighted && (
+                    <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+                    {isHighlighted && showBadges && (
                         <Badge variant="default" className="text-xs bg-primary text-primary-foreground">
                             Updated
                         </Badge>
@@ -73,7 +89,7 @@ export const TemplatePreviewPanel: React.FC<TemplatePreviewPanelProps> = ({
         return (
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                    {isHighlighted && (
+                    {isHighlighted && showBadges && (
                         <Badge variant="default" className="text-xs bg-primary text-primary-foreground">
                             Updated
                         </Badge>

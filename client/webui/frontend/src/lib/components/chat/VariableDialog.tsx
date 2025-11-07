@@ -61,51 +61,52 @@ export const VariableDialog: React.FC<VariableDialogProps> = ({
 
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="w-full max-w-lg rounded-lg border border-[var(--border)] bg-[var(--background)] p-6 shadow-lg">
-                {/* Header */}
-                <div className="mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-lg max-h-[80vh] flex flex-col rounded-lg border border-[var(--border)] bg-[var(--background)] shadow-lg">
+                {/* Header - Fixed */}
+                <div className="flex-shrink-0 p-6 pb-4">
                     <h2 className="text-lg font-semibold">Insert {group.name}</h2>
                     <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                         Variables represent placeholder information in the template. Enter a value for each placeholder below.
                     </p>
                 </div>
 
-                {/* Error Banner */}
                 {showError && (
-                    <MessageBanner
-                        variant="error"
-                        message="Please fill in all variables before inserting the prompt"
-                    />
+                    <div className="flex-shrink-0 px-6">
+                        <MessageBanner
+                            variant="error"
+                            message="Please fill in all variables before inserting the prompt"
+                        />
+                    </div>
                 )}
 
-                {/* Form */}
-                <form onSubmit={handleSubmit}>
-                    <div className="space-y-4">
-                        {variables.map((variable) => (
-                            <div key={variable}>
-                                <label 
-                                    htmlFor={`var-${variable}`}
-                                    className="block text-sm font-medium mb-1"
-                                >
-                                    {variable}
-                                </label>
-                                <textarea
-                                    id={`var-${variable}`}
-                                    value={values[variable]}
-                                    onChange={(e) => setValues(prev => ({
-                                        ...prev,
-                                        [variable]: e.target.value
-                                    }))}
-                                    className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] min-h-[80px]"
-                                    required
-                                />
-                            </div>
-                        ))}
+                <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                    <div className="flex-1 overflow-y-auto px-6 py-4">
+                        <div className="space-y-4">
+                            {variables.map((variable) => (
+                                <div key={variable}>
+                                    <label
+                                        htmlFor={`var-${variable}`}
+                                        className="block text-sm font-medium mb-1"
+                                    >
+                                        {variable}
+                                    </label>
+                                    <textarea
+                                        id={`var-${variable}`}
+                                        value={values[variable]}
+                                        onChange={(e) => setValues(prev => ({
+                                            ...prev,
+                                            [variable]: e.target.value
+                                        }))}
+                                        className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] p-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] min-h-[80px]"
+                                        required
+                                    />
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="mt-6 flex justify-end gap-2">
+                    <div className="flex-shrink-0 p-6 pt-4 border-t border-[var(--border)] flex justify-end gap-2">
                         <Button
                             type="button"
                             variant="ghost"

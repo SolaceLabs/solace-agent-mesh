@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Loader2, Sparkles } from 'lucide-react';
-import { Button, Input } from '@/lib/components/ui';
+import { Button, Textarea } from '@/lib/components/ui';
 import type { TemplateConfig } from './hooks/usePromptTemplateBuilder';
 
 interface Message {
@@ -35,7 +35,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
     const [isInitializing, setIsInitializing] = useState(true);
     const [hasUserMessage, setHasUserMessage] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
 
     // Auto-scroll to bottom when new messages arrive
     const scrollToBottom = () => {
@@ -162,6 +162,21 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
         }
     }, [isInitializing, isLoading]);
 
+    // Auto-resize textarea based on content
+    useEffect(() => {
+        const textarea = inputRef.current;
+        if (!textarea) return;
+
+        const adjustHeight = () => {
+            textarea.style.height = 'auto';
+            // Set height based on scrollHeight, with max height of 200px
+            const newHeight = Math.min(textarea.scrollHeight, 200);
+            textarea.style.height = `${newHeight}px`;
+        };
+
+        adjustHeight();
+    }, [input]);
+
     const handleSend = async () => {
         if (!input.trim() || isLoading) return;
 
@@ -236,13 +251,6 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
         handleSend();
     };
 
-    const handleKeyPress = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    };
-
     if (isInitializing) {
         return (
             <div className="flex h-full items-center justify-center">
@@ -305,14 +313,21 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
             {/* Input Area */}
             <div className="border-t bg-background p-4">
                 <form onSubmit={handleSubmit} className="relative">
-                    <Input
+                    <Textarea
                         ref={inputRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        onKeyPress={handleKeyPress}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSend();
+                            }
+                        }}
                         placeholder={hasUserMessage ? "Type your message..." : "Describe your recurring task..."}
                         disabled={isLoading}
-                        className="pr-12"
+                        className="max-h-[200px] min-h-[40px] resize-none pr-12 overflow-y-auto"
+                        rows={1}
+                        style={{ height: '40px' }}
                     />
                     <Button
                         type="submit"

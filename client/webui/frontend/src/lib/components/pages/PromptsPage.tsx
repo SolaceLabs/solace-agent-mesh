@@ -25,6 +25,7 @@ export const PromptsPage: React.FC = () => {
     const [builderInitialMode, setBuilderInitialMode] = useState<'manual' | 'ai-assisted'>('ai-assisted');
     const [versionHistoryGroup, setVersionHistoryGroup] = useState<PromptGroup | null>(null);
     const [deletingPrompt, setDeletingPrompt] = useState<{ id: string; name: string } | null>(null);
+    const [newlyCreatedPromptId, setNewlyCreatedPromptId] = useState<string | null>(null);
 
     // Fetch prompt groups
     const fetchPromptGroups = async () => {
@@ -106,7 +107,7 @@ export const PromptsPage: React.FC = () => {
     };
 
     const handleEdit = (group: PromptGroup) => {
-        setVersionHistoryGroup(null); 
+        // Don't clear versionHistoryGroup - we'll return to it after editing
         setEditingGroup(group);
         setBuilderInitialMode('manual');
         setShowBuilder(true);
@@ -203,12 +204,41 @@ export const PromptsPage: React.FC = () => {
                         setInitialMessage(null);
                         setEditingGroup(null);
                     }}
-                    onSuccess={() => {
+                    onSuccess={async (createdNewVersion?: boolean, createdPromptId?: string | null) => {
                         setShowBuilder(false);
                         setInitialMessage(null);
+                        const wasEditingGroup = editingGroup;
                         setEditingGroup(null);
                         setBuilderInitialMode('ai-assisted');
-                        fetchPromptGroups();
+                        
+                        // Store the newly created/edited prompt ID for auto-selection
+                        if (createdPromptId) {
+                            setNewlyCreatedPromptId(createdPromptId);
+                        }
+                        
+                        await fetchPromptGroups();
+                        
+                        // If returning to Version History, refresh the group data
+                        if (versionHistoryGroup) {
+                            try {
+                                const response = await fetch(`/api/v1/prompts/groups/${versionHistoryGroup.id}`, {
+                                    credentials: 'include',
+                                });
+                                if (response.ok) {
+                                    const updatedGroup = await response.json();
+                                    // If a new version was created, select the new production version
+                                    // Otherwise, preserve the previously selected version
+                                    setVersionHistoryGroup({
+                                        ...updatedGroup,
+                                        _selectedVersionId: createdNewVersion
+                                            ? updatedGroup.production_prompt_id
+                                            : wasEditingGroup?._selectedVersionId,
+                                    });
+                                }
+                            } catch (error) {
+                                console.error('Failed to refresh version history group:', error);
+                            }
+                        }
                     }}
                     initialMessage={initialMessage}
                     editingGroup={editingGroup}
@@ -300,6 +330,7 @@ export const PromptsPage: React.FC = () => {
                         onViewVersions={setVersionHistoryGroup}
                         onUseInChat={handleUseInChat}
                         onTogglePin={handleTogglePin}
+                        newlyCreatedPromptId={newlyCreatedPromptId}
                     />
                 </div>
             )}

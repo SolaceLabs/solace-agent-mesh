@@ -22,7 +22,7 @@ import type { PromptGroup } from '@/lib/types/prompts';
 
 interface PromptTemplateBuilderProps {
     onBack: () => void;
-    onSuccess?: () => void;
+    onSuccess?: (createdNewVersion?: boolean, createdPromptId?: string | null) => void;
     initialMessage?: string | null;
     editingGroup?: PromptGroup | null;
     isEditing?: boolean;
@@ -87,6 +87,19 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
     const hasUnsavedChanges = useMemo(() => {
         if (!initialConfig) return false;
         
+        // Check if current form has any actual content
+        const hasContent = !!(
+            config.name?.trim() ||
+            config.description?.trim() ||
+            config.category ||
+            config.command?.trim() ||
+            config.prompt_text?.trim()
+        );
+        
+        // If form is empty, no unsaved changes
+        if (!hasContent) return false;
+        
+        // Otherwise, check if values differ from initial state
         return (
             config.name !== initialConfig.name ||
             config.description !== initialConfig.description ||
@@ -134,6 +147,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
 
     const handleSave = async () => {
         if (isEditing && editingGroup) {
+            // Overwrite current version
             const success = await updateTemplate(editingGroup.id, false);
             if (success) {
                 // Clear unsaved state and close without check
@@ -141,18 +155,18 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                 confirmNavigation();
                 handleClose(true); // Skip unsaved check
                 if (onSuccess) {
-                    onSuccess();
+                    onSuccess(false, editingGroup.id); // Did not create new version, pass existing ID
                 }
             }
         } else {
-            const success = await saveTemplate();
-            if (success) {
+            const createdId = await saveTemplate();
+            if (createdId) {
                 // Clear unsaved state and close without check
                 setGlobalUnsavedChanges(false);
                 confirmNavigation();
                 handleClose(true); // Skip unsaved check
                 if (onSuccess) {
-                    onSuccess();
+                    onSuccess(false, createdId); // New prompt, pass created ID
                 }
             }
         }
@@ -161,6 +175,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
     const handleSaveNewVersion = async () => {
         if (!isEditing || !editingGroup) return;
         
+        // Create new version and make it active
         const success = await updateTemplate(editingGroup.id, true);
         if (success) {
             // Clear unsaved state and close without check
@@ -168,7 +183,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
             confirmNavigation();
             handleClose(true); // Skip unsaved check
             if (onSuccess) {
-                onSuccess();
+                onSuccess(true, editingGroup.id); // Created new version, pass group ID
             }
         }
     };
@@ -199,10 +214,15 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
 
     const handleSwitchToManual = () => {
         setBuilderMode('manual');
+        // Clear highlighted fields when switching to manual mode
+        setHighlightedFields([]);
     };
 
     const handleSwitchToAI = () => {
         setBuilderMode('ai-assisted');
+        // Clear highlighted fields when switching back to AI mode
+        // This ensures "Updated" badges only show after new AI interactions
+        setHighlightedFields([]);
     };
 
     return (
@@ -262,28 +282,29 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
 
             {/* Content area with left and right panels */}
             <div className="flex flex-1 min-h-0">
-                {builderMode === 'ai-assisted' ? (
-                    <>
-                        {/* Left Panel - AI Chat */}
-                        <div className="w-[40%] overflow-hidden border-r">
-                            <PromptBuilderChat
-                                onConfigUpdate={handleConfigUpdate}
-                                currentConfig={config}
-                                onReadyToSave={setIsReadyToSave}
-                                initialMessage={initialMessage}
-                            />
-                        </div>
-                        {/* Right Panel - Template Preview */}
-                        <div className="w-[60%] overflow-hidden bg-muted/30">
-                            <TemplatePreviewPanel
-                                config={config}
-                                highlightedFields={highlightedFields}
-                                isReadyToSave={isReadyToSave}
-                            />
-                        </div>
-                    </>
-                ) : (
-                    /* Manual Mode - Full Width Form */
+                {/* Left Panel - AI Chat (keep mounted but hidden to preserve chat history) */}
+                <div className={`w-[40%] overflow-hidden border-r ${builderMode === 'manual' ? 'hidden' : ''}`}>
+                    <PromptBuilderChat
+                        onConfigUpdate={handleConfigUpdate}
+                        currentConfig={config}
+                        onReadyToSave={setIsReadyToSave}
+                        initialMessage={initialMessage}
+                    />
+                </div>
+                
+                {/* Right Panel - Template Preview (only in AI mode) */}
+                {builderMode === 'ai-assisted' && (
+                    <div className="w-[60%] overflow-hidden bg-muted/30">
+                        <TemplatePreviewPanel
+                            config={config}
+                            highlightedFields={highlightedFields}
+                            isReadyToSave={isReadyToSave}
+                        />
+                    </div>
+                )}
+                
+                {/* Manual Mode - Full Width Form */}
+                {builderMode === 'manual' && (
                     <div className="flex-1 overflow-y-auto px-8 py-6">
                         <div className="max-w-4xl mx-auto space-y-6">
                         {/* Basic Information Section */}
@@ -386,7 +407,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                                 {/* Variables info - always shown */}
                                 <div className="space-y-2">
                                     <p className="text-sm text-muted-foreground">
-                                        Variables are placeholder values that make your prompt flexible and reusable. You will be asked to fill in these variable values whenever you use this prompt.
+                                        Variables are placeholder values that make your prompt flexible and reusable. You will be asked to fill in these variable values whenever you use this prompt. Use {`{{Variable Name}}`} for placeholders.
                                         {config.detected_variables && config.detected_variables.length > 0 && ' Your prompt has the following variables:'}
                                     </p>
                                     {config.detected_variables && config.detected_variables.length > 0 && (

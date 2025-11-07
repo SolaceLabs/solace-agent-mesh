@@ -105,7 +105,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
         return isValid;
     }, [config, addNotification]);
 
-    const saveTemplate = useCallback(async (): Promise<boolean> => {
+    const saveTemplate = useCallback(async (): Promise<string | null> => {
         setIsLoading(true);
         setSaveStatus('saving');
 
@@ -115,7 +115,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             if (!isValid) {
                 setSaveStatus('error');
                 setIsLoading(false);
-                return false;
+                return null;
             }
 
             // Prepare data for API
@@ -144,10 +144,11 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                 throw new Error(errorMessage);
             }
 
+            const createdGroup = await response.json();
             setSaveStatus('success');
             addNotification('Template saved successfully!', 'success');
             setIsLoading(false);
-            return true;
+            return createdGroup.id;
         } catch (error) {
             console.error('Error saving template:', error);
             setSaveStatus('error');
@@ -164,9 +165,9 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                 addNotification('Failed to save template', 'error');
             }
             
-            return false;
+            return null;
         }
-    }, [config, validateConfig]);
+    }, [config, validateConfig, addNotification]);
 
     const updateTemplate = useCallback(async (groupId: string, createNewVersion: boolean): Promise<boolean> => {
         setIsLoading(true);
@@ -181,40 +182,110 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                 return false;
             }
 
-            // Prepare update data
-            const updateData: any = {};
-            if (config.name !== editingGroup?.name) updateData.name = config.name;
-            if (config.description !== editingGroup?.description) updateData.description = config.description;
-            if (config.category !== editingGroup?.category) updateData.category = config.category;
-            if (config.command !== editingGroup?.command) updateData.command = config.command;
-            
-            // Include prompt text if it changed (creates new version if createNewVersion is true)
-            if (config.prompt_text !== editingGroup?.production_prompt?.prompt_text) {
+            const promptTextChanged = config.prompt_text !== editingGroup?.production_prompt?.prompt_text;
+            const isEditingActiveVersion = editingGroup?._isEditingActiveVersion ?? true;
+            const editingPromptId = editingGroup?._editingPromptId || editingGroup?.production_prompt_id;
+
+            if (createNewVersion && promptTextChanged) {
+                // Create new version by updating group with initial_prompt
+                // This automatically makes the new version active
+                const updateData: any = {};
+                if (config.name !== editingGroup?.name) updateData.name = config.name;
+                if (config.description !== editingGroup?.description) updateData.description = config.description;
+                if (config.category !== editingGroup?.category) updateData.category = config.category;
+                if (config.command !== editingGroup?.command) updateData.command = config.command;
                 updateData.initial_prompt = config.prompt_text;
+
+                const response = await fetch(`/api/v1/prompts/groups/${groupId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(updateData),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    const errorMessage = error.message || error.detail || 'Failed to create new version';
+                    addNotification(errorMessage, 'error');
+                    throw new Error(errorMessage);
+                }
+
+                setSaveStatus('success');
+                addNotification('New version created and activated successfully!', 'success');
+                setIsLoading(false);
+                return true;
+            } else {
+                // Overwrite existing version
+                // First update group metadata if needed
+                const metadataChanged =
+                    config.name !== editingGroup?.name ||
+                    config.description !== editingGroup?.description ||
+                    config.category !== editingGroup?.category ||
+                    config.command !== editingGroup?.command;
+
+                if (metadataChanged) {
+                    const updateData: any = {};
+                    if (config.name !== editingGroup?.name) updateData.name = config.name;
+                    if (config.description !== editingGroup?.description) updateData.description = config.description;
+                    if (config.category !== editingGroup?.category) updateData.category = config.category;
+                    if (config.command !== editingGroup?.command) updateData.command = config.command;
+
+                    const groupResponse = await fetch(`/api/v1/prompts/groups/${groupId}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify(updateData),
+                    });
+
+                    if (!groupResponse.ok) {
+                        const error = await groupResponse.json();
+                        const errorMessage = error.message || error.detail || 'Failed to update template metadata';
+                        addNotification(errorMessage, 'error');
+                        throw new Error(errorMessage);
+                    }
+                }
+
+                // Then update prompt text if it changed
+                if (promptTextChanged && editingPromptId) {
+                    const promptResponse = await fetch(`/api/v1/prompts/${editingPromptId}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({ prompt_text: config.prompt_text }),
+                    });
+
+                    if (!promptResponse.ok) {
+                        const error = await promptResponse.json();
+                        const errorMessage = error.message || error.detail || 'Failed to update prompt text';
+                        addNotification(errorMessage, 'error');
+                        throw new Error(errorMessage);
+                    }
+
+                    // If we just overwrote a non-active version, optionally make it active
+                    // Only do this if we're editing the currently active version
+                    if (isEditingActiveVersion) {
+                        // The active version was updated, no need to change production_prompt_id
+                        // It's already pointing to the correct prompt
+                    } else {
+                        // We overwrote an older version - it stays inactive
+                        // No need to update production_prompt_id
+                    }
+                }
+
+                setSaveStatus('success');
+                const message = isEditingActiveVersion
+                    ? 'Active version updated successfully!'
+                    : 'Version updated successfully!';
+                addNotification(message, 'success');
+                setIsLoading(false);
+                return true;
             }
-
-            // Call API to update prompt group
-            const response = await fetch(`/api/v1/prompts/groups/${groupId}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                body: JSON.stringify(updateData),
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                const errorMessage = error.message || error.detail || 'Failed to update template';
-                addNotification(errorMessage, 'error');
-                throw new Error(errorMessage);
-            }
-
-            setSaveStatus('success');
-            const message = createNewVersion ? 'New version created successfully!' : 'Template updated successfully!';
-            addNotification(message, 'success');
-            setIsLoading(false);
-            return true;
         } catch (error) {
             console.error('Error updating template:', error);
             setSaveStatus('error');

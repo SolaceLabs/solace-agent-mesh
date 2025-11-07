@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Pencil, Trash2, MoreHorizontal, Check } from 'lucide-react';
 import type { PromptGroup, Prompt } from '@/lib/types/prompts';
 import { Header } from '@/lib/components/header';
@@ -35,13 +35,14 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [currentGroup, setCurrentGroup] = useState<PromptGroup>(group);
     const [showDeleteActiveError, setShowDeleteActiveError] = useState(false);
+    const hasInitializedRef = useRef(false);
 
     // Update currentGroup when group prop changes
     useEffect(() => {
         setCurrentGroup(group);
     }, [group]);
 
-    const fetchVersions = useCallback(async () => {
+    const fetchVersions = useCallback(async (preserveSelection = false) => {
         setIsLoading(true);
         try {
             const response = await fetch(`/api/v1/prompts/groups/${group.id}/prompts`, {
@@ -51,18 +52,40 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
             if (response.ok) {
                 const data = await response.json();
                 setVersions(data);
-                // Select the latest (production) version by default
-                if (data.length > 0) {
-                    const productionVersion = data.find((v: Prompt) => v.id === group.production_prompt_id) || data[0];
-                    setSelectedVersion(productionVersion);
-                }
+                
+                // Use a function update to access the current selectedVersion without adding it to dependencies
+                setSelectedVersion(currentSelected => {
+                    // If we have a _selectedVersionId from returning from edit, use that
+                    if (group._selectedVersionId) {
+                        const targetVersion = data.find((v: Prompt) => v.id === group._selectedVersionId);
+                        if (targetVersion) {
+                            return targetVersion;
+                        }
+                    }
+                    
+                    // If preserving selection, try to keep the same version selected
+                    if (preserveSelection && currentSelected) {
+                        const stillExists = data.find((v: Prompt) => v.id === currentSelected.id);
+                        if (stillExists) {
+                            return stillExists;
+                        } else {
+                            // If the selected version was deleted, fall back to production
+                            return data.find((v: Prompt) => v.id === group.production_prompt_id) || data[0];
+                        }
+                    } else if (data.length > 0 && !hasInitializedRef.current) {
+                        // Only set default selection on initial load
+                        hasInitializedRef.current = true;
+                        return data.find((v: Prompt) => v.id === group.production_prompt_id) || data[0];
+                    }
+                    return currentSelected;
+                });
             }
         } catch (error) {
             console.error('Failed to fetch versions:', error);
         } finally {
             setIsLoading(false);
         }
-    }, [group.id, group.production_prompt_id]);
+    }, [group.id, group.production_prompt_id, group._selectedVersionId]);
 
     const fetchGroupData = useCallback(async () => {
         try {
@@ -80,12 +103,31 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
     }, [group.id]);
 
     useEffect(() => {
-        fetchVersions();
+        // Preserve selection when the component updates (e.g., after editing)
+        fetchVersions(true);
     }, [fetchVersions]);
 
     const handleEditVersion = () => {
-        // Just navigate to edit page with current group
-        onEdit(currentGroup);
+        // Pass the group with the selected version as the production prompt
+        // This allows editing any version, not just the active one
+        const groupWithSelectedVersion: PromptGroup = {
+            ...currentGroup,
+            production_prompt: selectedVersion ? {
+                id: selectedVersion.id,
+                prompt_text: selectedVersion.prompt_text,
+                group_id: selectedVersion.group_id,
+                user_id: selectedVersion.user_id,
+                version: selectedVersion.version,
+                created_at: selectedVersion.created_at,
+                updated_at: selectedVersion.updated_at,
+            } : currentGroup.production_prompt,
+            // Store the actual production_prompt_id separately so we know if we're editing the active version
+            _editingPromptId: selectedVersion?.id,
+            _isEditingActiveVersion: selectedVersion?.id === currentGroup.production_prompt_id,
+            // Store which version should be selected when returning to version history
+            _selectedVersionId: selectedVersion?.id,
+        };
+        onEdit(groupWithSelectedVersion);
     };
 
     const handleDeleteVersion = async () => {
@@ -106,9 +148,9 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
             
             if (response.ok) {
                 addNotification('Version deleted successfully', 'success');
-                // Clear selection and refresh
+                // Clear selection and refresh (don't preserve since we deleted it)
                 setSelectedVersion(null);
-                await fetchVersions();
+                await fetchVersions(false);
             } else {
                 const error = await response.json();
                 const errorMessage = error.message || error.detail || 'Failed to delete version';
@@ -125,8 +167,8 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
             await onRestoreVersion(selectedVersion.id);
             // Refresh group data to get updated production_prompt_id
             await fetchGroupData();
-            // Refetch versions to update the UI
-            await fetchVersions();
+            // Refetch versions to update the UI, preserving the current selection
+            await fetchVersions(true);
         }
     };
 

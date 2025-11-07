@@ -115,12 +115,6 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
                                         Use in Chat
                                     </DropdownMenuItem>
                                 )}
-                                {onTogglePin && (
-                                    <DropdownMenuItem onClick={handleTogglePin}>
-                                        <Star size={14} className="mr-2" fill={prompt.is_pinned ? 'currentColor' : 'none'} />
-                                        {prompt.is_pinned ? 'Remove from Favorites' : 'Add to Favorites'}
-                                    </DropdownMenuItem>
-                                )}
                                 <DropdownMenuItem onClick={handleEdit}>
                                     <Pencil size={14} className="mr-2" />
                                     Edit Prompt

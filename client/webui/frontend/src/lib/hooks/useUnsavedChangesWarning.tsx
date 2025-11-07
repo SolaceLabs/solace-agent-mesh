@@ -50,6 +50,7 @@ export function useUnsavedChangesWarning({
                 message="Leaving the form will discard any unsaved changes. Are you sure you want to leave?"
                 onClose={cancelNavigation}
                 onConfirm={confirmNavigation}
+                confirmVariant="outline"
             />
         ) : null;
     }, [showDialog, cancelNavigation, confirmNavigation]);

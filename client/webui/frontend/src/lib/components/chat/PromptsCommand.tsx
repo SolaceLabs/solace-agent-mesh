@@ -49,6 +49,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [selectedGroup, setSelectedGroup] = useState<PromptGroup | null>(null);
     const [showVariableDialog, setShowVariableDialog] = useState(false);
+    const [isKeyboardMode, setIsKeyboardMode] = useState(false);
     
     const inputRef = useRef<HTMLInputElement>(null);
     const popoverRef = useRef<HTMLDivElement>(null);
@@ -179,9 +180,11 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
             textAreaRef.current?.focus();
         } else if (e.key === 'ArrowDown') {
             e.preventDefault();
+            setIsKeyboardMode(true);
             setActiveIndex(prev => Math.min(prev + 1, allItems.length - 1));
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
+            setIsKeyboardMode(true);
             setActiveIndex(prev => Math.max(prev - 1, 0));
         } else if (e.key === 'Enter' || e.key === 'Tab') {
             e.preventDefault();
@@ -240,7 +243,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
                             value={searchValue}
                             onChange={(e) => setSearchValue(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            placeholder="Search prompts... (use / command or name)"
+                            placeholder="Search prompts... (use / shortcut or name)"
                             className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted-foreground)]"
                         />
                         <kbd className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">
@@ -267,10 +270,14 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
                                             key={group.id}
                                             id={`prompt-item-${index}`}
                                             onClick={() => handlePromptSelect(group)}
+                                            onMouseEnter={() => {
+                                                setIsKeyboardMode(false);
+                                                setActiveIndex(index);
+                                            }}
                                             className={`w-full rounded-md p-3 text-left transition-colors ${
                                                 index === activeIndex
                                                     ? 'bg-[var(--accent)]'
-                                                    : 'hover:bg-[var(--accent)]'
+                                                    : !isKeyboardMode ? 'hover:bg-[var(--accent)]' : ''
                                             }`}
                                         >
                                             <div className="flex items-start gap-3">
@@ -316,10 +323,14 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
                                                     key={`reserved-${cmd.command}`}
                                                     id={`prompt-item-${actualIndex}`}
                                                     onClick={() => handleReservedCommandSelect(cmd)}
+                                                    onMouseEnter={() => {
+                                                        setIsKeyboardMode(false);
+                                                        setActiveIndex(actualIndex);
+                                                    }}
                                                     className={`w-full rounded-md p-3 text-left transition-colors ${
                                                         actualIndex === activeIndex
                                                             ? 'bg-[var(--accent)]'
-                                                            : 'hover:bg-[var(--accent)]'
+                                                            : !isKeyboardMode ? 'hover:bg-[var(--accent)]' : ''
                                                     }`}
                                                 >
                                                     <div className="flex items-start gap-3">
@@ -360,7 +371,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
                     onClose={() => {
                         setShowVariableDialog(false);
                         setSelectedGroup(null);
-                        onClose();
+                        // Don't close the main popover - let user select a different prompt
                     }}
                 />
             )}

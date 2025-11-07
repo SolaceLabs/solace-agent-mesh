@@ -26,6 +26,9 @@ export interface PromptGroup {
     created_at: number;  // epoch milliseconds
     updated_at: number;  // epoch milliseconds
     production_prompt?: Prompt;
+    _editingPromptId?: string;
+    _isEditingActiveVersion?: boolean;
+    _selectedVersionId?: string;
 }
 
 export interface PromptGroupCreate {

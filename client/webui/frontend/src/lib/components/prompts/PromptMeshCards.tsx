@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { X, Filter } from "lucide-react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import { X, Filter, Search } from "lucide-react";
 
 import type { PromptGroup } from "@/lib/types/prompts";
 
@@ -18,6 +18,7 @@ interface PromptMeshCardsProps {
     onViewVersions?: (prompt: PromptGroup) => void;
     onUseInChat?: (prompt: PromptGroup) => void;
     onTogglePin?: (id: string, currentStatus: boolean) => void;
+    newlyCreatedPromptId?: string | null;
 }
 
 export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
@@ -28,12 +29,14 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
     onDelete,
     onViewVersions,
     onUseInChat,
-    onTogglePin
+    onTogglePin,
+    newlyCreatedPromptId
 }) => {
     const [selectedPrompt, setSelectedPrompt] = useState<PromptGroup | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+    const promptRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     const handlePromptClick = (prompt: PromptGroup) => {
         setSelectedPrompt(prompt);
@@ -68,12 +71,14 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
             return matchesSearch && matchesCategory;
         });
         
-        // Sort: pinned first, then by created_at
         return filtered.sort((a, b) => {
             if (a.is_pinned !== b.is_pinned) {
                 return a.is_pinned ? -1 : 1;
             }
-            return b.created_at - a.created_at;
+            // Within each group, sort alphabetically by name
+            const nameA = (a.name || '').toLowerCase();
+            const nameB = (b.name || '').toLowerCase();
+            return nameA.localeCompare(nameB);
         });
     }, [prompts, searchQuery, selectedCategories]);
 
@@ -89,25 +94,52 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
         setSelectedCategories([]);
     };
 
-    // Check if library is empty (no prompts at all)
+    const clearAllFilters = () => {
+        setSearchQuery("");
+        setSelectedCategories([]);
+    };
+
+    const hasActiveFilters = searchQuery.length > 0 || selectedCategories.length > 0;
+
     const isLibraryEmpty = prompts.length === 0;
+
+    // Auto-select and scroll to newly created prompt
+    useEffect(() => {
+        if (newlyCreatedPromptId && prompts.length > 0) {
+            const newPrompt = prompts.find(p => p.id === newlyCreatedPromptId);
+            if (newPrompt) {
+                // Select the prompt
+                setSelectedPrompt(newPrompt);
+                
+                // Scroll to it after a short delay to ensure rendering is complete
+                setTimeout(() => {
+                    const element = promptRefs.current.get(newlyCreatedPromptId);
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 100);
+            }
+        }
+    }, [newlyCreatedPromptId, prompts]);
 
     return (
         <div className="h-full w-full absolute inset-0">
             <ResizablePanelGroup direction="horizontal" className="h-full">
                 <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={selectedPrompt ? 100 : 100}>
                     <div className="h-full pt-12 pl-12 overflow-hidden">
-            {/* Only show search/filter when we have prompts */}
             {!isLibraryEmpty && (
                 <div className="mb-4 flex items-center gap-2">
-                    <input
-                        type="text"
-                        data-testid="promptSearchInput"
-                        placeholder="Search..."
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="bg-background rounded-md border px-3 py-2"
-                    />
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <input
+                            type="text"
+                            data-testid="promptSearchInput"
+                            placeholder="Filter by name"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="bg-background rounded-md border pl-9 pr-3 py-2"
+                        />
+                    </div>
                     
                     {/* Category Filter Dropdown */}
                     {categories.length > 0 && (
@@ -136,13 +168,13 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                                 {/* Dropdown */}
                                 <div className="absolute top-full left-0 mt-1 z-20 bg-background border rounded-md shadow-lg min-w-[200px] max-h-[300px] overflow-y-auto">
                                     {selectedCategories.length > 0 && (
-                                        <div className="border-b p-2">
+                                        <div className="border-b">
                                             <button
                                                 onClick={clearCategories}
-                                                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                                                className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted flex items-center gap-1 cursor-pointer transition-colors min-h-[24px]"
                                             >
-                                                <X size={12} />
-                                                Clear all
+                                                <X size={14} />
+                                                {selectedCategories.length === 1 ? 'Clear Filter' : 'Clear Filters'}
                                             </button>
                                         </div>
                                     )}
@@ -166,6 +198,17 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                             </>
                         )}
                     </div>
+                    )}
+
+                    {hasActiveFilters && (
+                        <button
+                            onClick={clearAllFilters}
+                            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors whitespace-nowrap"
+                            data-testid="clearAllFiltersButton"
+                        >
+                            <X size={16} />
+                            Clear All
+                        </button>
                     )}
                 </div>
             )}
@@ -200,17 +243,27 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({
                             
                             {/* Existing Prompt Cards */}
                             {filteredPrompts.map(prompt => (
-                                <PromptDisplayCard
+                                <div
                                     key={prompt.id}
-                                    prompt={prompt}
-                                    isSelected={selectedPrompt?.id === prompt.id}
-                                    onPromptClick={() => handlePromptClick(prompt)}
-                                    onEdit={onEdit}
-                                    onDelete={onDelete}
-                                    onViewVersions={onViewVersions}
-                                    onUseInChat={onUseInChat}
-                                    onTogglePin={onTogglePin}
-                                />
+                                    ref={(el) => {
+                                        if (el) {
+                                            promptRefs.current.set(prompt.id, el);
+                                        } else {
+                                            promptRefs.current.delete(prompt.id);
+                                        }
+                                    }}
+                                >
+                                    <PromptDisplayCard
+                                        prompt={prompt}
+                                        isSelected={selectedPrompt?.id === prompt.id}
+                                        onPromptClick={() => handlePromptClick(prompt)}
+                                        onEdit={onEdit}
+                                        onDelete={onDelete}
+                                        onViewVersions={onViewVersions}
+                                        onUseInChat={onUseInChat}
+                                        onTogglePin={onTogglePin}
+                                    />
+                                </div>
                             ))}
                         </div>
                         </div>
