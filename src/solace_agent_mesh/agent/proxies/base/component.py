@@ -33,6 +33,8 @@ from ....common.a2a.protocol import (
 from a2a.types import (
     A2ARequest,
     AgentCard,
+    AgentCapabilities,
+    AgentExtension,
     CancelTaskRequest,
     FilePart,
     InternalError,
@@ -219,6 +221,7 @@ class BaseProxyComponent(ComponentBase, ABC):
                     "status_topic": message.get_user_properties().get("a2aStatusTopic"),
                     "reply_to_topic": message.get_user_properties().get("replyTo"),
                     "is_streaming": isinstance(a2a_request.root, SendStreamingMessageRequest),
+                    "user_properties": message.get_user_properties(),
                 }
                 task_context = ProxyTaskContext(
                     task_id=logical_task_id, a2a_context=a2a_context
@@ -330,6 +333,73 @@ class BaseProxyComponent(ComponentBase, ABC):
 
         return update_message_parts(original_message, resolved_parts)
 
+    def _update_agent_card_for_proxy(self, agent_card: AgentCard, agent_alias: str) -> AgentCard:
+        """
+        Updates an agent card for proxying by:
+        1. Setting the name to the proxy alias
+        2. Adding/updating the display-name extension to preserve the original name
+
+        Args:
+            agent_card: The original agent card fetched from the remote agent
+            agent_alias: The alias/name to use for this agent in SAM
+
+        Returns:
+            A modified copy of the agent card with updated name and display-name extension
+        """
+        # Create a deep copy to avoid modifying the original
+        card_copy = agent_card.model_copy(deep=True)
+
+        # Store the original name as the display name (if not already set)
+        # This preserves the agent's identity while allowing it to be proxied under an alias
+        original_display_name = agent_card.name
+
+        # Check if there's already a display-name extension to preserve
+        display_name_uri = "https://solace.com/a2a/extensions/display-name"
+        if card_copy.capabilities and card_copy.capabilities.extensions:
+            for ext in card_copy.capabilities.extensions:
+                if ext.uri == display_name_uri and ext.params and ext.params.get("display_name"):
+                    # Use the existing display name from the extension
+                    original_display_name = ext.params["display_name"]
+                    break
+
+        # Update the card's name to the proxy alias
+        card_copy.name = agent_alias
+
+        # Ensure capabilities and extensions exist
+        if not card_copy.capabilities:
+            card_copy.capabilities = AgentCapabilities(extensions=[])
+        if not card_copy.capabilities.extensions:
+            card_copy.capabilities.extensions = []
+
+        # Find or create the display-name extension
+        display_name_ext = None
+        for ext in card_copy.capabilities.extensions:
+            if ext.uri == display_name_uri:
+                display_name_ext = ext
+                break
+
+        if display_name_ext:
+            # Update existing extension
+            if not display_name_ext.params:
+                display_name_ext.params = {}
+            display_name_ext.params["display_name"] = original_display_name
+        else:
+            # Create new extension
+            new_ext = AgentExtension(
+                uri=display_name_uri,
+                params={"display_name": original_display_name}
+            )
+            card_copy.capabilities.extensions.append(new_ext)
+
+        log.debug(
+            "%s Updated agent card: name='%s', display_name='%s'",
+            self.log_identifier,
+            agent_alias,
+            original_display_name
+        )
+
+        return card_copy
+
     def _initial_discovery_sync(self):
         """
         Synchronously fetches agent cards to populate the registry at startup.
@@ -355,8 +425,8 @@ class BaseProxyComponent(ComponentBase, ABC):
                     response.raise_for_status()
                     agent_card = AgentCard.model_validate(response.json())
 
-                    card_for_proxy = agent_card.model_copy(deep=True)
-                    card_for_proxy.name = agent_alias
+                    # Update the card for proxying (preserves display name)
+                    card_for_proxy = self._update_agent_card_for_proxy(agent_card, agent_alias)
                     self.agent_registry.add_or_update_agent(card_for_proxy)
                     log.info(
                         "%s Initial discovery successful for alias '%s' (actual name: '%s').",
@@ -387,9 +457,8 @@ class BaseProxyComponent(ComponentBase, ABC):
                     continue
 
                 agent_alias = agent_config["name"]
-                # Create a copy for the registry to avoid modifying the original fetched card
-                card_for_registry = modern_card.model_copy(deep=True)
-                card_for_registry.name = agent_alias
+                # Update the card for proxying (preserves display name)
+                card_for_registry = self._update_agent_card_for_proxy(modern_card, agent_alias)
                 self.agent_registry.add_or_update_agent(card_for_registry)
 
                 # Create a separate copy for publishing
@@ -430,7 +499,11 @@ class BaseProxyComponent(ComponentBase, ABC):
         response = create_success_response(
             result=event, request_id=a2a_context.get("jsonrpc_request_id")
         )
-        self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
+        self._publish_a2a_message(
+            response.model_dump(exclude_none=True),
+            target_topic,
+            user_properties=a2a_context.get("user_properties")
+        )
 
     async def _publish_task_response(self, task: Task, a2a_context: Dict):
         """Publishes a Task object to the reply topic."""
@@ -446,7 +519,11 @@ class BaseProxyComponent(ComponentBase, ABC):
         response = create_success_response(
             result=task, request_id=a2a_context.get("jsonrpc_request_id")
         )
-        self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
+        self._publish_a2a_message(
+            response.model_dump(exclude_none=True),
+            target_topic,
+            user_properties=a2a_context.get("user_properties")
+        )
 
     async def _publish_artifact_update(
         self, event: TaskArtifactUpdateEvent, a2a_context: Dict
@@ -464,7 +541,11 @@ class BaseProxyComponent(ComponentBase, ABC):
         response = create_success_response(
             result=event, request_id=a2a_context.get("jsonrpc_request_id")
         )
-        self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
+        self._publish_a2a_message(
+            response.model_dump(exclude_none=True),
+            target_topic,
+            user_properties=a2a_context.get("user_properties")
+        )
 
     async def _publish_error_response(
         self,
