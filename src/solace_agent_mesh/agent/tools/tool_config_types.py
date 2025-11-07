@@ -53,9 +53,26 @@ class McpToolConfig(BaseToolConfig):
     manifest: list[dict[str, Any]] | None = None
 
 
+class OpenApiToolConfig(BaseToolConfig):
+    """Configuration for OpenAPI-based tools."""
+    tool_type: Literal["openapi"]
+
+    # Specification input (mutually exclusive)
+    specification_file: Optional[str] = None  # Path to OpenAPI spec file
+    specification: Optional[str] = None       # Inline OpenAPI spec (JSON/YAML)
+    specification_format: Optional[Literal["json", "yaml"]] = None  # Optional format hint
+
+    # Tool filtering
+    tool_filter: Optional[List[str]] = None  # Filter specific operations/endpoints
+
+    # Authentication
+    auth: Optional[Dict[str, Any]] = None
+
+
 AnyToolConfig = Union[
     BuiltinToolConfig,
     BuiltinGroupToolConfig,
     PythonToolConfig,
     McpToolConfig,
+    OpenApiToolConfig,
 ]
