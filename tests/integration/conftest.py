@@ -54,6 +54,8 @@ def test_db_engine():
     Creates a temporary SQLite database for the test session, runs migrations,
     and yields the SQLAlchemy engine.
     """
+    import os
+
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "test_integration.db"
         database_url = f"sqlite:///{db_path}"
@@ -80,6 +82,12 @@ def test_db_engine():
 
         alembic_command.upgrade(alembic_cfg, "head")
         print("[SessionFixture] Database migrations applied.")
+
+        # Ensure the database file has write permissions
+        # This prevents "readonly database" errors when new connections are created
+        if db_path.exists():
+            os.chmod(db_path, 0o666)  # Read/write for owner, group, and others
+            print(f"[SessionFixture] Set write permissions on database file: {db_path}")
 
         yield engine
 
