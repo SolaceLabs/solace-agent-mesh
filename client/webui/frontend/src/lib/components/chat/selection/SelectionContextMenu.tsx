@@ -14,6 +14,32 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const [showCustomInput, setShowCustomInput] = useState(false);
     const [customQuery, setCustomQuery] = useState("");
+    const savedSelectionRef = useRef<Range | null>(null);
+    const hasRestoredSelectionRef = useRef(false);
+
+    // Save the current selection when menu opens
+    useEffect(() => {
+        if (isOpen && !savedSelectionRef.current) {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+                savedSelectionRef.current = selection.getRangeAt(0).cloneRange();
+            }
+        }
+    }, [isOpen]);
+
+    // Restore selection when showing custom input
+    useEffect(() => {
+        if (showCustomInput && savedSelectionRef.current) {
+            // Small delay to ensure DOM is ready
+            setTimeout(() => {
+                const selection = window.getSelection();
+                if (selection) {
+                    selection.removeAllRanges();
+                    selection.addRange(savedSelectionRef.current!);
+                }
+            }, 0);
+        }
+    }, [showCustomInput]);
 
     // Handle click outside to close menu
     useEffect(() => {
@@ -24,6 +50,7 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
                 onClose();
                 setShowCustomInput(false);
                 setCustomQuery("");
+                savedSelectionRef.current = null;
             }
         };
 
@@ -34,6 +61,7 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
                     setCustomQuery("");
                 } else {
                     onClose();
+                    savedSelectionRef.current = null;
                 }
             }
         };
@@ -42,6 +70,7 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
             onClose();
             setShowCustomInput(false);
             setCustomQuery("");
+            savedSelectionRef.current = null;
         };
 
         // Add listeners with a small delay to avoid immediate closure
@@ -69,6 +98,7 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
         try {
             await navigator.clipboard.writeText(selectedText);
             onClose();
+            savedSelectionRef.current = null;
         } catch (error) {
             console.error("Failed to copy text:", error);
         }
@@ -89,6 +119,7 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
                 break;
             case "custom":
                 setShowCustomInput(true);
+                hasRestoredSelectionRef.current = false; // Reset flag when showing custom input
                 return;
         }
         
@@ -105,6 +136,7 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
         onClose();
         setShowCustomInput(false);
         setCustomQuery("");
+        savedSelectionRef.current = null;
     };
 
     const handleCustomSubmit = () => {
@@ -121,6 +153,7 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
             onClose();
             setShowCustomInput(false);
             setCustomQuery("");
+            savedSelectionRef.current = null;
         }
     };
 
@@ -186,6 +219,9 @@ export const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
                     <div className="p-2 min-w-[320px] bg-background">
                         <div className="mb-2 text-xs text-muted-foreground">
                             Ask about the selected text:
+                        </div>
+                        <div className="mb-2 p-2 bg-muted/50 rounded text-xs italic border border-border max-h-[60px] overflow-y-auto">
+                            "{selectedText.length > 150 ? selectedText.substring(0, 150) + '...' : selectedText}"
                         </div>
                         <div className="relative">
                             <ChatInput
