@@ -33,6 +33,8 @@ class DeclarativeAgentExecutor(AgentExecutor):
             await event_queue.close()
             return
 
+        terminal_event_sent = False
+
         while response_data := self.server.get_next_primed_response():
             log.info(f"{log_id} Serving primed response from test server.")
             try:
@@ -59,15 +61,26 @@ class DeclarativeAgentExecutor(AgentExecutor):
 
                 await event_queue.enqueue_event(event_obj)
 
-                # If the event is a final task, stop processing more responses for this request.
-                if isinstance(event_obj, Task):
+                # If the event is a terminal task, stop processing more responses for this request.
+                # Non-terminal states like 'submitted' or 'working' should not stop the processing.
+                if isinstance(event_obj, Task) and event_obj.status and event_obj.status.state in [
+                    TaskState.completed,
+                    TaskState.failed,
+                    TaskState.canceled,
+                    TaskState.rejected,
+                ]:
+                    terminal_event_sent = True
                     break
             except Exception as e:
                 log.error(f"{log_id} Failed to validate or enqueue primed response: {e}")
                 # Stop processing on error to avoid cascading failures
                 break
-        else:
-            log.warning(f"{log_id} No more primed responses available to serve.")
+
+        # If no terminal event was sent, just close the queue
+        # For cancellation tests, we only need to verify the cancel request arrives at the server
+        # We don't need to fully process the cancellation through the A2A framework
+        if not terminal_event_sent:
+            log.info(f"{log_id} No terminal event in primed responses. Closing queue.")
 
         await event_queue.close()
 
