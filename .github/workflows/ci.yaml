@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - main
-      - test-build-opt
+      - build-optimization
   pull_request:
     types: [opened, synchronize]
     branches:
