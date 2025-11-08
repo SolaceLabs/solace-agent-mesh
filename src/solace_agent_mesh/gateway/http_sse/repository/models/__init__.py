@@ -10,7 +10,7 @@ from .project_user_model import ProjectUserModel, CreateProjectUserModel, Update
 from .session_model import SessionModel, CreateSessionModel, UpdateSessionModel
 from .task_event_model import TaskEventModel
 from .task_model import TaskModel
-from .prompt_model import PromptGroupModel, PromptModel
+from .prompt_model import PromptGroupModel, PromptModel, PromptGroupUserModel
 
 __all__ = [
     "Base",
@@ -30,4 +30,5 @@ __all__ = [
     "FeedbackModel",
     "PromptGroupModel",
     "PromptModel",
+    "PromptGroupUserModel",
 ]

@@ -4,7 +4,7 @@ Adapted for SAM fork.
 """
 
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
@@ -12,7 +12,7 @@ from sqlalchemy import or_, func
 from ..services.prompt_builder_assistant import PromptBuilderAssistant
 
 from ..dependencies import get_db, get_user_id, get_sac_component, get_api_config
-from ..repository.models import PromptGroupModel, PromptModel
+from ..repository.models import PromptGroupModel, PromptModel, PromptGroupUserModel
 from .dto.prompt_dto import (
     PromptGroupCreate,
     PromptGroupUpdate,
@@ -32,6 +32,75 @@ if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
 
 router = APIRouter()
+
+
+# ============================================================================
+# Permission Helper Functions
+# ============================================================================
+
+def get_user_role(db: Session, group_id: str, user_id: str) -> Optional[Literal["owner", "editor", "viewer"]]:
+    """
+    Get the user's role for a prompt group.
+    Returns 'owner' if user owns the group, or their assigned role from prompt_group_users.
+    Returns None if user has no access.
+    """
+    # Check if user is the owner
+    group = db.query(PromptGroupModel).filter(
+        PromptGroupModel.id == group_id,
+        PromptGroupModel.user_id == user_id
+    ).first()
+    
+    if group:
+        return "owner"
+    
+    # Check if user has shared access
+    share = db.query(PromptGroupUserModel).filter(
+        PromptGroupUserModel.prompt_group_id == group_id,
+        PromptGroupUserModel.user_id == user_id
+    ).first()
+    
+    if share:
+        return share.role
+    
+    return None
+
+
+def check_permission(
+    db: Session,
+    group_id: str,
+    user_id: str,
+    required_permission: Literal["read", "write", "delete"]
+) -> None:
+    """
+    Check if user has the required permission for a prompt group.
+    Raises HTTPException if permission is denied.
+    
+    Permission levels:
+    - owner: read, write, delete
+    - editor: read, write, delete
+    - viewer: read only
+    """
+    role = get_user_role(db, group_id, user_id)
+    
+    if role is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Prompt group not found"
+        )
+    
+    # Check permissions based on role
+    if required_permission == "read":
+        # All roles can read
+        return
+    
+    if required_permission in ("write", "delete"):
+        if role == "viewer":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Viewer role cannot {required_permission} this prompt group"
+            )
+        # owner and editor can write and delete
+        return
 
 
 def check_prompts_enabled(
@@ -86,15 +155,32 @@ async def get_all_prompt_groups(
 ):
     """
     Get all prompt groups for quick access (used by "/" command).
-    Returns all groups with their production prompts.
+    Returns all groups owned by user or shared with them.
     """
     try:
-        groups = db.query(PromptGroupModel).filter(
+        # Get groups owned by user
+        owned_groups = db.query(PromptGroupModel).filter(
             PromptGroupModel.user_id == user_id
-        ).order_by(
-            PromptGroupModel.is_pinned.desc(),  # Pinned first
-            PromptGroupModel.created_at.desc()
         ).all()
+        
+        # Get groups shared with user
+        shared_group_ids = db.query(PromptGroupUserModel.prompt_group_id).filter(
+            PromptGroupUserModel.user_id == user_id
+        ).all()
+        shared_group_ids = [gid[0] for gid in shared_group_ids]
+        
+        shared_groups = []
+        if shared_group_ids:
+            shared_groups = db.query(PromptGroupModel).filter(
+                PromptGroupModel.id.in_(shared_group_ids)
+            ).all()
+        
+        # Combine and sort
+        all_groups = owned_groups + shared_groups
+        groups = sorted(
+            all_groups,
+            key=lambda g: (not g.is_pinned, -g.created_at)
+        )
         
         # Fetch production prompts for each group
         result = []
@@ -152,11 +238,23 @@ async def list_prompt_groups(
     _: None = Depends(check_prompts_enabled),
 ):
     """
-    List all prompt groups for the current user with optional filtering.
+    List all prompt groups accessible to the user (owned or shared).
     Supports pagination, category filtering, and text search.
     """
     try:
-        query = db.query(PromptGroupModel).filter(PromptGroupModel.user_id == user_id)
+        # Get shared group IDs
+        shared_group_ids = db.query(PromptGroupUserModel.prompt_group_id).filter(
+            PromptGroupUserModel.user_id == user_id
+        ).all()
+        shared_group_ids = [gid[0] for gid in shared_group_ids]
+        
+        # Build query for owned or shared groups
+        query = db.query(PromptGroupModel).filter(
+            or_(
+                PromptGroupModel.user_id == user_id,
+                PromptGroupModel.id.in_(shared_group_ids) if shared_group_ids else False
+            )
+        )
         
         if category:
             query = query.filter(PromptGroupModel.category == category)
@@ -234,11 +332,13 @@ async def get_prompt_group(
     user_id: str = Depends(get_user_id),
     _: None = Depends(check_prompts_enabled),
 ):
-    """Get a specific prompt group by ID."""
+    """Get a specific prompt group by ID (requires read permission)."""
     try:
+        # Check read permission (works for owner, editor, viewer)
+        check_permission(db, group_id, user_id, "read")
+        
         group = db.query(PromptGroupModel).filter(
-            PromptGroupModel.id == group_id,
-            PromptGroupModel.user_id == user_id,
+            PromptGroupModel.id == group_id
         ).first()
         
         if not group:
@@ -399,11 +499,13 @@ async def update_prompt_group(
     user_id: str = Depends(get_user_id),
     _: None = Depends(check_prompts_enabled),
 ):
-    """Update a prompt group's metadata and optionally create a new version if prompt text changed."""
+    """Update a prompt group's metadata (requires write permission - owner or editor only)."""
     try:
+        # Check write permission (owner or editor only, not viewer)
+        check_permission(db, group_id, user_id, "write")
+        
         group = db.query(PromptGroupModel).filter(
-            PromptGroupModel.id == group_id,
-            PromptGroupModel.user_id == user_id,
+            PromptGroupModel.id == group_id
         ).first()
         
         if not group:
@@ -515,11 +617,13 @@ async def toggle_pin_prompt(
     user_id: str = Depends(get_user_id),
     _: None = Depends(check_prompts_enabled),
 ):
-    """Toggle pin status for a prompt group."""
+    """Toggle pin status for a prompt group (requires write permission)."""
     try:
+        # Check write permission
+        check_permission(db, group_id, user_id, "write")
+        
         group = db.query(PromptGroupModel).filter(
-            PromptGroupModel.id == group_id,
-            PromptGroupModel.user_id == user_id,
+            PromptGroupModel.id == group_id
         ).first()
         
         if not group:
@@ -587,11 +691,13 @@ async def delete_prompt_group(
     user_id: str = Depends(get_user_id),
     _: None = Depends(check_prompts_enabled),
 ):
-    """Delete a prompt group and all its prompts."""
+    """Delete a prompt group and all its prompts (requires delete permission - owner or editor only)."""
     try:
+        # Check delete permission
+        check_permission(db, group_id, user_id, "delete")
+        
         group = db.query(PromptGroupModel).filter(
-            PromptGroupModel.id == group_id,
-            PromptGroupModel.user_id == user_id,
+            PromptGroupModel.id == group_id
         ).first()
         
         if not group:
@@ -628,12 +734,13 @@ async def list_prompts_in_group(
     user_id: str = Depends(get_user_id),
     _: None = Depends(check_prompts_enabled),
 ):
-    """List all prompt versions in a group."""
+    """List all prompt versions in a group (requires read permission)."""
     try:
-        # Verify group ownership
+        # Check read permission
+        check_permission(db, group_id, user_id, "read")
+        
         group = db.query(PromptGroupModel).filter(
-            PromptGroupModel.id == group_id,
-            PromptGroupModel.user_id == user_id,
+            PromptGroupModel.id == group_id
         ).first()
         
         if not group:
@@ -676,12 +783,13 @@ async def create_prompt_version(
     user_id: str = Depends(get_user_id),
     _: None = Depends(check_prompts_enabled),
 ):
-    """Create a new prompt version in a group."""
+    """Create a new prompt version in a group (requires write permission)."""
     try:
-        # Verify group ownership
+        # Check write permission
+        check_permission(db, group_id, user_id, "write")
+        
         group = db.query(PromptGroupModel).filter(
-            PromptGroupModel.id == group_id,
-            PromptGroupModel.user_id == user_id,
+            PromptGroupModel.id == group_id
         ).first()
         
         if not group:
@@ -742,11 +850,10 @@ async def make_prompt_production(
     user_id: str = Depends(get_user_id),
     _: None = Depends(check_prompts_enabled),
 ):
-    """Set a prompt as the production version for its group."""
+    """Set a prompt as the production version for its group (requires write permission)."""
     try:
         prompt = db.query(PromptModel).filter(
-            PromptModel.id == prompt_id,
-            PromptModel.user_id == user_id,
+            PromptModel.id == prompt_id
         ).first()
         
         if not prompt:
@@ -754,6 +861,9 @@ async def make_prompt_production(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Prompt not found"
             )
+        
+        # Check write permission on the group
+        check_permission(db, prompt.group_id, user_id, "write")
         
         # Update group's production prompt
         group = db.query(PromptGroupModel).filter(
@@ -794,11 +904,10 @@ async def delete_prompt(
     user_id: str = Depends(get_user_id),
     _: None = Depends(check_prompts_enabled),
 ):
-    """Delete a specific prompt version."""
+    """Delete a specific prompt version (requires delete permission)."""
     try:
         prompt = db.query(PromptModel).filter(
-            PromptModel.id == prompt_id,
-            PromptModel.user_id == user_id,
+            PromptModel.id == prompt_id
         ).first()
         
         if not prompt:
@@ -806,6 +915,9 @@ async def delete_prompt(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Prompt not found"
             )
+        
+        # Check delete permission on the group
+        check_permission(db, prompt.group_id, user_id, "delete")
         
         # Check if this is the only prompt in the group
         group = db.query(PromptGroupModel).filter(
