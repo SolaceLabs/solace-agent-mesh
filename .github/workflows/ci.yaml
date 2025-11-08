@@ -49,7 +49,6 @@ jobs:
       short_sha: ${{ steps.get_commit_hash.outputs.short_sha }}
       commit_hash: ${{ steps.get_commit_hash.outputs.commit_hash }}
       release_tag: ${{ steps.release_tag.outputs.release_tag }}
-      use_ecr: ${{ steps.set_registry.outputs.use_ecr }}
       docker_push: ${{ steps.set_build_params.outputs.docker_push }}
     steps:
       - name: Checkout repository
@@ -63,7 +62,7 @@ jobs:
       - name: Sync and verify uv.lock
         run: |
           # Sync lock file with pyproject.toml
-          uv lock --upgrade-package solace-agent-mesh
+          uv sync
           # Check if lock file was modified
           if ! git diff --quiet uv.lock; then
             echo "Warning: uv.lock was out of sync and has been updated"
@@ -129,7 +128,6 @@ jobs:
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       - name: Configure AWS credentials
-        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
@@ -140,39 +138,50 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Determine Image Name and Cache Configuration
         id: image_name
         run: |
           image_name="${{ steps.login-ecr.outputs.registry }}/solace-agent-mesh"
           echo "image_name=${image_name}" >> $GITHUB_OUTPUT
 
-          # Configure cache settings - use the full image name with repository
-          cache_ref="${image_name}:buildcache-${{ matrix.platform.tag_suffix }}"
-          echo "cache_ref=${cache_ref}" >> $GITHUB_OUTPUT
-          echo "Cache reference: ${cache_ref}"
+          platform="${{ matrix.platform.tag_suffix }}"
 
-          # For PR builds, we can read from registry cache but write to gha cache
-          # For push builds, we can read and write to registry cache
-          if [[ "${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}" == "true" || "${{ github.ref_name }}" == "test-build-opt" ]]; then
-            # Use registry cache for both read and write
-            # Note: On first build, cache won't exist - that's okay, build will proceed without cache
+          # For push to main: read and write only to buildcache-<platform>
+          if [[ "${{ github.event_name == 'push' }}" == "true" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+            cache_ref="${image_name}:buildcache-${platform}"
             echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
             echo "cache_to=type=registry,ref=${cache_ref},mode=max" >> $GITHUB_OUTPUT
-            echo "Using registry cache (read/write) for branch push"
+            echo "Main branch push: read/write buildcache-${platform}"
           else
-            # PR builds: read from registry cache (best effort), write to gha cache
-            # If registry cache doesn't exist, will fall back to no cache (first build)
-            echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
-            echo "cache_to=type=gha,scope=${{ matrix.platform.tag_suffix }},mode=max" >> $GITHUB_OUTPUT
-            echo "Using registry cache (read-only) + gha cache (write) for PR"
+            # For PR builds: read from main cache and PR cache, write only to PR cache
+            # Sanitize branch name for Docker tag compatibility (replace / with -)
+            pr_branch="${{ github.head_ref || github.ref_name }}"
+            pr_branch="${pr_branch//\//-}"
+            
+            main_cache_ref="${image_name}:buildcache-${platform}"
+            pr_cache_ref="${image_name}:buildcache-${pr_branch}-${platform}"
+            
+            # Read from both caches (will try in order)
+            echo "cache_from=type=registry,ref=${pr_cache_ref}" >> $GITHUB_OUTPUT
+            echo "cache_from_secondary=type=registry,ref=${main_cache_ref}" >> $GITHUB_OUTPUT
+            
+            # Write only to PR-specific cache
+            echo "cache_to=type=registry,ref=${pr_cache_ref},mode=max" >> $GITHUB_OUTPUT
+            echo "PR build: read from buildcache-${pr_branch}-${platform} and buildcache-${platform}, write to buildcache-${pr_branch}-${platform}"
           fi
+
+      - name: Prepare Cache From List
+        id: cache_list
+        run: |
+          cache_from="${{ steps.image_name.outputs.cache_from }}"
+          if [[ -n "${{ steps.image_name.outputs.cache_from_secondary }}" ]]; then
+            cache_from="${cache_from}"$'\n'"${{ steps.image_name.outputs.cache_from_secondary }}"
+          fi
+
+          # Use multiline output format for GitHub Actions
+          echo "cache_from<<EOF" >> $GITHUB_OUTPUT
+          echo "$cache_from" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Build and Push Platform-Specific Image
         uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
@@ -182,7 +191,7 @@ jobs:
           platforms: ${{ matrix.platform.name }}
           tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
           push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
-          cache-from: ${{ steps.image_name.outputs.cache_from }}
+          cache-from: ${{ steps.cache_list.outputs.cache_from }}
           cache-to: ${{ steps.image_name.outputs.cache_to }}
           provenance: false
           sbom: false
@@ -197,7 +206,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
-        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
@@ -205,16 +213,7 @@ jobs:
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
       - name: Login to Amazon ECR
-        if: fromJSON(needs.prepare-metadata.outputs.use_ecr)
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
-
-      - name: Login to GitHub Container Registry
-        if: ${{ !fromJSON(needs.prepare-metadata.outputs.use_ecr) }}
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
@@ -223,15 +222,8 @@ jobs:
         id: image_tags
         run: |
           # Reconstruct image name based on registry type
-          if [[ "${{ fromJSON(needs.prepare-metadata.outputs.use_ecr) }}" == "true" ]]; then
-            image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
-            echo "Using ECR registry: ${image_name}"
-          else
-            image_name="ghcr.io/${{ github.repository }}"
-            echo "Using GitHub Container Registry: ${image_name}"
-          fi
-          # Lowercase for GHCR compatibility
-          image_name="${image_name,,}"
+          image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
+          echo "Using ECR registry: ${image_name}"
 
           # Reconstruct tags
           version="${{ needs.prepare-metadata.outputs.version }}"
@@ -273,7 +265,6 @@ jobs:
           echo "Multi-platform manifest created successfully"
 
       - name: Update Release Manifest
-        if: fromJSON(needs.prepare-metadata.outputs.update_manifest)
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
