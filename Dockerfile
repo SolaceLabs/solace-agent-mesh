@@ -118,7 +118,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Install only the wheel package (not dependencies, they're already installed)
 # This is fast since all deps are already in the venv
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install /app/dist/solace_agent_mesh-*.whl --active
+    uv pip install /app/dist/solace_agent_mesh-*.whl
 
 # Runtime stage
 FROM python:3.11-slim AS runtime
