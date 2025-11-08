@@ -890,6 +890,12 @@ async def load_adk_tools(
                         new_builtins,
                         new_cleanups,
                     ) = await _load_mcp_tool(component, tool_config)
+                elif tool_type == "openapi":
+                    (
+                        new_tools,
+                        new_builtins,
+                        new_cleanups,
+                    ) = await _load_openapi_tool(component, tool_config)
                 else:
                     log.warning(
                         "%s Unknown tool type '%s' in config: %s",
