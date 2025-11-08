@@ -5,6 +5,7 @@ Handles ADK Agent and Runner initialization, including tool loading and callback
 import functools
 import inspect
 import logging
+import os
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 from google.adk import tools as adk_tools_module
@@ -627,6 +628,146 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     )
 
     return [mcp_toolset_instance], [], []
+
+
+async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    """
+    Loads an OpenAPI toolset based on specification and auth config.
+
+    Args:
+        component: The SamAgentComponent instance
+        tool_config: Dictionary containing the tool's configuration
+
+    Returns:
+        ToolLoadingResult: Tuple of (tools, builtins, cleanup_hooks)
+
+    Raises:
+        ValueError: If configuration is invalid or spec cannot be loaded
+    """
+    from pydantic import TypeAdapter
+    from ..tools.tool_config_types import OpenApiToolConfig
+
+    openapi_tool_adapter = TypeAdapter(OpenApiToolConfig)
+    tool_config_model = openapi_tool_adapter.validate_python(tool_config)
+
+    # Validate mutually exclusive specification fields
+    has_file = tool_config_model.specification_file is not None
+    has_inline = tool_config_model.specification is not None
+
+    if has_file and has_inline:
+        raise ValueError(
+            "OpenAPI tool configuration error: Cannot specify both 'specification_file' "
+            "and 'specification'. Please use only one."
+        )
+    if not has_file and not has_inline:
+        raise ValueError(
+            "OpenAPI tool configuration error: Must specify either 'specification_file' "
+            "or 'specification'."
+        )
+
+    # Load specification content
+    spec_string = None
+    spec_type = None
+
+    if has_file:
+        # Load from file
+        spec_path = tool_config_model.specification_file
+        if not os.path.exists(spec_path):
+            raise ValueError(f"OpenAPI specification file not found: {spec_path}")
+
+        try:
+            with open(spec_path, 'r') as f:
+                spec_string = f.read()
+        except Exception as e:
+            raise ValueError(f"Failed to read OpenAPI specification file {spec_path}: {e}") from e
+
+        # Detect format from file extension
+        if spec_path.endswith('.json'):
+            spec_type = "json"
+        elif spec_path.endswith(('.yaml', '.yml')):
+            spec_type = "yaml"
+        else:
+            # Auto-detect by trying to parse
+            spec_type = None
+    else:
+        # Use inline specification
+        spec_string = tool_config_model.specification
+        spec_type = tool_config_model.specification_format
+
+    # Auto-detect format if not specified
+    if spec_type is None:
+        try:
+            import yaml
+            yaml.safe_load(spec_string)
+            spec_type = "yaml"
+        except Exception:
+            try:
+                import json
+                json.loads(spec_string)
+                spec_type = "json"
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to parse OpenAPI specification as YAML or JSON: {e}"
+                ) from e
+
+    # Validate tool_filter
+    tool_filter_list = tool_config_model.tool_filter
+    if tool_filter_list is not None and not isinstance(tool_filter_list, list):
+        raise ValueError("tool_filter must be a list of strings")
+
+    # Get auth configuration from enterprise tool_configurator
+    additional_params = {}
+    try:
+        from solace_agent_mesh_enterprise.auth.tool_configurator import (
+            configure_openapi_tool,
+        )
+
+        try:
+            additional_params = configure_openapi_tool(
+                tool_type="openapi",
+                tool_config=tool_config,
+            )
+        except Exception as e:
+            log.error(
+                "%s Tool configurator failed for OpenAPI tool %s: %s",
+                component.log_identifier,
+                tool_config.get("name", "unknown"),
+                e,
+            )
+            raise
+    except ImportError:
+        # Enterprise package not available, continue without auth
+        pass
+
+    # Create the OpenAPIToolset
+    toolset_params = {
+        "spec_str": spec_string,
+        "spec_str_type": spec_type,
+    }
+
+    # Add tool filter if provided
+    if tool_filter_list:
+        toolset_params["tool_filter"] = tool_filter_list
+
+    # Merge auth parameters from configurator
+    toolset_params.update(additional_params)
+
+    try:
+        from google.adk.tools.openapi_tool import OpenAPIToolset
+
+        openapi_toolset = OpenAPIToolset(**toolset_params)
+        openapi_toolset.origin = "openapi"
+    except Exception as e:
+        raise ValueError(f"Failed to create OpenAPIToolset: {e}") from e
+
+    log.info(
+        "%s Initialized OpenAPIToolset (filter: %s)",
+        component.log_identifier,
+        (tool_filter_list if tool_filter_list else "none (all tools)"),
+    )
+
+    return [openapi_toolset], [], []
+
 
 def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[str]) -> ToolLoadingResult:
     """Loads internal framework tools that are not explicitly configured by the user."""
