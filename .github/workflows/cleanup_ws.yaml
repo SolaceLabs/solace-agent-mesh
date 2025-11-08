@@ -8,6 +8,50 @@ permissions:
   contents: read
 
 jobs:
+  cleanup-ecr-cache:
+    name: Cleanup ECR PR Cache
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Delete PR-specific cache images
+        run: |
+          # Sanitize branch name for Docker tag compatibility (replace / with -)
+          pr_branch="${{ github.head_ref }}"
+          pr_branch="${pr_branch//\//-}"
+
+          echo "Cleaning up cache for PR branch: ${pr_branch}"
+
+          # ECR repository name
+          REPO_NAME="solace-agent-mesh"
+
+          # Cache tags to delete
+          CACHE_TAGS=(
+            "buildcache-${pr_branch}-amd64"
+            "buildcache-${pr_branch}-arm64"
+          )
+
+          for tag in "${CACHE_TAGS[@]}"; do
+            echo "Attempting to delete image tag: ${tag}"
+            
+            # Try to delete the image, but don't fail if it doesn't exist
+            aws ecr batch-delete-image \
+              --repository-name "${REPO_NAME}" \
+              --image-ids imageTag="${tag}" \
+              --region "${{ secrets.AWS_DEFAULT_REGION }}" 2>/dev/null || \
+              echo "Image tag ${tag} not found or already deleted"
+          done
+
+          echo "✅ Cleanup completed for PR branch: ${pr_branch}"
+
   cleanup-whitesource:
     uses: SolaceDev/solace-public-workflows/.github/workflows/cleanup_ws.yml@main
     secrets:
