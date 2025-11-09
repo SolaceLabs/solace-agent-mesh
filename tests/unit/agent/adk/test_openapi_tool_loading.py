@@ -1,9 +1,22 @@
 """Tests for OpenAPI tool loading in setup.py."""
-import json
-import os
+import sys
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from solace_agent_mesh.agent.adk.setup import _load_openapi_tool
+
+
+# Create a mock enterprise module for testing
+class MockEnterpriseModule:
+    """Mock enterprise module for testing delegation."""
+    class MockAuth:
+        class MockToolConfigurator:
+            @staticmethod
+            def configure_openapi_tool(tool_type, tool_config):
+                raise NotImplementedError("This should be mocked in tests")
+
+        tool_configurator = MockToolConfigurator()
+
+    auth = MockAuth()
 
 
 @pytest.fixture
@@ -15,188 +28,85 @@ def mock_component():
 
 
 @pytest.fixture
-def temp_spec_files(tmp_path):
-    """Create temporary OpenAPI spec files for testing."""
-    # Valid JSON spec
-    json_spec = {
-        "openapi": "3.0.0",
-        "info": {"title": "Test API", "version": "1.0.0"},
-        "paths": {
-            "/test": {
-                "get": {
-                    "operationId": "getTest",
-                    "summary": "Get test"
-                }
-            }
-        }
+def mock_enterprise_modules():
+    """Create mock enterprise modules for testing."""
+    mock_enterprise = MockEnterpriseModule()
+    modules = {
+        'solace_agent_mesh_enterprise': mock_enterprise,
+        'solace_agent_mesh_enterprise.auth': mock_enterprise.auth,
+        'solace_agent_mesh_enterprise.auth.tool_configurator': mock_enterprise.auth.tool_configurator
     }
-    json_file = tmp_path / "test_spec.json"
-    json_file.write_text(json.dumps(json_spec))
-
-    # Valid YAML spec
-    yaml_spec = """
-openapi: 3.0.0
-info:
-  title: Test API
-  version: 1.0.0
-paths:
-  /test:
-    get:
-      operationId: getTest
-      summary: Get test
-"""
-    yaml_file = tmp_path / "test_spec.yaml"
-    yaml_file.write_text(yaml_spec)
-
-    return {
-        "json_file": str(json_file),
-        "yaml_file": str(yaml_file),
-        "json_content": json.dumps(json_spec),
-        "yaml_content": yaml_spec
-    }
+    return mock_enterprise, modules
 
 
-class TestLoadOpenApiToolSpecification:
-    """Test specification loading logic."""
+class TestOpenApiToolDelegation:
+    """Test that _load_openapi_tool correctly delegates to enterprise."""
 
     @pytest.mark.asyncio
-    async def test_load_openapi_tool_missing_specification(self, mock_component):
-        """Test that missing both specification fields raises ValueError."""
-        tool_config = {
-            "tool_type": "openapi"
-        }
-        with pytest.raises(ValueError, match="Must specify either 'specification_file' or 'specification'"):
-            await _load_openapi_tool(mock_component, tool_config)
+    async def test_successful_delegation(self, mock_component, mock_enterprise_modules):
+        """Test that successful tool creation returns the toolset with origin set."""
+        mock_enterprise, modules = mock_enterprise_modules
+        mock_toolset = Mock(origin=None)
+        mock_configurator = Mock(return_value=mock_toolset)
+        mock_enterprise.auth.tool_configurator.configure_openapi_tool = mock_configurator
 
-    @pytest.mark.asyncio
-    async def test_load_openapi_tool_both_specifications(self, mock_component):
-        """Test that providing both specification fields raises ValueError."""
         tool_config = {
             "tool_type": "openapi",
-            "specification_file": "./test.json",
             "specification": '{"openapi": "3.0.0"}'
         }
-        with pytest.raises(ValueError, match="Cannot specify both"):
-            await _load_openapi_tool(mock_component, tool_config)
 
-    @pytest.mark.asyncio
-    async def test_load_openapi_tool_file_not_found(self, mock_component):
-        """Test that missing file raises ValueError."""
-        tool_config = {
-            "tool_type": "openapi",
-            "specification_file": "/nonexistent/file.json"
-        }
-        with pytest.raises(ValueError, match="specification file not found"):
-            await _load_openapi_tool(mock_component, tool_config)
+        with patch.dict('sys.modules', modules):
+            result = await _load_openapi_tool(mock_component, tool_config)
 
-    @pytest.mark.asyncio
-    @patch('google.adk.tools.openapi_tool.OpenAPIToolset')
-    async def test_load_openapi_tool_with_json_file(self, mock_toolset_class, mock_component, temp_spec_files):
-        """Test loading OpenAPI spec from JSON file."""
-        mock_toolset_class.return_value = Mock(origin=None)
-
-        tool_config = {
-            "tool_type": "openapi",
-            "specification_file": temp_spec_files["json_file"]
-        }
-
-        result = await _load_openapi_tool(mock_component, tool_config)
-
+        # Verify result structure
         assert len(result) == 3  # tools, builtins, cleanups
         assert len(result[0]) == 1  # one toolset
-        mock_toolset_class.assert_called_once()
-        call_kwargs = mock_toolset_class.call_args[1]
-        assert call_kwargs["spec_str_type"] == "json"
-        assert "openapi" in call_kwargs["spec_str"]
+        assert result[0][0] is mock_toolset
+        assert result[0][0].origin == "openapi"
+        assert result[1] == []  # no builtins
+        assert result[2] == []  # no cleanups
+
+        # Verify configurator was called correctly
+        mock_configurator.assert_called_once_with(
+            tool_type="openapi",
+            tool_config=tool_config
+        )
 
     @pytest.mark.asyncio
-    @patch('google.adk.tools.openapi_tool.OpenAPIToolset')
-    async def test_load_openapi_tool_with_yaml_file(self, mock_toolset_class, mock_component, temp_spec_files):
-        """Test loading OpenAPI spec from YAML file."""
-        mock_toolset_class.return_value = Mock(origin=None)
+    async def test_enterprise_validation_error(self, mock_component, mock_enterprise_modules):
+        """Test that validation errors from enterprise are propagated."""
+        mock_enterprise, modules = mock_enterprise_modules
+        mock_configurator = Mock(side_effect=ValueError("Invalid configuration"))
+        mock_enterprise.auth.tool_configurator.configure_openapi_tool = mock_configurator
 
         tool_config = {
             "tool_type": "openapi",
-            "specification_file": temp_spec_files["yaml_file"]
+            "specification": '{"invalid": "spec"}'
         }
 
-        result = await _load_openapi_tool(mock_component, tool_config)
-
-        mock_toolset_class.assert_called_once()
-        call_kwargs = mock_toolset_class.call_args[1]
-        assert call_kwargs["spec_str_type"] == "yaml"
+        with patch.dict('sys.modules', modules):
+            with pytest.raises(ValueError, match="Invalid configuration"):
+                await _load_openapi_tool(mock_component, tool_config)
 
     @pytest.mark.asyncio
-    @patch('google.adk.tools.openapi_tool.OpenAPIToolset')
-    async def test_load_openapi_tool_with_inline_json(self, mock_toolset_class, mock_component, temp_spec_files):
-        """Test loading inline JSON specification."""
-        mock_toolset_class.return_value = Mock(origin=None)
-
+    async def test_enterprise_not_available(self, mock_component):
+        """Test graceful handling when enterprise package is not installed."""
         tool_config = {
             "tool_type": "openapi",
-            "specification": temp_spec_files["json_content"]
+            "specification": '{"openapi": "3.0.0"}'
         }
 
-        result = await _load_openapi_tool(mock_component, tool_config)
+        # Block import of enterprise module
+        import builtins
+        real_import = builtins.__import__
 
-        mock_toolset_class.assert_called_once()
-        call_kwargs = mock_toolset_class.call_args[1]
-        assert call_kwargs["spec_str_type"] in ["json", "yaml"]  # Auto-detected
+        def mock_import(name, *args, **kwargs):
+            if 'solace_agent_mesh_enterprise' in name:
+                raise ImportError(f"No module named '{name}'")
+            return real_import(name, *args, **kwargs)
 
-    @pytest.mark.asyncio
-    @patch('google.adk.tools.openapi_tool.OpenAPIToolset')
-    async def test_load_openapi_tool_with_inline_yaml(self, mock_toolset_class, mock_component, temp_spec_files):
-        """Test loading inline YAML specification."""
-        mock_toolset_class.return_value = Mock(origin=None)
+        with patch('builtins.__import__', side_effect=mock_import):
+            result = await _load_openapi_tool(mock_component, tool_config)
 
-        tool_config = {
-            "tool_type": "openapi",
-            "specification": temp_spec_files["yaml_content"]
-        }
-
-        result = await _load_openapi_tool(mock_component, tool_config)
-
-        mock_toolset_class.assert_called_once()
-        call_kwargs = mock_toolset_class.call_args[1]
-        assert call_kwargs["spec_str_type"] == "yaml"
-
-    @pytest.mark.asyncio
-    @patch('google.adk.tools.openapi_tool.OpenAPIToolset')
-    async def test_load_openapi_tool_with_format_hint(self, mock_toolset_class, mock_component):
-        """Test that explicit format hint is used."""
-        mock_toolset_class.return_value = Mock(origin=None)
-
-        tool_config = {
-            "tool_type": "openapi",
-            "specification": '{"openapi": "3.0.0"}',
-            "specification_format": "json"
-        }
-
-        result = await _load_openapi_tool(mock_component, tool_config)
-
-        call_kwargs = mock_toolset_class.call_args[1]
-        assert call_kwargs["spec_str_type"] == "json"
-
-
-class TestLoadOpenApiToolIntegration:
-    """Test integration with load_adk_tools."""
-
-    @pytest.mark.asyncio
-    @patch('google.adk.tools.openapi_tool.OpenAPIToolset')
-    async def test_load_adk_tools_with_openapi_tool(self, mock_toolset_class, mock_component, temp_spec_files):
-        """Test that load_adk_tools correctly loads OpenAPI tools."""
-        from solace_agent_mesh.agent.adk.setup import load_adk_tools
-
-        mock_toolset_class.return_value = Mock(origin=None, name="test_tool")
-        mock_component.get_config.return_value = [
-            {
-                "tool_type": "openapi",
-                "specification_file": temp_spec_files["json_file"]
-            }
-        ]
-
-        tools, builtins, cleanups = await load_adk_tools(mock_component)
-
-        # Should have loaded the OpenAPI tool plus internal tools
-        assert len(tools) > 0
-        assert any(hasattr(t, 'origin') and t.origin == 'openapi' for t in tools)
+        # Should return empty result and log warning
+        assert result == ([], [], [])
