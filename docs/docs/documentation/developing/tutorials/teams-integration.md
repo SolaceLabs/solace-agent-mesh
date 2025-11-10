@@ -270,9 +270,8 @@ Key parameters:
 
 This error occurs when using single-tenant configuration (with `microsoft_app_tenant_id` set) but the app isn't properly registered in that tenant.
 
-**Quick fixes:**
+**Solution:**
 1. Verify the `AZURE_TENANT_ID` matches your Azure AD tenant
 2. Use multi-tenant by removing `microsoft_app_tenant_id` (temporary workaround)
 3. Register service principal: `az ad sp create --id YOUR-APP-ID`
-
-**Verify your configuration:** https://dev.botframework.com/bots
+4. Verify your configuration: https://dev.botframework.com/bots
