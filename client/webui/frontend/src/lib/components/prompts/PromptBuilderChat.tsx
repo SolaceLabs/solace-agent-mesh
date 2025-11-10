@@ -11,7 +11,7 @@ interface Message {
 
 interface ChatResponse {
     message: string;
-    template_updates: Record<string, any>;
+    template_updates: Record<string, unknown>;
     confidence: number;
     ready_to_save: boolean;
 }

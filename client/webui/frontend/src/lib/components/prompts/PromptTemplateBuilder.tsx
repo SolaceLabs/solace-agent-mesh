@@ -188,12 +188,12 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
         }
     };
 
-    const handleConfigUpdate = (updates: Record<string, any>) => {
+    const handleConfigUpdate = (updates: Record<string, unknown>) => {
         console.log('PromptTemplateBuilder: Received config updates:', updates);
         
         // Filter to only fields that actually changed
         const changedFields = Object.keys(updates).filter(key => {
-            const oldValue = (config as any)[key];
+            const oldValue = (config as Record<string, unknown>)[key];
             const newValue = updates[key];
             
             // Compare values, treating undefined/null/empty string as equivalent

@@ -66,12 +66,12 @@ export interface ChatMessage {
 export interface PromptBuilderChatRequest {
     message: string;
     conversation_history: ChatMessage[];
-    current_template?: Record<string, any>;
+    current_template?: Record<string, unknown>;
 }
 
 export interface PromptBuilderChatResponse {
     message: string;
-    template_updates: Record<string, any>;
+    template_updates: Record<string, unknown>;
     confidence: number;
     ready_to_save: boolean;
 }

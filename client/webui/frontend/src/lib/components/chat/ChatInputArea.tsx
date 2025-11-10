@@ -127,7 +127,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     // Small delay to ensure state is updated
                     setTimeout(async () => {
                         const fullMessage = `${prompt}\n\nContext: "${text}"`;
-                        const fakeEvent = new Event('submit') as any;
+                        const fakeEvent = new Event('submit') as unknown as FormEvent;
                         await handleSubmit(fakeEvent, [], fullMessage);
                         setContextText(null);
                         setInputValue("");

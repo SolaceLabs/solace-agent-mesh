@@ -189,7 +189,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             if (createNewVersion && promptTextChanged) {
                 // Create new version by updating group with initial_prompt
                 // This automatically makes the new version active
-                const updateData: any = {};
+                const updateData: Record<string, unknown> = {};
                 if (config.name !== editingGroup?.name) updateData.name = config.name;
                 if (config.description !== editingGroup?.description) updateData.description = config.description;
                 if (config.category !== editingGroup?.category) updateData.category = config.category;
@@ -226,7 +226,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     config.command !== editingGroup?.command;
 
                 if (metadataChanged) {
-                    const updateData: any = {};
+                    const updateData: Record<string, unknown> = {};
                     if (config.name !== editingGroup?.name) updateData.name = config.name;
                     if (config.description !== editingGroup?.description) updateData.description = config.description;
                     if (config.category !== editingGroup?.category) updateData.category = config.category;

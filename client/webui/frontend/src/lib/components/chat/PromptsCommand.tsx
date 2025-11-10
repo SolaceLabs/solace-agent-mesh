@@ -117,7 +117,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
                 const role = m.isUser ? 'User' : 'Assistant';
                 const text = m.parts
                     ?.filter(p => p.kind === 'text')
-                    .map(p => (p as any).text)
+                    .map(p => (p as { text: string }).text)
                     .join('\n') || '';
                 return `${role}: ${text}`;
             })
