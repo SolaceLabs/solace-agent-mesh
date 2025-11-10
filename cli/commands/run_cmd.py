@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 from pathlib import Path
@@ -30,9 +31,11 @@ def _execute_with_solace_ai_connector(config_file_paths: list[str]):
 
     sys.argv = [connector_program_name] + config_file_paths
 
+    sys.argv.append("--skip-logging-config")
+
     sys.argv = [
         sys.argv[0].replace("solace-agent-mesh", "solace-ai-connector"),
-        *config_file_paths,
+        *sys.argv[1:],
     ]
     return sys.exit(solace_ai_connector_main())
 
@@ -62,12 +65,25 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
     This command accepts paths to individual YAML files (`.yaml`, `.yml`) or directories.
     When a directory is provided, it is recursively searched for YAML files.
     """
-    click.echo(click.style("Starting Solace Application Run...", bold=True, fg="blue"))
+    # Set up initial logging to root logger (will be overwritten by LOGGING_CONFIG_PATH if provided)
+    log = logging.getLogger()
+    if not log.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        handler.setFormatter(formatter)
+        log.addHandler(handler)
+        log.setLevel(logging.INFO)
+
+    log.info("Starting Solace Application Run...")
+
+    reset_logging = True
 
     if not system_env:
         env_path = find_dotenv(usecwd=True)
         if env_path:
-            click.echo(f"Loading environment variables from: {env_path}")
+            log.info("Loading environment variables from: %s", env_path)
             load_dotenv(dotenv_path=env_path, override=True)
 
             # Resolve LOGGING_CONFIG_PATH to absolute path if it's relative
@@ -78,20 +94,24 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
 
             # Reconfigure logging now that environment variables are loaded
             try:
-                from solace_ai_connector.common.log import reconfigure_logging
-                if reconfigure_logging():
-                    click.echo("Logging reconfigured from LOGGING_CONFIG_PATH")
+                from solace_ai_connector.common.logging_config import configure_from_file
+                if configure_from_file():
+                    log.info("Logging reconfigured from LOGGING_CONFIG_PATH")
+                    reset_logging = False
             except ImportError:
                 pass  # solace_ai_connector might not be available yet
         else:
-            click.echo(
-                click.style(
-                    "Warning: .env file not found in the current directory or parent directories. Proceeding without loading .env.",
-                    fg="yellow",
-                )
-            )
+            log.warning("Warning: .env file not found in the current directory or parent directories. Proceeding without loading .env.")
     else:
-        click.echo("Skipping .env file loading due to --system-env flag.")
+        log.info("Skipping .env file loading due to --system-env flag.")
+        # Reconfigure logging now that environment variables are loaded
+        try:
+            from solace_ai_connector.common.logging_config import configure_from_file
+            if configure_from_file():
+                log.info("Logging reconfigured from LOGGING_CONFIG_PATH")
+                reset_logging = False
+        except ImportError:
+            pass  # solace_ai_connector might not be available yet
 
     # Run enterprise initialization if present
     initialize()
@@ -101,16 +121,13 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
     configs_dir = project_root / "configs"
 
     if not files:
-        click.echo(
-            f"No specific files provided. Discovering YAML files in {configs_dir}..."
+        log.info(
+            "No specific files provided. Discovering YAML files in %s...", configs_dir
         )
         if not configs_dir.is_dir():
-            click.echo(
-                click.style(
-                    f"Error: Configuration directory '{configs_dir}' not found. Please run 'init' first or provide specific config files.",
-                    fg="red",
-                ),
-                err=True,
+            log.error(
+                "Error: Configuration directory '%s' not found. Please run 'init' first or provide specific config files.",
+                configs_dir
             )
             sys.exit(1)
 
@@ -118,8 +135,8 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
             if filepath.name.startswith("_") or filepath.name.startswith(
                 "shared_config"
             ):
-                click.echo(
-                    f"  Skipping discovery: {filepath} (underscore prefix or shared_config)"
+                log.info(
+                    "  Skipping discovery: %s (underscore prefix or shared_config)", filepath
                 )
                 continue
             config_files_to_run.append(str(filepath.resolve()))
@@ -128,27 +145,27 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
             if filepath.name.startswith("_") or filepath.name.startswith(
                 "shared_config"
             ):
-                click.echo(
-                    f"  Skipping discovery: {filepath} (underscore prefix or shared_config)"
+                log.info(
+                    "  Skipping discovery: %s (underscore prefix or shared_config)", filepath
                 )
                 continue
             if str(filepath.resolve()) not in config_files_to_run:
                 config_files_to_run.append(str(filepath.resolve()))
 
     else:
-        click.echo("Processing provided configuration files and directories:")
+        log.info("Processing provided configuration files and directories:")
         processed_files = set()
         for path_str in files:
             path = Path(path_str)
             if path.is_dir():
-                click.echo(f"  Discovering YAML files in directory: {path}")
+                log.info("  Discovering YAML files in directory: %s", path)
                 for yaml_ext in ("*.yaml", "*.yml"):
                     for filepath in path.rglob(yaml_ext):
                         if filepath.name.startswith("_") or filepath.name.startswith(
                             "shared_config"
                         ):
-                            click.echo(
-                                f"  Skipping discovery: {filepath} (underscore prefix or shared_config)"
+                            log.info(
+                                "  Skipping discovery: %s (underscore prefix or shared_config)", filepath
                             )
                             continue
                         processed_files.add(str(filepath.resolve()))
@@ -156,45 +173,43 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
                 if path.suffix in [".yaml", ".yml"]:
                     processed_files.add(str(path.resolve()))
                 else:
-                    click.echo(
-                        click.style(f"  Ignoring non-YAML file: {path}", fg="yellow")
+                    log.warning(
+                        "  Ignoring non-YAML file: %s", path
                     )
         config_files_to_run = sorted(list(processed_files))
 
     if skip_files:
-        click.echo(f"Applying --skip for: {skip_files}")
+        log.info("Applying --skip for: %s", skip_files)
         final_list = []
         skipped_basenames = [os.path.basename(s) for s in skip_files]
         for cf in config_files_to_run:
             if os.path.basename(cf) in skipped_basenames:
-                click.echo(
-                    f"  Skipping execution: {cf} (due to --skip)"
+                log.info(
+                    "  Skipping execution: %s (due to --skip)", cf
                 )
                 continue
             final_list.append(cf)
         config_files_to_run = final_list
 
     if not config_files_to_run:
-        click.echo(
-            click.style(
-                "No configuration files to run after filtering. Exiting.", fg="yellow"
-            )
+        log.warning(
+            "No configuration files to run after filtering. Exiting."
         )
         return 0
 
-    click.echo(click.style("Final list of configuration files to run:", bold=True))
+    log.info("Final list of configuration files to run:")
     for cf_path_str in config_files_to_run:
-            click.echo(f"  - {cf_path_str}")
+        log.info("  - %s", cf_path_str)
 
+    if reset_logging:
+        log.removeHandler(handler)
     return_code = _execute_with_solace_ai_connector(config_files_to_run)
 
     if return_code == 0:
-        click.echo(click.style("Application run completed successfully.", fg="green"))
+        log.info("Application run completed successfully.")
     else:
-        click.echo(
-            click.style(
-                f"Application run failed or exited with code {return_code}.", fg="red"
-            )
+        log.error(
+            "Application run failed or exited with code %s.", return_code
         )
 
     sys.exit(return_code)
