@@ -128,14 +128,9 @@ async def get_app_config(
                     # Verify LLM is configured through the model config
                     model_config = component.get_config("model", {})
                     
-                    # Handle both dict and direct model config structures
                     llm_model = None
                     if isinstance(model_config, dict):
-                        general_model = model_config.get("general", {})
-                        if isinstance(general_model, dict):
-                            llm_model = general_model.get("model")
-                        if not llm_model:
-                            llm_model = model_config.get("model")
+                        llm_model = model_config.get("model")
                     
                     if llm_model:
                         feature_enablement["promptAIAssisted"] = True
@@ -143,7 +138,7 @@ async def get_app_config(
                     else:
                         feature_enablement["promptAIAssisted"] = False
                         log.warning(
-                            "%s AI-assisted prompts disabled: general_model not configured",
+                            "%s AI-assisted prompts disabled: model not configured",
                             log_prefix
                         )
                 else:

@@ -132,19 +132,12 @@ REMEMBER:
         if not model_config or not isinstance(model_config, dict):
             raise ValueError("model_config is required and must be a dictionary")
         
-        # Try nested structure first (model.general)
-        general_model = model_config.get("general", {})
-        if isinstance(general_model, dict) and general_model.get("model"):
-            self.model = general_model.get("model")
-            self.api_base = general_model.get("api_base")
-            self.api_key = general_model.get("api_key", "dummy")
-        # Try direct structure (model.model)
-        elif model_config.get("model"):
-            self.model = model_config.get("model")
-            self.api_base = model_config.get("api_base")
-            self.api_key = model_config.get("api_key", "dummy")
-        else:
-            raise ValueError("model_config must contain either 'general.model' or 'model' key")
+        if not model_config.get("model"):
+            raise ValueError("model_config must contain 'model' key")
+        
+        self.model = model_config.get("model")
+        self.api_base = model_config.get("api_base")
+        self.api_key = model_config.get("api_key", "dummy")
     
     def _get_existing_commands(self, user_id: str) -> List[str]:
         """Get list of existing command shortcuts to avoid conflicts."""

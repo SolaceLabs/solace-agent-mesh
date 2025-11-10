@@ -20,8 +20,7 @@ apps:
       namespace: ${NAMESPACE}
       session_secret_key: "${SESSION_SECRET_KEY}"
 
-      model:
-        general: *general_model
+      model: *general_model
       artifact_service: *default_artifact_service
       session_service: __SESSION_SERVICE__
       gateway_id: ${WEBUI_GATEWAY_ID}
