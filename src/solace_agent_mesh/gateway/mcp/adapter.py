@@ -100,6 +100,11 @@ class McpAdapterConfig(BaseModel):
         default=None,
         description="Secret key for session encryption (auto-generated if not provided)",
     )
+    require_pkce: bool = Field(
+        default=True,
+        description="Require PKCE (Proof Key for Code Exchange, RFC 7636) for all OAuth flows. "
+                    "STRONGLY recommended for security. Disable only for legacy client compatibility.",
+    )
 
     # File handling configuration
     inline_image_max_bytes: int = Field(
@@ -174,10 +179,12 @@ class McpAdapter(GatewayAdapter):
 
         # OAuth authorization codes for triple-redirect flow
         # Maps authorization code -> {tokens, created_at, code_challenge, redirect_uri}
+        # Note: code_challenge is required when require_pkce is enabled (default)
         self.oauth_codes: Dict[str, Dict[str, Any]] = {}
 
         # OAuth state storage for authorize -> callback flow
-        # Maps internal_state -> {client_redirect_uri, client_state, code_challenge, created_at, ttl_seconds}
+        # Maps internal_state -> {client_redirect_uri, client_state, code_challenge, code_challenge_method, created_at, ttl_seconds}
+        # Note: code_challenge and code_challenge_method are required when require_pkce is enabled (default)
         self.oauth_states: Dict[str, Dict[str, Any]] = {}
 
     async def init(self, context: GatewayContext) -> None:
@@ -360,8 +367,8 @@ class McpAdapter(GatewayAdapter):
             redirect_uri: Client's callback URI (e.g., http://127.0.0.1:PORT/callback)
             scope: Requested scopes
             state: CSRF protection token
-            code_challenge: PKCE challenge (optional)
-            code_challenge_method: "S256" (optional)
+            code_challenge: PKCE challenge (required, RFC 7636)
+            code_challenge_method: Must be "S256" (required)
 
         Returns:
             Redirect to WebUI OAuth proxy
@@ -387,8 +394,39 @@ class McpAdapter(GatewayAdapter):
                 status_code=400
             )
 
+        # Enforce PKCE requirement (RFC 7636)
+        if config.require_pkce:
+            if not code_challenge:
+                log.error("MCP OAuth: code_challenge required but not provided")
+                return JSONResponse(
+                    {"error": "invalid_request"},
+                    status_code=400
+                )
+
+            if not code_challenge_method:
+                log.error("MCP OAuth: code_challenge_method required but not provided")
+                return JSONResponse(
+                    {"error": "invalid_request"},
+                    status_code=400
+                )
+
+            if code_challenge_method != "S256":
+                log.error("MCP OAuth: Unsupported code_challenge_method: %s", code_challenge_method)
+                return JSONResponse(
+                    {"error": "invalid_request"},
+                    status_code=400
+                )
+
         # Clean up expired OAuth states
         self._cleanup_expired_oauth_states()
+
+        # Log successful PKCE validation
+        if config.require_pkce:
+            log.info(
+                "MCP OAuth authorize: PKCE enforced, method=%s, redirect_uri=%s",
+                code_challenge_method,
+                redirect_uri
+            )
 
         # Store client's OAuth request in memory for callback
         # Generate internal state to correlate callback with this request
@@ -466,7 +504,7 @@ class McpAdapter(GatewayAdapter):
         if not state_data:
             log.error("MCP OAuth callback: Invalid or expired state parameter: %s", returned_state)
             return JSONResponse(
-                {"error": "invalid_request", "error_description": "Invalid or expired state"},
+                {"error": "invalid_request"},
                 status_code=400
             )
 
@@ -476,7 +514,7 @@ class McpAdapter(GatewayAdapter):
             log.error("MCP OAuth callback: State expired (age=%.1fs)", age)
             del self.oauth_states[returned_state]
             return JSONResponse(
-                {"error": "invalid_request", "error_description": "State expired"},
+                {"error": "invalid_request"},
                 status_code=400
             )
 
@@ -512,7 +550,7 @@ class McpAdapter(GatewayAdapter):
                         exchange_response.text
                     )
                     return JSONResponse(
-                        {"error": "token_exchange_failed", "error_description": "Failed to exchange gateway code"},
+                        {"error": "server_error"},
                         status_code=502
                     )
 
@@ -523,7 +561,7 @@ class McpAdapter(GatewayAdapter):
             if not access_token:
                 log.error("MCP OAuth: No access token in exchange response")
                 return JSONResponse(
-                    {"error": "token_exchange_failed", "error_description": "No access token returned"},
+                    {"error": "server_error"},
                     status_code=502
                 )
 
@@ -559,13 +597,13 @@ class McpAdapter(GatewayAdapter):
         except httpx.RequestError as e:
             log.error("MCP OAuth: Failed to connect to WebUI proxy for code exchange: %s", e)
             return JSONResponse(
-                {"error": "proxy_unavailable", "error_description": str(e)},
+                {"error": "server_error"},
                 status_code=503
             )
         except Exception as e:
             log.error("MCP OAuth callback error: %s", e, exc_info=True)
             return JSONResponse(
-                {"error": "callback_failed", "error_description": str(e)},
+                {"error": "server_error"},
                 status_code=500
             )
 
@@ -574,6 +612,9 @@ class McpAdapter(GatewayAdapter):
         Handle GET /.well-known/oauth-authorization-server - OAuth metadata.
 
         Returns RFC 8414 compliant OAuth 2.0 Authorization Server Metadata.
+
+        IMPORTANT: This server REQUIRES PKCE (RFC 7636) for all authorization code grants
+        when require_pkce is enabled (default). Clients must include code_challenge with method S256.
         """
         from starlette.responses import JSONResponse
 
@@ -590,6 +631,10 @@ class McpAdapter(GatewayAdapter):
             "code_challenge_methods_supported": ["S256"],
         }
 
+        # Add PKCE requirement indicator if enforced
+        if config.require_pkce:
+            metadata["require_pkce"] = True  # Non-standard but informative
+
         return JSONResponse(metadata)
 
     async def _handle_oauth_register(self, request):
@@ -599,9 +644,13 @@ class McpAdapter(GatewayAdapter):
         For MCP gateways with pre-configured OAuth, we accept any registration
         and return a success response. The actual OAuth flow uses the gateway's
         pre-configured credentials with the OAuth2 service.
+
+        NOTE: This server requires PKCE when require_pkce is enabled (default).
         """
         from starlette.responses import JSONResponse
         import secrets
+
+        config: McpAdapterConfig = self.context.adapter_config
 
         try:
             # Parse the registration request (if provided)
@@ -620,8 +669,12 @@ class McpAdapter(GatewayAdapter):
                 "client_secret_expires_at": 0,  # Never expires
                 "grant_types": ["authorization_code", "refresh_token"],
                 "response_types": ["code"],
-                "token_endpoint_auth_method": "none",  # PKCE, no client secret needed
+                "token_endpoint_auth_method": "none",  # PKCE required, no client secret needed
             }
+
+            # Add PKCE requirement indicator if enforced
+            if config.require_pkce:
+                response["require_pkce"] = True  # Inform client that PKCE is mandatory
 
             # Include any requested redirect URIs
             if "redirect_uris" in body:
@@ -648,7 +701,7 @@ class McpAdapter(GatewayAdapter):
             grant_type: "authorization_code" or "refresh_token"
             code: Authorization code (for authorization_code grant)
             redirect_uri: Must match the redirect_uri from /oauth/authorize
-            code_verifier: PKCE code verifier (if code_challenge was used)
+            code_verifier: PKCE code verifier (required when require_pkce is enabled, RFC 7636)
             refresh_token: Refresh token (for refresh_token grant)
 
         Returns:
@@ -678,7 +731,7 @@ class McpAdapter(GatewayAdapter):
                 # Validate required parameters
                 if not code:
                     return JSONResponse(
-                        {"error": "invalid_request", "error_description": "Missing code parameter"},
+                        {"error": "invalid_request"},
                         status_code=400
                     )
 
@@ -686,7 +739,7 @@ class McpAdapter(GatewayAdapter):
                 if not hasattr(self, 'oauth_codes') or code not in self.oauth_codes:
                     log.warning("MCP OAuth token: Invalid or expired authorization code")
                     return JSONResponse(
-                        {"error": "invalid_grant", "error_description": "Invalid or expired authorization code"},
+                        {"error": "invalid_grant"},
                         status_code=400
                     )
 
@@ -698,7 +751,7 @@ class McpAdapter(GatewayAdapter):
                     log.warning("MCP OAuth token: Authorization code expired (age: %.1fs)", age)
                     del self.oauth_codes[code]
                     return JSONResponse(
-                        {"error": "invalid_grant", "error_description": "Authorization code has expired"},
+                        {"error": "invalid_grant"},
                         status_code=400
                     )
 
@@ -710,16 +763,26 @@ class McpAdapter(GatewayAdapter):
                         redirect_uri
                     )
                     return JSONResponse(
-                        {"error": "invalid_grant", "error_description": "Redirect URI mismatch"},
+                        {"error": "invalid_grant"},
                         status_code=400
                     )
 
-                # Validate PKCE if code_challenge was used
-                if code_data.get('code_challenge'):
+                # Validate PKCE (required when require_pkce is enabled)
+                code_challenge = code_data.get('code_challenge')
+
+                if config.require_pkce:
+                    # PKCE is mandatory
+                    if not code_challenge:
+                        log.error("MCP OAuth token: Authorization code missing code_challenge (config violation)")
+                        return JSONResponse(
+                            {"error": "invalid_grant"},
+                            status_code=400
+                        )
+
                     if not code_verifier:
                         log.error("MCP OAuth token: Missing code_verifier for PKCE")
                         return JSONResponse(
-                            {"error": "invalid_grant", "error_description": "code_verifier required for PKCE"},
+                            {"error": "invalid_grant"},
                             status_code=400
                         )
 
@@ -727,12 +790,36 @@ class McpAdapter(GatewayAdapter):
                     verifier_hash = hashlib.sha256(code_verifier.encode('ascii')).digest()
                     computed_challenge = base64.urlsafe_b64encode(verifier_hash).decode('ascii').rstrip('=')
 
-                    if computed_challenge != code_data['code_challenge']:
+                    if computed_challenge != code_challenge:
                         log.error("MCP OAuth token: PKCE verification failed")
                         return JSONResponse(
-                            {"error": "invalid_grant", "error_description": "Invalid code_verifier"},
+                            {"error": "invalid_grant"},
                             status_code=400
                         )
+
+                    log.info("MCP OAuth token: PKCE verification successful")
+
+                elif code_challenge:
+                    # PKCE is optional but was used - validate it
+                    if not code_verifier:
+                        log.error("MCP OAuth token: Missing code_verifier for PKCE")
+                        return JSONResponse(
+                            {"error": "invalid_grant"},
+                            status_code=400
+                        )
+
+                    # Verify code_challenge = BASE64URL(SHA256(code_verifier))
+                    verifier_hash = hashlib.sha256(code_verifier.encode('ascii')).digest()
+                    computed_challenge = base64.urlsafe_b64encode(verifier_hash).decode('ascii').rstrip('=')
+
+                    if computed_challenge != code_challenge:
+                        log.error("MCP OAuth token: PKCE verification failed")
+                        return JSONResponse(
+                            {"error": "invalid_grant"},
+                            status_code=400
+                        )
+
+                    log.debug("MCP OAuth token: Optional PKCE verification successful")
 
                 # Get tokens and delete code (one-time use)
                 access_token = code_data['access_token']
@@ -753,21 +840,21 @@ class McpAdapter(GatewayAdapter):
                 # This requires the WebUI proxy to support refresh token exchange
                 log.warning("MCP OAuth: Refresh token grant not yet implemented")
                 return JSONResponse(
-                    {"error": "unsupported_grant_type", "error_description": "Refresh token grant not yet implemented"},
+                    {"error": "unsupported_grant_type"},
                     status_code=400
                 )
 
             else:
                 log.warning("MCP OAuth token: Unsupported grant_type: %s", grant_type)
                 return JSONResponse(
-                    {"error": "unsupported_grant_type", "error_description": f"Unsupported grant_type: {grant_type}"},
+                    {"error": "unsupported_grant_type"},
                     status_code=400
                 )
 
         except Exception as e:
             log.error("MCP OAuth token error: %s", e, exc_info=True)
             return JSONResponse(
-                {"error": "server_error", "error_description": str(e)},
+                {"error": "server_error"},
                 status_code=500
             )
 
