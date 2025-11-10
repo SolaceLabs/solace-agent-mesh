@@ -57,10 +57,14 @@ class OpenApiToolConfig(BaseToolConfig):
     """Configuration for OpenAPI-based tools."""
     tool_type: Literal["openapi"]
 
-    # Specification input (mutually exclusive)
+    # Specification input (mutually exclusive - only one should be provided)
     specification_file: Optional[str] = None  # Path to OpenAPI spec file
     specification: Optional[str] = None       # Inline OpenAPI spec (JSON/YAML)
+    specification_url: Optional[str] = None   # URL to fetch OpenAPI spec from
     specification_format: Optional[Literal["json", "yaml"]] = None  # Optional format hint
+
+    # Server URL override
+    base_url: Optional[str] = None  # Base URL to override/complete the server URL in the spec
 
     # Tool filtering
     tool_filter: Optional[List[str]] = None  # Filter specific operations/endpoints
