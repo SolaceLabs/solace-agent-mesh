@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Search, FileText } from 'lucide-react';
+import { Search, FileText, Plus } from 'lucide-react';
 import type { PromptGroup } from '@/lib/types/prompts';
 import type { MessageFE } from '@/lib/types';
 import { detectVariables } from '@/lib/utils/promptUtils';
@@ -134,6 +134,14 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
         }
     }, [messages, formatSessionHistory, onReservedCommand, onClose]);
 
+    // Handle navigation to Prompts area
+    const handleNavigateToPrompts = useCallback(() => {
+        onClose();
+        setSearchValue('');
+        // Dispatch event to navigate to prompts page
+        window.dispatchEvent(new CustomEvent('create-template-from-session'));
+    }, [onClose]);
+
     // Handle prompt selection
     const handlePromptSelect = useCallback((group: PromptGroup) => {
         const promptText = group.production_prompt?.prompt_text || '';
@@ -243,12 +251,9 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
                             value={searchValue}
                             onChange={(e) => setSearchValue(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            placeholder="Search prompts... (use / shortcut or name)"
+                            placeholder="Search by shortcut or name..."
                             className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted-foreground)]"
                         />
-                        <kbd className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs text-[var(--muted-foreground)]">
-                            ESC
-                        </kbd>
                     </div>
 
                     {/* Results List */}
@@ -258,8 +263,19 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
                                 <div className="size-6 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
                             </div>
                         ) : allItems.length === 0 ? (
-                            <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
-                                {searchValue ? 'No prompts found' : 'No prompts available. Create one in the Prompts panel.'}
+                            <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
+                                <p className="text-sm text-[var(--muted-foreground)]">
+                                    {searchValue ? 'No prompts found' : 'No prompts available.'}
+                                </p>
+                                {!searchValue && (
+                                    <button
+                                        onClick={handleNavigateToPrompts}
+                                        className="inline-flex items-center gap-2 rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] transition-colors hover:bg-[var(--primary)]/90"
+                                    >
+                                        <Plus className="size-4" />
+                                        Create Prompt
+                                    </button>
+                                )}
                             </div>
                         ) : (
                             <div className="p-2 flex flex-col">

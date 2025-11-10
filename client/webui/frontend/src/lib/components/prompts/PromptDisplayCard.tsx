@@ -5,6 +5,7 @@ import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal, MessageSquare, 
 import type { PromptGroup } from "@/lib/types/prompts";
 import { useConfigContext } from "@/lib/hooks";
 import {
+    Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -75,8 +76,8 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
         >
             <div className="flex h-full w-full flex-col overflow-hidden rounded-lg border shadow-xl">
                     <div className="flex items-center justify-between p-4">
-                        <div className="flex min-w-0 items-center flex-1">
-                            <FileText className="mr-3 h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                        <div className="flex min-w-0 items-center gap-2 flex-1">
+                            <FileText className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
                             <div className="min-w-0">
                                 <h2 className="truncate text-lg font-semibold" title={prompt.name}>
                                     {prompt.name}
@@ -85,28 +86,30 @@ export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, is
                         </div>
                         <div className="flex items-center gap-1">
                             {onTogglePin && (
-                                <button
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
                                     onClick={handleTogglePin}
-                                    className={`p-1.5 rounded hover:bg-muted transition-colors ${
-                                        prompt.is_pinned ? 'text-primary' : 'text-muted-foreground'
-                                    }`}
-                                    title={prompt.is_pinned ? "Remove from favorites" : "Add to favorites"}
+                                    className={prompt.is_pinned ? 'text-primary' : 'text-muted-foreground'}
+                                    tooltip={prompt.is_pinned ? "Remove from favorites" : "Add to favorites"}
                                 >
                                     <Star size={16} fill={prompt.is_pinned ? 'currentColor' : 'none'} />
-                                </button>
+                                </Button>
                             )}
                             <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                             <DropdownMenuTrigger asChild>
-                                <button
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setDropdownOpen(!dropdownOpen);
                                     }}
-                                    className="p-1.5 rounded hover:bg-muted transition-colors ml-2"
-                                    title="Actions"
+                                    tooltip="Actions"
+                                    className="cursor-pointer"
                                 >
                                     <MoreHorizontal size={16} />
-                                </button>
+                                </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                                 {onUseInChat && (

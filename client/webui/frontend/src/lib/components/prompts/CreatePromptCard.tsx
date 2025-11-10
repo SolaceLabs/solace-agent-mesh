@@ -16,24 +16,24 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
     if (isCentered) {
         // Enhanced centered version for empty state
         return (
-            <div className="w-full max-w-[960px] p-12">
-                <div className="flex h-full w-full flex-col items-center justify-center gap-8">
+            <div className="w-full max-w-[480px] p-8">
+                <div className="flex h-full w-full flex-col items-center justify-center gap-6">
                     {/* Title and description */}
-                    <div className="flex flex-col items-center gap-3">
-                        <h2 className="text-3xl font-semibold text-foreground">Create New Prompt</h2>
-                        <p className="text-base text-muted-foreground">Choose how you'd like to create your prompt</p>
+                    <div className="flex flex-col items-center gap-2">
+                        <h2 className="text-2xl font-semibold text-foreground">Create New Prompt</h2>
+                        <p className="text-sm text-muted-foreground">Choose how you'd like to create your prompt</p>
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex flex-col gap-4 w-full max-w-[400px]">
+                    <div className="flex flex-col gap-3 w-full max-w-[320px]">
                         <Button
                             onClick={onAIAssisted}
                             disabled={!aiAssistedEnabled}
                             variant="default"
                             size="lg"
-                            className="w-full h-14 text-base"
+                            className="w-full"
                         >
-                            <Sparkles className="h-5 w-5 mr-2" />
+                            <Sparkles className="h-4 w-4 mr-2" />
                             Build with AI
                             {!aiAssistedEnabled && <span className="text-xs ml-1">(Disabled)</span>}
                         </Button>
@@ -42,9 +42,9 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
                             onClick={onManualCreate}
                             variant="outline"
                             size="lg"
-                            className="w-full h-14 text-base"
+                            className="w-full"
                         >
-                            <Plus className="h-5 w-5 mr-2" />
+                            <Plus className="h-4 w-4 mr-2" />
                             Create Manually
                         </Button>
                     </div>

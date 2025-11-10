@@ -55,7 +55,7 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
             <div className="p-4 border-b">
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <FileText className="h-5 w-5 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                        <FileText className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
                         <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
                                 <h2 className="text-lg font-semibold truncate cursor-default">
@@ -70,7 +70,7 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
                     <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" tooltip="Actions">
                                     <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                             </DropdownMenuTrigger>
@@ -96,6 +96,7 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({
                             size="sm"
                             onClick={onClose}
                             className="h-8 w-8 p-0"
+                            tooltip="Close"
                         >
                             <X className="h-4 w-4" />
                         </Button>

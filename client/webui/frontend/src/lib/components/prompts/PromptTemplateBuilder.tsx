@@ -13,6 +13,7 @@ import {
 } from '@/lib/components/ui';
 import { Sparkles, Loader2, AlertCircle, Pencil } from 'lucide-react';
 import { Header } from '@/lib/components/header';
+import { MessageBanner } from '@/lib/components/common';
 import { usePromptTemplateBuilder } from './hooks/usePromptTemplateBuilder';
 import { useUnsavedChangesWarning } from '@/lib/hooks';
 import { useUnsavedChangesContext } from '@/lib/contexts';
@@ -265,18 +266,11 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
 
             {/* Error Banner */}
             {hasValidationErrors && (
-                <div className="bg-destructive/10 border-b border-destructive/20 px-8 py-3">
-                    <div className="flex items-start gap-2">
-                        <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                            <p className="text-sm font-medium text-destructive mb-1">Please fix the following errors:</p>
-                            <ul className="text-sm text-destructive/90 list-disc list-inside space-y-0.5">
-                                {validationErrorMessages.map((error, index) => (
-                                    <li key={index}>{error}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
+                <div className="px-8 py-3">
+                    <MessageBanner
+                        variant="error"
+                        message={`Please fix the following errors: ${validationErrorMessages.join(', ')}`}
+                    />
                 </div>
             )}
 

@@ -9,10 +9,12 @@ import { PromptMeshCards } from '@/lib/components/prompts/PromptMeshCards';
 import { VersionHistoryPage } from '@/lib/components/prompts/VersionHistoryPage';
 import { PromptDeleteDialog } from '@/lib/components/prompts/PromptDeleteDialog';
 import { GeneratePromptDialog } from '@/lib/components/prompts/GeneratePromptDialog';
+import { VariableDialog } from '@/lib/components/chat/VariableDialog';
 import { EmptyState, Header } from '@/lib/components';
 import { Button } from '@/lib/components/ui';
 import { RefreshCcw } from 'lucide-react';
 import { useChatContext } from '@/lib/hooks';
+import { detectVariables } from '@/lib/utils/promptUtils';
 
 export const PromptsPage: React.FC = () => {
     const { addNotification } = useChatContext();
@@ -26,6 +28,8 @@ export const PromptsPage: React.FC = () => {
     const [versionHistoryGroup, setVersionHistoryGroup] = useState<PromptGroup | null>(null);
     const [deletingPrompt, setDeletingPrompt] = useState<{ id: string; name: string } | null>(null);
     const [newlyCreatedPromptId, setNewlyCreatedPromptId] = useState<string | null>(null);
+    const [showVariableDialog, setShowVariableDialog] = useState(false);
+    const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
 
     // Fetch prompt groups
     const fetchPromptGroups = async () => {
@@ -147,18 +151,49 @@ export const PromptsPage: React.FC = () => {
     const handleUseInChat = (prompt: PromptGroup) => {
         const promptText = prompt.production_prompt?.prompt_text || '';
         
-        // Store prompt data in sessionStorage (including group for variable handling)
+        // Check if prompt has variables
+        const variables = detectVariables(promptText);
+        const hasVariables = variables.length > 0;
+        
+        if (hasVariables) {
+            // Show variable dialog on prompts page
+            setPendingPromptGroup(prompt);
+            setShowVariableDialog(true);
+        } else {
+            // No variables - navigate directly to chat
+            const promptData = JSON.stringify({
+                promptText,
+                groupId: prompt.id,
+                groupName: prompt.name
+            });
+            sessionStorage.setItem('pending-prompt-use', promptData);
+            
+            window.dispatchEvent(new CustomEvent('use-prompt-in-chat', {
+                detail: { promptText, groupId: prompt.id }
+            }));
+        }
+    };
+
+    // Handle variable dialog submission
+    const handleVariableSubmit = (processedPrompt: string) => {
+        if (!pendingPromptGroup) return;
+        
+        // Store the processed prompt in sessionStorage
         const promptData = JSON.stringify({
-            promptText,
-            groupId: prompt.id,
-            groupName: prompt.name
+            promptText: processedPrompt,
+            groupId: pendingPromptGroup.id,
+            groupName: pendingPromptGroup.name
         });
         sessionStorage.setItem('pending-prompt-use', promptData);
         
-        // Dispatch event to navigate to chat and use prompt
+        // Navigate to chat
         window.dispatchEvent(new CustomEvent('use-prompt-in-chat', {
-            detail: { promptText, groupId: prompt.id }
+            detail: { promptText: processedPrompt, groupId: pendingPromptGroup.id }
         }));
+        
+        // Clean up
+        setShowVariableDialog(false);
+        setPendingPromptGroup(null);
     };
 
     const handleTogglePin = async (id: string, currentStatus: boolean) => {
@@ -304,7 +339,7 @@ export const PromptsPage: React.FC = () => {
                         data-testid="refreshPrompts"
                         disabled={isLoading}
                         variant="ghost"
-                        title="Refresh Prompts"
+                        tooltip="Refresh Prompts"
                         onClick={() => fetchPromptGroups()}
                     >
                         <RefreshCcw className="size-4" />
@@ -352,6 +387,18 @@ export const PromptsPage: React.FC = () => {
                 onClose={() => setShowGenerateDialog(false)}
                 onGenerate={handleGeneratePrompt}
             />
+
+            {/* Variable Dialog for "Use in Chat" */}
+            {showVariableDialog && pendingPromptGroup && (
+                <VariableDialog
+                    group={pendingPromptGroup}
+                    onSubmit={handleVariableSubmit}
+                    onClose={() => {
+                        setShowVariableDialog(false);
+                        setPendingPromptGroup(null);
+                    }}
+                />
+            )}
         </div>
     );
 };
