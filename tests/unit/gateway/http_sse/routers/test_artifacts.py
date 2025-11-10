@@ -768,24 +768,27 @@ class TestListArtifacts:
 
     @pytest.mark.asyncio
     async def test_list_artifacts_session_validation_failure(self, mock_dependencies):
-        """Test artifact listing fails when session validation fails."""
+        """Test artifact listing returns empty list when session validation fails.
+
+        This behavior is intentional to support project artifact listing before
+        a session is created.
+        """
         # Setup
         deps = mock_dependencies
         deps['validate_session'].return_value = False
-        
-        # Execute & Verify
-        with pytest.raises(HTTPException) as exc_info:
-            await list_artifacts(
-                session_id="invalid-session",
-                artifact_service=deps['artifact_service'],
-                user_id=deps['user_id'],
-                validate_session=deps['validate_session'],
-                component=deps['component'],
-                user_config=deps['user_config']
-            )
-        
-        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
-        assert "Session not found or access denied" in str(exc_info.value.detail)
+
+        # Execute - should return empty list, not raise exception
+        result = await list_artifacts(
+            session_id="invalid-session",
+            artifact_service=deps['artifact_service'],
+            user_id=deps['user_id'],
+            validate_session=deps['validate_session'],
+            component=deps['component'],
+            user_config=deps['user_config']
+        )
+
+        # Verify - returns empty list to allow project context usage
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_list_artifacts_service_not_configured(self, mock_dependencies):

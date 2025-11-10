@@ -110,7 +110,7 @@ def test_get_tasks_empty_state(api_client: TestClient):
     assert response.json() == []
 
 
-def test_create_and_get_basic_task(api_client: TestClient):
+def test_create_and_get_basic_task(api_client: TestClient, api_client_factory):
     """
     Tests creating a task and retrieving it from the /tasks list.
     Corresponds to Test Plan 1.2.
@@ -121,7 +121,7 @@ def test_create_and_get_basic_task(api_client: TestClient):
 
     # Manually log the task creation event to simulate the logger behavior,
     # as the API test harness does not have a live message broker.
-    task_logger_service = dependencies.sac_component_instance.get_task_logger_service()
+    task_logger_service = api_client_factory.mock_component.get_task_logger_service()
     request_payload = {
         "jsonrpc": "2.0",
         "id": task_id,
@@ -161,13 +161,13 @@ def test_create_and_get_basic_task(api_client: TestClient):
     assert task["status"] is None
 
 
-def test_task_logging_disabled(api_client: TestClient, test_db_engine, monkeypatch):
+def test_task_logging_disabled(api_client: TestClient, api_client_factory, db_session_factory, monkeypatch):
     """
     Tests that no tasks or events are logged when task_logging is disabled.
     Corresponds to Test Plan 3.1.
     """
     # Arrange: Disable task logging via monkeypatching the service's config
-    task_logger_service = dependencies.sac_component_instance.get_task_logger_service()
+    task_logger_service = api_client_factory.mock_component.get_task_logger_service()
     monkeypatch.setitem(task_logger_service.config, "enabled", False)
 
     # Act: Create a task and attempt to log an event for it
@@ -197,8 +197,7 @@ def test_task_logging_disabled(api_client: TestClient, test_db_engine, monkeypat
     task_logger_service.log_event(mock_event_data)
 
     # Assert: Verify that no records were created in the database
-    Session = sessionmaker(bind=test_db_engine)
-    db_session = Session()
+    db_session = db_session_factory()
     try:
         tasks = db_session.query(TaskModel).all()
         events = db_session.query(TaskEventModel).all()
@@ -282,6 +281,7 @@ def assert_file_content_truncated(payload: dict, max_bytes: int):
 )
 def test_file_content_logging_config(
     api_client: TestClient,
+    api_client_factory,
     monkeypatch,
     config_to_set: dict,
     file_content: bytes,
@@ -292,7 +292,7 @@ def test_file_content_logging_config(
     Corresponds to Test Plan 3.3.
     """
     # Arrange: Set the configuration on the task logger service
-    task_logger_service = dependencies.sac_component_instance.get_task_logger_service()
+    task_logger_service = api_client_factory.mock_component.get_task_logger_service()
     for key, value in config_to_set.items():
         monkeypatch.setitem(task_logger_service.config, key, value)
 
@@ -388,7 +388,8 @@ def _create_artifact_update_event_data(task_id: str) -> dict:
 )
 def test_event_type_logging_flags(
     api_client: TestClient,
-    test_db_engine,
+    api_client_factory,
+    db_session_factory,
     monkeypatch,
     config_to_disable: dict,
     create_skipped_event_func: callable,
@@ -399,7 +400,7 @@ def test_event_type_logging_flags(
     Corresponds to Test Plan 3.2.
     """
     # Arrange: Disable specific event logging
-    task_logger_service = dependencies.sac_component_instance.get_task_logger_service()
+    task_logger_service = api_client_factory.mock_component.get_task_logger_service()
     for key, value in config_to_disable.items():
         monkeypatch.setitem(task_logger_service.config, key, value)
 

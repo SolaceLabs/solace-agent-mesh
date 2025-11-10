@@ -54,6 +54,8 @@ def test_db_engine():
     Creates a temporary SQLite database for the test session, runs migrations,
     and yields the SQLAlchemy engine.
     """
+    import os
+
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "test_integration.db"
         database_url = f"sqlite:///{db_path}"
@@ -80,6 +82,12 @@ def test_db_engine():
 
         alembic_command.upgrade(alembic_cfg, "head")
         print("[SessionFixture] Database migrations applied.")
+
+        # Ensure the database file has write permissions
+        # This prevents "readonly database" errors when new connections are created
+        if db_path.exists():
+            os.chmod(db_path, 0o666)  # Read/write for owner, group, and others
+            print(f"[SessionFixture] Set write permissions on database file: {db_path}")
 
         yield engine
 
@@ -827,7 +835,7 @@ def shared_solace_connector(
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",
         description="The main test agent (orchestrator)",
-        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied"],
+        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied", "TestAgent_Proxied_NoConvert"],
         tools=test_agent_tools,
         model_suffix="sam",
         inject_system_purpose=True,
@@ -1078,6 +1086,7 @@ def shared_solace_connector(
                 "namespace": "test_namespace",
                 "gateway_id": "TestHarnessGateway_01",
                 "artifact_service": {"type": "test_in_memory"},
+                "task_logging": {"enabled": False},
                 "system_purpose": "Test gateway system purpose for metadata validation",
                 "response_format": "Test gateway response format for metadata validation",
             },
@@ -1129,6 +1138,13 @@ def shared_solace_connector(
                         "name": "TestAgent_Proxied",
                         "url": test_a2a_agent_server_harness.url,
                         "request_timeout_seconds": 3,
+                        # convert_progress_updates defaults to true
+                    },
+                    {
+                        "name": "TestAgent_Proxied_NoConvert",
+                        "url": test_a2a_agent_server_harness.url,
+                        "request_timeout_seconds": 3,
+                        "convert_progress_updates": False,  # Disable text-to-data conversion
                     }
                 ],
                 "artifact_service": {"type": "test_in_memory"},
