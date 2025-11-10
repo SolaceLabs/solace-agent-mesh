@@ -2,7 +2,7 @@
 Pydantic models for agent tool configurations defined in YAML.
 """
 from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import Field
+from pydantic import Field, model_validator
 from ...common.utils.pydantic_utils import SamConfigBase
 
 
@@ -66,11 +66,22 @@ class OpenApiToolConfig(BaseToolConfig):
     # Server URL override
     base_url: Optional[str] = None  # Base URL to override/complete the server URL in the spec
 
-    # Tool filtering
-    tool_filter: Optional[List[str]] = None  # Filter specific operations/endpoints
+    # Tool filtering (mutually exclusive - only one should be provided)
+    allow_list: Optional[List[str]] = None  # Include only these specific operations/endpoints
+    deny_list: Optional[List[str]] = None   # Exclude these specific operations/endpoints
 
     # Authentication
     auth: Optional[Dict[str, Any]] = None
+
+    @model_validator(mode='after')
+    def validate_tool_filtering(self):
+        """Ensure allow_list and deny_list are mutually exclusive."""
+        if self.allow_list is not None and self.deny_list is not None:
+            raise ValueError(
+                "OpenAPI tool configuration error: Cannot specify both 'allow_list' and 'deny_list'. "
+                "Please use only one."
+            )
+        return self
 
 
 AnyToolConfig = Union[
