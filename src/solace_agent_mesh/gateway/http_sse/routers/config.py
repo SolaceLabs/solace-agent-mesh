@@ -125,15 +125,25 @@ async def get_app_config(
                 ai_assisted_enabled = ai_assisted_config.get("enabled", True)
                 
                 if ai_assisted_enabled:
-                    # Verify LLM is configured
-                    llm_model = os.getenv("LLM_SERVICE_GENERAL_MODEL_NAME")
+                    # Verify LLM is configured through the model config
+                    model_config = component.get_config("model", {})
+                    
+                    # Handle both dict and direct model config structures
+                    llm_model = None
+                    if isinstance(model_config, dict):
+                        general_model = model_config.get("general", {})
+                        if isinstance(general_model, dict):
+                            llm_model = general_model.get("model")
+                        if not llm_model:
+                            llm_model = model_config.get("model")
+                    
                     if llm_model:
                         feature_enablement["promptAIAssisted"] = True
                         log.debug("%s promptAIAssisted feature flag is enabled.", log_prefix)
                     else:
                         feature_enablement["promptAIAssisted"] = False
                         log.warning(
-                            "%s AI-assisted prompts disabled: LLM_SERVICE_GENERAL_MODEL_NAME not configured",
+                            "%s AI-assisted prompts disabled: general_model not configured",
                             log_prefix
                         )
                 else:

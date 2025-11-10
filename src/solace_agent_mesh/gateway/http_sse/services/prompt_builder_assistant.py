@@ -123,15 +123,28 @@ REMEMBER:
 - Set ready_to_save to true when template is complete
 """
     
-    def __init__(self, db: Optional[Session] = None):
-        """Initialize the assistant."""
+    def __init__(self, db: Optional[Session] = None, model_config: Optional[Dict[str, Any]] = None):
+        """Initialize the assistant with model configuration from component config."""
         self.system_prompt = self.SYSTEM_PROMPT
         self.db = db
         
-        # Get LLM configuration from environment
-        self.model = os.getenv("LLM_SERVICE_GENERAL_MODEL_NAME", "gpt-4.1")
-        self.api_base = os.getenv("LLM_SERVICE_ENDPOINT")
-        self.api_key = os.getenv("LLM_SERVICE_API_KEY", "dummy")
+        # Get LLM configuration from provided config
+        if not model_config or not isinstance(model_config, dict):
+            raise ValueError("model_config is required and must be a dictionary")
+        
+        # Try nested structure first (model.general)
+        general_model = model_config.get("general", {})
+        if isinstance(general_model, dict) and general_model.get("model"):
+            self.model = general_model.get("model")
+            self.api_base = general_model.get("api_base")
+            self.api_key = general_model.get("api_key", "dummy")
+        # Try direct structure (model.model)
+        elif model_config.get("model"):
+            self.model = model_config.get("model")
+            self.api_base = model_config.get("api_base")
+            self.api_key = model_config.get("api_key", "dummy")
+        else:
+            raise ValueError("model_config must contain either 'general.model' or 'model' key")
     
     def _get_existing_commands(self, user_id: str) -> List[str]:
         """Get list of existing command shortcuts to avoid conflicts."""

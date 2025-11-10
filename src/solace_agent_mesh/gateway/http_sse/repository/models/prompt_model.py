@@ -1,6 +1,5 @@
 """
 Prompt SQLAlchemy models for prompt library feature.
-Adapted for SAM fork with epoch millisecond timestamps and String IDs.
 """
 
 from enum import Enum
@@ -19,7 +18,7 @@ class PromptGroupRole(str, Enum):
 
 
 class PromptGroupModel(Base):
-    """SQLAlchemy model for prompt groups - adapted for SAM fork."""
+    """SQLAlchemy model for prompt groups"""
     
     __tablename__ = "prompt_groups"
     
@@ -81,7 +80,7 @@ class PromptGroupModel(Base):
 
 
 class PromptModel(Base):
-    """SQLAlchemy model for individual prompt versions - adapted for SAM fork."""
+    """SQLAlchemy model for individual prompt versions"""
     
     __tablename__ = "prompts"
     

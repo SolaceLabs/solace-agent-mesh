@@ -1,6 +1,5 @@
 """
 Prompts API router for prompt library feature.
-Adapted for SAM fork.
 """
 
 import uuid
@@ -967,9 +966,11 @@ async def delete_prompt(
 @router.get("/chat/init")
 async def init_prompt_builder_chat(
     db: Session = Depends(get_db),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
 ):
     """Initialize the prompt template builder chat"""
-    assistant = PromptBuilderAssistant(db=db)
+    model_config = component.get_config("model", {})
+    assistant = PromptBuilderAssistant(db=db, model_config=model_config)
     greeting = assistant.get_initial_greeting()
     return {
         "message": greeting.message,
@@ -982,6 +983,7 @@ async def prompt_builder_chat(
     request: PromptBuilderChatRequest,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
     _: None = Depends(check_prompts_enabled),
 ):
     """
@@ -995,8 +997,11 @@ async def prompt_builder_chat(
     5. Avoid command conflicts with existing prompts
     """
     try:
-        # Initialize the assistant with database session
-        assistant = PromptBuilderAssistant(db=db)
+        # Get model configuration from component
+        model_config = component.get_config("model", {})
+        
+        # Initialize the assistant with database session and model config
+        assistant = PromptBuilderAssistant(db=db, model_config=model_config)
         
         # Process the message using real LLM with conflict checking
         response = await assistant.process_message(

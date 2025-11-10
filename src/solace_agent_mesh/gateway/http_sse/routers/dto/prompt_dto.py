@@ -1,6 +1,5 @@
 """
 Pydantic models for prompt library API.
-Adapted for SAM fork with epoch millisecond timestamps.
 """
 
 from typing import Any, Dict, List, Optional
