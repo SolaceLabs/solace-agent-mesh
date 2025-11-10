@@ -239,7 +239,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
                                                     Version {version.version}
                                                 </span>
                                                 {isActive && (
-                                                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">
+                                                    <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-success-w20)] text-[var(--color-success-wMain)]">
                                                         Active
                                                     </span>
                                                 )}
