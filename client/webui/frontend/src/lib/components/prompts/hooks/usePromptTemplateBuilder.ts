@@ -45,7 +45,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             
             // Auto-detect variables when prompt_text changes
             if (updates.prompt_text !== undefined) {
-                const variables = detectVariables(updates.prompt_text);
+                const variables = detectVariables(updates.prompt_text || '');
                 newConfig.detected_variables = variables;
             }
             
