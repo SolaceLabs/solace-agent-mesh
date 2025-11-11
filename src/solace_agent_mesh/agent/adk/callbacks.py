@@ -10,7 +10,6 @@ import asyncio
 import uuid
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 from collections import defaultdict
-from datetime import datetime, timezone
 
 from google.adk.tools import BaseTool, ToolContext
 from google.adk.artifacts import BaseArtifactService
@@ -47,7 +46,6 @@ from ...common.utils.embeds import (
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from ...common import a2a
-from ...common.a2a.types import ContentPart
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
@@ -57,10 +55,6 @@ from ...common.data_parts import (
     TemplateBlockData,
 )
 
-from ...agent.utils.artifact_helpers import (
-    save_artifact_with_metadata,
-    DEFAULT_SCHEMA_MAX_KEYS,
-)
 
 METADATA_RESPONSE_KEY = "appended_artifact_metadata"
 from ..tools.builtin_artifact_tools import _internal_create_artifact
@@ -222,7 +216,7 @@ async def process_artifact_blocks_callback(
                         params_str = " ".join(
                             [f'{k}="{v}"' for k, v in event.params.items()]
                         )
-                        original_text = f"«««save_artifact: {params_str}\n"
+                        original_text = f"{ARTIFACT_BLOCK_DELIMITER_OPEN}save_artifact: {params_str}\n"
                         session.state["artifact_block_original_text"] = original_text
 
                     elif isinstance(event, BlockProgressedEvent):
@@ -952,8 +946,9 @@ It can span multiple lines.
 
 def _generate_fenced_artifact_instruction() -> str:
     """Generates the instruction text for using fenced artifact blocks."""
-    return """\
-**Creating Text-Based Artifacts (`save_artifact`):**
+    open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
+    return f"""\
+**Creating Text-Based Artifacts (`{open_delim}save_artifact:...`):**
 
 **When to Create Artifacts:**
 Create an artifact when the content provides value as a standalone file, such as:
@@ -984,7 +979,7 @@ def _generate_inline_template_instruction() -> str:
     open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
     close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
     return f"""\
-**Inline Templates (`template`):**
+**Inline Templates (`{open_delim}template:...`):**
 
 Use inline templates to dynamically render data from artifacts for user-friendly display. This is faster and more accurate than reading the artifact and reformatting it yourself.
 
@@ -1006,9 +1001,7 @@ Use inline templates to dynamically render data from artifacts for user-friendly
 {open_delim}template: data="sales_data.csv" limit="5"
 | {{% for h in headers %}}{{{{ h }}}} | {{% endfor %}}
 |{{% for h in headers %}}---|{{% endfor %}}
-{{% for row in data_rows %}}
-| {{% for cell in row %}}{{{{ cell }}}} | {{% endfor %}}
-{{% endfor %}}
+{{% for row in data_rows %}}| {{% for cell in row %}}{{{{ cell }}}} | {{% endfor %}}{{% endfor %}}
 {close_delim}
 
 The rendered output will appear inline in your response automatically.
