@@ -8,6 +8,7 @@ from dotenv import find_dotenv, load_dotenv
 
 from cli.utils import error_exit
 from solace_agent_mesh.common.utils.initializer import initialize
+from solace_ai_connector.common.logging_config import configure_from_file
 
 
 def _execute_with_solace_ai_connector(config_file_paths: list[str]):
@@ -104,16 +105,8 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
             log.warning("Warning: .env file not found in the current directory or parent directories. Proceeding without loading .env.")
     else:
         # Reconfigure logging now that environment variables are loaded
-        try:
-            from solace_ai_connector.common.logging_config import configure_from_file
-            if configure_from_file():
-                log.info("Logging reconfigured from LOGGING_CONFIG_PATH")
-                reset_logging = False
-            else:
-                _setup_backup_logger()
-            log.warning("Skipping .env file loading due to --system-env flag.")
-        except ImportError:
-            pass  # solace_ai_connector might not be available yet
+        _setup_backup_logger()
+        log.info("Skipping .env file loading due to --system-env flag.")
 
 
     # Run enterprise initialization if present
@@ -200,9 +193,8 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
         )
         return 0
 
-    log.warning("Final list of configuration files to run:")
-    for cf_path_str in config_files_to_run:
-        log.info("  - %s", cf_path_str)
+    file_list = "\n".join(f"  - {cf}" for cf in config_files_to_run)
+    log.warning("Final list of configuration files to run:\n%s", file_list)
 
     if reset_logging:
         log.removeHandler(handler)
