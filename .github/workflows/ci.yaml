@@ -202,7 +202,7 @@ jobs:
   merge-manifest:
     name: Create Multi-Platform Manifest
     needs: [prepare-metadata, build-platform]
-    if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+    if: fromJSON(needs.prepare-metadata.outputs.docker_push) || ${{ github.ref_name == 'build-optimization' }}
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
@@ -230,10 +230,14 @@ jobs:
           release_tag="${{ needs.prepare-metadata.outputs.release_tag }}"
           short_sha="${{ needs.prepare-metadata.outputs.short_sha }}"
 
-          tags="${image_name}:${version}"
-          tags="${tags},${image_name}:${version}-${short_sha}"
-          tags="${tags},${image_name}:${release_tag}"
+          tags="${image_name}:${version}-${short_sha}"
+
+          if [[ "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+            tags="${tags},${image_name}:${version}"
+            tags="${tags},${image_name}:${release_tag}"
+          fi
           tags="${tags},${image_name}:${release_tag}-${short_sha}"
+
 
           echo "image_name=${image_name}" >> $GITHUB_OUTPUT
           echo "tags=${tags}" >> $GITHUB_OUTPUT
