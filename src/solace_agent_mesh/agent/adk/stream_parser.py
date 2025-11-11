@@ -163,13 +163,6 @@ class FencedBlockStreamParser:
         user_text_parts: List[str] = []
         events: List[ParserEvent] = []
 
-        log.info(
-            "[StreamParser] finalize() called. Current state: %s, nesting_depth: %d, buffer size: %d",
-            self._state,
-            self._nesting_depth,
-            len(self._artifact_buffer),
-        )
-
         if self._state == ParserState.POTENTIAL_BLOCK:
             # The turn ended mid-potential-block. This is a rollback.
             rolled_back_text = self._speculative_buffer
@@ -186,18 +179,11 @@ class FencedBlockStreamParser:
                 len(self._artifact_buffer),
                 self._nesting_depth,
             )
-            log.info(
-                "[StreamParser] Unterminated block content (first 300): %s",
-                repr(self._artifact_buffer[:300]),
-            )
-            log.info(
-                "[StreamParser] Unterminated block content (last 300): %s",
-                repr(self._artifact_buffer[-300:]),
-            )
             if self._current_block_type == "template":
                 events.append(
                     TemplateBlockCompletedEvent(
-                        params=self._block_params, template_content=self._artifact_buffer
+                        params=self._block_params,
+                        template_content=self._artifact_buffer,
                     )
                 )
             else:
@@ -244,23 +230,10 @@ class FencedBlockStreamParser:
                 # we need to pass it through as literal text (preserve nesting)
                 if self._nesting_depth > 0 and matched_type == "template":
                     # Preserve template literally inside artifact
-                    log.info(
-                        "[StreamParser] Nested template detected. Adding to artifact buffer: %s",
-                        repr(self._speculative_buffer)
-                    )
                     self._artifact_buffer += self._speculative_buffer
-                    log.info(
-                        "[StreamParser] Artifact buffer after template start: length=%d, last 100 chars: %s",
-                        len(self._artifact_buffer),
-                        repr(self._artifact_buffer[-100:])
-                    )
                     # Increment nesting depth so we know to skip the next »»»
                     # (it will close the nested template, not the outer artifact)
                     self._nesting_depth += 1
-                    log.info(
-                        "[StreamParser] Incremented nesting depth to %d for nested template",
-                        self._nesting_depth
-                    )
                     # Don't reset state! We're still inside the save_artifact block.
                     # Just clear the speculative buffer and stay IN_BLOCK to continue
                     # buffering the rest of the artifact content.
@@ -286,8 +259,9 @@ class FencedBlockStreamParser:
             return
 
         # If we are still building up a start sequence (could be either)
-        if (SAVE_ARTIFACT_START_SEQUENCE.startswith(self._speculative_buffer) or
-            TEMPLATE_START_SEQUENCE.startswith(self._speculative_buffer)):
+        if SAVE_ARTIFACT_START_SEQUENCE.startswith(
+            self._speculative_buffer
+        ) or TEMPLATE_START_SEQUENCE.startswith(self._speculative_buffer):
             # It's still a potential match. Continue buffering.
             return
 
@@ -300,7 +274,7 @@ class FencedBlockStreamParser:
         if self._previous_state == ParserState.IN_BLOCK:
             log.debug(
                 "[StreamParser] Invalid sequence '%s' detected while IN_BLOCK. Adding to artifact buffer.",
-                repr(rolled_back_text)
+                repr(rolled_back_text),
             )
             self._artifact_buffer += rolled_back_text
             self._speculative_buffer = ""
@@ -324,20 +298,9 @@ class FencedBlockStreamParser:
             self._previous_state = ParserState.IN_BLOCK
             self._state = ParserState.POTENTIAL_BLOCK
             self._speculative_buffer += char
-            log.debug(
-                "[StreamParser] Found potential nested block start '«' at nesting depth %d",
-                self._nesting_depth
-            )
             return
 
         self._artifact_buffer += char
-
-        # Log when we detect potential nested template closing
-        if char == '»' and self._current_block_type == "save_artifact":
-            log.debug(
-                "[StreamParser] Found » char in save_artifact block. Buffer tail (last 50): %s",
-                repr(self._artifact_buffer[-50:])
-            )
 
         # Check for the closing delimiter
         if self._artifact_buffer.endswith(ARTIFACT_BLOCK_DELIMITER_CLOSE):
@@ -345,19 +308,11 @@ class FencedBlockStreamParser:
             if self._nesting_depth > 1:
                 # This »»» is closing a nested template block, not the outer save_artifact
                 # Keep it in the buffer and just decrement nesting
-                log.info(
-                    "[StreamParser] Found »»» at nesting depth %d - closing nested block, keeping in buffer",
-                    self._nesting_depth
-                )
                 self._nesting_depth -= 1
                 # Don't emit events, don't strip the delimiter, just continue buffering
             else:
                 # This is closing the outermost block (nesting_depth == 1)
                 # Block is complete.
-                log.info(
-                    "[StreamParser] Found »»» at nesting depth %d - closing outer block",
-                    self._nesting_depth
-                )
                 final_content = self._artifact_buffer[
                     : -len(ARTIFACT_BLOCK_DELIMITER_CLOSE)
                 ]
@@ -372,7 +327,9 @@ class FencedBlockStreamParser:
                 else:
                     # Default to save_artifact behavior
                     events.append(
-                        BlockCompletedEvent(params=self._block_params, content=final_content)
+                        BlockCompletedEvent(
+                            params=self._block_params, content=final_content
+                        )
                     )
 
                 # Decrement nesting depth

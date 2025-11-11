@@ -142,18 +142,6 @@ async def process_artifact_blocks_callback(
     if llm_response.partial:
         callback_context.state[A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY] = True
 
-    if llm_response.content and llm_response.content.parts:
-        text_parts = [p.text for p in llm_response.content.parts if p.text]
-        if text_parts:
-            combined = "".join(text_parts)
-            log.info(
-                "%s [DEBUG] Text in this chunk: %d chars, first 200: %s, last 200: %s",
-                log_identifier,
-                len(combined),
-                repr(combined[:200]),
-                repr(combined[-200:]),
-            )
-
     if llm_response.partial or not stream_chunks_were_processed:
         processed_parts: List[adk_types.Part] = []
         original_parts = llm_response.content.parts if llm_response.content else []

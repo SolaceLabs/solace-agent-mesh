@@ -90,32 +90,6 @@ async def _internal_create_artifact(
 
     log_identifier = f"[BuiltinArtifactTool:_internal_create_artifact:{filename}]"
 
-    log.info(
-        "%s [DEBUG] Received content to save. Length: %d chars",
-        log_identifier,
-        len(content),
-    )
-    log.info(
-        "%s [DEBUG] Content (first 300 chars): %s",
-        log_identifier,
-        repr(content[:300]),
-    )
-    log.info(
-        "%s [DEBUG] Content (last 300 chars): %s",
-        log_identifier,
-        repr(content[-300:]),
-    )
-    log.info(
-        "%s [DEBUG] Number of '»»»' in content: %d",
-        log_identifier,
-        content.count("»»»"),
-    )
-    log.info(
-        "%s [DEBUG] Number of '«««template:' in content: %d",
-        log_identifier,
-        content.count("«««template:"),
-    )
-
     final_metadata = {}
     if description:
         final_metadata["description"] = description
