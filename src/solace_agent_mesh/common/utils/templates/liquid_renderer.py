@@ -7,12 +7,11 @@ import csv
 import io
 import json
 from typing import Any, Dict, Optional, Tuple
-
-log = logging.getLogger(__name__)
-
 from liquid import Environment
 from jsonpath_ng.ext import parse as jsonpath_parse
 import yaml
+
+log = logging.getLogger(__name__)
 
 
 def _parse_csv_to_context(csv_content: str) -> Dict[str, Any]:
@@ -181,7 +180,9 @@ def render_liquid_template(
             log_id=log_identifier,
         )
         if error:
-            log.error("%s Failed to prepare template context: %s", log_identifier, error)
+            log.error(
+                "%s Failed to prepare template context: %s", log_identifier, error
+            )
             return f"[Template Error: {error}]", error
 
         log.debug(
