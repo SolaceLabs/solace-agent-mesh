@@ -98,6 +98,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
                     _setup_backup_logger()
             except ImportError:
                 pass  # solace_ai_connector might not be available yet
+            log.info(f"Loaded environment variables from {env_path}")
         else:
             _setup_backup_logger()
             log.warning("Warning: .env file not found in the current directory or parent directories. Proceeding without loading .env.")
@@ -110,8 +111,10 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
                 reset_logging = False
             else:
                 _setup_backup_logger()
+            log.warning("Skipping .env file loading due to --system-env flag.")
         except ImportError:
             pass  # solace_ai_connector might not be available yet
+
 
     # Run enterprise initialization if present
     initialize()
@@ -197,7 +200,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
         )
         return 0
 
-    log.info("Final list of configuration files to run:")
+    log.warning("Final list of configuration files to run:")
     for cf_path_str in config_files_to_run:
         log.info("  - %s", cf_path_str)
 
