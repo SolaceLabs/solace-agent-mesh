@@ -6,7 +6,7 @@ export * from "./activities";
 export * from "./navigation";
 export * from "./chat";
 
-export { MarkdownHTMLConverter, MessageBanner, EmptyState, messageColourVariants } from "./common";
+export { MarkdownHTMLConverter, MessageBanner, EmptyState, ErrorDialog, ConfirmationDialog, LoadingBlocker, messageColourVariants } from "./common";
 
 export * from "./header";
 export * from "./pages";
