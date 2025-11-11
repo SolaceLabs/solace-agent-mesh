@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - build-optimization
+    paths:
+      - "uv.lock"
+      - "pyproject.toml"
   workflow_dispatch:
   schedule:
     - cron: "0 0 */5 * *" # Every 5 days, before cache expiry
@@ -46,6 +49,5 @@ jobs:
           path: |
             ~/.cache/uv
             ~/.local/share/uv
-            ~/.cache/hatch
             .venv
           key: uv-main-${{ hashFiles('uv.lock') }}
