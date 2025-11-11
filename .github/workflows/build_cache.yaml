@@ -5,9 +5,9 @@ on:
     branches:
       - main
       - build-optimization
-    paths:
-      - "uv.lock"
-      - "pyproject.toml"
+    # paths:
+    #   - "uv.lock"
+    #   - "pyproject.toml"
   workflow_dispatch:
   schedule:
     - cron: "0 0 */5 * *" # Every 5 days, before cache expiry
@@ -34,15 +34,18 @@ jobs:
           echo "Cache populated successfully"
 
       - name: Install hatch
+        id: install_hatch
         run: |
           uv tool install hatch
           mkdir -p ~/.cache/hatch
+          uv_path=$(which uv)
+          echo "uv_path=${uv_path}" >> $GITHUB_OUTPUT
 
       - name: Save hatch cache
         env:
-          HATCH_CACHE_DIR: ~/.cache/hatch
+          HATCH_ENV_TYPE_VIRTUAL_UV_PATH: ${{ steps.install_hatch.outputs.uv_path }}
         run: |
-          hatch env create hatch-test.py3.13
+          hatch -v env create hatch-test.py3.13
       - name: Save uv caches
         uses: actions/cache/save@v4
         with:
