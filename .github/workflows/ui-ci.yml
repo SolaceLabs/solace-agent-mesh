@@ -99,6 +99,18 @@ jobs:
       - name: Build UI package
         run: npm run build-package
 
+      - name: Build Storybook
+        run: npm run build-storybook
+
+      - name: Install Playwright for Storybook tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Storybook tests
+        run: |
+          npx concurrently -k -s first -n "SB,TEST" -c "magenta,blue" \
+            "npx http-server storybook-static --port 6006 --silent" \
+            "npx wait-on tcp:127.0.0.1:6006 && npm run test-storybook"
+
       - name: Run WhiteSource Scan
         id: whitesource_scan
         uses: SolaceDev/solace-public-workflows/.github/actions/whitesource-scan@main
