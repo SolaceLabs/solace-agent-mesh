@@ -1135,9 +1135,72 @@ class BaseGatewayComponent(SamComponentBase):
                 # Handle recursive embeds in text-based FileParts
                 new_parts.append(part)  # Placeholder for now
             elif isinstance(part, DataPart):
-                # Handle artifact creation progress DataParts for legacy gateways
+                # Handle special DataPart types
                 data_type = part.data.get("type") if part.data else None
-                if (
+
+                if data_type == "template_block":
+                    # Resolve template block and replace with resolved text
+                    try:
+                        from ...common.utils.templates import resolve_template_blocks_in_string
+
+                        # Reconstruct the template block syntax
+                        data_artifact = part.data.get("data_artifact", "")
+                        jsonpath = part.data.get("jsonpath")
+                        limit = part.data.get("limit")
+                        template_content = part.data.get("template_content", "")
+
+                        # Build params string
+                        params_parts = [f'data="{data_artifact}"']
+                        if jsonpath:
+                            params_parts.append(f'jsonpath="{jsonpath}"')
+                        if limit is not None:
+                            params_parts.append(f'limit="{limit}"')
+                        params_str = " ".join(params_parts)
+
+                        # Reconstruct full template block
+                        template_block = f"«««template: {params_str}\n{template_content}\n»»»"
+
+                        log.debug(
+                            "%s Resolving template block inline: data=%s",
+                            log_id_prefix,
+                            data_artifact,
+                        )
+
+                        # Resolve the template
+                        resolved_text = await resolve_template_blocks_in_string(
+                            text=template_block,
+                            artifact_service=self.shared_artifact_service,
+                            session_context={
+                                "app_name": external_request_context.get(
+                                    "app_name_for_artifacts", self.gateway_id
+                                ),
+                                "user_id": external_request_context.get("user_id_for_artifacts"),
+                                "session_id": external_request_context.get("a2a_session_id"),
+                            },
+                            log_identifier=f"{log_id_prefix}[TemplateResolve]",
+                        )
+
+                        log.info(
+                            "%s Template resolved successfully. Output length: %d",
+                            log_id_prefix,
+                            len(resolved_text),
+                        )
+
+                        # Replace the DataPart with a TextPart containing the resolved content
+                        new_parts.append(a2a.create_text_part(text=resolved_text))
+
+                    except Exception as e:
+                        log.error(
+                            "%s Failed to resolve template block: %s",
+                            log_id_prefix,
+                            e,
+                            exc_info=True,
+                        )
+                        # Send error message as TextPart
+                        error_text = f"[Template rendering error: {str(e)}]"
+                        new_parts.append(a2a.create_text_part(text=error_text))
+
+                elif (
                     data_type == "artifact_creation_progress"
                     and not self.supports_inline_artifact_resolution
                 ):

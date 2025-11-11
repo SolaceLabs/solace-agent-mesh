@@ -184,7 +184,7 @@ async def _evaluate_artifact_content_embed_with_chain(
             current_format = DataFormat.STRING
             _log_data_state(
                 log_identifier,
-                f"[Depth:{current_depth}] After Recursive Resolution",
+                f"[Depth:{current_depth}] After Recursive Resolution (including templates)",
                 current_data,
                 current_format,
                 original_mime_type,
@@ -677,6 +677,34 @@ async def resolve_embeds_in_string(
             len(final_text),
         )
 
+    # If resolving late embeds, also resolve template blocks
+    # Templates are considered late embeds since they need artifact service access
+    if LATE_EMBED_TYPES.intersection(types_to_resolve):
+        try:
+            from ..templates import resolve_template_blocks_in_string
+
+            artifact_service = context.get("artifact_service")
+            session_context = context.get("session_context")
+
+            if artifact_service and session_context:
+                log.debug(
+                    "%s Resolving template blocks after late embed resolution.",
+                    log_identifier,
+                )
+                final_text = await resolve_template_blocks_in_string(
+                    text=final_text,
+                    artifact_service=artifact_service,
+                    session_context=session_context,
+                    log_identifier=f"{log_identifier}[TemplateResolve]",
+                )
+        except Exception as template_err:
+            log.warning(
+                "%s Failed to resolve template blocks: %s",
+                log_identifier,
+                template_err,
+            )
+            # Continue with final_text as-is
+
     return final_text, processed_until_index, signals_found
 
 
@@ -797,7 +825,39 @@ async def resolve_embeds_recursively_in_string(
         last_end = end
 
     resolved_parts.append(text[last_end:])
-    return "".join(resolved_parts)
+    result_text = "".join(resolved_parts)
+
+    # If resolving late embeds, also resolve template blocks
+    # Templates are considered late embeds since they need artifact service access
+    if LATE_EMBED_TYPES.intersection(types_to_resolve):
+        try:
+            from ..templates import resolve_template_blocks_in_string
+
+            artifact_service = context.get("artifact_service")
+            session_context = context.get("session_context")
+
+            if artifact_service and session_context:
+                log.debug(
+                    "%s [Depth:%d] Resolving template blocks after late embed resolution.",
+                    log_identifier,
+                    current_depth,
+                )
+                result_text = await resolve_template_blocks_in_string(
+                    text=result_text,
+                    artifact_service=artifact_service,
+                    session_context=session_context,
+                    log_identifier=f"{log_identifier}[TemplateResolve]",
+                )
+        except Exception as template_err:
+            log.warning(
+                "%s [Depth:%d] Failed to resolve template blocks: %s",
+                log_identifier,
+                current_depth,
+                template_err,
+            )
+            # Continue with result_text as-is
+
+    return result_text
 
 
 async def evaluate_embed(
