@@ -63,18 +63,6 @@ When you configure an OpenAPI tool, Agent Mesh Enterprise performs the following
 
 6. **Response Handling**: API responses are returned to the agent and can be used in subsequent tool calls or included in the agent's response to the user.
 
-### Operation ID to Tool Name Conversion
-
-OpenAPI specifications typically use camelCase for operation IDs (for example, `getPetById`, `updatePetWithForm`). However, Google ADK's internal tool system uses snake_case naming (for example, `get_pet_by_id`, `update_pet_with_form`).
-
-Agent Mesh Enterprise automatically handles this conversion:
-
-- You configure filters using the original camelCase operation IDs from the spec
-- The system automatically converts them to snake_case for internal use
-- The AI model receives properly formatted tool names
-
-This conversion is transparent and requires no manual configuration.
-
 ## Prerequisites
 
 Before you configure OpenAPI tools, ensure you have the following:
@@ -283,19 +271,7 @@ tools:
 
 ### Filter Configuration
 
-**Specifying Operation IDs**: Use the original camelCase `operationId` from the OpenAPI spec. The system automatically converts them to snake_case internally.
-
-```yaml
-# Correct - use camelCase from spec
-allow_list:
-  - "getPetById"
-  - "findPetsByStatus"
-
-# Incorrect - don't use snake_case
-allow_list:
-  - "get_pet_by_id"  # Wrong!
-  - "find_pets_by_status"  # Wrong!
-```
+**Specifying Operation IDs**: Use the `operationId` as they appear in the OpenAPI spec.
 
 **Finding Operation IDs**: Look in the OpenAPI spec under `paths[path][method].operationId`:
 
@@ -569,10 +545,6 @@ This section addresses common issues when configuring OpenAPI tools.
 
    - Verify the OpenAPI spec contains `paths` with operations
    - Check that operations have `operationId` fields
-
-3. **Name Conversion Issues**:
-   - Remember: Use camelCase operation IDs in filters, not snake_case
-   - Example: `"getPetById"` not `"get_pet_by_id"`
 
 ### Authentication Errors
 
