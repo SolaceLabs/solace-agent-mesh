@@ -30,11 +30,22 @@ jobs:
           uv sync
           echo "Cache populated successfully"
 
+      - name: Install hatch
+        run: |
+          uv tool install hatch
+          mkdir -p ~/.cache/hatch
+
+      - name: Save hatch cache
+        env:
+          HATCH_CACHE_DIR: ~/.cache/hatch
+        run: |
+          hatch env create hatch-test.py3.13
       - name: Save uv caches
         uses: actions/cache/save@v4
         with:
           path: |
             ~/.cache/uv
             ~/.local/share/uv
+            ~/.cache/hatch
             .venv
           key: uv-main-${{ hashFiles('uv.lock') }}
