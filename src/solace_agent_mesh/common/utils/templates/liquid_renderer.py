@@ -5,6 +5,7 @@ Liquid template rendering with data context preparation.
 import logging
 import csv
 import io
+import json
 from typing import Any, Dict, Optional, Tuple
 
 log = logging.getLogger(__name__)
@@ -79,79 +80,79 @@ def _apply_jsonpath_filter(
         return data, f"JSONPath error: {e}"
 
 
-def _apply_limit(data: Any, limit: int, log_id: str) -> Any:
-    """
-    Applies limit to data (arrays or CSV data_rows in context).
-
-    Returns:
-        Limited data
-    """
-    if isinstance(data, dict):
-        if "data_rows" in data:
-            # CSV context: limit data_rows
-            return {
-                "headers": data.get("headers", []),
-                "data_rows": data["data_rows"][:limit],
-            }
-        elif "items" in data:
-            # JSON/YAML array context: limit items
-            return {"items": data["items"][:limit]}
-        else:
-            # Dict without items or data_rows: no-op
-            return data
-    elif isinstance(data, list):
-        # Raw list (shouldn't happen after context preparation, but handle it)
-        return data[:limit]
-    else:
-        # No-op for other types (primitives, etc.)
-        return data
-
-
 def _prepare_template_context(
-    data: Any, data_mime_type: str, log_id: str
-) -> Dict[str, Any]:
+    data: Any,
+    data_mime_type: str,
+    jsonpath: Optional[str],
+    limit: Optional[int],
+    log_id: str,
+) -> Tuple[Dict[str, Any], Optional[str]]:
     """
-    Prepares the template rendering context based on data type and MIME type.
-
-    Context structure follows PRD:
-    - CSV: {headers: [...], data_rows: [[...]]}
-    - JSON/YAML array: {items: [...]}
-    - JSON/YAML dict: keys directly available
-    - Primitives: {value: ...}
-    - String (non-CSV): {text: ...}
+    Prepares the template rendering context.
+    This involves:
+    1. Parsing raw data (e.g., JSON string) into Python objects.
+    2. Applying JSONPath filter if provided.
+    3. Structuring the data into the final context format (e.g., {"items": ...}).
+    4. Applying a limit to the number of items/rows.
 
     Returns:
-        Context dict for Liquid template
+        A tuple of (context_dict, error_message).
     """
-    # Determine if this is CSV data
+    # Step 1: Parse raw data into structured data if necessary
+    parsed_data = data
     is_csv = data_mime_type in ["text/csv", "application/csv"]
+    is_json = "json" in data_mime_type
 
-    # Handle CSV data
-    if is_csv:
-        if isinstance(data, str):
-            return _parse_csv_to_context(data)
-        elif isinstance(data, dict) and "headers" in data and "data_rows" in data:
-            # Already parsed
-            return data
-        else:
-            log.warning(
-                "%s CSV data is not string or parsed dict, wrapping as text", log_id
-            )
-            return {"text": str(data)}
+    if isinstance(data, str):
+        if is_csv:
+            parsed_data = _parse_csv_to_context(data)
+        elif is_json:
+            try:
+                parsed_data = json.loads(data)
+            except json.JSONDecodeError as e:
+                return {}, f"Failed to parse JSON data: {e}"
+        # YAML and other text types remain as strings for now
 
-    # Handle JSON/YAML types
-    if isinstance(data, dict):
-        # Dictionary: keys directly available
-        return data
-    elif isinstance(data, list):
+    # Step 2: Apply JSONPath if provided
+    if jsonpath:
+        log.info("%s Applying JSONPath: %s", log_id, jsonpath)
+        parsed_data, jsonpath_error = _apply_jsonpath_filter(
+            parsed_data, jsonpath, log_id
+        )
+        if jsonpath_error:
+            return {}, f"JSONPath filter failed: {jsonpath_error}"
+
+    # Step 3: Structure the data into the final context format
+    context: Dict[str, Any]
+    if (
+        isinstance(parsed_data, dict)
+        and "headers" in parsed_data
+        and "data_rows" in parsed_data
+    ):
+        # Already in CSV context format
+        context = parsed_data
+    elif isinstance(parsed_data, list):
         # Array: available under 'items'
-        return {"items": data}
-    elif isinstance(data, (str, int, float, bool)) or data is None:
+        context = {"items": parsed_data}
+    elif isinstance(parsed_data, dict):
+        # Dictionary: keys directly available
+        context = parsed_data
+    elif isinstance(parsed_data, (str, int, float, bool)) or parsed_data is None:
         # Primitives: available under 'value'
-        return {"value": data}
+        context = {"value": parsed_data}
     else:
         # Fallback: convert to string
-        return {"text": str(data)}
+        context = {"text": str(parsed_data)}
+
+    # Step 4: Apply limit if provided
+    if limit is not None and limit > 0:
+        log.info("%s Applying limit: %d", log_id, limit)
+        if "data_rows" in context and isinstance(context["data_rows"], list):
+            context["data_rows"] = context["data_rows"][:limit]
+        elif "items" in context and isinstance(context["items"], list):
+            context["items"] = context["items"][:limit]
+
+    return context, None
 
 
 def render_liquid_template(
@@ -184,32 +185,17 @@ def render_liquid_template(
         return f"[Template Error: {error}]", error
 
     try:
-        # Step 1: Apply JSONPath if provided (before context preparation)
-        if jsonpath:
-            log.info("%s Applying JSONPath: %s", log_identifier, jsonpath)
-            data_artifact_content, jsonpath_error = _apply_jsonpath_filter(
-                data_artifact_content, jsonpath, log_identifier
-            )
-            if jsonpath_error:
-                error = f"JSONPath filter failed: {jsonpath_error}"
-                log.error("%s %s", log_identifier, error)
-                return f"[Template Error: {error}]", error
-
-        # Step 2: Prepare template context (parse CSV, structure data)
-        log.info(
-            "%s Preparing context. Data type: %s, MIME: %s",
-            log_identifier,
-            type(data_artifact_content).__name__,
-            data_mime_type,
+        # Prepare the template context, including parsing, filtering, and limiting
+        context, error = _prepare_template_context(
+            data=data_artifact_content,
+            data_mime_type=data_mime_type,
+            jsonpath=jsonpath,
+            limit=limit,
+            log_id=log_identifier,
         )
-        context = _prepare_template_context(
-            data_artifact_content, data_mime_type, log_identifier
-        )
-
-        # Step 3: Apply limit if provided (after context preparation)
-        if limit is not None and limit > 0:
-            log.info("%s Applying limit: %d", log_identifier, limit)
-            context = _apply_limit(context, limit, log_identifier)
+        if error:
+            log.error("%s Failed to prepare template context: %s", log_identifier, error)
+            return f"[Template Error: {error}]", error
 
         log.debug(
             "%s Template context keys: %s",
@@ -217,7 +203,7 @@ def render_liquid_template(
             list(context.keys()) if isinstance(context, dict) else "non-dict",
         )
 
-        # Step 4: Render template
+        # Render template
         log.info("%s Rendering Liquid template", log_identifier)
         env = Environment()
         template = env.from_string(template_content)
