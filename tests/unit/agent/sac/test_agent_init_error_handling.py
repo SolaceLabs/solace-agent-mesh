@@ -106,11 +106,6 @@ class TestAgentInitErrorHandling:
         # Verify the signal is set
         assert app.stop_signal.is_set(), "stop_signal should be set"
 
-        # In a real scenario, the connector would check this and exit
-        # We're just verifying the signal state here
-        assert app.stop_signal.is_set(), \
-            "App with failed init should have stop_signal set"
-
     def test_successful_init_does_not_set_stop_signal(self):
         """Test that successful initialization does not set stop_signal."""
 

@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 from solace_ai_connector.components.component_base import ComponentBase
 
-from ..exceptions import MessageSizeExceededError
+from ..exceptions import ComponentInitializationError, MessageSizeExceededError
 from ..utils.message_utils import validate_message_size
 
 log = logging.getLogger(__name__)
@@ -564,7 +564,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 error_msg = f"{self.log_identifier} Async initialization failed: {init_error}"
                 log.error(error_msg, exc_info=init_error)
                 self.stop_signal.set()
-                raise RuntimeError(error_msg) from init_error
+                raise ComponentInitializationError(
+                    self.log_identifier, init_error, error_msg
+                ) from init_error
 
         super().run()
         log.info("%s SamComponentBase run method finished.", self.log_identifier)
