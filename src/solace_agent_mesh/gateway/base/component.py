@@ -630,66 +630,16 @@ class BaseGatewayComponent(SamComponentBase):
                             )
                             continue
 
-                        # --- BEGIN LATE EMBED RESOLUTION FOR ARTIFACT_RETURN ---
-                        # If the artifact is text-based, resolve any late embeds inside it.
-                        artifact_mime_type = artifact_data.get("metadata", {}).get(
-                            "mime_type"
+                        # Resolve any late embeds inside the artifact content before returning.
+                        content_bytes = await self._resolve_embeds_in_artifact_content(
+                            content_bytes=content_bytes,
+                            mime_type=artifact_data.get("metadata", {}).get(
+                                "mime_type"
+                            ),
+                            filename=filename,
+                            external_request_context=external_request_context,
+                            log_id_prefix=log_id_prefix,
                         )
-                        if is_text_based_mime_type(artifact_mime_type):
-                            log.info(
-                                "%s Artifact '%s' is text-based (%s). Resolving late embeds before returning.",
-                                log_id_prefix,
-                                filename,
-                                artifact_mime_type,
-                            )
-                            try:
-                                decoded_content = content_bytes.decode("utf-8")
-
-                                # Construct context and config for the resolver
-                                embed_eval_context = {
-                                    "artifact_service": self.shared_artifact_service,
-                                    "session_context": {
-                                        "app_name": external_request_context.get(
-                                            "app_name_for_artifacts", self.gateway_id
-                                        ),
-                                        "user_id": external_request_context.get(
-                                            "user_id_for_artifacts"
-                                        ),
-                                        "session_id": external_request_context.get(
-                                            "a2a_session_id"
-                                        ),
-                                    },
-                                }
-                                embed_eval_config = {
-                                    "gateway_max_artifact_resolve_size_bytes": self.gateway_max_artifact_resolve_size_bytes,
-                                    "gateway_recursive_embed_depth": self.gateway_recursive_embed_depth,
-                                }
-
-                                resolved_string = await resolve_embeds_recursively_in_string(
-                                    text=decoded_content,
-                                    context=embed_eval_context,
-                                    resolver_func=evaluate_embed,
-                                    types_to_resolve=LATE_EMBED_TYPES,
-                                    resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
-                                    log_identifier=f"{log_id_prefix}[RecursiveReturn]",
-                                    config=embed_eval_config,
-                                    max_depth=self.gateway_recursive_embed_depth,
-                                )
-                                content_bytes = resolved_string.encode("utf-8")
-                                log.info(
-                                    "%s Successfully resolved embeds in '%s'. New size: %d bytes.",
-                                    log_id_prefix,
-                                    filename,
-                                    len(content_bytes),
-                                )
-                            except Exception as resolve_err:
-                                log.error(
-                                    "%s Failed to resolve embeds within returned artifact '%s': %s. Returning raw content.",
-                                    log_id_prefix,
-                                    filename,
-                                    resolve_err,
-                                )
-                        # --- END LATE EMBED RESOLUTION ---
 
                         # Create FilePart with bytes for legacy gateway to upload
                         file_part = a2a.create_file_part_from_bytes(
@@ -864,10 +814,80 @@ class BaseGatewayComponent(SamComponentBase):
                         signal_type,
                     )
 
-    async def _resolve_uri_in_file_part(self, file_part: FilePart):
+    async def _resolve_embeds_in_artifact_content(
+        self,
+        content_bytes: bytes,
+        mime_type: Optional[str],
+        filename: str,
+        external_request_context: Dict[str, Any],
+        log_id_prefix: str,
+    ) -> bytes:
+        """
+        Checks if content is text-based and, if so, resolves late embeds within it.
+        Returns the (potentially modified) content as bytes.
+        """
+        if is_text_based_mime_type(mime_type):
+            log.info(
+                "%s Artifact '%s' is text-based (%s). Resolving late embeds.",
+                log_id_prefix,
+                filename,
+                mime_type,
+            )
+            try:
+                decoded_content = content_bytes.decode("utf-8")
+
+                # Construct context and config for the resolver
+                embed_eval_context = {
+                    "artifact_service": self.shared_artifact_service,
+                    "session_context": {
+                        "app_name": external_request_context.get(
+                            "app_name_for_artifacts", self.gateway_id
+                        ),
+                        "user_id": external_request_context.get(
+                            "user_id_for_artifacts"
+                        ),
+                        "session_id": external_request_context.get("a2a_session_id"),
+                    },
+                }
+                embed_eval_config = {
+                    "gateway_max_artifact_resolve_size_bytes": self.gateway_max_artifact_resolve_size_bytes,
+                    "gateway_recursive_embed_depth": self.gateway_recursive_embed_depth,
+                }
+
+                resolved_string = await resolve_embeds_recursively_in_string(
+                    text=decoded_content,
+                    context=embed_eval_context,
+                    resolver_func=evaluate_embed,
+                    types_to_resolve=LATE_EMBED_TYPES,
+                    resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
+                    log_identifier=f"{log_id_prefix}[RecursiveResolve]",
+                    config=embed_eval_config,
+                    max_depth=self.gateway_recursive_embed_depth,
+                )
+                resolved_bytes = resolved_string.encode("utf-8")
+                log.info(
+                    "%s Successfully resolved embeds in '%s'. New size: %d bytes.",
+                    log_id_prefix,
+                    filename,
+                    len(resolved_bytes),
+                )
+                return resolved_bytes
+            except Exception as resolve_err:
+                log.error(
+                    "%s Failed to resolve embeds within artifact '%s': %s. Returning raw content.",
+                    log_id_prefix,
+                    filename,
+                    resolve_err,
+                )
+        return content_bytes
+
+    async def _resolve_uri_in_file_part(
+        self, file_part: FilePart, external_request_context: Dict[str, Any]
+    ):
         """
         Checks if a FilePart has a resolvable URI and, if so,
         resolves it and mutates the part in-place by calling the common utility.
+        After resolving the URI, it also resolves any late embeds within the content.
         """
         await a2a.resolve_file_part_uri(
             part=file_part,
@@ -875,15 +895,30 @@ class BaseGatewayComponent(SamComponentBase):
             log_identifier=self.log_identifier,
         )
 
-    async def _resolve_uris_in_parts_list(self, parts: List[ContentPart]):
+        # After resolving the URI to get the content, resolve any late embeds inside it.
+        if file_part.file and file_part.file.inline_data:
+            resolved_bytes = await self._resolve_embeds_in_artifact_content(
+                content_bytes=file_part.file.inline_data.data,
+                mime_type=file_part.file.mime_type,
+                filename=file_part.file.name,
+                external_request_context=external_request_context,
+                log_id_prefix=f"{self.log_identifier}[UriResolve]",
+            )
+            file_part.file.inline_data.data = resolved_bytes
+
+    async def _resolve_uris_in_parts_list(
+        self, parts: List[ContentPart], external_request_context: Dict[str, Any]
+    ):
         """Iterates over a list of part objects and resolves any FilePart URIs."""
         if not parts:
             return
         for part in parts:
             if isinstance(part, FilePart):
-                await self._resolve_uri_in_file_part(part)
+                await self._resolve_uri_in_file_part(part, external_request_context)
 
-    async def _resolve_uris_in_payload(self, parsed_event: Any):
+    async def _resolve_uris_in_payload(
+        self, parsed_event: Any, external_request_context: Dict[str, Any]
+    ):
         """
         Dispatcher that calls the appropriate targeted URI resolver based on the
         Pydantic model type of the event.
@@ -907,7 +942,9 @@ class BaseGatewayComponent(SamComponentBase):
                     parts_to_resolve.extend(a2a.get_parts_from_artifact(artifact))
 
         if parts_to_resolve:
-            await self._resolve_uris_in_parts_list(parts_to_resolve)
+            await self._resolve_uris_in_parts_list(
+                parts_to_resolve, external_request_context
+            )
         else:
             log.debug(
                 "%s Payload type '%s' did not yield any parts for URI resolution. Skipping.",
@@ -1392,7 +1429,9 @@ class BaseGatewayComponent(SamComponentBase):
                     "%s Resolving artifact URIs before sending to external...",
                     log_id_prefix,
                 )
-                await self._resolve_uris_in_payload(parsed_event)
+                await self._resolve_uris_in_payload(
+                    parsed_event, external_request_context
+                )
 
             send_this_event_to_external = True
             is_final_chunk_of_status_update = False
