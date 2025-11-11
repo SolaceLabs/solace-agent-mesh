@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - build-optimization
   pull_request:
     types: [opened, synchronize]
     branches:
@@ -190,7 +189,7 @@ jobs:
           file: Dockerfile
           platforms: ${{ matrix.platform.name }}
           tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
-          push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
+          push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) || github.ref_name == 'build-optimization' }}
           cache-from: ${{ steps.cache_list.outputs.cache_from }}
           cache-to: ${{ steps.image_name.outputs.cache_to }}
           provenance: false

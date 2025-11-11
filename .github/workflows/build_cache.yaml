@@ -1,0 +1,40 @@
+name: Build uv cache
+
+on:
+  push:
+    branches:
+      - main
+      - build-optimization
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 */5 * *" # Every 5 days, before cache expiry
+
+jobs:
+  build-cache:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.4"
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install dependencies and populate cache
+        run: |
+          echo "Building global UV cache..."
+          uv sync
+          echo "Cache populated successfully"
+
+      - name: Save uv caches
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.local/share/uv
+            .venv
+          key: uv-main-${{ hashFiles('uv.lock') }}
