@@ -54,6 +54,7 @@ from ...common.data_parts import (
     LlmInvocationData,
     ToolInvocationStartData,
     ToolResultData,
+    TemplateBlockData,
 )
 
 from ...agent.utils.artifact_helpers import (
@@ -73,6 +74,8 @@ from ...agent.adk.stream_parser import (
     BlockProgressedEvent,
     BlockCompletedEvent,
     BlockInvalidatedEvent,
+    TemplateBlockStartedEvent,
+    TemplateBlockCompletedEvent,
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
 )
@@ -144,6 +147,18 @@ async def process_artifact_blocks_callback(
     )
     if llm_response.partial:
         callback_context.state[A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY] = True
+
+    if llm_response.content and llm_response.content.parts:
+        text_parts = [p.text for p in llm_response.content.parts if p.text]
+        if text_parts:
+            combined = "".join(text_parts)
+            log.info(
+                "%s [DEBUG] Text in this chunk: %d chars, first 200: %s, last 200: %s",
+                log_identifier,
+                len(combined),
+                repr(combined[:200]),
+                repr(combined[-200:]),
+            )
 
     if llm_response.partial or not stream_chunks_were_processed:
         processed_parts: List[adk_types.Part] = []
@@ -236,7 +251,7 @@ async def process_artifact_blocks_callback(
                             )
 
                     elif isinstance(event, BlockCompletedEvent):
-                        log.info(
+                        log.debug(
                             "%s Event: BlockCompleted. Content length: %d",
                             log_identifier,
                             len(event.content),
@@ -381,6 +396,66 @@ async def process_artifact_blocks_callback(
                             }
                         )
 
+                    elif isinstance(event, TemplateBlockStartedEvent):
+                        log.debug(
+                            "%s Event: TemplateBlockStarted. Params: %s",
+                            log_identifier,
+                            event.params,
+                        )
+
+                    elif isinstance(event, TemplateBlockCompletedEvent):
+                        log.debug(
+                            "%s Event: TemplateBlockCompleted. Template length: %d",
+                            log_identifier,
+                            len(event.template_content),
+                        )
+
+                        # Create a TemplateBlockData message to send to the gateway
+                        template_id = str(uuid.uuid4())
+                        params = event.params
+
+                        data_artifact = params.get("data")
+                        if not data_artifact:
+                            log.warning(
+                                "%s Template block is missing 'data' parameter. Skipping.",
+                                log_identifier,
+                            )
+                            continue
+
+                        template_data = TemplateBlockData(
+                            template_id=template_id,
+                            data_artifact=data_artifact,
+                            jsonpath=params.get("jsonpath"),
+                            limit=(
+                                int(params.get("limit"))
+                                if params.get("limit")
+                                else None
+                            ),
+                            template_content=event.template_content,
+                        )
+
+                        # Publish A2A status update with template metadata
+                        if a2a_context:
+                            await _publish_data_part_status_update(
+                                host_component, a2a_context, template_data
+                            )
+                            log.info(
+                                "%s Published TemplateBlockData with ID: %s",
+                                log_identifier,
+                                template_id,
+                            )
+
+                        # Store template_id in session for potential future use
+                        # (Gateway will handle the actual resolution)
+                        if "completed_template_blocks_list" not in session.state:
+                            session.state["completed_template_blocks_list"] = []
+                        session.state["completed_template_blocks_list"].append(
+                            {
+                                "template_id": template_id,
+                                "data_artifact": data_artifact,
+                            }
+                        )
+
                     elif isinstance(event, BlockInvalidatedEvent):
                         log.debug(
                             "%s Event: BlockInvalidated. Rolled back: '%s'",
@@ -493,6 +568,7 @@ async def process_artifact_blocks_callback(
         session.state[parser_state_key] = None
         session.state["completed_artifact_blocks_list"] = None
         session.state["artifact_block_original_text"] = None
+        session.state["completed_template_blocks_list"] = None
         log.debug("%s Cleaned up parser session state.", log_identifier)
 
     return None
@@ -900,6 +976,64 @@ The system will automatically save the content and give you a confirmation in th
 """
 
 
+def _generate_inline_template_instruction() -> str:
+    """Generates the instruction text for using inline Liquid templates."""
+    open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
+    close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
+    return f"""\
+**Inline Liquid Templates:**
+
+Use inline templates to dynamically render data from artifacts to improve speed and accuracy. Try to use this rather than reading in the artifact and reformatting it yourself.
+
+**When to Use Inline Templates:**
+- Formatting CSV, JSON, or YAML data for user-friendly display
+- Creating tables, lists, or formatted text from data artifacts
+- Applying simple transformations to data (filtering, limiting rows)
+
+**EXACT SYNTAX:**
+{open_delim}template: data="artifact_name.ext" jsonpath="$.path" limit="10"
+...Liquid template content...
+{close_delim}
+
+**Parameters:**
+- `data="filename.ext"` (REQUIRED): The data artifact to render. Can include version: `data="file.csv:2"`
+- `jsonpath="$.expression"` (optional): JSONPath to extract a subset of JSON/YAML data
+- `limit="N"` (optional): Limit to first N rows (CSV) or items (JSON/YAML arrays)
+
+**Data Context for Templates:**
+- **CSV data**: Available as `headers` (array of column names) and `data_rows` (array of row arrays)
+- **JSON/YAML arrays**: Available as `items` (after jsonpath or if root is array)
+- **JSON/YAML objects**: Keys are directly available (e.g., `name`, `email`, `config`)
+- **Primitives**: Available as `value`
+
+**Liquid Template Syntax:**
+- Variables: `{{{{ name }}}}`
+- Loops: `{{% for item in items %}}...{{% endfor %}}`
+- Conditionals: `{{% if condition %}}...{{% endif %}}`
+- Filters: `{{{{ name | upcase }}}}`
+
+**Example - CSV Table:**
+{open_delim}template: data="sales_data.csv" limit="5"
+| {{% for h in headers %}}{{{{ h }}}} | {{% endfor %}}
+|{{% for h in headers %}}---|{{% endfor %}}
+{{% for row in data_rows %}}
+| {{% for cell in row %}}{{{{ cell }}}} | {{% endfor %}}
+{{% endfor %}}
+{close_delim}
+
+**CRITICAL RULES:**
+1. Opening delimiter MUST be EXACTLY three angle brackets: `{open_delim}`
+2. Immediately after delimiter: `template:` with colon (NO space before colon)
+3. Parameters on SAME line as opening delimiter
+4. Parameter values in double quotes: `data="file.csv"`
+5. Template content starts on the line AFTER the parameters
+6. Close with EXACTLY three angle brackets: `{close_delim}`
+7. Do NOT use triple backticks around the block
+
+The rendered output will appear inline in your response automatically.
+"""
+
+
 def _generate_artifact_creation_instruction() -> str:
     return """
     **Creating Text-Based Artifacts:**
@@ -916,7 +1050,7 @@ def _generate_artifact_creation_instruction() -> str:
     **When NOT to Create Text-based Artifacts:**
     - Simple answers, explanations, or conversational responses
     - Brief advice, opinions, or quick information
-    - Short lists, summaries, or single paragraphs  
+    - Short lists, summaries, or single paragraphs
     - Temporary content only relevant to the immediate conversation
     - Basic explanations that don't require reference material
     """
@@ -960,20 +1094,10 @@ The following embeds are resolved *late* (by the gateway before final display):
     - Available modifiers: {modifier_list}.
     - The `format:output_format` step *must* be the last step in the chain. Supported formats include `text`, `datauri`, `json`, `json_pretty`, `csv`. Formatting as datauri, will include the data URI prefix, so do not add it yourself.
     - Use `artifact_meta` first to check size; embedding large files may fail.
-    - **Using `apply_to_template` Modifier:**
-        - This modifier renders a Mustache template artifact using the data from the previous step.
-        - **Data Context:**
-            - If the input data's original MIME type was `text/csv` or `application/csv`, it's automatically parsed into an object with two keys: `headers` (a list of column name strings) and `data_rows` (a list of lists, where each inner list contains the string values for a row). Example template usage: `<thead><tr>{{{{#headers}}}}<th>{{{{.}}}}</th>{{{{/headers}}}}</tr></thead><tbody>{{{{#data_rows}}}}<tr>{{{{#.}}}}<td>{{{{.}}}}</td>{{{{/.}}}}</tr>{{{{/data_rows}}}}</tbody>`. If CSV parsing fails, the raw string content is available under `text`.
-            - If the input data is a **list** (e.g., from `jsonpath` or a JSON array), it's available under `items`.
-            - If the input data is a **dictionary** (e.g., from a JSON object), its keys are directly available (e.g., `{{{{key1}}}}`).
-            - If the input data is a **plain string** (and not auto-parsed as CSV), it's available under `text`.
-        - The template filename can include a version (e.g., `template.mustache:2`). Defaults to latest.
-        - The template itself can contain `«artifact_content:...»` embeds, which will be resolved before rendering.
     - Examples:
         - `<img src="{open_delim}artifact_content:image.png {chain_delim} format:datauri{close_delim}`"> (Embed image as data URI - NOTE that this includes the datauri prefix. Do not add it yourself.)
         - `{open_delim}artifact_content:data.json {chain_delim} jsonpath:$.items[*] {chain_delim} select_fields:name,status {chain_delim} format:json_pretty{close_delim}` (Extract and format JSON fields)
         - `{open_delim}artifact_content:logs.txt {chain_delim} grep:ERROR {chain_delim} head:10 {chain_delim} format:text{close_delim}` (Get first 10 error lines)
-        - `{open_delim}artifact_content:products.csv {chain_delim} apply_to_template:product_table.html.mustache {chain_delim} format:text{close_delim}` (CSV is auto-parsed to `headers` and `data_rows` for the HTML template)
         - `{open_delim}artifact_content:config.json {chain_delim} jsonpath:$.userPreferences.theme {chain_delim} format:text{close_delim}` (Extract a single value from a JSON artifact)
         - `{open_delim}artifact_content:sensor_readings.csv {chain_delim} filter_rows_eq:status:critical {chain_delim} select_cols:timestamp,sensor_id,value {chain_delim} format:csv{close_delim}` (Filter critical sensor readings and select specific columns, output as CSV)
         - `{open_delim}artifact_content:server.log {chain_delim} tail:100 {chain_delim} grep:WARN {chain_delim} format:text{close_delim}` (Get warning lines from the last 100 lines of a log file)
@@ -1076,6 +1200,8 @@ If a plan is created:
     injected_instructions.append(planning_instruction)
     fenced_artifact_instruction = _generate_fenced_artifact_instruction()
     injected_instructions.append(fenced_artifact_instruction)
+    inline_template_instruction = _generate_inline_template_instruction()
+    injected_instructions.append(inline_template_instruction)
 
     agent_instruction_str: Optional[str] = None
     if host_component._agent_system_instruction_callback:
