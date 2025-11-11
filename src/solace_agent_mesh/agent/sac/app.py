@@ -555,8 +555,11 @@ class SamAgentApp(App):
     def run(self):
         """
         Override run to ensure component initialization failures cause application failure.
+
         This is critical for containerized deployments where the process must exit with
-        a non-zero code if initialization fails.
+        a non-zero code if initialization fails. By re-raising the exception, we allow
+        the SAC framework's main() to handle cleanup (component.cleanup(), broker
+        disconnection, etc.) before exiting with code 1.
         """
         try:
             super().run()
@@ -567,7 +570,7 @@ class SamAgentApp(App):
                 e,
                 exc_info=e
             )
-            raise SystemExit(1) from e
+            raise
 
     def get_component(self, component_name: str = None) -> "SamAgentComponent":
         """
