@@ -27,6 +27,7 @@ from ...agent.utils.artifact_helpers import (
     load_artifact_content_or_metadata,
 )
 from ...common.a2a.types import ArtifactInfo
+from ...common.utils.mime_helpers import is_text_based_mime_type
 from ..adapter.base import GatewayAdapter
 from ..adapter.types import (
     GatewayContext,
@@ -294,7 +295,71 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             )
             if artifact_data.get("status") == "success":
                 content_bytes = artifact_data.get("raw_bytes")
+                mime_type = artifact_data.get("mime_type")
+
                 if content_bytes:
+                    # For text-based artifacts, resolve templates and late embeds
+                    if mime_type and is_text_based_mime_type(mime_type):
+                        try:
+                            from ...common.utils.embeds import (
+                                LATE_EMBED_TYPES,
+                                evaluate_embed,
+                                resolve_embeds_recursively_in_string,
+                            )
+                            from ...common.utils.embeds.types import ResolutionMode
+
+                            content_str = content_bytes.decode("utf-8")
+
+                            # Build context for resolution
+                            context_for_resolver = {
+                                "artifact_service": self.artifact_service,
+                                "session_context": {
+                                    "app_name": self.gateway_id,
+                                    "user_id": context.user_id,
+                                    "session_id": context.session_id,
+                                },
+                            }
+
+                            config_for_resolver = {
+                                "gateway_max_artifact_resolve_size_bytes": self.gateway_max_artifact_resolve_size_bytes if hasattr(self, 'gateway_max_artifact_resolve_size_bytes') else -1,
+                                "gateway_recursive_embed_depth": self.gateway_recursive_embed_depth if hasattr(self, 'gateway_recursive_embed_depth') else 12,
+                            }
+
+                            log.debug(
+                                "%s Text-based artifact. Resolving late embeds and templates.",
+                                log_id_prefix,
+                            )
+
+                            # Resolve late embeds
+                            resolved_content_str = await resolve_embeds_recursively_in_string(
+                                text=content_str,
+                                context=context_for_resolver,
+                                resolver_func=evaluate_embed,
+                                types_to_resolve=LATE_EMBED_TYPES,
+                                resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
+                                log_identifier=f"{log_id_prefix}[RecursiveResolve]",
+                                config=config_for_resolver,
+                                max_depth=config_for_resolver["gateway_recursive_embed_depth"],
+                                max_total_size=config_for_resolver["gateway_max_artifact_resolve_size_bytes"],
+                            )
+
+                            # Template blocks are automatically resolved by resolve_embeds_recursively_in_string
+                            # when resolving late embeds. No need to call template resolution separately.
+
+                            content_bytes = resolved_content_str.encode("utf-8")
+                            log.info(
+                                "%s Resolved embeds (including templates). Final size: %d bytes.",
+                                log_id_prefix,
+                                len(content_bytes),
+                            )
+                        except Exception as resolve_err:
+                            log.warning(
+                                "%s Failed to resolve embeds/templates: %s. Returning original content.",
+                                log_id_prefix,
+                                resolve_err,
+                            )
+                            # Fall through to return original content_bytes
+
                     log.info(
                         "%s Successfully loaded %d bytes for artifact '%s'.",
                         log_id_prefix,
