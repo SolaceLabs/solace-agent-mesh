@@ -4,6 +4,7 @@ Base Component class for Gateway implementations in the Solace AI Connector.
 
 import logging
 import asyncio
+import base64
 import queue
 import re
 import uuid
@@ -898,14 +899,27 @@ class BaseGatewayComponent(SamComponentBase):
 
         # After resolving the URI to get the content, resolve any late embeds inside it.
         if file_part.file and isinstance(file_part.file, FileWithBytes):
+            # The content is a base64 encoded string in the `bytes` attribute.
+            # We need to decode it to raw bytes for processing.
+            try:
+                content_bytes = base64.b64decode(file_part.file.bytes)
+            except Exception as e:
+                log.error(
+                    "%s Failed to base64 decode file content for embed resolution: %s",
+                    f"{self.log_identifier}[UriResolve]",
+                    e,
+                )
+                return
+
             resolved_bytes = await self._resolve_embeds_in_artifact_content(
-                content_bytes=file_part.file.data,
+                content_bytes=content_bytes,
                 mime_type=file_part.file.mime_type,
                 filename=file_part.file.name,
                 external_request_context=external_request_context,
                 log_id_prefix=f"{self.log_identifier}[UriResolve]",
             )
-            file_part.file.data = resolved_bytes
+            # Re-encode the resolved content back to a base64 string for the FileWithBytes model.
+            file_part.file.bytes = base64.b64encode(resolved_bytes).decode("utf-8")
 
     async def _resolve_uris_in_parts_list(
         self, parts: List[ContentPart], external_request_context: Dict[str, Any]
