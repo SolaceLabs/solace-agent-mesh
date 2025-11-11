@@ -207,9 +207,7 @@ apps:
       agent_name: "PetStoreAgent"
       display_name: "Pet Store API Agent"
 
-      model:
-        provider: vertex_ai
-        model_name: gemini-2.0-flash-exp
+      model: gemini-2.5-pro
 
       instruction: |
         You are a Pet Store API agent that can manage pets, orders, and users.
