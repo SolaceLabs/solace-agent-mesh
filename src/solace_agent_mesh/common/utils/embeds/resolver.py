@@ -160,15 +160,11 @@ async def _evaluate_artifact_content_embed_with_chain(
             new_visited_artifacts = visited_artifacts.copy()
             new_visited_artifacts.add(artifact_key)
 
-            # Recursively resolve only LATE embeds. Early embeds (like math, uuid) should have
-            # already been resolved before the content was saved to an artifact.
-            # 'status_update' is an early embed that signals, and must not be resolved here
-            # as it would be converted to an error message.
             resolved_string_content = await resolve_embeds_recursively_in_string(
                 text=decoded_content,
                 context=context,
                 resolver_func=evaluate_embed,
-                types_to_resolve=LATE_EMBED_TYPES,
+                types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
                 resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
                 log_identifier=log_identifier,
                 config=config,

@@ -2,7 +2,6 @@
 Unit tests for template block parsing in FencedBlockStreamParser.
 """
 
-import pytest
 from solace_agent_mesh.agent.adk.stream_parser import (
     FencedBlockStreamParser,
     TemplateBlockStartedEvent,
@@ -61,12 +60,12 @@ def test_template_nested_in_artifact_preserved():
     # Template inside an artifact should be preserved
     input_text = (
         '«««save_artifact: filename="doc.md"\n'
-        'This is a document with an embedded template:\n'
+        "This is a document with an embedded template:\n"
         '«««template: data="users.json"\n'
-        'Hello {{name}}!\n'
-        '»»»\n'
-        'End of document.\n'
-        '»»»'
+        "Hello {{name}}!\n"
+        "»»»\n"
+        "End of document.\n"
+        "»»»"
     )
 
     result = parser.process_chunk(input_text)
@@ -80,7 +79,7 @@ def test_template_nested_in_artifact_preserved():
 
     # The artifact content should contain the literal template syntax
     artifact_content = events[1].content
-    assert "«««template: data=\"users.json\"" in artifact_content
+    assert '«««template: data="users.json"' in artifact_content
     assert "Hello {{name}}!" in artifact_content
 
 
@@ -89,11 +88,11 @@ def test_mixed_text_and_template():
     parser = FencedBlockStreamParser()
 
     input_text = (
-        'Some regular text before.\n'
+        "Some regular text before.\n"
         '«««template: data="data.csv"\n'
-        'Template content here.\n'
-        '»»»\n'
-        'Text after the template.'
+        "Template content here.\n"
+        "»»»\n"
+        "Text after the template."
     )
 
     result = parser.process_chunk(input_text)
@@ -133,18 +132,20 @@ def test_multiple_template_blocks():
 
     input_text = (
         '«««template: data="users.json"\n'
-        'Template 1\n'
-        '»»»\n'
-        'Some text\n'
+        "Template 1\n"
+        "»»»\n"
+        "Some text\n"
         '«««template: data="products.csv"\n'
-        'Template 2\n'
-        '»»»'
+        "Template 2\n"
+        "»»»"
     )
 
     result = parser.process_chunk(input_text)
     parser.finalize()
 
-    template_events = [e for e in result.events if isinstance(e, TemplateBlockCompletedEvent)]
+    template_events = [
+        e for e in result.events if isinstance(e, TemplateBlockCompletedEvent)
+    ]
     assert len(template_events) == 2
     assert template_events[0].template_content == "Template 1\n"
     assert template_events[1].template_content == "Template 2\n"
@@ -156,12 +157,12 @@ def test_template_with_csv_data():
 
     input_text = (
         '«««template: data="sales.csv" limit="5"\n'
-        '| {{#headers}}{{.}} | {{/headers}}\n'
-        '|{{#headers}}---|{{/headers}}\n'
-        '{{#data_rows}}\n'
-        '| {{#.}}{{.}} | {{/.}}\n'
-        '{{/data_rows}}\n'
-        '»»»'
+        "| {{#headers}}{{.}} | {{/headers}}\n"
+        "|{{#headers}}---|{{/headers}}\n"
+        "{{#data_rows}}\n"
+        "| {{#.}}{{.}} | {{/.}}\n"
+        "{{/data_rows}}\n"
+        "»»»"
     )
 
     result = parser.process_chunk(input_text)
@@ -186,20 +187,20 @@ def test_nested_template_in_artifact_with_streaming():
     # Build the full content we want to test
     full_text = (
         '«««save_artifact: filename="report.md" description="Monthly report"\n'
-        '# Sales Report\n'
-        '\n'
-        'Here is the data:\n'
-        '\n'
+        "# Sales Report\n"
+        "\n"
+        "Here is the data:\n"
+        "\n"
         '«««template: data="sales.csv" limit="10"\n'
-        '| {% for h in headers %}{{ h }} | {% endfor %}\n'
-        '|{% for h in headers %}---|{% endfor %}\n'
-        '{% for row in data_rows %}\n'
-        '| {% for cell in row %}{{ cell }} | {% endfor %}\n'
-        '{% endfor %}\n'
-        '»»»\n'
-        '\n'
-        'That concludes the report.\n'
-        '»»»'
+        "| {% for h in headers %}{{ h }} | {% endfor %}\n"
+        "|{% for h in headers %}---|{% endfor %}\n"
+        "{% for row in data_rows %}\n"
+        "| {% for cell in row %}{{ cell }} | {% endfor %}\n"
+        "{% endfor %}\n"
+        "»»»\n"
+        "\n"
+        "That concludes the report.\n"
+        "»»»"
     )
 
     # Simulate realistic streaming by processing small chunks
@@ -208,7 +209,7 @@ def test_nested_template_in_artifact_with_streaming():
     all_user_text = []
 
     for i in range(0, len(full_text), chunk_size):
-        chunk = full_text[i:i + chunk_size]
+        chunk = full_text[i : i + chunk_size]
         result = parser.process_chunk(chunk)
         all_events.extend(result.events)
         if result.user_facing_text:
@@ -224,8 +225,12 @@ def test_nested_template_in_artifact_with_streaming():
     started_events = [e for e in all_events if isinstance(e, BlockStartedEvent)]
     completed_events = [e for e in all_events if isinstance(e, BlockCompletedEvent)]
 
-    assert len(started_events) == 1, f"Expected 1 BlockStartedEvent, got {len(started_events)}"
-    assert len(completed_events) == 1, f"Expected 1 BlockCompletedEvent, got {len(completed_events)}"
+    assert (
+        len(started_events) == 1
+    ), f"Expected 1 BlockStartedEvent, got {len(started_events)}"
+    assert (
+        len(completed_events) == 1
+    ), f"Expected 1 BlockCompletedEvent, got {len(completed_events)}"
 
     # Verify the artifact parameters
     assert started_events[0].params["filename"] == "report.md"
@@ -235,17 +240,17 @@ def test_nested_template_in_artifact_with_streaming():
     artifact_content = completed_events[0].content
 
     # Check for template start
-    assert '«««template: data="sales.csv" limit="10"' in artifact_content, (
-        f"Template start missing. Content:\n{artifact_content}"
-    )
+    assert (
+        '«««template: data="sales.csv" limit="10"' in artifact_content
+    ), f"Template start missing. Content:\n{artifact_content}"
 
     # Check for template body
-    assert "{% for h in headers %}" in artifact_content, (
-        f"Template body missing. Content:\n{artifact_content}"
-    )
-    assert "{% for row in data_rows %}" in artifact_content, (
-        f"Template loops missing. Content:\n{artifact_content}"
-    )
+    assert (
+        "{% for h in headers %}" in artifact_content
+    ), f"Template body missing. Content:\n{artifact_content}"
+    assert (
+        "{% for row in data_rows %}" in artifact_content
+    ), f"Template loops missing. Content:\n{artifact_content}"
 
     # Check for template end
     assert artifact_content.count("»»»") == 1, (
@@ -256,12 +261,12 @@ def test_nested_template_in_artifact_with_streaming():
     # Verify the complete structure
     expected_template = (
         '«««template: data="sales.csv" limit="10"\n'
-        '| {% for h in headers %}{{ h }} | {% endfor %}\n'
-        '|{% for h in headers %}---|{% endfor %}\n'
-        '{% for row in data_rows %}\n'
-        '| {% for cell in row %}{{ cell }} | {% endfor %}\n'
-        '{% endfor %}\n'
-        '»»»'
+        "| {% for h in headers %}{{ h }} | {% endfor %}\n"
+        "|{% for h in headers %}---|{% endfor %}\n"
+        "{% for row in data_rows %}\n"
+        "| {% for cell in row %}{{ cell }} | {% endfor %}\n"
+        "{% endfor %}\n"
+        "»»»"
     )
 
     assert expected_template in artifact_content, (
@@ -272,11 +277,21 @@ def test_nested_template_in_artifact_with_streaming():
 
     # Should NOT have any TemplateBlockStartedEvent or TemplateBlockCompletedEvent
     # because the template is nested inside an artifact
-    template_started = [e for e in all_events if isinstance(e, TemplateBlockStartedEvent)]
-    template_completed = [e for e in all_events if isinstance(e, TemplateBlockCompletedEvent)]
-    assert len(template_started) == 0, "Should not emit template events for nested templates"
-    assert len(template_completed) == 0, "Should not emit template events for nested templates"
+    template_started = [
+        e for e in all_events if isinstance(e, TemplateBlockStartedEvent)
+    ]
+    template_completed = [
+        e for e in all_events if isinstance(e, TemplateBlockCompletedEvent)
+    ]
+    assert (
+        len(template_started) == 0
+    ), "Should not emit template events for nested templates"
+    assert (
+        len(template_completed) == 0
+    ), "Should not emit template events for nested templates"
 
     # User-facing text should be empty (artifact content is not shown to user during streaming)
     combined_user_text = "".join(all_user_text)
-    assert combined_user_text == "", f"Expected no user-facing text, got: {combined_user_text}"
+    assert (
+        combined_user_text == ""
+    ), f"Expected no user-facing text, got: {combined_user_text}"

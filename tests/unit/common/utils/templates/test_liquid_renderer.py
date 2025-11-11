@@ -2,7 +2,6 @@
 Unit tests for Liquid template rendering.
 """
 
-import pytest
 from solace_agent_mesh.common.utils.templates import render_liquid_template
 
 

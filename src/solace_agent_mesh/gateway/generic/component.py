@@ -28,6 +28,12 @@ from ...agent.utils.artifact_helpers import (
 )
 from ...common.a2a.types import ArtifactInfo
 from ...common.utils.mime_helpers import is_text_based_mime_type
+from ...common.utils.embeds import (
+    LATE_EMBED_TYPES,
+    evaluate_embed,
+    resolve_embeds_recursively_in_string,
+)
+from ...common.utils.embeds.types import ResolutionMode
 from ..adapter.base import GatewayAdapter
 from ..adapter.types import (
     GatewayContext,
@@ -91,7 +97,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             resolve_artifact_uris_in_gateway=resolve_uris,
             supports_inline_artifact_resolution=True,
             filter_tool_data_parts=False,
-            **kwargs
+            **kwargs,
         )
         log.info("%s Initializing Generic Gateway Component...", self.log_identifier)
 
@@ -301,12 +307,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                     # For text-based artifacts, resolve templates and late embeds
                     if mime_type and is_text_based_mime_type(mime_type):
                         try:
-                            from ...common.utils.embeds import (
-                                LATE_EMBED_TYPES,
-                                evaluate_embed,
-                                resolve_embeds_recursively_in_string,
-                            )
-                            from ...common.utils.embeds.types import ResolutionMode
 
                             content_str = content_bytes.decode("utf-8")
 
@@ -321,8 +321,18 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                             }
 
                             config_for_resolver = {
-                                "gateway_max_artifact_resolve_size_bytes": self.gateway_max_artifact_resolve_size_bytes if hasattr(self, 'gateway_max_artifact_resolve_size_bytes') else -1,
-                                "gateway_recursive_embed_depth": self.gateway_recursive_embed_depth if hasattr(self, 'gateway_recursive_embed_depth') else 12,
+                                "gateway_max_artifact_resolve_size_bytes": (
+                                    self.gateway_max_artifact_resolve_size_bytes
+                                    if hasattr(
+                                        self, "gateway_max_artifact_resolve_size_bytes"
+                                    )
+                                    else -1
+                                ),
+                                "gateway_recursive_embed_depth": (
+                                    self.gateway_recursive_embed_depth
+                                    if hasattr(self, "gateway_recursive_embed_depth")
+                                    else 12
+                                ),
                             }
 
                             log.debug(
@@ -339,8 +349,12 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                                 resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
                                 log_identifier=f"{log_id_prefix}[RecursiveResolve]",
                                 config=config_for_resolver,
-                                max_depth=config_for_resolver["gateway_recursive_embed_depth"],
-                                max_total_size=config_for_resolver["gateway_max_artifact_resolve_size_bytes"],
+                                max_depth=config_for_resolver[
+                                    "gateway_recursive_embed_depth"
+                                ],
+                                max_total_size=config_for_resolver[
+                                    "gateway_max_artifact_resolve_size_bytes"
+                                ],
                             )
 
                             # Template blocks are automatically resolved by resolve_embeds_recursively_in_string
@@ -390,9 +404,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             )
             return None
 
-    async def list_artifacts(
-        self, context: "ResponseContext"
-    ) -> List[ArtifactInfo]:
+    async def list_artifacts(self, context: "ResponseContext") -> List[ArtifactInfo]:
         """Lists all artifacts available in the user's context."""
         log_id_prefix = f"{self.log_identifier}[ListArtifacts]"
         if not self.artifact_service:

@@ -4,7 +4,6 @@ Tests that embeds like «datetime:iso» are correctly preserved as literal text
 when inside an artifact, rather than causing the parser to lose state.
 """
 
-import pytest
 from solace_agent_mesh.agent.adk.stream_parser import (
     FencedBlockStreamParser,
     BlockStartedEvent,
@@ -83,7 +82,7 @@ Created: «datetime:iso»
     all_user_text = []
 
     for i in range(0, len(content), chunk_size):
-        chunk = content[i:i + chunk_size]
+        chunk = content[i : i + chunk_size]
         result = parser.process_chunk(chunk)
         all_events.extend(result.events)
         if result.user_facing_text:
@@ -143,7 +142,7 @@ Document created: «datetime:iso»
     all_user_text = []
 
     for i in range(0, len(content), chunk_size):
-        chunk = content[i:i + chunk_size]
+        chunk = content[i : i + chunk_size]
         result = parser.process_chunk(chunk)
         all_events.extend(result.events)
         if result.user_facing_text:
@@ -164,11 +163,13 @@ Document created: «datetime:iso»
 
     # All content should be preserved
     assert "# Testing the Employee Data System" in artifact_content
-    assert "«««template: data=\"data.csv\"" in artifact_content
+    assert '«««template: data="data.csv"' in artifact_content
     assert "{% for h in headers %}" in artifact_content
 
     # The nested template closing delimiter should be in the artifact (not consumed)
-    assert artifact_content.count("»»»") == 1, "Should have the nested template's closing delimiter"
+    assert (
+        artifact_content.count("»»»") == 1
+    ), "Should have the nested template's closing delimiter"
 
     # The content after the nested template should be preserved
     assert "Analysis and Conclusion" in artifact_content
@@ -202,7 +203,7 @@ After embed.
     all_user_text = []
 
     for i in range(0, len(content), chunk_size):
-        chunk = content[i:i + chunk_size]
+        chunk = content[i : i + chunk_size]
         result = parser.process_chunk(chunk)
         all_events.extend(result.events)
         if result.user_facing_text:
