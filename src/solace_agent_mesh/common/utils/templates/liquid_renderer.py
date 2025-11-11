@@ -10,26 +10,9 @@ from typing import Any, Dict, Optional, Tuple
 
 log = logging.getLogger(__name__)
 
-try:
-    from liquid import Environment
-
-    LIQUID_AVAILABLE = True
-except ImportError:
-    LIQUID_AVAILABLE = False
-
-try:
-    from jsonpath_ng.ext import parse as jsonpath_parse
-
-    JSONPATH_NG_AVAILABLE = True
-except ImportError:
-    JSONPATH_NG_AVAILABLE = False
-
-try:
-    import yaml
-
-    PYYAML_AVAILABLE = True
-except ImportError:
-    PYYAML_AVAILABLE = False
+from liquid import Environment
+from jsonpath_ng.ext import parse as jsonpath_parse
+import yaml
 
 
 def _parse_csv_to_context(csv_content: str) -> Dict[str, Any]:
@@ -65,9 +48,6 @@ def _apply_jsonpath_filter(
     Returns:
         Tuple of (filtered_data, error_message)
     """
-    if not JSONPATH_NG_AVAILABLE:
-        return data, "JSONPath filtering skipped: 'jsonpath-ng' not installed."
-
     if not isinstance(data, (dict, list)):
         return data, f"JSONPath requires dict or list input, got {type(data).__name__}"
 
@@ -120,8 +100,6 @@ def _prepare_template_context(
             except json.JSONDecodeError as e:
                 return {}, f"Failed to parse JSON data: {e}"
         elif is_yaml:
-            if not PYYAML_AVAILABLE:
-                return {}, "YAML parsing skipped: 'PyYAML' not installed."
             try:
                 parsed_data = yaml.safe_load(data)
             except yaml.YAMLError as e:
@@ -193,11 +171,6 @@ def render_liquid_template(
         If successful, error_message is None
         If failed, rendered_output contains error description
     """
-    if not LIQUID_AVAILABLE:
-        error = "Liquid templating skipped: 'python-liquid' not installed."
-        log.error("%s %s", log_identifier, error)
-        return f"[Template Error: {error}]", error
-
     try:
         # Prepare the template context, including parsing, filtering, and limiting
         context, error = _prepare_template_context(

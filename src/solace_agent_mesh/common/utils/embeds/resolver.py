@@ -26,11 +26,7 @@ from ..mime_helpers import is_text_based_mime_type
 
 log = logging.getLogger(__name__)
 
-try:
-    import yaml
-    from .converter import PYYAML_AVAILABLE
-except ImportError:
-    PYYAML_AVAILABLE = False
+import yaml
 
 
 def _log_data_state(
@@ -236,25 +232,17 @@ async def _evaluate_artifact_content_embed_with_chain(
                     original_mime_type,
                 )
         elif "yaml" in normalized_mime_type or "yml" in normalized_mime_type:
-            if PYYAML_AVAILABLE:
-                try:
-                    current_data = yaml.safe_load(current_data)
-                    current_format = DataFormat.JSON_OBJECT
-                    log.info(
-                        "%s [Depth:%d] Pre-parsed string as YAML (now JSON_OBJECT).",
-                        log_identifier,
-                        current_depth,
-                    )
-                except yaml.YAMLError:
-                    log.warning(
-                        "%s [Depth:%d] Failed to pre-parse as YAML despite MIME type '%s'. Content will be treated as STRING.",
-                        log_identifier,
-                        current_depth,
-                        original_mime_type,
-                    )
-            else:
+            try:
+                current_data = yaml.safe_load(current_data)
+                current_format = DataFormat.JSON_OBJECT
+                log.info(
+                    "%s [Depth:%d] Pre-parsed string as YAML (now JSON_OBJECT).",
+                    log_identifier,
+                    current_depth,
+                )
+            except yaml.YAMLError:
                 log.warning(
-                    "%s [Depth:%d] Skipping YAML pre-parsing for MIME type '%s' because PyYAML is not installed.",
+                    "%s [Depth:%d] Failed to pre-parse as YAML despite MIME type '%s'. Content will be treated as STRING.",
                     log_identifier,
                     current_depth,
                     original_mime_type,
