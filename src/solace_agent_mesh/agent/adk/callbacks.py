@@ -919,60 +919,63 @@ async def manage_large_mcp_tool_responses_callback(
     return final_llm_response_dict
 
 
-def _generate_fenced_artifact_instruction() -> str:
-    """Generates the instruction text for using fenced artifact blocks."""
+def _generate_fenced_block_syntax_rules() -> str:
+    """Generates the shared syntax rules for all fenced blocks."""
     open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
     close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
-    return f"""\
-**Creating Text-Based Artifacts:**
-
-**When to Create Text-based Artifacts:**
-Create an artifact when the content provides value as a standalone file:
-- Content with special formatting (HTML, Markdown, CSS, structured markup) that requires proper rendering
-- Content explicitly intended for use outside this conversation (reports, emails, presentations, reference documents)
-- Structured reference content users will save or follow (schedules, guides, templates)
-- Content that will be edited, expanded, or reused
-- Substantial text documents
-- Technical documentation meant as reference material
-
-**When NOT to Create Text-based Artifacts:**
-- Simple answers, explanations, or conversational responses
-- Brief advice, opinions, or quick information
-- Short lists, summaries, or single paragraphs  
-- Temporary content only relevant to the immediate conversation
-- Basic explanations that don't require reference material
-
-**Behaviour of created artifacts:** 
-- they are sent back to the UI inline with the text and show up as an interactive file component
-- the user can easily see the content so there is no need to return or embed it again.
-- do not embed the same artifact again, since the user already has it to expand and view
-
-**How to create artifacts:**
-To create an artifact from content you generate (like code, a report, or a document), you MUST use a fenced artifact block with the EXACT syntax shown below. This is the only reliable way to ensure your content is saved correctly.
+    return f"""
+**Fenced Block Syntax Rules (Applies to `save_artifact` and `template`):**
+To create content blocks, you MUST use the EXACT syntax shown below.
 
 **EXACT SYNTAX (copy this pattern exactly):**
-{open_delim}save_artifact: filename="your_filename.ext" mime_type="text/plain" description="A brief description."
-The full content you want to save goes here.
+{open_delim}keyword: parameter="value" ...
+The content for the block goes here.
 It can span multiple lines.
 {close_delim}
 
 **CRITICAL FORMATTING RULES:**
-  1. The opening delimiter MUST be EXACTLY three angle brackets: `{open_delim}` (not `{open_delim[0:2]}` or `{open_delim[0:1]}`)
-  2. Immediately after the opening delimiter, write `save_artifact:` with a colon and NO space before the colon
-  3. Parameters (filename, mime_type, description) must be on the SAME line as the opening delimiter
-  4. All parameter values **MUST** be enclosed in double quotes: `filename="example.txt"`
-  5. You **MUST NOT** use double quotes `"` inside parameter values. Use single quotes or rephrase instead
-  6. After all parameters, press enter/newline, then write your content
-  7. Close the block with EXACTLY three angle brackets: `{close_delim}` on its own line
-  8. Do NOT surround the block with triple backticks (```). The delimiters `{open_delim}` and `{close_delim}` are sufficient
+  1. The opening delimiter MUST be EXACTLY `{open_delim}` (three angle brackets).
+  2. Immediately after the delimiter, write the keyword (`save_artifact` or `template`) followed by a colon, with NO space before the colon (e.g., `save_artifact:`).
+  3. All parameters (like `filename`, `data`, `mime_type`) must be on the SAME line as the opening delimiter.
+  4. All parameter values **MUST** be enclosed in double quotes (e.g., `filename="example.txt"`).
+  5. You **MUST NOT** use double quotes `"` inside parameter values. Use single quotes or rephrase instead.
+  6. The block's content begins on the line immediately following the parameters.
+  7. Close the block with EXACTLY `{close_delim}` (three angle brackets) on its own line.
+  8. Do NOT surround the block with triple backticks (```). The `{open_delim}` and `{close_delim}` delimiters are sufficient.
 
 **COMMON ERRORS TO AVOID:**
   ❌ WRONG: `{open_delim[0:2]}save_artifact:` (only 2 angle brackets)
-  ❌ WRONG: `{open_delim[0:1]}save_artifact:` (only 1 angle bracket)
   ❌ WRONG: `{open_delim}save_artifact` (missing colon)
   ✅ CORRECT: `{open_delim}save_artifact: filename="test.txt" mime_type="text/plain"`
+"""
 
-The system will automatically save the content and give you a confirmation in the next turn by way of an automatically injected _notify_artifact_save tool call.
+
+def _generate_fenced_artifact_instruction() -> str:
+    """Generates the instruction text for using fenced artifact blocks."""
+    return """\
+**Creating Text-Based Artifacts (`save_artifact`):**
+
+**When to Create Artifacts:**
+Create an artifact when the content provides value as a standalone file, such as:
+- Content with special formatting (HTML, Markdown, CSS).
+- Documents intended for use outside the conversation (reports, emails).
+- Structured reference content (schedules, guides, templates).
+- Substantial text documents or technical documentation.
+
+**When NOT to Create Artifacts:**
+- Simple answers, explanations, or conversational responses.
+- Brief advice, opinions, or short lists.
+
+**Behavior of Created Artifacts:**
+- They are sent to the user as an interactive file component.
+- The user can see the content, so there is no need to return or embed it again.
+
+**Parameters for `save_artifact`:**
+- `filename="your_filename.ext"` (REQUIRED)
+- `mime_type="text/plain"` (optional, defaults to text/plain)
+- `description="A brief description."` (optional)
+
+The system will automatically save the content and confirm it in the next turn.
 """
 
 
@@ -981,36 +984,23 @@ def _generate_inline_template_instruction() -> str:
     open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
     close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
     return f"""\
-**Inline Liquid Templates:**
+**Inline Templates (`template`):**
 
-Use inline templates to dynamically render data from artifacts to improve speed and accuracy. Try to use this rather than reading in the artifact and reformatting it yourself.
+Use inline templates to dynamically render data from artifacts for user-friendly display. This is faster and more accurate than reading the artifact and reformatting it yourself.
 
 **When to Use Inline Templates:**
-- Formatting CSV, JSON, or YAML data for user-friendly display
-- Creating tables, lists, or formatted text from data artifacts
-- Applying simple transformations to data (filtering, limiting rows)
+- Formatting CSV, JSON, or YAML data into tables or lists.
+- Applying simple transformations (filtering, limiting rows).
 
-**EXACT SYNTAX:**
-{open_delim}template: data="artifact_name.ext" jsonpath="$.path" limit="10"
-...Liquid template content...
-{close_delim}
-
-**Parameters:**
-- `data="filename.ext"` (REQUIRED): The data artifact to render. Can include version: `data="file.csv:2"`
-- `jsonpath="$.expression"` (optional): JSONPath to extract a subset of JSON/YAML data
-- `limit="N"` (optional): Limit to first N rows (CSV) or items (JSON/YAML arrays)
+**Parameters for `template`:**
+- `data="filename.ext"` (REQUIRED): The data artifact to render. Can include version: `data="file.csv:2"`.
+- `jsonpath="$.expression"` (optional): JSONPath to extract a subset of JSON/YAML data.
+- `limit="N"` (optional): Limit to the first N rows (CSV) or items (JSON/YAML arrays).
 
 **Data Context for Templates:**
-- **CSV data**: Available as `headers` (array of column names) and `data_rows` (array of row arrays)
-- **JSON/YAML arrays**: Available as `items` (after jsonpath or if root is array)
-- **JSON/YAML objects**: Keys are directly available (e.g., `name`, `email`, `config`)
-- **Primitives**: Available as `value`
-
-**Liquid Template Syntax:**
-- Variables: `{{{{ name }}}}`
-- Loops: `{{% for item in items %}}...{{% endfor %}}`
-- Conditionals: `{{% if condition %}}...{{% endif %}}`
-- Filters: `{{{{ name | upcase }}}}`
+- **CSV data**: Available as `headers` (array of column names) and `data_rows` (array of row arrays).
+- **JSON/YAML arrays**: Available as `items`.
+- **JSON/YAML objects**: Keys are directly available (e.g., `name`, `email`).
 
 **Example - CSV Table:**
 {open_delim}template: data="sales_data.csv" limit="5"
@@ -1020,15 +1010,6 @@ Use inline templates to dynamically render data from artifacts to improve speed 
 | {{% for cell in row %}}{{{{ cell }}}} | {{% endfor %}}
 {{% endfor %}}
 {close_delim}
-
-**CRITICAL RULES:**
-1. Opening delimiter MUST be EXACTLY three angle brackets: `{open_delim}`
-2. Immediately after delimiter: `template:` with colon (NO space before colon)
-3. Parameters on SAME line as opening delimiter
-4. Parameter values in double quotes: `data="file.csv"`
-5. Template content starts on the line AFTER the parameters
-6. Close with EXACTLY three angle brackets: `{close_delim}`
-7. Do NOT use triple backticks around the block
 
 The rendered output will appear inline in your response automatically.
 """
@@ -1198,10 +1179,11 @@ If a plan is created:
 
 """
     injected_instructions.append(planning_instruction)
-    fenced_artifact_instruction = _generate_fenced_artifact_instruction()
-    injected_instructions.append(fenced_artifact_instruction)
-    inline_template_instruction = _generate_inline_template_instruction()
-    injected_instructions.append(inline_template_instruction)
+
+    # Add the consolidated block instructions
+    injected_instructions.append(_generate_fenced_artifact_instruction())
+    injected_instructions.append(_generate_inline_template_instruction())
+    injected_instructions.append(_generate_fenced_block_syntax_rules())
 
     agent_instruction_str: Optional[str] = None
     if host_component._agent_system_instruction_callback:
