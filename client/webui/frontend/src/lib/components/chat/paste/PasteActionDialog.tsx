@@ -135,7 +135,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({
                 setTitle(`snippet.${extension}`);
             }
         }
-    }, [fileType]);
+    }, [fileType, title]);
     
     // Reset confirmation when title changes
     useEffect(() => {

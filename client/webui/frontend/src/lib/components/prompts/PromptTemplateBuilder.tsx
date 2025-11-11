@@ -82,7 +82,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                 prompt_text: '',
             });
         }
-    }, [editingGroup, isEditing]);
+    }, [editingGroup, isEditing, updateConfig]);
     
     // Check if there are unsaved changes
     const hasUnsavedChanges = useMemo(() => {
@@ -385,6 +385,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                             <div className="space-y-2">
                                 <Textarea
                                     id="template-prompt"
+                                    data-testid="prompt-text-input"
                                     placeholder="Enter your prompt template here. Use {{Variable Name}} for placeholders."
                                     value={config.prompt_text || ''}
                                     onChange={(e) => updateConfig({ prompt_text: e.target.value })}
