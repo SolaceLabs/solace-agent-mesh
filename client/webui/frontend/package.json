@@ -42,6 +42,7 @@
     },
     "scripts": {
         "dev": "vite",
+        "prepare": "vite build --config vite.lib.config.ts",
         "build": "tsc -b && vite build",
         "build-lib": "vite build --config vite.lib.config.ts",
         "build-types": "tsc --emitDeclarationOnly --outDir dist --project tsconfig.lib.json",
