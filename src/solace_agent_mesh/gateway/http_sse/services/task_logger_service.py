@@ -188,6 +188,9 @@ class TaskLoggerService:
         # Ignore discovery messages
         if "/discovery/agentcards" in topic:
             return None
+        # Ignore trust manager trust card messages
+        if "/trust/" in topic:
+            return None
 
         try:
             # Check if it's a response (has 'result' or 'error')
