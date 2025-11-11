@@ -553,20 +553,25 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 "%s Async operations thread already running.", self.log_identifier
             )
 
-        # Wait for async initialization to complete and check for errors
+        # Monitor async initialization without blocking (critical for multi-agent processes)
         if hasattr(self, '_async_init_future') and self._async_init_future is not None:
-            try:
-                log.info("%s Waiting for async initialization to complete...", self.log_identifier)
-                # Wait indefinitely for initialization to complete
-                self._async_init_future.result()
-                log.info("%s Async initialization completed successfully.", self.log_identifier)
-            except Exception as init_error:
-                error_msg = f"{self.log_identifier} Async initialization failed: {init_error}"
-                log.error(error_msg, exc_info=init_error)
-                self.stop_signal.set()
-                raise ComponentInitializationError(
-                    self.log_identifier, init_error, error_msg
-                ) from init_error
+            log.info("%s Setting up async initialization monitoring...", self.log_identifier)
+
+            def handle_init_completion(future):
+                """Non-blocking callback for initialization completion."""
+                try:
+                    future.result()  # Raises if init failed
+                    log.info("%s Async initialization completed successfully.", self.log_identifier)
+                except Exception as init_error:
+                    error_msg = f"{self.log_identifier} Async initialization failed: {init_error}"
+                    log.error(error_msg, exc_info=init_error)
+                    self.stop_signal.set()
+                    self._async_init_error = ComponentInitializationError(
+                        self.log_identifier, init_error, error_msg
+                    )
+
+            self._async_init_future.add_done_callback(handle_init_completion)
+            log.info("%s Async initialization monitoring active (non-blocking).", self.log_identifier)
 
         super().run()
         log.info("%s SamComponentBase run method finished.", self.log_identifier)
