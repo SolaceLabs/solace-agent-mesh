@@ -10,6 +10,7 @@ RUN apt-get update && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/*
+    python3 -m venv /opt/venv 
 
 # Install Node.js (only if frontend build is needed)
 RUN curl -sL https://deb.nodesource.com/setup_24.x | bash - && \
