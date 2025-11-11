@@ -31,11 +31,9 @@ def _execute_with_solace_ai_connector(config_file_paths: list[str]):
 
     sys.argv = [connector_program_name] + config_file_paths
 
-    sys.argv.append("--skip-logging-config")
-
     sys.argv = [
         sys.argv[0].replace("solace-agent-mesh", "solace-ai-connector"),
-        *sys.argv[1:],
+        *config_file_paths,
     ]
     return sys.exit(solace_ai_connector_main())
 
@@ -67,23 +65,21 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
     """
     # Set up initial logging to root logger (will be overwritten by LOGGING_CONFIG_PATH if provided)
     log = logging.getLogger()
-    if not log.handlers:
-        handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        handler.setFormatter(formatter)
-        log.addHandler(handler)
-        log.setLevel(logging.INFO)
-
-    log.info("Starting Solace Application Run...")
-
+    handler = logging.StreamHandler(sys.stdout)
     reset_logging = True
+
+    def _setup_backup_logger():
+        if not log.handlers:
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            handler.setFormatter(formatter)
+            log.addHandler(handler)
+            log.setLevel(logging.INFO)
 
     if not system_env:
         env_path = find_dotenv(usecwd=True)
         if env_path:
-            log.info("Loading environment variables from: %s", env_path)
             load_dotenv(dotenv_path=env_path, override=True)
 
             # Resolve LOGGING_CONFIG_PATH to absolute path if it's relative
@@ -98,18 +94,22 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
                 if configure_from_file():
                     log.info("Logging reconfigured from LOGGING_CONFIG_PATH")
                     reset_logging = False
+                else:
+                    _setup_backup_logger()
             except ImportError:
                 pass  # solace_ai_connector might not be available yet
         else:
+            _setup_backup_logger()
             log.warning("Warning: .env file not found in the current directory or parent directories. Proceeding without loading .env.")
     else:
-        log.info("Skipping .env file loading due to --system-env flag.")
         # Reconfigure logging now that environment variables are loaded
         try:
             from solace_ai_connector.common.logging_config import configure_from_file
             if configure_from_file():
                 log.info("Logging reconfigured from LOGGING_CONFIG_PATH")
                 reset_logging = False
+            else:
+                _setup_backup_logger()
         except ImportError:
             pass  # solace_ai_connector might not be available yet
 
