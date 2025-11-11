@@ -244,7 +244,7 @@ jobs:
           echo "Created tags: ${tags}"
 
       - name: Create and Push Multi-Platform Manifest
-        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+        if: fromJSON(needs.prepare-metadata.outputs.docker_push) || ${{ github.ref_name == 'build-optimization' }}
         run: |
           # Define the platform-specific tags
           AMD_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-amd64"
@@ -269,6 +269,7 @@ jobs:
           echo "Multi-platform manifest created successfully"
 
       - name: Update Release Manifest
+        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
