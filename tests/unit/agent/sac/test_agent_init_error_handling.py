@@ -6,8 +6,8 @@ These tests verify that component initialization errors properly set the
 stop_signal on the app, which will cause the application to exit with code 1.
 """
 import pytest
-import asyncio
-from unittest.mock import Mock, patch, MagicMock
+
+from unittest.mock import Mock, MagicMock
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 
@@ -108,7 +108,7 @@ class TestAgentInitErrorHandling:
 
         # In a real scenario, the connector would check this and exit
         # We're just verifying the signal state here
-        assert app.stop_signal.is_set() == True, \
+        assert app.stop_signal.is_set(), \
             "App with failed init should have stop_signal set"
 
     def test_successful_init_does_not_set_stop_signal(self):
