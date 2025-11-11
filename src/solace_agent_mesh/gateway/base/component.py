@@ -41,12 +41,14 @@ from ...common.utils.embeds import (
     evaluate_embed,
     LATE_EMBED_TYPES,
     EARLY_EMBED_TYPES,
+    resolve_embeds_recursively_in_string,
 )
 from ...common.utils.embeds.types import ResolutionMode
 from ...agent.utils.artifact_helpers import (
     load_artifact_content_or_metadata,
     format_artifact_uri,
 )
+from ...common.utils.mime_helpers import is_text_based_mime_type
 from solace_ai_connector.common.message import (
     Message as SolaceMessage,
 )
@@ -628,11 +630,74 @@ class BaseGatewayComponent(SamComponentBase):
                             )
                             continue
 
+                        # --- BEGIN LATE EMBED RESOLUTION FOR ARTIFACT_RETURN ---
+                        # If the artifact is text-based, resolve any late embeds inside it.
+                        artifact_mime_type = artifact_data.get("metadata", {}).get(
+                            "mime_type"
+                        )
+                        if is_text_based_mime_type(artifact_mime_type):
+                            log.info(
+                                "%s Artifact '%s' is text-based (%s). Resolving late embeds before returning.",
+                                log_id_prefix,
+                                filename,
+                                artifact_mime_type,
+                            )
+                            try:
+                                decoded_content = content_bytes.decode("utf-8")
+
+                                # Construct context and config for the resolver
+                                embed_eval_context = {
+                                    "artifact_service": self.shared_artifact_service,
+                                    "session_context": {
+                                        "app_name": external_request_context.get(
+                                            "app_name_for_artifacts", self.gateway_id
+                                        ),
+                                        "user_id": external_request_context.get(
+                                            "user_id_for_artifacts"
+                                        ),
+                                        "session_id": external_request_context.get(
+                                            "a2a_session_id"
+                                        ),
+                                    },
+                                }
+                                embed_eval_config = {
+                                    "gateway_max_artifact_resolve_size_bytes": self.gateway_max_artifact_resolve_size_bytes,
+                                    "gateway_recursive_embed_depth": self.gateway_recursive_embed_depth,
+                                }
+
+                                resolved_string = await resolve_embeds_recursively_in_string(
+                                    text=decoded_content,
+                                    context=embed_eval_context,
+                                    resolver_func=evaluate_embed,
+                                    types_to_resolve=LATE_EMBED_TYPES,
+                                    resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
+                                    log_identifier=f"{log_id_prefix}[RecursiveReturn]",
+                                    config=embed_eval_config,
+                                    max_depth=self.gateway_recursive_embed_depth,
+                                )
+                                content_bytes = resolved_string.encode("utf-8")
+                                log.info(
+                                    "%s Successfully resolved embeds in '%s'. New size: %d bytes.",
+                                    log_id_prefix,
+                                    filename,
+                                    len(content_bytes),
+                                )
+                            except Exception as resolve_err:
+                                log.error(
+                                    "%s Failed to resolve embeds within returned artifact '%s': %s. Returning raw content.",
+                                    log_id_prefix,
+                                    filename,
+                                    resolve_err,
+                                )
+                        # --- END LATE EMBED RESOLUTION ---
+
                         # Create FilePart with bytes for legacy gateway to upload
                         file_part = a2a.create_file_part_from_bytes(
                             content_bytes=content_bytes,
                             name=filename,
-                            mime_type=artifact_data.get("metadata", {}).get("mime_type"),
+                            mime_type=artifact_data.get("metadata", {}).get(
+                                "mime_type"
+                            ),
                         )
 
                         # Create artifact with the file part
