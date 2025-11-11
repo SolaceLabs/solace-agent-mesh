@@ -5,6 +5,7 @@ Base Component class for SAM implementations in the Solace AI Connector.
 import logging
 import abc
 import asyncio
+import concurrent.futures
 import threading
 import functools
 from typing import Any, Optional
@@ -551,6 +552,24 @@ class SamComponentBase(ComponentBase, abc.ABC):
             log.warning(
                 "%s Async operations thread already running.", self.log_identifier
             )
+
+        # Wait for async initialization to complete and check for errors
+        if hasattr(self, '_async_init_future') and self._async_init_future is not None:
+            try:
+                log.info("%s Waiting for async initialization to complete...", self.log_identifier)
+                # Wait for initialization with a reasonable timeout
+                self._async_init_future.result(timeout=60)
+                log.info("%s Async initialization completed successfully.", self.log_identifier)
+            except concurrent.futures.TimeoutError:
+                error_msg = f"{self.log_identifier} Async initialization timed out after 60 seconds."
+                log.error(error_msg)
+                self.stop_signal.set()
+                raise RuntimeError(error_msg) from None
+            except Exception as init_error:
+                error_msg = f"{self.log_identifier} Async initialization failed: {init_error}"
+                log.error(error_msg, exc_info=init_error)
+                self.stop_signal.set()
+                raise RuntimeError(error_msg) from init_error
 
         super().run()
         log.info("%s SamComponentBase run method finished.", self.log_identifier)
