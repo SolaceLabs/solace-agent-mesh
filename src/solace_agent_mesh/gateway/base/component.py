@@ -33,6 +33,7 @@ from a2a.types import (
     TextPart,
     DataPart,
     FilePart,
+    FileWithBytes,
     Artifact as A2AArtifact,
 )
 from ...common import a2a
@@ -896,15 +897,15 @@ class BaseGatewayComponent(SamComponentBase):
         )
 
         # After resolving the URI to get the content, resolve any late embeds inside it.
-        if file_part.file and file_part.file.inline_data:
+        if file_part.file and isinstance(file_part.file, FileWithBytes):
             resolved_bytes = await self._resolve_embeds_in_artifact_content(
-                content_bytes=file_part.file.inline_data.data,
+                content_bytes=file_part.file.data,
                 mime_type=file_part.file.mime_type,
                 filename=file_part.file.name,
                 external_request_context=external_request_context,
                 log_id_prefix=f"{self.log_identifier}[UriResolve]",
             )
-            file_part.file.inline_data.data = resolved_bytes
+            file_part.file.data = resolved_bytes
 
     async def _resolve_uris_in_parts_list(
         self, parts: List[ContentPart], external_request_context: Dict[str, Any]
