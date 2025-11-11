@@ -24,6 +24,13 @@ try:
 except ImportError:
     JSONPATH_NG_AVAILABLE = False
 
+try:
+    import yaml
+
+    PYYAML_AVAILABLE = True
+except ImportError:
+    PYYAML_AVAILABLE = False
+
 
 def _parse_csv_to_context(csv_content: str) -> Dict[str, Any]:
     """
@@ -102,6 +109,7 @@ def _prepare_template_context(
     parsed_data = data
     is_csv = data_mime_type in ["text/csv", "application/csv"]
     is_json = "json" in data_mime_type
+    is_yaml = "yaml" in data_mime_type or "yml" in data_mime_type
 
     if isinstance(data, str):
         if is_csv:
@@ -111,7 +119,13 @@ def _prepare_template_context(
                 parsed_data = json.loads(data)
             except json.JSONDecodeError as e:
                 return {}, f"Failed to parse JSON data: {e}"
-        # YAML and other text types remain as strings for now
+        elif is_yaml:
+            if not PYYAML_AVAILABLE:
+                return {}, "YAML parsing skipped: 'PyYAML' not installed."
+            try:
+                parsed_data = yaml.safe_load(data)
+            except yaml.YAMLError as e:
+                return {}, f"Failed to parse YAML data: {e}"
 
     # Step 2: Apply JSONPath if provided
     if jsonpath:
