@@ -82,7 +82,17 @@ services:
 
 ### Kubernetes
 
-For Kubernetes deployments, you can set environment variables in your deployment manifest:
+For Kubernetes deployments:
+
+Ensure configmap:
+```shell
+kubectl create configmap mitm-ca \
+  --from-file=mitmproxy-ca.pem=./certs/mitmproxy-ca.pem \
+  -n my-namespace
+
+```
+
+reference in deployment manifest:
 
 ```yaml
 apiVersion: apps/v1
