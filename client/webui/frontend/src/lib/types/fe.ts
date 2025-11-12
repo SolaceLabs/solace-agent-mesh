@@ -241,7 +241,7 @@ export interface RAGSource {
 
 export interface RAGSearchResult {
     query: string;
-    search_type: "file_search" | "kb_search" | "deep_research";
+    search_type: "file_search" | "kb_search" | "deep_research" | "web_search";
     turn_number?: number; // Turn number for citation tracking
     timestamp: string;
     sources: RAGSource[];

@@ -57,13 +57,10 @@ function extractFilename(filename: string): string {
  * Get display text for citation (filename or URL)
  */
 function getCitationDisplayText(citation: CitationType, maxLength: number = 30): string {
-  if (!citation.source) {
-    return `Source ${citation.sourceId + 1}`;
-  }
+  // For web search citations, try to extract domain name even without full source data
+  const isWebSearch = citation.source?.metadata?.type === 'web_search' || citation.type === 'search';
   
-  // For web search citations, use the domain name
-  const isWebSearch = citation.source.metadata?.type === 'web_search';
-  if (isWebSearch && citation.source.source_url) {
+  if (isWebSearch && citation.source?.source_url) {
     try {
       const url = new URL(citation.source.source_url);
       const domain = url.hostname.replace(/^www\./, '');
@@ -71,6 +68,27 @@ function getCitationDisplayText(citation: CitationType, maxLength: number = 30):
     } catch {
       // If URL parsing fails, fall through to other methods
     }
+  }
+  
+  // Check if source has a URL in metadata
+  if (citation.source?.metadata?.link) {
+    try {
+      const url = new URL(citation.source.metadata.link);
+      const domain = url.hostname.replace(/^www\./, '');
+      return truncateText(domain, maxLength);
+    } catch {
+      // If URL parsing fails, continue
+    }
+  }
+  
+  // If no source data but it's a search citation, try to infer from citation type
+  if (!citation.source && citation.type === 'search') {
+    // For search citations without source data, show a more descriptive label
+    return `Web Source ${citation.sourceId + 1}`;
+  }
+  
+  if (!citation.source) {
+    return `Source ${citation.sourceId + 1}`;
   }
   
   // The filename field contains the original filename (not the temp path)
@@ -90,9 +108,16 @@ function getCitationDisplayText(citation: CitationType, maxLength: number = 30):
   
   // Fallback to source URL if no filename
   if (citation.source.source_url) {
-    // Try to extract filename from URL
-    const filename = citation.source.source_url.split('/').pop() || citation.source.source_url;
-    return truncateText(filename, maxLength);
+    // Try to extract domain name or filename from URL
+    try {
+      const url = new URL(citation.source.source_url);
+      const domain = url.hostname.replace(/^www\./, '');
+      return truncateText(domain, maxLength);
+    } catch {
+      // If URL parsing fails, try to extract filename
+      const filename = citation.source.source_url.split('/').pop() || citation.source.source_url;
+      return truncateText(filename, maxLength);
+    }
   }
   
   return `Source ${citation.sourceId + 1}`;
@@ -125,12 +150,12 @@ export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
   return (
     <button
       onClick={handleClick}
-      className="citation-badge inline-flex items-center px-1.5 py-0.5 mx-1.5
+      className="citation-badge inline-flex items-center px-1.5 py-0.5 mx-0.5
                  bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600
                  text-gray-800 dark:text-white text-[11px] font-normal
                  rounded-sm
                  transition-colors duration-150 cursor-pointer
-                 align-middle whitespace-nowrap"
+                 align-baseline whitespace-nowrap"
       title={tooltip}
       aria-label={`Citation: ${tooltip}`}
       type="button"
@@ -156,8 +181,9 @@ export function TextWithCitations({ text, citations, onCitationClick }: TextWith
   
   const segments = splitTextWithCitations(text, citations);
   
+  // Render all segments together, with citations as inline elements
   return (
-    <>
+    <div className="inline-block">
       {segments.map((segment: { text: string; citation?: CitationType }, index: number) => {
         if (segment.citation) {
           return (
@@ -168,13 +194,13 @@ export function TextWithCitations({ text, citations, onCitationClick }: TextWith
             />
           );
         }
-        // Process markdown for text segments
+        // For text segments, render as inline span to avoid line breaks
         return (
-          <React.Fragment key={`text-${index}`}>
-            <MarkdownHTMLConverter>{segment.text}</MarkdownHTMLConverter>
-          </React.Fragment>
+          <span key={`text-${index}`} className="inline">
+            {segment.text}
+          </span>
         );
       })}
-    </>
+    </div>
   );
 }

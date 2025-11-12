@@ -19,6 +19,8 @@ export interface ChatState {
     // Deep Research State
     deepResearchEnabled: boolean;
     deepResearchSettings: DeepResearchSettings;
+    // Web Search State
+    webSearchEnabled: boolean;
     // Agents
     agents: AgentCardInfo[];
     agentsError: string | null;
@@ -68,6 +70,8 @@ export interface ChatActions {
     // Deep Research Actions
     setDeepResearchEnabled: React.Dispatch<React.SetStateAction<boolean>>;
     setDeepResearchSettings: (settings: Partial<DeepResearchSettings>) => void;
+    // Web Search Actions
+    setWebSearchEnabled: React.Dispatch<React.SetStateAction<boolean>>;
     uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string) => Promise<{ uri: string; sessionId: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;

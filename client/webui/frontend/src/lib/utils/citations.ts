@@ -39,7 +39,7 @@ export function parseCitations(
     const [fullMatch, type, sourceId] = match;
     const citation: Citation = {
       marker: fullMatch,
-      type: type as 'file' | 'ref' | 'search',
+      type: type as 'file' | 'ref' | 'search' | 'research',
       sourceId: parseInt(sourceId, 10),
       position: match.index,
     };
@@ -50,6 +50,11 @@ export function parseCitations(
       citation.source = ragMetadata.sources.find(
         (s: RAGSource) => s.citation_id === citationId
       );
+      
+      // Debug logging to help troubleshoot citation matching
+      if (!citation.source && ragMetadata.sources.length > 0) {
+        console.log(`Citation ${citationId} not found in sources:`, ragMetadata.sources.map(s => s.citation_id));
+      }
     }
     
     citations.push(citation);
@@ -121,14 +126,19 @@ export function getCitationNumber(citation: Citation): number {
  * Get citation tooltip text
  */
 export function getCitationTooltip(citation: Citation): string {
-  if (!citation.source) {
-    return `Source ${getCitationNumber(citation)}`;
+  // For web search citations, show the URL and title
+  const isWebSearch = citation.source?.metadata?.type === 'web_search' || citation.type === 'search';
+  
+  if (isWebSearch && citation.source?.source_url) {
+    const title = citation.source.metadata?.title || citation.source.filename;
+    if (title && title !== citation.source.source_url) {
+      return `${title}\n${citation.source.source_url}`;
+    }
+    return citation.source.source_url;
   }
   
-  // For web search citations, show the URL
-  const isWebSearch = citation.source.metadata?.type === 'web_search';
-  if (isWebSearch && citation.source.source_url) {
-    return citation.source.source_url;
+  if (!citation.source) {
+    return `Source ${getCitationNumber(citation)}`;
   }
   
   const score = (citation.source.relevance_score * 100).toFixed(1);

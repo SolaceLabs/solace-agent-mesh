@@ -42,6 +42,9 @@ const defaultMockChatContext: DefaultMockContextType = {
     // Deep Research State
     deepResearchEnabled: false,
     deepResearchSettings: DEFAULT_DEEP_RESEARCH_SETTINGS,
+    
+    // Web Search State
+    webSearchEnabled: false,
 
     // Actions
     setMessages: () => {},
@@ -54,6 +57,8 @@ const defaultMockChatContext: DefaultMockContextType = {
     // Deep Research Actions
     setDeepResearchEnabled: () => {},
     setDeepResearchSettings: () => {},
+    // Web Search Actions
+    setWebSearchEnabled: () => {},
     uploadArtifactFile: async () => null,
     setActiveSidePanelTab: () => {},
     openSidePanelTab: () => {},

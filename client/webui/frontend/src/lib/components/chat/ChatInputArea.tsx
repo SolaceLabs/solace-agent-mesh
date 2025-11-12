@@ -18,8 +18,8 @@ import {
     isLargeText,
     type PastedArtifactItem
 } from "./paste";
-import { DeepResearchToggle } from "./DeepResearchToggle";
 import { DeepResearchSettingsPanel } from "./DeepResearchSettingsPanel";
+import { ToolsSelector } from "./ToolsSelector";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const {
@@ -41,7 +41,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         deepResearchEnabled,
         setDeepResearchEnabled,
         deepResearchSettings,
-        setDeepResearchSettings
+        setDeepResearchSettings,
+        // Web Search
+        webSearchEnabled,
+        setWebSearchEnabled
     } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
 
@@ -504,7 +507,13 @@ Focus on capturing what made this conversation successful so it can be reused wi
                 ref={chatInputRef}
                 value={inputValue}
                 onChange={handleInputChange}
-                placeholder={deepResearchEnabled ? "What do you want to research?" : "How can I help you today? (Type '/' to insert a prompt)"}
+                placeholder={
+                    deepResearchEnabled
+                        ? "What do you want to research?"
+                        : webSearchEnabled
+                            ? "What do you want to search for?"
+                            : "How can I help you today? (Type '/' to insert a prompt)"
+                }
                 className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none focus:outline-none focus:ring-0"
                 rows={1}
                 onPaste={handlePaste}
@@ -521,15 +530,17 @@ Focus on capturing what made this conversation successful so it can be reused wi
                     <Paperclip className="size-4" />
                 </Button>
 
-                {/* Deep Research Toggle with integrated settings */}
+                {/* Tools Selector with Deep Research and Web Search toggles */}
                 <div className="relative">
-                    <DeepResearchToggle
-                        enabled={deepResearchEnabled}
-                        onToggle={setDeepResearchEnabled}
+                    <ToolsSelector
+                        deepResearchEnabled={deepResearchEnabled}
+                        webSearchEnabled={webSearchEnabled}
+                        onDeepResearchToggle={setDeepResearchEnabled}
+                        onWebSearchToggle={setWebSearchEnabled}
                         disabled={isResponding}
                         agents={agents}
-                        settings={deepResearchSettings}
-                        onSettingsClick={() => setShowDeepResearchSettings(!showDeepResearchSettings)}
+                        deepResearchSettings={deepResearchSettings}
+                        onDeepResearchSettingsClick={() => setShowDeepResearchSettings(!showDeepResearchSettings)}
                     />
 
                     {/* Deep Research Settings Panel (positioned above) */}
@@ -547,9 +558,30 @@ Focus on capturing what made this conversation successful so it can be reused wi
 
                 <div>Agent: </div>
                 <Select
-                    value={deepResearchEnabled ? 'DeepResearchAgent' : selectedAgentName}
-                    onValueChange={handleAgentSelection}
-                    disabled={isResponding || agents.length === 0 || deepResearchEnabled}
+                    value={
+                        deepResearchEnabled
+                            ? 'DeepResearchAgent'
+                            : webSearchEnabled
+                                ? 'WebSearchAgent'
+                                : selectedAgentName
+                    }
+                    onValueChange={(agentName) => {
+                        handleAgentSelection(agentName);
+                        
+                        // Check if the new agent has the required skills for active tools
+                        const newAgent = agents.find(a => a.name === agentName);
+                        
+                        // Turn off deep research if new agent doesn't have the skill
+                        if (deepResearchEnabled && !newAgent?.skills?.some(s => s.id === 'deep_research')) {
+                            setDeepResearchEnabled(false);
+                        }
+                        
+                        // Turn off web search if new agent doesn't have the skill
+                        if (webSearchEnabled && !newAgent?.skills?.some(s => s.id === 'web_search')) {
+                            setWebSearchEnabled(false);
+                        }
+                    }}
+                    disabled={isResponding || agents.length === 0}
                 >
                     <SelectTrigger className="w-[250px]">
                         <SelectValue placeholder="Select an agent..." />

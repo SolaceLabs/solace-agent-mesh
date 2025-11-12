@@ -412,12 +412,16 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     const hasRagSources = taskRagData && taskRagData.length > 0 &&
         taskRagData.some(r => r.sources && r.sources.length > 0);
     
+    // Check if this is a completed web search message (has web_search sources but not deep research)
+    const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources &&
+        taskRagData.some(r => r.search_type === 'web_search');
+    
     return (
         <>
             {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
-            {/* Render sources after completed deep research */}
-            {isDeepResearchComplete && hasRagSources && (
+            {/* Render sources after completed deep research or web search */}
+            {(isDeepResearchComplete || isWebSearchComplete) && hasRagSources && (
                 <div className="my-4">
                     <Sources ragMetadata={{ sources: taskRagData.flatMap(r => r.sources) }} />
                 </div>

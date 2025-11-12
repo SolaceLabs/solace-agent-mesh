@@ -58,6 +58,115 @@ class ReflectionResult:
     reasoning: str  # Explanation of the reflection
 
 
+def _get_model_for_phase(
+    phase: str,
+    tool_context: ToolContext,
+    tool_config: Optional[Dict[str, Any]]
+):
+    """
+    Get the appropriate model for a specific research phase.
+    
+    Supports phase-specific model configuration for cost optimization,
+    speed tuning, and quality control.
+    
+    Args:
+        phase: One of 'query_generation', 'reflection', 'source_selection', 'report_generation'
+        tool_context: Tool context for accessing agent
+        tool_config: Tool configuration with optional phase-specific models
+    
+    Returns:
+        BaseLlm instance for the phase (either phase-specific or agent default)
+        
+    Configuration Examples:
+        # Simple model names:
+        tool_config:
+          models:
+            query_generation: "gpt-4o-mini"
+            report_generation: "claude-3-5-sonnet-20241022"
+        
+        # Full model configs with parameters:
+        tool_config:
+          model_configs:
+            report_generation:
+              model: "claude-3-5-sonnet-20241022"
+              temperature: 0.7
+              max_tokens: 16000
+    """
+    log_identifier = f"[DeepResearch:ModelSelection:{phase}]"
+    
+    # Get agent's default model
+    inv_context = tool_context._invocation_context
+    agent = getattr(inv_context, 'agent', None)
+    default_model = agent.canonical_model if agent else None
+    
+    if not default_model:
+        raise ValueError(f"{log_identifier} No default model available")
+    
+    # Check for phase-specific configuration
+    if not tool_config:
+        log.debug("%s No tool_config, using agent default model", log_identifier)
+        return default_model
+    
+    # Helper function to copy base config from default model
+    def _get_base_config_from_default():
+        """Extract base configuration from default model to inherit API keys and settings"""
+        base_config = {}
+        if hasattr(default_model, '_additional_args') and default_model._additional_args:
+            # Copy relevant config from default model (API keys, timeouts, custom endpoints, etc.)
+            # Exclude model-specific params that shouldn't be inherited
+            # Also exclude max_completion_tokens to avoid conflicts with max_tokens
+            exclude_keys = {'model', 'messages', 'tools', 'stream', 'temperature', 'max_tokens',
+                          'max_output_tokens', 'max_completion_tokens', 'top_p', 'top_k'}
+            base_config = {k: v for k, v in default_model._additional_args.items()
+                          if k not in exclude_keys}
+            
+            # Log inherited configuration for debugging
+            if base_config:
+                log.debug("%s Inheriting base config from default model: api_base=%s, api_key=%s",
+                         log_identifier,
+                         base_config.get('api_base', 'default'),
+                         'present' if base_config.get('api_key') else 'missing')
+        return base_config
+    
+    # Option 1: Simple model name string
+    models_config = tool_config.get("models", {})
+    if phase in models_config:
+        model_name = models_config[phase]
+        if isinstance(model_name, str):
+            log.info("%s Using phase-specific model: %s", log_identifier, model_name)
+            from ...agent.adk.models.lite_llm import LiteLlm
+            # Inherit base config from default model (API keys, etc.)
+            base_config = _get_base_config_from_default()
+            return LiteLlm(model=model_name, **base_config)
+    
+    # Option 2: Full model configuration dict
+    model_configs = tool_config.get("model_configs", {})
+    if phase in model_configs:
+        model_config = model_configs[phase]
+        if isinstance(model_config, dict):
+            model_name = model_config.get("model")
+            log.info("%s Using phase-specific model config: %s (temp=%.1f, max_tokens=%s)",
+                    log_identifier, model_name,
+                    model_config.get("temperature", 0.7),
+                    model_config.get("max_tokens", "default"))
+            from ...agent.adk.models.lite_llm import LiteLlm
+            # Inherit base config from default model, but allow override
+            base_config = _get_base_config_from_default()
+            # Merge: base_config first, then model_config (model_config takes precedence)
+            merged_config = {**base_config, **model_config}
+            
+            # Additional safety: if max_tokens is specified, ensure max_completion_tokens is not present
+            if 'max_tokens' in merged_config and 'max_completion_tokens' in merged_config:
+                log.debug("%s Removing max_completion_tokens to avoid conflict with max_tokens", log_identifier)
+                del merged_config['max_completion_tokens']
+            
+            return LiteLlm(**merged_config)
+    
+    # Fallback to agent default
+    log.debug("%s No phase-specific model configured, using agent default", log_identifier)
+    return default_model
+
+
 class ResearchCitationTracker:
     """Tracks citations throughout the research process"""
     
@@ -370,27 +479,20 @@ async def _multi_source_search(
 
 async def _generate_initial_queries(
     research_question: str,
-    tool_context: ToolContext
+    tool_context: ToolContext,
+    tool_config: Optional[Dict[str, Any]] = None
 ) -> List[str]:
     """
     Generate 3-5 initial search queries using LLM.
     The LLM breaks down the research question into effective search queries.
+    
+    Supports phase-specific model via tool_config.
     """
     log_identifier = "[DeepResearch:QueryGen]"
     
     try:
-        inv_context = tool_context._invocation_context
-        agent = getattr(inv_context, 'agent', None)
-        
-        if not agent:
-            log.warning("%s No agent found, using fallback query generation", log_identifier)
-            return [research_question]
-        
-        # Get the LLM from the agent
-        llm = agent.canonical_model
-        if not llm:
-            log.warning("%s No LLM found, using fallback query generation", log_identifier)
-            return [research_question]
+        # Get phase-specific or default model
+        llm = _get_model_for_phase("query_generation", tool_context, tool_config)
         
         query_prompt = f"""You are a research query specialist. Generate 3-5 effective search queries to comprehensively research this question:
 
@@ -483,7 +585,8 @@ async def _reflect_on_findings(
     findings: List[SearchResult],
     iteration: int,
     tool_context: ToolContext,
-    max_iterations: int = 10
+    max_iterations: int = 10,
+    tool_config: Optional[Dict[str, Any]] = None
 ) -> ReflectionResult:
     """
     Reflect on current findings using LLM to determine next steps.
@@ -493,34 +596,14 @@ async def _reflect_on_findings(
     2. Identify knowledge gaps
     3. Determine if more research is needed
     4. Generate refined search queries
+    
+    Supports phase-specific model via tool_config.
     """
     log_identifier = "[DeepResearch:Reflection]"
     
     try:
-        inv_context = tool_context._invocation_context
-        agent = getattr(inv_context, 'agent', None)
-        
-        if not agent:
-            log.error("%s No agent found for LLM reflection", log_identifier)
-            return ReflectionResult(
-                quality_score=0.5,
-                gaps=["Unable to perform LLM reflection"],
-                should_continue=False,
-                suggested_queries=[],
-                reasoning="No LLM available for reflection"
-            )
-        
-        # Get the LLM from the agent
-        llm = agent.canonical_model
-        if not llm:
-            log.error("%s No LLM found for reflection", log_identifier)
-            return ReflectionResult(
-                quality_score=0.5,
-                gaps=["No LLM available"],
-                should_continue=False,
-                suggested_queries=[],
-                reasoning="No LLM available for reflection"
-            )
+        # Get phase-specific or default model
+        llm = _get_model_for_phase("reflection", tool_context, tool_config)
         
         # Prepare findings summary for LLM
         findings_summary = _prepare_findings_summary(findings)
@@ -668,22 +751,19 @@ async def _select_sources_to_fetch(
     research_question: str,
     findings: List[SearchResult],
     max_to_fetch: int,
-    tool_context: ToolContext
+    tool_context: ToolContext,
+    tool_config: Optional[Dict[str, Any]] = None
 ) -> List[SearchResult]:
-    """Use LLM to intelligently select which sources to fetch based on quality and relevance"""
+    """
+    Use LLM to intelligently select which sources to fetch based on quality and relevance.
+    
+    Supports phase-specific model via tool_config.
+    """
     log_identifier = "[DeepResearch:SelectSources]"
     
     try:
-        inv_context = tool_context._invocation_context
-        agent = getattr(inv_context, 'agent', None)
-        
-        if not agent or not agent.canonical_model:
-            log.warning("%s No LLM available, using fallback selection", log_identifier)
-            # Fallback: just take top sources by relevance (web sources only for fetching)
-            web_findings = [f for f in findings if f.source_type == "web" and f.url]
-            return sorted(web_findings, key=lambda x: x.relevance_score, reverse=True)[:max_to_fetch]
-        
-        llm = agent.canonical_model
+        # Get phase-specific or default model
+        llm = _get_model_for_phase("source_selection", tool_context, tool_config)
         
         # Prepare source list for LLM - only web sources can be fetched for full content
         web_findings = [f for f in findings if f.source_type == "web" and f.url]
@@ -1004,28 +1084,21 @@ async def _generate_research_report(
     research_question: str,
     all_findings: List[SearchResult],
     citation_tracker: ResearchCitationTracker,
-    tool_context: ToolContext
+    tool_context: ToolContext,
+    tool_config: Optional[Dict[str, Any]] = None
 ) -> str:
     """
     Generate comprehensive research report using LLM.
     The LLM synthesizes findings into a coherent narrative with proper citations.
+    
+    Supports phase-specific model via tool_config.
     """
     log_identifier = "[DeepResearch:ReportGen]"
     log.info("%s Generating report from %d findings", log_identifier, len(all_findings))
     
     try:
-        inv_context = tool_context._invocation_context
-        agent = getattr(inv_context, 'agent', None)
-        
-        if not agent:
-            log.error("%s No agent found for LLM report generation", log_identifier)
-            return f"# Research Report: {research_question}\n\nError: Unable to generate report without LLM."
-        
-        # Get the LLM from the agent
-        llm = agent.canonical_model
-        if not llm:
-            log.error("%s No LLM found for report generation", log_identifier)
-            return f"# Research Report: {research_question}\n\nError: No LLM available."
+        # Get phase-specific or default model
+        llm = _get_model_for_phase("report_generation", tool_context, tool_config)
         
         # Prepare findings for LLM
         findings_text = _prepare_findings_for_report(all_findings)
@@ -1205,14 +1278,33 @@ async def deep_research(
     if not tool_context:
         return {"status": "error", "message": "ToolContext is missing"}
     
-    # Track start time for runtime limit
-    import time
-    start_time = time.time()
+    # Check if web search API keys are configured when web source is requested
+    import os
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    google_key = os.getenv("GOOGLE_SEARCH_API_KEY")
     
     # Default sources - web only
     if sources is None:
         sources = ["web"]
-    else:
+    
+    # Check if web search is requested but no API keys are available
+    if "web" in sources and not tavily_key and not google_key:
+        error_msg = (
+            "Deep research with web sources requires either TAVILY_API_KEY or GOOGLE_SEARCH_API_KEY "
+            "to be configured. Please set one of these environment variables or remove 'web' from sources."
+        )
+        log.error("%s %s", log_identifier, error_msg)
+        return {
+            "status": "error",
+            "message": error_msg
+        }
+    
+    # Track start time for runtime limit
+    import time
+    start_time = time.time()
+    
+    # Validate and filter sources
+    if sources:
         # Validate and filter sources - only allow web and kb
         allowed_sources = {"web", "kb"}
         sources = [s for s in sources if s in allowed_sources]
@@ -1247,8 +1339,8 @@ async def deep_research(
             max_runtime_seconds=max_runtime_seconds or 0
         )
         
-        # Generate initial queries using LLM
-        queries = await _generate_initial_queries(research_question, tool_context)
+        # Generate initial queries using LLM (with phase-specific model support)
+        queries = await _generate_initial_queries(research_question, tool_context, tool_config)
         log.info("%s Generated %d initial queries", log_identifier, len(queries))
         
         # Iterative research loop
@@ -1326,12 +1418,13 @@ async def deep_research(
             # Select top 2-3 sources from this iteration to fetch/analyze
             sources_to_display_count = min(3, len(all_findings))
             
-            # For web sources: select and fetch full content from current iteration
+            # For web sources: select and fetch full content from current iteration (with phase-specific model support)
             selected_sources = []
             if len(iteration_findings) > 0:
                 sources_to_fetch_count = min(3, len(iteration_findings))
                 selected_sources = await _select_sources_to_fetch(
-                    research_question, iteration_findings, max_to_fetch=sources_to_fetch_count, tool_context=tool_context
+                    research_question, iteration_findings, max_to_fetch=sources_to_fetch_count,
+                    tool_context=tool_context, tool_config=tool_config
                 )
             
             # Prepare display list for UI - show ONLY NEW sources being analyzed (not duplicates)
@@ -1391,7 +1484,7 @@ async def deep_research(
                 )
             
             reflection = await _reflect_on_findings(
-                research_question, all_findings, iteration, tool_context, max_iterations
+                research_question, all_findings, iteration, tool_context, max_iterations, tool_config
             )
             
             log.info("%s Reflection: %s", log_identifier, reflection.reasoning)
@@ -1418,7 +1511,7 @@ async def deep_research(
         )
         
         report = await _generate_research_report(
-            research_question, all_findings, citation_tracker, tool_context
+            research_question, all_findings, citation_tracker, tool_context, tool_config
         )
         
         log.info("%s Research complete: %d total sources, report length: %d chars",
