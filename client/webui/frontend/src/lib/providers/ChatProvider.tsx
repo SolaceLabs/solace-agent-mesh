@@ -342,12 +342,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string): Promise<{ uri: string; sessionId: string } | null> => {
+        async (file: File, overrideSessionId?: string, description?: string): Promise<{ uri: string; sessionId: string } | null> => {
             const effectiveSessionId = overrideSessionId || sessionId;
             const formData = new FormData();
-            formData.append("file", file);
+            formData.append("upload_file", file);
+            formData.append("filename", file.name);
+            // Send sessionId as form field (can be empty string for new sessions)
+            formData.append("sessionId", effectiveSessionId || "");
+            
+            // Add description as metadata if provided
+            if (description) {
+                const metadata = { description };
+                formData.append("metadata_json", JSON.stringify(metadata));
+            }
+            
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${effectiveSessionId}/${encodeURIComponent(file.name)}`, {
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
                     body: formData,
                     credentials: "include",
@@ -359,9 +369,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const result = await response.json();
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
                 await artifactsRefetch();
-                return result.uri ? { uri: result.uri, sessionId: effectiveSessionId } : null;
+                // Return both URI and sessionId (backend may have created a new session)
+                return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
             } catch (error) {
-                addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
+                addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`, "error");
                 return null;
             }
         },

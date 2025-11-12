@@ -220,3 +220,73 @@ class GatewayAdapter:
             created_project = conn.execute(select_query).first()
 
         return created_project._asdict() if created_project else None
+
+    def seed_prompt_group(
+        self,
+        group_id: str,
+        name: str,
+        user_id: str,
+        description: str = None,
+        category: str = None,
+        command: str = None,
+        initial_prompt: str = None,
+    ) -> dict:
+        """Seed a prompt group with initial prompt in the database for testing."""
+        with self.db_manager.get_gateway_connection() as conn:
+            metadata = sa.MetaData()
+            metadata.reflect(bind=conn)
+            prompt_groups_table = metadata.tables["prompt_groups"]
+            prompts_table = metadata.tables["prompts"]
+
+            now = now_epoch_ms()
+            
+            # Create prompt group
+            group_query = sa.insert(prompt_groups_table).values(
+                id=group_id,
+                name=name,
+                user_id=user_id,
+                description=description,
+                category=category,
+                command=command,
+                author_name=None,
+                production_prompt_id=None,
+                is_shared=False,
+                is_pinned=False,
+                created_at=now,
+                updated_at=now,
+            )
+            conn.execute(group_query)
+
+            # Create initial prompt if provided
+            prompt_id = None
+            if initial_prompt:
+                prompt_id = f"{group_id}-prompt-1"
+                prompt_query = sa.insert(prompts_table).values(
+                    id=prompt_id,
+                    prompt_text=initial_prompt,
+                    group_id=group_id,
+                    user_id=user_id,
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                )
+                conn.execute(prompt_query)
+
+                # Update group with production prompt reference
+                update_query = (
+                    sa.update(prompt_groups_table)
+                    .where(prompt_groups_table.c.id == group_id)
+                    .values(production_prompt_id=prompt_id, updated_at=now_epoch_ms())
+                )
+                conn.execute(update_query)
+
+            if conn.in_transaction():
+                conn.commit()
+
+            # Fetch the created prompt group
+            select_query = sa.select(prompt_groups_table).where(
+                prompt_groups_table.c.id == group_id
+            )
+            created_group = conn.execute(select_query).first()
+
+        return created_group._asdict() if created_group else None

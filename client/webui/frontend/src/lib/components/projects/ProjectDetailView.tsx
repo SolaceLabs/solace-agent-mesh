@@ -241,7 +241,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                             <Textarea
                                 value={editedDescription}
                                 onChange={(e) => setEditedDescription(e.target.value)}
-                                placeholder="Project description (optional)"
+                                placeholder="Project description"
                                 rows={4}
                                 disabled={isSaving}
                                 maxLength={1000}
