@@ -972,3 +972,38 @@ class TestArtifactSearchAndReplaceRegex:
 
             # Verify the actual content has literal $ before each number
             assert saved_content == "item,$100\nproduct,$200\nservice,$300"
+
+    @pytest.mark.asyncio
+    async def test_regex_no_matches_with_multiline_flag(self, mock_tool_context):
+        """Test that multiline flag works correctly and reports no matches when pattern doesn't match."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+
+            mock_session.return_value = "session123"
+            mock_is_text.return_value = True
+
+            # CSV with text values (no numbers)
+            original_content = "col1,col2\nrow_6_col_1,row_6_col_2\nrow_7_col_1,row_7_col_2"
+            mock_load.return_value = {
+                "status": "success",
+                "raw_bytes": original_content.encode("utf-8"),
+                "mime_type": "text/csv",
+                "version": 1
+            }
+
+            # Pattern looking for digits at end of line - won't match text values
+            result = await artifact_search_and_replace_regex(
+                filename="test.csv",
+                search_expression=r",(\d+)$",  # Looks for digits, but CSV has text
+                replace_expression=",$$$1",
+                is_regexp=True,
+                regexp_flags="gm",  # global + multiline
+                tool_context=mock_tool_context
+            )
+
+            # Should report no matches
+            assert result["status"] == "no_matches"
+            assert result["match_count"] == 0
+            assert "No matches found" in result["message"]
+            assert "not modified" in result["message"].lower()
