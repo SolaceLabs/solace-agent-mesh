@@ -45,10 +45,10 @@ const phaseLabels = {
 };
 
 const phaseColors = {
-  planning: 'bg-blue-500',
-  searching: 'bg-purple-500',
-  analyzing: 'bg-orange-500',
-  writing: 'bg-green-500',
+  planning: 'bg-primary',
+  searching: 'bg-primary',
+  analyzing: 'bg-primary',
+  writing: 'bg-primary',
 };
 
 export const ResearchProgress: React.FC<ResearchProgressProps> = ({

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import type { ReactNode } from "react";
 
 import { AlertCircle, ThumbsDown, ThumbsUp } from "lucide-react";
@@ -11,6 +11,8 @@ import type { ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, TextP
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
 import { Sources } from "@/lib/components/web/Sources";
+import { TextWithCitations } from "./Citation";
+import { parseCitations } from "@/lib/utils/citations";
 
 import { ArtifactMessage, FileMessage } from "./file";
 import { FeedbackModal } from "./FeedbackModal";
@@ -89,7 +91,7 @@ const MessageActions: React.FC<{
 
 const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
-    const { sessionId, ragData } = useChatContext();
+    const { sessionId, ragData, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
 
     // Extract text content from message parts
     const textContent = message.parts
@@ -100,23 +102,48 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     // Trim text for user messages to prevent trailing whitespace issues
     const displayText = message.isUser ? textContent.trim() : textContent;
 
-    // Get sources for this message's task
-    const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
-    const sources = taskRagData?.flatMap(r => r.sources || []);
+    // Parse citations from text and match to RAG sources
+    const taskRagData = useMemo(() => {
+        if (!message.taskId || !ragData) return undefined;
+        return ragData.find(r => r.task_id === message.taskId);
+    }, [message.taskId, ragData]);
+
+    const citations = useMemo(() => {
+        if (message.isUser) return [];
+        return parseCitations(displayText, taskRagData);
+    }, [displayText, taskRagData, message.isUser]);
+
+    const handleCitationClick = () => {
+        // Open RAG panel when citation is clicked
+        if (message.taskId) {
+            setTaskIdInSidePanel(message.taskId);
+            openSidePanelTab("rag");
+        }
+    };
 
     const renderContent = () => {
         if (message.isError) {
             return (
                 <div className="flex items-center">
                     <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
-                    <MarkdownHTMLConverter sources={sources}>{displayText}</MarkdownHTMLConverter>
+                    <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>
                 </div>
             );
         }
 
         const embeddedContent = extractEmbeddedContent(displayText);
         if (embeddedContent.length === 0) {
-            return <MarkdownHTMLConverter sources={sources}>{displayText}</MarkdownHTMLConverter>;
+            // Render text with citations if any exist
+            if (citations.length > 0) {
+                return (
+                    <TextWithCitations
+                        text={displayText}
+                        citations={citations}
+                        onCitationClick={handleCitationClick}
+                    />
+                );
+            }
+            return <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
         }
 
         let modifiedText = displayText;
@@ -147,10 +174,24 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
             }
         });
 
+        // Parse citations from modified text
+        const modifiedCitations = useMemo(() => {
+            if (message.isUser) return [];
+            return parseCitations(modifiedText, taskRagData);
+        }, [modifiedText, taskRagData, message.isUser]);
+
         return (
             <div>
                 {renderError && <MessageBanner variant="error" message="Error rendering preview" />}
-                <MarkdownHTMLConverter sources={sources}>{modifiedText}</MarkdownHTMLConverter>
+                {modifiedCitations.length > 0 ? (
+                    <TextWithCitations
+                        text={modifiedText}
+                        citations={modifiedCitations}
+                        onCitationClick={handleCitationClick}
+                    />
+                ) : (
+                    <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>
+                )}
                 {contentElements}
             </div>
         );

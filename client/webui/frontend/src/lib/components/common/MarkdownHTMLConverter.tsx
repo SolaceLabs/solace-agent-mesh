@@ -36,6 +36,20 @@ function processCitations(text: string, sources?: Array<{ citation_id: string; t
     });
 }
 
+/**
+ * Auto-linkify plain URLs in text that aren't already part of markdown links
+ */
+function autoLinkifyUrls(text: string): string {
+    // Match URLs that are NOT already in markdown link syntax [text](url)
+    // This regex looks for URLs that are standalone (not preceded by ]( )
+    const urlRegex = /(?<!\]\()https?:\/\/[^\s<]+[^<.,:;"')\]\s]/g;
+    
+    return text.replace(urlRegex, (url) => {
+        // Don't linkify if it's already part of a markdown link
+        return `[${url}](${url})`;
+    });
+}
+
 const createParserOptions = (sources?: Array<{ citation_id: string; title?: string; link?: string }>): HTMLReactParserOptions => ({
     replace: (domNode) => {
         if (domNode instanceof Element) {
@@ -86,20 +100,23 @@ export function MarkdownHTMLConverter({ children, className, sources }: Readonly
     }
 
     try {
-        // 1. Process citations in the markdown text
-        const processedText = processCitations(children, sources);
+        // 1. Auto-linkify plain URLs
+        const textWithLinks = autoLinkifyUrls(children);
+        
+        // 2. Process citations in the markdown text
+        const processedText = processCitations(textWithLinks, sources);
 
-        // 2. Convert markdown to HTML string using marked
+        // 3. Convert markdown to HTML string using marked
         const rawHtml = marked.parse(processedText, { gfm: true }) as string;
 
-        // 3. Sanitize the HTML string using DOMPurify (allow sup tags and data attributes)
+        // 4. Sanitize the HTML string using DOMPurify (allow sup tags and data attributes)
         const cleanHtml = DOMPurify.sanitize(rawHtml, {
             USE_PROFILES: { html: true },
             ADD_TAGS: ['sup'],
             ADD_ATTR: ['data-citation-id', 'class']
         });
 
-        // 4. Parse the sanitized HTML string into React elements
+        // 5. Parse the sanitized HTML string into React elements
         const parserOptions = createParserOptions(sources);
         const reactElements = parse(cleanHtml, parserOptions);
 

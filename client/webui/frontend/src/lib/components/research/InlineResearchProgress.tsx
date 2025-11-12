@@ -96,13 +96,13 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
           <div key={stage.phase}>
             <div
               onClick={onClick}
-              className="rounded-xl border transition-all duration-300 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 shadow-sm cursor-pointer hover:border-blue-400 dark:hover:border-blue-600"
+              className="rounded-xl border transition-all duration-300 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 shadow-sm cursor-pointer hover:border-primary"
             >
               <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     {/* Icon */}
-                    <div className="flex-shrink-0 mt-0.5 text-blue-500">
+                    <div className="flex-shrink-0 mt-0.5 text-primary">
                       <Icon className="h-5 w-5 animate-pulse" />
                     </div>
 
@@ -117,7 +117,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
                         <div className="mt-2">
                           <div className="h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-blue-500 transition-all duration-300 ease-out"
+                              className="h-full bg-primary transition-all duration-300 ease-out"
                               style={{ width: `${Math.min(progress.progress_percentage, 100)}%` }}
                             />
                           </div>

@@ -44,7 +44,7 @@ export const DeepResearchToggle: React.FC<DeepResearchToggleProps> = ({
             inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
             text-xs font-medium transition-all
             ${enabled
-              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
+              ? 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary'
               : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
             }
             ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
