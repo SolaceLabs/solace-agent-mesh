@@ -182,8 +182,6 @@ base_url: "http://localhost:8080"
 - If the original spec URL is `https://petstore.swagger.io/api/v3` and `base_url` is `http://localhost:8080`, the result is `http://localhost:8080/api/v3` (path is preserved, base is replaced)
 - Duplicate slashes are automatically handled
 
-See the [base_url examples](../../../examples/README_openapi_base_url.md) for more details.
-
 ### Complete Example
 
 Here's a complete agent configuration using an OpenAPI tool:
@@ -318,8 +316,6 @@ tools:
       - "deleteOrder"
       - "deleteUser"
 ```
-
-See the [tool filtering examples](../../../examples/README_openapi_tool_filtering.md) for more details.
 
 ## Authentication
 
