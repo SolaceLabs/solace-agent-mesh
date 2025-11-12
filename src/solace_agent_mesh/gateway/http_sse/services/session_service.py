@@ -229,21 +229,24 @@ class SessionService:
         log.info("Session %s soft deleted successfully by user %s", session_id, user_id)
         return True
 
-    def move_session_to_project(
+    async def move_session_to_project(
         self, db: DbSession, session_id: SessionId, user_id: UserId, new_project_id: str | None
     ) -> Session | None:
         """
         Move a session to a different project.
-        
+
+        When moving to a project, this also copies all project artifacts to the session
+        so they are immediately available without waiting for the next user message.
+
         Args:
             db: Database session
             session_id: Session ID to move
             user_id: User ID performing the move
             new_project_id: New project ID (or None to remove from project)
-            
+
         Returns:
             Session: Updated session if successful, None otherwise
-            
+
         Raises:
             ValueError: If session or project validation fails
         """
@@ -258,13 +261,13 @@ class SessionService:
                 ProjectModel.user_id == user_id,
                 ProjectModel.deleted_at.is_(None)
             ).first()
-            
+
             if not project:
                 raise ValueError(f"Project {new_project_id} not found or access denied")
 
         session_repository = self._get_repositories(db)
         updated_session = session_repository.move_to_project(db, session_id, user_id, new_project_id)
-        
+
         if not updated_session:
             log.warning(
                 "Failed to move session %s to project %s for user %s",
@@ -274,12 +277,60 @@ class SessionService:
             )
             return None
 
-        log.info(
-            "Session %s moved to project %s by user %s",
-            session_id,
-            new_project_id or "None",
-            user_id,
-        )
+        # Commit the session move to database before artifact copying
+        # This ensures the move is persisted even if artifact copying fails
+        try:
+            db.commit()
+            log.info(
+                "Session %s moved to project %s by user %s",
+                session_id,
+                new_project_id or "None",
+                user_id,
+            )
+        except Exception as e:
+            db.rollback()
+            log.error(
+                "Failed to commit session move for session %s: %s",
+                session_id,
+                e,
+            )
+            raise
+
+        # Copy project artifacts to session immediately when moving to a project
+        # This happens after the move is committed to avoid transaction conflicts
+        if new_project_id and self.component:
+            from ..utils.artifact_copy_utils import copy_project_artifacts_to_session
+            from ..services.project_service import ProjectService
+
+            try:
+                project_service = ProjectService(component=self.component)
+                log_prefix = f"[move_session_to_project session_id={session_id}] "
+
+                artifacts_copied, _ = await copy_project_artifacts_to_session(
+                    project_id=new_project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    project_service=project_service,
+                    component=self.component,
+                    log_prefix=log_prefix,
+                )
+
+                if artifacts_copied > 0:
+                    log.info(
+                        "%sCopied %d project artifacts to session during move",
+                        log_prefix,
+                        artifacts_copied,
+                    )
+            except Exception as e:
+                # Don't fail the move operation if artifact copying fails
+                # The session move has already been committed at this point
+                log.warning(
+                    "Failed to copy project artifacts when moving session %s to project %s: %s",
+                    session_id,
+                    new_project_id,
+                    e,
+                )
+
         return updated_session
 
     def search_sessions(

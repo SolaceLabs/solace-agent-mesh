@@ -3,7 +3,6 @@ API Router for submitting and managing tasks to agents.
 """
 
 import logging
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import yaml
@@ -22,8 +21,6 @@ from ....gateway.http_sse.services.project_service import ProjectService
 
 from ....agent.utils.artifact_helpers import (
     get_artifact_info_list,
-    load_artifact_content_or_metadata,
-    save_artifact_with_metadata,
 )
 
 from ....common import a2a
@@ -80,6 +77,7 @@ async def _inject_project_context(
         return message_text
 
     from ....gateway.http_sse.dependencies import SessionLocal
+    from ..utils.artifact_copy_utils import copy_project_artifacts_to_session
 
     if SessionLocal is None:
         log.warning("%sProject context injection skipped: database not configured", log_prefix)
@@ -90,7 +88,7 @@ async def _inject_project_context(
         project = project_service.get_project(db, project_id, user_id)
         if not project:
             return message_text
-        
+
         context_parts = []
 
         # Only inject full context for new sessions
@@ -105,135 +103,66 @@ async def _inject_project_context(
             # Add project description if exists
             if project.description and project.description.strip():
                 context_parts.append(f"\nProject Description: {project.description.strip()}")
-        
+
         # Always copy project artifacts to session (for both new and existing sessions)
         # This ensures new project files are available to existing sessions
         artifact_service = component.get_shared_artifact_service()
         if artifact_service:
             try:
-                source_user_id = project.user_id
-                project_artifacts_session_id = f"project-{project.id}"
-                
-                log.info("%sChecking for artifacts in project %s (storage session: %s)", log_prefix, project.id, project_artifacts_session_id)
-                
-                project_artifacts = await get_artifact_info_list(
-                    artifact_service=artifact_service,
-                    app_name=project_service.app_name,
-                    user_id=source_user_id,
-                    session_id=project_artifacts_session_id,
+                # Copy artifacts using the shared utility function
+                artifacts_copied, new_artifact_names = await copy_project_artifacts_to_session(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    project_service=project_service,
+                    component=component,
+                    log_prefix=log_prefix,
                 )
 
-                if project_artifacts:
-                    log.info("%sFound %d artifacts in project %s to process.", log_prefix, len(project_artifacts), project.id)
-                    
-                    # Get list of artifacts already in session to avoid re-copying
-                    try:
-                        session_artifacts = await get_artifact_info_list(
-                            artifact_service=artifact_service,
-                            app_name=project_service.app_name,
-                            user_id=user_id,
-                            session_id=session_id,
-                        )
-                        session_artifact_names = {art.filename for art in session_artifacts}
-                        log.debug("%sSession %s currently has %d artifacts", log_prefix, session_id, len(session_artifact_names))
-                    except Exception as e:
-                        log.warning("%sFailed to get session artifacts, will copy all project artifacts: %s", log_prefix, e)
-                        session_artifact_names = set()
-                    
-                    all_artifact_descriptions = []  # For new sessions - all files
-                    new_artifact_descriptions = []  # For existing sessions - only new files
-                    artifacts_copied = 0
-                    
-                    for artifact_info in project_artifacts:
-                        # Build description for all artifacts (for new sessions)
-                        desc_str = f"- {artifact_info.filename}"
-                        if artifact_info.description:
-                            desc_str += f": {artifact_info.description}"
-                        all_artifact_descriptions.append(desc_str)
+                # Get artifact descriptions for context injection
+                if artifacts_copied > 0 or inject_full_context:
+                    source_user_id = project.user_id
+                    project_artifacts_session_id = f"project-{project.id}"
 
-                        # Skip if artifact already exists in session (any source)
-                        if artifact_info.filename in session_artifact_names:
-                            log.debug("%sSkipping artifact %s - already exists in session", log_prefix, artifact_info.filename)
-                            continue
-                        
-                        # Track new artifacts for existing sessions
-                        new_artifact_descriptions.append(desc_str)
+                    project_artifacts = await get_artifact_info_list(
+                        artifact_service=artifact_service,
+                        app_name=project_service.app_name,
+                        user_id=source_user_id,
+                        session_id=project_artifacts_session_id,
+                    )
 
-                        log.info("%sCopying new artifact %s to session %s", log_prefix, artifact_info.filename, session_id)
-                        
-                        try:
-                            # Load artifact content from project storage
-                            loaded_artifact = await load_artifact_content_or_metadata(
-                                artifact_service=artifact_service,
-                                app_name=project_service.app_name,
-                                user_id=source_user_id,
-                                session_id=project_artifacts_session_id,
-                                filename=artifact_info.filename,
-                                return_raw_bytes=True,
-                                version="latest"
+                    if project_artifacts:
+                        all_artifact_descriptions = []  # For new sessions - all files
+                        new_artifact_descriptions = []  # For existing sessions - only new files
+
+                        for artifact_info in project_artifacts:
+                            # Build description for all artifacts (for new sessions)
+                            desc_str = f"- {artifact_info.filename}"
+                            if artifact_info.description:
+                                desc_str += f": {artifact_info.description}"
+                            all_artifact_descriptions.append(desc_str)
+
+                            # Track new artifacts for existing sessions
+                            if artifact_info.filename in new_artifact_names:
+                                new_artifact_descriptions.append(desc_str)
+
+                        # Add artifact descriptions to context
+                        if inject_full_context and all_artifact_descriptions:
+                            # New session: show all project files
+                            artifacts_context = (
+                                "\nFiles in Session:\n"
+                                "The following files are available in your session and can be viewed using your tools if required:\n"
+                                + "\n".join(all_artifact_descriptions)
                             )
-                            
-                            # Load the full metadata separately
-                            loaded_metadata = await load_artifact_content_or_metadata(
-                                artifact_service=artifact_service,
-                                app_name=project_service.app_name,
-                                user_id=source_user_id,
-                                session_id=project_artifacts_session_id,
-                                filename=artifact_info.filename,
-                                load_metadata_only=True,
-                                version="latest"
+                            context_parts.append(artifacts_context)
+                        elif not inject_full_context and new_artifact_descriptions:
+                            # Existing session: notify about newly added files
+                            new_files_context = (
+                                "\nNew Files Added to Project:\n"
+                                "The following files have been added to the project and are now available in your session:\n"
+                                + "\n".join(new_artifact_descriptions)
                             )
-                            
-                            # Save a copy to the current chat session
-                            if loaded_artifact.get("status") == "success":
-                                full_metadata = loaded_metadata.get("metadata", {}) if loaded_metadata.get("status") == "success" else {}
-                                
-                                # Ensure the source is always set for copied project artifacts
-                                full_metadata["source"] = "project"
-
-                                await save_artifact_with_metadata(
-                                    artifact_service=artifact_service,
-                                    app_name=project_service.app_name,
-                                    user_id=user_id,
-                                    session_id=session_id,
-                                    filename=artifact_info.filename,
-                                    content_bytes=loaded_artifact.get("raw_bytes"),
-                                    mime_type=loaded_artifact.get("mime_type"),
-                                    metadata_dict=full_metadata,
-                                    timestamp=datetime.now(timezone.utc),
-                                )
-                                artifacts_copied += 1
-                                log.info("%sSuccessfully copied artifact %s to session", log_prefix, artifact_info.filename)
-                            else:
-                                log.warning("%sFailed to load artifact %s: %s", log_prefix, artifact_info.filename, loaded_artifact.get("status"))
-                        except Exception as e:
-                            log.error("%sError copying artifact %s to session: %s", log_prefix, artifact_info.filename, e)
-                            # Continue with other artifacts even if one fails
-
-                    # Add artifact descriptions to context
-                    if inject_full_context and all_artifact_descriptions:
-                        # New session: show all project files
-                        artifacts_context = (
-                            "\nFiles in Session:\n"
-                            "The following files are available in your session and can be viewed using your tools if required:\n"
-                            + "\n".join(all_artifact_descriptions)
-                        )
-                        context_parts.append(artifacts_context)
-                    elif not inject_full_context and new_artifact_descriptions:
-                        # Existing session: notify about newly added files
-                        new_files_context = (
-                            "\nNew Files Added to Project:\n"
-                            "The following files have been added to the project and are now available in your session:\n"
-                            + "\n".join(new_artifact_descriptions)
-                        )
-                        context_parts.append(new_files_context)
-                    
-                    if artifacts_copied > 0:
-                        log.info("%sCopied %d new artifacts to session %s.", log_prefix, artifacts_copied, session_id)
-                    else:
-                        log.debug("%sNo new artifacts to copy to session %s.", log_prefix, session_id)
-                else:
-                    log.info("%sNo artifacts found in project %s to copy.", log_prefix, project.id)
+                            context_parts.append(new_files_context)
 
             except Exception as e:
                 log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
@@ -246,9 +175,24 @@ async def _inject_project_context(
             project_context = "\n".join(context_parts)
             modified_message_text = f"{project_context}\n\nUSER QUERY:\n{message_text}"
             log.info("%sInjected full project context for project: %s", log_prefix, project_id)
+
+            # Clear the pending project context flags from all artifacts
+            # This is done after injection to prevent re-injecting context on subsequent messages
+            if artifact_service and inject_full_context:
+                from ..utils.artifact_copy_utils import clear_pending_project_context
+                try:
+                    await clear_pending_project_context(
+                        user_id=user_id,
+                        session_id=session_id,
+                        artifact_service=artifact_service,
+                        app_name=project_service.app_name,
+                        log_prefix=log_prefix,
+                    )
+                except Exception as e:
+                    log.warning("%sFailed to clear pending project context flags: %s", log_prefix, e)
         else:
             log.debug("%sSkipped full context injection for existing session, but ensured new artifacts are copied", log_prefix)
-                
+
         return modified_message_text
 
     except Exception as e:
@@ -389,9 +333,29 @@ async def _submit_task(
         # Skip if project_service is None (persistence disabled)
         modified_message = payload.params.message
         if project_service and project_id and message_text:
-            # Inject context for new sessions (includes full context + artifact copy)
-            # For existing sessions, only copy new artifacts without re-injecting full context
+            # Determine if we should inject full context:
+            # 1. New sessions (no frontend_session_id provided)
+            # 2. Existing sessions with pending project context (after being moved to a project)
             should_inject_full_context = not frontend_session_id
+
+            # Check if there are artifacts with pending project context
+            if frontend_session_id and not should_inject_full_context:
+                from ..utils.artifact_copy_utils import has_pending_project_context
+                artifact_service = component.get_shared_artifact_service()
+                if artifact_service:
+                    has_pending = await has_pending_project_context(
+                        user_id=client_id,
+                        session_id=session_id,
+                        artifact_service=artifact_service,
+                        app_name=component.gateway_id,
+                    )
+                    if has_pending:
+                        should_inject_full_context = True
+                        log.info(
+                            "%sDetected pending project context for session %s, will inject full context",
+                            log_prefix,
+                            session_id,
+                        )
 
             modified_message_text = await _inject_project_context(
                 project_id=project_id,

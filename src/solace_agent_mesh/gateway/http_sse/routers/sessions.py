@@ -556,6 +556,7 @@ async def move_session_to_project(
 ):
     """
     Move a session to a different project or remove from project.
+    When moving to a project, artifacts from that project are immediately copied to the session.
     """
     user_id = user.get("id")
     log.info(
@@ -575,7 +576,7 @@ async def move_session_to_project(
                 status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
             )
 
-        updated_session = session_service.move_session_to_project(
+        updated_session = await session_service.move_session_to_project(
             db=db,
             session_id=session_id,
             user_id=user_id,
