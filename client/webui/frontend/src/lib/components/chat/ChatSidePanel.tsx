@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-import { PanelRightIcon, FileText, Network, RefreshCw, Database } from "lucide-react";
+import { PanelRightIcon, FileText, Network, RefreshCw, Link2 } from "lucide-react";
 
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui";
 import { useTaskContext, useChatContext } from "@/lib/hooks";
@@ -112,7 +112,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                 </Button>
 
                 <Button variant="ghost" size="sm" onClick={() => handleIconClick("rag")} className="h-10 w-10 p-0" tooltip="Sources">
-                    <Database className="size-5" />
+                    <Link2 className="size-5" />
                 </Button>
             </div>
         );
@@ -149,7 +149,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                 title="Sources"
                                 className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-r-md border border-l-0 data-[state=active]:z-10"
                             >
-                                <Database className="mr-2 h-4 w-4" />
+                                <Link2 className="mr-2 h-4 w-4" />
                                 Sources
                             </TabsTrigger>
                         </TabsList>

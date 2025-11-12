@@ -1,5 +1,5 @@
 import React from "react";
-import { FileText, TrendingUp, Search, Database, ChevronDown, ChevronUp, Brain, Globe } from "lucide-react";
+import { FileText, TrendingUp, Search, Link2, ChevronDown, ChevronUp, Brain, Globe } from "lucide-react";
 // Web-only version - enterprise icons removed
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/lib/components/ui/tabs";
 import type { RAGSearchResult } from "@/lib/types";
@@ -137,7 +137,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         return (
             <div className="flex h-full items-center justify-center p-4">
                 <div className="text-muted-foreground text-center">
-                    <Database className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                    <Link2 className="mx-auto mb-4 h-12 w-12 opacity-50" />
                     <div className="text-lg font-medium">RAG Sources</div>
                     <div className="mt-2 text-sm">
                         RAG source visibility is disabled in settings
@@ -157,9 +157,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                         No sources available yet
                     </div>
                     <div className="mt-1 text-xs">
-                        Sources from RAG searches and web research
-                        <br />
-                        will appear here after completion
+                        Sources from web research will appear here after completion
                     </div>
                 </div>
             </div>
