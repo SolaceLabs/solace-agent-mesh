@@ -5,6 +5,8 @@
         "lib": ["ES2023"],
         "module": "ESNext",
         "skipLibCheck": true,
+        "types": ["node"],
+        "typeRoots": ["./node_modules/@types"],
 
         /* Bundler mode */
         "moduleResolution": "bundler",
