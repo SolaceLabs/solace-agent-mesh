@@ -230,7 +230,7 @@ export interface RAGSource {
     file_id?: string; // Optional for deep_research
     filename?: string; // Optional for deep_research
     title?: string; // For deep_research sources
-    source_type?: string; // For deep_research (web, kb, gdrive, sharepoint)
+    source_type?: string; // For deep_research (web, kb)
     source_url?: string; // Source URL for kb_search and deep_research results
     url?: string; // Alternative URL field for deep_research
     content_preview: string;

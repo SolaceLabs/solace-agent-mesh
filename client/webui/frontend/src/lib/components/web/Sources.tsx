@@ -295,10 +295,6 @@ export function Sources({ ragMetadata }: SourcesProps & { ragMetadata?: { source
       return {
         all: [],
         web: [],
-        gmail: [],
-        outlook: [],
-        gdrive: [],
-        sharepoint: [],
         kb: [],
         images: []
       };

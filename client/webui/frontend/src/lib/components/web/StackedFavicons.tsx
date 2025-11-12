@@ -8,7 +8,7 @@ interface SearchSource {
   link: string;
   title?: string;
   snippet?: string;
-  source_type?: string; // 'web', 'gmail', 'outlook', 'gdrive', 'sharepoint', 'kb'
+  source_type?: string; // 'web', 'kb'
 }
 
 interface StackedFaviconsProps {
