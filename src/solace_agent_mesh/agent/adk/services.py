@@ -12,6 +12,7 @@ from google.adk.artifacts import (
     GcsArtifactService,
     InMemoryArtifactService,
 )
+from google.adk.artifacts.base_artifact_service import ArtifactVersion
 from google.adk.auth.credential_service.base_credential_service import (
     BaseCredentialService,
 )
@@ -154,6 +155,42 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
             user_id=user_id,
             session_id=session_id,
             filename=filename,
+        )
+
+    @override
+    async def list_artifact_versions(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        filename: str,
+        session_id: str,
+    ) -> List[ArtifactVersion]:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        return await self.wrapped_service.list_artifact_versions(
+            app_name=scoped_app_name,
+            user_id=user_id,
+            filename=filename,
+            session_id=session_id,
+        )
+
+    @override
+    async def get_artifact_version(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        filename: str,
+        session_id: str,
+        version: Optional[int] = None,
+    ) -> Optional[ArtifactVersion]:
+        scoped_app_name = self._get_scoped_app_name(app_name)
+        return await self.wrapped_service.get_artifact_version(
+            app_name=scoped_app_name,
+            user_id=user_id,
+            filename=filename,
+            session_id=session_id,
+            version=version,
         )
 
 
