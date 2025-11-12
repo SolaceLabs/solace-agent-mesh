@@ -1145,7 +1145,7 @@ Parallel Tool Calling:
 The system is capable of calling multiple tools in parallel to speed up processing. Please try to run tools in parallel when they don't depend on each other. This saves money and time, providing faster results to the user.
 
 Embeds in responses from agents:
-To be efficient, agents may response with artifact_content embeds in their responses. These will not be resolved until they are sent back to a gateway. If it makes
+To be efficient, agents may respond with artifact_content or template embeds in their responses. These will not be resolved until they are sent back to a gateway. If it makes
 sense, just carry that embed forward to your response to the user. For example, if you ask for an org chart from another agent and its response contains an embed like
 `{open_delim}artifact_content:org_chart.md{close_delim}`, you can just include that embed in your response to the user. The gateway will resolve it and display the org chart.
 
