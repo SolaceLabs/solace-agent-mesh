@@ -3,6 +3,10 @@ title: Setting Up RBAC
 sidebar_position: 10
 ---
 
+:::warning Security Notice
+**Agent Mesh Enterprise now uses secure-by-default authorization.** If you do not configure an authorization service, the system will **deny all access** by default. You must explicitly configure RBAC or another authorization type to grant access to users.
+:::
+
 This guide walks you through configuring Role-Based Access Control (RBAC) in a Docker installation for Agent Mesh. You will learn how to control access to Agent Mesh Enterprise features and resources based on user roles and permissions.
 
 ## Table of Contents
@@ -18,6 +22,27 @@ This guide walks you through configuring Role-Based Access Control (RBAC) in a D
 ## Understanding RBAC in Agent Mesh Enterprise
 
 Before you configure RBAC, you need to understand how the system works. Agent Mesh Enterprise uses a three-tier authorization model that separates identity, roles, and permissions.
+
+### Authorization Types
+
+Agent Mesh Enterprise supports multiple authorization types, each suited for different use cases:
+
+**`deny_all` (Default)** - The secure default that denies all access. This type is automatically used when:
+- No `authorization_service` configuration block is present
+- The `authorization_service` block is empty
+- The `type` field is explicitly set to `deny_all`
+
+When this type is active, all user requests are denied and logged with WARNING messages. This ensures maximum security by default.
+
+**`default_rbac`** - Role-Based Access Control using configuration files. This is the recommended type for production deployments where you need fine-grained control over user permissions. It requires both role definitions and user assignments files.
+
+**`custom`** - Custom authorization service implementation. Use this when you need to integrate with external authorization systems or implement custom authorization logic.
+
+**`none`** - Disables authorization entirely, granting wildcard `*` scope to all users. This type must be explicitly configured and should **only be used in development environments**. The system logs prominent security warnings when this type is active.
+
+:::danger Development Only
+The `type: none` authorization configuration grants full access to all users and should **never** be used in production environments. It is intended only for local development and testing.
+:::
 
 ### The Three Components
 
@@ -171,6 +196,10 @@ The `description` field is optional but recommended. It helps you document the p
 
 Create a file named `enterprise_config.yaml` in the `sam-enterprise/config` directory (not in the `auth` subdirectory). This file tells Agent Mesh Enterprise where to find your RBAC configuration files and how to use them.
 
+:::tip Optional Configuration
+The `authorization_service` configuration block is **optional**. If omitted, the system defaults to `deny_all` (secure by default) and logs a WARNING message. You must explicitly configure authorization to grant access to users.
+:::
+
 ```yaml
 # enterprise_config.yaml
 authorization_service:
@@ -184,7 +213,44 @@ gateway_id: "enterprise_gateway"
 
 The `authorization_service` section configures the RBAC system. The `type` field specifies `default_rbac`, which tells Agent Mesh Enterprise to use the file-based RBAC system. The two path fields point to your RBAC configuration files—these paths are relative to the container's working directory, not your host system.
 
+**Important:** When using `type: default_rbac`, both `role_to_scope_definitions_path` and `user_to_role_assignments_path` are **required**. The system will fail to start if these files are missing or invalid.
+
 The `namespace` and `gateway_id` fields configure the Agent Mesh Enterprise instance. The namespace isolates this instance from others, while the gateway ID identifies the web interface gateway.
+
+#### Alternative: Development Mode (Permissive)
+
+For local development and testing only, you can disable authorization:
+
+```yaml
+# enterprise_config.yaml - DEVELOPMENT ONLY
+authorization_service:
+  type: "none"  # ⚠️ Grants full access to all users
+
+namespace: "enterprise_dev"
+gateway_id: "enterprise_gateway"
+```
+
+:::danger Security Warning
+Using `type: none` disables all authorization checks and grants wildcard `*` scope to every user. This configuration should **never** be used in production environments. The system will log prominent security warnings when this type is active.
+:::
+
+#### Default Behavior (No Configuration)
+
+If you omit the `authorization_service` block entirely, the system uses secure defaults:
+
+```yaml
+# enterprise_config.yaml - Secure by default
+# No authorization_service block = deny_all
+
+namespace: "enterprise_prod"
+gateway_id: "enterprise_gateway"
+```
+
+When no authorization configuration is present, the system:
+1. Logs a WARNING message about missing configuration
+2. Defaults to `deny_all` authorization type
+3. Denies all user requests with WARNING logs
+4. Requires explicit RBAC configuration to grant access
 
 ### Running the Docker Container
 
