@@ -23,3 +23,27 @@ class MessageSizeExceededError(Exception):
             )
 
         super().__init__(message)
+
+
+class ComponentInitializationError(Exception):
+    """Raised when a SAM component fails to initialize."""
+
+    def __init__(self, component_identifier: str, original_error: Exception, message: str = None):
+        """Initialize the ComponentInitializationError.
+
+        Args:
+            component_identifier: The identifier of the component that failed to initialize.
+            original_error: The original exception that caused the failure.
+            message: Optional custom error message. If None, a default message
+                    will be generated.
+        """
+        self.component_identifier = component_identifier
+        self.original_error = original_error
+
+        if message is None:
+            message = (
+                f"Component {component_identifier} failed to initialize: "
+                f"{original_error}"
+            )
+
+        super().__init__(message)
