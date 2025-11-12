@@ -4,6 +4,7 @@
 import React from 'react';
 import type { Citation as CitationType } from '@/lib/utils/citations';
 import { getCitationTooltip, splitTextWithCitations } from '@/lib/utils/citations';
+import { MarkdownHTMLConverter } from '@/lib/components';
 
 interface CitationProps {
   citation: CitationType;
@@ -150,7 +151,7 @@ interface TextWithCitationsProps {
 
 export function TextWithCitations({ text, citations, onCitationClick }: TextWithCitationsProps) {
   if (citations.length === 0) {
-    return <>{text}</>;
+    return <MarkdownHTMLConverter>{text}</MarkdownHTMLConverter>;
   }
   
   const segments = splitTextWithCitations(text, citations);
@@ -167,7 +168,12 @@ export function TextWithCitations({ text, citations, onCitationClick }: TextWith
             />
           );
         }
-        return <React.Fragment key={`text-${index}`}>{segment.text}</React.Fragment>;
+        // Process markdown for text segments
+        return (
+          <React.Fragment key={`text-${index}`}>
+            <MarkdownHTMLConverter>{segment.text}</MarkdownHTMLConverter>
+          </React.Fragment>
+        );
       })}
     </>
   );

@@ -1121,7 +1121,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                         const sourceType = urlInfo.source_type || 'web';
                                                         if (url && !existingUrls.has(url)) {
                                                             updated[lastQueryIndex].sources.push({
-                                                                citation_id: `research${updated[lastQueryIndex].sources.length}`,
+                                                                citation_id: `search${updated[lastQueryIndex].sources.length}`,
                                                                 title: urlInfo.title || url,
                                                                 source_url: url,
                                                                 url: url, // RAGInfoPanel checks for this field
