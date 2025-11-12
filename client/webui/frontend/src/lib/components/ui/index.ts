@@ -3,6 +3,7 @@ export { Button } from "./button";
 export { ViewWorkflowButton } from "./ViewWorkflowButton";
 export { Textarea } from "./textarea";
 export { Input } from "./input";
+export { SearchInput } from "./search-input";
 export { Label } from "./label";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
 export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent } from "./card";

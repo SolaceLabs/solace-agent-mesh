@@ -6,6 +6,7 @@ import { Spinner } from "../ui/spinner";
 import type { ButtonVariant } from "@/lib/types/ui";
 
 export interface ButtonWithCallback {
+    icon?: ReactElement;
     text: string;
     variant: ButtonVariant;
     onClick: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
@@ -35,10 +36,11 @@ function EmptyState({ title, subtitle, image, variant = "error", buttons, classN
             <p className="mt-4 text-lg">{title}</p>
             {subtitle ? <p className="text-sm">{subtitle}</p> : null}
 
-            <div className="flex gap-2">
+            <div className="flex min-w-50 flex-col gap-2">
                 {buttons &&
-                    buttons.map(({ text, variant, onClick }, index) => (
+                    buttons.map(({ icon, text, variant, onClick }, index) => (
                         <Button key={`button-${text}-${index}`} testid={text} title={text} variant={variant} onClick={onClick}>
+                            {icon ? icon : null}
                             {text}
                         </Button>
                     ))}

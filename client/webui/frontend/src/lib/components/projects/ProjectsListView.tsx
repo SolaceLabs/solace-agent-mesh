@@ -4,6 +4,10 @@ import { FolderOpen } from "lucide-react";
 import { ProjectCard } from "./ProjectCard";
 import { CreateProjectCard } from "./CreateProjectCard";
 import type { Project } from "@/lib/types/projects";
+import { EmptyState } from "../common";
+import { SearchInput } from "@/lib/components/ui";
+
+const ProjectImage = <FolderOpen className="text-muted-foreground" size={64} />;
 
 interface ProjectsListViewProps {
     projects: Project[];
@@ -15,52 +19,31 @@ interface ProjectsListViewProps {
     isLoading?: boolean;
 }
 
-export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
-    projects,
-    searchQuery,
-    onSearchChange,
-    onProjectClick,
-    onCreateNew,
-    onDelete,
-    isLoading = false,
-}) => {
+export const ProjectsListView: React.FC<ProjectsListViewProps> = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, isLoading = false }) => {
     return (
-        <div className="flex h-full flex-col bg-background">
-            {/* Search Bar - matching agents page style */}
-            <div className="h-full w-full pt-12 pl-12">
-                <input
-                    type="text"
-                    placeholder="Search..."
-                    value={searchQuery}
-                    onChange={(e) => onSearchChange(e.target.value)}
-                    className="bg-background mb-4 rounded-md border px-3 py-2"
-                />
+        <div className="bg-background flex h-full flex-col">
+            {/* Search Bar */}
+            <div className="flex h-full flex-col pt-6 pb-6 pl-6">
+                <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Filter by name..." className="mb-4 w-xs" />
 
-                {/* Projects Grid - matching agents page layout */}
+                {/* Projects Grid */}
                 {isLoading ? (
-                    <div className="flex items-center justify-center p-12">
-                        <div className="text-center">
-                            <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
-                            <p className="text-sm text-muted-foreground">Loading projects...</p>
-                        </div>
-                    </div>
+                    <EmptyState variant="loading" title="Loading projects..." />
                 ) : projects.length === 0 && searchQuery ? (
-                    <div className="flex flex-col items-center justify-center p-12 text-center">
-                        <FolderOpen className="mb-4 h-16 w-16 text-muted-foreground" />
-                        <h3 className="mb-2 text-lg font-semibold text-foreground">No projects found</h3>
-                        <p className="text-sm text-muted-foreground">Try adjusting your search terms</p>
-                    </div>
+                    <EmptyState variant="notFound" title="No Projects Match Your Filter" subtitle="Try adjusting your filter terms." buttons={[{ text: "Clear Filter", variant: "default", onClick: () => onSearchChange("") }]} />
+                ) : projects.length === 0 ? (
+                    <EmptyState
+                        image={ProjectImage}
+                        title="No Projects Found"
+                        subtitle="Create projects to group related chat sessions and knowledge artifacts together."
+                        buttons={[{ text: "Create New Project", variant: "default", onClick: () => onCreateNew() }]}
+                    />
                 ) : (
-                    <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
-                        <div className="flex flex-wrap gap-10">
+                    <div className="flex-1 overflow-y-auto">
+                        <div className="flex flex-wrap gap-6">
                             <CreateProjectCard onClick={onCreateNew} />
-                            {projects.map((project) => (
-                                <ProjectCard
-                                    key={project.id}
-                                    project={project}
-                                    onClick={() => onProjectClick(project)}
-                                    onDelete={onDelete}
-                                />
+                            {projects.map(project => (
+                                <ProjectCard key={project.id} project={project} onClick={() => onProjectClick(project)} onDelete={onDelete} />
                             ))}
                         </div>
                     </div>
