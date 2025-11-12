@@ -34,6 +34,7 @@ from google.genai import types as adk_types
 from typing_extensions import override
 
 from .artifacts.filesystem_artifact_service import FilesystemArtifactService
+from .schema_migration import run_migrations
 
 log = logging.getLogger(__name__)
 
@@ -232,7 +233,9 @@ def initialize_session_service(component) -> BaseSessionService:
                 f"{component.log_identifier} 'database_url' is required for sql session service."
             )
         try:
-            return DatabaseSessionService(db_url=db_url)
+            db_service = DatabaseSessionService(db_url=db_url)
+            run_migrations(db_service, component)
+            return db_service
         except ImportError:
             log.error(
                 "%s SQLAlchemy not installed. Please install 'google-adk[database]' or 'sqlalchemy'.",
