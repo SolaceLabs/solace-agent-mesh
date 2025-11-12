@@ -1,6 +1,8 @@
 import React, { createContext, type FormEvent } from "react";
 
 import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+import type { RAGSearchResult } from "@/lib/types/fe";
+import type { DeepResearchSettings } from "@/lib/components/chat/deepResearchSettings";
 
 export interface ChatState {
     configCollectFeedback: boolean;
@@ -14,6 +16,9 @@ export interface ChatState {
     isCancelling: boolean;
     latestStatusText: React.RefObject<string | null>;
     isLoadingSession: boolean;
+    // Deep Research State
+    deepResearchEnabled: boolean;
+    deepResearchSettings: DeepResearchSettings;
     // Agents
     agents: AgentCardInfo[];
     agentsError: string | null;
@@ -25,9 +30,12 @@ export interface ChatState {
     artifactsRefetch: () => Promise<void>;
     setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
     taskIdInSidePanel: string | null;
+    // RAG State
+    ragData: RAGSearchResult[];
+    ragEnabled: boolean;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
-    activeSidePanelTab: "files" | "workflow";
+    activeSidePanelTab: "files" | "workflow" | "rag";
     // Delete Modal State
     isDeleteModalOpen: boolean;
     artifactToDelete: ArtifactInfo | null;
@@ -57,11 +65,14 @@ export interface ChatActions {
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "error") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
+    // Deep Research Actions
+    setDeepResearchEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+    setDeepResearchSettings: (settings: Partial<DeepResearchSettings>) => void;
     uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string) => Promise<{ uri: string; sessionId: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
-    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;
-    openSidePanelTab: (tab: "files" | "workflow") => void;
+    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow" | "rag">>;
+    openSidePanelTab: (tab: "files" | "workflow" | "rag") => void;
 
     openDeleteModal: (artifact: ArtifactInfo) => void;
     closeDeleteModal: () => void;

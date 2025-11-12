@@ -1,0 +1,207 @@
+# Deep Research Agent Configuration (Web-Only Version)
+# This agent performs comprehensive, iterative research across web sources
+# with LLM-powered reflection, query refinement, and citation tracking
+
+log:
+  stdout_log_level: WARNING
+  log_file_level: WARNING
+  log_file: deep_research_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: "DeepResearchAgent__app"
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}"
+      supports_streaming: true
+      agent_name: "DeepResearchAgent"
+      display_name: "Deep Research Agent"
+      model: *general_model
+
+      instruction: |
+        You are a research assistant specialized in conducting comprehensive, iterative research.
+        
+        **CRITICAL INSTRUCTION - READ CAREFULLY:**
+        
+        When you receive a research request, the user's message will start with research settings in this format:
+        [RESEARCH SETTINGS: Duration=X minutes, Max Iterations=Y, Sources=source1, source2]
+        
+        **YOU MUST EXTRACT THESE SETTINGS AND USE THEM EXACTLY AS SPECIFIED.**
+        
+        **How to Process Research Requests:**
+        
+        1. **Extract the settings** from the message header:
+           - Duration in minutes → Convert to seconds for max_runtime_seconds
+           - Max Iterations → Use as max_iterations parameter
+           - Sources → Use as sources array
+        
+        2. **Call deep_research with extracted settings:**
+           ```
+           deep_research(
+               research_question="<actual research question without the settings header>",
+               max_runtime_seconds=<duration in minutes * 60>,
+               max_iterations=<max iterations from settings>,
+               sources=<sources list from settings>
+           )
+           ```
+        
+        **Example:**
+        If user message is:
+        ```
+        [RESEARCH SETTINGS: Duration=10 minutes, Max Iterations=10, Sources=web, kb]
+        
+        History of gold as a reserve currency
+        ```
+        
+        You MUST call:
+        ```
+        deep_research(
+            research_question="History of gold as a reserve currency",
+            max_runtime_seconds=600,  # 10 * 60
+            max_iterations=10,
+            sources=["web", "kb"]
+        )
+        ```
+        
+        **DO NOT use default parameters. ALWAYS extract and use the settings from the message header.**
+        
+        The deep_research tool will:
+        - Generate optimized search queries
+        - Search across specified sources
+        - Reflect on findings and identify gaps
+        - Continue until time limit OR max iterations reached
+        - Generate comprehensive report with citations
+        
+        **Remember: The duration (max_runtime_seconds) is the PRIMARY constraint.**
+        
+        **How to Use Deep Research:**
+        1. When asked to research a topic, check message metadata for `deep_research_settings`
+        2. Extract the user's preferences (duration, iterations, sources)
+        3. Call deep_research tool with these parameters
+        4. The tool will automatically:
+           - Generate optimized search queries
+           - Search across selected sources
+           - Reflect on findings and identify gaps
+           - Refine queries and search again (up to max_iterations or max_runtime_seconds)
+           - Generate a comprehensive report with citations
+        5. Present the research report to the user
+        6. All citations will be in the format [[cite:researchN]]
+        
+        **Citation Requirements:**
+        - The deep_research tool handles citations automatically
+        - Citations are embedded in the generated report
+        - Each source is tracked with relevance scores
+        - Users can view citation details in the frontend
+        
+        **When to Use Deep Research:**
+        - Complex topics requiring comprehensive coverage
+        - Questions needing multiple perspectives
+        - Research requiring both web and internal sources
+        - Topics where quality and depth matter
+        
+        **Research Process:**
+        The tool will show real-time progress through:
+        - Planning: Generating initial queries
+        - Searching: Finding sources across multiple platforms
+        - Reflecting: Assessing quality and identifying gaps
+        - Synthesizing: Creating the final report
+        
+        Remember: Always check for and use the user's deep_research_settings from metadata!
+      
+      tools:
+        # Deep Research Tool - Main research capability
+        - tool_type: builtin
+          tool_name: deep_research
+        # tool_config:
+        #   rag_api:
+        #     url: "${RAG_API_URL:http://localhost:8001}"
+        #     timeout: 30
+        #     default_kbs: []  # Empty means search all available KBs
+      
+        # # Web Search Tools (used internally by deep_research)
+        # - tool_type: builtin
+        #   tool_name: web_search_tavily
+        
+        # - tool_type: builtin
+        #   tool_name: web_search_google
+        
+        # # RAG Tools (used internally by deep_research)
+        # - tool_type: builtin
+        #   tool_name: kb_search
+        #   tool_config:
+        #     rag_api:
+        #       url: "${RAG_API_URL:http://localhost:8001}"
+        #       timeout: 30
+        
+        # - tool_type: builtin
+        #   tool_name: list_kbs
+        #   tool_config:
+        #     rag_api:
+        #       url: "${RAG_API_URL:http://localhost:8001}"
+        #       timeout: 30
+
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+      
+      artifact_handling_mode: "embed"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      enable_auto_continuation: true
+      max_llm_calls_per_task: 30  # Higher limit for iterative research
+      data_tools_config: *default_data_tools_config
+
+      # Agent Card Definition
+      agent_card:
+        version: "1.0.0"
+        description: |
+          Advanced research agent that conducts comprehensive, iterative research across web and knowledge base sources.
+          
+          Capabilities:
+          • Deep Research: Iterative research with LLM-powered reflection and query refinement
+          • Web Search: Google and Tavily search integration for public information
+          • Knowledge Base Search: Internal document search capabilities
+          • Citation Tracking: Automatic source tracking with relevance scores
+          • Quality Assessment: LLM evaluates research completeness and identifies gaps
+          • Report Generation: Comprehensive reports with proper citations
+          
+          Perfect for:
+          - Complex research topics requiring depth and breadth from public sources
+          - Multi-perspective analysis using web and internal documents
+          - Comprehensive information gathering from web and knowledge bases
+          - Research requiring both public web sources and internal documentation
+          - Topics where citation and source quality matter
+          
+          Note: This is the web-only version. Requires Google or Tavily API keys for web search.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills:
+          - id: "deep_research"
+            name: "Deep Research"
+            description: "Conducts iterative research with LLM-powered reflection across web and knowledge bases. Automatically refines queries and generates comprehensive reports."
+          - id: "multi_source_search"
+            name: "Multi-Source Search"
+            description: "Searches across web and knowledge bases in parallel for comprehensive coverage."
+          - id: "research_reflection"
+            name: "Research Reflection"
+            description: "LLM-powered quality assessment that identifies gaps and refines search strategy."
+          - id: "citation_management"
+            name: "Citation Management"
+            description: "Automatic citation tracking with relevance scores and source metadata."
+          - id: "report_generation"
+            name: "Report Generation"
+            description: "LLM synthesizes findings into coherent, well-structured research reports."
+      
+      # Discovery & Communication
+      agent_card_publishing:
+        interval_seconds: 10
+      agent_discovery:
+        enabled: true
+      inter_agent_communication:
+        allow_list: []
+        deny_list: []
+        request_timeout_seconds: 600

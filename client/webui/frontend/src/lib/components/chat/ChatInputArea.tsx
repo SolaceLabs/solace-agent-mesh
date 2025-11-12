@@ -18,9 +18,31 @@ import {
     isLargeText,
     type PastedArtifactItem
 } from "./paste";
+import { DeepResearchToggle } from "./DeepResearchToggle";
+import { DeepResearchSettingsPanel } from "./DeepResearchSettingsPanel";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages } = useChatContext();
+    const {
+        isResponding,
+        isCancelling,
+        selectedAgentName,
+        sessionId,
+        setSessionId,
+        handleSubmit,
+        handleCancel,
+        uploadArtifactFile,
+        artifactsRefetch,
+        addNotification,
+        artifacts,
+        setPreviewArtifact,
+        openSidePanelTab,
+        messages,
+        // Deep Research
+        deepResearchEnabled,
+        setDeepResearchEnabled,
+        deepResearchSettings,
+        setDeepResearchSettings
+    } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
 
     // File selection support
@@ -43,6 +65,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     
     const [showVariableDialog, setShowVariableDialog] = useState(false);
     const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
+    
+    // Deep Research Settings Panel State
+    const [showDeepResearchSettings, setShowDeepResearchSettings] = useState(false);
 
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
@@ -479,8 +504,8 @@ Focus on capturing what made this conversation successful so it can be reused wi
                 ref={chatInputRef}
                 value={inputValue}
                 onChange={handleInputChange}
-                placeholder="How can I help you today? (Type '/' to insert a prompt)"
-                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none"
+                placeholder={deepResearchEnabled ? "What do you want to research?" : "How can I help you today? (Type '/' to insert a prompt)"}
+                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none focus:outline-none focus:ring-0"
                 rows={1}
                 onPaste={handlePaste}
                 onKeyDown={event => {
@@ -491,13 +516,41 @@ Focus on capturing what made this conversation successful so it can be reused wi
             />
 
             {/* Buttons */}
-            <div className="m-2 flex items-center gap-2">
+            <div className="m-2 flex items-center gap-2 relative">
                 <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file">
                     <Paperclip className="size-4" />
                 </Button>
 
+                {/* Deep Research Toggle with integrated settings */}
+                <div className="relative">
+                    <DeepResearchToggle
+                        enabled={deepResearchEnabled}
+                        onToggle={setDeepResearchEnabled}
+                        disabled={isResponding}
+                        agents={agents}
+                        settings={deepResearchSettings}
+                        onSettingsClick={() => setShowDeepResearchSettings(!showDeepResearchSettings)}
+                    />
+
+                    {/* Deep Research Settings Panel (positioned above) */}
+                    {deepResearchEnabled && showDeepResearchSettings && (
+                        <div className="absolute bottom-full left-0 mb-2 z-50">
+                            <DeepResearchSettingsPanel
+                                settings={deepResearchSettings}
+                                onSettingsChange={setDeepResearchSettings}
+                                isOpen={showDeepResearchSettings}
+                                onToggle={() => setShowDeepResearchSettings(!showDeepResearchSettings)}
+                            />
+                        </div>
+                    )}
+                </div>
+
                 <div>Agent: </div>
-                <Select value={selectedAgentName} onValueChange={handleAgentSelection} disabled={isResponding || agents.length === 0}>
+                <Select
+                    value={deepResearchEnabled ? 'DeepResearchAgent' : selectedAgentName}
+                    onValueChange={handleAgentSelection}
+                    disabled={isResponding || agents.length === 0 || deepResearchEnabled}
+                >
                     <SelectTrigger className="w-[250px]">
                         <SelectValue placeholder="Select an agent..." />
                     </SelectTrigger>

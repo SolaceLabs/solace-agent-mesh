@@ -64,6 +64,7 @@
         ]
     },
     "dependencies": {
+        "@ariakit/react": "^0.4.19",
         "@hookform/resolvers": "^5.2.2",
         "@radix-ui/react-accordion": "^1.2.11",
         "@radix-ui/react-avatar": "^1.1.10",
@@ -88,8 +89,8 @@
         "json-edit-react": "^1.27.2",
         "lucide-react": "^0.511.0",
         "marked": "^15.0.12",
-        "react": "19.0.0",
-        "react-dom": "19.0.0",
+        "react": ">=19.0.0",
+        "react-dom": ">=19.0.0",
         "react-hook-form": "^7.65.0",
         "react-intersection-observer": "^9.16.0",
         "react-json-view-lite": "^2.4.1",
@@ -103,10 +104,8 @@
         "zod": "^4.1.12"
     },
     "peerDependencies": {
-        "@types/react": "19.0.0",
-        "@types/react-dom": "19.0.0",
-        "react": "19.0.0",
-        "react-dom": "19.0.0"
+        "react": ">=19.0.0",
+        "react-dom": ">=19.0.0"
     },
     "devDependencies": {
         "@a2a-js/sdk": "^0.3.2",
@@ -116,8 +115,8 @@
         "@testing-library/cypress": "^10.0.3",
         "@types/js-yaml": "^4.0.9",
         "@types/node": "^22.15.29",
-        "@types/react": "19.0.0",
-        "@types/react-dom": "19.0.0",
+        "@types/react": "^19.1.2",
+        "@types/react-dom": "^19.1.2",
         "@vitejs/plugin-react": "^4.4.1",
         "cypress": "^14.5.4",
         "eslint": "^9.25.0",

@@ -1,6 +1,7 @@
 import { ChatContext, type ChatContextValue } from "@/lib/contexts/ChatContext";
 import React, { useState } from "react";
 import { mockAgentCards } from "./data";
+import { DEFAULT_DEEP_RESEARCH_SETTINGS } from "@/lib/components/chat/deepResearchSettings";
 
 type DefaultMockContextType = Omit<ChatContextValue, "setIsSidePanelCollapsed">;
 
@@ -22,6 +23,8 @@ const defaultMockChatContext: DefaultMockContextType = {
     artifactsLoading: false,
     artifactsRefetch: async () => {},
     setArtifacts: () => {},
+    ragData: [],
+    ragEnabled: true,
     taskIdInSidePanel: null,
     isSidePanelCollapsed: false,
     activeSidePanelTab: "files",
@@ -35,6 +38,10 @@ const defaultMockChatContext: DefaultMockContextType = {
     currentPreviewedVersionNumber: null,
     previewFileContent: null,
     isLoadingSession: false,
+    
+    // Deep Research State
+    deepResearchEnabled: false,
+    deepResearchSettings: DEFAULT_DEEP_RESEARCH_SETTINGS,
 
     // Actions
     setMessages: () => {},
@@ -44,6 +51,9 @@ const defaultMockChatContext: DefaultMockContextType = {
     handleCancel: () => {},
     addNotification: () => {},
     setSelectedAgentName: () => {},
+    // Deep Research Actions
+    setDeepResearchEnabled: () => {},
+    setDeepResearchSettings: () => {},
     uploadArtifactFile: async () => null,
     setActiveSidePanelTab: () => {},
     openSidePanelTab: () => {},

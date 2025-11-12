@@ -114,10 +114,50 @@ class ToolResultData(BaseModel):
     )
 
 
+class TodoListUpdateData(BaseModel):
+    """
+    Data model for todo list update signal.
+    Corresponds to todo_list_update.json schema.
+    """
+
+    type: Literal["todo_list_update"] = Field(
+        "todo_list_update", description="The constant type for this data part."
+    )
+    todos: list[str] = Field(
+        ..., description="The list of todo items in markdown checklist format."
+    )
+
+
+class DeepResearchProgressData(BaseModel):
+    """
+    Data model for deep research progress updates with structured information.
+    Provides detailed progress for UI visualization during iterative research.
+    """
+
+    type: Literal["deep_research_progress"] = Field(
+        "deep_research_progress", description="The constant type for this data part."
+    )
+    phase: str = Field(..., description="Current phase: planning, searching, analyzing, writing")
+    status_text: str = Field(..., description="Human-readable status message")
+    progress_percentage: int = Field(..., description="Overall progress percentage (0-100)")
+    current_iteration: int = Field(..., description="Current iteration number")
+    total_iterations: int = Field(..., description="Total planned iterations")
+    sources_found: int = Field(..., description="Total sources found so far")
+    current_query: str = Field(default="", description="Current search query being executed")
+    fetching_urls: list[Dict[str, str]] = Field(
+        default_factory=list,
+        description="List of sources being analyzed (with title, favicon/icon, and source_type)"
+    )
+    elapsed_seconds: int = Field(..., description="Elapsed time in seconds")
+    max_runtime_seconds: int = Field(default=0, description="Maximum runtime limit (0 = no limit)")
+
+
 SignalData = Union[
     ToolInvocationStartData,
     LlmInvocationData,
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
     ToolResultData,
+    TodoListUpdateData,
+    DeepResearchProgressData,
 ]

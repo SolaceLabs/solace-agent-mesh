@@ -11,6 +11,8 @@ export { Spinner } from "./spinner";
 export * from "./dialog";
 export { ConfirmationDialog } from "./ConfirmationDialog";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
+export { Progress } from "./progress";
+export { Checkbox } from "./checkbox";
 export { Pagination, PaginationContent, PaginationLink, PaginationItem, PaginationPrevious, PaginationNext, PaginationEllipsis } from "./pagination";
 
 // Layout Components

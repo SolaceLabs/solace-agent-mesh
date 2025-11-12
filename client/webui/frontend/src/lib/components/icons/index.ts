@@ -1,0 +1,9 @@
+export { GmailIcon } from './GmailIcon';
+export { GoogleCalendarIcon } from './GoogleCalendarIcon';
+export { GoogleDriveIcon } from './GoogleDriveIcon';
+export { OutlookIcon } from './OutlookIcon';
+export { SharePointIcon } from './SharePointIcon';
+export { ConfluenceIcon } from './ConfluenceIcon';
+export { JiraIcon } from './JiraIcon';
+export { NotionIcon } from './NotionIcon';
+export { AudioBarsIcon } from './AudioBarsIcon';

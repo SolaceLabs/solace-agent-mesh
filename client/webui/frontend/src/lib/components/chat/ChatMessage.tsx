@@ -7,8 +7,10 @@ import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } f
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
-import type { ArtifactPart, FileAttachment, FilePart, MessageFE, TextPart } from "@/lib/types";
+import type { ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
+import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
+import { Sources } from "@/lib/components/web/Sources";
 
 import { ArtifactMessage, FileMessage } from "./file";
 import { FeedbackModal } from "./FeedbackModal";
@@ -183,7 +185,7 @@ const getUploadedFiles = (message: MessageFE) => {
 };
 
 const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
-    const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
+    const { openSidePanelTab, setTaskIdInSidePanel, ragData } = chatContext;
 
     if (message.isStatusBubble) {
         return null;
@@ -191,6 +193,46 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     if (message.authenticationLink) {
         return <AuthenticationMessage message={message} />;
+    }
+
+    // Check for deep research progress data
+    const progressPart = message.parts?.find(p => p.kind === "data") as DataPart | undefined;
+    if (progressPart && progressPart.data) {
+        const data = progressPart.data as unknown as ResearchProgressData;
+        if (data.type === "deep_research_progress") {
+            // Only render progress-only if this message has ONLY progress data
+            // If it has other content (text, artifacts, files), render normally below
+            const hasOtherContent = message.parts?.some(p =>
+                (p.kind === "text" && (p as TextPart).text.trim()) ||
+                p.kind === "artifact" ||
+                p.kind === "file"
+            );
+            
+            if (!hasOtherContent) {
+                // Progress-only message - render just the progress component
+                const handleProgressClick = () => {
+                    // Check if there's RAG data for this task
+                    const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+                    if (taskRagData && taskRagData.length > 0) {
+                        if (message.taskId) {
+                            setTaskIdInSidePanel(message.taskId);
+                            openSidePanelTab("rag");
+                        }
+                    }
+                };
+                
+                return (
+                    <div className="my-2">
+                        <InlineResearchProgress
+                            progress={data}
+                            isComplete={message.isComplete}
+                            onClick={handleProgressClick}
+                        />
+                    </div>
+                );
+            }
+            // If there's other content, fall through to render everything normally
+        }
     }
 
     // Group contiguous parts to handle interleaving of text and files
@@ -304,13 +346,37 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean }> = ({ message, isLastWithTaskId }) => {
     const chatContext = useChatContext();
+    const { ragData } = chatContext;
+    
     if (!message) {
         return null;
     }
+    
+    // Check if this is a completed deep research message
+    const isDeepResearchComplete = message.isComplete &&
+        message.parts?.some(p => {
+            if (p.kind === "data") {
+                const data = (p as DataPart).data as unknown as ResearchProgressData;
+                return data?.type === "deep_research_progress";
+            }
+            return false;
+        });
+    
+    // Get RAG metadata for this task
+    const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+    const hasRagSources = taskRagData && taskRagData.length > 0 &&
+        taskRagData.some(r => r.sources && r.sources.length > 0);
+    
     return (
         <>
             {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
+            {/* Render sources after completed deep research */}
+            {isDeepResearchComplete && hasRagSources && (
+                <div className="my-4">
+                    <Sources ragMetadata={{ sources: taskRagData.flatMap(r => r.sources) }} />
+                </div>
+            )}
         </>
     );
 };
