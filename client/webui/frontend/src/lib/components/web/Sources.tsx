@@ -357,6 +357,17 @@ export function Sources({ ragMetadata }: SourcesProps & { ragMetadata?: { source
   // Default to first available tab
   const defaultTab = tabs[0]?.value || 'all';
 
+  // If only web sources (no images), show sources directly without tabs
+  const onlyWebSources = sourcesByType.web.length > 0 && sourcesByType.images.length === 0;
+  
+  if (onlyWebSources) {
+    return (
+      <div className="my-4" role="region" aria-label="Search sources">
+        <SourcesGrid sources={sourcesByType.web} />
+      </div>
+    );
+  }
+  
   return (
     <div className="my-4" role="region" aria-label="Search sources">
       <Tabs defaultValue={defaultTab}>

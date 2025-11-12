@@ -1,7 +1,7 @@
 /**
  * Citation component for displaying clickable source citations
  */
-import React from 'react';
+import React, { Fragment } from 'react';
 import type { Citation as CitationType } from '@/lib/utils/citations';
 import { getCitationTooltip, splitTextWithCitations } from '@/lib/utils/citations';
 import { MarkdownHTMLConverter } from '@/lib/components';
@@ -181,9 +181,8 @@ export function TextWithCitations({ text, citations, onCitationClick }: TextWith
   
   const segments = splitTextWithCitations(text, citations);
   
-  // Render all segments together, with citations as inline elements
   return (
-    <div className="inline-block">
+    <span style={{ display: 'inline' }}>
       {segments.map((segment: { text: string; citation?: CitationType }, index: number) => {
         if (segment.citation) {
           return (
@@ -194,13 +193,11 @@ export function TextWithCitations({ text, citations, onCitationClick }: TextWith
             />
           );
         }
-        // For text segments, render as inline span to avoid line breaks
+        // Render text segments as plain text to avoid block-level elements from MarkdownHTMLConverter
         return (
-          <span key={`text-${index}`} className="inline">
-            {segment.text}
-          </span>
+          <Fragment key={`text-${index}`}>{segment.text}</Fragment>
         );
       })}
-    </div>
+    </span>
   );
 }

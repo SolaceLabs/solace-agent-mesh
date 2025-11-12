@@ -6,9 +6,10 @@
 
 import type { RAGSource, RAGSearchResult } from '@/lib/types/fe';
 
-// Citation marker pattern: [[cite:file0]], [[cite:ref0]], [[cite:research0]], etc.
+// Citation marker pattern: [[cite:file0]], [[cite:ref0]], [[cite:search0]], [[cite:research0]], etc.
+// Also matches [[cite:0]] (treats as search citation when no type prefix)
 // Also matches single bracket [cite:xxx] in case LLM uses wrong format
-export const CITATION_PATTERN = /\[?\[cite:(file|ref|search|research)(\d+)\]\]?/g;
+export const CITATION_PATTERN = /\[?\[cite:(?:(file|ref|search|research))?(\d+)\]\]?/g;
 export const CLEANUP_REGEX = /\[?\[cite:[^\]]+\]\]?/g;
 
 export interface Citation {
@@ -37,16 +38,18 @@ export function parseCitations(
   
   while ((match = CITATION_PATTERN.exec(text)) !== null) {
     const [fullMatch, type, sourceId] = match;
+    // If no type prefix, default to 'search' for web search citations
+    const citationType = (type || 'search') as 'file' | 'ref' | 'search' | 'research';
     const citation: Citation = {
       marker: fullMatch,
-      type: type as 'file' | 'ref' | 'search' | 'research',
+      type: citationType,
       sourceId: parseInt(sourceId, 10),
       position: match.index,
     };
     
     // Match to source metadata if available
     if (ragMetadata?.sources) {
-      const citationId = `${type}${sourceId}`;
+      const citationId = `${citationType}${sourceId}`;
       citation.source = ragMetadata.sources.find(
         (s: RAGSource) => s.citation_id === citationId
       );

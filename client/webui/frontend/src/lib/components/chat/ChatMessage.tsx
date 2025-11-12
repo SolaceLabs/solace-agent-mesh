@@ -413,8 +413,9 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         taskRagData.some(r => r.sources && r.sources.length > 0);
     
     // Check if this is a completed web search message (has web_search sources but not deep research)
+    // Only show for the last message with this taskId to avoid duplicates
     const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources &&
-        taskRagData.some(r => r.search_type === 'web_search');
+        taskRagData.some(r => r.search_type === 'web_search') && isLastWithTaskId;
     
     return (
         <>
