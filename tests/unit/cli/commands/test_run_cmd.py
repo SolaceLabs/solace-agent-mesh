@@ -79,6 +79,15 @@ def mock_initialize(mocker):
     return mocker.patch("cli.commands.run_cmd.initialize")
 
 
+@pytest.fixture
+def mock_configure_logging(mocker):
+    """Mock the configure_from_file function from solace_ai_connector"""
+    return mocker.patch(
+        "solace_ai_connector.common.logging_config.configure_from_file",
+        return_value=True
+    )
+
+
 class TestExecuteWithSolaceAIConnector:
     """Tests for the _execute_with_solace_ai_connector function"""
     
@@ -173,7 +182,7 @@ class TestExecuteWithSolaceAIConnector:
 class TestRunCommand:
     """Tests for the run CLI command"""
     
-    def test_run_command_no_files_discovers_configs(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
+    def test_run_command_no_files_discovers_configs(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command discovers configs when no files provided"""
         original_cwd = Path.cwd()
         os.chdir(project_dir)
@@ -205,7 +214,7 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_with_specific_file(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
+    def test_run_command_with_specific_file(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command with specific config file"""
         caplog.set_level(logging.INFO)
         config_file = project_dir / "configs" / "agent1.yaml"
@@ -225,7 +234,7 @@ class TestRunCommand:
         assert len(called_files) == 1
         assert str(config_file) in called_files[0]
     
-    def test_run_command_with_directory(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
+    def test_run_command_with_directory(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command with directory path"""
         caplog.set_level(logging.INFO)
         configs_dir = project_dir / "configs"
@@ -247,7 +256,7 @@ class TestRunCommand:
         assert not any("_private" in f for f in called_files)
         assert not any("shared_config" in f for f in called_files)
     
-    def test_run_command_with_skip_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
+    def test_run_command_with_skip_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command with --skip option"""
         caplog.set_level(logging.INFO)
         original_cwd = Path.cwd()
@@ -273,7 +282,7 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_with_multiple_skip_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_with_multiple_skip_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker):
         """Test run command with multiple --skip options"""
         original_cwd = Path.cwd()
         os.chdir(project_dir)
@@ -317,7 +326,7 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_loads_env_file(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
+    def test_run_command_loads_env_file(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command loads .env file"""
         caplog.set_level(logging.INFO)
         original_cwd = Path.cwd()
@@ -339,7 +348,7 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_no_env_file_warning(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
+    def test_run_command_no_env_file_warning(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, mock_configure_logging, caplog):
         """Test run command shows warning when .env not found"""
         original_cwd = Path.cwd()
         os.chdir(project_dir)
@@ -356,7 +365,7 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_missing_configs_directory(self, runner, tmp_path, mocker, caplog):
+    def test_run_command_missing_configs_directory(self, runner, tmp_path, mocker, caplog, mock_configure_logging):
         """Test run command when configs directory doesn't exist"""
         caplog.set_level(logging.ERROR)
         original_cwd = Path.cwd()
@@ -375,7 +384,7 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_no_files_after_filtering(self, runner, project_dir, mock_initialize, mocker, caplog):
+    def test_run_command_no_files_after_filtering(self, runner, project_dir, mock_initialize, mocker, caplog, mock_configure_logging):
         """Test run command when all files are filtered out"""
         caplog.set_level(logging.WARNING)
         original_cwd = Path.cwd()
@@ -383,6 +392,7 @@ class TestRunCommand:
         
         try:
             mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=None)
+            mocker.patch("solace_ai_connector.common.logging_config.configure_from_file", return_value=True)
             
             # Skip all discovered files
             result = runner.invoke(run, ["-s", "agent1.yaml", "-s", "agent2.yml", "-s", "agent3.yaml"])
@@ -393,7 +403,7 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_ignores_non_yaml_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
+    def test_run_command_ignores_non_yaml_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command ignores non-YAML files"""
         caplog.set_level(logging.WARNING)
         # Create a non-YAML file
