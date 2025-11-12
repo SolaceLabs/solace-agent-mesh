@@ -61,8 +61,15 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
             }
             
             const data: ArtifactInfo[] = await response.json();
+            
+            // Filter out temporary web_content artifacts from deep research
+            // These are intermediate files used during research and should not be shown to users
+            const filteredData = data.filter(artifact =>
+                !artifact.filename.startsWith('web_content_')
+            );
+            
             // Ensure all artifacts have URIs
-            const artifactsWithUris = data.map(artifact => ({
+            const artifactsWithUris = filteredData.map(artifact => ({
                 ...artifact,
                 uri: artifact.uri || `artifact://${sessionId}/${artifact.filename}`,
             }));

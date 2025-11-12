@@ -1212,6 +1212,17 @@ async def deep_research(
     # Default sources - web only
     if sources is None:
         sources = ["web"]
+    else:
+        # Validate and filter sources - only allow web and kb
+        allowed_sources = {"web", "kb"}
+        sources = [s for s in sources if s in allowed_sources]
+        
+        # If no valid sources after filtering, use default
+        if not sources:
+            log.warning("%s No valid sources provided, using default: ['web']", log_identifier)
+            sources = ["web"]
+        else:
+            log.info("%s Using validated sources: %s", log_identifier, sources)
     
     # Validate iterations and runtime
     max_iterations = max(1, min(max_iterations, 10))

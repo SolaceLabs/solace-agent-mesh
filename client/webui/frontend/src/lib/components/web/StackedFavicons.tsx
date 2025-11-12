@@ -4,9 +4,6 @@
  * Enhanced to support enterprise sources (Gmail, Outlook, Drive, SharePoint, KB)
  */
 
-import { Database } from 'lucide-react';
-import { GoogleDriveIcon, SharePointIcon, GmailIcon, OutlookIcon } from '@/lib/components/icons';
-
 interface SearchSource {
   link: string;
   title?: string;
@@ -52,24 +49,6 @@ function SourceIcon({
   className?: string;
   size?: number;
 }) {
-  const sourceType = source.source_type || 'web';
-  
-  // For enterprise sources, render their specific icons
-  if (sourceType !== 'web') {
-    return (
-      <div
-        className={`relative flex items-center justify-center overflow-hidden rounded-full bg-white dark:bg-gray-800 ${className}`}
-        style={{ width: size, height: size }}
-      >
-        {sourceType === 'gmail' && <GmailIcon className="w-full h-full p-0.5" />}
-        {sourceType === 'outlook' && <OutlookIcon className="w-full h-full p-0.5" />}
-        {sourceType === 'gdrive' && <GoogleDriveIcon className="w-full h-full p-0.5" />}
-        {sourceType === 'sharepoint' && <SharePointIcon className="w-full h-full p-0.5" />}
-        {sourceType === 'kb' && <Database className="w-full h-full p-0.5 text-muted-foreground" />}
-        <div className="absolute inset-0 rounded-full border border-gray-200/10 dark:border-transparent" />
-      </div>
-    );
-  }
   
   // For web sources, use favicon
   const domain = getCleanDomain(source.link);

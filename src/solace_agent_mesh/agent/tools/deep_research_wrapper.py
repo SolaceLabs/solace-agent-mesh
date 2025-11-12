@@ -65,9 +65,22 @@ async def deep_research_with_auto_params(
                         log_identifier, max_iterations)
             
             if "sources" in settings and settings["sources"]:
-                sources = settings["sources"]
-                log.info("%s Overriding sources with user setting: %s", 
-                        log_identifier, sources)
+                # Validate sources - only allow web and kb (no gdrive, sharepoint, etc.)
+                allowed_sources = {"web", "kb"}
+                user_sources = settings["sources"]
+                
+                # Filter to only allowed sources
+                validated_sources = [s for s in user_sources if s in allowed_sources]
+                
+                if validated_sources:
+                    sources = validated_sources
+                    log.info("%s Overriding sources with validated user setting: %s (filtered from: %s)",
+                            log_identifier, sources, user_sources)
+                else:
+                    # If no valid sources, use default
+                    sources = ["web"]
+                    log.warning("%s User requested invalid sources %s, using default: %s",
+                               log_identifier, user_sources, sources)
             
             log.info("%s ✅ Applied user settings from metadata: duration=%ds, iterations=%d, sources=%s",
                     log_identifier, max_runtime_seconds or 0, max_iterations, sources or "default")

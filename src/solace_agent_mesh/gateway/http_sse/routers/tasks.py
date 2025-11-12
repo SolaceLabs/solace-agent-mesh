@@ -277,9 +277,11 @@ async def _submit_task(
 
     agent_name = None
     project_id = None
+    deep_research_settings = None
     if payload.params and payload.params.message and payload.params.message.metadata:
         agent_name = payload.params.message.metadata.get("agent_name")
         project_id = payload.params.message.metadata.get("project_id")
+        deep_research_settings = payload.params.message.metadata.get("deep_research_settings")
 
     if not agent_name:
         raise HTTPException(
@@ -439,12 +441,19 @@ async def _submit_task(
             "target_agent_name": agent_name,
         }
 
+        # Prepare metadata to pass to agent (e.g., deep_research_settings)
+        additional_metadata = {}
+        if deep_research_settings:
+            additional_metadata["deep_research_settings"] = deep_research_settings
+            log.info("%sPassing deep_research_settings to agent: %s", log_prefix, deep_research_settings)
+
         task_id = await component.submit_a2a_task(
             target_agent_name=agent_name,
             a2a_parts=a2a_parts,
             external_request_context=external_req_ctx,
             user_identity=user_identity,
             is_streaming=is_streaming,
+            metadata=additional_metadata if additional_metadata else None,
         )
 
         log.info("%sTask submitted successfully. TaskID: %s", log_prefix, task_id)

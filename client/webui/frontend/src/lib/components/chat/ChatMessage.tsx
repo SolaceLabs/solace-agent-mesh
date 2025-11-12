@@ -89,7 +89,7 @@ const MessageActions: React.FC<{
 
 const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
-    const { sessionId } = useChatContext();
+    const { sessionId, ragData } = useChatContext();
 
     // Extract text content from message parts
     const textContent = message.parts
@@ -100,19 +100,23 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     // Trim text for user messages to prevent trailing whitespace issues
     const displayText = message.isUser ? textContent.trim() : textContent;
 
+    // Get sources for this message's task
+    const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+    const sources = taskRagData?.flatMap(r => r.sources || []);
+
     const renderContent = () => {
         if (message.isError) {
             return (
                 <div className="flex items-center">
                     <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
-                    <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>
+                    <MarkdownHTMLConverter sources={sources}>{displayText}</MarkdownHTMLConverter>
                 </div>
             );
         }
 
         const embeddedContent = extractEmbeddedContent(displayText);
         if (embeddedContent.length === 0) {
-            return <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
+            return <MarkdownHTMLConverter sources={sources}>{displayText}</MarkdownHTMLConverter>;
         }
 
         let modifiedText = displayText;
@@ -146,7 +150,7 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
         return (
             <div>
                 {renderError && <MessageBanner variant="error" message="Error rendering preview" />}
-                <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>
+                <MarkdownHTMLConverter sources={sources}>{modifiedText}</MarkdownHTMLConverter>
                 {contentElements}
             </div>
         );

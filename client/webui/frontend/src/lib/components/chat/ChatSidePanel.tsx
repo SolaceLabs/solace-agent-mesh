@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-import { PanelRightIcon, FileText, Network, RefreshCw } from "lucide-react";
+import { PanelRightIcon, FileText, Network, RefreshCw, Database } from "lucide-react";
 
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui";
 import { useTaskContext, useChatContext } from "@/lib/hooks";
@@ -9,6 +9,7 @@ import type { VisualizedTask } from "@/lib/types";
 
 import { ArtifactPanel } from "./artifact/ArtifactPanel";
 import { FlowChartDetails } from "../activities/FlowChartDetails";
+import { RAGInfoPanel } from "./rag/RAGInfoPanel";
 
 interface ChatSidePanelProps {
     onCollapsedToggle: (isSidePanelCollapsed: boolean) => void;
@@ -18,7 +19,7 @@ interface ChatSidePanelProps {
 }
 
 export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning }) => {
-    const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel } = useChatContext();
+    const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel, ragData, ragEnabled } = useChatContext();
     const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream } = useTaskContext();
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
 
@@ -75,7 +76,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         onCollapsedToggle(newCollapsed);
     };
 
-    const handleTabClick = (tab: "files" | "workflow") => {
+    const handleTabClick = (tab: "files" | "workflow" | "rag") => {
         if (tab === "files") {
             setPreviewArtifact(null);
         }
@@ -83,7 +84,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         setActiveSidePanelTab(tab);
     };
 
-    const handleIconClick = (tab: "files" | "workflow") => {
+    const handleIconClick = (tab: "files" | "workflow" | "rag") => {
         if (isSidePanelCollapsed) {
             setIsSidePanelCollapsed(false);
             onCollapsedToggle?.(false);
@@ -106,8 +107,12 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                     <FileText className="size-5" />
                 </Button>
 
-                <Button variant="ghost" size="sm" onClick={() => handleIconClick("workflow")} className="h-10 w-10 p-0" tooltip="Workflow">
+                <Button variant="ghost" size="sm" onClick={() => handleIconClick("workflow")} className="mb-2 h-10 w-10 p-0" tooltip="Workflow">
                     <Network className="size-5" />
+                </Button>
+
+                <Button variant="ghost" size="sm" onClick={() => handleIconClick("rag")} className="h-10 w-10 p-0" tooltip="Sources">
+                    <Database className="size-5" />
                 </Button>
             </div>
         );
@@ -117,16 +122,16 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     return (
         <div className="bg-background flex h-full flex-col border-l">
             <div className="m-1 min-h-0 flex-1">
-                <Tabs value={activeSidePanelTab} onValueChange={value => handleTabClick(value as "files" | "workflow")} className="flex h-full flex-col">
+                <Tabs value={activeSidePanelTab} onValueChange={value => handleTabClick(value as "files" | "workflow" | "rag")} className="flex h-full flex-col">
                     <div className="flex gap-2 p-2">
                         <Button data-testid="collapsePanel" variant="ghost" onClick={toggleCollapsed} className="p-1" tooltip="Collapse Panel">
                             <PanelRightIcon className="size-5" />
                         </Button>
-                        <TabsList className="grid w-full grid-cols-2 bg-transparent p-0">
+                        <TabsList className="grid w-full grid-cols-3 bg-transparent p-0">
                             <TabsTrigger
                                 value="files"
                                 title="Files"
-                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-l-md border border-r-0 data-[state=active]:z-10 data-[state=active]:border-r-0"
+                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-l-md border border-r-0 data-[state=active]:z-10"
                             >
                                 <FileText className="mr-2 h-4 w-4" />
                                 Files
@@ -134,10 +139,18 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                             <TabsTrigger
                                 value="workflow"
                                 title="Workflow"
-                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-r-md border border-l-0 data-[state=active]:z-10 data-[state=active]:border-l-0"
+                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none border-x-0 border-y data-[state=active]:z-10"
                             >
                                 <Network className="mr-2 h-4 w-4" />
                                 Workflow
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="rag"
+                                title="Sources"
+                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-r-md border border-l-0 data-[state=active]:z-10"
+                            >
+                                <Database className="mr-2 h-4 w-4" />
+                                Sources
                             </TabsTrigger>
                         </TabsList>
                     </div>
@@ -184,6 +197,12 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                         </div>
                                     );
                                 })()}
+                            </div>
+                        </TabsContent>
+
+                        <TabsContent value="rag" className="m-0 h-full">
+                            <div className="h-full">
+                                <RAGInfoPanel ragData={ragData} enabled={ragEnabled} />
                             </div>
                         </TabsContent>
                     </div>
