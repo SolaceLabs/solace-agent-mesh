@@ -17,7 +17,8 @@ class TestOpenApiToolConfig:
         assert result.tool_type == "openapi"
         assert result.specification_file == "./petstore.json"
         assert result.specification is None
-        assert result.tool_filter is None
+        assert result.allow_list is None
+        assert result.deny_list is None
         assert result.auth is None
 
     def test_openapi_config_with_inline_specification(self):
@@ -32,15 +33,39 @@ class TestOpenApiToolConfig:
         assert result.specification == spec
         assert result.specification_file is None
 
-    def test_openapi_config_with_tool_filter(self):
-        """Test config with tool_filter list."""
+    def test_openapi_config_with_allow_list(self):
+        """Test config with allow_list."""
         config = {
             "tool_type": "openapi",
             "specification_file": "./api.json",
-            "tool_filter": ["getPet", "createPet"]
+            "allow_list": ["getPet", "createPet"]
         }
         result = OpenApiToolConfig.model_validate(config)
-        assert result.tool_filter == ["getPet", "createPet"]
+        assert result.allow_list == ["getPet", "createPet"]
+        assert result.deny_list is None
+
+    def test_openapi_config_with_deny_list(self):
+        """Test config with deny_list."""
+        config = {
+            "tool_type": "openapi",
+            "specification_file": "./api.json",
+            "deny_list": ["deletePet"]
+        }
+        result = OpenApiToolConfig.model_validate(config)
+        assert result.deny_list == ["deletePet"]
+        assert result.allow_list is None
+
+    def test_openapi_config_mutual_exclusivity(self):
+        """Test that allow_list and deny_list are mutually exclusive."""
+        config = {
+            "tool_type": "openapi",
+            "specification_file": "./api.json",
+            "allow_list": ["getPet"],
+            "deny_list": ["deletePet"]
+        }
+        with pytest.raises(ValidationError) as exc_info:
+            OpenApiToolConfig.model_validate(config)
+        assert "allow_list" in str(exc_info.value).lower() or "deny_list" in str(exc_info.value).lower()
 
     def test_openapi_config_with_auth(self):
         """Test config with auth configuration."""
