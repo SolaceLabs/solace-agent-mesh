@@ -375,32 +375,39 @@ def _validate_input(
     from .validator import validate_against_schema
 
     # Extract input data from message
-    input_data = self._extract_input_data(message)
+    input_data = self._extract_input_data(message, input_schema)
 
     # Validate against schema
     errors = validate_against_schema(input_data, input_schema)
 
     return errors if errors else None
 
-def _extract_input_data(self, message: A2AMessage) -> Dict[str, Any]:
+def _extract_input_data(self, message: A2AMessage, input_schema: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract structured input data from message parts.
-    Combines text and data parts into a single dictionary.
+    If an input schema is active, it prioritizes the content of the first
+    FilePart for validation. Otherwise, it combines text and data parts.
     """
     input_data = {}
 
+    # If a schema is present, prioritize the first FilePart
+    if input_schema:
+        file_parts = [p for p in message.parts if isinstance(p, FilePart)]
+        if file_parts:
+            # For validation, we'd load the file content here.
+            # This example assumes the content is loaded into `input_data`.
+            # The actual implementation will handle byte decoding and parsing.
+            input_data = {"file_content": "<content_of_first_file_part>"}
+            return input_data
+
+    # Fallback for no schema or no FilePart: combine text and data
     for part in message.parts:
         if hasattr(part, 'text') and part.text:
-            # Text content goes in 'query' field
             input_data.setdefault('query', '')
             input_data['query'] += part.text
-
         elif hasattr(part, 'data') and part.data:
-            # Skip workflow request data
             if part.data.get('type') == 'workflow_node_request':
                 continue
-
-            # Merge other data parts
             input_data.update(part.data)
 
     return input_data

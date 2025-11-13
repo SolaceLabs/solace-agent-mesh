@@ -31,6 +31,7 @@ This document does not cover:
 - Performance benchmarks or optimization strategies
 - Visual workflow designer implementation
 - Workflow versioning or upgrade paths
+- Crash recovery for the Workflow Executor (workflows will fail if the executor restarts)
 
 ### 1.3. Terminology
 
@@ -69,6 +70,8 @@ The following principles guide the architecture:
 **Schema-Based Contracts** - Schemas define clear contracts between workflow nodes and agent personas, enabling type safety and automatic validation.
 
 **Reuse Existing Infrastructure** - The implementation maximizes reuse of existing SAM components (SamComponentBase, ADK services, A2A protocol helpers) rather than creating parallel systems.
+
+**Schema Versioning** - Breaking changes to a persona agent's input or output schema require the deployment of a new agent persona with a unique name. Workflows must then be updated to call the new persona. Non-breaking, backward-compatible changes do not require a new persona.
 
 ---
 
@@ -823,11 +826,13 @@ def process_event(self, event: Event):
         a2a_request = A2ARequest.model_validate(payload)
         method = a2a.get_request_method(a2a_request)
 
-        if method == "tasks/sendMessage":
+        if method == "message/send":
             # New workflow request
             coro = self.handle_task_request(a2a_request, event.data)
         elif method == "tasks/cancel":
-            # Workflow cancellation
+            # Workflow cancellation. This triggers cancellation of the
+            # entire workflow and propagates cancel requests to any
+            # active persona calls.
             task_id = a2a.get_task_id_from_cancel_request(a2a_request)
             coro = self.handle_cancel_request(task_id)
         else:

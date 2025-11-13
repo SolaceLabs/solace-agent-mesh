@@ -347,6 +347,10 @@ def _resolve_template(
             data = data[part]
 
         return data
+
+# Note for MVP: This implementation loads the entire output of a previous node
+# into memory for value resolution. For large artifacts, this could be inefficient.
+# A future enhancement will support passing large artifacts by reference.
 ```
 
 ### 4.2. Conditional Branching (If/Else, Case/Switch)
@@ -394,6 +398,9 @@ async def _execute_conditional_node(
     else:
         # No branch to execute (false with no false_branch)
         workflow_state.completed_nodes[node.id] = None
+
+    # Nodes on the un-taken branch will be skipped automatically by the
+    # DAGExecutor, as their dependencies will never be met.
 ```
 
 #### 4.2.2. Branch Selection Logic
@@ -642,9 +649,16 @@ if result.status == "failure":
     log.error(f"{log_id} Branch '{branch_id}' failed")
 
     # Cancel other branches (send cancel requests)
+    cancellation_tasks = []
     for other_branch in branches:
-        if other_branch["branch_id"] != branch_id:
-            await self._cancel_branch(other_branch, workflow_context)
+        if other_branch["branch_id"] != branch_id and "result" not in other_branch:
+            cancellation_tasks.append(
+                self._cancel_branch(other_branch, workflow_context)
+            )
+    
+    # Wait for cancellations with a timeout
+    cancellation_timeout = self.host.get_config("node_cancellation_timeout_seconds", 30)
+    await asyncio.wait(cancellation_tasks, timeout=cancellation_timeout)
 
     # Fail workflow
     raise WorkflowNodeFailureError(
@@ -697,10 +711,14 @@ async def _execute_loop_node(
     for i, item in enumerate(items):
         log.info(f"{log_id} Iteration {i+1}/{len(items)}")
 
-        # Create loop iteration context
-        iteration_state = workflow_state.model_copy(deep=True)
-        iteration_state.node_outputs["_loop_item"] = {"output": item}
-        iteration_state.node_outputs["_loop_index"] = {"output": i}
+        # Create a lightweight, temporary state for the iteration. This avoids
+        # deep-copying the entire workflow state for each loop.
+        iteration_state = workflow_state.model_copy(deep=False) # Shallow copy
+        iteration_state.node_outputs = {
+            **workflow_state.node_outputs,
+            "_loop_item": {"output": item},
+            "_loop_index": {"output": i},
+        }
 
         # Execute loop body node
         loop_body_node = self.nodes[node.loop_node]
@@ -860,6 +878,10 @@ class WorkflowAppConfig(SamAgentAppConfig):
     default_node_timeout_seconds: int = Field(
         default=300,  # 5 minutes
         description="Default timeout for individual nodes"
+    )
+    node_cancellation_timeout_seconds: int = Field(
+        default=30,
+        description="Time to wait for a node to confirm cancellation before force-failing."
     )
     default_max_loop_iterations: int = Field(
         default=100,
