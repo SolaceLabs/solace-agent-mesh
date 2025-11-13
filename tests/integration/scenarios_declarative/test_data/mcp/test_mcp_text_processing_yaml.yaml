@@ -70,7 +70,7 @@ expected_gateway_output:
           source_tool_name: "get_data_stdio"
           content_type: "text"
           detected_format: "yaml"
-          mime_type: "application/x-yaml"
+          mime_type: "application/yaml"
           parsed_data_summary:
             type: "object"
             key_count: 2

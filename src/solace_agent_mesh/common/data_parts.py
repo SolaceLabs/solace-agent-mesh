@@ -114,10 +114,37 @@ class ToolResultData(BaseModel):
     )
 
 
+class TemplateBlockData(BaseModel):
+    """
+    Data model for a buffered inline template block ready for resolution.
+    Corresponds to template_block.json schema.
+    """
+
+    type: Literal["template_block"] = Field(
+        "template_block", description="The constant type for this data part."
+    )
+    template_id: str = Field(
+        ..., description="UUID for tracking this specific template instance."
+    )
+    data_artifact: str = Field(
+        ..., description="Data artifact filename or filename:version."
+    )
+    jsonpath: Optional[str] = Field(
+        None, description="Optional JSONPath expression to filter data."
+    )
+    limit: Optional[int] = Field(
+        None, description="Optional limit on number of items/rows to pass to template."
+    )
+    template_content: str = Field(
+        ..., description="The full Liquid template content."
+    )
+
+
 SignalData = Union[
     ToolInvocationStartData,
     LlmInvocationData,
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
     ToolResultData,
+    TemplateBlockData,
 ]

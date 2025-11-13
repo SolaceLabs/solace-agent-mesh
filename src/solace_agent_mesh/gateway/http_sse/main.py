@@ -166,7 +166,7 @@ async def _create_user_state_without_identity_service(
             user_identifier,
         )
 
-    log.error(
+    log.debug(
         "AuthMiddleware: Internal IdentityService not configured on component. Using user ID: %s",
         final_user_id,
     )

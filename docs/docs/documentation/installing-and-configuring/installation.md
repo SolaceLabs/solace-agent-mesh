@@ -20,6 +20,12 @@ The [Solace Agent Mesh Module](https://pypi.org/project/solace-agent-mesh) inclu
 
 Installing the PyPI package provides both the Agent Mesh CLI and the framework (which is built on the Python SDK).
 
+First, create a project directory and navigate into it:
+
+```sh
+mkdir my-sam && cd my-sam
+```
+
 :::tip
 We recommend installing the package in a virtual environment to avoid conflicts with other Python packages.
 :::

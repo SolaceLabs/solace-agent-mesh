@@ -32,6 +32,7 @@ dependencies = [
     "python-jwt==4.1.0",
     "asteval==1.0.6",
     "pystache==0.6.8",
+    "python-liquid==2.1.0",
     "pandas==2.3.2",
     "numpy==2.2.6",
     "plotly==6.3.0",

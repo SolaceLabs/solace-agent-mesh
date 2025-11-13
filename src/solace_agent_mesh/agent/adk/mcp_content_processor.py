@@ -540,7 +540,7 @@ class MCPContentProcessor:
 
         format_mapping = {
             TextFormat.JSON: ("application/json", ".json"),
-            TextFormat.YAML: ("application/x-yaml", ".yaml"),
+            TextFormat.YAML: ("application/yaml", ".yaml"),
             TextFormat.CSV: ("text/csv", ".csv"),
             TextFormat.MARKDOWN: ("text/markdown", ".md"),
             TextFormat.PLAIN: ("text/plain", ".txt"),

@@ -23,6 +23,8 @@ _TEXT_BASED_SUBTYPE_WHOLE = {
     "json",
     "xml",
     "yaml",
+    "x-yaml",
+    "yml",
     "csv",
     "javascript",
     "ecmascript",
@@ -48,6 +50,7 @@ _TEXT_BASED_SUBTYPE_SUFFIXES_AFTER_PLUS = {
     "xhtml",
 }
 
+
 def is_text_based_mime_type(mime_type: Optional[str]) -> bool:
     """
     Checks if a given MIME type is considered text-based.
@@ -72,7 +75,9 @@ def is_text_based_mime_type(mime_type: Optional[str]) -> bool:
     return False
 
 
-def is_text_based_file(mime_type: Optional[str], content_bytes: Optional[bytes] = None) -> bool:
+def is_text_based_file(
+    mime_type: Optional[str], content_bytes: Optional[bytes] = None
+) -> bool:
     """
     Determines if a file is text-based based on its MIME type and content.
     Args:
@@ -83,10 +88,10 @@ def is_text_based_file(mime_type: Optional[str], content_bytes: Optional[bytes] 
     """
     if not mime_type:
         return False
-        
+
     normalized_mime_type = mime_type.lower().strip()
     primary_type, _, subtype = normalized_mime_type.partition("/")
-    
+
     if primary_type in _TEXT_BASED_PRIMARY_TYPES:
         return True
     elif subtype in _TEXT_BASED_SUBTYPE_WHOLE:
@@ -95,14 +100,16 @@ def is_text_based_file(mime_type: Optional[str], content_bytes: Optional[bytes] 
         specific_format = subtype.split("+")[-1]
         if specific_format in _TEXT_BASED_SUBTYPE_SUFFIXES_AFTER_PLUS:
             return True
-    elif normalized_mime_type == "application/octet-stream" and content_bytes is not None:
+    elif (
+        normalized_mime_type == "application/octet-stream" and content_bytes is not None
+    ):
         try:
             sample_size = min(1024, len(content_bytes))
             content_bytes[:sample_size].decode("utf-8")
             return True
         except UnicodeDecodeError:
             return False
-        
+
     return False
 
 

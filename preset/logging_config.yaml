@@ -6,8 +6,9 @@ formatters:
     format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
 
   jsonFormatter:
-    "()": pythonjsonlogger.jsonlogger.JsonFormatter
-    format: "%(asctime)s %(levelname)s %(threadName)s %(name)s %(message)s"
+    "()": pythonjsonlogger.json.JsonFormatter
+    format: "%(timestamp)s %(levelname)s %(threadName)s %(name)s %(message)s"
+    timestamp: "timestamp"
 
 handlers:
   streamHandler:
