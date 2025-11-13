@@ -33,14 +33,6 @@ def validate_agent_access(
 
     Raises:
         PermissionError: If the user does not have the required agent:*:delegate scope
-
-    Example:
-        >>> validate_agent_access(
-        ...     user_config={"_enterprise_capabilities": ["agent:researcher:delegate"]},
-        ...     target_agent_name="researcher",
-        ...     validation_context={"gateway_id": "webui", "source": "gateway_request"},
-        ...     log_identifier="[WebUIGateway]"
-        ... )
     """
     config_resolver = MiddlewareRegistry.get_config_resolver()
     operation_spec = {
