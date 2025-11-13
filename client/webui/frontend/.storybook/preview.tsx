@@ -17,26 +17,7 @@ const preview: Preview = {
             },
             expanded: true,
         },
-        backgrounds: {
-            options: {
-                light: {
-                    name: "light",
-                    value: "#ffffff",
-                },
-
-                dark: {
-                    name: "dark",
-                    value: "#1a1a1a",
-                },
-            },
-        },
         layout: "centered",
-    },
-
-    initialGlobals: {
-        backgrounds: {
-            value: "light",
-        },
     },
 };
 
