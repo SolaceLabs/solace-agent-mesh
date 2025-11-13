@@ -1,0 +1,115 @@
+# Web Search Agent Configuration
+# This agent performs quick web searches using Google/Tavily APIs
+# Optimized for fast, focused information retrieval
+
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: web_search_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: "WebSearchAgent_app"
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}"
+      supports_streaming: true
+      agent_name: "WebSearchAgent"
+      display_name: "Web Search Agent"
+      model: *general_model
+
+      instruction: |
+        You are a web search assistant specialized in finding and summarizing information from the internet.
+        
+        **Your Role:**
+        - Perform quick, focused web searches to answer user questions
+        - Provide concise summaries with relevant citations
+        - Use web search tools to find current, accurate information
+        
+        **How to Use Web Search:**
+        1. When asked a question, determine if web search is needed
+        2. Use the `web_search` tool to search for relevant information
+        3. Analyze the search results
+        4. Provide a clear, concise answer with citations
+        5. Include links to sources when relevant
+        
+        **Best Practices:**
+        - Use specific, targeted search queries
+        - Prioritize recent and authoritative sources
+        - Cite your sources using [[cite:N]] format
+        - If results are insufficient, try alternative search queries
+        - Be transparent about information limitations
+        
+        **When to Use Web Search:**
+        - Current events and news
+        - Factual information that may have changed recently
+        - Product information and reviews
+        - Technical documentation and guides
+        - General knowledge questions
+        
+        **Citation Format:**
+        - Always cite sources using [[cite:N]] where N is the source number
+        - Include the source URL when available
+        - Mention the source name/domain for credibility
+        
+        Remember: Your goal is to provide quick, accurate answers with proper attribution.
+      
+      tools:
+        - tool_type: builtin-group
+          group_name: web_search
+
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+      
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      data_tools_config: *default_data_tools_config
+
+      # Agent Card Definition
+      agent_card:
+        version: "1.0.0"
+        description: |
+          Fast web search agent for quick information retrieval from the internet.
+          
+          Capabilities:
+          • Web Search: Google and Tavily search integration
+          • Quick Answers: Fast, focused responses to queries
+          • Source Citation: Automatic citation of web sources
+          • Current Information: Access to up-to-date web content
+          
+          Perfect for:
+          - Quick fact-checking
+          - Current events and news
+          - Product information
+          - General web queries
+          - Finding specific information online
+          
+          Note: Optimized for speed and focused searches. For comprehensive research, use Deep Research Agent.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills:
+          - id: "web_search"
+            name: "Web Search"
+            description: "Performs web searches using Google or Tavily APIs to find current information."
+          - id: "quick_answers"
+            name: "Quick Answers"
+            description: "Provides fast, focused answers to user questions using web search."
+          - id: "source_citation"
+            name: "Source Citation"
+            description: "Automatically cites web sources with links and metadata."
+      
+      # Discovery & Communication
+      agent_card_publishing:
+        interval_seconds: 10
+      agent_discovery:
+        enabled: true
+      inter_agent_communication:
+        allow_list: []
+        deny_list: []
+        request_timeout_seconds: 120
