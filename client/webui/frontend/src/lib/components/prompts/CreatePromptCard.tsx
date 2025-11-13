@@ -17,7 +17,7 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
     if (isCentered) {
         // Enhanced centered version for empty state
         return (
-            <div className="w-full max-w-[480px] bg-amber-200 p-8">
+            <div className="w-full max-w-[480px] p-8">
                 <div className="flex h-full w-full flex-col items-center justify-center gap-6">
                     {/* Title and description */}
                     <div className="flex flex-col items-center gap-2">
