@@ -199,7 +199,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
         return 0
 
     file_list = "\n".join(f"  - {cf}" for cf in config_files_to_run)
-    log.warning("Final list of configuration files to run:\n%s", file_list)
+    log.info("Final list of configuration files to run:\n%s", file_list)
 
     if reset_logging:
         for handler in log.handlers[:]:
