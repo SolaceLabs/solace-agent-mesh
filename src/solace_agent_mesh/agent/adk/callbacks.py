@@ -10,7 +10,6 @@ import asyncio
 import uuid
 from typing import Any, Dict, Optional, TYPE_CHECKING, List
 from collections import defaultdict
-from datetime import datetime, timezone
 
 from google.adk.tools import BaseTool, ToolContext
 from google.adk.artifacts import BaseArtifactService
@@ -47,19 +46,15 @@ from ...common.utils.embeds import (
 from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from ...common import a2a
-from ...common.a2a.types import ContentPart
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
     LlmInvocationData,
     ToolInvocationStartData,
     ToolResultData,
+    TemplateBlockData,
 )
 
-from ...agent.utils.artifact_helpers import (
-    save_artifact_with_metadata,
-    DEFAULT_SCHEMA_MAX_KEYS,
-)
 
 METADATA_RESPONSE_KEY = "appended_artifact_metadata"
 from ..tools.builtin_artifact_tools import _internal_create_artifact
@@ -73,6 +68,8 @@ from ...agent.adk.stream_parser import (
     BlockProgressedEvent,
     BlockCompletedEvent,
     BlockInvalidatedEvent,
+    TemplateBlockStartedEvent,
+    TemplateBlockCompletedEvent,
     ARTIFACT_BLOCK_DELIMITER_OPEN,
     ARTIFACT_BLOCK_DELIMITER_CLOSE,
 )
@@ -207,7 +204,7 @@ async def process_artifact_blocks_callback(
                         params_str = " ".join(
                             [f'{k}="{v}"' for k, v in event.params.items()]
                         )
-                        original_text = f"«««save_artifact: {params_str}\n"
+                        original_text = f"{ARTIFACT_BLOCK_DELIMITER_OPEN}save_artifact: {params_str}\n"
                         session.state["artifact_block_original_text"] = original_text
 
                     elif isinstance(event, BlockProgressedEvent):
@@ -236,7 +233,7 @@ async def process_artifact_blocks_callback(
                             )
 
                     elif isinstance(event, BlockCompletedEvent):
-                        log.info(
+                        log.debug(
                             "%s Event: BlockCompleted. Content length: %d",
                             log_identifier,
                             len(event.content),
@@ -381,6 +378,66 @@ async def process_artifact_blocks_callback(
                             }
                         )
 
+                    elif isinstance(event, TemplateBlockStartedEvent):
+                        log.debug(
+                            "%s Event: TemplateBlockStarted. Params: %s",
+                            log_identifier,
+                            event.params,
+                        )
+
+                    elif isinstance(event, TemplateBlockCompletedEvent):
+                        log.debug(
+                            "%s Event: TemplateBlockCompleted. Template length: %d",
+                            log_identifier,
+                            len(event.template_content),
+                        )
+
+                        # Create a TemplateBlockData message to send to the gateway
+                        template_id = str(uuid.uuid4())
+                        params = event.params
+
+                        data_artifact = params.get("data")
+                        if not data_artifact:
+                            log.warning(
+                                "%s Template block is missing 'data' parameter. Skipping.",
+                                log_identifier,
+                            )
+                            continue
+
+                        template_data = TemplateBlockData(
+                            template_id=template_id,
+                            data_artifact=data_artifact,
+                            jsonpath=params.get("jsonpath"),
+                            limit=(
+                                int(params.get("limit"))
+                                if params.get("limit")
+                                else None
+                            ),
+                            template_content=event.template_content,
+                        )
+
+                        # Publish A2A status update with template metadata
+                        if a2a_context:
+                            await _publish_data_part_status_update(
+                                host_component, a2a_context, template_data
+                            )
+                            log.info(
+                                "%s Published TemplateBlockData with ID: %s",
+                                log_identifier,
+                                template_id,
+                            )
+
+                        # Store template_id in session for potential future use
+                        # (Gateway will handle the actual resolution)
+                        if "completed_template_blocks_list" not in session.state:
+                            session.state["completed_template_blocks_list"] = []
+                        session.state["completed_template_blocks_list"].append(
+                            {
+                                "template_id": template_id,
+                                "data_artifact": data_artifact,
+                            }
+                        )
+
                     elif isinstance(event, BlockInvalidatedEvent):
                         log.debug(
                             "%s Event: BlockInvalidated. Rolled back: '%s'",
@@ -493,6 +550,7 @@ async def process_artifact_blocks_callback(
         session.state[parser_state_key] = None
         session.state["completed_artifact_blocks_list"] = None
         session.state["artifact_block_original_text"] = None
+        session.state["completed_template_blocks_list"] = None
         log.debug("%s Cleaned up parser session state.", log_identifier)
 
     return None
@@ -843,60 +901,98 @@ async def manage_large_mcp_tool_responses_callback(
     return final_llm_response_dict
 
 
-def _generate_fenced_artifact_instruction() -> str:
-    """Generates the instruction text for using fenced artifact blocks."""
+def _generate_fenced_block_syntax_rules() -> str:
+    """Generates the shared syntax rules for all fenced blocks."""
     open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
     close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
-    return f"""\
-**Creating Text-Based Artifacts:**
-
-**When to Create Text-based Artifacts:**
-Create an artifact when the content provides value as a standalone file:
-- Content with special formatting (HTML, Markdown, CSS, structured markup) that requires proper rendering
-- Content explicitly intended for use outside this conversation (reports, emails, presentations, reference documents)
-- Structured reference content users will save or follow (schedules, guides, templates)
-- Content that will be edited, expanded, or reused
-- Substantial text documents
-- Technical documentation meant as reference material
-
-**When NOT to Create Text-based Artifacts:**
-- Simple answers, explanations, or conversational responses
-- Brief advice, opinions, or quick information
-- Short lists, summaries, or single paragraphs  
-- Temporary content only relevant to the immediate conversation
-- Basic explanations that don't require reference material
-
-**Behaviour of created artifacts:** 
-- they are sent back to the UI inline with the text and show up as an interactive file component
-- the user can easily see the content so there is no need to return or embed it again.
-- do not embed the same artifact again, since the user already has it to expand and view
-
-**How to create artifacts:**
-To create an artifact from content you generate (like code, a report, or a document), you MUST use a fenced artifact block with the EXACT syntax shown below. This is the only reliable way to ensure your content is saved correctly.
+    return f"""
+**Fenced Block Syntax Rules (Applies to `save_artifact` and `template`):**
+To create content blocks, you MUST use the EXACT syntax shown below.
 
 **EXACT SYNTAX (copy this pattern exactly):**
-{open_delim}save_artifact: filename="your_filename.ext" mime_type="text/plain" description="A brief description."
-The full content you want to save goes here.
+{open_delim}keyword: parameter="value" ...
+The content for the block goes here.
 It can span multiple lines.
 {close_delim}
 
 **CRITICAL FORMATTING RULES:**
-  1. The opening delimiter MUST be EXACTLY three angle brackets: `{open_delim}` (not `{open_delim[0:2]}` or `{open_delim[0:1]}`)
-  2. Immediately after the opening delimiter, write `save_artifact:` with a colon and NO space before the colon
-  3. Parameters (filename, mime_type, description) must be on the SAME line as the opening delimiter
-  4. All parameter values **MUST** be enclosed in double quotes: `filename="example.txt"`
-  5. You **MUST NOT** use double quotes `"` inside parameter values. Use single quotes or rephrase instead
-  6. After all parameters, press enter/newline, then write your content
-  7. Close the block with EXACTLY three angle brackets: `{close_delim}` on its own line
-  8. Do NOT surround the block with triple backticks (```). The delimiters `{open_delim}` and `{close_delim}` are sufficient
+  1. The opening delimiter MUST be EXACTLY `{open_delim}` (three angle brackets).
+  2. Immediately after the delimiter, write the keyword (`save_artifact` or `template`) followed by a colon, with NO space before the colon (e.g., `save_artifact:`).
+  3. All parameters (like `filename`, `data`, `mime_type`) must be on the SAME line as the opening delimiter.
+  4. All parameter values **MUST** be enclosed in double quotes (e.g., `filename="example.txt"`).
+  5. You **MUST NOT** use double quotes `"` inside parameter values. Use single quotes or rephrase instead.
+  6. The block's content begins on the line immediately following the parameters.
+  7. Close the block with EXACTLY `{close_delim}` (three angle brackets) on its own line.
+  8. Do NOT surround the block with triple backticks (```). The `{open_delim}` and `{close_delim}` delimiters are sufficient.
 
 **COMMON ERRORS TO AVOID:**
   ❌ WRONG: `{open_delim[0:2]}save_artifact:` (only 2 angle brackets)
-  ❌ WRONG: `{open_delim[0:1]}save_artifact:` (only 1 angle bracket)
   ❌ WRONG: `{open_delim}save_artifact` (missing colon)
   ✅ CORRECT: `{open_delim}save_artifact: filename="test.txt" mime_type="text/plain"`
+"""
 
-The system will automatically save the content and give you a confirmation in the next turn by way of an automatically injected _notify_artifact_save tool call.
+
+def _generate_fenced_artifact_instruction() -> str:
+    """Generates the instruction text for using fenced artifact blocks."""
+    open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
+    return f"""\
+**Creating Text-Based Artifacts (`{open_delim}save_artifact:...`):**
+
+**When to Create Artifacts:**
+Create an artifact when the content provides value as a standalone file, such as:
+- Content with special formatting (HTML, Markdown, CSS).
+- Documents intended for use outside the conversation (reports, emails).
+- Structured reference content (schedules, guides, templates).
+- Substantial text documents or technical documentation.
+
+**When NOT to Create Artifacts:**
+- Simple answers, explanations, or conversational responses.
+- Brief advice, opinions, or short lists.
+
+**Behavior of Created Artifacts:**
+- They are sent to the user as an interactive file component.
+- The user can see the content, so there is no need to return or embed it again.
+
+**Parameters for `save_artifact`:**
+- `filename="your_filename.ext"` (REQUIRED)
+- `mime_type="text/plain"` (optional, defaults to text/plain)
+- `description="A brief description."` (optional)
+
+The system will automatically save the content and confirm it in the next turn.
+"""
+
+
+def _generate_inline_template_instruction() -> str:
+    """Generates the instruction text for using inline Liquid templates."""
+    open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
+    close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
+    return f"""\
+**Inline Templates (`{open_delim}template:...`):**
+
+Use inline templates to dynamically render data from artifacts for user-friendly display. This is faster and more accurate than reading the artifact and reformatting it yourself.
+
+**When to Use Inline Templates:**
+- Formatting CSV, JSON, or YAML data into tables or lists.
+- Applying simple transformations (filtering, limiting rows).
+
+**Parameters for `template`:**
+- `data="filename.ext"` (REQUIRED): The data artifact to render. Can include version: `data="file.csv:2"`.
+- `jsonpath="$.expression"` (optional): JSONPath to extract a subset of JSON/YAML data.
+- `limit="N"` (optional): Limit to the first N rows (CSV) or items (JSON/YAML arrays).
+
+**Data Context for Templates:**
+- **CSV data**: Available as `headers` (array of column names) and `data_rows` (array of row arrays).
+- **JSON/YAML arrays**: Available as `items`.
+- **JSON/YAML objects**: Keys are directly available (e.g., `name`, `email`).
+
+**Example - CSV Table:**
+{open_delim}template: data="sales_data.csv" limit="5"
+| {{% for h in headers %}}{{{{ h }}}} | {{% endfor %}}
+|{{% for h in headers %}}---|{{% endfor %}}
+{{% for row in data_rows %}}| {{% for cell in row %}}{{{{ cell }}}} | {{% endfor %}}{{% endfor %}}
+{close_delim}
+
+The rendered output will appear inline in your response automatically.
 """
 
 
@@ -916,7 +1012,7 @@ def _generate_artifact_creation_instruction() -> str:
     **When NOT to Create Text-based Artifacts:**
     - Simple answers, explanations, or conversational responses
     - Brief advice, opinions, or quick information
-    - Short lists, summaries, or single paragraphs  
+    - Short lists, summaries, or single paragraphs
     - Temporary content only relevant to the immediate conversation
     - Basic explanations that don't require reference material
     """
@@ -960,20 +1056,10 @@ The following embeds are resolved *late* (by the gateway before final display):
     - Available modifiers: {modifier_list}.
     - The `format:output_format` step *must* be the last step in the chain. Supported formats include `text`, `datauri`, `json`, `json_pretty`, `csv`. Formatting as datauri, will include the data URI prefix, so do not add it yourself.
     - Use `artifact_meta` first to check size; embedding large files may fail.
-    - **Using `apply_to_template` Modifier:**
-        - This modifier renders a Mustache template artifact using the data from the previous step.
-        - **Data Context:**
-            - If the input data's original MIME type was `text/csv` or `application/csv`, it's automatically parsed into an object with two keys: `headers` (a list of column name strings) and `data_rows` (a list of lists, where each inner list contains the string values for a row). Example template usage: `<thead><tr>{{{{#headers}}}}<th>{{{{.}}}}</th>{{{{/headers}}}}</tr></thead><tbody>{{{{#data_rows}}}}<tr>{{{{#.}}}}<td>{{{{.}}}}</td>{{{{/.}}}}</tr>{{{{/data_rows}}}}</tbody>`. If CSV parsing fails, the raw string content is available under `text`.
-            - If the input data is a **list** (e.g., from `jsonpath` or a JSON array), it's available under `items`.
-            - If the input data is a **dictionary** (e.g., from a JSON object), its keys are directly available (e.g., `{{{{key1}}}}`).
-            - If the input data is a **plain string** (and not auto-parsed as CSV), it's available under `text`.
-        - The template filename can include a version (e.g., `template.mustache:2`). Defaults to latest.
-        - The template itself can contain `«artifact_content:...»` embeds, which will be resolved before rendering.
     - Examples:
         - `<img src="{open_delim}artifact_content:image.png {chain_delim} format:datauri{close_delim}`"> (Embed image as data URI - NOTE that this includes the datauri prefix. Do not add it yourself.)
         - `{open_delim}artifact_content:data.json {chain_delim} jsonpath:$.items[*] {chain_delim} select_fields:name,status {chain_delim} format:json_pretty{close_delim}` (Extract and format JSON fields)
         - `{open_delim}artifact_content:logs.txt {chain_delim} grep:ERROR {chain_delim} head:10 {chain_delim} format:text{close_delim}` (Get first 10 error lines)
-        - `{open_delim}artifact_content:products.csv {chain_delim} apply_to_template:product_table.html.mustache {chain_delim} format:text{close_delim}` (CSV is auto-parsed to `headers` and `data_rows` for the HTML template)
         - `{open_delim}artifact_content:config.json {chain_delim} jsonpath:$.userPreferences.theme {chain_delim} format:text{close_delim}` (Extract a single value from a JSON artifact)
         - `{open_delim}artifact_content:sensor_readings.csv {chain_delim} filter_rows_eq:status:critical {chain_delim} select_cols:timestamp,sensor_id,value {chain_delim} format:csv{close_delim}` (Filter critical sensor readings and select specific columns, output as CSV)
         - `{open_delim}artifact_content:server.log {chain_delim} tail:100 {chain_delim} grep:WARN {chain_delim} format:text{close_delim}` (Get warning lines from the last 100 lines of a log file)
@@ -1059,7 +1145,7 @@ Parallel Tool Calling:
 The system is capable of calling multiple tools in parallel to speed up processing. Please try to run tools in parallel when they don't depend on each other. This saves money and time, providing faster results to the user.
 
 Embeds in responses from agents:
-To be efficient, agents may response with artifact_content embeds in their responses. These will not be resolved until they are sent back to a gateway. If it makes
+To be efficient, agents may respond with artifact_content or template embeds in their responses. These will not be resolved until they are sent back to a gateway. If it makes
 sense, just carry that embed forward to your response to the user. For example, if you ask for an org chart from another agent and its response contains an embed like
 `{open_delim}artifact_content:org_chart.md{close_delim}`, you can just include that embed in your response to the user. The gateway will resolve it and display the org chart.
 
@@ -1074,8 +1160,11 @@ If a plan is created:
 
 """
     injected_instructions.append(planning_instruction)
-    fenced_artifact_instruction = _generate_fenced_artifact_instruction()
-    injected_instructions.append(fenced_artifact_instruction)
+
+    # Add the consolidated block instructions
+    injected_instructions.append(_generate_fenced_artifact_instruction())
+    injected_instructions.append(_generate_inline_template_instruction())
+    injected_instructions.append(_generate_fenced_block_syntax_rules())
 
     agent_instruction_str: Optional[str] = None
     if host_component._agent_system_instruction_callback:
