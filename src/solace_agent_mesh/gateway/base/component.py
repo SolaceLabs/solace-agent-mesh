@@ -22,6 +22,7 @@ from ...common.services.identity_service import (
 )
 from .task_context import TaskContextManager
 from ...common.a2a.types import ContentPart
+from ...common.utils.rbac_utils import validate_agent_access
 from a2a.types import (
     Message as A2AMessage,
     AgentCard,
@@ -286,31 +287,15 @@ class BaseGatewayComponent(SamComponentBase):
         user_config["user_profile"] = user_identity
 
         # Validate user has permission to access this target agent
-        operation_spec = {
-            "operation_type": "agent_access",
-            "target_agent": target_agent_name,
-        }
-        validation_context = {
-            "gateway_id": self.gateway_id,
-            "source": "gateway_request",
-        }
-        validation_result = config_resolver.validate_operation_config(
-            user_config, operation_spec, validation_context
+        validate_agent_access(
+            user_config=user_config,
+            target_agent_name=target_agent_name,
+            validation_context={
+                "gateway_id": self.gateway_id,
+                "source": "gateway_request",
+            },
+            log_identifier=log_id_prefix,
         )
-        if not validation_result.get("valid", False):
-            reason = validation_result.get("reason", f"Access denied to agent '{target_agent_name}'")
-            required_scopes = validation_result.get("required_scopes", [])
-            log.warning(
-                "%s User '%s' denied access to agent '%s'. Required scopes: %s. Reason: %s",
-                log_id_prefix,
-                user_identity.get("id"),
-                target_agent_name,
-                required_scopes,
-                reason,
-            )
-            raise PermissionError(
-                f"Access denied to agent '{target_agent_name}'. Required scopes: {required_scopes}"
-            )
 
         external_request_context["user_identity"] = user_identity
         external_request_context["a2a_user_config"] = user_config
