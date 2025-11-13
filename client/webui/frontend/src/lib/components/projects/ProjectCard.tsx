@@ -25,7 +25,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
     ];
 
     return (
-        <GridCard onClick={onClick} className="py-4">
+        <GridCard onClick={onClick}>
             <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                     <CardTitle className="flex min-w-0 flex-1 items-center gap-2" title={project.name}>

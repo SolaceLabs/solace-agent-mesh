@@ -133,7 +133,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
         <div className="absolute inset-0 h-full w-full">
             <ResizablePanelGroup direction="horizontal" className="h-full">
                 <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={selectedPrompt ? 100 : 100}>
-                    <div className="h-full overflow-hidden pt-6 pl-6">
+                    <div className="flex h-full flex-col pt-6 pb-6 pl-6">
                         {!isLibraryEmpty && (
                             <div className="mb-4 flex items-center gap-2">
                                 <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="promptSearchInput" />
@@ -204,7 +204,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                         ) : isLibraryEmpty ? (
                             <EmptyState title="No Prompts Found" subtitle="Create prompts to support reusable text structures for chat interactions." variant="noImage" buttons={createButtons} />
                         ) : (
-                            <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
+                            <div className="flex-1 overflow-y-auto">
                                 <div className="flex flex-wrap gap-6">
                                     <CreatePromptCard onManualCreate={onManualCreate} onAIAssisted={onAIAssisted} />
 

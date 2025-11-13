@@ -51,13 +51,13 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
 
                 <div className="flex w-full max-w-[240px] flex-col gap-3">
                     <Button onClick={onAIAssisted} disabled={!aiAssistedEnabled} variant="outline" className="w-full">
-                        <Sparkles className="mr-2 h-4 w-4" />
+                        <Sparkles />
                         Build with AI
                         {!aiAssistedEnabled && <span className="ml-1 text-xs">(Disabled)</span>}
                     </Button>
 
                     <Button onClick={onManualCreate} variant="ghost" className="w-full">
-                        <Plus className="mr-2 h-4 w-4" />
+                        <Plus />
                         Create Manually
                     </Button>
                 </div>
