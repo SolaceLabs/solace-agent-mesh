@@ -342,27 +342,35 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string): Promise<{ uri: string; sessionId: string } | null> => {
+        async (file: File, overrideSessionId?: string): Promise<{ uri: string; sessionId: string } | { error: string } | null> => {
             const effectiveSessionId = overrideSessionId || sessionId;
             const formData = new FormData();
-            formData.append("file", file);
+            
+            // Change these lines to match the API's expected format
+            formData.append("upload_file", file); // The file should be named "upload_file" to match the API parameter
+            formData.append("sessionId", effectiveSessionId); // Send session ID as form field
+            formData.append("filename", file.name); // Send filename as form field
+            
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${effectiveSessionId}/${encodeURIComponent(file.name)}`, {
+                // Change the URL to match the API endpoint
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
                     body: formData,
                     credentials: "include",
                 });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: `Failed to upload ${file.name}` }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                    const errorMessage = errorData.detail || `HTTP error ${response.status}`;
+                    throw new Error(errorMessage);
                 }
                 const result = await response.json();
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
                 await artifactsRefetch();
                 return result.uri ? { uri: result.uri, sessionId: effectiveSessionId } : null;
             } catch (error) {
-                addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
-                return null;
+                const errorMessage = error instanceof Error ? error.message : "Unknown error";
+                addNotification(`Error uploading artifact "${file.name}": ${errorMessage}`);
+                return { error: `Failed to upload "${file.name}": ${errorMessage}` };
             }
         },
         [apiPrefix, sessionId, addNotification, artifactsRefetch]
@@ -1613,6 +1621,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             try {
                 // 1. Process files using hybrid approach
+                const fileUploadErrors: string[] = [];
                 const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
                     if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
                         // Small file: send inline as base64
@@ -1628,7 +1637,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     } else {
                         // Large file: upload and get URI
                         const result = await uploadArtifactFile(file);
-                        if (result) {
+                        if (result && 'uri' in result) {
                             return {
                                 kind: "file",
                                 file: {
@@ -1637,8 +1646,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     mimeType: file.type,
                                 },
                             };
+                        } else if (result && 'error' in result) {
+                            // Collect error message to send to LLM
+                            fileUploadErrors.push(result.error);
+                            return null;
                         } else {
                             addNotification(`Failed to upload large file: ${file.name}`, "error");
+                            fileUploadErrors.push(`Failed to upload "${file.name}": Unknown error`);
                             return null;
                         }
                     }
@@ -1651,6 +1665,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 if (currentInput) {
                     messageParts.push({ kind: "text", text: currentInput });
                 }
+                
+                // Add file upload errors as text parts so LLM knows what happened
+                if (fileUploadErrors.length > 0) {
+                    const errorText = fileUploadErrors.join('\n\n');
+                    messageParts.push({ kind: "text", text: `\n\n[File Upload Errors]\n${errorText}` });
+                }
+                
                 messageParts.push(...uploadedFileParts);
 
                 if (messageParts.length === 0) {
