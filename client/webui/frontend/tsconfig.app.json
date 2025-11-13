@@ -27,5 +27,5 @@
             "@/*": ["./src/*"]
         }
     },
-    "include": ["src", ".storybook/preview.tsx"]
+    "include": ["src", ".storybook/vitest.setup.ts", ".storybook/preview.tsx"]
 }
