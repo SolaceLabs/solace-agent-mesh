@@ -1,22 +1,8 @@
 import React, { useState } from "react";
 import { Pencil, MoreVertical, Trash2 } from "lucide-react";
 
-import {
-    Button,
-    Input,
-    Textarea,
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger
-} from "@/lib/components/ui";
-import { MessageBanner } from "@/lib/components/common";
+import { Button, Input, Textarea, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
+import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
@@ -33,12 +19,7 @@ interface ProjectDetailViewProps {
     onChatClick?: (sessionId: string) => void;
 }
 
-export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
-    project,
-    onBack,
-    onStartNewChat,
-    onChatClick,
-}) => {
+export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
     const { updateProject, projects, deleteProject } = useProjectContext();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -80,17 +61,15 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     const handleSave = async () => {
         const trimmedName = editedName.trim();
         const trimmedDescription = editedDescription.trim();
-        
+
         // Check for duplicate project names (case-insensitive)
-        const isDuplicate = projects.some(
-            p => p.id !== project.id && p.name.toLowerCase() === trimmedName.toLowerCase()
-        );
-        
+        const isDuplicate = projects.some(p => p.id !== project.id && p.name.toLowerCase() === trimmedName.toLowerCase());
+
         if (isDuplicate) {
             setNameError("A project with this name already exists");
             return;
         }
-        
+
         setNameError(null);
         setIsSaving(true);
         try {
@@ -101,7 +80,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             if (trimmedDescription !== (project.description || "")) {
                 updateData.description = trimmedDescription;
             }
-            
+
             if (Object.keys(updateData).length > 0) {
                 await updateProject(project.id, updateData);
             }
@@ -138,24 +117,14 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         }
     };
 
-
     return (
         <div className="flex h-full flex-col">
             {/* Header with breadcrumbs and actions */}
             <Header
                 title={project.name}
-                breadcrumbs={[
-                    { label: "Projects", onClick: onBack },
-                    { label: project.name }
-                ]}
+                breadcrumbs={[{ label: "Projects", onClick: onBack }, { label: project.name }]}
                 buttons={[
-                    <Button
-                        key="edit"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsEditing(true)}
-                        className="gap-2"
-                    >
+                    <Button key="edit" variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="gap-2">
                         <Pencil className="h-4 w-4" />
                         Edit Details
                     </Button>,
@@ -171,101 +140,64 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                                 Delete
                             </DropdownMenuItem>
                         </DropdownMenuContent>
-                    </DropdownMenu>
+                    </DropdownMenu>,
                 ]}
             />
 
             {/* Description section */}
             {project.description && (
                 <div className="border-b px-8 py-4">
-                    <h3 className="text-sm font-semibold text-foreground mb-2">Description</h3>
-                    <p className="text-sm text-muted-foreground">{project.description}</p>
+                    <h3 className="text-foreground mb-2 text-sm font-semibold">Description</h3>
+                    <p className="text-muted-foreground text-sm">{project.description}</p>
                 </div>
             )}
 
             {/* Content area with left and right panels */}
-            <div className="flex flex-1 min-h-0">
+            <div className="flex min-h-0 flex-1">
                 {/* Left Panel - Project Chats */}
-                <div className="w-[60%] overflow-y-auto border-r">
-                    {onChatClick && (
-                        <ProjectChatsSection
-                            project={project}
-                            onChatClick={onChatClick}
-                            onStartNewChat={onStartNewChat}
-                        />
-                    )}
-                </div>
+                <div className="w-[60%] overflow-y-auto border-r">{onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} />}</div>
 
                 {/* Right Panel - Metadata Sidebar */}
-                <div className="w-[40%] overflow-y-auto bg-muted/30">
-                    <SystemPromptSection
-                        project={project}
-                        onSave={handleSaveSystemPrompt}
-                        isSaving={isSaving}
-                        error={error}
-                    />
+                <div className="bg-muted/30 w-[40%] overflow-y-auto">
+                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} error={error} />
 
-                    <DefaultAgentSection
-                        project={project}
-                        onSave={handleSaveDefaultAgent}
-                        isSaving={isSaving}
-                    />
+                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} />
 
                     <KnowledgeSection project={project} />
                 </div>
             </div>
 
+            {/* Footer */}
+            <Footer>
+                <Button variant="outline" data-testid="closeButton" title="Close" onClick={onBack}>
+                    Close
+                </Button>
+            </Footer>
+
             {/* Edit Project Dialog */}
             <Dialog open={isEditing} onOpenChange={setIsEditing}>
-                <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+                <DialogContent onOpenAutoFocus={e => e.preventDefault()}>
                     <DialogHeader>
                         <DialogTitle>Edit Project Details</DialogTitle>
-                        <DialogDescription>
-                            Update the name and description for this project.
-                        </DialogDescription>
+                        <DialogDescription>Update the name and description for this project.</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Name*</label>
-                            <Input
-                                value={editedName}
-                                onChange={(e) => setEditedName(e.target.value)}
-                                placeholder="Project name"
-                                disabled={isSaving}
-                                maxLength={255}
-                                autoFocus={false}
-                            />
+                            <Input value={editedName} onChange={e => setEditedName(e.target.value)} placeholder="Project name" disabled={isSaving} maxLength={255} autoFocus={false} />
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Description*</label>
-                            <Textarea
-                                value={editedDescription}
-                                onChange={(e) => setEditedDescription(e.target.value)}
-                                placeholder="Project description"
-                                rows={4}
-                                disabled={isSaving}
-                                maxLength={1000}
-                            />
-                            <div className="text-xs text-muted-foreground text-right">
-                                {editedDescription.length}/1000 characters
-                            </div>
+                            <Textarea value={editedDescription} onChange={e => setEditedDescription(e.target.value)} placeholder="Project description" rows={4} disabled={isSaving} maxLength={1000} />
+                            <div className="text-muted-foreground text-right text-xs">{editedDescription.length}/1000 characters</div>
                         </div>
-                        {nameError && (
-                            <MessageBanner variant="error" message={nameError} />
-                        )}
+                        {nameError && <MessageBanner variant="error" message={nameError} />}
                     </div>
                     <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={handleCancelEdit}
-                            disabled={isSaving}
-                        >
+                        <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
                             Discard Changes
                         </Button>
-                        <Button
-                            onClick={handleSave}
-                            disabled={isSaving}
-                        >
+                        <Button onClick={handleSave} disabled={isSaving}>
                             Save
                         </Button>
                     </DialogFooter>
@@ -273,13 +205,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
             </Dialog>
 
             {/* Delete Project Dialog */}
-            <DeleteProjectDialog
-                isOpen={isDeleteDialogOpen}
-                onClose={() => setIsDeleteDialogOpen(false)}
-                onConfirm={handleDeleteConfirm}
-                project={project}
-                isDeleting={isDeleting}
-            />
+            <DeleteProjectDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleDeleteConfirm} project={project} isDeleting={isDeleting} />
         </div>
     );
 };
