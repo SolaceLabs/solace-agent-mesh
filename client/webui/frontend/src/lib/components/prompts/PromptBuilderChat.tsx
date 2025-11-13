@@ -44,7 +44,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
     // Initialize chat with greeting and optionally send initial message
     useEffect(() => {
-        // Prevent duplicate initialization in React Strict Mode
+        // Prevent duplicate initialization
         if (initRef.current) return;
         initRef.current = true;
 
