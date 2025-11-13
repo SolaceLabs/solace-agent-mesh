@@ -1,9 +1,7 @@
-import React from "react";
 import "../src/lib/index.css";
 import "../src/App.css";
 
 import type { Preview } from "@storybook/react-vite";
-import { ThemeProvider } from "../src/lib/providers/ThemeProvider";
 import { withProviders } from "../src/stories/decorators/withProviders";
 
 const preview: Preview = {
