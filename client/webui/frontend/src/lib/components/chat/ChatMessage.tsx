@@ -18,6 +18,7 @@ import { decodeBase64Content } from "./preview/previewUtils";
 import { downloadFile } from "@/lib/utils/download";
 import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
+import { SelectableMessageContent } from "./selection";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
@@ -97,55 +98,71 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     // Trim text for user messages to prevent trailing whitespace issues
     const displayText = message.isUser ? textContent.trim() : textContent;
 
-    if (message.isError) {
+    const renderContent = () => {
+        if (message.isError) {
+            return (
+                <div className="flex items-center">
+                    <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
+                    <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>
+                </div>
+            );
+        }
+
+        const embeddedContent = extractEmbeddedContent(displayText);
+        if (embeddedContent.length === 0) {
+            return <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
+        }
+
+        let modifiedText = displayText;
+        const contentElements: ReactNode[] = [];
+        embeddedContent.forEach((item: ExtractedContent, index: number) => {
+            modifiedText = modifiedText.replace(item.originalMatch, "");
+
+            if (item.type === "file") {
+                const fileAttachment: FileAttachment = {
+                    name: item.filename || "downloaded_file",
+                    content: item.content,
+                    mime_type: item.mimeType,
+                };
+                contentElements.push(
+                    <div key={`embedded-file-${index}`} className="my-2">
+                        <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment, sessionId)} isEmbedded={true} />
+                    </div>
+                );
+            } else if (!RENDER_TYPES_WITH_RAW_CONTENT.includes(item.type)) {
+                const finalContent = decodeBase64Content(item.content);
+                if (finalContent) {
+                    contentElements.push(
+                        <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md">
+                            <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
+                        </div>
+                    );
+                }
+            }
+        });
+
         return (
-            <div className="flex items-center">
-                <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
-                <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>
+            <div>
+                {renderError && <MessageBanner variant="error" message="Error rendering preview" />}
+                <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>
+                {contentElements}
             </div>
+        );
+    };
+
+    // Wrap AI messages with SelectableMessageContent for text selection
+    if (!message.isUser) {
+        return (
+            <SelectableMessageContent
+                messageId={message.metadata?.messageId || ''}
+                isAIMessage={true}
+            >
+                {renderContent()}
+            </SelectableMessageContent>
         );
     }
 
-    const embeddedContent = extractEmbeddedContent(displayText);
-    if (embeddedContent.length === 0) {
-        return <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
-    }
-
-    let modifiedText = displayText;
-    const contentElements: ReactNode[] = [];
-    embeddedContent.forEach((item: ExtractedContent, index: number) => {
-        modifiedText = modifiedText.replace(item.originalMatch, "");
-
-        if (item.type === "file") {
-            const fileAttachment: FileAttachment = {
-                name: item.filename || "downloaded_file",
-                content: item.content,
-                mime_type: item.mimeType,
-            };
-            contentElements.push(
-                <div key={`embedded-file-${index}`} className="my-2">
-                    <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment, sessionId)} isEmbedded={true} />
-                </div>
-            );
-        } else if (!RENDER_TYPES_WITH_RAW_CONTENT.includes(item.type)) {
-            const finalContent = decodeBase64Content(item.content);
-            if (finalContent) {
-                contentElements.push(
-                    <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md">
-                        <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
-                    </div>
-                );
-            }
-        }
-    });
-
-    return (
-        <div>
-            {renderError && <MessageBanner variant="error" message="Error rendering preview" />}
-            <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>
-            {contentElements}
-        </div>
-    );
+    return renderContent();
 });
 
 const MessageWrapper = React.memo<{ message: MessageFE; children: ReactNode; className?: string }>(({ message, children, className }) => {

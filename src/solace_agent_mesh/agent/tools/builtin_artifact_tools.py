@@ -1843,3 +1843,424 @@ delete_artifact_tool_def = BuiltinTool(
 )
 
 tool_registry.register(delete_artifact_tool_def)
+
+
+async def artifact_search_and_replace_regex(
+    filename: str,
+    search_expression: str,
+    replace_expression: str,
+    is_regexp: bool,
+    version: Optional[str] = "latest",
+    regexp_flags: Optional[str] = "",
+    new_filename: Optional[str] = None,
+    new_description: Optional[str] = None,
+    tool_context: ToolContext = None,
+) -> Dict[str, Any]:
+    """
+    Performs search and replace on an artifact's text content using either
+    literal string matching or regular expressions. Note that this is run once across the entire artifact.
+    If multiple replacements are needed, then set the 'g' flag in regexp_flags.
+
+    Args:
+        filename: The name of the artifact to search/replace in.
+        search_expression: The pattern to search for (regex if is_regexp=true, literal otherwise).
+        replace_expression: The replacement text. For regex mode, supports capture groups ($1, $2, etc.). Use $$ to insert a literal dollar sign
+        is_regexp: If True, treat search_expression as a regular expression. If False, treat as literal string.
+        version: The version of the artifact to operate on. Can be an integer version number as a string or 'latest'. Defaults to 'latest'.
+        regexp_flags: Flags for regex behavior (only used when is_regexp=true).
+                     String of letters: 'g' (global/replace-all), 'i' (case-insensitive), 'm' (multiline), 's' (dotall).
+                     Defaults to empty string (no flags).
+        new_filename: Optional. If provided, saves the result as a new artifact with this name.
+        new_description: Optional. Description for the new/updated artifact.
+
+    Returns:
+        A dictionary containing the result status, filename, version, match count, and any error messages.
+    """
+    if not tool_context:
+        return {
+            "status": "error",
+            "filename": filename,
+            "message": "ToolContext is missing, cannot perform search and replace.",
+        }
+
+    log_identifier = (
+        f"[BuiltinArtifactTool:artifact_search_and_replace_regex:{filename}:{version}]"
+    )
+    log.debug("%s Processing request.", log_identifier)
+
+    # Validate inputs
+    if not search_expression:
+        return {
+            "status": "error",
+            "filename": filename,
+            "message": "search_expression cannot be empty.",
+        }
+
+    # Determine output filename
+    output_filename = new_filename if new_filename else filename
+
+    if new_filename and not is_filename_safe(new_filename):
+        return {
+            "status": "error",
+            "filename": filename,
+            "message": f"Invalid new_filename: '{new_filename}'. Filename must not contain path separators or traversal sequences.",
+        }
+
+    try:
+        inv_context = tool_context._invocation_context
+        artifact_service = inv_context.artifact_service
+        if not artifact_service:
+            raise ValueError("ArtifactService is not available in the context.")
+
+        app_name = inv_context.app_name
+        user_id = inv_context.user_id
+        session_id = get_original_session_id(inv_context)
+        host_component = getattr(inv_context.agent, "host_component", None)
+
+        # Load the source artifact
+        log.debug(
+            "%s Loading artifact '%s' version '%s'.", log_identifier, filename, version
+        )
+        load_result = await load_artifact_content_or_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+            version=version,
+            return_raw_bytes=True,
+            component=host_component,
+            log_identifier_prefix=log_identifier,
+        )
+
+        if load_result.get("status") != "success":
+            return {
+                "status": "error",
+                "filename": filename,
+                "version": version,
+                "message": f"Failed to load artifact: {load_result.get('message', 'Unknown error')}",
+            }
+
+        source_bytes = load_result.get("raw_bytes")
+        source_mime_type = load_result.get("mime_type", "application/octet-stream")
+        actual_version = load_result.get("version", version)
+
+        # Verify it's a text-based artifact
+        if not is_text_based_file(source_mime_type, source_bytes):
+            return {
+                "status": "error",
+                "filename": filename,
+                "version": actual_version,
+                "message": f"Cannot perform search and replace on binary artifact of type '{source_mime_type}'. This tool only works with text-based content.",
+            }
+
+        # Decode the content
+        try:
+            original_content = source_bytes.decode("utf-8")
+        except UnicodeDecodeError as decode_err:
+            log.error(
+                "%s Failed to decode artifact content as UTF-8: %s",
+                log_identifier,
+                decode_err,
+            )
+            return {
+                "status": "error",
+                "filename": filename,
+                "version": actual_version,
+                "message": f"Failed to decode artifact content as UTF-8: {decode_err}",
+            }
+
+        # Perform the search and replace
+        match_count = 0
+        new_content = original_content
+
+        if is_regexp:
+            # Parse regexp flags
+            flags_value = 0
+            global_replace = False
+
+            if regexp_flags:
+                for flag_char in regexp_flags.lower():
+                    if flag_char == "g":
+                        global_replace = True
+                    elif flag_char == "i":
+                        flags_value |= re.IGNORECASE
+                    elif flag_char == "m":
+                        flags_value |= re.MULTILINE
+                    elif flag_char == "s":
+                        flags_value |= re.DOTALL
+                    else:
+                        log.warning(
+                            "%s Ignoring unrecognized regexp flag: '%s'",
+                            log_identifier,
+                            flag_char,
+                        )
+
+            # Convert JavaScript-style capture groups ($1, $2) to Python style (\1, \2)
+            # Also handle escaped dollar signs ($$) -> literal $
+            python_replace_expression = replace_expression
+            # First, protect escaped dollars: $$ -> a placeholder
+            python_replace_expression = python_replace_expression.replace(
+                "$$", "\x00DOLLAR\x00"
+            )
+            # Convert capture groups: $1 -> \1
+            python_replace_expression = re.sub(
+                r"\$(\d+)", r"\\\1", python_replace_expression
+            )
+            # Restore escaped dollars: placeholder -> $
+            python_replace_expression = python_replace_expression.replace(
+                "\x00DOLLAR\x00", "$"
+            )
+
+            try:
+                # Compile the regex pattern
+                pattern = re.compile(search_expression, flags_value)
+
+                # Count matches first
+                match_count = len(pattern.findall(original_content))
+
+                if match_count == 0:
+                    log.info(
+                        "%s No matches found for pattern '%s' in artifact '%s'.",
+                        log_identifier,
+                        search_expression,
+                        filename,
+                    )
+                    return {
+                        "status": "no_matches",
+                        "filename": filename,
+                        "version": actual_version,
+                        "match_count": 0,
+                        "message": f"No matches found for pattern '{search_expression}'. Artifact not modified.",
+                    }
+
+                # Perform replacement
+                count_limit = 0 if global_replace else 1
+                new_content = pattern.sub(
+                    python_replace_expression, original_content, count=count_limit
+                )
+
+                log.info(
+                    "%s Regex replacement: found %d matches, replaced %s in '%s'.",
+                    log_identifier,
+                    match_count,
+                    "all" if global_replace else "first match",
+                    filename,
+                )
+
+            except re.error as regex_err:
+                log.error(
+                    "%s Invalid regular expression '%s': %s",
+                    log_identifier,
+                    search_expression,
+                    regex_err,
+                )
+                return {
+                    "status": "error",
+                    "filename": filename,
+                    "version": actual_version,
+                    "message": f"Invalid regular expression: {regex_err}",
+                }
+
+        else:
+            # Literal string replacement (ignore regexp_flags)
+            # Count occurrences
+            match_count = original_content.count(search_expression)
+
+            if match_count == 0:
+                log.info(
+                    "%s No matches found for literal string '%s' in artifact '%s'.",
+                    log_identifier,
+                    search_expression,
+                    filename,
+                )
+                return {
+                    "status": "no_matches",
+                    "filename": filename,
+                    "version": actual_version,
+                    "match_count": 0,
+                    "message": f"No matches found for literal string '{search_expression}'. Artifact not modified.",
+                }
+
+            # Replace all occurrences for literal mode
+            new_content = original_content.replace(
+                search_expression, replace_expression
+            )
+
+            log.info(
+                "%s Literal replacement: found and replaced %d occurrences in '%s'.",
+                log_identifier,
+                match_count,
+                filename,
+            )
+
+        # Prepare metadata for the new/updated artifact
+        new_metadata = {
+            "source": f"artifact_search_and_replace_regex from '{filename}' v{actual_version}",
+            "search_expression": search_expression,
+            "replace_expression": replace_expression,
+            "is_regexp": is_regexp,
+            "match_count": match_count,
+        }
+
+        if regexp_flags and is_regexp:
+            new_metadata["regexp_flags"] = regexp_flags
+
+        if new_description:
+            new_metadata["description"] = new_description
+        elif not new_filename:
+            # If updating the same artifact, preserve original description if available
+            try:
+                metadata_load_result = await load_artifact_content_or_metadata(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                    version=actual_version,
+                    load_metadata_only=True,
+                    component=host_component,
+                    log_identifier_prefix=log_identifier,
+                )
+                if metadata_load_result.get("status") == "success":
+                    original_metadata = metadata_load_result.get("metadata", {})
+                    if "description" in original_metadata:
+                        new_metadata["description"] = original_metadata["description"]
+            except Exception as meta_err:
+                log.warning(
+                    "%s Could not load original metadata to preserve description: %s",
+                    log_identifier,
+                    meta_err,
+                )
+
+        # Save the result
+        new_content_bytes = new_content.encode("utf-8")
+        schema_max_keys = (
+            host_component.get_config("schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS)
+            if host_component
+            else DEFAULT_SCHEMA_MAX_KEYS
+        )
+
+        save_result = await save_artifact_with_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=output_filename,
+            content_bytes=new_content_bytes,
+            mime_type=source_mime_type,
+            metadata_dict=new_metadata,
+            timestamp=datetime.now(timezone.utc),
+            schema_max_keys=schema_max_keys,
+            tool_context=tool_context,
+        )
+
+        if save_result.get("status") not in ["success", "partial_success"]:
+            log.error(
+                "%s Failed to save modified artifact: %s",
+                log_identifier,
+                save_result.get("message"),
+            )
+            return {
+                "status": "error",
+                "filename": filename,
+                "version": actual_version,
+                "message": f"Search and replace succeeded, but failed to save result: {save_result.get('message')}",
+            }
+
+        result_version = save_result.get("data_version")
+        log.info(
+            "%s Successfully saved modified artifact '%s' as version %s.",
+            log_identifier,
+            output_filename,
+            result_version,
+        )
+
+        return {
+            "status": "success",
+            "source_filename": filename,
+            "source_version": actual_version,
+            "output_filename": output_filename,
+            "output_version": result_version,
+            "match_count": match_count,
+            "replacements_made": (
+                match_count if not is_regexp or global_replace else min(match_count, 1)
+            ),
+            "message": f"Successfully performed {'regex' if is_regexp else 'literal'} search and replace. "
+            f"Found {match_count} match(es), saved result as '{output_filename}' v{result_version}.",
+        }
+
+    except FileNotFoundError as fnf_err:
+        log.warning("%s Artifact not found: %s", log_identifier, fnf_err)
+        return {
+            "status": "error",
+            "filename": filename,
+            "version": version,
+            "message": f"Artifact not found: {fnf_err}",
+        }
+    except Exception as e:
+        log.exception(
+            "%s Unexpected error during search and replace: %s", log_identifier, e
+        )
+        return {
+            "status": "error",
+            "filename": filename,
+            "version": version,
+            "message": f"Unexpected error: {e}",
+        }
+
+
+artifact_search_and_replace_regex_tool_def = BuiltinTool(
+    name="artifact_search_and_replace_regex",
+    implementation=artifact_search_and_replace_regex,
+    description="Performs search and replace on an artifact's text content using either literal string matching or regular expressions. Supports capture groups, flags for case-insensitive/multiline matching, and can create new versions or new artifacts with the result.",
+    category="artifact_management",
+    category_name=CATEGORY_NAME,
+    category_description=CATEGORY_DESCRIPTION,
+    required_scopes=["tool:artifact:load", "tool:artifact:create"],
+    parameters=adk_types.Schema(
+        type=adk_types.Type.OBJECT,
+        properties={
+            "filename": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="The name of the artifact to search/replace in.",
+            ),
+            "search_expression": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="The pattern to search for. If is_regexp is true, this is treated as a regular expression. Otherwise, it's a literal string.",
+            ),
+            "replace_expression": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="The replacement text. For regex mode, supports capture group references using $1, $2, etc. Use $$ to insert a literal dollar sign (e.g., '$$value' becomes '$value', ',$$$1' becomes ',$' followed by capture group 1).",
+            ),
+            "is_regexp": adk_types.Schema(
+                type=adk_types.Type.BOOLEAN,
+                description="If true, treat search_expression as a regular expression with support for capture groups. If false, treat as literal string.",
+            ),
+            "version": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="The version of the artifact to operate on. Can be an integer version number or 'latest'. Defaults to 'latest'.",
+                nullable=True,
+            ),
+            "regexp_flags": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Flags for regex behavior (only used when is_regexp=true). String of letters: 'g' (global/replace all - IMPORTANT: always include 'g' to replace all matches, not just the first), 'i' (case-insensitive), 'm' (multiline mode - makes ^ and $ match line boundaries), 's' (dotall - dot matches newlines). Example: 'gim' for global, case-insensitive, multiline. Defaults to empty string (replaces only first match).",
+                nullable=True,
+            ),
+            "new_filename": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Optional. If provided, saves the result as a new artifact with this name instead of creating a new version of the original.",
+                nullable=True,
+            ),
+            "new_description": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Optional. Description for the new/updated artifact. If not provided and modifying the same artifact, the original description is preserved.",
+                nullable=True,
+            ),
+        },
+        required=["filename", "search_expression", "replace_expression", "is_regexp"],
+    ),
+    examples=[],
+)
+
+tool_registry.register(artifact_search_and_replace_regex_tool_def)

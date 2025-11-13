@@ -1,8 +1,55 @@
-import { MessageCircle, Bot, SunMoon, FolderOpen } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen, FileText } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
-const allTopNavigationItems: NavigationItem[] = [
+/**
+ * Get filtered top navigation items based on feature flags.
+ * This is the single source of truth for navigation items.
+ *
+ * @param featureFlags - Feature flags from backend config
+ * @returns Filtered navigation items based on enabled features
+ */
+export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): NavigationItem[] => {
+    const items: NavigationItem[] = [
+        {
+            id: "chat",
+            label: "Chat",
+            icon: MessageCircle,
+        },
+        {
+            id: "agentMesh",
+            label: "Agents",
+            icon: Bot,
+        },
+    ];
+    
+    // Add projects only if explicitly enabled (requires SQL persistence)
+    // Default to false if flag is undefined to be safe
+    const projectsEnabled = featureFlags?.projects ?? false;
+    if (projectsEnabled) {
+        items.push({
+            id: "projects",
+            label: "Projects",
+            icon: FolderOpen,
+        });
+    }
+    
+    // Add prompts only if explicitly enabled (requires SQL persistence)
+    // Default to false if flag is undefined to be safe
+    const promptLibraryEnabled = featureFlags?.promptLibrary ?? false;
+    if (promptLibraryEnabled) {
+        items.push({
+            id: "prompts",
+            label: "Prompts",
+            icon: FileText,
+        });
+    }
+    
+    return items;
+};
+
+// Backward compatibility: export static items with all features for components that don't use feature flags yet
+export const topNavigationItems: NavigationItem[] = [
     {
         id: "chat",
         label: "Chat",
@@ -17,7 +64,12 @@ const allTopNavigationItems: NavigationItem[] = [
         id: "projects",
         label: "Projects",
         icon: FolderOpen,
-    }
+    },
+    {
+        id: "prompts",
+        label: "Prompts",
+        icon: FileText,
+    },
 ];
 
 export const bottomNavigationItems: NavigationItem[] = [
@@ -28,21 +80,3 @@ export const bottomNavigationItems: NavigationItem[] = [
         onClick: () => {}, // Will be handled in NavigationList
     },
 ];
-
-/**
- * Get filtered top navigation items based on feature flags
- * @param projectsEnabled - Whether projects feature is enabled
- * @returns Filtered navigation items
- */
-export function getTopNavigationItems(projectsEnabled: boolean = true): NavigationItem[] {
-    return allTopNavigationItems.filter(item => {
-        // Filter out projects item if projects are disabled
-        if (item.id === "projects" && !projectsEnabled) {
-            return false;
-        }
-        return true;
-    });
-}
-
-// Export default items for backward compatibility (with projects enabled)
-export const topNavigationItems = getTopNavigationItems(true);
