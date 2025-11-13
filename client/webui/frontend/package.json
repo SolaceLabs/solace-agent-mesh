@@ -52,7 +52,8 @@
         "precommit": "tsc -b && lint-staged",
         "preview": "vite preview",
         "storybook": "storybook dev -p 6006",
-        "test:storybook": "vitest --project=storybook"
+        "test:storybook": "vitest --project=storybook",
+        "ci:storybook": "CI=true npm run test:storybook"
     },
     "lint-staged": {
         "*.{js,jsx,ts,tsx}": [
