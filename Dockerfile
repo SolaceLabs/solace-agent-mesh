@@ -1,3 +1,51 @@
+# ============================================================
+# UI Build Stages - Run in parallel with separate caches
+# ============================================================
+# These stages use registry cache with mode=max, which means:
+# - Each stage is cached independently in the registry
+# - Only stages with changed dependencies will rebuild
+# - Cache mounts persist across builds for faster npm installs
+# - Changes to docs/ won't invalidate config_portal or webui caches
+# ============================================================
+
+# Build Config Portal UI
+FROM node:20-trixie-slim AS ui-config-portal
+WORKDIR /build/config_portal/frontend
+COPY config_portal/frontend/package*.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
+COPY config_portal/frontend ./
+RUN npm run build
+
+# Build WebUI
+FROM node:20-trixie-slim AS ui-webui
+WORKDIR /build/client/webui/frontend
+COPY client/webui/frontend/package*.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
+COPY client/webui/frontend ./
+RUN npm run build
+
+# Build Documentation
+FROM node:20-trixie-slim AS ui-docs
+WORKDIR /build/docs
+COPY docs/package*.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
+COPY docs ./
+COPY README.md ../README.md
+COPY cli/__init__.py ../cli/__init__.py
+RUN npm run build
+
+# ============================================================
+# Python Build Stage
+# ============================================================
+# This stage uses registry cache with mode=max for optimal caching:
+# - uv cache mount (/root/.cache/uv) speeds up package downloads
+# - Lock file changes only rebuild dependency installation layer
+# - Source code changes only rebuild the wheel build layer
+# - Independent from UI build stages - Python changes don't rebuild UI
+# ============================================================
 FROM python:3.11-slim AS base
 
 # Install system dependencies and uv
@@ -17,58 +65,6 @@ RUN curl -sL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-# ============================================================
-# UI Build Stages - Run in parallel with separate caches
-# ============================================================
-# These stages use registry cache with mode=max, which means:
-# - Each stage is cached independently in the registry
-# - Only stages with changed dependencies will rebuild
-# - Cache mounts persist across builds for faster npm installs
-# - Changes to docs/ won't invalidate config_portal or webui caches
-# ============================================================
-
-# Build Config Portal UI
-FROM base AS ui-config-portal
-WORKDIR /build/config_portal/frontend
-COPY config_portal/frontend/package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
-COPY config_portal/frontend ./
-RUN npm run build
-
-# Build WebUI
-FROM base AS ui-webui
-WORKDIR /build/client/webui/frontend
-COPY client/webui/frontend/package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
-COPY client/webui/frontend ./
-RUN npm run build
-
-# Build Documentation
-FROM base AS ui-docs
-WORKDIR /build/docs
-COPY docs/package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
-COPY docs ./
-COPY README.md ../README.md
-COPY cli/__init__.py ../cli/__init__.py
-RUN npm run build
-
-# ============================================================
-# Python Build Stage
-# ============================================================
-# This stage uses registry cache with mode=max for optimal caching:
-# - uv cache mount (/root/.cache/uv) speeds up package downloads
-# - Lock file changes only rebuild dependency installation layer
-# - Source code changes only rebuild the wheel build layer
-# - Independent from UI build stages - Python changes don't rebuild UI
-# ============================================================
-
-# Builder stage for creating wheels and runtime environment
-FROM base AS builder
 
 WORKDIR /app
 
