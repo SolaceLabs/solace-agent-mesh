@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { FileText, FolderOpen, MoreHorizontal } from "lucide-react";
 
+import { GridCard } from "@/lib/components/common";
 import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu, type MenuAction } from "@/lib/components/ui";
-import { GridCard } from "@/lib/components/common/GridCard";
 import type { Project } from "@/lib/types/projects";
 import { formatTimestamp } from "@/lib/utils/format";
 

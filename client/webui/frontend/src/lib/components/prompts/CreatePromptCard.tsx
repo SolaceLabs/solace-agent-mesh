@@ -1,8 +1,9 @@
 import React from "react";
 import { Plus, Sparkles } from "lucide-react";
+
 import { useConfigContext } from "@/lib/hooks";
+import { GridCard } from "@/lib/components/common";
 import { Button } from "@/lib/components/ui";
-import { GridCard } from "@/lib/components/common/GridCard";
 
 interface CreatePromptCardProps {
     onManualCreate: () => void;

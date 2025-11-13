@@ -2,10 +2,10 @@ import React, { useState } from "react";
 
 import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal, MessageSquare, Star } from "lucide-react";
 
+import { GridCard } from "@/lib/components/common";
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { useConfigContext } from "@/lib/hooks";
-import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
-import { GridCard } from "@/lib/components/common/GridCard";
 
 interface PromptDisplayCardProps {
     prompt: PromptGroup;
@@ -18,7 +18,7 @@ interface PromptDisplayCardProps {
     onTogglePin?: (id: string, currentStatus: boolean) => void;
 }
 
-export const PromptDisplayCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelected, onPromptClick, onEdit, onDelete, onViewVersions, onUseInChat, onTogglePin }) => {
+export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelected, onPromptClick, onEdit, onDelete, onViewVersions, onUseInChat, onTogglePin }) => {
     const { configFeatureEnablement } = useConfigContext();
     const versionHistoryEnabled = configFeatureEnablement?.promptVersionHistory ?? true;
     const [dropdownOpen, setDropdownOpen] = useState(false);

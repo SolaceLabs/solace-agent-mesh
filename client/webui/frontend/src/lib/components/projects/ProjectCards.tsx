@@ -1,15 +1,12 @@
 import React from "react";
-import { FolderOpen } from "lucide-react";
 
 import { ProjectCard } from "./ProjectCard";
 import { CreateProjectCard } from "./CreateProjectCard";
 import type { Project } from "@/lib/types/projects";
-import { EmptyState } from "../common";
+import { EmptyState } from "@/lib/components/common";
 import { SearchInput } from "@/lib/components/ui";
 
-const ProjectImage = <FolderOpen className="text-muted-foreground" size={64} />;
-
-interface ProjectsListViewProps {
+interface ProjectCardsProps {
     projects: Project[];
     searchQuery: string;
     onSearchChange: (query: string) => void;
@@ -19,12 +16,11 @@ interface ProjectsListViewProps {
     isLoading?: boolean;
 }
 
-export const ProjectsListView: React.FC<ProjectsListViewProps> = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, isLoading = false }) => {
+export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, isLoading = false }) => {
     return (
         <div className="bg-background flex h-full flex-col">
-            {/* Search Bar */}
             <div className="flex h-full flex-col pt-6 pb-6 pl-6">
-                <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Filter by name..." className="mb-4 w-xs" />
+                {projects.length > 0 || searchQuery ? <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Filter by name..." className="mb-4 w-xs" /> : null}
 
                 {/* Projects Grid */}
                 {isLoading ? (
@@ -33,7 +29,7 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({ projects, se
                     <EmptyState variant="notFound" title="No Projects Match Your Filter" subtitle="Try adjusting your filter terms." buttons={[{ text: "Clear Filter", variant: "default", onClick: () => onSearchChange("") }]} />
                 ) : projects.length === 0 ? (
                     <EmptyState
-                        image={ProjectImage}
+                        variant="noImage"
                         title="No Projects Found"
                         subtitle="Create projects to group related chat sessions and knowledge artifacts together."
                         buttons={[{ text: "Create New Project", variant: "default", onClick: () => onCreateNew() }]}
