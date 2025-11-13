@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, Loader2, Sparkles } from 'lucide-react';
-import { Button, Textarea } from '@/lib/components/ui';
-import type { TemplateConfig } from './hooks/usePromptTemplateBuilder';
+import React, { useState, useEffect, useRef } from "react";
+import { Send, Loader2, Sparkles } from "lucide-react";
+import { Button, Textarea } from "@/lib/components/ui";
+import type { TemplateConfig } from "./hooks/usePromptTemplateBuilder";
 
 interface Message {
-    role: 'user' | 'assistant';
+    role: "user" | "assistant";
     content: string;
     timestamp: Date;
 }
@@ -23,23 +23,19 @@ interface PromptBuilderChatProps {
     initialMessage?: string | null;
 }
 
-export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
-    onConfigUpdate,
-    currentConfig,
-    onReadyToSave,
-    initialMessage,
-}) => {
+export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUpdate, currentConfig, onReadyToSave, initialMessage }) => {
     const [messages, setMessages] = useState<Message[]>([]);
-    const [input, setInput] = useState('');
+    const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isInitializing, setIsInitializing] = useState(true);
     const [hasUserMessage, setHasUserMessage] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    const initRef = useRef(false);
 
     // Auto-scroll to bottom when new messages arrive
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
     useEffect(() => {
@@ -48,14 +44,18 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
 
     // Initialize chat with greeting and optionally send initial message
     useEffect(() => {
+        // Prevent duplicate initialization
+        if (initRef.current) return;
+        initRef.current = true;
+
         const initChat = async () => {
             try {
-                const response = await fetch('/api/v1/prompts/chat/init');
+                const response = await fetch("/api/v1/prompts/chat/init");
                 const data = await response.json();
 
                 setMessages([
                     {
-                        role: 'assistant',
+                        role: "assistant",
                         content: data.message,
                         timestamp: new Date(),
                     },
@@ -65,30 +65,27 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                 if (initialMessage) {
                     setHasUserMessage(true);
                     const userMessage: Message = {
-                        role: 'user',
+                        role: "user",
                         content: initialMessage,
                         timestamp: new Date(),
                     };
                     setMessages(prev => [...prev, userMessage]);
-                    
-                    // Scroll to bottom after adding user message
                     setTimeout(() => scrollToBottom(), 100);
-                    
                     setIsLoading(true);
 
                     // Send the message to the API
                     try {
-                        const chatResponse = await fetch('/api/v1/prompts/chat', {
-                            method: 'POST',
+                        const chatResponse = await fetch("/api/v1/prompts/chat", {
+                            method: "POST",
                             headers: {
-                                'Content-Type': 'application/json',
+                                "Content-Type": "application/json",
                             },
-                            credentials: 'include',
+                            credentials: "include",
                             body: JSON.stringify({
                                 message: initialMessage,
                                 conversation_history: [
                                     {
-                                        role: 'assistant',
+                                        role: "assistant",
                                         content: data.message,
                                     },
                                 ],
@@ -98,9 +95,9 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
 
                         if (chatResponse.ok) {
                             const chatData: ChatResponse = await chatResponse.json();
-                            
+
                             const assistantMessage: Message = {
-                                role: 'assistant',
+                                role: "assistant",
                                 content: chatData.message,
                                 timestamp: new Date(),
                             };
@@ -111,25 +108,25 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                             }
 
                             onReadyToSave(chatData.ready_to_save);
-                            
+
                             // Scroll to bottom after AI response
                             setTimeout(() => scrollToBottom(), 100);
                         } else {
                             const errorData = await chatResponse.json().catch(() => ({}));
-                            console.error('Prompt builder API error:', errorData);
-                            
+                            console.error("Prompt builder API error:", errorData);
+
                             const errorMessage: Message = {
-                                role: 'assistant',
-                                content: 'The conversation history is too long for automatic processing. Please describe your task manually, and I\'ll help you create a template.',
+                                role: "assistant",
+                                content: "The conversation history is too long for automatic processing. Please describe your task manually, and I'll help you create a template.",
                                 timestamp: new Date(),
                             };
                             setMessages(prev => [...prev, errorMessage]);
                         }
                     } catch (error) {
-                        console.error('Error sending initial message:', error);
+                        console.error("Error sending initial message:", error);
                         const errorMessage: Message = {
-                            role: 'assistant',
-                            content: 'I encountered an error processing your request. Please try describing your task manually.',
+                            role: "assistant",
+                            content: "I encountered an error processing your request. Please try describing your task manually.",
                             timestamp: new Date(),
                         };
                         setMessages(prev => [...prev, errorMessage]);
@@ -138,10 +135,10 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                     }
                 }
             } catch (error) {
-                console.error('Failed to initialize chat:', error);
+                console.error("Failed to initialize chat:", error);
                 setMessages([
                     {
-                        role: 'assistant',
+                        role: "assistant",
                         content: "Hi! I'll help you create a prompt template. What kind of recurring task would you like to template?",
                         timestamp: new Date(),
                     },
@@ -168,7 +165,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
         if (!textarea) return;
 
         const adjustHeight = () => {
-            textarea.style.height = 'auto';
+            textarea.style.height = "auto";
             // Set height based on scrollHeight, with max height of 200px
             const newHeight = Math.min(textarea.scrollHeight, 200);
             textarea.style.height = `${newHeight}px`;
@@ -181,28 +178,28 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
         if (!input.trim() || isLoading) return;
 
         const userMessage: Message = {
-            role: 'user',
+            role: "user",
             content: input.trim(),
             timestamp: new Date(),
         };
 
-        setMessages((prev) => [...prev, userMessage]);
-        setInput('');
+        setMessages(prev => [...prev, userMessage]);
+        setInput("");
         setIsLoading(true);
         setHasUserMessage(true);
 
         try {
-            const response = await fetch('/api/v1/prompts/chat', {
-                method: 'POST',
+            const response = await fetch("/api/v1/prompts/chat", {
+                method: "POST",
                 headers: {
-                    'Content-Type': 'application/json',
+                    "Content-Type": "application/json",
                 },
-                credentials: 'include',
+                credentials: "include",
                 body: JSON.stringify({
                     message: userMessage.content,
                     conversation_history: messages
-                        .filter((m) => m.content && m.content.trim().length > 0)
-                        .map((m) => ({
+                        .filter(m => m.content && m.content.trim().length > 0)
+                        .map(m => ({
                             role: m.role,
                             content: m.content,
                         })),
@@ -211,18 +208,18 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
             });
 
             if (!response.ok) {
-                throw new Error('Failed to get response');
+                throw new Error("Failed to get response");
             }
 
             const data: ChatResponse = await response.json();
 
             // Add assistant response
             const assistantMessage: Message = {
-                role: 'assistant',
+                role: "assistant",
                 content: data.message,
                 timestamp: new Date(),
             };
-            setMessages((prev) => [...prev, assistantMessage]);
+            setMessages(prev => [...prev, assistantMessage]);
 
             // Update config if there are updates
             if (Object.keys(data.template_updates).length > 0) {
@@ -232,16 +229,15 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
             // Notify parent if ready to save
             onReadyToSave(data.ready_to_save);
         } catch (error) {
-            console.error('Error sending message:', error);
+            console.error("Error sending message:", error);
             const errorMessage: Message = {
-                role: 'assistant',
-                content: 'I encountered an error. Could you please try again?',
+                role: "assistant",
+                content: "I encountered an error. Could you please try again?",
                 timestamp: new Date(),
             };
-            setMessages((prev) => [...prev, errorMessage]);
+            setMessages(prev => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);
-            // Focus input after response
             setTimeout(() => inputRef.current?.focus(), 100);
         }
     };
@@ -255,8 +251,8 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
         return (
             <div className="flex h-full items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">Initializing AI assistant...</p>
+                    <Loader2 className="text-primary h-8 w-8 animate-spin" />
+                    <p className="text-muted-foreground text-sm">Initializing AI assistant...</p>
                 </div>
             </div>
         );
@@ -267,32 +263,19 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
             {/* Header */}
             <div className="border-b px-4 py-3">
                 <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                        <Sparkles className="h-4 w-4 text-primary" />
+                    <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
+                        <Sparkles className="text-primary h-4 w-4" />
                     </div>
-                    <h3 className="font-semibold text-sm">AI Template Builder</h3>
+                    <h3 className="text-sm font-semibold">AI Template Builder</h3>
                 </div>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 space-y-4 overflow-y-auto p-4">
                 {messages.map((message, index) => (
-                    <div
-                        key={index}
-                        className={`flex ${
-                            message.role === 'user' ? 'justify-end' : 'justify-start'
-                        }`}
-                    >
-                        <div
-                            className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                                message.role === 'user'
-                                    ? 'bg-[var(--message-background)]'
-                                    : ''
-                            }`}
-                        >
-                            <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                                {message.content}
-                            </div>
+                    <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-[var(--message-background)]" : ""}`}>
+                            <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</div>
                         </div>
                     </div>
                 ))}
@@ -302,7 +285,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
                     <div className="flex justify-start">
                         <div className="flex items-center gap-2 rounded-2xl px-4 py-3">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-sm text-muted-foreground">Thinking...</span>
+                            <span className="text-muted-foreground text-sm">Thinking...</span>
                         </div>
                     </div>
                 )}
@@ -311,37 +294,26 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({
             </div>
 
             {/* Input Area */}
-            <div className="border-t bg-background p-4">
+            <div className="bg-background border-t p-4">
                 <form onSubmit={handleSubmit} className="relative">
                     <Textarea
                         ref={inputRef}
                         value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
+                        onChange={e => setInput(e.target.value)}
+                        onKeyDown={e => {
+                            if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault();
                                 handleSend();
                             }
                         }}
                         placeholder={hasUserMessage ? "Type your message..." : "Describe your recurring task..."}
                         disabled={isLoading}
-                        className="max-h-[200px] min-h-[40px] resize-none pr-12 overflow-y-auto"
+                        className="max-h-[200px] min-h-[40px] resize-none overflow-y-auto pr-12"
                         rows={1}
-                        style={{ height: '40px' }}
+                        style={{ height: "40px" }}
                     />
-                    <Button
-                        type="submit"
-                        disabled={!input.trim() || isLoading}
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-2 top-1/2 -translate-y-1/2"
-                        tooltip="Send message"
-                    >
-                        {isLoading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                            <Send className="h-4 w-4" />
-                        )}
+                    <Button type="submit" disabled={!input.trim() || isLoading} variant="ghost" size="icon" className="absolute top-1/2 right-2 -translate-y-1/2" tooltip="Send message">
+                        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     </Button>
                 </form>
             </div>
