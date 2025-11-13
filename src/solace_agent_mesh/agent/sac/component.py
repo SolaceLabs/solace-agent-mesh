@@ -2954,7 +2954,7 @@ class SamAgentComponent(SamComponentBase):
             main_task_id,
         )
 
-        # Validate agent access is allowed (defense-in-depth)
+        # Validate agent access is allowed
         validate_agent_access(
             user_config=user_config,
             target_agent_name=target_agent_name,
