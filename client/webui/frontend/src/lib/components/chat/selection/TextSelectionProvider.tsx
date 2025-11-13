@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, type ReactNode
 
 import type { SelectionState, SelectionContextValue } from "./types";
 
-const TextSelectionContext = createContext<SelectionContextValue | undefined>(undefined);
+export const TextSelectionContext = createContext<SelectionContextValue | undefined>(undefined);
 
 export const useTextSelection = () => {
     const context = useContext(TextSelectionContext);
