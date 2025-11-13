@@ -2953,6 +2953,36 @@ class SamAgentComponent(SamComponentBase):
             main_task_id,
         )
 
+        # Validate agent access is allowed
+        config_resolver = MiddlewareRegistry.get_config_resolver()
+        operation_spec = {
+            "operation_type": "agent_access",
+            "target_agent": target_agent_name,
+        }
+        validation_context = {
+            "delegating_agent": self.get_config("agent_name"),
+            "source": "agent_to_agent_delegation",
+        }
+        validation_result = config_resolver.validate_operation_config(
+            user_config, operation_spec, validation_context
+        )
+        if not validation_result.get("valid", True):
+            reason = validation_result.get(
+                "reason", f"Delegation to agent '{target_agent_name}' not allowed"
+            )
+            required_scopes = validation_result.get("required_scopes", [])
+            log.warning(
+                "%s Peer delegation to '%s' denied for sub-task %s. Required scopes: %s. Reason: %s",
+                log_identifier_helper,
+                target_agent_name,
+                sub_task_id,
+                required_scopes,
+                reason,
+            )
+            raise PermissionError(
+                f"Delegation to agent '{target_agent_name}' not allowed. Required scopes: {required_scopes}"
+            )
+
         peer_request_topic = self._get_agent_request_topic(target_agent_name)
 
         # Create a compliant SendMessageRequest
