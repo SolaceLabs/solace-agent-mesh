@@ -46,7 +46,7 @@ RUN npm run build
 # - Source code changes only rebuild the wheel build layer
 # - Independent from UI build stages - Python changes don't rebuild UI
 # ============================================================
-FROM python:3.11-slim AS base
+FROM python:3.11-slim AS builder
 
 # Install system dependencies and uv
 RUN apt-get update && \
