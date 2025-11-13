@@ -226,27 +226,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Helper function to deserialize task data to MessageFE objects
 
-    const deserializeTaskToMessages = useCallback(
-        (task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }): MessageFE[] => {
-            return task.messageBubbles.map(bubble => ({
-                taskId: task.taskId,
-                role: bubble.type === "user" ? "user" : "agent",
-                parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
-                isUser: bubble.type === "user",
-                isComplete: true,
-                files: bubble.files,
-                uploadedFiles: bubble.uploadedFiles,
-                artifactNotification: bubble.artifactNotification,
-                isError: bubble.isError,
-                metadata: {
-                    messageId: bubble.id,
-                    sessionId: sessionId,
-                    lastProcessedEventSequence: 0,
-                },
-            }));
-        },
-        [sessionId]
-    );
+    const deserializeTaskToMessages = useCallback((task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, targetSessionId: string): MessageFE[] => {
+        return task.messageBubbles.map(bubble => ({
+            taskId: task.taskId,
+            role: bubble.type === "user" ? "user" : "agent",
+            parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
+            isUser: bubble.type === "user",
+            isComplete: true,
+            files: bubble.files,
+            uploadedFiles: bubble.uploadedFiles,
+            artifactNotification: bubble.artifactNotification,
+            isError: bubble.isError,
+            metadata: {
+                messageId: bubble.id,
+                sessionId: targetSessionId,
+                lastProcessedEventSequence: 0,
+            },
+        }));
+    }, []);
 
     // Helper function to apply migrations to a task
     const migrateTask = useCallback((task: any): any => {
@@ -299,7 +296,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Deserialize all tasks to messages
                 const allMessages: MessageFE[] = [];
                 for (const task of migratedTasks) {
-                    const taskMessages = deserializeTaskToMessages(task);
+                    const taskMessages = deserializeTaskToMessages(task, sessionId);
                     allMessages.push(...taskMessages);
                 }
 
@@ -1299,10 +1296,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             console.log(`${log_prefix} Switching to session ${newSessionId}...`);
 
             setIsLoadingSession(true);
-
-            // Clear messages immediately to prevent showing old session's messages
-            setMessages([]);
-
             closeCurrentEventSource();
 
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
@@ -1372,8 +1365,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     }
                 }
 
-                // Update session state
+                // Update session ID BEFORE clearing messages
+                // This ensures that any components/hooks depending on sessionId
+                // will have the correct value when messages are cleared
                 setSessionId(newSessionId);
+                setMessages([]);
+
+                // Reset other session-related state
                 setIsResponding(false);
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
@@ -1382,7 +1380,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
 
-                // Load session tasks
                 await loadSessionTasks(newSessionId);
             } catch (error) {
                 console.error(`${log_prefix} Failed to fetch session history:`, error);
