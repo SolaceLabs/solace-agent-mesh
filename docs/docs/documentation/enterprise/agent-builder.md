@@ -85,6 +85,42 @@ When you deploy an agent, the system records its configuration. If you later edi
 
 Downloading agents as YAML files provides portability and version control. These files support backing up agent configurations, sharing configurations between deployments, tracking configuration changes in version control systems, and deploying agents using infrastructure-as-code tools.
 
+## Downloading Agent Configurations
+
+The Download button allows you to export agent configurations as YAML files. These files are designed for the **Agent Deployer** running in Kubernetes/Helm environments.
+
+### What Downloaded YAML Files Are Designed For
+
+Agent Builder generates YAML files optimized for automated deployment through the Agent Deployer. These files:
+
+- Use S3-compatible artifact storage (expects SeaweedFS or similar in K8s)
+- Contain environment variable placeholders for credentials and settings
+- Do not reference `shared_config.yaml` (unlike agents created with `sam add agent`)
+- Are ready to deploy through the Agent Deployer without modification
+
+:::info[Agent Deployer vs Manual Deployment]
+**Agent Deployer (Recommended):** Click "Deploy" in Agent Builder to deploy agents directly to your Kubernetes cluster. The agent deployer handles all configuration automatically.
+
+**Download for Manual Use:** Download the YAML file if you need to run agents outside Kubernetes or want to review/customize the configuration.
+:::
+
+### When to Download
+
+**Use the Download button when you need to:**
+- Back up agent configurations for version control
+- Review generated configuration before deployment
+- Share agent configurations between teams or environments
+- Run agents in workshops or demos without K8s infrastructure
+
+**Use the Deploy button when:**
+- You have Kubernetes/Helm infrastructure set up
+- You want automated deployment without manual configuration
+- You want the agent deployer to manage the agent lifecycle
+
+:::warning[Configuration Required]
+Downloaded YAML files are designed for the agent deployer and require manual configuration changes to run locally. For local development, consider using `sam add agent` instead, which generates files with `shared_config` references.
+:::
+
 ## Access Control
 
 Agent Builder operations require specific RBAC capabilities. The table below shows the capabilities and what they control:

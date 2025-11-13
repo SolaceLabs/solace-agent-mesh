@@ -1,12 +1,9 @@
-import type { VariantProps } from "class-variance-authority";
 import { Button } from "@/lib/components/ui/button";
-import type { buttonVariants } from "@/lib/components/ui/button";
 import type { ReactElement } from "react";
 import { ErrorIllustration, NotFoundIllustration } from "@/lib/assets";
 import { cn } from "@/lib/utils";
 import { Spinner } from "../ui/spinner";
-
-type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
+import type { ButtonVariant } from "@/lib/types/ui";
 
 export interface ButtonWithCallback {
     text: string;
