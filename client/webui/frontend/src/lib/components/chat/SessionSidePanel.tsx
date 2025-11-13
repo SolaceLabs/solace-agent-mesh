@@ -13,13 +13,18 @@ interface SessionSidePanelProps {
 
 export const SessionSidePanel: React.FC<SessionSidePanelProps> = ({ onToggle }) => {
     return (
-        <div className={`bg-background flex h-full w-100 flex-col border-r`}>
-            <div className="flex items-center justify-between px-4 pt-[35px] pb-3">
-                <Button variant="ghost" onClick={onToggle} className="p-2" data-testid="hideChatSessions" tooltip="Hide Chat Sessions">
-                    <PanelLeftIcon className="size-5" />
-                </Button>
+        <div className="bg-background flex h-full w-100 flex-col border-r">
+            <div className="flex h-20 justify-between border-b px-2 pt-[35px]">
+                <div className="flex items-center gap-2">
+                    <Button variant="ghost" onClick={onToggle} data-testid="hideChatSessions" tooltip="Hide Chat Sessions">
+                        <PanelLeftIcon className="size-5" />
+                    </Button>
+                    <div className="text-xl">Chats</div>
+                </div>
 
-                <ChatSessionDialog buttonText="New Chat" />
+                <div className="flex items-center">
+                    <ChatSessionDialog buttonText="New Chat" />
+                </div>
             </div>
 
             {/* Chat Sessions */}

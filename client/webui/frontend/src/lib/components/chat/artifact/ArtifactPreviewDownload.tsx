@@ -16,9 +16,8 @@ export const ArtifactPreviewDownload: React.FC<ArtifactPreviewDownloadProps> = (
 
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4">
-            <div className="mb-1 font-semibold">Preview Coming Soon</div>
+            <div className="mb-1 font-semibold">Preview Unavailable</div>
             <div>{message}</div>
-            <div className="mb-4">Download file to view.</div>
             <Button onClick={() => onDownload(artifact)}>
                 <Download className="h-4 w-4" />
                 Download

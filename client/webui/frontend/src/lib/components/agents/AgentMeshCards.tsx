@@ -4,6 +4,10 @@ import type { AgentCardInfo } from "@/lib/types";
 
 import { AgentDisplayCard } from "./AgentDisplayCard";
 import { EmptyState } from "../common";
+import { SearchInput } from "@/lib/components/ui";
+import { Bot } from "lucide-react";
+
+const AgentImage = <Bot className="text-muted-foreground" size={64} />;
 
 interface AgentMeshCardsProps {
     agents: AgentCardInfo[];
@@ -22,13 +26,13 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
     return (
         <>
             {agents.length === 0 ? (
-                <EmptyState variant="noImage" title="No agents found" subtitle="No agents discovered in the current namespace." />
+                <EmptyState image={AgentImage} title="No agents found" subtitle="No agents discovered in the current namespace." />
             ) : (
-                <div className="h-full w-full pt-12 pl-12">
-                    <input type="text" data-testid="agentSearchInput" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="bg-background mb-4 rounded-md border px-3 py-2" />
+                <div className="h-full w-full pt-2 pl-2">
+                    <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testId="agentSearchInput" className="mb-4 w-xs" />
 
                     {filteredAgents.length === 0 && searchQuery ? (
-                        <EmptyState title="No agents match your search" variant="noImage" buttons={[{ text: "Clear Search", variant: "default", onClick: () => setSearchQuery("") }]} />
+                        <EmptyState variant="notFound" title="No Agents Match Your Filter" subtitle="Try adjusting your filter terms." buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchQuery("") }]} />
                     ) : (
                         <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
                             <div className="flex flex-wrap gap-10">
