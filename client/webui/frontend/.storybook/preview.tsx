@@ -8,6 +8,7 @@ import { withProviders } from "../src/stories/decorators/withProviders";
 
 const preview: Preview = {
     decorators: [withProviders],
+
     parameters: {
         actions: { argTypesRegex: "^on[A-Z].*" },
 
@@ -19,19 +20,25 @@ const preview: Preview = {
             expanded: true,
         },
         backgrounds: {
-            default: "light",
-            values: [
-                {
+            options: {
+                light: {
                     name: "light",
                     value: "#ffffff",
                 },
-                {
+
+                dark: {
                     name: "dark",
                     value: "#1a1a1a",
                 },
-            ],
+            },
         },
         layout: "centered",
+    },
+
+    initialGlobals: {
+        backgrounds: {
+            value: "light",
+        },
     },
 };
 
