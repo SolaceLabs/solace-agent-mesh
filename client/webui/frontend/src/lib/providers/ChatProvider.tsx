@@ -98,6 +98,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     
     // Web Search State
     const [webSearchEnabled, setWebSearchEnabled] = useState<boolean>(false);
+    const [webSearchConfigured, setWebSearchConfigured] = useState<boolean | undefined>(undefined); // undefined = unknown, true = configured, false = not configured
     
     // Wrapper to keep ref in sync with state
     const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
@@ -1155,8 +1156,31 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     // Handle tool results that may contain RAG metadata
                                     console.log("ChatProvider: Received tool_result data part:", data);
                                     
-                                    // Check if result_data contains rag_metadata
+                                    const toolName = (data as any).tool_name;
                                     const resultData = (data as any).result_data;
+                                    
+                                    // Check for web search API key errors
+                                    if ((toolName === '_web_search_tavily' || toolName === '_web_search_google') &&
+                                        typeof resultData === 'string' &&
+                                        (resultData.includes('API_KEY') || resultData.includes('environment variable not set'))) {
+                                        // Mark web search as not configured
+                                        setWebSearchConfigured(false);
+                                        
+                                        // Show user-friendly notification for missing API keys
+                                        const missingKey = resultData.includes('TAVILY') ? 'TAVILY_API_KEY' :
+                                                          resultData.includes('GOOGLE_SEARCH_API_KEY') ? 'GOOGLE_SEARCH_API_KEY or GOOGLE_CSE_ID' :
+                                                          'API key';
+                                        addNotification(
+                                            `Web Search is not configured. Missing ${missingKey}. Please contact your administrator to enable web search functionality.`,
+                                            'error'
+                                        );
+                                    } else if ((toolName === '_web_search_tavily' || toolName === '_web_search_google') &&
+                                               resultData && typeof resultData === 'object') {
+                                        // Web search succeeded - mark as configured
+                                        setWebSearchConfigured(true);
+                                    }
+                                    
+                                    // Check if result_data contains rag_metadata
                                     if (resultData && typeof resultData === 'object' && resultData.rag_metadata) {
                                         const ragMetadata = resultData.rag_metadata;
                                         console.log("ChatProvider: Found RAG metadata in tool_result.result_data:", ragMetadata);
@@ -2271,6 +2295,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Web Search
         webSearchEnabled,
         setWebSearchEnabled,
+        webSearchConfigured,
         artifacts,
         artifactsLoading,
         artifactsRefetch,

@@ -194,6 +194,27 @@ async def get_app_config(
             log.debug("%s Projects feature flag is enabled.", log_prefix)
         else:
             log.debug("%s Projects feature flag is disabled.", log_prefix)
+        
+        # Check tool configuration status
+        tool_config_status = {}
+        
+        # Check web search configuration (Tavily or Google)
+        tavily_key = os.getenv("TAVILY_API_KEY")
+        google_key = os.getenv("GOOGLE_SEARCH_API_KEY")
+        google_cse = os.getenv("GOOGLE_CSE_ID")
+        web_search_configured = bool(tavily_key or (google_key and google_cse))
+        tool_config_status["web_search"] = web_search_configured
+        
+        # Deep research requires web search API keys (it uses web search internally)
+        deep_research_configured = web_search_configured
+        tool_config_status["deep_research"] = deep_research_configured
+        
+        if web_search_configured:
+            log.debug("%s Web search is configured (API keys present)", log_prefix)
+            log.debug("%s Deep research is configured (uses web search)", log_prefix)
+        else:
+            log.debug("%s Web search is NOT configured (missing API keys)", log_prefix)
+            log.debug("%s Deep research is NOT configured (requires web search API keys)", log_prefix)
 
         config_data = {
             "frontend_server_url": "",
@@ -212,6 +233,7 @@ async def get_app_config(
             "frontend_feature_enablement": feature_enablement,
             "persistence_enabled": api_config.get("persistence_enabled", False),
             "validation_limits": _get_validation_limits(),
+            "tool_config_status": tool_config_status,
         }
         log.debug("%sReturning frontend configuration.", log_prefix)
         return config_data

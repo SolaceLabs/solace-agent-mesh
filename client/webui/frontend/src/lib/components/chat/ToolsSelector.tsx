@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { Wrench, Microscope, Globe, Settings, Circle, CircleDot } from 'lucide-react';
+import { Wrench, Microscope, Globe, Settings, AlertCircle } from 'lucide-react';
 import { Button } from '@/lib/components/ui/button';
 import {
   DropdownMenu,
@@ -14,8 +14,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/lib/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/lib/components/ui/tooltip';
 import type { AgentCardInfo } from '@/lib/types';
 import type { DeepResearchSettings } from './deepResearchSettings';
+
+const RadioIndicator: React.FC<{ selected: boolean }> = ({ selected }) => (
+  <div className="relative flex h-3.5 w-3.5 items-center justify-center">
+    <div className={`h-3.5 w-3.5 rounded-full border-2 transition-colors ${
+      selected
+        ? 'border-blue-600 dark:border-blue-400'
+        : 'border-gray-300 dark:border-gray-600'
+    }`}>
+      {selected && (
+        <div className="absolute inset-0 m-[3px] rounded-full bg-blue-600 dark:bg-blue-400" />
+      )}
+    </div>
+  </div>
+);
 
 interface ToolsSelectorProps {
   deepResearchEnabled: boolean;
@@ -26,6 +41,8 @@ interface ToolsSelectorProps {
   agents: AgentCardInfo[];
   deepResearchSettings?: DeepResearchSettings;
   onDeepResearchSettingsClick?: () => void;
+  webSearchConfigured?: boolean;
+  deepResearchConfigured?: boolean;
 }
 
 export const ToolsSelector: React.FC<ToolsSelectorProps> = ({
@@ -35,7 +52,9 @@ export const ToolsSelector: React.FC<ToolsSelectorProps> = ({
   onWebSearchToggle,
   disabled,
   agents,
-  onDeepResearchSettingsClick
+  onDeepResearchSettingsClick,
+  webSearchConfigured = true,
+  deepResearchConfigured = true
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   
@@ -128,45 +147,85 @@ export const ToolsSelector: React.FC<ToolsSelectorProps> = ({
       <DropdownMenuContent align="start" className="w-64">
         {/* Web Search Option */}
         {hasWebSearch && (
-          <DropdownMenuItem
-            onSelect={(e) => {
-              e.preventDefault();
-              handleWebSearchSelect();
-            }}
-            className="flex items-center justify-between cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Globe className="h-4 w-4" />
-              <span>Web Search</span>
-            </div>
-            {webSearchEnabled ? (
-              <CircleDot className="h-4 w-4" />
-            ) : (
-              <Circle className="h-4 w-4" />
-            )}
-          </DropdownMenuItem>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <div>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    if (webSearchConfigured !== false) {
+                      handleWebSearchSelect();
+                    }
+                  }}
+                  disabled={webSearchConfigured === false}
+                  className="flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-4 w-4 flex-shrink-0" />
+                    <div className="flex flex-col">
+                      <span>Web Search</span>
+                      {webSearchConfigured === false && (
+                        <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          Requires API keys
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <RadioIndicator selected={webSearchEnabled} />
+                </DropdownMenuItem>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="max-w-xs">
+              {webSearchConfigured === false ? (
+                <p className="text-xs">Requires TAVILY_API_KEY or GOOGLE_SEARCH_API_KEY + GOOGLE_CSE_ID environment variables</p>
+              ) : (
+                <p className="text-xs">Search the web for current information</p>
+              )}
+            </TooltipContent>
+          </Tooltip>
         )}
         
         {/* Deep Research Option */}
         {hasDeepResearch && (
           <>
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
-                handleDeepResearchSelect();
-              }}
-              className="flex items-center justify-between cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <Microscope className="h-4 w-4" />
-                <span>Deep Research</span>
-              </div>
-              {deepResearchEnabled ? (
-                <CircleDot className="h-4 w-4" />
-              ) : (
-                <Circle className="h-4 w-4" />
-              )}
-            </DropdownMenuItem>
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <div>
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      if (deepResearchConfigured !== false) {
+                        handleDeepResearchSelect();
+                      }
+                    }}
+                    disabled={deepResearchConfigured === false}
+                    className="flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Microscope className="h-4 w-4 flex-shrink-0" />
+                      <div className="flex flex-col">
+                        <span>Deep Research</span>
+                        {deepResearchConfigured === false && (
+                          <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            Requires API keys
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <RadioIndicator selected={deepResearchEnabled} />
+                  </DropdownMenuItem>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs">
+                {deepResearchConfigured === false ? (
+                  <p className="text-xs">Requires TAVILY_API_KEY or GOOGLE_SEARCH_API_KEY + GOOGLE_CSE_ID environment variables</p>
+                ) : (
+                  <p className="text-xs">Comprehensive iterative research across multiple sources</p>
+                )}
+              </TooltipContent>
+            </Tooltip>
             {deepResearchEnabled && onDeepResearchSettingsClick && (
               <DropdownMenuItem
                 onSelect={(e) => {

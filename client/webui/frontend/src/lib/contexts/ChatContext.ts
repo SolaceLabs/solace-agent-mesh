@@ -21,6 +21,7 @@ export interface ChatState {
     deepResearchSettings: DeepResearchSettings;
     // Web Search State
     webSearchEnabled: boolean;
+    webSearchConfigured?: boolean; // undefined = unknown, true = configured, false = not configured
     // Agents
     agents: AgentCardInfo[];
     agentsError: string | null;

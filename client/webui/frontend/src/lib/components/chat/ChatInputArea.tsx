@@ -4,7 +4,7 @@ import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { Ban, Paperclip, Send } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
-import { useChatContext, useDragAndDrop, useAgentSelection } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useAgentSelection, useConfigContext } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
@@ -22,6 +22,7 @@ import { DeepResearchSettingsPanel } from "./DeepResearchSettingsPanel";
 import { ToolsSelector } from "./ToolsSelector";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
+    const { toolConfigStatus } = useConfigContext();
     const {
         isResponding,
         isCancelling,
@@ -46,6 +47,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         webSearchEnabled,
         setWebSearchEnabled
     } = useChatContext();
+    
+    // Get tool configuration status from config
+    const webSearchConfigured = toolConfigStatus?.web_search;
+    const deepResearchConfigured = toolConfigStatus?.deep_research;
     const { handleAgentSelection } = useAgentSelection();
 
     // File selection support
@@ -541,6 +546,8 @@ Focus on capturing what made this conversation successful so it can be reused wi
                         agents={agents}
                         deepResearchSettings={deepResearchSettings}
                         onDeepResearchSettingsClick={() => setShowDeepResearchSettings(!showDeepResearchSettings)}
+                        webSearchConfigured={webSearchConfigured}
+                        deepResearchConfigured={deepResearchConfigured}
                     />
 
                     {/* Deep Research Settings Panel (positioned above) */}
