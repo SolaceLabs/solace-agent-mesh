@@ -34,7 +34,7 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({ prompts, onMan
     const aiAssistedEnabled = configFeatureEnablement?.promptAIAssisted ?? true;
 
     const handlePromptClick = (prompt: PromptGroup) => {
-        setSelectedPrompt(prompt);
+        setSelectedPrompt(prev => (prev?.id === prompt.id ? null : prompt));
     };
 
     const handleCloseSidePanel = () => {
@@ -205,7 +205,7 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({ prompts, onMan
                             <EmptyState title="No Prompts Found" subtitle="Create prompts to facilitate repeated chat interactions." variant="noImage" buttons={createButtons} />
                         ) : (
                             <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
-                                <div className="flex flex-wrap gap-10">
+                                <div className="flex flex-wrap gap-6">
                                     {/* Create New Prompt Card - Always first */}
                                     <CreatePromptCard onManualCreate={onManualCreate} onAIAssisted={onAIAssisted} />
 

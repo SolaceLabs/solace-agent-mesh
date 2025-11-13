@@ -2,6 +2,7 @@ import React from "react";
 import { Plus, Sparkles } from "lucide-react";
 import { useConfigContext } from "@/lib/hooks";
 import { Button } from "@/lib/components/ui";
+import { GridCard } from "@/lib/components/common/GridCard";
 
 interface CreatePromptCardProps {
     onManualCreate: () => void;
@@ -42,9 +43,8 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
         );
     }
 
-    // Original compact version for grid display
     return (
-        <div className="bg-card border-primary/30 h-[200px] w-full flex-shrink-0 rounded-lg border-2 border-dashed sm:w-[380px]">
+        <GridCard className="border border-dashed border-[var(--color-primary-wMain)]">
             <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6">
                 <h3 className="text-center text-lg font-semibold">Create New Prompt</h3>
 
@@ -61,6 +61,6 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
                     </Button>
                 </div>
             </div>
-        </div>
+        </GridCard>
     );
 };
