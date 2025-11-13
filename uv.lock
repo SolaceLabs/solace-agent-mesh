@@ -3626,7 +3626,7 @@ requires-dist = [
     { name = "python-multipart", specifier = "==0.0.20" },
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "rouge", specifier = "==1.0.1" },
-    { name = "solace-ai-connector", specifier = "==1.4.0" },
+    { name = "solace-ai-connector", specifier = "==1.4.1" },
     { name = "sqlalchemy", specifier = "==2.0.40" },
     { name = "sse-starlette", specifier = "==3.0.2" },
     { name = "starlette", specifier = "==0.49.1" },
@@ -3637,7 +3637,7 @@ provides-extras = ["employee-tools", "gcs", "vertex"]
 
 [[package]]
 name = "solace-ai-connector"
-version = "1.4.0"
+version = "1.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gevent" },
@@ -3650,9 +3650,9 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bb/6d/6e215ae64a878f69a50c9069c1f556fee300ace239bce1cdd97d18e08686/solace_ai_connector-1.4.0.tar.gz", hash = "sha256:4fa78570ecf2237f5472b2c8383d9a406fe4061392203c4cca53cf38b510447d", size = 374597, upload-time = "2025-11-03T16:58:37.536Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/55/82/aae0a64d58aab0181429011294fbfa84a6f953f8ca675eb1dc92b8286550/solace_ai_connector-1.4.1.tar.gz", hash = "sha256:f362338954c872798d34b78eb1c2e5db1f2c374258e7ce0168c5b3657e8b968a", size = 374805, upload-time = "2025-11-06T19:21:28.242Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8a/8d/68575922b3f3f8d1fc35feab30be09f7576ec734b1ffb12f134a7a2d3ccf/solace_ai_connector-1.4.0-py3-none-any.whl", hash = "sha256:3fc2363ef9144d8942ef9e91c3cc672387d9b2de5fcc379640295ea4e17c764f", size = 183479, upload-time = "2025-11-03T16:58:36.125Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/e3/34983555516bb76473eed14156dbfa3cda7657ef76196ea84c3dd2f7466a/solace_ai_connector-1.4.1-py3-none-any.whl", hash = "sha256:f6071c0b80f19d6c384a4a3e24d408ae5242790f845ddbff505f982da4bb44d2", size = 183726, upload-time = "2025-11-06T19:21:26.854Z" },
 ]
 
 [[package]]
