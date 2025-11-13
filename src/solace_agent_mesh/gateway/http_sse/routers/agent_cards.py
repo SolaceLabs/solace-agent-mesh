@@ -47,9 +47,9 @@ async def get_discovered_agent_cards(
                 "target_agent": agent.name,
             }
             validation_result = config_resolver.validate_operation_config(
-                user_config, operation_spec, {"source": "agent_discovery"}
+                user_config, operation_spec, {"source": "agent_cards_endpoint"}
             )
-            if validation_result.get("valid", True):
+            if validation_result.get("valid", False):
                 filtered_agents.append(agent)
             else:
                 log.debug(

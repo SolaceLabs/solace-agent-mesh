@@ -297,7 +297,7 @@ class BaseGatewayComponent(SamComponentBase):
         validation_result = config_resolver.validate_operation_config(
             user_config, operation_spec, validation_context
         )
-        if not validation_result.get("valid", True):
+        if not validation_result.get("valid", False):
             reason = validation_result.get("reason", f"Access denied to agent '{target_agent_name}'")
             required_scopes = validation_result.get("required_scopes", [])
             log.warning(

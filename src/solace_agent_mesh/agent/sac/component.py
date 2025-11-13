@@ -2961,12 +2961,12 @@ class SamAgentComponent(SamComponentBase):
         }
         validation_context = {
             "delegating_agent": self.get_config("agent_name"),
-            "source": "agent_to_agent_delegation",
+            "source": "agent_delegation",
         }
         validation_result = config_resolver.validate_operation_config(
             user_config, operation_spec, validation_context
         )
-        if not validation_result.get("valid", True):
+        if not validation_result.get("valid", False):
             reason = validation_result.get(
                 "reason", f"Delegation to agent '{target_agent_name}' not allowed"
             )
