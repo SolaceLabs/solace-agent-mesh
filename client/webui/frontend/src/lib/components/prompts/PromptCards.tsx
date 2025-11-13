@@ -132,7 +132,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
     return (
         <div className="absolute inset-0 h-full w-full">
             <ResizablePanelGroup direction="horizontal" className="h-full">
-                <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={selectedPrompt ? 100 : 100}>
+                <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={selectedPrompt ? 100 : 100} id="promptCardsMainPanel">
                     <div className="flex h-full flex-col pt-6 pb-6 pl-6">
                         {!isLibraryEmpty && (
                             <div className="mb-4 flex items-center gap-2">
@@ -242,7 +242,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                 {selectedPrompt && (
                     <>
                         <ResizableHandle />
-                        <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+                        <ResizablePanel defaultSize={30} minSize={20} maxSize={50} id="promptDetailSidePanel">
                             <PromptDetailSidePanel prompt={selectedPrompt} onClose={handleCloseSidePanel} onEdit={onEdit} onDelete={onDelete} onViewVersions={onViewVersions} onUseInChat={onUseInChat} onTogglePin={onTogglePin} />
                         </ResizablePanel>
                     </>
