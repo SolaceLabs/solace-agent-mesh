@@ -1253,11 +1253,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 app=self.fastapi_app,
                 host=self.fastapi_host,
                 port=port,
-                log_level="warning",
+                log_level="critical",
                 lifespan="on",
                 ssl_keyfile=self.ssl_keyfile,
                 ssl_certfile=self.ssl_certfile,
                 ssl_keyfile_password=self.ssl_keyfile_password,
+                log_config=None
             )
             self.uvicorn_server = uvicorn.Server(config)
 
