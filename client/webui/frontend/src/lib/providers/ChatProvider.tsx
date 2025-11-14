@@ -59,6 +59,7 @@ import type {
     TaskStatusUpdateEvent,
     TextPart,
     ArtifactPart,
+    AgentCardInfo,
 } from "@/lib/types";
 
 interface ChatProviderProps {
@@ -1855,9 +1856,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Check URL parameter first
             const urlParams = new URLSearchParams(window.location.search);
             const urlAgentName = urlParams.get('agent');
+            let urlAgent: AgentCardInfo | undefined;
             
             if (urlAgentName) {
-                const urlAgent = agents.find(agent => agent.name === urlAgentName);
+                urlAgent = agents.find(agent => agent.name === urlAgentName);
                 if (urlAgent) {
                     selectedAgent = urlAgent;
                     console.log(`Using URL parameter agent: ${selectedAgent.name}`);
@@ -1867,7 +1869,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             // If no URL agent found, follow existing priority order
-            if (!urlAgentName || !agents.find(agent => agent.name === urlAgentName)) {
+            if (!urlAgent) {
                 if (activeProject?.defaultAgentId) {
                     const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
                     if (projectDefaultAgent) {
