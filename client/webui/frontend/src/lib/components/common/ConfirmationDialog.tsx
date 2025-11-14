@@ -25,8 +25,8 @@ type ConfirmationDialogProps =
     | (BaseDialogProps & {
           trigger?: never;
           triggerText?: never;
-          open?: boolean;
-          onOpenChange?: (open: boolean) => void;
+          open: boolean;
+          onOpenChange: (open: boolean) => void;
       });
 
 export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ title, message, triggerText, trigger, onClose, onConfirm, open, onOpenChange }) => {
