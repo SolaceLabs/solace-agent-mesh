@@ -19,7 +19,7 @@ The Prompt Library lets you create reusable prompt templates with variables, acc
 
 3. **Version Management**: Track changes to your prompts over time with automatic versioning, and designate specific versions as "Active" for active use.
 
-4. **Organization**: Categorize prompts by topic (Development, Analysis, Documentation, etc.) and assign custom chat shortcuts for even faster access.
+4. **Organization**: Tag prompts by topic (Development, Analysis, Documentation, etc.) and assign custom chat shortcuts for even faster access.
 
 5. **AI-Assisted Creation**: Use the built-in prompt builder assistant to help you design effective templates through natural conversation.
 
@@ -31,7 +31,7 @@ A prompt group is a container that holds multiple versions of a prompt template.
 
 - **Name**: A descriptive title for the prompt (e.g., "Code Review Template")
 - **Description**: Optional details about the prompt's purpose
-- **Category**: Organizational label (e.g., "Development", "Analysis", "Documentation")
+- **Tag**: Organizational label (e.g., "Development", "Analysis", "Documentation")
 - **Shortcut**: Optional shortcut for quick access (e.g., typing `/review` instantly finds your code review prompt)
 - **Active Version**: The currently active version of the prompt that appears when you use the shortcut
 
