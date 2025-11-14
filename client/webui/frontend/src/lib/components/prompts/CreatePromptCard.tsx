@@ -1,6 +1,8 @@
 import React from "react";
 import { Plus, Sparkles } from "lucide-react";
+
 import { useConfigContext } from "@/lib/hooks";
+import { GridCard } from "@/lib/components/common";
 import { Button } from "@/lib/components/ui";
 
 interface CreatePromptCardProps {
@@ -42,25 +44,24 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
         );
     }
 
-    // Original compact version for grid display
     return (
-        <div className="bg-card border-primary/30 h-[200px] w-full flex-shrink-0 rounded-lg border-2 border-dashed sm:w-[380px]">
+        <GridCard className="border border-dashed border-[var(--color-primary-wMain)]">
             <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6">
                 <h3 className="text-center text-lg font-semibold">Create New Prompt</h3>
 
                 <div className="flex w-full max-w-[240px] flex-col gap-3">
                     <Button onClick={onAIAssisted} disabled={!aiAssistedEnabled} variant="outline" className="w-full">
-                        <Sparkles className="mr-2 h-4 w-4" />
+                        <Sparkles />
                         Build with AI
                         {!aiAssistedEnabled && <span className="ml-1 text-xs">(Disabled)</span>}
                     </Button>
 
                     <Button onClick={onManualCreate} variant="ghost" className="w-full">
-                        <Plus className="mr-2 h-4 w-4" />
+                        <Plus />
                         Create Manually
                     </Button>
                 </div>
             </div>
-        </div>
+        </GridCard>
     );
 };

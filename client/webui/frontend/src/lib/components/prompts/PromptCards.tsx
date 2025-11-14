@@ -3,15 +3,15 @@ import { X, Filter, Sparkles, Plus } from "lucide-react";
 
 import type { PromptGroup } from "@/lib/types/prompts";
 
-import { PromptDisplayCard } from "./PromptDisplayCard";
+import { PromptCard } from "./PromptCard";
 import { CreatePromptCard } from "./CreatePromptCard";
 import { PromptDetailSidePanel } from "./PromptDetailSidePanel";
 import { EmptyState } from "../common";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { SearchInput } from "@/lib/components/ui";
+import { Button, SearchInput } from "@/lib/components/ui";
 import { useConfigContext } from "@/lib/hooks";
 
-interface PromptMeshCardsProps {
+interface PromptCardsProps {
     prompts: PromptGroup[];
     onManualCreate: () => void;
     onAIAssisted: () => void;
@@ -23,7 +23,7 @@ interface PromptMeshCardsProps {
     newlyCreatedPromptId?: string | null;
 }
 
-export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({ prompts, onManualCreate, onAIAssisted, onEdit, onDelete, onViewVersions, onUseInChat, onTogglePin, newlyCreatedPromptId }) => {
+export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreate, onAIAssisted, onEdit, onDelete, onViewVersions, onUseInChat, onTogglePin, newlyCreatedPromptId }) => {
     const [selectedPrompt, setSelectedPrompt] = useState<PromptGroup | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -34,7 +34,7 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({ prompts, onMan
     const aiAssistedEnabled = configFeatureEnablement?.promptAIAssisted ?? true;
 
     const handlePromptClick = (prompt: PromptGroup) => {
-        setSelectedPrompt(prompt);
+        setSelectedPrompt(prev => (prev?.id === prompt.id ? null : prompt));
     };
 
     const handleCloseSidePanel = () => {
@@ -132,20 +132,20 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({ prompts, onMan
     return (
         <div className="absolute inset-0 h-full w-full">
             <ResizablePanelGroup direction="horizontal" className="h-full">
-                <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={selectedPrompt ? 100 : 100}>
-                    <div className="h-full overflow-hidden pt-6 pl-6">
+                <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={selectedPrompt ? 100 : 100} id="promptCardsMainPanel">
+                    <div className="flex h-full flex-col pt-6 pb-6 pl-6">
                         {!isLibraryEmpty && (
                             <div className="mb-4 flex items-center gap-2">
-                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testId="promptSearchInput" />
+                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="promptSearchInput" />
 
                                 {/* Category Filter Dropdown */}
                                 {categories.length > 0 && (
                                     <div className="relative">
-                                        <button onClick={() => setShowCategoryDropdown(!showCategoryDropdown)} className="bg-background hover:bg-muted flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors">
+                                        <Button onClick={() => setShowCategoryDropdown(!showCategoryDropdown)} variant="outline" testid="promptTags">
                                             <Filter size={16} />
                                             Tags
                                             {selectedCategories.length > 0 && <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">{selectedCategories.length}</span>}
-                                        </button>
+                                        </Button>
 
                                         {showCategoryDropdown && (
                                             <>
@@ -180,10 +180,10 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({ prompts, onMan
                                 )}
 
                                 {hasActiveFilters && (
-                                    <button onClick={clearAllFilters} className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm whitespace-nowrap transition-colors" data-testid="clearAllFiltersButton">
+                                    <Button variant="ghost" onClick={clearAllFilters} data-testid="clearAllFiltersButton">
                                         <X size={16} />
                                         Clear All
-                                    </button>
+                                    </Button>
                                 )}
                             </div>
                         )}
@@ -202,11 +202,10 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({ prompts, onMan
                                 ]}
                             />
                         ) : isLibraryEmpty ? (
-                            <EmptyState title="No Prompts Found" subtitle="Create prompts to facilitate repeated chat interactions." variant="noImage" buttons={createButtons} />
+                            <EmptyState title="No Prompts Found" subtitle="Create prompts to support reusable text structures for chat interactions." variant="noImage" buttons={createButtons} />
                         ) : (
-                            <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
-                                <div className="flex flex-wrap gap-10">
-                                    {/* Create New Prompt Card - Always first */}
+                            <div className="flex-1 overflow-y-auto">
+                                <div className="flex flex-wrap gap-6">
                                     <CreatePromptCard onManualCreate={onManualCreate} onAIAssisted={onAIAssisted} />
 
                                     {/* Existing Prompt Cards */}
@@ -221,7 +220,7 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({ prompts, onMan
                                                 }
                                             }}
                                         >
-                                            <PromptDisplayCard
+                                            <PromptCard
                                                 prompt={prompt}
                                                 isSelected={selectedPrompt?.id === prompt.id}
                                                 onPromptClick={() => handlePromptClick(prompt)}
@@ -243,7 +242,7 @@ export const PromptMeshCards: React.FC<PromptMeshCardsProps> = ({ prompts, onMan
                 {selectedPrompt && (
                     <>
                         <ResizableHandle />
-                        <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+                        <ResizablePanel defaultSize={30} minSize={20} maxSize={50} id="promptDetailSidePanel">
                             <PromptDetailSidePanel prompt={selectedPrompt} onClose={handleCloseSidePanel} onEdit={onEdit} onDelete={onDelete} onViewVersions={onViewVersions} onUseInChat={onUseInChat} onTogglePin={onTogglePin} />
                         </ResizablePanel>
                     </>
