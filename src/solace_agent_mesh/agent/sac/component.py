@@ -76,6 +76,7 @@ from ...common.constants import (
 from ...common.data_parts import AgentProgressUpdateData
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
+from ...common.utils.rbac_utils import validate_agent_access
 
 log = logging.getLogger(__name__)
 
@@ -1754,6 +1755,25 @@ class SamAgentComponent(SamComponentBase):
             if adk_event.content and adk_event.content.parts:
                 for part in adk_event.content.parts:
                     if part.text is not None:
+                        # Check if this is a new turn by comparing invocation_id
+                        if adk_event.invocation_id:
+                            task_context.check_and_update_invocation(
+                                adk_event.invocation_id
+                            )
+                            is_first_text = task_context.is_first_text_in_turn()
+                            should_add_spacing = task_context.should_add_turn_spacing()
+
+                            # Add spacing if this is the first text of a new turn
+                            # We add it BEFORE the text, regardless of current buffer content
+                            if should_add_spacing and is_first_text:
+                                # Add double newline to separate turns (new paragraph)
+                                task_context.append_to_streaming_buffer("\n\n")
+                                log.debug(
+                                    "%s Added turn spacing before new invocation %s",
+                                    log_id_main,
+                                    adk_event.invocation_id,
+                                )
+
                         task_context.append_to_streaming_buffer(part.text)
                         log.debug(
                             "%s Appended text to buffer. New buffer size: %d bytes",
@@ -2951,6 +2971,17 @@ class SamAgentComponent(SamComponentBase):
             "%s Submitting non-blocking task for main task %s",
             log_identifier_helper,
             main_task_id,
+        )
+
+        # Validate agent access is allowed
+        validate_agent_access(
+            user_config=user_config,
+            target_agent_name=target_agent_name,
+            validation_context={
+                "delegating_agent": self.get_config("agent_name"),
+                "source": "agent_delegation",
+            },
+            log_identifier=log_identifier_helper,
         )
 
         peer_request_topic = self._get_agent_request_topic(target_agent_name)

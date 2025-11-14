@@ -1144,6 +1144,15 @@ def inject_dynamic_instructions_callback(
 Parallel Tool Calling:
 The system is capable of calling multiple tools in parallel to speed up processing. Please try to run tools in parallel when they don't depend on each other. This saves money and time, providing faster results to the user.
 
+**Response Formatting - CRITICAL**:
+When calling tools or using invisible embeds (like status_update), do NOT end your text with a colon (":"). Since tool calls and certain embeds produce no 
+visible output in your response, ending with a colon leaves it hanging with nothing following it. Instead, end with a period (".") or ellipsis ("...").
+ 
+Examples:
+ - BAD: "Let me search for that information:" [then calls tool]
+ - GOOD: "Let me search for that information." [then calls tool]
+ - GOOD: "Searching for information..." [then calls tool]
+
 Embeds in responses from agents:
 To be efficient, agents may respond with artifact_content or template embeds in their responses. These will not be resolved until they are sent back to a gateway. If it makes
 sense, just carry that embed forward to your response to the user. For example, if you ask for an org chart from another agent and its response contains an embed like
