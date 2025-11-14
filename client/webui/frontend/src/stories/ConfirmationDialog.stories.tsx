@@ -1,4 +1,5 @@
-import { Button, ConfirmationDialog } from "@/lib";
+import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
+import { Button } from "@/lib/components/ui/button";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 
 const meta = {
@@ -39,6 +40,17 @@ export const CustomTrigger: Story = {
         title: "Confirm",
         trigger: <Button variant="outline"> Custom trigger</Button>,
         message: "Are you sure you want to do this action",
+        onClose: () => alert("Action cancelled"),
+        onConfirm: () => alert("Action confirmed"),
+    },
+};
+
+export const ExternallyControlled: Story = {
+    args: {
+        title: "Confirm",
+        message: "Are you sure you want to do this action",
+        open: true,
+        onOpenChange: () => {},
         onClose: () => alert("Action cancelled"),
         onConfirm: () => alert("Action confirmed"),
     },

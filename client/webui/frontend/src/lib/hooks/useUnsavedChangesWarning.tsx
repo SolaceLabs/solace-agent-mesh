@@ -1,5 +1,5 @@
-import React, { useEffect, useCallback, useState } from 'react';
-import { ConfirmationDialog } from '@/lib/components/ui';
+import React, { useEffect, useCallback, useState } from "react";
+import { ConfirmationDialog } from "../components/common/ConfirmationDialog";
 
 interface UseUnsavedChangesWarningProps {
     hasUnsavedChanges: boolean;
@@ -11,9 +11,7 @@ interface UseUnsavedChangesWarningReturn {
     confirmNavigation: () => void;
 }
 
-export function useUnsavedChangesWarning({ 
-    hasUnsavedChanges,
-}: UseUnsavedChangesWarningProps): UseUnsavedChangesWarningReturn {
+export function useUnsavedChangesWarning({ hasUnsavedChanges }: UseUnsavedChangesWarningProps): UseUnsavedChangesWarningReturn {
     const [showDialog, setShowDialog] = useState(false);
     const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
 
@@ -22,12 +20,12 @@ export function useUnsavedChangesWarning({
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
             if (hasUnsavedChanges) {
                 e.preventDefault();
-                e.returnValue = ''; // Chrome requires returnValue to be set
+                e.returnValue = ""; // Chrome requires returnValue to be set
             }
         };
 
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
     }, [hasUnsavedChanges]);
 
     const confirmNavigation = useCallback(() => {
@@ -43,17 +41,19 @@ export function useUnsavedChangesWarning({
         setShowDialog(false);
     }, []);
 
-    const ConfirmNavigationDialog = useCallback(() => {
-        return showDialog ? (
+    const ConfirmNavigationDialog = useCallback(
+        () => (
             <ConfirmationDialog
                 title="Unsaved Changes Will Be Discarded"
                 message="Leaving the form will discard any unsaved changes. Are you sure you want to leave?"
                 onClose={cancelNavigation}
                 onConfirm={confirmNavigation}
-                confirmVariant="outline"
+                open={showDialog}
+                onOpenChange={setShowDialog}
             />
-        ) : null;
-    }, [showDialog, cancelNavigation, confirmNavigation]);
+        ),
+        [showDialog, cancelNavigation, confirmNavigation]
+    );
 
     return {
         ConfirmNavigationDialog,

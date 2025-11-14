@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { ConfirmationDialog } from '@/lib/components/ui';
+import React, { createContext, useContext, useState, useCallback } from "react";
+import { ConfirmationDialog } from "../components/common/ConfirmationDialog";
 
 interface UnsavedChangesContextType {
     hasUnsavedChanges: boolean;
@@ -14,14 +14,17 @@ export const UnsavedChangesProvider: React.FC<{ children: React.ReactNode }> = (
     const [showDialog, setShowDialog] = useState(false);
     const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
 
-    const checkUnsavedChanges = useCallback((onConfirm: () => void) => {
-        if (hasUnsavedChanges) {
-            setPendingNavigation(() => onConfirm);
-            setShowDialog(true);
-        } else {
-            onConfirm();
-        }
-    }, [hasUnsavedChanges]);
+    const checkUnsavedChanges = useCallback(
+        (onConfirm: () => void) => {
+            if (hasUnsavedChanges) {
+                setPendingNavigation(() => onConfirm);
+                setShowDialog(true);
+            } else {
+                onConfirm();
+            }
+        },
+        [hasUnsavedChanges]
+    );
 
     const handleConfirm = useCallback(() => {
         setShowDialog(false);
@@ -39,14 +42,14 @@ export const UnsavedChangesProvider: React.FC<{ children: React.ReactNode }> = (
     return (
         <UnsavedChangesContext.Provider value={{ hasUnsavedChanges, setHasUnsavedChanges, checkUnsavedChanges }}>
             {children}
-            {showDialog && (
-                <ConfirmationDialog
-                    title="Unsaved Changes Will Be Discarded"
-                    message="Leaving the form will discard any unsaved changes. Are you sure you want to leave?"
-                    onClose={handleCancel}
-                    onConfirm={handleConfirm}
-                />
-            )}
+            <ConfirmationDialog
+                open={showDialog}
+                onOpenChange={setShowDialog}
+                title="Unsaved Changes Will Be Discarded"
+                message="Leaving the form will discard any unsaved changes. Are you sure you want to leave?"
+                onClose={handleCancel}
+                onConfirm={handleConfirm}
+            />
         </UnsavedChangesContext.Provider>
     );
 };
@@ -54,7 +57,7 @@ export const UnsavedChangesProvider: React.FC<{ children: React.ReactNode }> = (
 export const useUnsavedChangesContext = () => {
     const context = useContext(UnsavedChangesContext);
     if (!context) {
-        throw new Error('useUnsavedChangesContext must be used within UnsavedChangesProvider');
+        throw new Error("useUnsavedChangesContext must be used within UnsavedChangesProvider");
     }
     return context;
 };
