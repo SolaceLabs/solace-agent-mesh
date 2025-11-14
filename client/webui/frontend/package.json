@@ -119,6 +119,7 @@
         "@types/react": "19.0.0",
         "@types/react-dom": "19.0.0",
         "@vitejs/plugin-react": "^4.4.1",
+        "babel-plugin-react-compiler": "^1.0.0",
         "cypress": "^14.5.4",
         "eslint": "^9.25.0",
         "eslint-plugin-react-hooks": "^5.2.0",
