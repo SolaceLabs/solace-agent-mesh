@@ -9,6 +9,7 @@ import type { PromptGroup } from '@/lib/types/prompts';
 import type { MessageFE } from '@/lib/types';
 import { detectVariables } from '@/lib/utils/promptUtils';
 import { VariableDialog } from './VariableDialog';
+import { authenticatedFetch } from '@/lib/utils/api';
 
 interface ReservedCommand {
     command: string;
@@ -62,7 +63,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({
         const fetchPromptGroups = async () => {
             setIsLoading(true);
             try {
-                const response = await fetch('/api/v1/prompts/groups/all', {
+                const response = await authenticatedFetch('/api/v1/prompts/groups/all', {
                     credentials: 'include',
                 });
                 if (response.ok) {
