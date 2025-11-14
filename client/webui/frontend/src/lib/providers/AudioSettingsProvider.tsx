@@ -119,14 +119,29 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     const [isInitialized, setIsInitialized] = useState(false);
     const [isTTSPlaying, setIsTTSPlaying] = useState(false);
 
-    // Fetch server configuration on mount
+    // Fetch server configuration on mount and validate external mode availability
     useEffect(() => {
         const fetchServerConfig = async () => {
             try {
+                // Fetch main config
                 const response = await fetch("/api/v1/config");
                 if (response.ok) {
                     const config = await response.json();
                     const ttsSettings = config.tts_settings || {};
+
+                    // Check speech config for external availability
+                    let sttExternal = false;
+                    let ttsExternal = false;
+                    try {
+                        const speechResponse = await fetch("/api/speech/config");
+                        if (speechResponse.ok) {
+                            const speechConfig = await speechResponse.json();
+                            sttExternal = speechConfig.sttExternal || false;
+                            ttsExternal = speechConfig.ttsExternal || false;
+                        }
+                    } catch (error) {
+                        console.error("Error fetching speech config:", error);
+                    }
 
                     setSettings((prev) => {
                         const updated = { ...prev };
@@ -139,6 +154,18 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                                 (updated as Record<string, unknown>)[settingKey] = value;
                             }
                         });
+
+                        // Force browser mode if external is selected but not configured
+                        if (updated.engineSTT === "external" && !sttExternal) {
+                            console.warn("External STT not configured, falling back to browser mode");
+                            updated.engineSTT = "browser";
+                            localStorage.setItem(STORAGE_KEY_MAP.engineSTT, "browser");
+                        }
+                        if (updated.engineTTS === "external" && !ttsExternal) {
+                            console.warn("External TTS not configured, falling back to browser mode");
+                            updated.engineTTS = "browser";
+                            localStorage.setItem(STORAGE_KEY_MAP.engineTTS, "browser");
+                        }
 
                         return updated;
                     });

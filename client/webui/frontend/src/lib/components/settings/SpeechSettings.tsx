@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Mic, Volume2 } from "lucide-react";
+import { Mic, Volume2, AlertCircle, Info } from "lucide-react";
 import { useAudioSettings } from "@/lib/hooks";
 import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input } from "@/lib/components/ui";
 
@@ -7,6 +7,25 @@ export const SpeechSettingsPanel: React.FC = () => {
     const { settings, updateSetting } = useAudioSettings();
     const [availableVoices, setAvailableVoices] = useState<string[]>([]);
     const [loadingVoices, setLoadingVoices] = useState(false);
+    const [sttConfigured, setSttConfigured] = useState<boolean | null>(null);
+    const [ttsConfigured, setTtsConfigured] = useState<boolean | null>(null);
+
+    // Check STT/TTS configuration status
+    useEffect(() => {
+        const checkConfig = async () => {
+            try {
+                const response = await fetch("/api/speech/config");
+                if (response.ok) {
+                    const config = await response.json();
+                    setSttConfigured(config.sttExternal || false);
+                    setTtsConfigured(config.ttsExternal || false);
+                }
+            } catch (error) {
+                console.error("Error checking speech config:", error);
+            }
+        };
+        checkConfig();
+    }, []);
 
     // Load voices when provider or engine changes
     useEffect(() => {
@@ -60,7 +79,14 @@ export const SpeechSettingsPanel: React.FC = () => {
                     <Label className="font-medium">STT Engine</Label>
                     <Select
                         value={settings.engineSTT}
-                        onValueChange={(value: "browser" | "external") => updateSetting("engineSTT", value)}
+                        onValueChange={(value: "browser" | "external") => {
+                            // If switching to external but not configured, show warning and stay on browser
+                            if (value === "external" && sttConfigured === false) {
+                                alert("External STT is not configured. Please add STT configuration to webui.yaml first.");
+                                return;
+                            }
+                            updateSetting("engineSTT", value);
+                        }}
                         disabled={!settings.speechToText}
                     >
                         <SelectTrigger className="w-40">
@@ -68,10 +94,54 @@ export const SpeechSettingsPanel: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="browser">Browser</SelectItem>
-                            <SelectItem value="external">External API</SelectItem>
+                            <SelectItem value="external" disabled={sttConfigured === false}>
+                                External API {sttConfigured === false ? "(Not Configured)" : ""}
+                            </SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
+
+                {/* STT Configuration Warning - Only show for External API */}
+                {settings.speechToText && settings.engineSTT === "external" && sttConfigured === false && (
+                    <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 p-3 border border-yellow-200 dark:border-yellow-900">
+                        <div className="flex gap-2">
+                            <AlertCircle className="size-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1 text-sm">
+                                <p className="font-semibold text-yellow-800 dark:text-yellow-400 mb-1">
+                                    External STT Not Configured
+                                </p>
+                                <p className="text-yellow-700 dark:text-yellow-500 mb-2">
+                                    To use External API mode, add the following to your <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 rounded text-xs">webui.yaml</code>:
+                                </p>
+                                <pre className="text-xs bg-yellow-100 dark:bg-yellow-900/40 p-2 rounded overflow-x-auto">
+{`speech:
+  stt:
+    url: https://api.openai.com/v1/audio/transcriptions
+    api_key: \${OPENAI_API_KEY}
+    model: whisper-1`}
+                                </pre>
+                                <p className="text-yellow-700 dark:text-yellow-500 mt-2 text-xs">
+                                    Set <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 rounded">OPENAI_API_KEY</code> environment variable or use Browser mode (free, no setup required).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Browser STT Info */}
+                {settings.speechToText && settings.engineSTT === "browser" && (
+                    <div className="rounded-md bg-blue-50 dark:bg-blue-950/20 p-3 border border-blue-200 dark:border-blue-900">
+                        <div className="flex gap-2">
+                            <Info className="size-5 text-blue-600 dark:text-blue-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1 text-sm text-blue-700 dark:text-blue-400">
+                                <p className="font-semibold mb-1">Browser Mode (Free)</p>
+                                <p className="text-xs">
+                                    Uses your browser's built-in speech recognition. Works in Chrome, Edge, and Safari. No API key or backend configuration required.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Language */}
                 <div className="flex items-center justify-between">
@@ -161,7 +231,14 @@ export const SpeechSettingsPanel: React.FC = () => {
                     <Label className="font-medium">TTS Engine</Label>
                     <Select
                         value={settings.engineTTS}
-                        onValueChange={(value: "browser" | "external") => updateSetting("engineTTS", value)}
+                        onValueChange={(value: "browser" | "external") => {
+                            // If switching to external but not configured, show warning and stay on browser
+                            if (value === "external" && ttsConfigured === false) {
+                                alert("External TTS is not configured. Please add TTS configuration to webui.yaml first.");
+                                return;
+                            }
+                            updateSetting("engineTTS", value);
+                        }}
                         disabled={!settings.textToSpeech}
                     >
                         <SelectTrigger className="w-40">
@@ -169,10 +246,54 @@ export const SpeechSettingsPanel: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="browser">Browser</SelectItem>
-                            <SelectItem value="external">External API</SelectItem>
+                            <SelectItem value="external" disabled={ttsConfigured === false}>
+                                External API {ttsConfigured === false ? "(Not Configured)" : ""}
+                            </SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
+
+                {/* TTS Configuration Warning - Only show for External API */}
+                {settings.textToSpeech && settings.engineTTS === "external" && ttsConfigured === false && (
+                    <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 p-3 border border-yellow-200 dark:border-yellow-900">
+                        <div className="flex gap-2">
+                            <AlertCircle className="size-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1 text-sm">
+                                <p className="font-semibold text-yellow-800 dark:text-yellow-400 mb-1">
+                                    External TTS Not Configured
+                                </p>
+                                <p className="text-yellow-700 dark:text-yellow-500 mb-2">
+                                    To use External API mode, configure TTS in your <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 rounded text-xs">webui.yaml</code>. Example for Gemini:
+                                </p>
+                                <pre className="text-xs bg-yellow-100 dark:bg-yellow-900/40 p-2 rounded overflow-x-auto">
+{`speech:
+  tts:
+    provider: gemini
+    api_key: \${GEMINI_API_KEY}
+    model: gemini-2.0-flash-exp`}
+                                </pre>
+                                <p className="text-yellow-700 dark:text-yellow-500 mt-2 text-xs">
+                                    Or use Browser mode (free, no setup required).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Browser TTS Info */}
+                {settings.textToSpeech && settings.engineTTS === "browser" && (
+                    <div className="rounded-md bg-blue-50 dark:bg-blue-950/20 p-3 border border-blue-200 dark:border-blue-900">
+                        <div className="flex gap-2">
+                            <Info className="size-5 text-blue-600 dark:text-blue-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1 text-sm text-blue-700 dark:text-blue-400">
+                                <p className="font-semibold mb-1">Browser Mode (Free)</p>
+                                <p className="text-xs">
+                                    Uses your browser's built-in text-to-speech. No API key or backend configuration required. Voice quality depends on your browser and operating system.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* TTS Provider Selection - Only show for External API */}
                 {settings.engineTTS === "external" && (

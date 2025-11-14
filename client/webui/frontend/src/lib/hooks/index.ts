@@ -11,6 +11,7 @@ export * from "./useDebounce";
 export * from "./useDownload";
 export * from "./useDragAndDrop";
 export * from "./useMobile";
+export * from "./useSpeechToText";
 export * from "./useStreamingTTS";
 export * from "./useTaskContext";
 export * from "./useTextToSpeech";

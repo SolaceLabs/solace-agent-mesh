@@ -1,15 +1,16 @@
-import React, { useRef, useState, useEffect, useMemo } from "react";
+import React, { useRef, useState, useEffect, useMemo, useCallback } from "react";
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 
 import { Ban, Paperclip, Send } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
-import { useChatContext, useDragAndDrop, useAgentSelection } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
 
 import { FileBadge } from "./file/FileBadge";
+import { AudioRecorder } from "./AudioRecorder";
 import { PromptsCommand } from "./PromptsCommand";
 import { VariableDialog } from "./VariableDialog";
 import {
@@ -22,6 +23,7 @@ import {
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
+    const { settings } = useAudioSettings();
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -403,6 +405,18 @@ Focus on capturing what made this conversation successful so it can be reused wi
         }, 100);
     };
 
+    // Handle transcription from AudioRecorder
+    const handleTranscription = useCallback((text: string) => {
+        // Append transcribed text to current input
+        const newText = inputValue ? `${inputValue} ${text}` : text;
+        setInputValue(newText);
+        
+        // Focus the input after transcription
+        setTimeout(() => {
+            chatInputRef.current?.focus();
+        }, 100);
+    }, [inputValue]);
+
     return (
         <div
             className={`rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
@@ -509,6 +523,17 @@ Focus on capturing what made this conversation successful so it can be reused wi
                         ))}
                     </SelectContent>
                 </Select>
+
+                {/* Spacer to push buttons to the right */}
+                <div className="flex-1" />
+
+                {/* Microphone button - show if STT enabled */}
+                {settings.speechToText && (
+                    <AudioRecorder
+                        disabled={isResponding}
+                        onTranscriptionComplete={handleTranscription}
+                    />
+                )}
 
                 {isResponding && !isCancelling ? (
                     <Button data-testid="cancel" className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Cancel">
