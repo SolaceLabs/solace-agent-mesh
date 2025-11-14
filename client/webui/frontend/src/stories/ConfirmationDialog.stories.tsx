@@ -1,4 +1,5 @@
-import { Button, ConfirmationDialog } from "@/lib";
+import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
+import { Button } from "@/lib/components/ui/button";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 
 const meta = {
