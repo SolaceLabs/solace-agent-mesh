@@ -66,6 +66,15 @@ You can run Agent Mesh Enterprise in two different modes depending on your needs
 You may need to include `--platform linux/amd64` depending on the host machine you're using.
 :::
 
+:::warning[Authorization Required]
+**Agent Mesh Enterprise uses secure-by-default authorization.** Without explicit authorization configuration, the system will **deny all access** to protect your deployment.
+
+For production use, you must configure RBAC (Role-Based Access Control) to grant access to users. See the [RBAC Setup Guide](./rbac-setup-guide.md) for details.
+
+For development/testing only, you can disable authorization by setting `type: none` in your configuration, but this should **never** be used in production. (see example below)
+:::
+
+
 ### Running in Development Mode
 
 Development mode simplifies getting started by using an embedded Solace broker. This configuration requires fewer parameters and allows you to test Agent Mesh Enterprise without setting up external infrastructure. Use this mode for local development, testing, and evaluation.
@@ -95,7 +104,7 @@ Replace the placeholder values with your actual configuration:
 The `SOLACE_DEV_MODE="true"` environment variable tells the container to use the embedded broker instead of connecting to an external one.
 
 <details>
-    <summary>Example</summary>
+    <summary>Example: Basic Development Mode (Secure Default - Access Denied)</summary>
 
     ```bash
     docker run -itd -p 8001:8000 \
@@ -108,6 +117,29 @@ The `SOLACE_DEV_MODE="true"` environment variable tells the container to use the
       --name sam-ent-dev \
       868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31
     ```
+    
+    **Note:** This configuration uses secure defaults and will deny all access. You must configure RBAC or use the permissive development configuration below.
+</details>
+
+<details>
+    <summary>Example: Development Mode with Permissive Authorization (Development Only)</summary>
+
+    You can use the pre-configured development configuration file provided in the `preset` directory. Run the container with the `SAM_AUTHORIZATION_CONFIG` environment variable pointing to this file to disable authorization checks.
+    
+    ```bash
+    docker run -itd -p 8001:8000 \
+      -e LLM_SERVICE_API_KEY="<YOUR_LLM_TOKEN>" \
+      -e LLM_SERVICE_ENDPOINT="https://lite-llm.mymaas.net/" \
+      -e LLM_SERVICE_PLANNING_MODEL_NAME="openai/vertex-claude-4-sonnet" \
+      -e LLM_SERVICE_GENERAL_MODEL_NAME="openai/vertex-claude-4-sonnet" \
+      -e NAMESPACE="sam-dev" \
+      -e SOLACE_DEV_MODE="true" \
+      -e SAM_AUTHORIZATION_CONFIG="/preset/auth/insecure_permissive_auth_config.yaml" \
+      --name sam-ent-dev \
+      868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31
+    ```
+    
+    **⚠️ Warning:** This configuration disables authorization and grants full access. Use only for local development.
 </details>
 
 ### Running in Production Mode
