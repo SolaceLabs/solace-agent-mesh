@@ -112,21 +112,253 @@ class AudioService:
         self.config = config
         self.speech_config = config.get("speech", {})
         
-    async def transcribe_audio(
+    async def transcribe_audio_openai(
         self,
-        audio_file: UploadFile,
+        temp_path: str,
         user_id: str,
         session_id: str,
         app_name: str = "webui"
     ) -> TranscriptionResult:
         """
+        Transcribe audio using OpenAI Whisper API.
+        
+        Args:
+            temp_path: Path to temporary audio file
+            user_id: User identifier
+            session_id: Session identifier
+            app_name: Application name
+            
+        Returns:
+            TranscriptionResult with transcribed text
+            
+        Raises:
+            HTTPException: If transcription fails
+        """
+        try:
+            import httpx
+            import os
+            
+            stt_config = self.speech_config.get("stt", {})
+            openai_config = stt_config.get("openai", stt_config)  # Fallback to root for backward compat
+            
+            api_url = openai_config.get("url", "https://api.openai.com/v1/audio/transcriptions")
+            api_key = openai_config.get("api_key", "")
+            model = openai_config.get("model", "whisper-1")
+            
+            if not api_key:
+                raise HTTPException(500, "OpenAI STT API key not configured")
+            
+            # Read the audio file
+            with open(temp_path, "rb") as audio_file:
+                audio_data = audio_file.read()
+            
+            # Prepare multipart form data
+            files = {
+                "file": (os.path.basename(temp_path), audio_data, "audio/webm"),
+            }
+            data = {
+                "model": model,
+            }
+            headers = {
+                "Authorization": f"Bearer {api_key}"
+            }
+            
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(api_url, headers=headers, files=files, data=data)
+                response.raise_for_status()
+                result = response.json()
+            
+            transcription_text = result.get("text", "").strip()
+            
+            if not transcription_text:
+                log.warning("[AudioService] Empty transcription - no speech detected in audio")
+                raise HTTPException(400, "No speech detected in audio. Please try speaking louder or longer.")
+            
+            return TranscriptionResult(
+                text=transcription_text,
+                language="en",
+                duration=0.0
+            )
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            log.exception("[AudioService] OpenAI STT error: %s", e)
+            raise HTTPException(500, f"OpenAI STT failed: {str(e)}")
+    
+    async def transcribe_audio_azure(
+        self,
+        temp_path: str,
+        user_id: str,
+        session_id: str,
+        app_name: str = "webui"
+    ) -> TranscriptionResult:
+        """
+        Transcribe audio using Azure Speech SDK.
+        
+        Args:
+            temp_path: Path to temporary audio file
+            user_id: User identifier
+            session_id: Session identifier
+            app_name: Application name
+            
+        Returns:
+            TranscriptionResult with transcribed text
+            
+        Raises:
+            HTTPException: If transcription fails
+        """
+        wav_temp_path = None
+        try:
+            # Import Azure SDK
+            try:
+                import azure.cognitiveservices.speech as speechsdk
+            except ImportError:
+                raise HTTPException(
+                    500,
+                    "Azure Speech SDK not installed. Run: pip install azure-cognitiveservices-speech"
+                )
+            
+            # Get Azure configuration
+            stt_config = self.speech_config.get("stt", {})
+            azure_config = stt_config.get("azure", {})
+            
+            api_key = azure_config.get("api_key", "")
+            region = azure_config.get("region", "")
+            language = azure_config.get("language", "en-US")
+            
+            if not api_key or not region:
+                raise HTTPException(
+                    500,
+                    "Azure STT not configured. Please set speech.stt.azure.api_key and region, or speech.tts.azure if using shared config."
+                )
+            
+            # Convert audio to WAV format (Azure SDK requires WAV)
+            # WebM/OGG/MP4 need to be converted
+            import os
+            from pydub import AudioSegment
+            
+            file_ext = os.path.splitext(temp_path)[1].lower()
+            
+            if file_ext not in ['.wav']:
+                # Convert to WAV
+                # Load audio file
+                if file_ext == '.webm':
+                    audio = await asyncio.to_thread(AudioSegment.from_file, temp_path, format="webm")
+                elif file_ext == '.ogg':
+                    audio = await asyncio.to_thread(AudioSegment.from_ogg, temp_path)
+                elif file_ext in ['.mp3', '.mp4']:
+                    audio = await asyncio.to_thread(AudioSegment.from_file, temp_path)
+                else:
+                    audio = await asyncio.to_thread(AudioSegment.from_file, temp_path)
+                
+                # Create temp WAV file
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav_temp:
+                    wav_temp_path = wav_temp.name
+                
+                # Export as WAV (16kHz, mono, 16-bit PCM - Azure's preferred format)
+                await asyncio.to_thread(
+                    audio.set_frame_rate(16000).set_channels(1).export,
+                    wav_temp_path,
+                    format="wav"
+                )
+                
+                audio_path = wav_temp_path
+            else:
+                audio_path = temp_path
+            
+            # Create speech config
+            speech_config = speechsdk.SpeechConfig(
+                subscription=api_key,
+                region=region
+            )
+            speech_config.speech_recognition_language = language
+            
+            # Create audio config from file
+            audio_config = speechsdk.AudioConfig(filename=audio_path)
+            
+            # Create speech recognizer
+            recognizer = speechsdk.SpeechRecognizer(
+                speech_config=speech_config,
+                audio_config=audio_config
+            )
+            
+            transcribed_texts = []
+            done = asyncio.Event()
+            
+            def recognized_handler(evt):
+                if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
+                    text = evt.result.text.strip()
+                    if text:
+                        transcribed_texts.append(text)
+            
+            def canceled_handler(evt):
+                if evt.cancellation_details.error_details:
+                    log.error(f"[AudioService] Recognition error: {evt.cancellation_details.error_details}")
+                done.set()
+            
+            def stopped_handler(evt):
+                done.set()
+            
+            # Connect callbacks
+            recognizer.recognized.connect(recognized_handler)
+            recognizer.canceled.connect(canceled_handler)
+            recognizer.session_stopped.connect(stopped_handler)
+            
+            # Start continuous recognition
+            await asyncio.to_thread(recognizer.start_continuous_recognition)
+            
+            # Wait for recognition to complete
+            await done.wait()
+            
+            # Stop recognition
+            await asyncio.to_thread(recognizer.stop_continuous_recognition)
+            
+            # Combine all recognized text
+            if not transcribed_texts:
+                log.warning("[AudioService] No speech could be recognized")
+                raise HTTPException(400, "No speech detected in audio. Please try speaking louder or longer.")
+            
+            full_transcription = " ".join(transcribed_texts).strip()
+            
+            return TranscriptionResult(
+                text=full_transcription,
+                language=language,
+                duration=0.0  # Duration not available in continuous mode
+            )
+                
+        except HTTPException:
+            raise
+        except Exception as e:
+            log.exception("[AudioService] Azure STT error: %s", e)
+            raise HTTPException(500, f"Azure STT failed: {str(e)}")
+        finally:
+            # Clean up WAV temp file if created
+            if wav_temp_path:
+                try:
+                    import os
+                    os.unlink(wav_temp_path)
+                except Exception as e:
+                    log.warning("[AudioService] Failed to delete WAV temp file: %s", e)
+    
+    async def transcribe_audio(
+        self,
+        audio_file: UploadFile,
+        user_id: str,
+        session_id: str,
+        app_name: str = "webui",
+        provider: Optional[str] = None
+    ) -> TranscriptionResult:
+        """
         Transcribe audio file to text using configured STT service.
+        Routes to appropriate provider (OpenAI, Azure, etc.).
         
         Args:
             audio_file: Uploaded audio file
             user_id: User identifier
             session_id: Session identifier
             app_name: Application name
+            provider: Optional provider override (openai, azure)
             
         Returns:
             TranscriptionResult with transcribed text
@@ -162,61 +394,25 @@ class AudioService:
                         "STT not configured. Please add speech.stt configuration."
                     )
                 
-                # Use direct API call instead of the tool (which requires artifact service)
-                # The transcribe_audio tool is designed for agent use with artifacts
-                # For gateway API, we'll call the STT API directly
-                import httpx
-                import os
+                # Determine provider - use request provider if provided, otherwise use config
+                final_provider = provider or stt_config.get("provider", "openai")
                 
-                api_url = stt_config.get("url", "https://api.openai.com/v1/audio/transcriptions")
-                api_key = stt_config.get("api_key", "")
-                model = stt_config.get("model", "whisper-1")
-                
-                if not api_key:
-                    raise HTTPException(500, "STT API key not configured")
-                
-                # Read the audio file
-                with open(temp_path, "rb") as audio_file:
-                    audio_data = audio_file.read()
-                
-                # Prepare multipart form data
-                files = {
-                    "file": (os.path.basename(temp_path), audio_data, "audio/webm"),
-                }
-                data = {
-                    "model": model,
-                }
-                headers = {
-                    "Authorization": f"Bearer {api_key}"
-                }
-                
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.post(api_url, headers=headers, files=files, data=data)
-                    response.raise_for_status()
-                    result = response.json()
-                
-                transcription_text = result.get("text", "").strip()
-                
-                if not transcription_text:
-                    # Empty transcription - likely silence or very short audio
-                    log.warning("[AudioService] Empty transcription - no speech detected in audio")
-                    raise HTTPException(400, "No speech detected in audio. Please try speaking louder or longer.")
-                
-                result = {
-                    "status": "success",
-                    "transcription": transcription_text
-                }
-                
-                if result.get("status") == "error":
-                    raise HTTPException(500, result.get("message", "Transcription failed"))
-                
-                transcription_text = result.get("transcription", "")
-
-                return TranscriptionResult(
-                    text=transcription_text,
-                    language="en",  # TODO: Detect language
-                    duration=0.0  # TODO: Calculate duration
+                log.info(
+                    "[AudioService] Transcribing audio for user=%s, session=%s, provider=%s",
+                    user_id, session_id, final_provider
                 )
+                
+                # Route to appropriate provider
+                if final_provider == "azure":
+                    return await self.transcribe_audio_azure(
+                        temp_path, user_id, session_id, app_name
+                    )
+                elif final_provider == "openai":
+                    return await self.transcribe_audio_openai(
+                        temp_path, user_id, session_id, app_name
+                    )
+                else:
+                    raise HTTPException(500, f"Unknown STT provider: {final_provider}")
                 
             finally:
                 # Clean up temp file

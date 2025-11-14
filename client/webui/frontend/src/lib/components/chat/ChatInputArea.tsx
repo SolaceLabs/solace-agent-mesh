@@ -4,6 +4,7 @@ import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { Ban, Paperclip, Send } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { MessageBanner } from "@/lib/components/common";
 import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
@@ -45,6 +46,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     
     const [showVariableDialog, setShowVariableDialog] = useState(false);
     const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
+    
+    // STT error state for persistent banner
+    const [sttError, setSttError] = useState<string | null>(null);
 
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
@@ -417,6 +421,11 @@ Focus on capturing what made this conversation successful so it can be reused wi
         }, 100);
     }, [inputValue]);
 
+    // Handle STT errors with persistent banner
+    const handleTranscriptionError = useCallback((error: string) => {
+        setSttError(error);
+    }, []);
+
     return (
         <div
             className={`rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
@@ -425,6 +434,18 @@ Focus on capturing what made this conversation successful so it can be reused wi
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
         >
+            {/* STT Error Banner */}
+            {sttError && (
+                <div className="mb-3">
+                    <MessageBanner
+                        variant="error"
+                        message={sttError}
+                        dismissible
+                        onDismiss={() => setSttError(null)}
+                    />
+                </div>
+            )}
+
             {/* Hidden File Input */}
             <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} accept="*/*" disabled={isResponding} />
 
@@ -532,6 +553,7 @@ Focus on capturing what made this conversation successful so it can be reused wi
                     <AudioRecorder
                         disabled={isResponding}
                         onTranscriptionComplete={handleTranscription}
+                        onError={handleTranscriptionError}
                     />
                 )}
 

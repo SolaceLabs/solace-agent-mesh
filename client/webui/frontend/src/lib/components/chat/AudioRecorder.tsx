@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useImperativeHandle, forwardRef } from "react";
+import { useCallback, useRef, useImperativeHandle, forwardRef } from "react";
 import { Mic, MicOff, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { useSpeechToText, useAudioSettings } from "@/lib/hooks";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 interface AudioRecorderProps {
     disabled?: boolean;
     onTranscriptionComplete: (text: string) => void;
+    onError?: (error: string) => void;
     className?: string;
 }
 
@@ -19,10 +20,10 @@ export interface AudioRecorderRef {
 export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
     disabled = false,
     onTranscriptionComplete,
+    onError: onErrorProp,
     className,
 }, ref) => {
     const { settings } = useAudioSettings();
-    const [showError, setShowError] = useState(false);
     const existingTextRef = useRef<string>("");
     const shouldSendTranscriptionRef = useRef<boolean>(true);
 
@@ -54,13 +55,13 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
 
     const handleError = useCallback((error: string) => {
         console.error("Speech-to-text error:", error);
-        setShowError(true);
-        // Show error longer if it's a browser support issue
-        const timeout = error.includes("not supported") ? 5000 : 3000;
-        setTimeout(() => setShowError(false), timeout);
-    }, []);
+        // Pass error to parent for notification banner
+        if (onErrorProp) {
+            onErrorProp(error);
+        }
+    }, [onErrorProp]);
 
-    const { isListening, isLoading, error, startRecording, stopRecording } = useSpeechToText({
+    const { isListening, isLoading, startRecording, stopRecording } = useSpeechToText({
         onTranscriptionComplete: handleTranscriptionComplete,
         onTranscriptionUpdate: handleTranscriptionUpdate,
         onError: handleError,
@@ -158,20 +159,6 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
             >
                 {renderIcon()}
             </Button>
-
-            {/* Error indicator */}
-            {showError && error && (
-                <div className="absolute bottom-full right-0 mb-2 max-w-xs rounded-md bg-red-500 px-3 py-2 text-xs text-white shadow-lg">
-                    <div className="font-semibold mb-1">Speech Error</div>
-                    <div>{error}</div>
-                    {error.includes("not supported") && (
-                        <div className="mt-2 text-xs opacity-90">
-                            💡 Try switching to "External API" mode in Settings
-                        </div>
-                    )}
-                    <div className="absolute right-4 top-full border-4 border-transparent border-t-red-500" />
-                </div>
-            )}
 
             {/* Recording indicator */}
             {isListening && (

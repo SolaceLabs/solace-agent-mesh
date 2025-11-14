@@ -4,6 +4,7 @@ export interface SpeechSettings {
     // STT Settings
     speechToText: boolean;
     engineSTT: "browser" | "external";
+    sttProvider: "openai" | "azure";
     languageSTT: string;
     autoSendText: number;
     autoTranscribeAudio: boolean;
@@ -12,7 +13,7 @@ export interface SpeechSettings {
     // TTS Settings
     textToSpeech: boolean;
     engineTTS: "browser" | "external";
-    ttsProvider: "gemini" | "azure"; 
+    ttsProvider: "gemini" | "azure";
     voice: string;
     playbackRate: number;
     automaticPlayback: boolean;
@@ -46,6 +47,7 @@ const AudioSettingsContext = createContext<AudioSettingsContextValue | undefined
 const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
     speechToText: "speechToText",
     engineSTT: "engineSTT",
+    sttProvider: "sttProvider",
     languageSTT: "languageSTT",
     autoSendText: "autoSendText",
     autoTranscribeAudio: "autoTranscribeAudio",
@@ -53,7 +55,7 @@ const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
     
     textToSpeech: "textToSpeech",
     engineTTS: "engineTTS",
-    ttsProvider: "ttsProvider",  // NEW
+    ttsProvider: "ttsProvider",
     voice: "voice",
     playbackRate: "playbackRate",
     automaticPlayback: "automaticPlayback",
@@ -69,6 +71,7 @@ const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
 const DEFAULT_SETTINGS: SpeechSettings = {
     speechToText: false,
     engineSTT: "browser",
+    sttProvider: "openai",
     languageSTT: "en-US",
     autoSendText: -1,
     autoTranscribeAudio: true,

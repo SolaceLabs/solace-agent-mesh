@@ -100,6 +100,26 @@ export const SpeechSettingsPanel: React.FC = () => {
                         </SelectContent>
                     </Select>
                 </div>
+                {/* STT Provider Selection - Only show for External API */}
+                {settings.engineSTT === "external" && (
+                    <div className="flex items-center justify-between">
+                        <Label className="font-medium">STT Provider</Label>
+                        <Select
+                            value={settings.sttProvider}
+                            onValueChange={(value: "openai" | "azure") => updateSetting("sttProvider", value)}
+                            disabled={!settings.speechToText}
+                        >
+                            <SelectTrigger className="w-40">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="openai">OpenAI Whisper</SelectItem>
+                                <SelectItem value="azure">Azure Speech</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
+
 
                 {/* STT Configuration Warning - Only show for External API */}
                 {settings.speechToText && settings.engineSTT === "external" && sttConfigured === false && (
@@ -111,17 +131,36 @@ export const SpeechSettingsPanel: React.FC = () => {
                                     External STT Not Configured
                                 </p>
                                 <p className="text-yellow-700 dark:text-yellow-500 mb-2">
-                                    To use External API mode, add the following to your <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 rounded text-xs">webui.yaml</code>:
+                                    To use External API mode, add configuration to your <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 rounded text-xs">webui.yaml</code>:
                                 </p>
-                                <pre className="text-xs bg-yellow-100 dark:bg-yellow-900/40 p-2 rounded overflow-x-auto">
+                                <div className="space-y-2">
+                                    <div>
+                                        <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-400 mb-1">OpenAI Whisper:</p>
+                                        <pre className="text-xs bg-yellow-100 dark:bg-yellow-900/40 p-2 rounded overflow-x-auto">
 {`speech:
   stt:
-    url: https://api.openai.com/v1/audio/transcriptions
-    api_key: \${OPENAI_API_KEY}
-    model: whisper-1`}
-                                </pre>
+    provider: openai
+    openai:
+      url: https://api.openai.com/v1/audio/transcriptions
+      api_key: \${OPENAI_API_KEY}
+      model: whisper-1`}
+                                        </pre>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-400 mb-1">Azure Speech:</p>
+                                        <pre className="text-xs bg-yellow-100 dark:bg-yellow-900/40 p-2 rounded overflow-x-auto">
+{`speech:
+  stt:
+    provider: azure
+    azure:
+      api_key: \${AZURE_SPEECH_KEY}
+      region: eastus
+      language: en-US`}
+                                        </pre>
+                                    </div>
+                                </div>
                                 <p className="text-yellow-700 dark:text-yellow-500 mt-2 text-xs">
-                                    Set <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 rounded">OPENAI_API_KEY</code> environment variable or use Browser mode (free, no setup required).
+                                    Or use Browser mode (free, no setup required).
                                 </p>
                             </div>
                         </div>
