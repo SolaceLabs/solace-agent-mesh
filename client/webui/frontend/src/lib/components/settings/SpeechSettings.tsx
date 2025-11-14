@@ -194,26 +194,20 @@ export const SpeechSettingsPanel: React.FC = () => {
                     </div>
                 )}
 
-                {/* Voice Selection */}
-                <div className="flex items-center justify-between">
-                    <Label className="font-medium">Voice</Label>
-                    <Select
-                        value={settings.voice}
-                        onValueChange={(value) => updateSetting("voice", value)}
-                        disabled={!settings.textToSpeech || loadingVoices}
-                    >
-                        <SelectTrigger className="w-40">
-                            <SelectValue placeholder={loadingVoices ? "Loading..." : "Select voice"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {settings.engineTTS === "browser" ? (
-                                // Browser mode - show generic options
-                                <>
-                                    <SelectItem value="default">Default</SelectItem>
-                                    <SelectItem value="male">Male</SelectItem>
-                                    <SelectItem value="female">Female</SelectItem>
-                                </>
-                            ) : availableVoices.length > 0 ? (
+                {/* Voice Selection - Only show for External API */}
+                {settings.engineTTS === "external" && (
+                    <div className="flex items-center justify-between">
+                        <Label className="font-medium">Voice</Label>
+                        <Select
+                            value={settings.voice}
+                            onValueChange={(value) => updateSetting("voice", value)}
+                            disabled={!settings.textToSpeech || loadingVoices}
+                        >
+                            <SelectTrigger className="w-40">
+                                <SelectValue placeholder={loadingVoices ? "Loading..." : "Select voice"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {availableVoices.length > 0 ? (
                                 // External mode - show loaded voices with grouping for Azure
                                 (() => {
                                     // Check if this is Azure provider (voices contain DragonHD)
@@ -267,9 +261,10 @@ export const SpeechSettingsPanel: React.FC = () => {
                                     {loadingVoices ? "Loading..." : "No voices available"}
                                 </SelectItem>
                             )}
-                        </SelectContent>
-                    </Select>
-                </div>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
 
                 {/* Playback Rate */}
                 <div className="flex items-center justify-between">
@@ -306,17 +301,6 @@ export const SpeechSettingsPanel: React.FC = () => {
                     />
                 </div>
 
-                {/* Cloud Browser Voices */}
-                {settings.engineTTS === "browser" && (
-                    <div className="flex items-center justify-between">
-                        <Label className="font-medium">Cloud Browser Voices</Label>
-                        <Switch
-                            checked={settings.cloudBrowserVoices}
-                            onCheckedChange={(checked) => updateSetting("cloudBrowserVoices", checked)}
-                            disabled={!settings.textToSpeech}
-                        />
-                    </div>
-                )}
             </div>
         </div>
     );
