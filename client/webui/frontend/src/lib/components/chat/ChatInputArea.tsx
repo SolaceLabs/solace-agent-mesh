@@ -49,6 +49,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     
     // STT error state for persistent banner
     const [sttError, setSttError] = useState<string | null>(null);
+    
+    // Track recording state to disable input
+    const [isRecording, setIsRecording] = useState(false);
 
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
@@ -514,10 +517,11 @@ Focus on capturing what made this conversation successful so it can be reused wi
                 ref={chatInputRef}
                 value={inputValue}
                 onChange={handleInputChange}
-                placeholder="How can I help you today? (Type '/' to insert a prompt)"
+                placeholder={isRecording ? "Recording..." : "How can I help you today? (Type '/' to insert a prompt)"}
                 className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none"
                 rows={1}
                 onPaste={handlePaste}
+                disabled={isRecording}
                 onKeyDown={event => {
                     if (event.key === "Enter" && !event.shiftKey && isSubmittingEnabled) {
                         onSubmit(event);
@@ -554,6 +558,7 @@ Focus on capturing what made this conversation successful so it can be reused wi
                         disabled={isResponding}
                         onTranscriptionComplete={handleTranscription}
                         onError={handleTranscriptionError}
+                        onRecordingStateChange={setIsRecording}
                     />
                 )}
 

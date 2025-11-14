@@ -27,10 +27,10 @@ export const SpeechSettingsPanel: React.FC = () => {
         checkConfig();
     }, []);
 
-    // Load voices when provider or engine changes
+    // Load voices when TTS provider changes
     useEffect(() => {
         const loadVoices = async () => {
-            if (settings.engineTTS !== "external") {
+            if (settings.ttsProvider === "browser") {
                 // For browser mode, use hardcoded list or browser voices
                 setAvailableVoices([]);
                 return;
@@ -54,7 +54,7 @@ export const SpeechSettingsPanel: React.FC = () => {
         };
 
         loadVoices();
-    }, [settings.engineTTS, settings.ttsProvider]);
+    }, [settings.ttsProvider]);
 
     return (
         <div className="space-y-6">
@@ -74,18 +74,20 @@ export const SpeechSettingsPanel: React.FC = () => {
                     />
                 </div>
 
-                {/* STT Engine */}
+                {/* STT Provider */}
                 <div className="flex items-center justify-between">
-                    <Label className="font-medium">STT Engine</Label>
+                    <Label className="font-medium">STT Provider</Label>
                     <Select
-                        value={settings.engineSTT}
-                        onValueChange={(value: "browser" | "external") => {
-                            // If switching to external but not configured, show warning and stay on browser
-                            if (value === "external" && sttConfigured === false) {
+                        value={settings.sttProvider}
+                        onValueChange={(value: "browser" | "openai" | "azure") => {
+                            // If switching to external provider but not configured, show warning
+                            if (value !== "browser" && sttConfigured === false) {
                                 alert("External STT is not configured. Please add STT configuration to webui.yaml first.");
                                 return;
                             }
-                            updateSetting("engineSTT", value);
+                            // Update both provider and engine based on selection
+                            updateSetting("sttProvider", value);
+                            updateSetting("engineSTT", value === "browser" ? "browser" : "external");
                         }}
                         disabled={!settings.speechToText}
                     >
@@ -93,36 +95,19 @@ export const SpeechSettingsPanel: React.FC = () => {
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="browser">Browser</SelectItem>
-                            <SelectItem value="external" disabled={sttConfigured === false}>
-                                External API {sttConfigured === false ? "(Not Configured)" : ""}
+                            <SelectItem value="browser">Browser (Free)</SelectItem>
+                            <SelectItem value="openai" disabled={sttConfigured === false}>
+                                OpenAI Whisper {sttConfigured === false ? "(Not Configured)" : ""}
+                            </SelectItem>
+                            <SelectItem value="azure" disabled={sttConfigured === false}>
+                                Azure Speech {sttConfigured === false ? "(Not Configured)" : ""}
                             </SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
-                {/* STT Provider Selection - Only show for External API */}
-                {settings.engineSTT === "external" && (
-                    <div className="flex items-center justify-between">
-                        <Label className="font-medium">STT Provider</Label>
-                        <Select
-                            value={settings.sttProvider}
-                            onValueChange={(value: "openai" | "azure") => updateSetting("sttProvider", value)}
-                            disabled={!settings.speechToText}
-                        >
-                            <SelectTrigger className="w-40">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="openai">OpenAI Whisper</SelectItem>
-                                <SelectItem value="azure">Azure Speech</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                )}
-
 
                 {/* STT Configuration Warning - Only show for External API */}
-                {settings.speechToText && settings.engineSTT === "external" && sttConfigured === false && (
+                {settings.speechToText && settings.sttProvider !== "browser" && sttConfigured === false && (
                     <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 p-3 border border-yellow-200 dark:border-yellow-900">
                         <div className="flex gap-2">
                             <AlertCircle className="size-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
@@ -168,7 +153,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                 )}
 
                 {/* Browser STT Info */}
-                {settings.speechToText && settings.engineSTT === "browser" && (
+                {settings.speechToText && settings.sttProvider === "browser" && (
                     <div className="rounded-md bg-blue-50 dark:bg-blue-950/20 p-3 border border-blue-200 dark:border-blue-900">
                         <div className="flex gap-2">
                             <Info className="size-5 text-blue-600 dark:text-blue-500 flex-shrink-0 mt-0.5" />
@@ -206,47 +191,6 @@ export const SpeechSettingsPanel: React.FC = () => {
                         </SelectContent>
                     </Select>
                 </div>
-
-                {/* Auto-send delay */}
-                <div className="flex items-center justify-between">
-                    <Label className="font-medium">Auto-send Delay (seconds)</Label>
-                    <Input
-                        type="number"
-                        min={-1}
-                        max={10}
-                        value={settings.autoSendText}
-                        onChange={(e) => updateSetting("autoSendText", parseInt(e.target.value) || -1)}
-                        disabled={!settings.speechToText}
-                        className="w-40"
-                    />
-                </div>
-
-                {/* Auto-transcribe */}
-                <div className="flex items-center justify-between">
-                    <Label className="font-medium">Auto-transcribe Audio</Label>
-                    <Switch
-                        checked={settings.autoTranscribeAudio}
-                        onCheckedChange={(checked) => updateSetting("autoTranscribeAudio", checked)}
-                        disabled={!settings.speechToText}
-                    />
-                </div>
-
-                {/* Decibel threshold */}
-                {settings.autoTranscribeAudio && (
-                    <div className="flex items-center justify-between">
-                        <Label className="font-medium">Silence Threshold (dB)</Label>
-                        <Input
-                            type="number"
-                            min={-60}
-                            max={-20}
-                            step={5}
-                            value={settings.decibelThreshold}
-                            onChange={(e) => updateSetting("decibelThreshold", parseInt(e.target.value) || -45)}
-                            disabled={!settings.speechToText}
-                            className="w-40"
-                        />
-                    </div>
-                )}
             </div>
 
             {/* Text-to-Speech Section */}
@@ -265,18 +209,20 @@ export const SpeechSettingsPanel: React.FC = () => {
                     />
                 </div>
 
-                {/* TTS Engine */}
+                {/* TTS Provider */}
                 <div className="flex items-center justify-between">
-                    <Label className="font-medium">TTS Engine</Label>
+                    <Label className="font-medium">TTS Provider</Label>
                     <Select
-                        value={settings.engineTTS}
-                        onValueChange={(value: "browser" | "external") => {
-                            // If switching to external but not configured, show warning and stay on browser
-                            if (value === "external" && ttsConfigured === false) {
+                        value={settings.ttsProvider}
+                        onValueChange={(value: "browser" | "gemini" | "azure") => {
+                            // If switching to external provider but not configured, show warning
+                            if (value !== "browser" && ttsConfigured === false) {
                                 alert("External TTS is not configured. Please add TTS configuration to webui.yaml first.");
                                 return;
                             }
-                            updateSetting("engineTTS", value);
+                            // Update both provider and engine based on selection
+                            updateSetting("ttsProvider", value);
+                            updateSetting("engineTTS", value === "browser" ? "browser" : "external");
                         }}
                         disabled={!settings.textToSpeech}
                     >
@@ -284,16 +230,19 @@ export const SpeechSettingsPanel: React.FC = () => {
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="browser">Browser</SelectItem>
-                            <SelectItem value="external" disabled={ttsConfigured === false}>
-                                External API {ttsConfigured === false ? "(Not Configured)" : ""}
+                            <SelectItem value="browser">Browser (Free)</SelectItem>
+                            <SelectItem value="gemini" disabled={ttsConfigured === false}>
+                                Google Gemini {ttsConfigured === false ? "(Not Configured)" : ""}
+                            </SelectItem>
+                            <SelectItem value="azure" disabled={ttsConfigured === false}>
+                                Azure Neural {ttsConfigured === false ? "(Not Configured)" : ""}
                             </SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
 
                 {/* TTS Configuration Warning - Only show for External API */}
-                {settings.textToSpeech && settings.engineTTS === "external" && ttsConfigured === false && (
+                {settings.textToSpeech && settings.ttsProvider !== "browser" && ttsConfigured === false && (
                     <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 p-3 border border-yellow-200 dark:border-yellow-900">
                         <div className="flex gap-2">
                             <AlertCircle className="size-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
@@ -320,7 +269,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                 )}
 
                 {/* Browser TTS Info */}
-                {settings.textToSpeech && settings.engineTTS === "browser" && (
+                {settings.textToSpeech && settings.ttsProvider === "browser" && (
                     <div className="rounded-md bg-blue-50 dark:bg-blue-950/20 p-3 border border-blue-200 dark:border-blue-900">
                         <div className="flex gap-2">
                             <Info className="size-5 text-blue-600 dark:text-blue-500 flex-shrink-0 mt-0.5" />
@@ -334,28 +283,8 @@ export const SpeechSettingsPanel: React.FC = () => {
                     </div>
                 )}
 
-                {/* TTS Provider Selection - Only show for External API */}
-                {settings.engineTTS === "external" && (
-                    <div className="flex items-center justify-between">
-                        <Label className="font-medium">TTS Provider</Label>
-                        <Select
-                            value={settings.ttsProvider}
-                            onValueChange={(value: "gemini" | "azure") => updateSetting("ttsProvider", value)}
-                            disabled={!settings.textToSpeech}
-                        >
-                            <SelectTrigger className="w-40">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="gemini">Google Gemini</SelectItem>
-                                <SelectItem value="azure">Azure Neural</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                )}
-
                 {/* Voice Selection - Only show for External API */}
-                {settings.engineTTS === "external" && (
+                {settings.ttsProvider !== "browser" && (
                     <div className="flex items-center justify-between">
                         <Label className="font-medium">Voice</Label>
                         <Select
@@ -440,28 +369,6 @@ export const SpeechSettingsPanel: React.FC = () => {
                         className="w-40"
                     />
                 </div>
-
-                {/* Automatic Playback */}
-                <div className="flex items-center justify-between">
-                    <Label className="font-medium">Automatic Playback</Label>
-                    <Switch
-                        checked={settings.conversationMode || settings.automaticPlayback}
-                        onCheckedChange={(checked) => updateSetting("automaticPlayback", checked)}
-                        disabled={!settings.textToSpeech || settings.conversationMode}
-                    />
-                </div>
-
-                {/* Cache TTS - Only show for External API */}
-                {settings.engineTTS === "external" && (
-                    <div className="flex items-center justify-between">
-                        <Label className="font-medium">Cache Audio</Label>
-                        <Switch
-                            checked={settings.cacheTTS}
-                            onCheckedChange={(checked) => updateSetting("cacheTTS", checked)}
-                            disabled={!settings.textToSpeech}
-                        />
-                    </div>
-                )}
 
             </div>
         </div>

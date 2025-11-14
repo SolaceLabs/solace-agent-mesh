@@ -39,6 +39,11 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
     // External TTS refs
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const audioUrlRef = useRef<string | null>(null);
+    
+    // Chunk-by-chunk playback refs
+    const audioQueueRef = useRef<HTMLAudioElement[]>([]);
+    const isPlayingQueueRef = useRef(false);
+    const currentAudioIndexRef = useRef(0);
 
     const isBrowserMode = settings.engineTTS === "browser";
 
@@ -123,6 +128,17 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
             URL.revokeObjectURL(audioUrlRef.current);
             audioUrlRef.current = null;
         }
+        
+        // Cleanup audio queue
+        audioQueueRef.current.forEach(audio => {
+            audio.pause();
+            if (audio.src) {
+                URL.revokeObjectURL(audio.src);
+            }
+        });
+        audioQueueRef.current = [];
+        isPlayingQueueRef.current = false;
+        currentAudioIndexRef.current = 0;
     }, []);
 
     // Browser TTS implementation
@@ -185,9 +201,51 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
         [settings.playbackRate, settings.languageSTT, settings.voice, onStart, onEnd, onError]
     );
 
-    // External TTS implementation
+    // Play next audio in queue - ensures sequential playback
+    const playNextInQueue = useCallback(() => {
+        if (!isPlayingQueueRef.current || currentAudioIndexRef.current >= audioQueueRef.current.length) {
+            // Queue finished
+            setIsSpeaking(false);
+            isPlayingQueueRef.current = false;
+            currentAudioIndexRef.current = 0;
+            
+            // Cleanup all audio elements
+            audioQueueRef.current.forEach(audio => {
+                if (audio.src) {
+                    URL.revokeObjectURL(audio.src);
+                }
+            });
+            audioQueueRef.current = [];
+            onEnd?.();
+            return;
+        }
+
+        const chunkIndex = currentAudioIndexRef.current;
+        const audio = audioQueueRef.current[chunkIndex];
+        
+        // Increment index BEFORE playing to prevent race conditions
+        currentAudioIndexRef.current++;
+
+        audio.onended = () => {
+            playNextInQueue();
+        };
+
+        audio.onerror = () => {
+            playNextInQueue(); // Try next chunk
+        };
+
+        audio.play().catch(err => {
+            console.error(`[TTS] Failed to play chunk ${chunkIndex + 1}:`, err);
+            playNextInQueue(); // Try next chunk
+        });
+    }, [onEnd]);
+
+    // External TTS implementation - play chunks as they arrive
     const speakExternal = useCallback(
         async (text: string) => {
+            // Stop any existing audio first
+            cleanup();
+            
             setIsLoading(true);
 
             try {
@@ -234,86 +292,123 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                     }
                 }
 
-                // Generate new audio
-                const requestBody: Record<string, unknown> = {
-                    input: text,
-                    voice: settings.voice,
-                    messageId: messageId,
-                };
-                
-                // Only include provider if defined (for backward compatibility)
-                if (settings.ttsProvider) {
-                    requestBody.provider = settings.ttsProvider;
-                }
-                
-                const response = await fetch("/api/speech/tts", {
+                // Use streaming endpoint - play chunks as they arrive
+                const response = await fetch("/api/speech/tts/stream", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify(requestBody),
+                    body: JSON.stringify({
+                        input: text,
+                        voice: settings.voice,
+                        runId: messageId || `tts-${Date.now()}`,
+                    }),
                 });
 
                 if (!response.ok) {
-                    throw new Error(`TTS generation failed: ${response.statusText}`);
+                    throw new Error(`TTS streaming failed: ${response.statusText}`);
                 }
 
-                const audioBlob = await response.blob();
+                const reader = response.body?.getReader();
+                if (!reader) {
+                    throw new Error("No response body reader available");
+                }
 
-                // Cache if enabled
-                if (settings.cacheTTS) {
-                    const cache = await caches.open("tts-responses");
-                    const cacheKey = `${text}-${settings.voice}-${settings.ttsProvider || 'default'}`;
+                let chunkCount = 0;
+                let firstChunkPlayed = false;
+                const allChunks: Uint8Array[] = []; // For caching
+
+                // Reset queue state - CRITICAL for order preservation
+                audioQueueRef.current = [];
+                currentAudioIndexRef.current = 0;
+                isPlayingQueueRef.current = true;
+
+                while (true) {
+                    const { done, value } = await reader.read();
                     
-                    // Create Response with proper headers for cache compatibility
-                    const responseToCache = new Response(audioBlob.slice(0), {
-                        headers: {
-                            'Content-Type': 'audio/mpeg',
-                            'Content-Length': audioBlob.size.toString()
+                    if (done) {
+                        // Cache the complete audio if enabled
+                        if (settings.cacheTTS && allChunks.length > 0) {
+                            const totalSize = allChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+                            const combinedArray = new Uint8Array(totalSize);
+                            let offset = 0;
+                            for (const chunk of allChunks) {
+                                combinedArray.set(chunk, offset);
+                                offset += chunk.length;
+                            }
+                            
+                            const audioBlob = new Blob([combinedArray], { type: 'audio/mpeg' });
+                            const cache = await caches.open("tts-responses");
+                            const cacheKey = `${text}-${settings.voice}-${settings.ttsProvider || 'default'}`;
+                            
+                            const responseToCache = new Response(audioBlob, {
+                                headers: {
+                                    'Content-Type': 'audio/mpeg',
+                                    'Content-Length': audioBlob.size.toString()
+                                }
+                            });
+                            
+                            await cache.put(cacheKey, responseToCache);
                         }
-                    });
+                        break;
+                    }
                     
-                    await cache.put(cacheKey, responseToCache);
+                    if (value && value.length > 0) {
+                        chunkCount++;
+                        
+                        // Store for caching (preserves order in array)
+                        allChunks.push(value);
+                        
+                        // Create audio element for this chunk
+                        const chunkBlob = new Blob([value], { type: 'audio/mpeg' });
+                        const blobUrl = URL.createObjectURL(chunkBlob);
+                        const audio = new Audio(blobUrl);
+                        audio.playbackRate = settings.playbackRate || 1.0;
+                        
+                        // Add to queue in order received (CRITICAL for sequential playback)
+                        audioQueueRef.current.push(audio);
+                        
+                        // Play first chunk immediately
+                        if (!firstChunkPlayed) {
+                            firstChunkPlayed = true;
+                            
+                            setIsSpeaking(true);
+                            setIsLoading(false);
+                            setError(null);
+                            onStart?.();
+                            
+                            audio.onended = () => {
+                                playNextInQueue();
+                            };
+                            
+                            audio.onerror = () => {
+                                playNextInQueue();
+                            };
+                            
+                            try {
+                                await audio.play();
+                                // Mark first chunk as played by setting index to 1
+                                currentAudioIndexRef.current = 1;
+                            } catch (playError: any) {
+                                if (playError.name === 'NotAllowedError') {
+                                    isPlayingQueueRef.current = false;
+                                    setIsLoading(false);
+                                    throw new Error('Click the speaker button again to play audio (browser autoplay policy)');
+                                }
+                                throw playError;
+                            }
+                        }
+                    }
                 }
-
-                const blobUrl = URL.createObjectURL(audioBlob);
-                const audio = new Audio(blobUrl);
-                audio.playbackRate = settings.playbackRate || 1.0;
-
-                audio.onplay = () => {
-                    setIsSpeaking(true);
-                    setIsLoading(false);
-                    setError(null);
-                    onStart?.();
-                };
-
-                audio.onended = () => {
-                    setIsSpeaking(false);
-                    URL.revokeObjectURL(blobUrl);
-                    audioRef.current = null;
-                    onEnd?.();
-                };
-
-                audio.onerror = () => {
-                    const errorMsg = "Failed to play audio";
-                    setError(errorMsg);
-                    onError?.(errorMsg);
-                    setIsSpeaking(false);
-                    setIsLoading(false);
-                    URL.revokeObjectURL(blobUrl);
-                };
-
-                audioRef.current = audio;
-                audioUrlRef.current = blobUrl;
-                await audio.play();
             } catch (err) {
                 const errorMsg = `TTS error: ${err}`;
                 setError(errorMsg);
                 onError?.(errorMsg);
                 setIsLoading(false);
+                isPlayingQueueRef.current = false;
             }
         },
-        [settings.cacheTTS, settings.voice, settings.playbackRate, settings.ttsProvider, messageId, onStart, onEnd, onError]
+        [settings.cacheTTS, settings.voice, settings.playbackRate, settings.ttsProvider, messageId, onStart, onEnd, onError, cleanup, playNextInQueue]
     );
 
     // Public API
@@ -338,9 +433,21 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
         if (isBrowserMode) {
             window.speechSynthesis.cancel();
             setIsSpeaking(false);
-        } else if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
+        } else {
+            // Stop queue playback
+            isPlayingQueueRef.current = false;
+            
+            // Stop current audio
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
+            
+            // Stop all queued audio
+            audioQueueRef.current.forEach(audio => {
+                audio.pause();
+            });
+            
             setIsSpeaking(false);
         }
     }, [isBrowserMode]);
@@ -348,8 +455,14 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
     const pause = useCallback(() => {
         if (isBrowserMode) {
             window.speechSynthesis.pause();
-        } else if (audioRef.current) {
-            audioRef.current.pause();
+        } else {
+            // Pause current playing audio in queue
+            const currentIndex = currentAudioIndexRef.current - 1;
+            if (currentIndex >= 0 && currentIndex < audioQueueRef.current.length) {
+                audioQueueRef.current[currentIndex].pause();
+            } else if (audioRef.current) {
+                audioRef.current.pause();
+            }
         }
         setIsSpeaking(false);
     }, [isBrowserMode]);
@@ -358,9 +471,16 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
         if (isBrowserMode) {
             window.speechSynthesis.resume();
             setIsSpeaking(true);
-        } else if (audioRef.current) {
-            audioRef.current.play();
-            setIsSpeaking(true);
+        } else {
+            // Resume current playing audio in queue
+            const currentIndex = currentAudioIndexRef.current - 1;
+            if (currentIndex >= 0 && currentIndex < audioQueueRef.current.length) {
+                audioQueueRef.current[currentIndex].play();
+                setIsSpeaking(true);
+            } else if (audioRef.current) {
+                audioRef.current.play();
+                setIsSpeaking(true);
+            }
         }
     }, [isBrowserMode]);
 

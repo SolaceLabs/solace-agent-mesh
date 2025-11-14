@@ -1,5 +1,5 @@
-import { useCallback, useRef, useImperativeHandle, forwardRef } from "react";
-import { Mic, MicOff, Loader2 } from "lucide-react";
+import { useCallback, useRef, useImperativeHandle, forwardRef, useEffect } from "react";
+import { Mic, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { useSpeechToText, useAudioSettings } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ interface AudioRecorderProps {
     disabled?: boolean;
     onTranscriptionComplete: (text: string) => void;
     onError?: (error: string) => void;
+    onRecordingStateChange?: (isRecording: boolean) => void;
     className?: string;
 }
 
@@ -21,6 +22,7 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
     disabled = false,
     onTranscriptionComplete,
     onError: onErrorProp,
+    onRecordingStateChange,
     className,
 }, ref) => {
     const { settings } = useAudioSettings();
@@ -67,6 +69,11 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
         onError: handleError,
     });
 
+    // Notify parent of recording state changes
+    useEffect(() => {
+        onRecordingStateChange?.(isListening);
+    }, [isListening, onRecordingStateChange]);
+
     // Expose start/stop/cancel methods via ref
     useImperativeHandle(ref, () => ({
         startRecording: async () => {
@@ -109,7 +116,7 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
         }
 
         if (isListening) {
-            return <MicOff className="size-5 text-red-500 animate-pulse" />;
+            return <Mic className="size-5 animate-pulse" />;
         }
 
         return <Mic className="size-5" />;
@@ -141,33 +148,23 @@ export const AudioRecorder = forwardRef<AudioRecorderRef, AudioRecorderProps>(({
     }
 
     return (
-        <div className="relative">
-            <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleClick}
-                disabled={disabled || isLoading}
-                className={cn(
-                    "transition-colors",
-                    isListening && "bg-red-50 hover:bg-red-100 dark:bg-red-950 dark:hover:bg-red-900",
-                    className
-                )}
-                tooltip={getTooltip()}
-                aria-label={getAriaLabel()}
-                aria-pressed={isListening}
-                aria-busy={isLoading}
-            >
-                {renderIcon()}
-            </Button>
-
-            {/* Recording indicator */}
-            {isListening && (
-                <div className="absolute -right-1 -top-1 flex size-3 items-center justify-center">
-                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-red-400 opacity-75" />
-                    <span className="relative inline-flex size-2 rounded-full bg-red-500" />
-                </div>
+        <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleClick}
+            disabled={disabled || isLoading}
+            className={cn(
+                "transition-colors",
+                isListening && "bg-[var(--accent-background)] hover:bg-[var(--accent-background)]/80 text-[var(--primary-wMain)]",
+                className
             )}
-        </div>
+            tooltip={getTooltip()}
+            aria-label={getAriaLabel()}
+            aria-pressed={isListening}
+            aria-busy={isLoading}
+        >
+            {renderIcon()}
+        </Button>
     );
 });
 

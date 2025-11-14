@@ -4,7 +4,7 @@ export interface SpeechSettings {
     // STT Settings
     speechToText: boolean;
     engineSTT: "browser" | "external";
-    sttProvider: "openai" | "azure";
+    sttProvider: "browser" | "openai" | "azure";
     languageSTT: string;
     autoSendText: number;
     autoTranscribeAudio: boolean;
@@ -13,7 +13,7 @@ export interface SpeechSettings {
     // TTS Settings
     textToSpeech: boolean;
     engineTTS: "browser" | "external";
-    ttsProvider: "gemini" | "azure";
+    ttsProvider: "browser" | "gemini" | "azure";
     voice: string;
     playbackRate: number;
     automaticPlayback: boolean;
@@ -71,7 +71,7 @@ const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
 const DEFAULT_SETTINGS: SpeechSettings = {
     speechToText: false,
     engineSTT: "browser",
-    sttProvider: "openai",
+    sttProvider: "browser",
     languageSTT: "en-US",
     autoSendText: -1,
     autoTranscribeAudio: true,
@@ -79,10 +79,10 @@ const DEFAULT_SETTINGS: SpeechSettings = {
 
     textToSpeech: true,  // Enable by default for browser TTS
     engineTTS: "browser",  // Use browser TTS by default (no backend needed)
-    ttsProvider: "gemini",
+    ttsProvider: "browser",
     voice: "Kore",
     playbackRate: 1.0,
-    automaticPlayback: false,
+    automaticPlayback: false,  // Disabled by default - doesn't work reliably due to browser autoplay policies
     cacheTTS: true,
     cloudBrowserVoices: false,
 
@@ -216,12 +216,10 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     }, []);
 
     const onTTSStart = useCallback(() => {
-        console.log("AudioSettingsProvider: TTS started");
         setIsTTSPlaying(true);
     }, []);
 
     const onTTSEnd = useCallback(() => {
-        console.log("AudioSettingsProvider: TTS ended");
         setIsTTSPlaying(false);
     }, []);
 

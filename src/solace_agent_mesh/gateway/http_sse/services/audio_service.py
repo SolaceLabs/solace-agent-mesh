@@ -835,7 +835,7 @@ class AudioService:
     ) -> AsyncGenerator[bytes, None]:
         """
         Stream speech audio for long text with intelligent sentence-based chunking.
-        Generates audio chunks concurrently for faster playback.
+        Generates and yields audio chunks immediately for reduced latency.
         
         Args:
             text: Text to convert to speech
@@ -858,8 +858,8 @@ class AudioService:
         # Split on sentence boundaries (., !, ?, newlines)
         sentences = re.split(r'(?<=[.!?\n])\s+', text)
         
-        # Group sentences into chunks (max ~500 chars per chunk for faster generation)
-        MAX_CHUNK_SIZE = 500
+        # Group sentences into smaller chunks for faster initial playback
+        MAX_CHUNK_SIZE = 300  # Reduced from 500 for faster first chunk
         chunks = []
         current_chunk = ""
         
@@ -875,43 +875,28 @@ class AudioService:
         
         log.info("[AudioService] Split text into %d chunks for streaming", len(chunks))
         
-        # Process chunks with concurrent generation (generate next while streaming current)
-        async def generate_chunk(chunk_text: str, chunk_idx: int):
+        # Generate and yield chunks immediately (no buffering)
+        for i, chunk in enumerate(chunks):
+            log.debug("[AudioService] Generating chunk %d/%d (len=%d)", i+1, len(chunks), len(chunk))
+            
             try:
-                return await self.generate_speech(
-                    text=chunk_text,
+                audio_data = await self.generate_speech(
+                    text=chunk,
                     voice=voice,
                     user_id=user_id,
                     session_id=session_id,
                     app_name=app_name,
-                    message_id=f"chunk_{chunk_idx}"
+                    message_id=f"chunk_{i}"
                 )
-            except Exception as e:
-                log.error("[AudioService] Error generating chunk %d: %s", chunk_idx, e)
-                return None
-        
-        # Use a small buffer to pre-generate chunks
-        buffer_size = 2
-        tasks = []
-        
-        for i, chunk in enumerate(chunks):
-            log.debug("[AudioService] Processing chunk %d/%d (len=%d)", i+1, len(chunks), len(chunk))
-            
-            # Start generating current chunk
-            task = asyncio.create_task(generate_chunk(chunk, i))
-            tasks.append(task)
-            
-            # If we have enough tasks in buffer, yield the oldest one
-            if len(tasks) >= buffer_size:
-                audio_data = await tasks.pop(0)
+                
                 if audio_data:
+                    log.debug("[AudioService] Yielding chunk %d (%d bytes)", i+1, len(audio_data))
                     yield audio_data
-        
-        # Yield remaining buffered chunks
-        for task in tasks:
-            audio_data = await task
-            if audio_data:
-                yield audio_data
+                    
+            except Exception as e:
+                log.error("[AudioService] Error generating chunk %d: %s", i, e)
+                # Continue with next chunk instead of failing completely
+                continue
     
     async def get_available_voices(self, provider: Optional[str] = None) -> List[str]:
         """

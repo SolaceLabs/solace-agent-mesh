@@ -106,35 +106,22 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
 
     // Auto-play streaming TTS as content arrives
     useEffect(() => {
-        // Conversation mode should force automatic playback
-        const shouldAutoPlay = settings.conversationMode || settings.automaticPlayback;
-        // Skip auto-play for task messages - they're just placeholders
-        const isTaskMessage = messageId.startsWith('gdk-task-');
+        // Disable automatic playback - only conversation mode (which is not implemented)
+        const shouldAutoPlay = settings.conversationMode; // Removed: || settings.automaticPlayback
         
         if (
             shouldAutoPlay &&
             !message.isUser &&
-            !isTaskMessage && // Don't auto-play task messages
             isStreaming &&
             content &&
             content.length > 20 && // Wait for at least some content
             !hasStartedStreaming.current
         ) {
             // Check if another message is already playing
-            // But allow non-task messages to override task messages
-            const isTaskMessage = messageId.startsWith('gdk-task-');
-            const currentIsTaskMessage = currentlyPlayingMessageId?.startsWith('gdk-task-');
-            
             if (currentlyPlayingMessageId && currentlyPlayingMessageId !== messageId) {
-                // If current is a task message and this is not, take over
-                if (currentIsTaskMessage && !isTaskMessage) {
-                    currentlyPlayingMessageId = messageId;
-                } else {
-                    return;
-                }
-            } else {
-                currentlyPlayingMessageId = messageId;
+                return;
             }
+            currentlyPlayingMessageId = messageId;
             
             hasStartedStreaming.current = true;
             processStreamingText(content, false);
@@ -160,7 +147,6 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
         } else if (
             shouldAutoPlay &&
             !message.isUser &&
-            !isTaskMessage && // Don't auto-play task messages
             message.isComplete &&
             !hasStartedStreaming.current &&
             !hasAutoPlayed.current &&
@@ -183,15 +169,12 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
     // Auto-play for complete messages (fallback if streaming wasn't used)
     // BUT only if the message wasn't already complete when we mounted
     useEffect(() => {
-        // Conversation mode should force automatic playback
-        const shouldAutoPlay = settings.conversationMode || settings.automaticPlayback;
-        // Skip auto-play for task messages - they're just placeholders
-        const isTaskMessage = messageId.startsWith('gdk-task-');
+        // Disable automatic playback - only conversation mode (which is not implemented)
+        const shouldAutoPlay = settings.conversationMode; // Removed: || settings.automaticPlayback
         
         if (
             shouldAutoPlay &&
             !message.isUser &&
-            !isTaskMessage && // Don't auto-play task messages
             message.isComplete &&
             content &&
             !isSpeaking &&
@@ -201,20 +184,10 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
             !wasCompleteOnMount // NEW: Don't auto-play if message was already complete on mount
         ) {
             // Check if another message is already playing
-            // But allow non-task messages to override task messages
-            const isTaskMessage = messageId.startsWith('gdk-task-');
-            const currentIsTaskMessage = currentlyPlayingMessageId?.startsWith('gdk-task-');
-            
             if (currentlyPlayingMessageId && currentlyPlayingMessageId !== messageId) {
-                // If current is a task message and this is not, take over
-                if (currentIsTaskMessage && !isTaskMessage) {
-                    currentlyPlayingMessageId = messageId;
-                } else {
-                    return;
-                }
-            } else {
-                currentlyPlayingMessageId = messageId;
+                return;
             }
+            currentlyPlayingMessageId = messageId;
             
             hasAutoPlayed.current = true;
             
