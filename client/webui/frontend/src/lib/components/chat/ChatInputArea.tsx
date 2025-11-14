@@ -5,7 +5,7 @@ import { Ban, Paperclip, Send } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
-import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
@@ -25,6 +25,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
+    const { configFeatureEnablement } = useConfigContext();
+    
+    // Feature flags
+    const sttEnabled = configFeatureEnablement?.speechToText ?? true;
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -552,8 +556,8 @@ Focus on capturing what made this conversation successful so it can be reused wi
                 {/* Spacer to push buttons to the right */}
                 <div className="flex-1" />
 
-                {/* Microphone button - show if STT enabled */}
-                {settings.speechToText && (
+                {/* Microphone button - show if STT feature enabled and STT setting enabled */}
+                {sttEnabled && settings.speechToText && (
                     <AudioRecorder
                         disabled={isResponding}
                         onTranscriptionComplete={handleTranscription}

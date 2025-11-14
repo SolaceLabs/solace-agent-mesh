@@ -5,6 +5,7 @@ import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { cn } from "@/lib/utils";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { useConfigContext } from "@/lib/hooks";
 
 type SettingsSection = "general" | "speech";
 
@@ -38,8 +39,14 @@ interface SettingsDialogProps {
 }
 
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false }) => {
+    const { configFeatureEnablement } = useConfigContext();
     const [open, setOpen] = useState(false);
     const [activeSection, setActiveSection] = useState<SettingsSection>("general");
+    
+    // Feature flags
+    const sttEnabled = configFeatureEnablement?.speechToText ?? true;
+    const ttsEnabled = configFeatureEnablement?.textToSpeech ?? true;
+    const speechEnabled = sttEnabled || ttsEnabled;
 
     const renderContent = () => {
         switch (activeSection) {
@@ -111,13 +118,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                                 active={activeSection === "general"}
                                 onClick={() => setActiveSection("general")}
                             />
-                            <SidebarItem
-                                icon={<Volume2 className="size-4" />}
-                                label="Speech"
-                                value="speech"
-                                active={activeSection === "speech"}
-                                onClick={() => setActiveSection("speech")}
-                            />
+                            {speechEnabled && (
+                                <SidebarItem
+                                    icon={<Volume2 className="size-4" />}
+                                    label="Speech"
+                                    value="speech"
+                                    active={activeSection === "speech"}
+                                    onClick={() => setActiveSection("speech")}
+                                />
+                            )}
                         </nav>
                     </div>
 
