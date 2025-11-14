@@ -76,6 +76,7 @@ from ...common.constants import (
 from ...common.data_parts import AgentProgressUpdateData
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
+from ...common.utils.rbac_utils import validate_agent_access
 
 log = logging.getLogger(__name__)
 
@@ -2970,6 +2971,17 @@ class SamAgentComponent(SamComponentBase):
             "%s Submitting non-blocking task for main task %s",
             log_identifier_helper,
             main_task_id,
+        )
+
+        # Validate agent access is allowed
+        validate_agent_access(
+            user_config=user_config,
+            target_agent_name=target_agent_name,
+            validation_context={
+                "delegating_agent": self.get_config("agent_name"),
+                "source": "agent_delegation",
+            },
+            log_identifier=log_identifier_helper,
         )
 
         peer_request_topic = self._get_agent_request_topic(target_agent_name)

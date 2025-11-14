@@ -23,6 +23,7 @@ from ...common.services.identity_service import (
 )
 from .task_context import TaskContextManager
 from ...common.a2a.types import ContentPart
+from ...common.utils.rbac_utils import validate_agent_access
 from a2a.types import (
     Message as A2AMessage,
     AgentCard,
@@ -288,6 +289,17 @@ class BaseGatewayComponent(SamComponentBase):
             user_config = {}
 
         user_config["user_profile"] = user_identity
+
+        # Validate user has permission to access this target agent
+        validate_agent_access(
+            user_config=user_config,
+            target_agent_name=target_agent_name,
+            validation_context={
+                "gateway_id": self.gateway_id,
+                "source": "gateway_request",
+            },
+            log_identifier=log_id_prefix,
+        )
 
         external_request_context["user_identity"] = user_identity
         external_request_context["a2a_user_config"] = user_config
