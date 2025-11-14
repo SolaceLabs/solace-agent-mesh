@@ -1,4 +1,7 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { useConfigContext } from "@/lib/hooks/useConfigContext";
+
+const LOGO_URL_STORAGE_KEY = "webui_logo_url";
 
 const HEADER_ICON = (
     <svg id="header-icon" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 500 150" width="100%" height="100%">
@@ -35,9 +38,52 @@ interface NavigationHeaderProps {
 }
 
 export const NavigationHeader: React.FC<NavigationHeaderProps> = ({ onClick }) => {
+    const config = useConfigContext();
+    const [imageError, setImageError] = useState(false);
+    const [logoUrl, setLogoUrl] = useState<string>("");
+
+    // Load cached logo URL immediately on mount for instant display
+    useEffect(() => {
+        try {
+            const cachedLogoUrl = localStorage.getItem(LOGO_URL_STORAGE_KEY);
+            if (cachedLogoUrl) {
+                setLogoUrl(cachedLogoUrl);
+            }
+        } catch (err) {
+            console.warn("Failed to read cached logo URL from localStorage:", err);
+        }
+    }, []);
+
+    // Update logo URL when config changes (after API call completes)
+    useEffect(() => {
+        if (config.configLogoUrl !== undefined) {
+            setLogoUrl(config.configLogoUrl);
+            try {
+                localStorage.setItem(LOGO_URL_STORAGE_KEY, config.configLogoUrl);
+            } catch (error) {
+                console.error("Failed to save logo URL to localStorage:", error);
+                }
+            // Reset image error state when logo URL changes
+            setImageError(false);
+        }
+    }, [config.configLogoUrl]);
+    
+    const shouldShowCustomLogo = logoUrl && !imageError;
+
     return (
         <div className="flex h-[80px] min-h-[80px] cursor-pointer items-center justify-center border-b" onClick={onClick}>
-            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full">{HEADER_ICON}</div>
+            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full">
+                {shouldShowCustomLogo ? (
+                    <img
+                        src={logoUrl}
+                        alt="Logo"
+                        className="h-full w-full object-contain"
+                        onError={() => setImageError(true)}
+                    />
+                ) : (
+                    HEADER_ICON
+                )}
+            </div>
         </div>
     );
 };

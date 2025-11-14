@@ -7,6 +7,7 @@ from ...utils import ask_if_not_provided, ask_yes_no_question, load_template
 WEBUI_GATEWAY_DEFAULTS = {
     "webui_frontend_welcome_message": "",
     "webui_frontend_bot_name": "Solace Agent Mesh",
+    "webui_frontend_logo_url": "",
     "webui_frontend_collect_feedback": False,
     "webui_session_secret_key": "please_change_me_in",
     "webui_fastapi_host": "127.0.0.1",
@@ -130,6 +131,15 @@ def create_webui_gateway_config(
         ),
         none_interactive=skip_interactive,
     )
+    options["webui_frontend_logo_url"] = ask_if_not_provided(
+        options,
+        "webui_frontend_logo_url",
+        "Enter Frontend Logo URL for Web UI",
+        default=default_values.get(
+            "webui_frontend_logo_url", WEBUI_GATEWAY_DEFAULTS["webui_frontend_logo_url"]
+        ),
+        none_interactive=skip_interactive,
+    )
     options["webui_frontend_collect_feedback"] = ask_if_not_provided(
         options,
         "webui_frontend_collect_feedback",
@@ -163,6 +173,9 @@ def create_webui_gateway_config(
             ),
             "__FRONTEND_BOT_NAME__": str(
                 options.get("webui_frontend_bot_name", "Solace Agent Mesh")
+            ),
+            "__FRONTEND_LOGO_URL__": str(
+                options.get("webui_frontend_logo_url", "")
             ),
             "__FRONTEND_COLLECT_FEEDBACK__": str(
                 options.get("webui_frontend_collect_feedback", False)
