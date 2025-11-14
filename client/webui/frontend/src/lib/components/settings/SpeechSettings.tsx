@@ -291,15 +291,17 @@ export const SpeechSettingsPanel: React.FC = () => {
                     />
                 </div>
 
-                {/* Cache TTS */}
-                <div className="flex items-center justify-between">
-                    <Label className="font-medium">Cache Audio</Label>
-                    <Switch
-                        checked={settings.cacheTTS}
-                        onCheckedChange={(checked) => updateSetting("cacheTTS", checked)}
-                        disabled={!settings.textToSpeech || settings.engineTTS === "browser"}
-                    />
-                </div>
+                {/* Cache TTS - Only show for External API */}
+                {settings.engineTTS === "external" && (
+                    <div className="flex items-center justify-between">
+                        <Label className="font-medium">Cache Audio</Label>
+                        <Switch
+                            checked={settings.cacheTTS}
+                            onCheckedChange={(checked) => updateSetting("cacheTTS", checked)}
+                            disabled={!settings.textToSpeech}
+                        />
+                    </div>
+                )}
 
             </div>
         </div>
