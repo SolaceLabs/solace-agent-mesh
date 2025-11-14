@@ -290,8 +290,47 @@ async def upload_artifact_with_session(
     )
 
     try:
-        # Read and validate file content
+        # ===== VALIDATE FILE SIZE BEFORE READING =====
+        max_upload_size = component.get_config("gateway_max_upload_size_bytes", 52428800)
+        
+        # Check Content-Length header first (if available)
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                file_size = int(content_length)
+                
+                if file_size > max_upload_size:
+                    error_msg = (
+                        f"File upload rejected: size {file_size:,} bytes "
+                        f"exceeds maximum {max_upload_size:,} bytes "
+                        f"({file_size / (1024*1024):.2f} MB > {max_upload_size / (1024*1024):.2f} MB)"
+                    )
+                    log.warning("%s %s", log_prefix, error_msg)
+                    
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=error_msg  # Use string instead of dict
+                    )
+            except ValueError:
+                log.warning("%s Invalid Content-Length header: %s", log_prefix, content_length)
+        
+        # Read file content
         content_bytes = await upload_file.read()
+        
+        # Double-check actual size (safety net in case Content-Length was missing/wrong)
+        actual_size = len(content_bytes)
+        if actual_size > max_upload_size:
+            error_msg = (
+                f"File '{upload_file.filename}' rejected: actual size {actual_size:,} bytes "
+                f"exceeds maximum {max_upload_size:,} bytes "
+                f"({actual_size / (1024*1024):.2f} MB > {max_upload_size / (1024*1024):.2f} MB)"
+            )
+            log.warning("%s %s", log_prefix, error_msg)
+            
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=error_msg  # Use string instead of dict
+            )
 
         mime_type = upload_file.content_type or "application/octet-stream"
         filename_clean = filename.strip()
@@ -323,6 +362,8 @@ async def upload_artifact_with_session(
 
             if error_type in ["invalid_filename", "empty_file"]:
                 status_code = status.HTTP_400_BAD_REQUEST
+            elif error_type == "file_too_large":
+                status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
             else:
                 status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
 

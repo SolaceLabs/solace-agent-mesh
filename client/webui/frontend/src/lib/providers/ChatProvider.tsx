@@ -360,6 +360,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: `Failed to upload ${file.name}` }));
+                    
+                    // Enhanced error handling for file size errors
+                    if (response.status === 413) {
+                        // Extract file size information if available
+                        const actualSize = errorData.actual_size_bytes;
+                        const maxSize = errorData.max_size_bytes;
+                        
+                        let errorMessage;
+                        if (actualSize && maxSize) {
+                            const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
+                            const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
+                            errorMessage = `File "${file.name}" is too large: ${actualSizeMB} MB exceeds the maximum allowed size of ${maxSizeMB} MB`;
+                        } else {
+                            errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size`;
+                        }
+                        
+                        addNotification(errorMessage, "error");
+                        return { error: errorMessage };
+                    }
+                    
+                    // Default error handling for other errors
                     const errorMessage = errorData.detail || `HTTP error ${response.status}`;
                     throw new Error(errorMessage);
                 }
