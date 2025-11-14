@@ -44,3 +44,14 @@ export const CustomTrigger: Story = {
         onConfirm: () => alert("Action confirmed"),
     },
 };
+
+export const ExternallyControlled: Story = {
+    args: {
+        title: "Confirm",
+        message: "Are you sure you want to do this action",
+        open: true,
+        onOpenChange: () => {},
+        onClose: () => alert("Action cancelled"),
+        onConfirm: () => alert("Action confirmed"),
+    },
+};
