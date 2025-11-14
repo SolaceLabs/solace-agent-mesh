@@ -314,7 +314,6 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                     throw new Error("No response body reader available");
                 }
 
-                let chunkCount = 0;
                 let firstChunkPlayed = false;
                 const allChunks: Uint8Array[] = []; // For caching
 
@@ -354,8 +353,6 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                     }
                     
                     if (value && value.length > 0) {
-                        chunkCount++;
-                        
                         // Store for caching (preserves order in array)
                         allChunks.push(value);
                         
@@ -389,8 +386,8 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                                 await audio.play();
                                 // Mark first chunk as played by setting index to 1
                                 currentAudioIndexRef.current = 1;
-                            } catch (playError: any) {
-                                if (playError.name === 'NotAllowedError') {
+                            } catch (playError: unknown) {
+                                if (playError instanceof Error && playError.name === 'NotAllowedError') {
                                     isPlayingQueueRef.current = false;
                                     setIsLoading(false);
                                     throw new Error('Click the speaker button again to play audio (browser autoplay policy)');
