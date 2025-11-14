@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Send, Loader2, Sparkles } from "lucide-react";
 import { Button, Textarea } from "@/lib/components/ui";
 import type { TemplateConfig } from "./hooks/usePromptTemplateBuilder";
+import { authenticatedFetch } from "@/lib/utils/api";
 
 interface Message {
     role: "user" | "assistant";
@@ -50,7 +51,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
         const initChat = async () => {
             try {
-                const response = await fetch("/api/v1/prompts/chat/init");
+                const response = await authenticatedFetch("/api/v1/prompts/chat/init");
                 const data = await response.json();
 
                 setMessages([
@@ -75,7 +76,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
 
                     // Send the message to the API
                     try {
-                        const chatResponse = await fetch("/api/v1/prompts/chat", {
+                        const chatResponse = await authenticatedFetch("/api/v1/prompts/chat", {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",
@@ -189,7 +190,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
         setHasUserMessage(true);
 
         try {
-            const response = await fetch("/api/v1/prompts/chat", {
+            const response = await authenticatedFetch("/api/v1/prompts/chat", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

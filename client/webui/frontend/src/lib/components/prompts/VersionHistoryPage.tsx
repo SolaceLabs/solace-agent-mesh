@@ -12,6 +12,7 @@ import {
 import { formatPromptDate } from '@/lib/utils/promptUtils';
 import { useChatContext } from '@/lib/hooks';
 import { MessageBanner } from '@/lib/components/common';
+import { authenticatedFetch } from '@/lib/utils/api';
 
 interface VersionHistoryPageProps {
     group: PromptGroup;
@@ -45,7 +46,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
     const fetchVersions = useCallback(async (preserveSelection = false) => {
         setIsLoading(true);
         try {
-            const response = await fetch(`/api/v1/prompts/groups/${group.id}/prompts`, {
+            const response = await authenticatedFetch(`/api/v1/prompts/groups/${group.id}/prompts`, {
                 credentials: 'include',
             });
             
@@ -89,7 +90,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
 
     const fetchGroupData = useCallback(async () => {
         try {
-            const response = await fetch(`/api/v1/prompts/groups/${group.id}`, {
+            const response = await authenticatedFetch(`/api/v1/prompts/groups/${group.id}`, {
                 credentials: 'include',
             });
             
@@ -141,7 +142,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({
         }
         
         try {
-            const response = await fetch(`/api/v1/prompts/${selectedVersion.id}`, {
+            const response = await authenticatedFetch(`/api/v1/prompts/${selectedVersion.id}`, {
                 method: 'DELETE',
                 credentials: 'include',
             });

@@ -15,6 +15,7 @@ import { Button } from "@/lib/components/ui";
 import { RefreshCcw } from "lucide-react";
 import { useChatContext } from "@/lib/hooks";
 import { detectVariables } from "@/lib/utils/promptUtils";
+import { authenticatedFetch } from "@/lib/utils/api";
 
 export const PromptsPage: React.FC = () => {
     const { addNotification } = useChatContext();
@@ -35,7 +36,7 @@ export const PromptsPage: React.FC = () => {
     const fetchPromptGroups = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch("/api/v1/prompts/groups/all", {
+            const response = await authenticatedFetch("/api/v1/prompts/groups/all", {
                 credentials: "include",
             });
             if (response.ok) {
@@ -88,7 +89,7 @@ export const PromptsPage: React.FC = () => {
         if (!deletingPrompt) return;
 
         try {
-            const response = await fetch(`/api/v1/prompts/groups/${deletingPrompt.id}`, {
+            const response = await authenticatedFetch(`/api/v1/prompts/groups/${deletingPrompt.id}`, {
                 method: "DELETE",
                 credentials: "include",
             });
@@ -119,7 +120,7 @@ export const PromptsPage: React.FC = () => {
 
     const handleRestoreVersion = async (promptId: string) => {
         try {
-            const response = await fetch(`/api/v1/prompts/${promptId}/make-production`, {
+            const response = await authenticatedFetch(`/api/v1/prompts/${promptId}/make-production`, {
                 method: "PATCH",
                 credentials: "include",
             });
@@ -205,7 +206,7 @@ export const PromptsPage: React.FC = () => {
             // Optimistic update
             setPromptGroups(prev => prev.map(p => (p.id === id ? { ...p, is_pinned: !currentStatus } : p)));
 
-            const response = await fetch(`/api/v1/prompts/groups/${id}/pin`, {
+            const response = await authenticatedFetch(`/api/v1/prompts/groups/${id}/pin`, {
                 method: "PATCH",
                 credentials: "include",
             });
@@ -251,7 +252,7 @@ export const PromptsPage: React.FC = () => {
                         // If returning to Version History, refresh the group data
                         if (versionHistoryGroup) {
                             try {
-                                const response = await fetch(`/api/v1/prompts/groups/${versionHistoryGroup.id}`, {
+                                const response = await authenticatedFetch(`/api/v1/prompts/groups/${versionHistoryGroup.id}`, {
                                     credentials: "include",
                                 });
                                 if (response.ok) {
