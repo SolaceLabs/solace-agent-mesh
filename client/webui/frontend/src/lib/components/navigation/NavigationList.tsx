@@ -2,7 +2,6 @@ import React from "react";
 
 import { NavigationButton } from "@/lib/components/navigation";
 import type { NavigationItem } from "@/lib/types";
-import { ToggleThemeButton } from "./ToggleThemeButton";
 import { SettingsDialog } from "@/lib/components/settings";
 
 interface NavigationListProps {
@@ -31,9 +30,9 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
             {/* Bottom items */}
             {bottomItems && bottomItems.length > 0 && (
                 <ul className="space-y-1">
-                    {bottomItems.map(item => (
+                    {bottomItems.filter(item => item.id !== "theme-toggle").map(item => (
                         <li key={item.id} className="my-4">
-                            {item.id === "theme-toggle" ? <ToggleThemeButton /> : <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />}
+                            <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
                         </li>
                     ))}
                     {/* Settings Dialog */}

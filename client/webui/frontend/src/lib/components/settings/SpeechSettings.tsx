@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { Mic, Volume2, AlertCircle, Info } from "lucide-react";
-import { useAudioSettings } from "@/lib/hooks";
+import { useAudioSettings, useConfigContext } from "@/lib/hooks";
 import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input } from "@/lib/components/ui";
 
 export const SpeechSettingsPanel: React.FC = () => {
     const { settings, updateSetting } = useAudioSettings();
+    const { configFeatureEnablement } = useConfigContext();
     const [availableVoices, setAvailableVoices] = useState<string[]>([]);
     const [loadingVoices, setLoadingVoices] = useState(false);
     const [sttConfigured, setSttConfigured] = useState<boolean | null>(null);
     const [ttsConfigured, setTtsConfigured] = useState<boolean | null>(null);
+    
+    // Feature flags
+    const sttEnabled = configFeatureEnablement?.speechToText ?? true;
+    const ttsEnabled = configFeatureEnablement?.textToSpeech ?? true;
 
     // Check STT/TTS configuration status
     useEffect(() => {
@@ -59,6 +64,7 @@ export const SpeechSettingsPanel: React.FC = () => {
     return (
         <div className="space-y-6">
             {/* Speech-to-Text Section */}
+            {sttEnabled && (
             <div className="space-y-4">
                 <div className="flex items-center gap-2 border-b pb-2">
                     <Mic className="size-5" />
@@ -76,7 +82,7 @@ export const SpeechSettingsPanel: React.FC = () => {
 
                 {/* STT Provider */}
                 <div className="flex items-center justify-between">
-                    <Label className="font-medium">STT Provider</Label>
+                    <Label className="font-medium">Speech-to-Text Provider</Label>
                     <Select
                         value={settings.sttProvider}
                         onValueChange={(value: "browser" | "openai" | "azure") => {
@@ -192,8 +198,10 @@ export const SpeechSettingsPanel: React.FC = () => {
                     </Select>
                 </div>
             </div>
+            )}
 
             {/* Text-to-Speech Section */}
+            {ttsEnabled && (
             <div className="space-y-4">
                 <div className="flex items-center gap-2 border-b pb-2">
                     <Volume2 className="size-5" />
@@ -211,7 +219,7 @@ export const SpeechSettingsPanel: React.FC = () => {
 
                 {/* TTS Provider */}
                 <div className="flex items-center justify-between">
-                    <Label className="font-medium">TTS Provider</Label>
+                    <Label className="font-medium">Text-to-Speech Provider</Label>
                     <Select
                         value={settings.ttsProvider}
                         onValueChange={(value: "browser" | "gemini" | "azure") => {
@@ -314,11 +322,20 @@ export const SpeechSettingsPanel: React.FC = () => {
                                                         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
                                                             HD Voices (Premium)
                                                         </div>
-                                                        {hdVoices.map((voice) => (
-                                                            <SelectItem key={voice} value={voice}>
-                                                                {voice.replace(':DragonHDLatestNeural', ' (HD)')}
-                                                            </SelectItem>
-                                                        ))}
+                                                        {hdVoices.map((voice) => {
+                                                            // Format: "en-US-AvaMultilingualNeural:DragonHDLatestNeural" -> "Ava"
+                                                            const parts = voice.split('-');
+                                                            const lastPart = parts[parts.length - 1] || voice;
+                                                            const name = lastPart
+                                                                .replace('MultilingualNeural:DragonHDLatestNeural', '')
+                                                                .replace('Neural:DragonHDLatestNeural', '')
+                                                                .replace(':DragonHDLatestNeural', '');
+                                                            return (
+                                                                <SelectItem key={voice} value={voice}>
+                                                                    {name}
+                                                                </SelectItem>
+                                                            );
+                                                        })}
                                                     </>
                                                 )}
                                                 {normalVoices.length > 0 && (
@@ -326,22 +343,38 @@ export const SpeechSettingsPanel: React.FC = () => {
                                                         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
                                                             Standard Voices
                                                         </div>
-                                                        {normalVoices.map((voice) => (
-                                                            <SelectItem key={voice} value={voice}>
-                                                                {voice.replace('Neural', '')}
-                                                            </SelectItem>
-                                                        ))}
+                                                        {normalVoices.map((voice) => {
+                                                            // Format: "en-US-AvaMultilingualNeural" -> "Ava"
+                                                            const parts = voice.split('-');
+                                                            const lastPart = parts[parts.length - 1] || voice;
+                                                            const name = lastPart
+                                                                .replace('MultilingualNeural', '')
+                                                                .replace('Neural', '');
+                                                            return (
+                                                                <SelectItem key={voice} value={voice}>
+                                                                    {name}
+                                                                </SelectItem>
+                                                            );
+                                                        })}
                                                     </>
                                                 )}
                                             </>
                                         );
                                     } else {
-                                        // Gemini or other providers - show all voices
-                                        return availableVoices.map((voice) => (
-                                            <SelectItem key={voice} value={voice}>
-                                                {voice}
-                                            </SelectItem>
-                                        ));
+                                        return availableVoices.map((voice) => {
+                                            // For Gemini voices like "Kore" or "Puck", show as-is
+                                            // For other formats, try to extract readable name
+                                            let displayName = voice;
+                                            if (voice.includes('-')) {
+                                                const parts = voice.split('-');
+                                                displayName = parts[parts.length - 1].replace('Neural', '').replace('Multilingual', '') || voice;
+                                            }
+                                            return (
+                                                <SelectItem key={voice} value={voice}>
+                                                    {displayName}
+                                                </SelectItem>
+                                            );
+                                        });
                                     }
                                 })()
                             ) : (
@@ -371,6 +404,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                 </div>
 
             </div>
+            )}
         </div>
     );
 };
