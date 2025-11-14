@@ -20,7 +20,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick 
         <button
             onClick={onClick}
             className={cn(
-                "flex items-center gap-3 w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center gap-3 w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer",
                 active
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
