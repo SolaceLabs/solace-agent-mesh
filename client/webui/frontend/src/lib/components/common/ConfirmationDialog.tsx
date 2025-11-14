@@ -13,16 +13,28 @@ type ConfirmationDialogProps =
     | (BaseDialogProps & {
           triggerText: string;
           trigger?: never;
+          open?: never;
+          onOpenChange?: never;
       })
     | (BaseDialogProps & {
           trigger: React.ReactNode;
           triggerText?: never;
+          open?: never;
+          onOpenChange?: never;
+      })
+    | (BaseDialogProps & {
+          trigger?: never;
+          triggerText?: never;
+          open?: boolean;
+          onOpenChange?: (open: boolean) => void;
       });
 
-export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ title, message, triggerText, trigger, onClose, onConfirm }) => {
+export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ title, message, triggerText, trigger, onClose, onConfirm, open, onOpenChange }) => {
+    const hasTrigger = trigger || triggerText;
+
     return (
-        <Dialog>
-            <DialogTrigger asChild>{trigger ?? <Button>{triggerText}</Button>}</DialogTrigger>
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            {hasTrigger && <DialogTrigger asChild>{trigger ?? <Button>{triggerText}</Button>}</DialogTrigger>}
             <DialogContent className="w-xl max-w-xl sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle className="flex max-w-[400px] flex-row gap-1">{title}</DialogTitle>
@@ -43,7 +55,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ title, m
                         </Button>
                     </DialogClose>
 
-                    <DialogClose>
+                    <DialogClose asChild>
                         <Button
                             title="Confirm"
                             onClick={event => {
