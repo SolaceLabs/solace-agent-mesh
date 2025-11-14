@@ -4,8 +4,11 @@ import { MockAuthProvider } from "./MockAuthProvider";
 import { MockTaskProvider } from "./MockTaskProvider";
 import { MockConfigProvider } from "./MockConfigProvider";
 import type { AuthContextValue } from "@/lib/contexts/AuthContext";
-import { ThemeProvider, type ChatContextValue, type ConfigContextValue, type TaskContextValue } from "@/lib";
+import { ThemeProvider, type ChatContextValue, type ConfigContextValue, type SelectionContextValue, type TaskContextValue } from "@/lib";
 import { MockChatProvider } from "./MockChatProvider";
+import { MockProjectProvider } from "./MockProjectProvider";
+import type { ProjectContextValue } from "@/lib/types/projects";
+import { MockTextSelectionProvider } from "./MockTextSelectionProvider";
 
 interface RouterValues {
     initialPath?: string;
@@ -16,6 +19,8 @@ interface StoryProviderProps {
     children: React.ReactNode;
     authContextValues?: Partial<AuthContextValue>;
     chatContextValues?: Partial<ChatContextValue>;
+    textSelectionContextValues?: Partial<SelectionContextValue>;
+    projectContextValues?: Partial<ProjectContextValue>;
     taskContextValues?: Partial<TaskContextValue>;
     configContextValues?: Partial<ConfigContextValue>;
     routerValues?: RouterValues;
@@ -40,14 +45,18 @@ interface StoryProviderProps {
  * </StoryProvider>
  * ```
  */
-export const StoryProvider: React.FC<StoryProviderProps> = ({ children, authContextValues = {}, chatContextValues = {}, taskContextValues = {}, configContextValues = {} }) => {
+export const StoryProvider: React.FC<StoryProviderProps> = ({ children, authContextValues = {}, chatContextValues = {}, textSelectionContextValues = {}, projectContextValues = {}, taskContextValues = {}, configContextValues = {} }) => {
     const content = (
         <ThemeProvider>
             <MockConfigProvider mockValues={configContextValues}>
                 <MockAuthProvider mockValues={authContextValues}>
-                    <MockTaskProvider mockValues={taskContextValues}>
-                        <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
-                    </MockTaskProvider>
+                    <MockProjectProvider mockValues={projectContextValues}>
+                        <MockTextSelectionProvider mockValues={textSelectionContextValues}>
+                            <MockTaskProvider mockValues={taskContextValues}>
+                                <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
+                            </MockTaskProvider>
+                        </MockTextSelectionProvider>
+                    </MockProjectProvider>
                 </MockAuthProvider>
             </MockConfigProvider>
         </ThemeProvider>
