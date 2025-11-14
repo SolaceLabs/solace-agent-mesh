@@ -109,8 +109,9 @@ export const EditableMessageContent: React.FC<EditableMessageContentProps> = ({
     );
   }
 
-  // Render editable textarea with preserved width
-  const editContainerStyle = bubbleWidth ? { width: `${bubbleWidth}px` } : {};
+  const editContainerStyle = bubbleWidth
+    ? { width: `${bubbleWidth}px`, minWidth: '300px' }
+    : { minWidth: '300px' };
   
   return (
     <div className="space-y-2 p-4" style={editContainerStyle}>
@@ -140,7 +141,7 @@ export const EditableMessageContent: React.FC<EditableMessageContentProps> = ({
           disabled={isSaving || !editedContent.trim()}
           className="h-8 px-3 text-sm"
         >
-          {isSaving ? 'Saving...' : 'Save & Send'}
+          {isSaving ? 'Saving...' : 'Save & Resubmit'}
         </Button>
       </div>
     </div>
