@@ -67,6 +67,7 @@ apps:
       frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
       frontend_bot_name: ${FRONTEND_BOT_NAME}
       frontend_collect_feedback: true
+      frontend_logo_url: "${WEBUI_FRONTEND_LOGO_URL}"
 
       task_logging:
         enabled: true

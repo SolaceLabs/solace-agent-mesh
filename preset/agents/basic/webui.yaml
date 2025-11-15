@@ -60,3 +60,4 @@ apps:
       frontend_welcome_message: Hello, how can I assist you?
       frontend_bot_name: Solace Agent Mesh
       frontend_collect_feedback: false
+      frontend_logo_url: "${WEBUI_FRONTEND_LOGO_URL}"

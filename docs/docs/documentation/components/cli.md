@@ -83,6 +83,7 @@ Use the `--skip` option and provide the necessary options to run the command in 
 - `--webui-enable-embed-resolution` – Enable embed resolution for Web UI.
 - `--webui-frontend-welcome-message TEXT` – Frontend welcome message for Web UI.
 - `--webui-frontend-bot-name TEXT` – Frontend bot name for Web UI.
+- `--webui-frontend-logo-url TEXT` – URL to a custom logo image for the Web UI interface. Supports PNG, SVG, JPG formats, as well as data URIs for embedded images.
 - `--webui-frontend-collect-feedback` – Enable feedback collection in Web UI.
 - `-h, --help` – Displays the help message and exits.
 
