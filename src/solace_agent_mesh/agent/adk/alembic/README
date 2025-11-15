@@ -1,0 +1,74 @@
+# ADK Database Schema Migrations
+
+This directory contains Alembic migrations for Google ADK database schema compatibility.
+
+## Overview
+
+Migrations are automatically executed on agent startup when using SQL session services. This ensures your database schema stays compatible with the installed version of Google ADK.
+
+## How It Works
+
+1. **Automatic Migration**: When an agent starts with `session_service.type: sql`, the migration system automatically runs
+2. **Schema Detection**: Alembic compares ADK's model definitions against your actual database schema
+3. **Safe Updates**: Only missing columns/tables are added - existing data is never modified or deleted
+4. **Version Tracking**: Migration history is tracked in the `alembic_version` table in your database
+
+## Migration Files
+
+Migrations are stored in the `versions/` subdirectory:
+- Each file represents a specific schema change
+- Files are named with revision ID + description
+- Migrations run in chronological order
+
+## Creating New Migrations
+
+When Google releases a new ADK version with schema changes:
+
+```bash
+# Navigate to this directory
+cd src/solace_agent_mesh/agent/adk
+
+# Generate migration (auto-detects schema differences)
+alembic revision --autogenerate -m "Update for ADK x.x.x"
+
+# Review the generated migration in versions/
+# Then commit it to version control
+```
+
+## Official ADK Resources
+
+**Example Migration:**
+- https://github.com/google/adk-python/tree/main/contributing/samples/migrate_session_db
+
+**Migration Script:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/google/adk-python/main/scripts/db_migration.sh
+```
+
+**Documentation:**
+- ADK Repository: https://github.com/google/adk-python
+- ADK Releases: https://github.com/google/adk-python/releases
+
+## Troubleshooting
+
+### Manual Migration
+
+To run migrations manually:
+```bash
+cd src/solace_agent_mesh/agent/adk
+alembic upgrade head
+```
+
+### View Migration Status
+
+```bash
+cd src/solace_agent_mesh/agent/adk
+alembic current
+alembic history
+```
+
+## Schema Source
+
+All schema definitions come from:
+- Module: `google.adk.sessions.database_session_service`
+- Models: `StorageSession`, `StorageEvent`, `StorageAppState`, `StorageUserState`
