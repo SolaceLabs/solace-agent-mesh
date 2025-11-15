@@ -160,6 +160,66 @@ class PromptBuilderChatResponse(BaseModel):
         description="Confidence score"
     )
     ready_to_save: bool = Field(
-        False, 
+        False,
         description="Whether template is ready to save"
+    )
+
+
+# Export/Import Models
+
+class PromptExportMetadata(BaseModel):
+    """Metadata for exported prompt"""
+    author_name: Optional[str] = None
+    original_version: int
+    original_created_at: int
+
+
+class PromptExportData(BaseModel):
+    """Data structure for exported prompt"""
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    command: Optional[str] = None
+    prompt_text: str
+    metadata: PromptExportMetadata
+
+
+class PromptExportResponse(BaseModel):
+    """Schema for exported prompt file"""
+    version: str = "1.0"
+    exported_at: int
+    prompt: PromptExportData
+
+
+class PromptImportOptions(BaseModel):
+    """Options for importing a prompt"""
+    preserve_command: bool = Field(
+        False,
+        description="If true, attempt to keep original command (may be modified if conflict exists)"
+    )
+    preserve_category: bool = Field(
+        True,
+        description="If true, keep the original category"
+    )
+
+
+class PromptImportRequest(BaseModel):
+    """Schema for importing a prompt"""
+    prompt_data: Dict[str, Any] = Field(
+        ...,
+        description="The exported prompt JSON data"
+    )
+    options: Optional[PromptImportOptions] = Field(
+        default_factory=PromptImportOptions,
+        description="Import options"
+    )
+
+
+class PromptImportResponse(BaseModel):
+    """Schema for import response"""
+    success: bool
+    prompt_group_id: str
+    warnings: List[str] = Field(
+        default_factory=list,
+        description="Any warnings generated during import (e.g., command conflicts)"
     )

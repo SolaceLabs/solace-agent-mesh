@@ -9,6 +9,7 @@ import { PromptCards } from "@/lib/components/prompts/PromptCards";
 import { VersionHistoryPage } from "@/lib/components/prompts/VersionHistoryPage";
 import { PromptDeleteDialog } from "@/lib/components/prompts/PromptDeleteDialog";
 import { GeneratePromptDialog } from "@/lib/components/prompts/GeneratePromptDialog";
+import { PromptImportDialog } from "@/lib/components/prompts/PromptImportDialog";
 import { VariableDialog } from "@/lib/components/chat/VariableDialog";
 import { EmptyState, Header } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
@@ -31,6 +32,7 @@ export const PromptsPage: React.FC = () => {
     const [newlyCreatedPromptId, setNewlyCreatedPromptId] = useState<string | null>(null);
     const [showVariableDialog, setShowVariableDialog] = useState(false);
     const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
+    const [showImportDialog, setShowImportDialog] = useState(false);
 
     // Fetch prompt groups
     const fetchPromptGroups = async () => {
@@ -226,6 +228,101 @@ export const PromptsPage: React.FC = () => {
         }
     };
 
+    // Handle export
+    const handleExport = async (prompt: PromptGroup) => {
+        try {
+            const response = await authenticatedFetch(`/api/v1/prompts/groups/${prompt.id}/export`, {
+                credentials: "include",
+            });
+
+            if (response.ok) {
+                const exportData = await response.json();
+                
+                // Create a blob and trigger download
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `prompt-${prompt.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                addNotification("Prompt exported successfully", "success");
+            } else {
+                const error = await response.json();
+                const errorMessage = error.detail || "Failed to export prompt";
+                addNotification(errorMessage, "error");
+            }
+        } catch (error) {
+            console.error("Failed to export prompt:", error);
+            addNotification("Failed to export prompt", "error");
+        }
+    };
+
+    // Handle import
+    const handleImport = async (
+        importData: PromptImportData,
+        options: { preserve_command: boolean; preserve_category: boolean }
+    ) => {
+        try {
+            const response = await authenticatedFetch("/api/v1/prompts/import", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                    prompt_data: importData,
+                    options,
+                }),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                
+                // Show warnings if any
+                if (result.warnings && result.warnings.length > 0) {
+                    result.warnings.forEach((warning: string) => {
+                        addNotification(warning, "info");
+                    });
+                }
+
+                // Refresh prompts and select the newly imported one
+                await fetchPromptGroups();
+                setNewlyCreatedPromptId(result.prompt_group_id);
+                
+                addNotification("Prompt imported successfully", "success");
+            } else {
+                const error = await response.json();
+                const errorMessage = error.detail || "Failed to import prompt";
+                throw new Error(errorMessage);
+            }
+        } catch (error) {
+            console.error("Failed to import prompt:", error);
+            throw error; // Re-throw to let dialog handle it
+        }
+    };
+
+    // Type for import data
+    interface PromptImportData {
+        version: string;
+        exported_at: number;
+        prompt: {
+            name: string;
+            description?: string;
+            category?: string;
+            command?: string;
+            prompt_text: string;
+            metadata?: {
+                author_name?: string;
+                original_version: number;
+                original_created_at: number;
+            };
+        };
+    }
+
     if (showBuilder) {
         return (
             <>
@@ -235,6 +332,7 @@ export const PromptsPage: React.FC = () => {
                         setInitialMessage(null);
                         setEditingGroup(null);
                     }}
+                    onImport={() => setShowImportDialog(true)}
                     onSuccess={async (createdNewVersion?: boolean, createdPromptId?: string | null) => {
                         setShowBuilder(false);
                         setInitialMessage(null);
@@ -278,6 +376,13 @@ export const PromptsPage: React.FC = () => {
                 {/* Dialogs rendered globally */}
                 {deletingPrompt && <PromptDeleteDialog key={`delete-${deletingPrompt.id}`} isOpen={true} onClose={() => setDeletingPrompt(null)} onConfirm={handleDeleteConfirm} promptName={deletingPrompt.name} />}
                 <GeneratePromptDialog isOpen={showGenerateDialog} onClose={() => setShowGenerateDialog(false)} onGenerate={handleGeneratePrompt} />
+                
+                {/* Import Dialog */}
+                <PromptImportDialog
+                    open={showImportDialog}
+                    onOpenChange={setShowImportDialog}
+                    onImport={handleImport}
+                />
             </>
         );
     }
@@ -333,6 +438,7 @@ export const PromptsPage: React.FC = () => {
                         onViewVersions={setVersionHistoryGroup}
                         onUseInChat={handleUseInChat}
                         onTogglePin={handleTogglePin}
+                        onExport={handleExport}
                         newlyCreatedPromptId={newlyCreatedPromptId}
                     />
                 </div>
@@ -355,6 +461,13 @@ export const PromptsPage: React.FC = () => {
                     }}
                 />
             )}
+
+            {/* Import Dialog */}
+            <PromptImportDialog
+                open={showImportDialog}
+                onOpenChange={setShowImportDialog}
+                onImport={handleImport}
+            />
         </div>
     );
 };

@@ -20,10 +20,11 @@ interface PromptCardsProps {
     onViewVersions?: (prompt: PromptGroup) => void;
     onUseInChat?: (prompt: PromptGroup) => void;
     onTogglePin?: (id: string, currentStatus: boolean) => void;
+    onExport?: (prompt: PromptGroup) => void;
     newlyCreatedPromptId?: string | null;
 }
 
-export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreate, onAIAssisted, onEdit, onDelete, onViewVersions, onUseInChat, onTogglePin, newlyCreatedPromptId }) => {
+export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreate, onAIAssisted, onEdit, onDelete, onViewVersions, onUseInChat, onTogglePin, onExport, newlyCreatedPromptId }) => {
     const [selectedPrompt, setSelectedPrompt] = useState<PromptGroup | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -229,6 +230,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                                                 onViewVersions={onViewVersions}
                                                 onUseInChat={onUseInChat}
                                                 onTogglePin={onTogglePin}
+                                                onExport={onExport}
                                             />
                                         </div>
                                     ))}
@@ -243,7 +245,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                     <>
                         <ResizableHandle />
                         <ResizablePanel defaultSize={30} minSize={20} maxSize={50} id="promptDetailSidePanel">
-                            <PromptDetailSidePanel prompt={selectedPrompt} onClose={handleCloseSidePanel} onEdit={onEdit} onDelete={onDelete} onViewVersions={onViewVersions} onUseInChat={onUseInChat} onTogglePin={onTogglePin} />
+                            <PromptDetailSidePanel prompt={selectedPrompt} onClose={handleCloseSidePanel} onEdit={onEdit} onDelete={onDelete} onViewVersions={onViewVersions} onUseInChat={onUseInChat} onTogglePin={onTogglePin} onExport={onExport} />
                         </ResizablePanel>
                     </>
                 )}

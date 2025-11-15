@@ -10,7 +10,7 @@ from sqlalchemy import or_, func
 
 from ..services.prompt_builder_assistant import PromptBuilderAssistant
 
-from ..dependencies import get_db, get_user_id, get_sac_component, get_api_config
+from ..dependencies import get_db, get_user_id, get_sac_component, get_api_config, get_user_display_name
 from ..repository.models import PromptGroupModel, PromptModel, PromptGroupUserModel
 from .dto.prompt_dto import (
     PromptGroupCreate,
@@ -21,6 +21,11 @@ from .dto.prompt_dto import (
     PromptResponse,
     PromptBuilderChatRequest,
     PromptBuilderChatResponse,
+    PromptExportResponse,
+    PromptExportData,
+    PromptExportMetadata,
+    PromptImportRequest,
+    PromptImportResponse,
 )
 from ..shared import now_epoch_ms
 from solace_ai_connector.common.log import log
@@ -393,6 +398,7 @@ async def create_prompt_group(
     group_data: PromptGroupCreate,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_user_id),
+    user_display_name: str = Depends(get_user_display_name),
     _: None = Depends(check_prompts_enabled),
 ):
     """
@@ -423,7 +429,7 @@ async def create_prompt_group(
             category=group_data.category,
             command=group_data.command,
             user_id=user_id,
-            author_name=None,  # Can be enhanced to get from user profile
+            author_name=user_display_name,
             production_prompt_id=None,
             is_shared=False,
             is_pinned=False,
@@ -1023,4 +1029,226 @@ async def prompt_builder_chat(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process chat message"
+        )
+
+
+# ============================================================================
+# Export/Import Endpoints
+# ============================================================================
+
+@router.get("/groups/{group_id}/export", response_model=PromptExportResponse)
+async def export_prompt_group(
+    group_id: str,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+    user_display_name: str = Depends(get_user_display_name),
+    _: None = Depends(check_prompts_enabled),
+):
+    """
+    Export a prompt group's active/production version as a JSON file.
+    Returns a downloadable JSON file containing the prompt data.
+    Requires read permission on the prompt group.
+    """
+    try:
+        # Check read permission
+        check_permission(db, group_id, user_id, "read")
+        
+        # Fetch the prompt group
+        group = db.query(PromptGroupModel).filter(
+            PromptGroupModel.id == group_id
+        ).first()
+        
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Prompt group not found"
+            )
+        
+        # Fetch the production prompt
+        if not group.production_prompt_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No active prompt version to export"
+            )
+        
+        prod_prompt = db.query(PromptModel).filter(
+            PromptModel.id == group.production_prompt_id
+        ).first()
+        
+        if not prod_prompt:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Active prompt version not found"
+            )
+        
+        # Build export data
+        # Use author_name if available, otherwise use current user's display name as fallback
+        author_name = group.author_name or user_display_name
+        
+        export_data = PromptExportResponse(
+            version="1.0",
+            exported_at=now_epoch_ms(),
+            prompt=PromptExportData(
+                name=group.name,
+                description=group.description,
+                category=group.category,
+                command=group.command,
+                prompt_text=prod_prompt.prompt_text,
+                metadata=PromptExportMetadata(
+                    author_name=author_name,
+                    original_version=prod_prompt.version,
+                    original_created_at=prod_prompt.created_at
+                )
+            )
+        )
+        
+        return export_data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error exporting prompt group {group_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to export prompt"
+        )
+
+
+@router.post("/import", response_model=PromptImportResponse, status_code=status.HTTP_201_CREATED)
+async def import_prompt(
+    import_request: PromptImportRequest,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+    user_display_name: str = Depends(get_user_display_name),
+    _: None = Depends(check_prompts_enabled),
+):
+    """
+    Import a prompt from exported JSON data.
+    Creates a new prompt group with the imported data.
+    Handles command conflicts automatically by generating alternative commands.
+    """
+    try:
+        prompt_data = import_request.prompt_data
+        options = import_request.options or PromptImportOptions()
+        warnings = []
+        
+        # Validate export format version
+        export_version = prompt_data.get("version", "1.0")
+        if export_version != "1.0":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported export format version: {export_version}"
+            )
+        
+        # Extract prompt data
+        prompt_info = prompt_data.get("prompt")
+        if not prompt_info:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid export format: missing 'prompt' field"
+            )
+        
+        # Validate required fields
+        required_fields = ["name", "prompt_text"]
+        for field in required_fields:
+            if field not in prompt_info or not prompt_info[field]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid export format: missing required field '{field}'"
+                )
+        
+        # Extract fields
+        name = prompt_info["name"]
+        description = prompt_info.get("description")
+        category = prompt_info.get("category") if options.preserve_category else None
+        command = prompt_info.get("command") if options.preserve_command else None
+        prompt_text = prompt_info["prompt_text"]
+        
+        # Handle command conflicts
+        if command:
+            original_command = command
+            existing = db.query(PromptGroupModel).filter(
+                PromptGroupModel.command == command,
+                PromptGroupModel.user_id == user_id,
+            ).first()
+            
+            if existing:
+                # Generate alternative command
+                counter = 2
+                while True:
+                    new_command = f"{original_command}-{counter}"
+                    existing_alt = db.query(PromptGroupModel).filter(
+                        PromptGroupModel.command == new_command,
+                        PromptGroupModel.user_id == user_id,
+                    ).first()
+                    if not existing_alt:
+                        command = new_command
+                        warnings.append(
+                            f"Command '/{original_command}' already exists, using '/{command}' instead"
+                        )
+                        break
+                    counter += 1
+                    if counter > 100:  # Safety limit
+                        command = None
+                        warnings.append(
+                            f"Could not generate unique command, imported without command"
+                        )
+                        break
+        
+        # Create new prompt group
+        group_id = str(uuid.uuid4())
+        now_ms = now_epoch_ms()
+        
+        new_group = PromptGroupModel(
+            id=group_id,
+            name=name,
+            description=description,
+            category=category,
+            command=command,
+            user_id=user_id,
+            author_name=user_display_name,  # Set to importing user, not original author
+            production_prompt_id=None,
+            is_shared=False,
+            is_pinned=False,
+            created_at=now_ms,
+            updated_at=now_ms,
+        )
+        db.add(new_group)
+        db.flush()
+        
+        # Create prompt version
+        prompt_id = str(uuid.uuid4())
+        new_prompt = PromptModel(
+            id=prompt_id,
+            prompt_text=prompt_text,
+            group_id=group_id,
+            user_id=user_id,
+            version=1,  # Start at version 1 for imported prompts
+            created_at=now_ms,
+            updated_at=now_ms,
+        )
+        db.add(new_prompt)
+        db.flush()
+        
+        # Set as production prompt
+        new_group.production_prompt_id = prompt_id
+        new_group.updated_at = now_epoch_ms()
+        
+        db.commit()
+        
+        return PromptImportResponse(
+            success=True,
+            prompt_group_id=group_id,
+            warnings=warnings
+        )
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        log.error(f"Error importing prompt: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to import prompt: {str(e)}"
         )
