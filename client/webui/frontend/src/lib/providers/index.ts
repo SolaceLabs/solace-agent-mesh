@@ -1,3 +1,4 @@
+export * from "./AudioSettingsProvider";
 export * from "./ConfigProvider";
 export * from "./TaskProvider";
 export * from "./ChatProvider";

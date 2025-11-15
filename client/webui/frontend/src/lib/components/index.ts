@@ -5,6 +5,7 @@ export * from "./ui";
 export * from "./activities";
 export * from "./navigation";
 export * from "./chat";
+export * from "./settings";
 
 export { MarkdownHTMLConverter, MessageBanner, EmptyState, ErrorDialog, ConfirmationDialog, LoadingBlocker, messageColourVariants } from "./common";
 

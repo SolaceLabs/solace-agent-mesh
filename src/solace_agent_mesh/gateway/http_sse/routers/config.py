@@ -195,6 +195,57 @@ async def get_app_config(
         else:
             log.debug("%s Projects feature flag is disabled.", log_prefix)
 
+        
+        # Check tool configuration status
+        tool_config_status = {}
+        
+        # Check TTS configuration (Gemini or Azure)
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        azure_speech_key = os.getenv("AZURE_SPEECH_KEY")
+        azure_speech_region = os.getenv("AZURE_SPEECH_REGION")
+        
+        # Check for explicit TTS provider preference via environment variable
+        # TTS_PROVIDER can be "gemini" or "azure"
+        preferred_provider = os.getenv("TTS_PROVIDER", "").lower()
+        
+        # Determine which providers are available
+        gemini_available = bool(gemini_key)
+        azure_available = bool(azure_speech_key and azure_speech_region)
+        tts_configured = gemini_available or azure_available
+        tool_config_status["text_to_speech"] = tts_configured
+        
+        # Determine TTS provider based on preference and availability
+        if preferred_provider == "azure" and azure_available:
+            tts_provider = "azure"
+        elif preferred_provider == "gemini" and gemini_available:
+            tts_provider = "gemini"
+        elif gemini_available:
+            # Default to Gemini if available
+            tts_provider = "gemini"
+        elif azure_available:
+            # Fall back to Azure if Gemini not available
+            tts_provider = "azure"
+        else:
+            # No provider available, default to gemini (will use browser fallback)
+            tts_provider = "gemini"
+        
+        if tts_configured:
+            log.debug("%s TTS is configured (API keys present, provider: %s)", log_prefix, tts_provider)
+            if preferred_provider and preferred_provider != tts_provider:
+                log.warning(
+                    "%s TTS_PROVIDER set to '%s' but using '%s' (preferred provider not available)",
+                    log_prefix, preferred_provider, tts_provider
+                )
+        else:
+            log.debug("%s TTS is NOT configured (missing API keys)", log_prefix)
+        
+        # TTS settings - enable if API keys are present
+        tts_settings = {
+            "textToSpeech": tts_configured,
+            "engineTTS": "external" if tts_configured else "browser",
+            "ttsProvider": tts_provider,
+        }
+
         config_data = {
             "frontend_server_url": "",
             "frontend_auth_login_url": component.get_config(
@@ -212,6 +263,8 @@ async def get_app_config(
             "frontend_feature_enablement": feature_enablement,
             "persistence_enabled": api_config.get("persistence_enabled", False),
             "validation_limits": _get_validation_limits(),
+            "tool_config_status": tool_config_status,
+            "tts_settings": tts_settings,
         }
         log.debug("%sReturning frontend configuration.", log_prefix)
         return config_data
