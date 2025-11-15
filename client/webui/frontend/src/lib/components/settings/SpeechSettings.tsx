@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Mic, Volume2, AlertCircle, Info } from "lucide-react";
+import { Mic, Volume2, AlertCircle, Info, Play, Loader2 } from "lucide-react";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
-import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input } from "@/lib/components/ui";
+import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input, Button } from "@/lib/components/ui";
 
 export const SpeechSettingsPanel: React.FC = () => {
     const { settings, updateSetting } = useAudioSettings();
@@ -10,6 +10,9 @@ export const SpeechSettingsPanel: React.FC = () => {
     const [loadingVoices, setLoadingVoices] = useState(false);
     const [sttConfigured, setSttConfigured] = useState<boolean | null>(null);
     const [ttsConfigured, setTtsConfigured] = useState<boolean | null>(null);
+    const [playingSample, setPlayingSample] = useState(false);
+    const [loadingSample, setLoadingSample] = useState(false);
+    const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
     
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
@@ -61,6 +64,82 @@ export const SpeechSettingsPanel: React.FC = () => {
         loadVoices();
     }, [settings.ttsProvider]);
 
+    // Cleanup audio element on unmount
+    useEffect(() => {
+        return () => {
+            if (audioElement) {
+                audioElement.pause();
+                audioElement.src = '';
+            }
+        };
+    }, [audioElement]);
+
+    // Function to play voice sample
+    const playVoiceSample = async (voice: string) => {
+        try {
+            // Stop any currently playing audio and reset states
+            if (audioElement) {
+                audioElement.pause();
+                audioElement.src = '';
+                audioElement.onended = null;
+                audioElement.onerror = null;
+                setAudioElement(null);
+            }
+            
+            setLoadingSample(true);
+            setPlayingSample(false);
+
+            // Create form data
+            const formData = new FormData();
+            formData.append('voice', voice);
+            if (settings.ttsProvider !== 'browser') {
+                formData.append('provider', settings.ttsProvider);
+            }
+
+            // Fetch voice sample
+            const response = await fetch('/api/speech/voice-sample', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to load voice sample: ${response.statusText}`);
+            }
+
+            // Create blob from response
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+
+            setLoadingSample(false);
+            setPlayingSample(true);
+
+            // Create and play audio
+            const audio = new Audio(url);
+            audio.onended = () => {
+                setPlayingSample(false);
+                setAudioElement(null);
+                URL.revokeObjectURL(url);
+            };
+            audio.onerror = () => {
+                setPlayingSample(false);
+                setAudioElement(null);
+                URL.revokeObjectURL(url);
+            };
+
+            // Apply playback speed from settings
+            audio.playbackRate = settings.playbackRate || 1.0;
+            
+            setAudioElement(audio);
+            await audio.play();
+        } catch (error) {
+            console.error('Error playing voice sample:', error);
+            setLoadingSample(false);
+            setPlayingSample(false);
+            setAudioElement(null);
+            alert('Failed to play voice sample. Please try again.');
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Speech-to-Text Section */}
@@ -97,7 +176,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                         }}
                         disabled={!settings.speechToText}
                     >
-                        <SelectTrigger className="w-40">
+                        <SelectTrigger className="w-44">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -181,7 +260,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                         onValueChange={(value) => updateSetting("languageSTT", value)}
                         disabled={!settings.speechToText}
                     >
-                        <SelectTrigger className="w-40">
+                        <SelectTrigger className="w-44">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -234,7 +313,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                         }}
                         disabled={!settings.textToSpeech}
                     >
-                        <SelectTrigger className="w-40">
+                        <SelectTrigger className="w-44">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -295,15 +374,16 @@ export const SpeechSettingsPanel: React.FC = () => {
                 {settings.ttsProvider !== "browser" && (
                     <div className="flex items-center justify-between">
                         <Label className="font-medium">Voice</Label>
-                        <Select
-                            value={settings.voice}
-                            onValueChange={(value) => updateSetting("voice", value)}
-                            disabled={!settings.textToSpeech || loadingVoices}
-                        >
-                            <SelectTrigger className="w-40">
-                                <SelectValue placeholder={loadingVoices ? "Loading..." : "Select voice"} />
-                            </SelectTrigger>
-                            <SelectContent>
+                        <div className="flex items-center gap-2">
+                            <Select
+                                value={settings.voice}
+                                onValueChange={(value) => updateSetting("voice", value)}
+                                disabled={!settings.textToSpeech || loadingVoices}
+                            >
+                                <SelectTrigger className="w-[112px]">
+                                    <SelectValue placeholder={loadingVoices ? "Loading..." : "Select voice"} />
+                                </SelectTrigger>
+                                <SelectContent>
                                 {availableVoices.length > 0 ? (
                                 // External mode - show loaded voices with grouping for Azure
                                 (() => {
@@ -383,8 +463,29 @@ export const SpeechSettingsPanel: React.FC = () => {
                                     {loadingVoices ? "Loading..." : "No voices available"}
                                 </SelectItem>
                             )}
-                            </SelectContent>
-                        </Select>
+                                </SelectContent>
+                            </Select>
+                            <Button
+                                variant={playingSample ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                    if (!playingSample && !loadingSample) {
+                                        playVoiceSample(settings.voice);
+                                    }
+                                }}
+                                disabled={!settings.textToSpeech || !settings.voice || loadingVoices || playingSample || loadingSample}
+                                title={loadingSample ? "Loading sample..." : playingSample ? "Playing sample..." : "Play voice sample"}
+                                className="px-3 w-10"
+                            >
+                                {loadingSample ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                ) : playingSample ? (
+                                    <Volume2 className="size-4" />
+                                ) : (
+                                    <Play className="size-4" />
+                                )}
+                            </Button>
+                        </div>
                     </div>
                 )}
 
@@ -399,7 +500,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                         value={settings.playbackRate}
                         onChange={(e) => updateSetting("playbackRate", parseFloat(e.target.value) || 1.0)}
                         disabled={!settings.textToSpeech}
-                        className="w-40"
+                        className="w-44"
                     />
                 </div>
 

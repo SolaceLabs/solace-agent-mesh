@@ -621,6 +621,8 @@ class AudioService:
             api_key = gemini_config.get("api_key", "")
             model = gemini_config.get("model", "gemini-2.5-flash-preview-tts")
             final_voice = voice or gemini_config.get("default_voice", "Kore")
+            # Gemini requires lowercase voice names
+            final_voice = final_voice.lower()
             language = gemini_config.get("language", "en-US")
             
             if not api_key:

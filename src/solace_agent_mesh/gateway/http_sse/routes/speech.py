@@ -284,3 +284,58 @@ async def get_speech_config(
     except Exception as e:
         log.exception("[SpeechAPI] Error getting config: %s", e)
         raise HTTPException(500, f"Failed to get config: {str(e)}")
+
+
+@router.post("/voice-sample")
+async def get_voice_sample(
+    voice: str = Form(...),
+    provider: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user),
+    audio_service: AudioService = Depends(get_audio_service)
+):
+    """
+    Generate a sample audio for a specific voice to preview before selection.
+    
+    Args:
+        voice: Voice name to sample
+        provider: Optional provider (azure, gemini)
+        user: Current authenticated user
+        audio_service: Audio service instance
+    
+    Returns:
+        Audio data as MP3
+    
+    Raises:
+        HTTPException: If generation fails
+    """
+    log.debug("[SpeechAPI] Voice sample request from user=%s, voice=%s, provider=%s",
+              user.get("user_id"), voice, provider)
+    
+    try:
+        # Validate voice parameter
+        if not voice or not voice.strip():
+            raise HTTPException(400, "Voice parameter is required")
+        
+        # Generate a sample text based on provider
+        sample_text = "Hello! This is a sample of my voice. I hope you find it pleasant to listen to."
+        
+        audio_data = await audio_service.generate_speech(
+            text=sample_text,
+            voice=voice,
+            user_id=user.get("user_id", "anonymous"),
+            session_id=user.get("session_id", "default"),
+            app_name=user.get("app_name", "webui"),
+            message_id=f"voice_sample_{voice}",
+            provider=provider
+        )
+        
+        return Response(
+            content=audio_data,
+            media_type="audio/mpeg"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("[SpeechAPI] Voice sample error: %s", e)
+        raise HTTPException(500, f"Voice sample generation failed: {str(e)}")
