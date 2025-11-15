@@ -301,8 +301,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }, []);
 
     const loadTaskFromBackend = useCallback(async (taskId: string): Promise<TaskFE | null> => {
-        console.log(`TaskProvider: Loading task ${taskId} from backend...`);
-
         try {
             const response = await authenticatedFetch(`${apiPrefix}/tasks/${taskId}/events`, {
                 method: "GET",
@@ -348,7 +346,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 return [taskId, ...prevOrder];
             });
 
-            console.log(`TaskProvider: Successfully loaded task ${taskId} and ${Object.keys(loadedTasks).length - 1} child tasks from backend`);
             return loadedTasks[taskId] || null;
         } catch (error) {
             console.error(`TaskProvider: Error loading task ${taskId} from backend:`, error);

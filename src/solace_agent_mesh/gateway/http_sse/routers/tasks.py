@@ -652,33 +652,6 @@ async def search_tasks(
         )
 
 
-def _extract_child_task_ids(payloads):
-    """
-    Extract all child task IDs from a list of payloads.
-    Looks for delegation events and other indicators of sub-tasks.
-
-    Args:
-        payloads: List of payload dictionaries (the full_payload from events)
-    """
-    child_task_ids = set()
-    for payload in payloads:
-        # Check for delegation in status updates
-        if "result" in payload:
-            result = payload["result"]
-            if isinstance(result, dict) and "message" in result:
-                message = result["message"]
-                if isinstance(message, dict) and "parts" in message:
-                    for part in message.get("parts", []):
-                        if isinstance(part, dict) and part.get("kind") == "data":
-                            data = part.get("data", {})
-                            # Check for delegation type with child task info
-                            if data.get("type") == "delegation":
-                                delegation_task_id = data.get("delegatedTaskId")
-                                if delegation_task_id:
-                                    child_task_ids.add(delegation_task_id)
-    return list(child_task_ids)
-
-
 @router.get("/tasks/{task_id}/events", tags=["Tasks"])
 async def get_task_events(
     task_id: str,
@@ -783,80 +756,107 @@ async def get_task_events(
             }
             formatted_events.append(formatted_event)
 
-        # Now recursively load all child tasks
-        all_tasks = {task_id: {"events": formatted_events, "initial_request_text": task.initial_request_text or ""}}
-        tasks_to_process = [task_id]
-        processed_tasks = set()
+        # Use database-level query to get all related tasks efficiently
+        related_task_ids = repo.find_all_by_parent_chain(db, task_id)
+        log.info(
+            "%sFound %d related tasks for task_id %s",
+            log_prefix,
+            len(related_task_ids),
+            task_id,
+        )
 
-        while tasks_to_process:
-            current_task_id = tasks_to_process.pop(0)
-            if current_task_id in processed_tasks:
+        # Load and format all related tasks
+        all_tasks = {}
+        all_tasks[task_id] = {
+            "events": formatted_events,
+            "initial_request_text": task.initial_request_text or "",
+        }
+
+        # Load remaining related tasks
+        for tid in related_task_ids:
+            if tid == task_id:
+                continue  # Already loaded
+
+            task_result = repo.find_by_id_with_events(db, tid)
+            if not task_result:
                 continue
-            processed_tasks.add(current_task_id)
 
-            # Get the events for this task
-            current_events = all_tasks.get(current_task_id, {}).get("events", [])
-            if not current_events:
-                # Need to load this task
-                child_result = repo.find_by_id_with_events(db, current_task_id)
-                if child_result:
-                    child_task, child_events = child_result
-                    # Check permissions
-                    if child_task.user_id == user_id or can_read_all:
-                        # Format child task events
-                        child_formatted_events = []
-                        for event in child_events:
-                            from datetime import datetime, timezone
-                            timestamp_dt = datetime.fromtimestamp(event.created_time / 1000, tz=timezone.utc)
-                            timestamp_iso = timestamp_dt.isoformat()
-                            payload = event.payload
-                            message_id = payload.get("id")
-                            source_entity = "unknown"
-                            target_entity = "unknown"
-                            method = "N/A"
-                            if event.direction == "request":
-                                method = payload.get("method", "N/A")
-                                if "params" in payload and "message" in payload.get("params", {}):
-                                    message = payload["params"]["message"]
-                                    if isinstance(message, dict) and "metadata" in message:
-                                        target_entity = message["metadata"].get("agent_name", "unknown")
-                            elif event.direction in ["status", "response", "error"]:
-                                if "result" in payload:
-                                    result = payload["result"]
-                                    if isinstance(result, dict):
-                                        if "metadata" in result:
-                                            source_entity = result["metadata"].get("agent_name", "unknown")
-                                        if "message" in result:
-                                            message = result["message"]
-                                            if isinstance(message, dict) and "metadata" in message:
-                                                if source_entity == "unknown":
-                                                    source_entity = message["metadata"].get("agent_name", "unknown")
-                            direction_map = {"request": "request", "response": "task", "status": "status-update", "error": "error_response"}
-                            sse_direction = direction_map.get(event.direction, event.direction)
-                            formatted_event = {
-                                "event_type": "a2a_message",
-                                "timestamp": timestamp_iso,
-                                "solace_topic": event.topic,
-                                "direction": sse_direction,
-                                "source_entity": source_entity,
-                                "target_entity": target_entity,
-                                "message_id": message_id,
-                                "task_id": current_task_id,
-                                "payload_summary": {"method": method, "params_preview": None},
-                                "full_payload": payload,
-                            }
-                            child_formatted_events.append(formatted_event)
-                        all_tasks[current_task_id] = {
-                            "events": child_formatted_events,
-                            "initial_request_text": child_task.initial_request_text or "",
-                        }
-                        current_events = child_formatted_events
+            related_task, related_events = task_result
 
-            # Extract child task IDs from current task's events
-            child_task_ids = _extract_child_task_ids([e["full_payload"] for e in current_events])
-            for child_id in child_task_ids:
-                if child_id not in processed_tasks:
-                    tasks_to_process.append(child_id)
+            # Check permissions for each related task
+            if related_task.user_id != user_id and not can_read_all:
+                log.warning(
+                    "%sSkipping related task %s due to permission check",
+                    log_prefix,
+                    tid,
+                )
+                continue
+
+            # Format events for this related task
+            related_formatted_events = []
+            for event in related_events:
+                from datetime import datetime, timezone
+
+                timestamp_dt = datetime.fromtimestamp(
+                    event.created_time / 1000, tz=timezone.utc
+                )
+                timestamp_iso = timestamp_dt.isoformat()
+                payload = event.payload
+                message_id = payload.get("id")
+                source_entity = "unknown"
+                target_entity = "unknown"
+                method = "N/A"
+
+                if event.direction == "request":
+                    method = payload.get("method", "N/A")
+                    if "params" in payload and "message" in payload.get("params", {}):
+                        message = payload["params"]["message"]
+                        if isinstance(message, dict) and "metadata" in message:
+                            target_entity = message["metadata"].get(
+                                "agent_name", "unknown"
+                            )
+                elif event.direction in ["status", "response", "error"]:
+                    if "result" in payload:
+                        result = payload["result"]
+                        if isinstance(result, dict):
+                            if "metadata" in result:
+                                source_entity = result["metadata"].get(
+                                    "agent_name", "unknown"
+                                )
+                            if "message" in result:
+                                message = result["message"]
+                                if isinstance(message, dict) and "metadata" in message:
+                                    if source_entity == "unknown":
+                                        source_entity = message["metadata"].get(
+                                            "agent_name", "unknown"
+                                        )
+
+                direction_map = {
+                    "request": "request",
+                    "response": "task",
+                    "status": "status-update",
+                    "error": "error_response",
+                }
+                sse_direction = direction_map.get(event.direction, event.direction)
+
+                formatted_event = {
+                    "event_type": "a2a_message",
+                    "timestamp": timestamp_iso,
+                    "solace_topic": event.topic,
+                    "direction": sse_direction,
+                    "source_entity": source_entity,
+                    "target_entity": target_entity,
+                    "message_id": message_id,
+                    "task_id": tid,
+                    "payload_summary": {"method": method, "params_preview": None},
+                    "full_payload": payload,
+                }
+                related_formatted_events.append(formatted_event)
+
+            all_tasks[tid] = {
+                "events": related_formatted_events,
+                "initial_request_text": related_task.initial_request_text or "",
+            }
 
         # Return all tasks (parent + children) for the frontend to process
         return {"tasks": all_tasks}

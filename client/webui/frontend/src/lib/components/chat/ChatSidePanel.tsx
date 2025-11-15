@@ -34,36 +34,14 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
             // Check if task is already in monitoredTasks
             if (monitoredTasks[taskIdInSidePanel]) {
                 const taskDetails = monitoredTasks[taskIdInSidePanel];
-
-                // Log event-level summary for comparison
-                console.log(`====== WORKFLOW DEBUG (FROM LIVE STREAM) ======`);
-                console.log(`Task ID: ${taskIdInSidePanel}`);
-                console.log(`Number of events: ${taskDetails.events?.length || 0}`);
-                console.log(`Events:`);
-                taskDetails.events?.forEach((e, i) => {
-                    console.log(`  [${i}] direction: ${e.direction}, timestamp: ${e.timestamp}, task_id: ${e.task_id}, message_id: ${e.message_id}, method: ${e.payload_summary?.method || 'N/A'}, source: ${e.source_entity}, target: ${e.target_entity}`);
-                });
-                console.log(`===============================================`);
-
                 const vizTask = processTaskForVisualization(taskDetails.events || [], monitoredTasks, taskDetails);
                 setVisualizedTask(vizTask);
             } else {
                 // Task not in monitoredTasks, load from backend
-                console.log(`ChatSidePanel: Task ${taskIdInSidePanel} not in monitoredTasks, loading from backend...`);
                 setIsLoadingTask(true);
                 try {
                     const loadedTask = await loadTaskFromBackend(taskIdInSidePanel);
                     if (loadedTask) {
-                        // Log event-level summary for comparison
-                        console.log(`====== WORKFLOW DEBUG (FROM BACKEND) ======`);
-                        console.log(`Task ID: ${taskIdInSidePanel}`);
-                        console.log(`Number of events: ${loadedTask.events?.length || 0}`);
-                        console.log(`Events:`);
-                        loadedTask.events?.forEach((e, i) => {
-                            console.log(`  [${i}] direction: ${e.direction}, timestamp: ${e.timestamp}, task_id: ${e.task_id}, message_id: ${e.message_id}, method: ${e.payload_summary?.method || 'N/A'}, source: ${e.source_entity}, target: ${e.target_entity}`);
-                        });
-                        console.log(`===========================================`);
-
                         // Process the loaded task for visualization
                         // Note: loadTaskFromBackend already added all child tasks to monitoredTasks
                         // so we can now pass the full monitoredTasks object
