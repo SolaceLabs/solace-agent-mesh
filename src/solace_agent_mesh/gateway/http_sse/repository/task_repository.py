@@ -29,6 +29,7 @@ class TaskRepository(ITaskRepository):
             model = TaskModel(
                 id=task.id,
                 user_id=task.user_id,
+                parent_task_id=task.parent_task_id,
                 start_time=task.start_time,
                 end_time=task.end_time,
                 status=task.status,
@@ -154,6 +155,52 @@ class TaskRepository(ITaskRepository):
                 break
 
         return total_deleted
+
+    def find_all_by_parent_chain(self, session: DBSession, task_id: str) -> list[str]:
+        """
+        Returns all task IDs in the hierarchy starting from task_id.
+        Traverses up to find root, then traverses down to find all descendants.
+
+        Args:
+            session: Database session
+            task_id: Starting task ID
+
+        Returns:
+            List of all task IDs in the hierarchy (including the starting task)
+        """
+        # Find root task (traverse up parent chain)
+        root_task_id = task_id
+        current_id = task_id
+        visited = set()
+
+        while current_id and current_id not in visited:
+            visited.add(current_id)
+            task_model = (
+                session.query(TaskModel).filter(TaskModel.id == current_id).first()
+            )
+            if not task_model or not task_model.parent_task_id:
+                root_task_id = current_id
+                break
+            current_id = task_model.parent_task_id
+
+        # Find all descendants of root (BFS)
+        all_task_ids = {root_task_id}
+        to_process = [root_task_id]
+
+        while to_process:
+            current = to_process.pop(0)
+            # Find children
+            children = (
+                session.query(TaskModel)
+                .filter(TaskModel.parent_task_id == current)
+                .all()
+            )
+            for child in children:
+                if child.id not in all_task_ids:
+                    all_task_ids.add(child.id)
+                    to_process.append(child.id)
+
+        return list(all_task_ids)
 
     def _task_model_to_entity(self, model: TaskModel) -> Task:
         """Convert SQLAlchemy task model to domain entity."""

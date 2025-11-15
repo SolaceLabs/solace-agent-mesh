@@ -97,11 +97,19 @@ class TaskLoggerService:
             # Check for existing task or create a new one
             task = repo.find_by_id(db, task_id)
             if not task:
+                # Extract parent_task_id from message metadata
+                parent_task_id = None
+                if direction == "request" and isinstance(parsed_event, A2ARequest):
+                    message = a2a.get_message_from_send_request(parsed_event)
+                    if message and message.metadata:
+                        parent_task_id = message.metadata.get("parentTaskId")
+
                 if direction == "request":
                     initial_text = self._extract_initial_text(parsed_event)
                     new_task = Task(
                         id=task_id,
                         user_id=user_id or "unknown",
+                        parent_task_id=parent_task_id,
                         start_time=now_epoch_ms(),
                         initial_request_text=(
                             initial_text[:1024] if initial_text else None
@@ -110,6 +118,7 @@ class TaskLoggerService:
                     repo.save_task(db, new_task)
                     log.info(
                         f"{self.log_identifier} Created new task record for ID: {task_id}"
+                        + (f" with parent: {parent_task_id}" if parent_task_id else "")
                     )
                 else:
                     # We received an event for a task we haven't seen the start of.
@@ -117,6 +126,7 @@ class TaskLoggerService:
                     placeholder_task = Task(
                         id=task_id,
                         user_id=user_id or "unknown",
+                        parent_task_id=parent_task_id,
                         start_time=now_epoch_ms(),
                         initial_request_text="[Task started before logger was active]",
                     )
