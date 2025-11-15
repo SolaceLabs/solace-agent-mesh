@@ -882,30 +882,57 @@ async def get_task_as_stim_file(
     repo: ITaskRepository = Depends(get_task_repository),
 ):
     """
-    Retrieves the complete event history for a single task and returns it as a `.stim` file.
+    Retrieves the complete event history for a task and all its child tasks, returning it as a `.stim` file.
     """
     log_prefix = f"[GET /api/v1/tasks/{task_id}] "
     log.info("%sRequest from user %s", log_prefix, user_id)
 
     try:
-        result = repo.find_by_id_with_events(db, task_id)
-        if not result:
+        # Find all related task IDs (parent chain + all children)
+        related_task_ids = repo.find_all_by_parent_chain(db, task_id)
+
+        if not related_task_ids:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Task with ID '{task_id}' not found.",
             )
 
-        task, events = result
-
+        # Load all tasks and their events
+        tasks_dict = {}
+        events_dict = {}
         can_read_all = user_config.get("scopes", {}).get("tasks:read:all", False)
-        if task.user_id != user_id and not can_read_all:
+
+        for tid in related_task_ids:
+            result = repo.find_by_id_with_events(db, tid)
+            if result:
+                task, events = result
+
+                # Check permissions for each task
+                if task.user_id != user_id and not can_read_all:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You do not have permission to view this task.",
+                    )
+
+                tasks_dict[tid] = task
+                events_dict[tid] = events
+
+        if task_id not in tasks_dict:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to view this task.",
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task with ID '{task_id}' not found.",
             )
 
-        # Format into .stim structure
-        stim_data = create_stim_from_task_data(task, events)
+        # Determine the root task (the one without a parent)
+        root_task_id = task_id
+        for tid, task in tasks_dict.items():
+            if task.parent_task_id is None:
+                root_task_id = tid
+                break
+
+        # Format into .stim structure with all tasks
+        from ..utils.stim_utils import create_stim_from_task_hierarchy
+        stim_data = create_stim_from_task_hierarchy(tasks_dict, events_dict, root_task_id)
 
         yaml_content = yaml.dump(
             stim_data,
@@ -918,7 +945,7 @@ async def get_task_as_stim_file(
         return Response(
             content=yaml_content,
             media_type="application/yaml",
-            headers={"Content-Disposition": f'attachment; filename="{task_id}.stim"'},
+            headers={"Content-Disposition": f'attachment; filename="{root_task_id}.stim"'},
         )
 
     except HTTPException:

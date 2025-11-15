@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
@@ -456,6 +457,95 @@ def test_get_task_events_not_found(api_client: TestClient):
     """
     response = api_client.get("/api/v1/tasks/non-existent-task-id/events")
     assert response.status_code == 404
+
+
+def test_get_task_as_stim_file_with_child_tasks(api_client: TestClient, api_client_factory, db_session_factory):
+    """
+    Test GET /tasks/{task_id} (stim file download) includes child task events.
+    """
+    task_logger_service = api_client_factory.mock_component.get_task_logger_service()
+
+    # Create parent task
+    parent_message = "Parent task for stim test"
+    parent_task_id, _ = _create_task_and_get_ids(api_client, parent_message)
+
+    parent_request_payload = {
+        "jsonrpc": "2.0",
+        "id": parent_task_id,
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": parent_message}],
+                "metadata": {"agent_name": "ParentAgent"},
+            }
+        },
+    }
+    task_logger_service.log_event({
+        "topic": "test_namespace/a2a/v1/agent/request/ParentAgent",
+        "payload": parent_request_payload,
+        "user_properties": {"userId": "sam_dev_user"},
+    })
+
+    # Create child task
+    child_task_id = f"child-stim-{uuid.uuid4().hex}"
+    child_message = "Child task for stim test"
+    child_request_payload = {
+        "jsonrpc": "2.0",
+        "id": child_task_id,
+        "method": "message/stream",
+        "params": {
+            "message": {
+                "role": "user",
+                "messageId": str(uuid.uuid4()),
+                "kind": "message",
+                "parts": [{"kind": "text", "text": child_message}],
+                "metadata": {
+                    "agent_name": "ChildAgent",
+                    "parentTaskId": parent_task_id,
+                },
+            }
+        },
+    }
+    task_logger_service.log_event({
+        "topic": "test_namespace/a2a/v1/agent/request/ChildAgent",
+        "payload": child_request_payload,
+        "user_properties": {"userId": "sam_dev_user"},
+    })
+
+    # Act: Download stim file
+    response = api_client.get(f"/api/v1/tasks/{parent_task_id}")
+
+    # Assert
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/yaml"
+    assert "attachment" in response.headers["content-disposition"]
+
+    # Parse YAML content
+    stim_data = yaml.safe_load(response.text)
+
+    # Verify structure
+    assert "invocation_details" in stim_data
+    assert "invocation_flow" in stim_data
+
+    # Verify invocation details
+    details = stim_data["invocation_details"]
+    assert details["task_id"] == parent_task_id
+    assert details["user_id"] == "sam_dev_user"
+    assert details["initial_request_text"] == parent_message
+    assert details["includes_child_tasks"] is True
+    assert details["total_tasks"] == 2
+
+    # Verify invocation flow includes events from both tasks
+    flow = stim_data["invocation_flow"]
+    assert len(flow) == 2  # One event from parent, one from child
+
+    # Verify both task IDs appear in the flow
+    task_ids_in_flow = {event["task_id"] for event in flow}
+    assert parent_task_id in task_ids_in_flow
+    assert child_task_id in task_ids_in_flow
 
 
 @pytest.mark.parametrize(
