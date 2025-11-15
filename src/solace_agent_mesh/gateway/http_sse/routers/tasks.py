@@ -652,6 +652,226 @@ async def search_tasks(
         )
 
 
+def _extract_child_task_ids(payloads):
+    """
+    Extract all child task IDs from a list of payloads.
+    Looks for delegation events and other indicators of sub-tasks.
+
+    Args:
+        payloads: List of payload dictionaries (the full_payload from events)
+    """
+    child_task_ids = set()
+    for payload in payloads:
+        # Check for delegation in status updates
+        if "result" in payload:
+            result = payload["result"]
+            if isinstance(result, dict) and "message" in result:
+                message = result["message"]
+                if isinstance(message, dict) and "parts" in message:
+                    for part in message.get("parts", []):
+                        if isinstance(part, dict) and part.get("kind") == "data":
+                            data = part.get("data", {})
+                            # Check for delegation type with child task info
+                            if data.get("type") == "delegation":
+                                delegation_task_id = data.get("delegatedTaskId")
+                                if delegation_task_id:
+                                    child_task_ids.add(delegation_task_id)
+    return list(child_task_ids)
+
+
+@router.get("/tasks/{task_id}/events", tags=["Tasks"])
+async def get_task_events(
+    task_id: str,
+    request: FastAPIRequest,
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+    user_config: dict = Depends(get_user_config),
+    repo: ITaskRepository = Depends(get_task_repository),
+):
+    """
+    Retrieves the complete event history for a task and all its child tasks as JSON.
+    Returns events in the same format as the SSE stream for workflow visualization.
+    Recursively loads all descendant tasks to enable full workflow rendering.
+    """
+    log_prefix = f"[GET /api/v1/tasks/{task_id}/events] "
+    log.info("%sRequest from user %s", log_prefix, user_id)
+
+    try:
+        result = repo.find_by_id_with_events(db, task_id)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task with ID '{task_id}' not found.",
+            )
+
+        task, events = result
+
+        can_read_all = user_config.get("scopes", {}).get("tasks:read:all", False)
+        if task.user_id != user_id and not can_read_all:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to view this task.",
+            )
+
+        # Transform task events into A2AEventSSEPayload format for the frontend
+        # Need to reconstruct the SSE structure from stored data
+        formatted_events = []
+        for event in events:
+            # event.payload contains the raw A2A JSON-RPC message
+            # event.created_time is epoch milliseconds
+            # event.direction is simplified (request, response, status, error, etc)
+
+            # Convert timestamp from epoch milliseconds to ISO 8601
+            from datetime import datetime, timezone
+            timestamp_dt = datetime.fromtimestamp(event.created_time / 1000, tz=timezone.utc)
+            timestamp_iso = timestamp_dt.isoformat()
+
+            # Extract metadata from payload using similar logic to SSE component
+            payload = event.payload
+            message_id = payload.get("id")
+            source_entity = "unknown"
+            target_entity = "unknown"
+            method = "N/A"
+
+            # Parse based on direction
+            if event.direction == "request":
+                # It's a request - extract target from message metadata
+                method = payload.get("method", "N/A")
+                if "params" in payload and "message" in payload.get("params", {}):
+                    message = payload["params"]["message"]
+                    if isinstance(message, dict) and "metadata" in message:
+                        target_entity = message["metadata"].get("agent_name", "unknown")
+            elif event.direction in ["status", "response", "error"]:
+                # It's a response - extract source from result metadata
+                if "result" in payload:
+                    result = payload["result"]
+                    if isinstance(result, dict):
+                        # Check for agent_name in metadata
+                        if "metadata" in result:
+                            source_entity = result["metadata"].get("agent_name", "unknown")
+                        # For status updates, check the message inside
+                        if "message" in result:
+                            message = result["message"]
+                            if isinstance(message, dict) and "metadata" in message:
+                                if source_entity == "unknown":
+                                    source_entity = message["metadata"].get("agent_name", "unknown")
+
+            # Map stored direction to SSE direction format
+            direction_map = {
+                "request": "request",
+                "response": "task",
+                "status": "status-update",
+                "error": "error_response",
+            }
+            sse_direction = direction_map.get(event.direction, event.direction)
+
+            # Build the A2AEventSSEPayload structure
+            formatted_event = {
+                "event_type": "a2a_message",
+                "timestamp": timestamp_iso,
+                "solace_topic": event.topic,
+                "direction": sse_direction,
+                "source_entity": source_entity,
+                "target_entity": target_entity,
+                "message_id": message_id,
+                "task_id": task_id,
+                "payload_summary": {
+                    "method": method,
+                    "params_preview": None,
+                },
+                "full_payload": payload,
+            }
+            formatted_events.append(formatted_event)
+
+        # Now recursively load all child tasks
+        all_tasks = {task_id: {"events": formatted_events, "initial_request_text": task.initial_request_text or ""}}
+        tasks_to_process = [task_id]
+        processed_tasks = set()
+
+        while tasks_to_process:
+            current_task_id = tasks_to_process.pop(0)
+            if current_task_id in processed_tasks:
+                continue
+            processed_tasks.add(current_task_id)
+
+            # Get the events for this task
+            current_events = all_tasks.get(current_task_id, {}).get("events", [])
+            if not current_events:
+                # Need to load this task
+                child_result = repo.find_by_id_with_events(db, current_task_id)
+                if child_result:
+                    child_task, child_events = child_result
+                    # Check permissions
+                    if child_task.user_id == user_id or can_read_all:
+                        # Format child task events
+                        child_formatted_events = []
+                        for event in child_events:
+                            from datetime import datetime, timezone
+                            timestamp_dt = datetime.fromtimestamp(event.created_time / 1000, tz=timezone.utc)
+                            timestamp_iso = timestamp_dt.isoformat()
+                            payload = event.payload
+                            message_id = payload.get("id")
+                            source_entity = "unknown"
+                            target_entity = "unknown"
+                            method = "N/A"
+                            if event.direction == "request":
+                                method = payload.get("method", "N/A")
+                                if "params" in payload and "message" in payload.get("params", {}):
+                                    message = payload["params"]["message"]
+                                    if isinstance(message, dict) and "metadata" in message:
+                                        target_entity = message["metadata"].get("agent_name", "unknown")
+                            elif event.direction in ["status", "response", "error"]:
+                                if "result" in payload:
+                                    result = payload["result"]
+                                    if isinstance(result, dict):
+                                        if "metadata" in result:
+                                            source_entity = result["metadata"].get("agent_name", "unknown")
+                                        if "message" in result:
+                                            message = result["message"]
+                                            if isinstance(message, dict) and "metadata" in message:
+                                                if source_entity == "unknown":
+                                                    source_entity = message["metadata"].get("agent_name", "unknown")
+                            direction_map = {"request": "request", "response": "task", "status": "status-update", "error": "error_response"}
+                            sse_direction = direction_map.get(event.direction, event.direction)
+                            formatted_event = {
+                                "event_type": "a2a_message",
+                                "timestamp": timestamp_iso,
+                                "solace_topic": event.topic,
+                                "direction": sse_direction,
+                                "source_entity": source_entity,
+                                "target_entity": target_entity,
+                                "message_id": message_id,
+                                "task_id": current_task_id,
+                                "payload_summary": {"method": method, "params_preview": None},
+                                "full_payload": payload,
+                            }
+                            child_formatted_events.append(formatted_event)
+                        all_tasks[current_task_id] = {
+                            "events": child_formatted_events,
+                            "initial_request_text": child_task.initial_request_text or "",
+                        }
+                        current_events = child_formatted_events
+
+            # Extract child task IDs from current task's events
+            child_task_ids = _extract_child_task_ids([e["full_payload"] for e in current_events])
+            for child_id in child_task_ids:
+                if child_id not in processed_tasks:
+                    tasks_to_process.append(child_id)
+
+        # Return all tasks (parent + children) for the frontend to process
+        return {"tasks": all_tasks}
+
+    except HTTPException:
+        # Re-raise HTTPExceptions (404, 403, etc.) without modification
+        raise
+    except Exception as e:
+        log.exception("%sError retrieving task events: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while retrieving the task events.",
+        )
+
+
 @router.get("/tasks/{task_id}", tags=["Tasks"])
 async def get_task_as_stim_file(
     task_id: str,
