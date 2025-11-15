@@ -289,6 +289,12 @@ export const PromptsPage: React.FC = () => {
                     });
                 }
 
+                // Navigate back to prompts page
+                setShowBuilder(false);
+                setShowImportDialog(false);
+                setInitialMessage(null);
+                setEditingGroup(null);
+                
                 // Refresh prompts and select the newly imported one
                 await fetchPromptGroups();
                 setNewlyCreatedPromptId(result.prompt_group_id);

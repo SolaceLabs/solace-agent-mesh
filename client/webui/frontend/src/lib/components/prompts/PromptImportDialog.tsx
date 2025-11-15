@@ -42,7 +42,6 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
     const [error, setError] = useState<string | null>(null);
     const [isImporting, setIsImporting] = useState(false);
     const [editedCommand, setEditedCommand] = useState<string>("");
-    const [preserveCategory, setPreserveCategory] = useState(true);
     const [isDragging, setIsDragging] = useState(false);
     const [selectedFileName, setSelectedFileName] = useState<string>("");
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -152,7 +151,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
 
             await onImport(updatedImportData, {
                 preserve_command: !!editedCommand,
-                preserve_category: preserveCategory,
+                preserve_category: true, // Always preserve category
             });
 
             // Reset state and close dialog
@@ -314,15 +313,6 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                         <p className="text-xs text-muted-foreground">
                                             You can modify the shortcut if needed. If it conflicts with an existing shortcut, a unique one will be generated automatically.
                                         </p>
-                                    </div>
-                                )}
-
-                                {importData.prompt.category && (
-                                    <div className="flex items-center space-x-2">
-                                        <input type="checkbox" id="preserve-category" checked={preserveCategory} onChange={e => setPreserveCategory(e.target.checked)} className="h-4 w-4" />
-                                        <Label htmlFor="preserve-category" className="text-sm font-normal cursor-pointer">
-                                            Preserve category
-                                        </Label>
                                     </div>
                                 )}
                             </div>

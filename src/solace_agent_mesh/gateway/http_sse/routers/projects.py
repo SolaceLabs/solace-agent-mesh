@@ -14,6 +14,7 @@ from fastapi import (
     File,
     UploadFile,
 )
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from solace_ai_connector.common.log import log
 
@@ -36,6 +37,10 @@ from .dto.requests.project_requests import (
 from .dto.responses.project_responses import (
     ProjectResponse,
     ProjectListResponse,
+)
+from .dto.project_dto import (
+    ProjectImportOptions,
+    ProjectImportResponse,
 )
 
 router = APIRouter()
@@ -563,4 +568,133 @@ async def delete_project(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete project"
+        )
+
+
+@router.get("/projects/{project_id}/export")
+async def export_project(
+    project_id: str,
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Export project as ZIP containing:
+    - project.json (metadata)
+    - artifacts/ (all project files)
+    
+    Excludes: chat history, sessions
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} exporting project {project_id}")
+    
+    try:
+        # Create ZIP file
+        zip_buffer = await project_service.export_project_as_zip(
+            db=db,
+            project_id=project_id,
+            user_id=user_id
+        )
+        
+        # Get project for filename
+        project = project_service.get_project(db, project_id, user_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
+        
+        # Create safe filename
+        safe_name = project.name.replace(' ', '-').replace('/', '-')
+        filename = f"project-{safe_name}-{project_id[:8]}.zip"
+        
+        log.info(f"Project {project_id} exported successfully")
+        
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    
+    except ValueError as e:
+        log.warning(f"Validation error exporting project {project_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        log.error(f"Error exporting project {project_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to export project"
+        )
+
+
+@router.post("/projects/import", response_model=ProjectImportResponse)
+async def import_project(
+    file: UploadFile = File(...),
+    options: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Import project from ZIP file.
+    Handles name conflicts automatically.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} importing project from {file.filename}")
+    
+    try:
+        # Validate file type
+        if not file.filename.endswith('.zip'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File must be a ZIP archive"
+            )
+        
+        # Parse options
+        import_options = ProjectImportOptions()
+        if options:
+            try:
+                options_dict = json.loads(options)
+                import_options = ProjectImportOptions(**options_dict)
+            except (json.JSONDecodeError, ValueError) as e:
+                log.warning(f"Invalid import options: {e}")
+        
+        # Import project
+        project, artifacts_count, warnings = await project_service.import_project_from_zip(
+            db=db,
+            zip_file=file,
+            user_id=user_id,
+            preserve_name=import_options.preserve_name,
+            custom_name=import_options.custom_name,
+        )
+        
+        log.info(
+            f"Project imported successfully: {project.id} with {artifacts_count} artifacts"
+        )
+        
+        return ProjectImportResponse(
+            project_id=project.id,
+            name=project.name,
+            artifacts_imported=artifacts_count,
+            warnings=warnings,
+        )
+    
+    except ValueError as e:
+        log.warning(f"Validation error importing project: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        log.error(f"Error importing project: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to import project"
         )

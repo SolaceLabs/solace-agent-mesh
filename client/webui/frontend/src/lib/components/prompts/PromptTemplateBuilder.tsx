@@ -261,7 +261,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                                 size="sm"
                             >
                                 <Download className="h-3 w-3 mr-1" />
-                                Import
+                                Import Prompt
                             </Button>
                         ] : []),
                         <Button

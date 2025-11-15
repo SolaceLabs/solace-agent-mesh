@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { FileText, FolderOpen, MoreHorizontal } from "lucide-react";
+import { FileText, FolderOpen, MoreHorizontal, Upload, Trash2 } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
-import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu, type MenuAction } from "@/lib/components/ui";
+import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger } from "@/lib/components/ui";
 import type { Project } from "@/lib/types/projects";
 import { formatTimestamp } from "@/lib/utils/format";
 
@@ -10,19 +10,27 @@ interface ProjectCardProps {
     project: Project;
     onClick?: () => void;
     onDelete?: (project: Project) => void;
+    onExport?: (project: Project) => void;
 }
 
-export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete }) => {
+export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport }) => {
     const [menuOpen, setMenuOpen] = useState(false);
-    const menuActions: MenuAction[] = [
-        {
-            id: "deleteProject",
-            label: "Delete",
-            onClick: () => {
-                onDelete?.(project);
-            },
-        },
-    ];
+    
+    const handleExport = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setMenuOpen(false);
+        if (onExport) {
+            onExport(project);
+        }
+    };
+
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setMenuOpen(false);
+        if (onDelete) {
+            onDelete(project);
+        }
+    };
 
     return (
         <GridCard onClick={onClick}>
@@ -40,8 +48,23 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                                         <MoreHorizontal className="h-4 w-4" />
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent align="start" side="bottom" className="w-auto" sideOffset={0} onClick={e => e.stopPropagation()}>
-                                    <Menu actions={menuActions} />
+                                <PopoverContent align="start" side="bottom" className="w-48 p-1" sideOffset={0} onClick={e => e.stopPropagation()}>
+                                    {onExport && (
+                                        <button
+                                            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+                                            onClick={handleExport}
+                                        >
+                                            <Upload size={14} />
+                                            Export Project
+                                        </button>
+                                    )}
+                                    <button
+                                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+                                        onClick={handleDelete}
+                                    >
+                                        <Trash2 size={14} />
+                                        Delete
+                                    </button>
                                 </PopoverContent>
                             </Popover>
                         )}
