@@ -1,5 +1,5 @@
 import React from "react";
-import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MoreHorizontal, SquarePen, Download } from "lucide-react";
+import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MoreHorizontal, SquarePen, Upload } from "lucide-react";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -75,7 +75,7 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                             <DropdownMenuContent align="end">
                                 {onExport && (
                                     <DropdownMenuItem onClick={handleExport}>
-                                        <Download size={14} className="mr-2" />
+                                        <Upload size={14} className="mr-2" />
                                         Export Prompt
                                     </DropdownMenuItem>
                                 )}
