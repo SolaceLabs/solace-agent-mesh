@@ -135,6 +135,7 @@ async def process_artifact_blocks_callback(
         parser = FencedBlockStreamParser(progress_update_interval_bytes=250)
         session.state[parser_state_key] = parser
         session.state["completed_artifact_blocks_list"] = []
+        session.state["completed_template_blocks_list"] = []
 
     stream_chunks_were_processed = callback_context.state.get(
         A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY, False
@@ -429,7 +430,10 @@ async def process_artifact_blocks_callback(
 
                         # Store template_id in session for potential future use
                         # (Gateway will handle the actual resolution)
-                        if "completed_template_blocks_list" not in session.state:
+                        if (
+                            "completed_template_blocks_list" not in session.state
+                            or session.state["completed_template_blocks_list"] is None
+                        ):
                             session.state["completed_template_blocks_list"] = []
                         session.state["completed_template_blocks_list"].append(
                             {
@@ -906,7 +910,7 @@ def _generate_fenced_block_syntax_rules() -> str:
     open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
     close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
     return f"""
-**Fenced Block Syntax Rules (Applies to `save_artifact` and `template`):**
+**Fenced Block Syntax Rules (Applies to `save_artifact` and `template_liquid`):**
 To create content blocks, you MUST use the EXACT syntax shown below.
 
 **EXACT SYNTAX (copy this pattern exactly):**
@@ -916,8 +920,8 @@ It can span multiple lines.
 {close_delim}
 
 **CRITICAL FORMATTING RULES:**
-  1. The opening delimiter MUST be EXACTLY `{open_delim}` (three angle brackets).
-  2. Immediately after the delimiter, write the keyword (`save_artifact` or `template`) followed by a colon, with NO space before the colon (e.g., `save_artifact:`).
+  1. The opening delimiter MUST be EXACTLY `{open_delim}`.
+  2. Immediately after the delimiter, write the keyword (`save_artifact` or `template_liquid`) followed by a colon, with NO space before the colon (e.g., `{open_delim}save_artifact:`).
   3. All parameters (like `filename`, `data`, `mime_type`) must be on the SAME line as the opening delimiter.
   4. All parameter values **MUST** be enclosed in double quotes (e.g., `filename="example.txt"`).
   5. You **MUST NOT** use double quotes `"` inside parameter values. Use single quotes or rephrase instead.
@@ -926,6 +930,7 @@ It can span multiple lines.
   8. Do NOT surround the block with triple backticks (```). The `{open_delim}` and `{close_delim}` delimiters are sufficient.
 
 **COMMON ERRORS TO AVOID:**
+  ❌ WRONG: `{open_delim[0:1]}template_liquid:` (only 1 angle brackets)
   ❌ WRONG: `{open_delim[0:2]}save_artifact:` (only 2 angle brackets)
   ❌ WRONG: `{open_delim}save_artifact` (missing colon)
   ✅ CORRECT: `{open_delim}save_artifact: filename="test.txt" mime_type="text/plain"`
@@ -936,7 +941,7 @@ def _generate_fenced_artifact_instruction() -> str:
     """Generates the instruction text for using fenced artifact blocks."""
     open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
     return f"""\
-**Creating Text-Based Artifacts (`{open_delim}save_artifact:...`):**
+**Creating Text-Based Artifacts (`{open_delim}save_artifact: ...`):**
 
 **When to Create Artifacts:**
 Create an artifact when the content provides value as a standalone file, such as:
@@ -953,7 +958,7 @@ Create an artifact when the content provides value as a standalone file, such as
 - They are sent to the user as an interactive file component.
 - The user can see the content, so there is no need to return or embed it again.
 
-**Parameters for `save_artifact`:**
+**Parameters for `{open_delim}save_artifact: ...`**:
 - `filename="your_filename.ext"` (REQUIRED)
 - `mime_type="text/plain"` (optional, defaults to text/plain)
 - `description="A brief description."` (optional)
@@ -967,26 +972,29 @@ def _generate_inline_template_instruction() -> str:
     open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
     close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
     return f"""\
-**Inline Templates (`{open_delim}template:...`):**
+**Inline Liquid Templates (`{open_delim}template_liquid: ...`):**
 
-Use inline templates to dynamically render data from artifacts for user-friendly display. This is faster and more accurate than reading the artifact and reformatting it yourself.
+Use inline Liquid templates to dynamically render data from artifacts for user-friendly display. This is faster and more accurate than reading the artifact and reformatting it yourself.
+
+**IMPORTANT: Template Format**
+- Templates use **Liquid template syntax** (same as Shopify/Jekyll templates)
 
 **When to Use Inline Templates:**
 - Formatting CSV, JSON, or YAML data into tables or lists.
 - Applying simple transformations (filtering, limiting rows).
 
-**Parameters for `template`:**
+**Parameters for `{open_delim}template_liquid: ...`:**
 - `data="filename.ext"` (REQUIRED): The data artifact to render. Can include version: `data="file.csv:2"`.
 - `jsonpath="$.expression"` (optional): JSONPath to extract a subset of JSON/YAML data.
 - `limit="N"` (optional): Limit to the first N rows (CSV) or items (JSON/YAML arrays).
 
-**Data Context for Templates:**
+**Data Context for Liquid Templates:**
 - **CSV data**: Available as `headers` (array of column names) and `data_rows` (array of row arrays).
 - **JSON/YAML arrays**: Available as `items`.
 - **JSON/YAML objects**: Keys are directly available (e.g., `name`, `email`).
 
 **Example - CSV Table:**
-{open_delim}template: data="sales_data.csv" limit="5"
+{open_delim}template_liquid: data="sales_data.csv" limit="5"
 | {{% for h in headers %}}{{{{ h }}}} | {{% endfor %}}
 |{{% for h in headers %}}---|{{% endfor %}}
 {{% for row in data_rows %}}| {{% for cell in row %}}{{{{ cell }}}} | {{% endfor %}}{{% endfor %}}
@@ -1018,6 +1026,95 @@ def _generate_artifact_creation_instruction() -> str:
     """
 
 
+def _generate_examples_instruction() -> str:
+    open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
+    close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
+
+    return (
+        f"""\
+    Example 1:
+    - User: "Create a markdown file with your two csv files as tables."
+    <note>There are two csv files already uploaded: data1.csv and data2.csv</note>
+    - OrchestratorAgent:
+    «status_update:Creating the Markdown tables...»
+    I'll create a Markdown file with the CSV data formatted as tables.
+    {open_delim}save_artifact: filename="data_tables.md" mime_type="text/markdown" description="Markdown tables from CSV files"
+    # Data Tables
+    ## Data 1
+    {open_delim}template_liquid: data="data1.csv"
+    """
+        + """| {% for h in headers %}{{ h }} | {% endfor %}
+    |{% for h in headers %}---|{% endfor %}
+    {% for row in data_rows %}| {% for cell in row %}{{ cell }} | {% endfor %}{% endfor %}
+    """
+        + f"""{close_delim}
+    ## Data 2
+    {open_delim}template_liquid: data="data2.csv"
+    """
+        + """| {% for h in headers %}{{ h }} | {% endfor %}
+    |{% for h in headers %}---|{% endfor %}
+    {% for row in data_rows %}| {% for cell in row %}{{ cell }} | {% endfor %}{% endfor %}
+    """
+        + f"""{close_delim}
+    {close_delim}
+    Example 2:
+    - User: "Create a text file with the result of sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680)."
+    - OrchestratorAgent:
+    «status_update:Calculating the result and creating the text file...»
+    I'll put the result into a text file for you.
+    {open_delim}save_artifact: filename="math.txt" mime_type="text/plain" description="Result of sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680)"
+    result = «math: sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680) | .2f»
+    {close_delim}
+    
+    Example 3:
+    - User: "Show me the first 10 entries from data1.csv"
+    - OrchestratorAgent:
+    «status_update:Loading and filtering the CSV data...»
+    Here are the first 10 entries from data1.csv.
+    {open_delim}template_liquid: data="data1.csv" limit="10"
+    """
+        + """| {% for h in headers %}{{ h }} | {% endfor %}
+    |{% for h in headers %}---|{% endfor %}
+    {% for row in data_rows %}| {% for cell in row %}{{ cell }} | {% endfor %}{% endfor %}
+    """
+        + f"""{close_delim}
+
+    Example 4:
+    - User: "Create an HTML with the chart image you just generated with the customer data."
+    - OrchestratorAgent:
+    «status_update:Generating the HTML report with the chart...»
+
+    {open_delim}status_update:Creating html document...{close_delim}
+
+    {open_delim}save_artifact: filename="customer_analysis.html" mime_type="text/html" description="Interactive customer analysis dashboard"
+    """
+        + """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Customer Chart - «datetime:%Y-%m-%d»</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .metric { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+            img { max-width: 100%; height: auto; }
+        </style>
+        </head>
+    <body>
+    <h1>Customer Analysis Report</h1>
+    <p>Generated: «datetime:iso»</p>
+        
+    <h2>Customer Distribution Chart</h2>
+    <img src="«artifact_content:customer_chart.png >>> format:datauri»" alt="Customer Distribution">
+    
+    </body>
+    </html>
+    """
+        + f"""{close_delim}
+
+    """
+    )
+
+
 def _generate_embed_instruction(
     include_artifact_content: bool,
     log_identifier: str,
@@ -1027,9 +1124,13 @@ def _generate_embed_instruction(
     close_delim = EMBED_DELIMITER_CLOSE
     chain_delim = EMBED_CHAIN_DELIMITER
     early_types = "`math`, `datetime`, `uuid`, `artifact_meta`"
-    modifier_list = ", ".join(
-        [f"`{prefix}`" for prefix in MODIFIER_IMPLEMENTATIONS.keys()]
-    )
+
+    modifier_list = MODIFIER_IMPLEMENTATIONS.keys()
+    # Remove apply_to_template from the modifier list as it's been deprecated
+    if "apply_to_template" in modifier_list:
+        modifier_list = list(modifier_list)
+        modifier_list.remove("apply_to_template")
+    modifier_list = ", ".join([f"`{prefix}`" for prefix in modifier_list])
 
     base_instruction = f"""\
 You can use dynamic embeds in your text responses and tool parameters using the syntax {open_delim}type:expression {chain_delim} format{close_delim}. NOTE that this differs from 'save_artifact', which has  different delimiters. This allows you to
@@ -1047,7 +1148,8 @@ Examples:
 - `The result of 23.5 * 4.2 is {open_delim}math:23.5 * 4.2 | .2f{close_delim}` (Embeds calculated result with 2 decimal places)
 
 The following embeds are resolved *late* (by the gateway before final display):
-- `{open_delim}artifact_return:filename[:version]{close_delim}`: **This is the primary way to return an artifact to the user.** It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it. Note: artifact_return is not necessary if the artifact was just created by you in this same response, since newly created artifacts are automatically attached to your message."""
+- `{open_delim}artifact_return:filename[:version]{close_delim}`: **This is the primary way to return an artifact to the user.** It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it. Note: artifact_return is not necessary if the artifact was just created by you in this same response, since newly created artifacts are automatically attached to your message.
+"""
 
     artifact_content_instruction = f"""
 - `{open_delim}artifact_content:filename[:version] {chain_delim} modifier1:value1 {chain_delim} ... {chain_delim} format:output_format{close_delim}`: Embeds artifact content after applying a chain of modifiers. This is resolved *late* (typically by a gateway before final display).
@@ -1056,13 +1158,18 @@ The following embeds are resolved *late* (by the gateway before final display):
     - Available modifiers: {modifier_list}.
     - The `format:output_format` step *must* be the last step in the chain. Supported formats include `text`, `datauri`, `json`, `json_pretty`, `csv`. Formatting as datauri, will include the data URI prefix, so do not add it yourself.
     - Use `artifact_meta` first to check size; embedding large files may fail.
+    - **Efficient workflows for large artifacts:**
+        - To extract specific line ranges: `load_artifact(filename, version, include_line_numbers=True)` to identify lines, then use `slice_lines:start:end` modifier to extract that range.
+        - To fill templates with many placeholders: use `artifact_search_and_replace_regex` with `replacements` array (single atomic operation instead of multiple calls).
+        - Line numbers are display-only; `slice_lines` always operates on original content.
     - Examples:
         - `<img src="{open_delim}artifact_content:image.png {chain_delim} format:datauri{close_delim}`"> (Embed image as data URI - NOTE that this includes the datauri prefix. Do not add it yourself.)
         - `{open_delim}artifact_content:data.json {chain_delim} jsonpath:$.items[*] {chain_delim} select_fields:name,status {chain_delim} format:json_pretty{close_delim}` (Extract and format JSON fields)
         - `{open_delim}artifact_content:logs.txt {chain_delim} grep:ERROR {chain_delim} head:10 {chain_delim} format:text{close_delim}` (Get first 10 error lines)
         - `{open_delim}artifact_content:config.json {chain_delim} jsonpath:$.userPreferences.theme {chain_delim} format:text{close_delim}` (Extract a single value from a JSON artifact)
-        - `{open_delim}artifact_content:sensor_readings.csv {chain_delim} filter_rows_eq:status:critical {chain_delim} select_cols:timestamp,sensor_id,value {chain_delim} format:csv{close_delim}` (Filter critical sensor readings and select specific columns, output as CSV)
         - `{open_delim}artifact_content:server.log {chain_delim} tail:100 {chain_delim} grep:WARN {chain_delim} format:text{close_delim}` (Get warning lines from the last 100 lines of a log file)
+        - `{open_delim}artifact_content:template.html {chain_delim} slice_lines:10:50 {chain_delim} format:text{close_delim}` (Extract lines 10-50 from a large file)
+        - `<img src="{open_delim}artifact_content:diagram.png {chain_delim} format:datauri{close_delim}`"> (Embed an PNG diagram as a data URI)`
 """
 
     final_instruction = base_instruction
@@ -1154,9 +1261,11 @@ Examples:
  - GOOD: "Searching for information..." [then calls tool]
 
 Embeds in responses from agents:
-To be efficient, agents may respond with artifact_content or template embeds in their responses. These will not be resolved until they are sent back to a gateway. If it makes
+To be efficient, peer agents may respond with artifact_content in their responses. These will not be resolved until they are sent back to a gateway. If it makes
 sense, just carry that embed forward to your response to the user. For example, if you ask for an org chart from another agent and its response contains an embed like
 `{open_delim}artifact_content:org_chart.md{close_delim}`, you can just include that embed in your response to the user. The gateway will resolve it and display the org chart.
+
+Similarly, template_liquid blocks in peer agent responses can be carried forward to your response to the user for resolution by the gateway.
 
 When faced with a complex goal or request that involves multiple steps, data retrieval, or artifact summarization to produce a new report or document, you MUST first create a plan.
 Simple, direct requests like 'create an image of a dog' or 'write an email to thank my boss' do not require a plan.
@@ -1309,6 +1418,8 @@ If a plan is created:
             log_identifier,
             e_last_call,
         )
+
+    injected_instructions.append(_generate_examples_instruction())
 
     if injected_instructions:
         combined_instructions = "\n\n---\n\n".join(injected_instructions)

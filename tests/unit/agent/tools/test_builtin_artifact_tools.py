@@ -1007,3 +1007,395 @@ class TestArtifactSearchAndReplaceRegex:
             assert result["match_count"] == 0
             assert "No matches found" in result["message"]
             assert "not modified" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_batch_replacements_success(self, mock_tool_context):
+        """Test successful batch replacements with multiple operations."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+
+            mock_session.return_value = "session123"
+            mock_is_text.return_value = True
+
+            original_content = "foo bar baz qux"
+            mock_load.return_value = {
+                "status": "success",
+                "raw_bytes": original_content.encode("utf-8"),
+                "mime_type": "text/plain",
+                "version": 1
+            }
+
+            saved_content = None
+            def capture_save(**kwargs):
+                nonlocal saved_content
+                saved_content = kwargs['content_bytes'].decode('utf-8')
+                return {"status": "success", "data_version": 2}
+
+            mock_save.side_effect = capture_save
+
+            # Multiple sequential replacements
+            result = await artifact_search_and_replace_regex(
+                filename="test.txt",
+                replacements=[
+                    {"search": "foo", "replace": "FOO", "is_regexp": False},
+                    {"search": "bar", "replace": "BAR", "is_regexp": False},
+                    {"search": "baz", "replace": "BAZ", "is_regexp": False}
+                ],
+                tool_context=mock_tool_context
+            )
+
+            assert result["status"] == "success"
+            assert result["total_replacements"] == 3
+            assert result["total_matches"] == 3
+            assert len(result["replacement_results"]) == 3
+
+            # Verify all replacements succeeded
+            for r in result["replacement_results"]:
+                assert r["status"] == "success"
+                assert r["match_count"] == 1
+
+            # Verify final content has all replacements applied
+            assert saved_content == "FOO BAR BAZ qux"
+
+    @pytest.mark.asyncio
+    async def test_batch_replacements_sequential_processing(self, mock_tool_context):
+        """Test that batch replacements are applied sequentially (each sees previous results)."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+
+            mock_session.return_value = "session123"
+            mock_is_text.return_value = True
+
+            original_content = "hello hello hello"
+            mock_load.return_value = {
+                "status": "success",
+                "raw_bytes": original_content.encode("utf-8"),
+                "mime_type": "text/plain",
+                "version": 1
+            }
+
+            saved_content = None
+            def capture_save(**kwargs):
+                nonlocal saved_content
+                saved_content = kwargs['content_bytes'].decode('utf-8')
+                return {"status": "success", "data_version": 2}
+
+            mock_save.side_effect = capture_save
+
+            # First replacement: hello -> hi (all 3 instances)
+            # Second replacement: hi -> HI (should find 3 instances of "hi" from first replacement)
+            result = await artifact_search_and_replace_regex(
+                filename="test.txt",
+                replacements=[
+                    {"search": "hello", "replace": "hi", "is_regexp": False},
+                    {"search": "hi", "replace": "HI", "is_regexp": False}
+                ],
+                tool_context=mock_tool_context
+            )
+
+            assert result["status"] == "success"
+            assert result["replacement_results"][0]["match_count"] == 3
+            assert result["replacement_results"][1]["match_count"] == 3  # Proves sequential processing
+            assert saved_content == "HI HI HI"
+
+    @pytest.mark.asyncio
+    async def test_batch_replacements_atomic_rollback_on_error(self, mock_tool_context):
+        """Test that batch replacements rollback all changes if any operation fails."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+
+            mock_session.return_value = "session123"
+            mock_is_text.return_value = True
+
+            original_content = "foo bar baz"
+            mock_load.return_value = {
+                "status": "success",
+                "raw_bytes": original_content.encode("utf-8"),
+                "mime_type": "text/plain",
+                "version": 1
+            }
+
+            # Second replacement has invalid regex
+            result = await artifact_search_and_replace_regex(
+                filename="test.txt",
+                replacements=[
+                    {"search": "foo", "replace": "FOO", "is_regexp": False},
+                    {"search": "[invalid(", "replace": "BAR", "is_regexp": True},  # Invalid regex
+                    {"search": "baz", "replace": "BAZ", "is_regexp": False}
+                ],
+                tool_context=mock_tool_context
+            )
+
+            assert result["status"] == "error"
+            assert "Batch replacement failed" in result["message"]
+            assert result["failed_replacement"]["index"] == 1
+            assert "Invalid regular expression" in result["failed_replacement"]["error"]
+
+            # First replacement should be marked as success
+            assert result["replacement_results"][0]["status"] == "success"
+            # Second replacement should be marked as error
+            assert result["replacement_results"][1]["status"] == "error"
+            # Third replacement should be skipped
+            assert result["replacement_results"][2]["status"] == "skipped"
+
+            # Save should not have been called (rollback)
+            mock_save.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_batch_replacements_no_matches_error(self, mock_tool_context):
+        """Test that batch rollback occurs when no matches found."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+
+            mock_session.return_value = "session123"
+            mock_is_text.return_value = True
+
+            original_content = "foo bar baz"
+            mock_load.return_value = {
+                "status": "success",
+                "raw_bytes": original_content.encode("utf-8"),
+                "mime_type": "text/plain",
+                "version": 1
+            }
+
+            # Second replacement won't find any matches
+            result = await artifact_search_and_replace_regex(
+                filename="test.txt",
+                replacements=[
+                    {"search": "foo", "replace": "FOO", "is_regexp": False},
+                    {"search": "notfound", "replace": "NOTFOUND", "is_regexp": False},
+                    {"search": "baz", "replace": "BAZ", "is_regexp": False}
+                ],
+                tool_context=mock_tool_context
+            )
+
+            assert result["status"] == "error"
+            assert "Batch replacement failed" in result["message"]
+            assert result["failed_replacement"]["index"] == 1
+            assert "No matches found" in result["failed_replacement"]["error"]
+
+            # Save should not have been called (rollback)
+            mock_save.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_batch_replacements_multiple_matches_without_global_flag(self, mock_tool_context):
+        """Test that batch mode errors on multiple matches without global flag."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+
+            mock_session.return_value = "session123"
+            mock_is_text.return_value = True
+
+            original_content = "foo foo foo"
+            mock_load.return_value = {
+                "status": "success",
+                "raw_bytes": original_content.encode("utf-8"),
+                "mime_type": "text/plain",
+                "version": 1
+            }
+
+            # Regex without global flag but multiple matches - should error in batch mode
+            result = await artifact_search_and_replace_regex(
+                filename="test.txt",
+                replacements=[
+                    {"search": "foo", "replace": "bar", "is_regexp": True, "regexp_flags": ""}  # No 'g' flag
+                ],
+                tool_context=mock_tool_context
+            )
+
+            assert result["status"] == "error"
+            assert "Multiple matches found" in result["failed_replacement"]["error"]
+            assert "global flag 'g' not set" in result["failed_replacement"]["error"]
+
+            # Save should not have been called (rollback)
+            mock_save.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_batch_replacements_with_regex_and_literal_mixed(self, mock_tool_context):
+        """Test batch replacements with mix of regex and literal operations."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+
+            mock_session.return_value = "session123"
+            mock_is_text.return_value = True
+
+            original_content = "user123 user456 and hello world"
+            mock_load.return_value = {
+                "status": "success",
+                "raw_bytes": original_content.encode("utf-8"),
+                "mime_type": "text/plain",
+                "version": 1
+            }
+
+            saved_content = None
+            def capture_save(**kwargs):
+                nonlocal saved_content
+                saved_content = kwargs['content_bytes'].decode('utf-8')
+                return {"status": "success", "data_version": 2}
+
+            mock_save.side_effect = capture_save
+
+            # Mix of regex with capture groups and literal replacement
+            result = await artifact_search_and_replace_regex(
+                filename="test.txt",
+                replacements=[
+                    {"search": r"user(\d+)", "replace": "id:$1", "is_regexp": True, "regexp_flags": "g"},
+                    {"search": "hello", "replace": "hi", "is_regexp": False}
+                ],
+                tool_context=mock_tool_context
+            )
+
+            assert result["status"] == "success"
+            assert result["total_replacements"] == 2
+            assert result["replacement_results"][0]["match_count"] == 2
+            assert result["replacement_results"][1]["match_count"] == 1
+            assert saved_content == "id:123 id:456 and hi world"
+
+    @pytest.mark.asyncio
+    async def test_batch_replacements_empty_array_error(self, mock_tool_context):
+        """Test error when replacements array is empty."""
+        result = await artifact_search_and_replace_regex(
+            filename="test.txt",
+            replacements=[],
+            tool_context=mock_tool_context
+        )
+
+        assert result["status"] == "error"
+        assert "non-empty array" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_batch_replacements_missing_required_fields(self, mock_tool_context):
+        """Test error when replacement entry is missing required fields."""
+        result = await artifact_search_and_replace_regex(
+            filename="test.txt",
+            replacements=[
+                {"search": "foo", "replace": "bar"}  # Missing 'is_regexp'
+            ],
+            tool_context=mock_tool_context
+        )
+
+        assert result["status"] == "error"
+        assert "missing required fields" in result["message"]
+        assert "is_regexp" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_batch_replacements_invalid_type(self, mock_tool_context):
+        """Test error when replacement entry is not a dictionary."""
+        result = await artifact_search_and_replace_regex(
+            filename="test.txt",
+            replacements=["not a dict"],
+            tool_context=mock_tool_context
+        )
+
+        assert result["status"] == "error"
+        assert "must be a dictionary" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_batch_and_single_mode_mutually_exclusive(self, mock_tool_context):
+        """Test error when both replacements array and single search_expression provided."""
+        result = await artifact_search_and_replace_regex(
+            filename="test.txt",
+            search_expression="foo",
+            replace_expression="bar",
+            replacements=[
+                {"search": "baz", "replace": "qux", "is_regexp": False}
+            ],
+            tool_context=mock_tool_context
+        )
+
+        assert result["status"] == "error"
+        assert "Cannot provide both" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_batch_replacements_with_new_filename(self, mock_tool_context):
+        """Test batch replacements saving to a new filename."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+
+            mock_session.return_value = "session123"
+            mock_is_text.return_value = True
+
+            original_content = "foo bar baz"
+            mock_load.return_value = {
+                "status": "success",
+                "raw_bytes": original_content.encode("utf-8"),
+                "mime_type": "text/plain",
+                "version": 1
+            }
+
+            mock_save.return_value = {
+                "status": "success",
+                "data_version": 0  # New file
+            }
+
+            result = await artifact_search_and_replace_regex(
+                filename="test.txt",
+                replacements=[
+                    {"search": "foo", "replace": "FOO", "is_regexp": False},
+                    {"search": "bar", "replace": "BAR", "is_regexp": False}
+                ],
+                new_filename="modified.txt",
+                tool_context=mock_tool_context
+            )
+
+            assert result["status"] == "success"
+            assert result["source_filename"] == "test.txt"
+            assert result["output_filename"] == "modified.txt"
+            assert result["output_version"] == 0
+
+    @pytest.mark.asyncio
+    async def test_batch_replacements_metadata_includes_batch_info(self, mock_tool_context):
+        """Test that batch replacement metadata includes batch-specific information."""
+        with patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata') as mock_load, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.save_artifact_with_metadata') as mock_save, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id') as mock_session, \
+             patch('solace_agent_mesh.agent.tools.builtin_artifact_tools.is_text_based_file') as mock_is_text:
+
+            mock_session.return_value = "session123"
+            mock_is_text.return_value = True
+
+            original_content = "foo bar baz"
+            mock_load.return_value = {
+                "status": "success",
+                "raw_bytes": original_content.encode("utf-8"),
+                "mime_type": "text/plain",
+                "version": 1
+            }
+
+            mock_save.return_value = {
+                "status": "success",
+                "data_version": 2
+            }
+
+            result = await artifact_search_and_replace_regex(
+                filename="test.txt",
+                replacements=[
+                    {"search": "foo", "replace": "FOO", "is_regexp": False},
+                    {"search": "bar", "replace": "BAR", "is_regexp": False}
+                ],
+                tool_context=mock_tool_context
+            )
+
+            assert result["status"] == "success"
+
+            # Check that save was called with batch metadata
+            call_args = mock_save.call_args
+            assert call_args is not None
+            metadata = call_args.kwargs['metadata_dict']
+            assert "batch" in metadata['source'].lower()
+            assert metadata['total_replacements'] == 2
+            assert metadata['total_matches'] == 2
