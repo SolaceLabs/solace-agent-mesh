@@ -301,7 +301,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                     <Label className="font-medium">Text-to-Speech Provider</Label>
                     <Select
                         value={settings.ttsProvider}
-                        onValueChange={(value: "browser" | "gemini" | "azure") => {
+                        onValueChange={(value: "browser" | "gemini" | "azure" | "polly") => {
                             // If switching to external provider but not configured, show warning
                             if (value !== "browser" && ttsConfigured === false) {
                                 alert("External TTS is not configured. Please add TTS configuration to webui.yaml first.");
@@ -323,6 +323,9 @@ export const SpeechSettingsPanel: React.FC = () => {
                             </SelectItem>
                             <SelectItem value="azure" disabled={ttsConfigured === false}>
                                 Azure Neural {ttsConfigured === false ? "(Not Configured)" : ""}
+                            </SelectItem>
+                            <SelectItem value="polly" disabled={ttsConfigured === false}>
+                                AWS Polly {ttsConfigured === false ? "(Not Configured)" : ""}
                             </SelectItem>
                         </SelectContent>
                     </Select>
@@ -346,6 +349,37 @@ export const SpeechSettingsPanel: React.FC = () => {
     provider: gemini
     api_key: \${GEMINI_API_KEY}
     model: gemini-2.0-flash-exp`}
+                                </pre>
+                                <p className="text-yellow-700 dark:text-yellow-500 mt-2 text-xs">
+                                    Or use Browser mode (free, no setup required).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* TTS Configuration Warning for Polly - Only show for External API */}
+                {settings.textToSpeech && settings.ttsProvider === "polly" && ttsConfigured === false && (
+                    <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 p-3 border border-yellow-200 dark:border-yellow-900">
+                        <div className="flex gap-2">
+                            <AlertCircle className="size-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1 text-sm">
+                                <p className="font-semibold text-yellow-800 dark:text-yellow-400 mb-1">
+                                    External TTS Not Configured
+                                </p>
+                                <p className="text-yellow-700 dark:text-yellow-500 mb-2">
+                                    To use AWS Polly, configure TTS in your <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 rounded text-xs">webui.yaml</code>:
+                                </p>
+                                <pre className="text-xs bg-yellow-100 dark:bg-yellow-900/40 p-2 rounded overflow-x-auto">
+{`speech:
+  tts:
+    provider: polly
+    polly:
+      aws_access_key_id: \${AWS_ACCESS_KEY_ID}
+      aws_secret_access_key: \${AWS_SECRET_ACCESS_KEY}
+      region: us-east-1
+      engine: neural  # or 'standard'
+      default_voice: Joanna`}
                                 </pre>
                                 <p className="text-yellow-700 dark:text-yellow-500 mt-2 text-xs">
                                     Or use Browser mode (free, no setup required).

@@ -13,7 +13,7 @@ export interface SpeechSettings {
     // TTS Settings
     textToSpeech: boolean;
     engineTTS: "browser" | "external";
-    ttsProvider: "browser" | "gemini" | "azure";
+    ttsProvider: "browser" | "gemini" | "azure" | "polly";
     voice: string;
     playbackRate: number;
     automaticPlayback: boolean;

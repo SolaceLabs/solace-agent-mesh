@@ -203,6 +203,8 @@ async def get_app_config(
         gemini_key = os.getenv("GEMINI_API_KEY")
         azure_speech_key = os.getenv("AZURE_SPEECH_KEY")
         azure_speech_region = os.getenv("AZURE_SPEECH_REGION")
+        aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+        aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
         
         # Check for explicit TTS provider preference via environment variable
         # TTS_PROVIDER can be "gemini" or "azure"
@@ -211,7 +213,8 @@ async def get_app_config(
         # Determine which providers are available
         gemini_available = bool(gemini_key)
         azure_available = bool(azure_speech_key and azure_speech_region)
-        tts_configured = gemini_available or azure_available
+        polly_available = bool(aws_access_key and aws_secret_key)
+        tts_configured = gemini_available or azure_available or polly_available
         tool_config_status["text_to_speech"] = tts_configured
         
         # Determine TTS provider based on preference and availability
@@ -219,12 +222,17 @@ async def get_app_config(
             tts_provider = "azure"
         elif preferred_provider == "gemini" and gemini_available:
             tts_provider = "gemini"
+        elif preferred_provider == "polly" and polly_available:
+            tts_provider = "polly"
         elif gemini_available:
             # Default to Gemini if available
             tts_provider = "gemini"
         elif azure_available:
             # Fall back to Azure if Gemini not available
             tts_provider = "azure"
+        elif polly_available:
+            # Fall back to Polly if others not available
+            tts_provider = "polly"
         else:
             # No provider available, default to gemini (will use browser fallback)
             tts_provider = "gemini"
@@ -237,7 +245,7 @@ async def get_app_config(
                     log_prefix, preferred_provider, tts_provider
                 )
         else:
-            log.debug("%s TTS is NOT configured (missing API keys)", log_prefix)
+            log.debug("%s TTS not configured (no API keys found)", log_prefix)
         
         # TTS settings - enable if API keys are present
         tts_settings = {

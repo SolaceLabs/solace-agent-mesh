@@ -13,6 +13,32 @@ from solace_ai_connector.common.log import log
 from ....agent.tools.audio_tools import ALL_AVAILABLE_VOICES
 
 
+# AWS Polly Neural Voices (popular subset)
+AWS_POLLY_NEURAL_VOICES = [
+    # US English - Neural
+    "Joanna",
+    "Matthew",
+    "Ruth",
+    "Stephen",
+    "Kendra",
+    "Joey",
+    "Kimberly",
+    "Salli",
+    "Ivy",
+    # UK English - Neural
+    "Amy",
+    "Emma",
+    "Brian",
+    "Arthur",
+    # Australian English
+    "Olivia",
+    # Canadian English
+    "Liam",
+    # Indian English
+    "Kajal",
+    "Aria",
+]
+
 # Azure Neural Voices (popular subset with HD voices)
 AZURE_NEURAL_VOICES = [
     # US English - HD Voices
@@ -753,6 +779,133 @@ class AudioService:
             raise HTTPException(500, f"Gemini TTS generation failed: {str(e)}")
     
     
+    async def generate_speech_polly(
+        self,
+        text: str,
+        voice: Optional[str],
+        user_id: str,
+        session_id: str,
+        app_name: str = "webui",
+        message_id: Optional[str] = None
+    ) -> bytes:
+        """
+        Generate speech using AWS Polly.
+        
+        Args:
+            text: Text to convert to speech
+            voice: Polly voice ID (e.g., "Joanna", "Matthew")
+            user_id: User identifier
+            session_id: Session identifier
+            app_name: Application name
+            message_id: Optional message ID for caching
+            
+        Returns:
+            Audio data as bytes (MP3 format)
+            
+        Raises:
+            HTTPException: If generation fails
+        """
+        
+        try:
+            log.info("[AudioService] Starting AWS Polly TTS generation")
+            
+            # Import boto3
+            try:
+                import boto3
+                from botocore.exceptions import ClientError as BotoClientError, BotoCoreError
+                log.info("[AudioService] boto3 imported successfully")
+            except ImportError as e:
+                log.error(f"[AudioService] boto3 not installed: {e}")
+                raise HTTPException(
+                    500,
+                    "AWS boto3 SDK not installed. Run: pip install boto3"
+                )
+            
+            # Get Polly configuration
+            tts_config = self.speech_config.get("tts", {})
+            polly_config = tts_config.get("polly", {})
+            
+            aws_access_key_id = polly_config.get("aws_access_key_id", "")
+            aws_secret_access_key = polly_config.get("aws_secret_access_key", "")
+            region = polly_config.get("region", "us-east-1")
+            engine = polly_config.get("engine", "neural")  # 'neural' or 'standard'
+            
+            if not aws_access_key_id or not aws_secret_access_key:
+                log.error("[AudioService] AWS Polly missing credentials")
+                raise HTTPException(
+                    500,
+                    "AWS Polly not configured. Please set speech.tts.polly.aws_access_key_id and aws_secret_access_key."
+                )
+            
+            # Set voice - use default if provided voice is not a Polly voice
+            requested_voice = voice or polly_config.get("default_voice", "Joanna")
+            
+            # Polly voices are simple names (e.g., "Joanna", "Matthew")
+            # Validate it's a reasonable voice name (alphanumeric)
+            is_polly_voice = requested_voice.isalpha()
+            
+            if is_polly_voice:
+                final_voice = requested_voice
+            else:
+                # Not a valid Polly voice, use default
+                final_voice = polly_config.get("default_voice", "Joanna")
+                log.warning(f"[AudioService] Invalid Polly voice '{requested_voice}', using default '{final_voice}'")
+            
+            # Create Polly client
+            try:
+                polly_client = boto3.client(
+                    'polly',
+                    aws_access_key_id=aws_access_key_id,
+                    aws_secret_access_key=aws_secret_access_key,
+                    region_name=region
+                )
+                log.info(f"[AudioService] Created Polly client for region {region}")
+            except Exception as e:
+                log.error(f"[AudioService] Failed to create Polly client: {e}")
+                raise HTTPException(500, f"Failed to create AWS Polly client: {str(e)}")
+            
+            # Synthesize speech
+            log.debug(f"[AudioService] Synthesizing with voice={final_voice}, engine={engine}, text_len={len(text)}")
+            
+            try:
+                response = await asyncio.to_thread(
+                    polly_client.synthesize_speech,
+                    Text=text,
+                    OutputFormat='mp3',
+                    VoiceId=final_voice,
+                    Engine=engine
+                )
+                
+                # Read audio stream
+                if 'AudioStream' in response:
+                    audio_data = response['AudioStream'].read()
+                    log.info(f"[AudioService] Successfully generated {len(audio_data)} bytes of audio")
+                    return audio_data
+                else:
+                    raise HTTPException(500, "No audio stream in Polly response")
+                    
+            except BotoClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                error_msg = e.response.get('Error', {}).get('Message', str(e))
+                log.error(f"[AudioService] Polly API error: {error_code} - {error_msg}")
+                
+                if error_code == 'InvalidParameterValue':
+                    raise HTTPException(400, f"Invalid Polly parameter: {error_msg}")
+                elif error_code in ['AccessDeniedException', 'UnauthorizedException']:
+                    raise HTTPException(403, f"AWS Polly authentication failed: {error_msg}")
+                else:
+                    raise HTTPException(500, f"AWS Polly error ({error_code}): {error_msg}")
+                    
+            except BotoCoreError as e:
+                log.error(f"[AudioService] Boto core error: {e}")
+                raise HTTPException(500, f"AWS SDK error: {str(e)}")
+                
+        except HTTPException:
+            raise
+        except Exception as e:
+            log.exception("[AudioService] AWS Polly TTS generation error: %s", e)
+            raise HTTPException(500, f"AWS Polly TTS generation failed: {str(e)}")
+    
     async def generate_speech(
         self,
         text: str,
@@ -816,6 +969,10 @@ class AudioService:
                 )
             elif final_provider == "gemini":
                 return await self.generate_speech_gemini(
+                    text, voice, user_id, session_id, app_name, message_id
+                )
+            elif final_provider == "polly":
+                return await self.generate_speech_polly(
                     text, voice, user_id, session_id, app_name, message_id
                 )
             else:
@@ -920,6 +1077,9 @@ class AudioService:
         elif final_provider == "gemini":
             gemini_config = tts_config.get("gemini", tts_config)  # Fallback to root for backward compat
             voices = gemini_config.get("voices", ALL_AVAILABLE_VOICES)
+        elif final_provider == "polly":
+            polly_config = tts_config.get("polly", {})
+            voices = polly_config.get("voices", AWS_POLLY_NEURAL_VOICES)
         else:
             voices = []
         
