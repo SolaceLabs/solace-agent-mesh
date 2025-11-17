@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { AgentMeshPage, ChatPage, bottomNavigationItems, getTopNavigationItems, NavigationSidebar, ToastContainer, Button } from "@/lib/components";
 import { ProjectsPage } from "@/lib/components/projects";
 import { PromptsPage } from "@/lib/components/pages/PromptsPage";
+import { ScheduledTasksPage } from "@/lib/components/pages/ScheduledTasksPage";
 import { TextSelectionProvider, SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
 import { UnsavedChangesProvider, useUnsavedChangesContext } from "@/lib/contexts";
@@ -112,6 +113,8 @@ function AppContentInner() {
                 return <ChatPage />;
             case "prompts":
                 return <PromptsPage />;
+            case "schedules":
+                return <ScheduledTasksPage />;
             default:
                 return <ChatPage />;
         }

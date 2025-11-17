@@ -9,14 +9,10 @@ from fastapi import Request as FastAPIRequest
 from fastapi import status
 from typing import TYPE_CHECKING
 
-import sqlalchemy as sa
-from a2a.types import InternalError, JSONRPCError
+from a2a.types import InternalError, JSONRPCError, InvalidRequestError
 from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
 from alembic import command
 from alembic.config import Config
-from fastapi import FastAPI, HTTPException
-from fastapi import Request as FastAPIRequest
-from fastapi import status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -40,23 +36,20 @@ from .routers import (
     projects,
     prompts,
 )
-from .routers.sessions import router as session_router
-from .routers.tasks import router as task_router
-from .routers.users import router as user_router
-
-from alembic import command
-from alembic.config import Config
-
-from a2a.types import InternalError, InvalidRequestError, JSONRPCError
-from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
-from ...common import a2a
-from ...gateway.http_sse import dependencies
-
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
+
+# Import scheduled_tasks separately with error handling
+try:
+    from .routers import scheduled_tasks
+    _scheduled_tasks_available = True
+except Exception as e:
+    log.warning(f"Scheduled tasks router not available: {e}")
+    scheduled_tasks = None
+    _scheduled_tasks_available = False
 
 app = FastAPI(
     title="A2A Web UI Backend",
@@ -620,6 +613,17 @@ def _setup_routers() -> None:
     app.include_router(projects.router, prefix=api_prefix, tags=["Projects"])
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
+    
+    # Mount scheduled tasks router if available
+    if _scheduled_tasks_available and scheduled_tasks:
+        try:
+            app.include_router(scheduled_tasks.router, prefix=api_prefix, tags=["Scheduled Tasks"])
+            log.info("Scheduled tasks router mounted successfully")
+        except Exception as e:
+            log.error(f"Failed to mount scheduled tasks router: {e}", exc_info=True)
+    else:
+        log.warning("Scheduled tasks router not available - feature disabled")
+    
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers from community repo

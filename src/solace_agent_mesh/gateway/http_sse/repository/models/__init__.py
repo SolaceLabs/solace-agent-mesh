@@ -11,6 +11,13 @@ from .session_model import SessionModel, CreateSessionModel, UpdateSessionModel
 from .task_event_model import TaskEventModel
 from .task_model import TaskModel
 from .prompt_model import PromptGroupModel, PromptModel, PromptGroupUserModel
+from .scheduled_task_model import (
+    ScheduledTaskModel,
+    ScheduledTaskExecutionModel,
+    SchedulerLockModel,
+    ScheduleType,
+    ExecutionStatus,
+)
 
 __all__ = [
     "Base",
@@ -31,4 +38,9 @@ __all__ = [
     "PromptGroupModel",
     "PromptModel",
     "PromptGroupUserModel",
+    "ScheduledTaskModel",
+    "ScheduledTaskExecutionModel",
+    "SchedulerLockModel",
+    "ScheduleType",
+    "ExecutionStatus",
 ]

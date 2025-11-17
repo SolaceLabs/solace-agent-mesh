@@ -316,6 +316,65 @@ class WebUIBackendApp(BaseGatewayApp):
                 },
             },
         },
+        {
+            "name": "scheduler_service",
+            "required": False,
+            "type": "dict",
+            "default": {},
+            "description": "Configuration for the scheduled tasks service.",
+            "dict_schema": {
+                "enabled": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": False,
+                    "description": "Enable/disable the scheduler service.",
+                },
+                "instance_id": {
+                    "type": "string",
+                    "required": False,
+                    "default": None,
+                    "description": "Unique instance ID for this scheduler (auto-generated if not provided).",
+                },
+                "leader_election": {
+                    "type": "dict",
+                    "required": False,
+                    "default": {},
+                    "description": "Leader election configuration for distributed scheduling.",
+                    "dict_schema": {
+                        "enabled": {
+                            "type": "boolean",
+                            "required": False,
+                            "default": True,
+                            "description": "Enable leader election (required for multi-instance deployments).",
+                        },
+                        "heartbeat_interval_seconds": {
+                            "type": "integer",
+                            "required": False,
+                            "default": 30,
+                            "description": "How often to send heartbeats to maintain leadership.",
+                        },
+                        "lease_duration_seconds": {
+                            "type": "integer",
+                            "required": False,
+                            "default": 60,
+                            "description": "How long a leadership lease is valid.",
+                        },
+                    },
+                },
+                "default_timeout_seconds": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 3600,
+                    "description": "Default timeout for task executions (in seconds).",
+                },
+                "max_concurrent_executions": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 10,
+                    "description": "Maximum number of concurrent task executions.",
+                },
+            },
+        },
     ]
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):

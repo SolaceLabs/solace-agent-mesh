@@ -1,4 +1,4 @@
-import { MessageCircle, Bot, SunMoon, FolderOpen, FileText } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen, FileText, Calendar } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
@@ -45,6 +45,17 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
         });
     }
     
+    // Add scheduled tasks (always enabled if SQL persistence is available)
+    // Scheduler requires SQL persistence, so we can use the same flag as prompts
+    const schedulerEnabled = featureFlags?.promptLibrary ?? false; // Uses same SQL requirement
+    if (schedulerEnabled) {
+        items.push({
+            id: "schedules",
+            label: "Schedules",
+            icon: Calendar,
+        });
+    }
+    
     return items;
 };
 
@@ -69,6 +80,11 @@ export const topNavigationItems: NavigationItem[] = [
         id: "prompts",
         label: "Prompts",
         icon: FileText,
+    },
+    {
+        id: "schedules",
+        label: "Schedules",
+        icon: Calendar,
     },
 ];
 
