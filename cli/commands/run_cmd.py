@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import warnings
 from pathlib import Path
 
 import click
@@ -57,7 +58,8 @@ def _execute_with_solace_ai_connector(config_file_paths: list[str]):
     default=False,
     help="Use system environment variables only; do not load .env file.",
 )
-def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
+
+def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool, suppress_warnings: bool):
     """
     Run the Solace application with specified or discovered YAML configuration files.
 
@@ -114,6 +116,7 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
         else:
             log.info("Loaded environment variables from: %s", env_path)
 
+    from solace_agent_mesh.common.utils.initializer import initialize
     # Run enterprise initialization if present
     initialize()
 

@@ -1,6 +1,13 @@
+import warnings
 import click
 import os
 import sys
+
+# Check for --suppress-warnings flag early (before imports)
+suppress_warnings = "--suppress-warnings" in sys.argv
+if suppress_warnings:
+    warnings.simplefilter("ignore")
+    sys.argv.remove("--suppress-warnings")  # Remove it so Click doesn't try to process it
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
