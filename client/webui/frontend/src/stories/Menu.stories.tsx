@@ -29,8 +29,8 @@ export const Default: Story = {
         actions: [
             { id: "action-1", label: "Name A-Z", onClick: () => alert("Sorts by Names by A-Z") },
             { id: "action-2", label: "Name Z-A", onClick: () => alert("Sorts by Names by Z-A") },
-            { id: "action-1", label: "Date (Oldest first)", onClick: () => alert("Sorts by Oldest Dates First") },
-            { id: "action-2", label: "Date (Newest first)", onClick: () => alert("Sorts by Newest Dates First") },
+            { id: "action-3", label: "Date (Oldest first)", onClick: () => alert("Sorts by Oldest Dates First") },
+            { id: "action-4", label: "Date (Newest first)", onClick: () => alert("Sorts by Newest Dates First") },
         ],
     },
 };
@@ -40,8 +40,8 @@ export const DisabledOptions: Story = {
         actions: [
             { id: "action-1", label: "Name A-Z", onClick: () => alert("Sorts by Names by A-Z"), disabled: true },
             { id: "action-2", label: "Name Z-A", onClick: () => alert("Sorts by Names by Z-A") },
-            { id: "action-1", label: "Date (Oldest first)", onClick: () => alert("Sorts by Oldest Dates First") },
-            { id: "action-2", label: "Date (Newest first)", onClick: () => alert("Sorts by Newest Dates First") },
+            { id: "action-3", label: "Date (Oldest first)", onClick: () => alert("Sorts by Oldest Dates First") },
+            { id: "action-4", label: "Date (Newest first)", onClick: () => alert("Sorts by Newest Dates First") },
         ],
     },
 };
