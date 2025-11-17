@@ -19,6 +19,7 @@ ARTIFACT_BLOCK_DELIMITER_CLOSE = "»»»"
 # The full sequences that must be matched to start a block.
 SAVE_ARTIFACT_START_SEQUENCE = f"{ARTIFACT_BLOCK_DELIMITER_OPEN}save_artifact:"
 TEMPLATE_START_SEQUENCE = f"{ARTIFACT_BLOCK_DELIMITER_OPEN}template:"
+TEMPLATE_LIQUID_START_SEQUENCE = f"{ARTIFACT_BLOCK_DELIMITER_OPEN}template_liquid:"
 # For backward compatibility
 BLOCK_START_SEQUENCE = SAVE_ARTIFACT_START_SEQUENCE
 # Regex to parse parameters from a confirmed start line.
@@ -218,6 +219,9 @@ class FencedBlockStreamParser:
         if self._speculative_buffer.startswith(SAVE_ARTIFACT_START_SEQUENCE):
             matched_sequence = SAVE_ARTIFACT_START_SEQUENCE
             matched_type = "save_artifact"
+        elif self._speculative_buffer.startswith(TEMPLATE_LIQUID_START_SEQUENCE):
+            matched_sequence = TEMPLATE_LIQUID_START_SEQUENCE
+            matched_type = "template"
         elif self._speculative_buffer.startswith(TEMPLATE_START_SEQUENCE):
             matched_sequence = TEMPLATE_START_SEQUENCE
             matched_type = "template"
@@ -259,9 +263,9 @@ class FencedBlockStreamParser:
             return
 
         # If we are still building up a start sequence (could be either)
-        if SAVE_ARTIFACT_START_SEQUENCE.startswith(
-            self._speculative_buffer
-        ) or TEMPLATE_START_SEQUENCE.startswith(self._speculative_buffer):
+        if (SAVE_ARTIFACT_START_SEQUENCE.startswith(self._speculative_buffer) or
+            TEMPLATE_LIQUID_START_SEQUENCE.startswith(self._speculative_buffer) or
+            TEMPLATE_START_SEQUENCE.startswith(self._speculative_buffer)):
             # It's still a potential match. Continue buffering.
             return
 

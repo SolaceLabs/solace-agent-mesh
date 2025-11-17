@@ -417,28 +417,6 @@ class SamAgentComponent(SamComponentBase):
             # We still need a future to signal completion from the async thread.
             self._async_init_future = concurrent.futures.Future()
 
-            publish_interval_sec = self.agent_card_publishing_config.get(
-                "interval_seconds"
-            )
-            if publish_interval_sec and publish_interval_sec > 0:
-                log.info(
-                    "%s Scheduling agent card publishing every %d seconds.",
-                    self.log_identifier,
-                    publish_interval_sec,
-                )
-                # Register timer with callback
-                self.add_timer(
-                    delay_ms=1000,
-                    timer_id=self._card_publish_timer_id,
-                    interval_ms=publish_interval_sec * 1000,
-                    callback=lambda timer_data: publish_agent_card(self),
-                )
-            else:
-                log.warning(
-                    "%s Agent card publishing interval not configured or invalid, card will not be published periodically.",
-                    self.log_identifier,
-                )
-
             # Set up health check timer if enabled
             health_check_interval_seconds = self.agent_discovery_config.get(
                 "health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS
@@ -3191,6 +3169,7 @@ class SamAgentComponent(SamComponentBase):
                     "%s _perform_async_init: _async_init_future is None or already done before signaling failure.",
                     self.log_identifier,
                 )
+            raise e
 
     def cleanup(self):
         """Clean up resources on component shutdown."""
@@ -3582,16 +3561,62 @@ class SamAgentComponent(SamComponentBase):
             )
             return raw_text, [], ""
 
+    def _publish_agent_card(self) -> None:
+        """
+        Schedules periodic publishing of the agent card based on configuration.
+        """
+        try:
+            publish_interval_sec = self.agent_card_publishing_config.get(
+                    "interval_seconds"
+                )
+            if publish_interval_sec and publish_interval_sec > 0:
+                log.info(
+                    "%s Scheduling agent card publishing every %d seconds.",
+                    self.log_identifier,
+                    publish_interval_sec,
+                )
+                # Register timer with callback
+                self.add_timer(
+                    delay_ms=1000,
+                    timer_id=self._card_publish_timer_id,
+                    interval_ms=publish_interval_sec * 1000,
+                    callback=lambda timer_data: publish_agent_card(self),
+                )
+            else:
+                log.warning(
+                    "%s Agent card publishing interval not configured or invalid, card will not be published periodically.",
+                    self.log_identifier,
+                )
+        except Exception as e:
+            log.exception(
+                "%s Error during _publish_agent_card setup: %s",
+                self.log_identifier,
+                e,
+            )
+            raise e
+
     async def _async_setup_and_run(self) -> None:
         """
         Main async logic for the agent component.
         This is called by the base class's `_run_async_operations`.
         """
-        # Call base class to initialize Trust Manager
-        await super()._async_setup_and_run()
+        try:
+            # Call base class to initialize Trust Manager
+            await super()._async_setup_and_run()
 
-        # Perform agent-specific async initialization
-        await self._perform_async_init()
+            # Perform agent-specific async initialization
+            await self._perform_async_init()
+
+            self._publish_agent_card()
+
+        except Exception as e:
+            log.exception(
+                "%s Error during _async_setup_and_run: %s",
+                self.log_identifier,
+                e,
+            )
+            self.cleanup()
+            raise e
 
     def _pre_async_cleanup(self) -> None:
         """

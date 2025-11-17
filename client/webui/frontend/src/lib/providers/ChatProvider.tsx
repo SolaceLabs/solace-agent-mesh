@@ -59,6 +59,7 @@ import type {
     TaskStatusUpdateEvent,
     TextPart,
     ArtifactPart,
+    AgentCardInfo,
 } from "@/lib/types";
 
 interface ChatProviderProps {
@@ -172,7 +173,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const combinedText = textParts?.map(p => p.text).join("") || "";
 
         return {
-            id: message.metadata?.messageId || `msg-${crypto.randomUUID()}`,
+            id: message.metadata?.messageId || `msg-${v4()}`,
             type: message.isUser ? "user" : "agent",
             text: combinedText,
             parts: message.parts,
@@ -736,7 +737,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isError: true,
                         isComplete: true,
                         metadata: {
-                            messageId: `msg-${crypto.randomUUID()}`,
+                            messageId: `msg-${v4()}`,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -1084,7 +1085,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isUser: false,
                             isComplete: isFinalEvent || hasNewFiles,
                             metadata: {
-                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
+                                messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
                                 lastProcessedEventSequence: currentEventSequence,
                             },
@@ -1233,7 +1234,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${crypto.randomUUID()}`,
+                        id: `req-${v4()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
@@ -1313,7 +1314,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${crypto.randomUUID()}`,
+                        id: `req-${v4()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
@@ -1512,7 +1513,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         try {
             const cancelRequest: CancelTaskRequest = {
                 jsonrpc: "2.0",
-                id: `req-${crypto.randomUUID()}`,
+                id: `req-${v4()}`,
                 method: "tasks/cancel",
                 params: {
                     id: currentTaskId,
@@ -1617,7 +1618,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 metadata: {
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     sessionId: sessionId,
                     lastProcessedEventSequence: 0,
                 },
@@ -1676,7 +1677,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     kind: "message",
                     contextId: sessionId,
                     metadata: {
@@ -1688,7 +1689,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${crypto.randomUUID()}`,
+                    id: `req-${v4()}`,
                     method: "message/stream",
                     params: {
                         message: a2aMessage,
@@ -1849,22 +1850,41 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Don't show welcome message if we're loading a session
         if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
             // Priority order for agent selection:
-            // 1. Project's default agent (if in project context)
-            // 2. OrchestratorAgent (fallback)
-            // 3. First available agent
+            // 1. URL parameter agent (?agent=AgentName)
+            // 2. Project's default agent (if in project context)
+            // 3. OrchestratorAgent (fallback)
+            // 4. First available agent
             let selectedAgent = agents[0];
 
-            if (activeProject?.defaultAgentId) {
-                const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
-                if (projectDefaultAgent) {
-                    selectedAgent = projectDefaultAgent;
-                    console.log(`Using project default agent: ${selectedAgent.name}`);
+            // Check URL parameter first
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlAgentName = urlParams.get('agent');
+            let urlAgent: AgentCardInfo | undefined;
+            
+            if (urlAgentName) {
+                urlAgent = agents.find(agent => agent.name === urlAgentName);
+                if (urlAgent) {
+                    selectedAgent = urlAgent;
+                    console.log(`Using URL parameter agent: ${selectedAgent.name}`);
                 } else {
-                    console.warn(`Project default agent "${activeProject.defaultAgentId}" not found, falling back to OrchestratorAgent`);
+                    console.warn(`URL parameter agent "${urlAgentName}" not found in available agents, falling back to priority order`);
+                }
+            }
+
+            // If no URL agent found, follow existing priority order
+            if (!urlAgent) {
+                if (activeProject?.defaultAgentId) {
+                    const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
+                    if (projectDefaultAgent) {
+                        selectedAgent = projectDefaultAgent;
+                        console.log(`Using project default agent: ${selectedAgent.name}`);
+                    } else {
+                        console.warn(`Project default agent "${activeProject.defaultAgentId}" not found, falling back to OrchestratorAgent`);
+                        selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+                    }
+                } else {
                     selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
                 }
-            } else {
-                selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
             }
 
             setSelectedAgentName(selectedAgent.name);
