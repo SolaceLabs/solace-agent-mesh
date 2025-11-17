@@ -169,7 +169,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const combinedText = textParts?.map(p => p.text).join("") || "";
 
         return {
-            id: message.metadata?.messageId || `msg-${crypto.randomUUID()}`,
+            id: message.metadata?.messageId || `msg-${v4()}`,
             type: message.isUser ? "user" : "agent",
             text: combinedText,
             parts: message.parts,
@@ -1081,7 +1081,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isUser: false,
                             isComplete: isFinalEvent || hasNewFiles,
                             metadata: {
-                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
+                                messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
                                 lastProcessedEventSequence: currentEventSequence,
                             },
@@ -1230,7 +1230,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${crypto.randomUUID()}`,
+                        id: `req-${v4()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
@@ -1509,7 +1509,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         try {
             const cancelRequest: CancelTaskRequest = {
                 jsonrpc: "2.0",
-                id: `req-${crypto.randomUUID()}`,
+                id: `req-${v4()}`,
                 method: "tasks/cancel",
                 params: {
                     id: currentTaskId,
@@ -1614,7 +1614,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 metadata: {
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     sessionId: sessionId,
                     lastProcessedEventSequence: 0,
                 },
@@ -1673,7 +1673,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     kind: "message",
                     contextId: sessionId,
                     metadata: {
@@ -1685,7 +1685,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${crypto.randomUUID()}`,
+                    id: `req-${v4()}`,
                     method: "message/stream",
                     params: {
                         message: a2aMessage,
