@@ -1029,6 +1029,8 @@ def _generate_artifact_creation_instruction() -> str:
 def _generate_examples_instruction() -> str:
     open_delim = ARTIFACT_BLOCK_DELIMITER_OPEN
     close_delim = ARTIFACT_BLOCK_DELIMITER_CLOSE
+    embed_open_delim = EMBED_DELIMITER_OPEN
+    embed_close_delim = EMBED_DELIMITER_CLOSE
 
     return (
         f"""\
@@ -1036,7 +1038,7 @@ def _generate_examples_instruction() -> str:
     - User: "Create a markdown file with your two csv files as tables."
     <note>There are two csv files already uploaded: data1.csv and data2.csv</note>
     - OrchestratorAgent:
-    «status_update:Creating the Markdown tables...»
+    {embed_open_delim}status_update:Creating the Markdown tables...{embed_close_delim}
     I'll create a Markdown file with the CSV data formatted as tables.
     {open_delim}save_artifact: filename="data_tables.md" mime_type="text/markdown" description="Markdown tables from CSV files"
     # Data Tables
@@ -1060,16 +1062,16 @@ def _generate_examples_instruction() -> str:
     Example 2:
     - User: "Create a text file with the result of sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680)."
     - OrchestratorAgent:
-    «status_update:Calculating the result and creating the text file...»
+    {embed_open_delim}status_update:Calculating the result and creating the text file...{embed_close_delim}
     I'll put the result into a text file for you.
     {open_delim}save_artifact: filename="math.txt" mime_type="text/plain" description="Result of sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680)"
-    result = «math: sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680) | .2f»
+    result = {embed_open_delim}math: sqrt(12345) + sqrt(67890) + sqrt(13579) + sqrt(24680) | .2f{embed_close_delim}
     {close_delim}
     
     Example 3:
     - User: "Show me the first 10 entries from data1.csv"
     - OrchestratorAgent:
-    «status_update:Loading and filtering the CSV data...»
+    {embed_open_delim}status_update:Loading and filtering the CSV data...{embed_close_delim}
     Here are the first 10 entries from data1.csv.
     {open_delim}template_liquid: data="data1.csv" limit="10"
     """
@@ -1082,34 +1084,32 @@ def _generate_examples_instruction() -> str:
     Example 4:
     - User: "Create an HTML with the chart image you just generated with the customer data."
     - OrchestratorAgent:
-    «status_update:Generating the HTML report with the chart...»
-
-    {open_delim}status_update:Creating html document...{close_delim}
+    {embed_open_delim}status_update:Generating the HTML report with the chart...{embed_close_delim}
 
     {open_delim}save_artifact: filename="customer_analysis.html" mime_type="text/html" description="Interactive customer analysis dashboard"
-    """
-        + """
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Customer Chart - «datetime:%Y-%m-%d»</title>
+        <title>Customer Chart - {embed_open_delim}datetime:%Y-%m-%d{embed_close_delim}</title>
+    """
+        + """
         <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
             .metric { background: #f0f0f0; padding: 10px; margin: 10px 0; }
             img { max-width: 100%; height: auto; }
-        </style>
+    """
+        + f"""    </style>
         </head>
     <body>
     <h1>Customer Analysis Report</h1>
-    <p>Generated: «datetime:iso»</p>
+    <p>Generated: {embed_open_delim}datetime:iso{embed_close_delim}</p>
         
     <h2>Customer Distribution Chart</h2>
-    <img src="«artifact_content:customer_chart.png >>> format:datauri»" alt="Customer Distribution">
+    <img src="{embed_open_delim}artifact_content:customer_chart.png >>> format:datauri{embed_close_delim}" alt="Customer Distribution">
     
     </body>
     </html>
-    """
-        + f"""{close_delim}
+    {close_delim}
 
     """
     )
