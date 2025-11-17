@@ -115,17 +115,7 @@ jobs:
         run: npm run lint
 
       - name: Run Storybook Tests
-        run: |
-          # This is a known limitation of the vitest storybook test runner
-          # It seems to always fail tests the first time you run after 
-          # doing a fresh install or if the vite config changes.
-          #
-          # Thread: https://github.com/storybookjs/storybook/issues/31599
-          #
-          # It seems to be around a race condition when creating the cache for vite
-          #
-          # The Solution is to just run it twice in CI
-          npm run ci:storybook > /dev/null 2>&1 || npm run ci:storybook 
+        run: npm run ci:storybook 
 
       - name: Build UI package
         run: npm run build-package
