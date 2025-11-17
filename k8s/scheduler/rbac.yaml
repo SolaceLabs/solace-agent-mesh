@@ -1,0 +1,53 @@
+# RBAC configuration for SAM Scheduler
+# Grants permissions to manage CronJobs and Jobs
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sam-scheduler
+  namespace: sam-production
+  labels:
+    app: sam-scheduler
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sam-scheduler-manager
+  namespace: sam-production
+  labels:
+    app: sam-scheduler
+rules:
+# CronJob management
+- apiGroups: ["batch"]
+  resources: ["cronjobs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Job management (for monitoring CronJob executions)
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch", "delete"]
+# Pod management (for monitoring Job pods)
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+# Pod logs (for debugging)
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sam-scheduler-manager-binding
+  namespace: sam-production
+  labels:
+    app: sam-scheduler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: sam-scheduler-manager
+subjects:
+- kind: ServiceAccount
+  name: sam-scheduler
+  namespace: sam-production

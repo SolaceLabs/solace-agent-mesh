@@ -1,0 +1,133 @@
+# Stateless Result Collector Deployment for SAM Scheduler
+# This service collects A2A responses and updates execution records
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sam-scheduler-result-collector
+  namespace: sam-production
+  labels:
+    app: sam-scheduler
+    component: result-collector
+spec:
+  replicas: 3  # Horizontal scaling for high availability
+  selector:
+    matchLabels:
+      app: sam-scheduler
+      component: result-collector
+  template:
+    metadata:
+      labels:
+        app: sam-scheduler
+        component: result-collector
+    spec:
+      serviceAccountName: sam-scheduler
+      containers:
+      - name: result-collector
+        image: sam-gateway:latest  # Use main gateway image
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - -m
+        - solace_agent_mesh.gateway.http_sse.services.scheduler.result_collector_service
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: sam-database-credentials
+              key: url
+        - name: BROKER_URL
+          valueFrom:
+            secretKeyRef:
+              name: sam-broker-credentials
+              key: url
+        - name: BROKER_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: sam-broker-credentials
+              key: username
+              optional: true
+        - name: BROKER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sam-broker-credentials
+              key: password
+              optional: true
+        - name: BROKER_VPN
+          valueFrom:
+            secretKeyRef:
+              name: sam-broker-credentials
+              key: vpn
+        - name: NAMESPACE
+          value: "sam/"
+        - name: INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      # Graceful shutdown
+      terminationGracePeriodSeconds: 30
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sam-scheduler-result-collector
+  namespace: sam-production
+  labels:
+    app: sam-scheduler
+    component: result-collector
+spec:
+  selector:
+    app: sam-scheduler
+    component: result-collector
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: sam-scheduler-result-collector
+  namespace: sam-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sam-scheduler-result-collector
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
