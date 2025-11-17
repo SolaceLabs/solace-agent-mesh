@@ -411,7 +411,7 @@ def test_get_task_events_with_parent_child(api_client: TestClient, api_client_fa
     assert len(child_data["events"]) >= 1
 
 
-def test_get_task_events_permission_denied(api_client: TestClient, api_client_factory):
+def test_get_task_events_permission_denied(api_client: TestClient, secondary_api_client: TestClient, api_client_factory):
     """
     Test GET /tasks/{task_id}/events returns 403 for tasks owned by other users.
     """
@@ -439,13 +439,8 @@ def test_get_task_events_permission_denied(api_client: TestClient, api_client_fa
         "user_properties": {"userId": "sam_dev_user"},
     })
 
-    # Create a different user's client
-    other_user_client = api_client_factory.create_client(
-        auth_override={"id": "other_user", "email": "other@example.com"}
-    )
-
-    # Act: Try to get task events as different user
-    response = other_user_client.get(f"/api/v1/tasks/{task_id}/events")
+    # Act: Try to get task events as different user (secondary_user)
+    response = secondary_api_client.get(f"/api/v1/tasks/{task_id}/events")
 
     # Assert: Should be forbidden
     assert response.status_code == 403
