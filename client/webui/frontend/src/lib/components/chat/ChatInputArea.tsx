@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo } from "react";
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { Ban, Paperclip, Send } from "lucide-react";
 
@@ -12,14 +13,10 @@ import { detectVariables } from "@/lib/utils/promptUtils";
 import { FileBadge } from "./file/FileBadge";
 import { PromptsCommand } from "./PromptsCommand";
 import { VariableDialog } from "./VariableDialog";
-import {
-    PastedTextBadge,
-    PasteActionDialog,
-    isLargeText,
-    type PastedArtifactItem
-} from "./paste";
+import { PastedTextBadge, PasteActionDialog, isLargeText, type PastedArtifactItem } from "./paste";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
+    const navigate = useNavigate();
     const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
 
@@ -38,23 +35,23 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const prevIsRespondingRef = useRef<boolean>(isResponding);
 
     const [inputValue, setInputValue] = useState<string>("");
-    
+
     const [showPromptsCommand, setShowPromptsCommand] = useState(false);
-    
+
     const [showVariableDialog, setShowVariableDialog] = useState(false);
     const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
 
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
-    
+
     useEffect(() => {
         // Check for pending prompt use on mount or session change
-        const promptData = sessionStorage.getItem('pending-prompt-use');
+        const promptData = sessionStorage.getItem("pending-prompt-use");
         if (promptData) {
-            sessionStorage.removeItem('pending-prompt-use');
+            sessionStorage.removeItem("pending-prompt-use");
             try {
                 const { promptText, groupId, groupName } = JSON.parse(promptData);
-                
+
                 // Check if prompt has variables
                 const variables = detectVariables(promptText);
                 if (variables.length > 0) {
@@ -62,7 +59,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     setPendingPromptGroup({
                         id: groupId,
                         name: groupName,
-                        production_prompt: { prompt_text: promptText }
+                        production_prompt: { prompt_text: promptText },
                     } as PromptGroup);
                     setShowVariableDialog(true);
                 } else {
@@ -72,11 +69,11 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     }, 100);
                 }
             } catch (error) {
-                console.error('Error parsing prompt data:', error);
+                console.error("Error parsing prompt data:", error);
             }
             return; // Don't clear input if we just set it
         }
-        
+
         // Only clear if session actually changed (not just initialized)
         if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId) {
             setInputValue("");
@@ -111,23 +108,22 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         };
     }, []);
 
-
     // Handle follow-up question from text selection
     useEffect(() => {
         const handleFollowUp = async (event: Event) => {
             const customEvent = event as CustomEvent;
             const { text, prompt, autoSubmit } = customEvent.detail;
             setContextText(text);
-            
+
             // If a prompt is provided, pre-fill the input
             if (prompt) {
                 setInputValue(prompt + " ");
-                
+
                 if (autoSubmit) {
                     // Small delay to ensure state is updated
                     setTimeout(async () => {
                         const fullMessage = `${prompt}\n\nContext: "${text}"`;
-                        const fakeEvent = new Event('submit') as unknown as FormEvent;
+                        const fakeEvent = new Event("submit") as unknown as FormEvent;
                         await handleSubmit(fakeEvent, [], fullMessage);
                         setContextText(null);
                         setInputValue("");
@@ -136,16 +132,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     return;
                 }
             }
-            
+
             // Focus the input for custom questions
             setTimeout(() => {
                 chatInputRef.current?.focus();
             }, 100);
         };
 
-        window.addEventListener('follow-up-question', handleFollowUp);
+        window.addEventListener("follow-up-question", handleFollowUp);
         return () => {
-            window.removeEventListener('follow-up-question', handleFollowUp);
+            window.removeEventListener("follow-up-question", handleFollowUp);
         };
     }, [handleSubmit, scrollToBottom]);
 
@@ -183,15 +179,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         // Handle file pastes (existing logic)
         if (clipboardData.files && clipboardData.files.length > 0) {
             event.preventDefault(); // Prevent the default paste behavior for files
-            
+
             // Filter out duplicates based on name, size, and last modified time
-            const newFiles = Array.from(clipboardData.files).filter(newFile =>
-                !selectedFiles.some(existingFile =>
-                    existingFile.name === newFile.name &&
-                    existingFile.size === newFile.size &&
-                    existingFile.lastModified === newFile.lastModified
-                )
-            );
+            const newFiles = Array.from(clipboardData.files).filter(newFile => !selectedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size && existingFile.lastModified === newFile.lastModified));
             if (newFiles.length > 0) {
                 setSelectedFiles(prev => [...prev, ...newFiles]);
             }
@@ -199,7 +189,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }
 
         // Handle text pastes - show artifact form for large text
-        const pastedText = clipboardData.getData('text');
+        const pastedText = clipboardData.getData("text");
         if (pastedText && isLargeText(pastedText)) {
             // Large text - show artifact creation form
             event.preventDefault();
@@ -214,8 +204,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
         try {
             // Determine MIME type
-            let mimeType = 'text/plain';
-            if (fileType !== 'auto') {
+            let mimeType = "text/plain";
+            if (fileType !== "auto") {
                 mimeType = fileType;
             }
 
@@ -231,7 +221,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 if (result.sessionId && result.sessionId !== sessionId) {
                     setSessionId(result.sessionId);
                 }
-                
+
                 // Create a badge item for this pasted artifact
                 const artifactItem: PastedArtifactItem = {
                     id: `paste-artifact-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -242,16 +232,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 setPastedArtifactItems(prev => {
                     return [...prev, artifactItem];
                 });
-                
+
                 addNotification(`Artifact "${title}" created from pasted content.`);
                 // Refresh artifacts panel
                 await artifactsRefetch();
             } else {
-                addNotification(`Failed to create artifact from pasted content.`, 'error');
+                addNotification(`Failed to create artifact from pasted content.`, "error");
             }
         } catch (error) {
-            console.error('Error saving artifact:', error);
-            addNotification(`Error creating artifact: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+            console.error("Error saving artifact:", error);
+            addNotification(`Error creating artifact: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
         } finally {
             setPendingPasteContent(null);
             setShowArtifactForm(false);
@@ -267,19 +257,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(
-        () => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0),
-        [isResponding, inputValue, selectedFiles]
-    );
+    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0), [isResponding, inputValue, selectedFiles]);
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
         if (isSubmittingEnabled) {
-            let fullMessage = inputValue.trim()
+            let fullMessage = inputValue.trim();
             if (contextText) {
                 fullMessage = `${fullMessage}\n\nContext: "${contextText}"`;
             }
-            
+
             await handleSubmit(event, selectedFiles, fullMessage);
             setSelectedFiles([]);
             setPastedArtifactItems([]);
@@ -309,16 +296,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
         const value = event.target.value;
         setInputValue(value);
-        
+
         // Check if "/" is typed at start or after space
         const cursorPosition = event.target.selectionStart;
         const textBeforeCursor = value.substring(0, cursorPosition);
         const lastChar = textBeforeCursor[textBeforeCursor.length - 1];
         const charBeforeLast = textBeforeCursor[textBeforeCursor.length - 2];
-        
-        if (lastChar === '/' && (!charBeforeLast || charBeforeLast === ' ' || charBeforeLast === '\n')) {
+
+        if (lastChar === "/" && (!charBeforeLast || charBeforeLast === " " || charBeforeLast === "\n")) {
             setShowPromptsCommand(true);
-        } else if (showPromptsCommand && !textBeforeCursor.includes('/')) {
+        } else if (showPromptsCommand && !textBeforeCursor.includes("/")) {
             setShowPromptsCommand(false);
         }
     };
@@ -329,14 +316,14 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         const cursorPosition = chatInputRef.current?.selectionStart || 0;
         const textBeforeCursor = inputValue.substring(0, cursorPosition);
         const textAfterCursor = inputValue.substring(cursorPosition);
-        
+
         // Find the last "/" before cursor
-        const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
+        const lastSlashIndex = textBeforeCursor.lastIndexOf("/");
         const newText = textBeforeCursor.substring(0, lastSlashIndex) + promptText + textAfterCursor;
-        
+
         setInputValue(newText);
         setShowPromptsCommand(false);
-        
+
         // Focus back on input
         setTimeout(() => {
             chatInputRef.current?.focus();
@@ -345,7 +332,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     // Handle reserved command
     const handleReservedCommand = (command: string, context?: string) => {
-        if (command === 'create-template') {
+        if (command === "create-template") {
             // Create enhanced message for AI builder
             const enhancedMessage = context
                 ? `I want to create a reusable prompt template based on this conversation I just had:
@@ -362,18 +349,16 @@ Please help me create a prompt template by:
 4. **Suggesting Metadata**: Recommend a name, description, category, and chat shortcut
 
 Focus on capturing what made this conversation successful so it can be reused with different inputs.`
-                : 'Help me create a new prompt template.';
+                : "Help me create a new prompt template.";
 
-            // Store in sessionStorage before dispatching event
-            sessionStorage.setItem('pending-template-context', enhancedMessage);
-            
-            // Dispatch custom event to navigate to prompts page with context
-            window.dispatchEvent(new CustomEvent('create-template-from-session', {
-                detail: { initialMessage: enhancedMessage }
-            }));
-            
+            // Store in sessionStorage for the AI builder
+            sessionStorage.setItem("pending-prompt-task", enhancedMessage);
+
+            // Navigate to prompts page with AI-assisted mode
+            navigate("/prompts/new?mode=ai-assisted");
+
             // Clear input
-            setInputValue('');
+            setInputValue("");
             setShowPromptsCommand(false);
         }
     };
@@ -389,7 +374,7 @@ Focus on capturing what made this conversation successful so it can be reused wi
         if (artifact) {
             // Use the existing artifact preview functionality
             setPreviewArtifact(artifact);
-            openSidePanelTab('files');
+            openSidePanelTab("files");
         }
     };
 
@@ -425,30 +410,19 @@ Focus on capturing what made this conversation successful so it can be reused wi
 
             {/* Pasted Artifact Items */}
             {(() => {
-                return pastedArtifactItems.length > 0 && (
-                    <div className="mb-2 flex flex-wrap gap-2">
-                        {pastedArtifactItems.map((item, index) => (
-                            <PastedTextBadge
-                                key={item.id}
-                                id={item.id}
-                                index={index + 1}
-                                textPreview={item.filename}
-                                onClick={() => handleViewPastedArtifact(item.filename)}
-                                onRemove={() => handleRemovePastedArtifact(item.id)}
-                            />
-                        ))}
-                    </div>
+                return (
+                    pastedArtifactItems.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-2">
+                            {pastedArtifactItems.map((item, index) => (
+                                <PastedTextBadge key={item.id} id={item.id} index={index + 1} textPreview={item.filename} onClick={() => handleViewPastedArtifact(item.filename)} onRemove={() => handleRemovePastedArtifact(item.id)} />
+                            ))}
+                        </div>
+                    )
                 );
             })()}
 
             {/* Artifact Creation Dialog */}
-            <PasteActionDialog
-                isOpen={showArtifactForm}
-                content={pendingPasteContent || ''}
-                onSaveAsArtifact={handleSaveAsArtifact}
-                onCancel={handleCancelArtifactForm}
-                existingArtifacts={artifacts.map(a => a.filename)}
-            />
+            <PasteActionDialog isOpen={showArtifactForm} content={pendingPasteContent || ""} onSaveAsArtifact={handleSaveAsArtifact} onCancel={handleCancelArtifactForm} existingArtifacts={artifacts.map(a => a.filename)} />
 
             {/* Prompts Command Popover */}
             <PromptsCommand

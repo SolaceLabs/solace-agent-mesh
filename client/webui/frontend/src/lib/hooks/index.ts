@@ -14,4 +14,4 @@ export * from "./useTaskContext";
 export * from "./useThemeContext";
 export * from "./useProjectSessions";
 export * from "./useAgentSelection";
-export * from "./useUnsavedChangesWarning";
+export * from "./useNavigationBlocker";
