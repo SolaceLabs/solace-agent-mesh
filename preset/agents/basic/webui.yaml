@@ -57,7 +57,7 @@ apps:
             Format responses to the user in Markdown using appropriate formatting.
 
       # --- Frontend Config Passthrough ---
-      frontend_welcome_message: Hello, how can I assist you?
-      frontend_bot_name: Solace Agent Mesh
-      frontend_collect_feedback: false
+      frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE, "Hello, how can I assist you?"}
+      frontend_bot_name: ${FRONTEND_BOT_NAME, Solace Agent Mesh}
+      frontend_collect_feedback: ${FRONTEND_COLLECT_FEEDBACK, false}
       frontend_logo_url: "${WEBUI_FRONTEND_LOGO_URL}"

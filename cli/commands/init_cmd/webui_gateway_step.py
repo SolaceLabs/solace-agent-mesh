@@ -169,16 +169,16 @@ def create_webui_gateway_config(
         
         replacements = {
             "__FRONTEND_WELCOME_MESSAGE__": str(
-                options.get("webui_frontend_welcome_message", "${FRONTEND_WELCOME_MESSAGE}")
+                options.get("webui_frontend_welcome_message", '${FRONTEND_WELCOME_MESSAGE, "Hello, how can I assist you?"}')
             ),
             "__FRONTEND_BOT_NAME__": str(
-                options.get("webui_frontend_bot_name", "${FRONTEND_BOT_NAME}")
+                options.get("webui_frontend_bot_name", "${FRONTEND_BOT_NAME, Solace Agent Mesh}")
             ),
             "__FRONTEND_LOGO_URL__": str(
                 options.get("webui_frontend_logo_url", "${WEBUI_FRONTEND_LOGO_URL}")
             ),
             "__FRONTEND_COLLECT_FEEDBACK__": str(
-                options.get("webui_frontend_collect_feedback", "${FRONTEND_COLLECT_FEEDBACK}")
+                options.get("webui_frontend_collect_feedback", "${FRONTEND_COLLECT_FEEDBACK, false}")
             ).lower(),
             "__SESSION_SERVICE__": session_service_block,
         }
