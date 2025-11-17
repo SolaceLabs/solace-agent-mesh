@@ -77,6 +77,7 @@ from ...common.constants import (
 from ...common.data_parts import AgentProgressUpdateData
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
+from ...common.utils.rbac_utils import validate_agent_access
 
 log = logging.getLogger(__name__)
 
@@ -416,28 +417,6 @@ class SamAgentComponent(SamComponentBase):
             # Async init is now handled by the base class `run` method.
             # We still need a future to signal completion from the async thread.
             self._async_init_future = concurrent.futures.Future()
-
-            publish_interval_sec = self.agent_card_publishing_config.get(
-                "interval_seconds"
-            )
-            if publish_interval_sec and publish_interval_sec > 0:
-                log.info(
-                    "%s Scheduling agent card publishing every %d seconds.",
-                    self.log_identifier,
-                    publish_interval_sec,
-                )
-                # Register timer with callback
-                self.add_timer(
-                    delay_ms=1000,
-                    timer_id=self._card_publish_timer_id,
-                    interval_ms=publish_interval_sec * 1000,
-                    callback=lambda timer_data: publish_agent_card(self),
-                )
-            else:
-                log.warning(
-                    "%s Agent card publishing interval not configured or invalid, card will not be published periodically.",
-                    self.log_identifier,
-                )
 
             # Set up health check timer if enabled
             health_check_interval_seconds = self.agent_discovery_config.get(
@@ -1755,6 +1734,25 @@ class SamAgentComponent(SamComponentBase):
             if adk_event.content and adk_event.content.parts:
                 for part in adk_event.content.parts:
                     if part.text is not None:
+                        # Check if this is a new turn by comparing invocation_id
+                        if adk_event.invocation_id:
+                            task_context.check_and_update_invocation(
+                                adk_event.invocation_id
+                            )
+                            is_first_text = task_context.is_first_text_in_turn()
+                            should_add_spacing = task_context.should_add_turn_spacing()
+
+                            # Add spacing if this is the first text of a new turn
+                            # We add it BEFORE the text, regardless of current buffer content
+                            if should_add_spacing and is_first_text:
+                                # Add double newline to separate turns (new paragraph)
+                                task_context.append_to_streaming_buffer("\n\n")
+                                log.debug(
+                                    "%s Added turn spacing before new invocation %s",
+                                    log_id_main,
+                                    adk_event.invocation_id,
+                                )
+
                         task_context.append_to_streaming_buffer(part.text)
                         log.debug(
                             "%s Appended text to buffer. New buffer size: %d bytes",
@@ -2954,6 +2952,17 @@ class SamAgentComponent(SamComponentBase):
             main_task_id,
         )
 
+        # Validate agent access is allowed
+        validate_agent_access(
+            user_config=user_config,
+            target_agent_name=target_agent_name,
+            validation_context={
+                "delegating_agent": self.get_config("agent_name"),
+                "source": "agent_delegation",
+            },
+            log_identifier=log_identifier_helper,
+        )
+
         peer_request_topic = self._get_agent_request_topic(target_agent_name)
 
         # Create a compliant SendMessageRequest
@@ -3186,6 +3195,7 @@ class SamAgentComponent(SamComponentBase):
                     "%s _perform_async_init: _async_init_future is None or already done before signaling failure.",
                     self.log_identifier,
                 )
+            raise e
 
     def cleanup(self):
         """Clean up resources on component shutdown."""
@@ -3577,16 +3587,62 @@ class SamAgentComponent(SamComponentBase):
             )
             return raw_text, [], ""
 
+    def _publish_agent_card(self) -> None:
+        """
+        Schedules periodic publishing of the agent card based on configuration.
+        """
+        try:
+            publish_interval_sec = self.agent_card_publishing_config.get(
+                    "interval_seconds"
+                )
+            if publish_interval_sec and publish_interval_sec > 0:
+                log.info(
+                    "%s Scheduling agent card publishing every %d seconds.",
+                    self.log_identifier,
+                    publish_interval_sec,
+                )
+                # Register timer with callback
+                self.add_timer(
+                    delay_ms=1000,
+                    timer_id=self._card_publish_timer_id,
+                    interval_ms=publish_interval_sec * 1000,
+                    callback=lambda timer_data: publish_agent_card(self),
+                )
+            else:
+                log.warning(
+                    "%s Agent card publishing interval not configured or invalid, card will not be published periodically.",
+                    self.log_identifier,
+                )
+        except Exception as e:
+            log.exception(
+                "%s Error during _publish_agent_card setup: %s",
+                self.log_identifier,
+                e,
+            )
+            raise e
+
     async def _async_setup_and_run(self) -> None:
         """
         Main async logic for the agent component.
         This is called by the base class's `_run_async_operations`.
         """
-        # Call base class to initialize Trust Manager
-        await super()._async_setup_and_run()
+        try:
+            # Call base class to initialize Trust Manager
+            await super()._async_setup_and_run()
 
-        # Perform agent-specific async initialization
-        await self._perform_async_init()
+            # Perform agent-specific async initialization
+            await self._perform_async_init()
+
+            self._publish_agent_card()
+
+        except Exception as e:
+            log.exception(
+                "%s Error during _async_setup_and_run: %s",
+                self.log_identifier,
+                e,
+            )
+            self.cleanup()
+            raise e
 
     def _pre_async_cleanup(self) -> None:
         """

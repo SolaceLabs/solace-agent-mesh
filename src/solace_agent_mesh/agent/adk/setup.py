@@ -502,6 +502,35 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
     )
     return loaded_tools, enabled_builtin_tools, []
 
+def validate_filesystem_path(path, log_identifier=""):
+    """
+    Validates that a filesystem path exists and is accessible.
+    
+    Args:
+        path: The filesystem path to validate
+        log_identifier: Optional identifier for logging
+        
+    Returns:
+        bool: True if the path exists and is accessible, False otherwise
+        
+    Raises:
+        ValueError: If the path doesn't exist or isn't accessible
+    """
+    if not path:
+        raise ValueError(f"{log_identifier} Filesystem path is empty or None")
+        
+    if not os.path.exists(path):
+        raise ValueError(f"{log_identifier} Filesystem path does not exist: {path}")
+        
+    if not os.path.isdir(path):
+        raise ValueError(f"{log_identifier} Filesystem path is not a directory: {path}")
+        
+    # Check if the directory is readable and writable
+    if not os.access(path, os.R_OK | os.W_OK):
+        raise ValueError(f"{log_identifier} Filesystem path is not readable and writable: {path}")
+        
+    return True
+
 async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
     """Loads an MCP toolset based on connection parameters."""
     from pydantic import TypeAdapter
@@ -549,6 +578,31 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
             raise ValueError(
                 f"MCP tool 'args' parameter must be a list, got {type(args_list)}"
             )
+            
+        # Check if this is the filesystem MCP server
+        if args_list and any("@modelcontextprotocol/server-filesystem" in arg for arg in args_list):
+            # Find the index of the server-filesystem argument
+            server_fs_index = -1
+            for i, arg in enumerate(args_list):
+                if "@modelcontextprotocol/server-filesystem" in arg:
+                    server_fs_index = i
+                    break
+            
+            # All arguments after server-filesystem are directory paths
+            if server_fs_index >= 0 and server_fs_index + 1 < len(args_list):
+                directory_paths = args_list[server_fs_index + 1:]
+                
+                for path in directory_paths:
+                    try:
+                        validate_filesystem_path(path, log_identifier=component.log_identifier)
+                        log.info(
+                            "%s Validated filesystem path for MCP server: %s",
+                            component.log_identifier,
+                            path
+                        )
+                    except ValueError as e:
+                        log.error("%s", str(e))
+                        raise ValueError(f"MCP filesystem server path validation failed: {e}")
         final_connection_args = {
             k: v
             for k, v in connection_args.items()

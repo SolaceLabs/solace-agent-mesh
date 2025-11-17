@@ -58,7 +58,7 @@ export const useAgentCards = (): useAgentCardsReturn => {
     const { configServerUrl } = useConfigContext();
     const [agents, setAgents] = useState<AgentCardInfo[]>([]);
     const [agentNameMap, setAgentNameMap] = useState<Record<string, string>>({});
-    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
 
     const fetchAgents = useCallback(async () => {
