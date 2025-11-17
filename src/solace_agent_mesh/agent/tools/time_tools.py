@@ -50,14 +50,18 @@ async def get_current_time(
         log.info(f"{log_identifier} Retrieved timezone: {user_timezone_str}")
 
         # Create timezone object
-        try:
-            user_tz = ZoneInfo(user_timezone_str)
-        except Exception as tz_error:
-            log.warning(
-                f"{log_identifier} Invalid timezone '{user_timezone_str}', falling back to UTC: {tz_error}"
-            )
-            user_tz = ZoneInfo("UTC")
+        if not user_timezone_str:
+            log.info(f"{log_identifier} No timezone found, defaulting to UTC.")
             user_timezone_str = "UTC"
+        else:
+            try:
+                user_tz = ZoneInfo(user_timezone_str)
+            except Exception as tz_error:
+                log.info(
+                    f"{log_identifier} Invalid timezone '{user_timezone_str}', falling back to UTC: {tz_error}"
+                )
+                user_tz = ZoneInfo("UTC")
+                user_timezone_str = "UTC"
 
         # Get current time in user's timezone
         current_time = datetime.now(user_tz)
