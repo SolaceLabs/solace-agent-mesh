@@ -1,0 +1,67 @@
+import React from "react";
+import { Plus, Sparkles } from "lucide-react";
+
+import { GridCard } from "@/lib/components/common";
+import { Button } from "@/lib/components/ui";
+
+interface CreateTaskCardProps {
+    onManualCreate: () => void;
+    onAIAssisted: () => void;
+    isCentered?: boolean;
+}
+
+export const CreateTaskCard: React.FC<CreateTaskCardProps> = ({
+    onManualCreate,
+    onAIAssisted,
+    isCentered = false,
+}) => {
+    if (isCentered) {
+        // Enhanced centered version for empty state
+        return (
+            <div className="w-full max-w-[480px] p-8">
+                <div className="flex h-full w-full flex-col items-center justify-center gap-6">
+                    {/* Title and description */}
+                    <div className="flex flex-col items-center gap-2">
+                        <h2 className="text-foreground text-2xl font-semibold">Create New Task</h2>
+                        <p className="text-muted-foreground text-sm">
+                            Choose how you'd like to create your scheduled task
+                        </p>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex w-full max-w-[320px] flex-col gap-3">
+                        <Button onClick={onAIAssisted} variant="default" size="lg" className="w-full">
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Build with AI
+                        </Button>
+
+                        <Button onClick={onManualCreate} variant="outline" size="lg" className="w-full">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Create Manually
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <GridCard className="border border-dashed border-[var(--color-primary-wMain)]">
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6">
+                <h3 className="text-center text-lg font-semibold">Create New Task</h3>
+
+                <div className="flex w-full max-w-[240px] flex-col gap-3">
+                    <Button onClick={onAIAssisted} variant="outline" className="w-full">
+                        <Sparkles />
+                        Build with AI
+                    </Button>
+
+                    <Button onClick={onManualCreate} variant="ghost" className="w-full">
+                        <Plus />
+                        Create Manually
+                    </Button>
+                </div>
+            </div>
+        </GridCard>
+    );
+};

@@ -489,6 +489,8 @@ class SchedulerService:
                 # This prevents the agent from filtering text in the final response
                 message_metadata = task.task_metadata.copy() if task.task_metadata else {}
                 message_metadata["sessionBehavior"] = "RUN_BASED"
+                # Request artifact listing in the final response for scheduled tasks
+                message_metadata["returnArtifacts"] = True
 
                 # Create A2A message with metadata
                 a2a_message = a2a.create_user_message(
@@ -529,8 +531,8 @@ class SchedulerService:
                     execution.started_at = now_epoch_ms()
                     session.commit()
 
-                # Register execution with result handler
-                await self.result_handler.register_execution(execution_id, a2a_task_id)
+                # Register execution with result handler (pass session_id for artifact URIs)
+                await self.result_handler.register_execution(execution_id, a2a_task_id, context_id)
 
                 # Publish to broker
                 self.publish_func(topic, payload, user_props)

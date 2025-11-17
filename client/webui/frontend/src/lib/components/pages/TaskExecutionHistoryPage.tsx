@@ -1,11 +1,10 @@
 /**
  * Full-page view for scheduled task execution history
- * Shows execution list on left, details on right (similar to VersionHistoryPage)
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { MoreHorizontal, FileText, ExternalLink } from 'lucide-react';
-import type { ScheduledTask, TaskExecution } from '@/lib/types/scheduled-tasks';
+import { MoreHorizontal, FileText, Download, ArrowLeft, ChevronRight, ChevronLeft } from 'lucide-react';
+import type { ScheduledTask, TaskExecution, ArtifactInfo } from '@/lib/types/scheduled-tasks';
 import { Header } from '@/lib/components/header';
 import { Button, Label } from '@/lib/components/ui';
 import {
@@ -16,6 +15,8 @@ import {
 } from '@/lib/components/ui';
 import { useChatContext } from '@/lib/hooks';
 import { authenticatedFetch } from '@/lib/utils/api';
+import { ContentRenderer } from '@/lib/components/chat/preview/ContentRenderer';
+import { getRenderType } from '@/lib/components/chat/preview/previewUtils';
 
 interface TaskExecutionHistoryPageProps {
     task: ScheduledTask;
@@ -34,6 +35,9 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
     const [executions, setExecutions] = useState<TaskExecution[]>([]);
     const [selectedExecution, setSelectedExecution] = useState<TaskExecution | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [previewArtifact, setPreviewArtifact] = useState<ArtifactInfo | null>(null);
+    const [artifactContent, setArtifactContent] = useState<string | null>(null);
+    const [loadingArtifact, setLoadingArtifact] = useState(false);
     const hasInitializedRef = useRef(false);
 
     const fetchExecutions = useCallback(async () => {
@@ -136,38 +140,94 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
         return <p className="text-muted-foreground">No response data available</p>;
     };
 
+    const handlePreviewArtifact = async (artifact: ArtifactInfo) => {
+        // Toggle: if clicking the same artifact, close the panel
+        if (previewArtifact && previewArtifact.name === artifact.name) {
+            setPreviewArtifact(null);
+            setArtifactContent(null);
+            return;
+        }
+        
+        setPreviewArtifact(artifact);
+        setArtifactContent(null);
+        
+        if (artifact.uri) {
+            setLoadingArtifact(true);
+            try {
+                const response = await authenticatedFetch(artifact.uri, {
+                    credentials: 'include',
+                });
+                
+                if (response.ok) {
+                    const content = await response.text();
+                    setArtifactContent(content);
+                } else {
+                    addNotification(`Failed to load artifact: ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                console.error('Failed to load artifact:', error);
+                addNotification('Failed to load artifact content', 'error');
+            } finally {
+                setLoadingArtifact(false);
+            }
+        }
+    };
+
     const renderArtifacts = (execution: TaskExecution) => {
-        const artifacts = execution.result_summary?.artifacts;
-        if (!artifacts || artifacts.length === 0) {
+        // Artifacts can be in execution.artifacts (top-level) or execution.result_summary.artifacts
+        const topLevelArtifacts = execution.artifacts || [];
+        const summaryArtifacts = execution.result_summary?.artifacts || [];
+        
+        // Combine and normalize artifacts
+        const allArtifacts = [
+            ...topLevelArtifacts.map(a => typeof a === 'string' ? { name: a, uri: `artifact://${a}` } : a),
+            ...summaryArtifacts
+        ];
+        
+        if (allArtifacts.length === 0) {
             return <p className="text-muted-foreground text-sm">No artifacts generated</p>;
         }
 
         return (
             <div className="space-y-2">
-                {artifacts.map((artifact, idx: number) => {
+                {allArtifacts.map((artifact, idx: number) => {
                     const isViewable = artifact.uri?.startsWith('http') || artifact.uri?.startsWith('/');
                     const filename = artifact.name || artifact.uri?.split('/').pop() || `artifact-${idx + 1}`;
                     
+                    const artifactInfo: ArtifactInfo = {
+                        name: filename,
+                        uri: artifact.uri || ''
+                    };
+                    
+                    const isCurrentlyPreviewed = previewArtifact?.name === filename;
+                    
                     return (
-                        <div key={idx} className="flex items-center justify-between p-3 rounded bg-muted/30">
+                        <button
+                            key={idx}
+                            onClick={() => isViewable && handlePreviewArtifact(artifactInfo)}
+                            disabled={!isViewable}
+                            className={`w-full flex items-center justify-between p-3 rounded transition-colors text-left group ${
+                                isViewable
+                                    ? isCurrentlyPreviewed
+                                        ? 'bg-primary/10 border border-primary/20'
+                                        : 'bg-muted/30 hover:bg-primary/10 cursor-pointer'
+                                    : 'bg-muted/20 cursor-not-allowed opacity-60'
+                            }`}
+                        >
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <FileText className="size-4 text-muted-foreground flex-shrink-0" />
-                                <span className="text-sm truncate" title={filename}>
+                                <span className={`text-sm truncate ${isViewable ? isCurrentlyPreviewed ? 'text-primary font-medium' : 'group-hover:text-primary' : ''}`} title={filename}>
                                     {filename}
                                 </span>
                             </div>
                             {isViewable && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => window.open(artifact.uri, '_blank')}
-                                    className="flex-shrink-0"
-                                >
-                                    <ExternalLink className="size-3 mr-1" />
-                                    View
-                                </Button>
+                                isCurrentlyPreviewed ? (
+                                    <ChevronLeft className="size-4 text-primary transition-colors" />
+                                ) : (
+                                    <ChevronRight className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                )
                             )}
-                        </div>
+                        </button>
                     );
                 })}
             </div>
@@ -267,8 +327,8 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                     </div>
                 </div>
 
-                {/* Right Panel - Execution Details */}
-                <div className="flex-1 overflow-y-auto">
+                {/* Center Panel - Execution Details */}
+                <div className={`flex-1 overflow-y-auto ${previewArtifact ? 'border-r' : ''}`}>
                     {selectedExecution ? (
                         <div className="p-6">
                             <div className="max-w-4xl mx-auto space-y-6">
@@ -331,10 +391,11 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                                 </div>
 
                                 {/* Artifacts */}
-                                {selectedExecution.result_summary?.artifacts && selectedExecution.result_summary.artifacts.length > 0 && (
+                                {((selectedExecution.artifacts && selectedExecution.artifacts.length > 0) ||
+                                  (selectedExecution.result_summary?.artifacts && selectedExecution.result_summary.artifacts.length > 0)) && (
                                     <div className="space-y-2">
                                         <Label className="text-[var(--color-secondaryText-wMain)]">
-                                            Artifacts ({selectedExecution.result_summary.artifacts.length})
+                                            Artifacts ({(selectedExecution.artifacts?.length || 0) + (selectedExecution.result_summary?.artifacts?.length || 0)})
                                         </Label>
                                         {renderArtifacts(selectedExecution)}
                                     </div>
@@ -371,6 +432,76 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                         </div>
                     )}
                 </div>
+
+                {/* Right Panel - Artifact Preview (styled like Files tab) */}
+                {previewArtifact && (
+                    <div className="w-[450px] flex-shrink-0 bg-background flex flex-col">
+                        {/* Header with back button (matching Files tab) */}
+                        <div className="flex items-center gap-2 border-b p-2">
+                            <Button variant="ghost" onClick={() => setPreviewArtifact(null)}>
+                                <ArrowLeft />
+                            </Button>
+                            <div className="text-md font-semibold">Preview</div>
+                        </div>
+
+                        <div className="flex min-h-0 flex-1 flex-col gap-2">
+                            {/* Artifact Details (matching ArtifactDetails component style) */}
+                            <div className="border-b px-4 py-3">
+                                <div className="flex flex-row justify-between gap-1">
+                                    <div className="flex min-w-0 items-center gap-4">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <div className="truncate text-sm" title={previewArtifact.name}>
+                                                    {previewArtifact.name}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="whitespace-nowrap">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => window.open(`${previewArtifact.uri}?download=true`, '_blank')}
+                                            tooltip="Download"
+                                        >
+                                            <Download />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Preview Content (matching ArtifactPanel structure) */}
+                            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+                                {loadingArtifact ? (
+                                    <div className="flex items-center justify-center h-full">
+                                        <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                    </div>
+                                ) : artifactContent ? (
+                                    <div className="relative h-full w-full">
+                                        {(() => {
+                                            const mimeType = 'text/plain';
+                                            const rendererType = getRenderType(previewArtifact.name, mimeType);
+                                            return rendererType ? (
+                                                <ContentRenderer
+                                                    content={artifactContent}
+                                                    rendererType={rendererType}
+                                                    mime_type={mimeType}
+                                                    setRenderError={() => {}}
+                                                />
+                                            ) : (
+                                                <pre className="text-sm whitespace-pre-wrap break-words p-4">{artifactContent}</pre>
+                                            );
+                                        })()}
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center h-full">
+                                        <p className="text-muted-foreground text-sm">No content available</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

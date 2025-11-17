@@ -753,6 +753,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 "system_purpose": system_purpose,
                 "response_format": response_format,
                 "host_agent_name": agent_name,
+                "task_metadata": task_metadata,  # Store full task metadata for access by finalization
             }
 
             # Store verified user identity claims in a2a_context (not the raw token)

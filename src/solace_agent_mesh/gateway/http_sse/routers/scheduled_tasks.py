@@ -4,10 +4,11 @@ REST API router for scheduled tasks management.
 
 import logging
 import uuid
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session as DBSession
+from pydantic import BaseModel
 
 from ..dependencies import get_db
 from ..repository.scheduled_task_repository import ScheduledTaskRepository
@@ -24,6 +25,7 @@ from .dto.scheduled_task_dto import (
     SchedulerStatusResponse,
     TaskActionResponse,
 )
+from ..services.task_builder_assistant import TaskBuilderAssistant, TaskBuilderResponse
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +50,103 @@ def get_scheduler_service():
         )
     
     return scheduler_service
+
+
+# DTOs for task builder chat
+class TaskBuilderChatRequest(BaseModel):
+    """Request for task builder chat interaction."""
+    message: str
+    conversation_history: List[Dict[str, str]] = []
+    current_task: Dict[str, Any] = {}
+    available_agents: List[str] = []
+
+
+class TaskBuilderChatResponse(BaseModel):
+    """Response from task builder chat."""
+    message: str
+    task_updates: Dict[str, Any] = {}
+    confidence: float
+    ready_to_save: bool
+
+
+def get_task_builder_assistant(
+    db: DBSession = Depends(get_db),
+) -> TaskBuilderAssistant:
+    """Dependency to get task builder assistant."""
+    from ..dependencies import get_sac_component
+    
+    component = get_sac_component()
+    
+    # Get model config from component
+    model_config = getattr(component, 'model_config', None)
+    if not model_config:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model configuration not available"
+        )
+    
+    return TaskBuilderAssistant(db=db, model_config=model_config)
+
+
+@router.post("/builder/chat", response_model=TaskBuilderChatResponse)
+async def task_builder_chat(
+    request: TaskBuilderChatRequest,
+    user: dict = Depends(get_current_user),
+    assistant: TaskBuilderAssistant = Depends(get_task_builder_assistant),
+):
+    """
+    AI-assisted task builder chat endpoint.
+    
+    Processes user messages and returns task configuration updates.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} interacting with task builder")
+    
+    try:
+        response = await assistant.process_message(
+            user_message=request.message,
+            conversation_history=request.conversation_history,
+            current_task=request.current_task,
+            user_id=user_id,
+            available_agents=request.available_agents if request.available_agents else None,
+        )
+        
+        return TaskBuilderChatResponse(
+            message=response.message,
+            task_updates=response.task_updates,
+            confidence=response.confidence,
+            ready_to_save=response.ready_to_save,
+        )
+        
+    except Exception as e:
+        log.error(f"Error in task builder chat: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process task builder message"
+        ) from e
+
+
+@router.get("/builder/greeting", response_model=TaskBuilderChatResponse)
+async def get_task_builder_greeting(
+    assistant: TaskBuilderAssistant = Depends(get_task_builder_assistant),
+):
+    """Get initial greeting message for task builder."""
+    try:
+        response = assistant.get_initial_greeting()
+        
+        return TaskBuilderChatResponse(
+            message=response.message,
+            task_updates=response.task_updates,
+            confidence=response.confidence,
+            ready_to_save=response.ready_to_save,
+        )
+        
+    except Exception as e:
+        log.error(f"Error getting task builder greeting: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get task builder greeting"
+        ) from e
 
 
 @router.post("/", response_model=ScheduledTaskResponse, status_code=status.HTTP_201_CREATED)

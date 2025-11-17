@@ -2,7 +2,7 @@
 Pydantic models for scheduled tasks API.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, field_validator
 from croniter import croniter
 
@@ -142,6 +142,12 @@ class ScheduledTaskListResponse(BaseModel):
     limit: int
 
 
+class ArtifactInfo(BaseModel):
+    """Artifact information."""
+    name: str
+    uri: str
+
+
 class ExecutionResponse(BaseModel):
     """Response model for a task execution."""
     id: str
@@ -153,16 +159,41 @@ class ExecutionResponse(BaseModel):
     scheduled_for: int
     started_at: Optional[int]
     completed_at: Optional[int]
+    duration_ms: Optional[int] = None
     
     result_summary: Optional[Dict[str, Any]]
     error_message: Optional[str]
     retry_count: int
     
-    artifacts: Optional[List[str]]
+    artifacts: Optional[List[Union[str, ArtifactInfo]]]  # Support both string IDs and objects
     notifications_sent: Optional[List[Dict[str, Any]]]
     
     class Config:
         from_attributes = True
+    
+    @classmethod
+    def from_orm(cls, obj):
+        """Create ExecutionResponse from ORM model, calculating duration_ms."""
+        data = {
+            'id': obj.id,
+            'scheduled_task_id': obj.scheduled_task_id,
+            'status': obj.status,
+            'a2a_task_id': obj.a2a_task_id,
+            'scheduled_for': obj.scheduled_for,
+            'started_at': obj.started_at,
+            'completed_at': obj.completed_at,
+            'result_summary': obj.result_summary,
+            'error_message': obj.error_message,
+            'retry_count': obj.retry_count,
+            'artifacts': obj.artifacts,
+            'notifications_sent': obj.notifications_sent,
+        }
+        
+        # Calculate duration_ms if both timestamps are available
+        if obj.started_at and obj.completed_at:
+            data['duration_ms'] = obj.completed_at - obj.started_at
+        
+        return cls(**data)
 
 
 class ExecutionListResponse(BaseModel):

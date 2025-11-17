@@ -45,22 +45,27 @@ class ResultHandler:
 
         # Track pending executions (a2a_task_id -> execution_id)
         self.pending_executions: Dict[str, str] = {}
+        # Track execution session IDs (execution_id -> session_id) for artifact URIs
+        self.execution_sessions: Dict[str, str] = {}
         self.pending_executions_lock = asyncio.Lock()
 
         log.info(f"{self.log_prefix} Initialized")
 
-    async def register_execution(self, execution_id: str, a2a_task_id: str):
+    async def register_execution(self, execution_id: str, a2a_task_id: str, session_id: str = None):
         """
         Register an execution to track its A2A task.
 
         Args:
             execution_id: Execution record ID
             a2a_task_id: Corresponding A2A task ID
+            session_id: Session ID for artifact URIs (optional)
         """
         async with self.pending_executions_lock:
             self.pending_executions[a2a_task_id] = execution_id
+            if session_id:
+                self.execution_sessions[execution_id] = session_id
             log.debug(
-                f"{self.log_prefix} Registered execution {execution_id} for A2A task {a2a_task_id}"
+                f"{self.log_prefix} Registered execution {execution_id} for A2A task {a2a_task_id} (session: {session_id})"
             )
 
     async def handle_response(self, message_data: Dict[str, Any]):
@@ -189,10 +194,33 @@ class ResultHandler:
                 # Extract artifacts from task
                 task_artifacts = a2a.get_task_artifacts(result)
                 if task_artifacts:
+                    # Get session ID from execution tracking
+                    session_id = self.execution_sessions.get(execution_id)
+                    
                     for artifact in task_artifacts:
                         artifact_id = a2a.get_artifact_id(artifact)
-                        if artifact_id and artifact_id not in artifacts:
-                            artifacts.append(artifact_id)
+                        if artifact_id:
+                            # Create artifact object with name and viewable API URI
+                            # Use the special /scheduled/ endpoint that bypasses session validation
+                            if session_id:
+                                artifact_uri = f"/api/v1/artifacts/scheduled/{session_id}/{artifact_id}"
+                            else:
+                                # Fallback to artifact:// scheme if no session ID
+                                artifact_uri = f"artifact://{artifact_id}"
+                                log.warning(
+                                    f"{self.log_prefix} No session ID found for execution {execution_id}, using fallback URI"
+                                )
+                            
+                            artifact_obj = {
+                                "name": artifact_id,
+                                "uri": artifact_uri
+                            }
+                            # Check if not already added (by ID)
+                            if not any(a.get("name") == artifact_id for a in artifacts if isinstance(a, dict)):
+                                artifacts.append(artifact_obj)
+                                log.debug(
+                                    f"{self.log_prefix} Added artifact '{artifact_id}' with URI: {artifact_uri}"
+                                )
 
             # Update execution record
             repo = ScheduledTaskRepository()
@@ -206,6 +234,10 @@ class ResultHandler:
                 repo.update_execution(session, execution_id, update_data)
                 session.commit()
 
+            # Clean up session tracking
+            if execution_id in self.execution_sessions:
+                del self.execution_sessions[execution_id]
+            
             log.info(
                 f"{self.log_prefix} Execution {execution_id} marked as completed with {len(messages)} messages and {len(artifacts)} artifacts"
             )

@@ -81,6 +81,21 @@ apps:
         include_task_info: "stim" # Options: "none", "summary", "stim"
         max_payload_size_bytes: 9000000 # 9MB default, safety margin below 10MB broker limit
 
+      # --- Scheduler Service Configuration ---
+      scheduler_service:
+        enabled: true  # Enable scheduled tasks
+        instance_id: "${SCHEDULER_INSTANCE_ID}"  # Optional: auto-generated if not provided
+        
+        # Leader election for distributed deployments
+        leader_election:
+          enabled: true
+          heartbeat_interval_seconds: 30  # How often to send heartbeats
+          lease_duration_seconds: 60      # How long a lease is valid
+        
+        # Task execution settings
+        default_timeout_seconds: 3600      # 1 hour default timeout
+        max_concurrent_executions: 10      # Max parallel executions
+
       # --- Data Retention Configuration ---
       # Automatically cleans up old tasks, task events, and feedback to prevent unbounded database growth
       # data_retention:

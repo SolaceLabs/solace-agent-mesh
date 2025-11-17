@@ -2207,11 +2207,47 @@ class SamAgentComponent(SamComponentBase):
                         message=a2a.create_agent_text_message(text="Task completed."),
                     )
 
+            # Check if artifacts should be bundled in final response (for scheduled tasks)
+            task_metadata = a2a_context.get("task_metadata", {})
+            return_artifacts = task_metadata.get("returnArtifacts", False)
             final_a2a_artifacts: List[A2AArtifact] = []
-            log.debug(
-                "%s Final artifact bundling is removed. Artifacts sent via TaskArtifactUpdateEvent.",
-                self.log_identifier,
-            )
+            
+            if return_artifacts and task_context and task_context.produced_artifacts:
+                log.info(
+                    "%s Bundling %d artifacts in final response as requested by returnArtifacts flag.",
+                    self.log_identifier,
+                    len(task_context.produced_artifacts),
+                )
+                # Bundle artifacts from the produced_artifacts manifest
+                for artifact_info in task_context.produced_artifacts:
+                    try:
+                        artifact_id = artifact_info.get("artifact_id") or artifact_info.get("filename")
+                        if artifact_id:
+                            # Create A2A Artifact with required fields
+                            a2a_artifact = A2AArtifact(
+                                artifactId=artifact_id,
+                                parts=[]  # Empty parts list - artifact is referenced by ID
+                            )
+                            final_a2a_artifacts.append(a2a_artifact)
+                            log.debug(
+                                "%s Added artifact '%s' to final response bundle.",
+                                self.log_identifier,
+                                artifact_id,
+                            )
+                    except Exception as e:
+                        log.error(
+                            "%s Error bundling artifact %s: %s",
+                            self.log_identifier,
+                            artifact_info,
+                            e,
+                        )
+            else:
+                log.debug(
+                    "%s Final artifact bundling skipped. returnArtifacts=%s, produced_artifacts=%s",
+                    self.log_identifier,
+                    return_artifacts,
+                    len(task_context.produced_artifacts) if task_context and task_context.produced_artifacts else 0,
+                )
 
             final_task_metadata = {"agent_name": agent_name}
             if task_context and task_context.produced_artifacts:

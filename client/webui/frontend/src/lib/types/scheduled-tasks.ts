@@ -53,6 +53,11 @@ export interface ScheduledTask {
   last_run_at?: number;
 }
 
+export interface ArtifactInfo {
+  name: string;
+  uri: string;
+}
+
 export interface TaskExecution {
   id: string;
   scheduled_task_id: string;
@@ -77,7 +82,7 @@ export interface TaskExecution {
   error_message?: string;
   retry_count: number;
   
-  artifacts?: string[];
+  artifacts?: Array<string | ArtifactInfo>;  // Support both string IDs and objects
   notifications_sent?: Array<{
     type: string;
     status: string;
