@@ -733,7 +733,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isError: true,
                         isComplete: true,
                         metadata: {
-                            messageId: `msg-${crypto.randomUUID()}`,
+                            messageId: `msg-${v4()}`,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -1310,7 +1310,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${crypto.randomUUID()}`,
+                        id: `req-${v4()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
