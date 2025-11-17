@@ -38,7 +38,7 @@
         "README.md"
     ],
     "engines": {
-        "node": ">=20.8.10"
+        "node": ">=24.11.1 <25.0.0"
     },
     "scripts": {
         "dev": "vite",
