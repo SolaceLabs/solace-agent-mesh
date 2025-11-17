@@ -134,7 +134,7 @@ def create_webui_gateway_config(
     options["webui_frontend_logo_url"] = ask_if_not_provided(
         options,
         "webui_frontend_logo_url",
-        "Enter Frontend Logo URL for Web UI",
+        "Enter Frontend Logo URL (PNG, SVG, JPG or data URI)",
         default=default_values.get(
             "webui_frontend_logo_url", WEBUI_GATEWAY_DEFAULTS["webui_frontend_logo_url"]
         ),
