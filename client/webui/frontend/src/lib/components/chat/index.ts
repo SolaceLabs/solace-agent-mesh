@@ -7,5 +7,4 @@ export { SessionSidePanel } from "./SessionSidePanel";
 export { MoveSessionDialog } from "./MoveSessionDialog";
 export { SessionSearch } from "./SessionSearch";
 export { MessageHoverButtons } from "./MessageHoverButtons";
-export { EditableMessageContent } from "./EditableMessageContent";
 export * from "./selection";

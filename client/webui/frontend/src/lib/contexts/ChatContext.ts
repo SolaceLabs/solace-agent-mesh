@@ -44,8 +44,6 @@ export interface ChatState {
     submittedFeedback: Record<string, { type: "up" | "down"; text: string }>;
     // Artifact Rendering State
     artifactRenderingState: ArtifactRenderingState;
-    // Message Editing State
-    editingMessageId: string | null;
 }
 
 export interface ChatActions {
@@ -97,9 +95,6 @@ export interface ChatActions {
     updateSessionName: (sessionId: string, newName: string, showNotification?: boolean) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
     handleFeedbackSubmit: (taskId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
-    
-    /* Message Editing Actions */
-    setEditingMessageId: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 export type ChatContextValue = ChatState & ChatActions;

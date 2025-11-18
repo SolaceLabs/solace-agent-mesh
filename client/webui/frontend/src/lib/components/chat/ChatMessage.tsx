@@ -20,7 +20,6 @@ import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
 import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
-import { EditableMessageContent } from "./EditableMessageContent";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
@@ -188,12 +187,9 @@ const getUploadedFiles = (message: MessageFE) => {
 const getChatBubble = (
     message: MessageFE,
     chatContext: ChatContextValue,
-    bubbleWidth: number | null,
-    setBubbleWidth: (width: number | null) => void,
-    bubbleRef: React.RefObject<HTMLDivElement | null>,
     isLastWithTaskId?: boolean
 ) => {
-    const { openSidePanelTab, setTaskIdInSidePanel, editingMessageId, setEditingMessageId } = chatContext;
+    const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
 
     if (message.isStatusBubble) {
         return null;
@@ -281,26 +277,6 @@ const getChatBubble = (
     const lastPartIndex = groupedParts.length - 1;
     const lastPartKind = groupedParts[lastPartIndex]?.kind;
 
-    const messageId = message.metadata?.messageId || '';
-    const isEditing = editingMessageId === messageId;
-
-    const handleEditStateChange = (editing: boolean) => {
-        if (editing) {
-            // Capture width before entering edit mode
-            if (bubbleRef.current) {
-                const width = bubbleRef.current.offsetWidth;
-                console.log('Captured bubble width:', width);
-                setBubbleWidth(width);
-            }
-            // Set this message as the one being edited (closes others automatically)
-            setEditingMessageId(messageId);
-        } else {
-            // Clear editing state
-            setEditingMessageId(null);
-            setBubbleWidth(null);
-        }
-    };
-
     return (
         <div key={message.metadata?.messageId} className="space-y-2">
             {/* Render parts in their original order to preserve interleaving */}
@@ -310,22 +286,8 @@ const getChatBubble = (
                 if (part.kind === "text") {
                     return (
                         <ChatBubble key={`part-${index}`} variant={variant}>
-                            <ChatBubbleMessage
-                                ref={message.isUser ? bubbleRef : null}
-                                variant={variant}
-                                className={message.isUser && isEditing ? "!bg-transparent !p-0" : ""}
-                            >
-                                {/* Use EditableMessageContent for user messages */}
-                                {message.isUser ? (
-                                    <EditableMessageContent
-                                        message={{ ...message, parts: [{ kind: "text", text: (part as TextPart).text }] }}
-                                        isEditing={isEditing}
-                                        onCancelEdit={() => setEditingMessageId(null)}
-                                        bubbleWidth={bubbleWidth}
-                                    />
-                                ) : (
-                                    <MessageContent message={{ ...message, parts: [{ kind: "text", text: (part as TextPart).text }] }} />
-                                )}
+                            <ChatBubbleMessage variant={variant}>
+                                <MessageContent message={{ ...message, parts: [{ kind: "text", text: (part as TextPart).text }] }} />
                                 {/* Show actions on the last part if it's text */}
                                 {isLastPart && <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />}
                             </ChatBubbleMessage>
@@ -347,11 +309,7 @@ const getChatBubble = (
             {/* Show hover buttons below bubble for user messages */}
             {message.isUser && (
                 <div className="flex justify-end">
-                    <MessageHoverButtons
-                        message={message}
-                        isEditing={isEditing}
-                        onEditStateChange={handleEditStateChange}
-                    />
+                    <MessageHoverButtons message={message} />
                 </div>
             )}
         </div>
@@ -359,15 +317,13 @@ const getChatBubble = (
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean }> = ({ message, isLastWithTaskId }) => {
     const chatContext = useChatContext();
-    const [bubbleWidth, setBubbleWidth] = useState<number | null>(null);
-    const bubbleRef = React.useRef<HTMLDivElement>(null);
     
     if (!message) {
         return null;
     }
     return (
         <>
-            {getChatBubble(message, chatContext, bubbleWidth, setBubbleWidth, bubbleRef, isLastWithTaskId)}
+            {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
         </>
     );

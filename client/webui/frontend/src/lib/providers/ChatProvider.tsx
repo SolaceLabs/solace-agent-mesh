@@ -143,9 +143,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Feedback State
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
-    
-    // Message Editing State
-    const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 
     // Notification Helper
     const addNotification = useCallback((message: string, type?: "success" | "info" | "error") => {
@@ -1957,8 +1954,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [currentTaskId, apiPrefix, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
-        editingMessageId,
-        setEditingMessageId,
         configCollectFeedback,
         submittedFeedback,
         handleFeedbackSubmit,

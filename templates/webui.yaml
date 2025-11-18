@@ -76,7 +76,7 @@ apps:
         
         # Text-to-Speech Configuration
         tts:
-          provider: ${TTS_PROVIDER, gemini}  # "gemini" or "azure" (can be overridden by UI)
+          provider: ${TTS_PROVIDER, gemini}  # "gemini", "azure", or "polly" (can be overridden by UI)
           
           # Azure Neural Voices Configuration
           azure:
@@ -163,16 +163,10 @@ apps:
             speechToText: true
             engineSTT: "external"  # Use external for better quality
             languageSTT: "en-US"
-            autoSendText: -1  # -1 = manual send, 0+ = auto-send after N seconds
-            autoTranscribeAudio: true
-            decibelValue: -45
           textToSpeech:
             textToSpeech: true
             engineTTS: "external"  # Use external for better quality
             voice: "Kore"
             playbackRate: 1.0
-            automaticPlayback: false
             cacheTTS: true
-            cloudBrowserVoices: false
-          conversationMode: false
 

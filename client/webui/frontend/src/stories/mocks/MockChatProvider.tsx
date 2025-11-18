@@ -35,10 +35,8 @@ const defaultMockChatContext: DefaultMockContextType = {
     currentPreviewedVersionNumber: null,
     previewFileContent: null,
     isLoadingSession: false,
-    editingMessageId: null,
     
     // Actions
-    setEditingMessageId: () => {},
     setMessages: () => {},
     setTaskIdInSidePanel: () => {},
     handleNewSession: () => {},

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Pencil, Copy, Check, X } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 import { Button } from '@/lib/components/ui';
 import { cn } from '@/lib/utils';
 import { useChatContext } from '@/lib/hooks';
@@ -9,15 +9,11 @@ import { TTSButton } from './TTSButton';
 interface MessageHoverButtonsProps {
   message: MessageFE;
   className?: string;
-  isEditing?: boolean;
-  onEditStateChange?: (isEditing: boolean) => void;
 }
 
 export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({
   message,
-  className,
-  isEditing = false,
-  onEditStateChange
+  className
 }) => {
   const { addNotification } = useChatContext();
   const [isCopied, setIsCopied] = useState(false);
@@ -45,13 +41,6 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({
       });
     } else {
       addNotification("No text content to copy", "info");
-    }
-  };
-
-  // Edit functionality (user messages only)
-  const handleEdit = () => {
-    if (onEditStateChange) {
-      onEditStateChange(!isEditing);
     }
   };
 
@@ -99,26 +88,6 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({
     )}>
       {/* TTS Button - for AI messages */}
       {!message.isUser && <TTSButton message={message} />}
-
-      {/* Edit button - user messages only */}
-      {message.isUser && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "h-8 w-8 hover:bg-gray-100 dark:hover:bg-gray-800",
-            isEditing && "bg-blue-100 dark:bg-blue-900"
-          )}
-          onClick={handleEdit}
-          tooltip={isEditing ? "Cancel editing" : "Edit message"}
-        >
-          {isEditing ? (
-            <X className="h-4 w-4" />
-          ) : (
-            <Pencil className="h-4 w-4" />
-          )}
-        </Button>
-      )}
 
       {/* Copy button - all messages */}
       <Button
