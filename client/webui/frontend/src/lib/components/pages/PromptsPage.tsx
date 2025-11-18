@@ -1,7 +1,3 @@
-/**
- * Main page for managing prompt library with AI-assisted builder
- */
-
 import React, { useState, useEffect } from "react";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { PromptTemplateBuilder } from "@/lib/components/prompts/PromptTemplateBuilder";
@@ -18,6 +14,9 @@ import { detectVariables } from "@/lib/utils/promptUtils";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { useLoaderData, useNavigate } from "react-router-dom";
 
+/**
+ * Main page for managing prompt library with AI-assisted builder
+ */
 export const PromptsPage: React.FC = () => {
     const navigate = useNavigate();
     const loaderData = useLoaderData<{ promptId?: string; view?: string; mode?: string }>();
@@ -205,12 +204,7 @@ export const PromptsPage: React.FC = () => {
                 groupName: prompt.name,
             });
             sessionStorage.setItem("pending-prompt-use", promptData);
-
-            window.dispatchEvent(
-                new CustomEvent("use-prompt-in-chat", {
-                    detail: { promptText, groupId: prompt.id },
-                })
-            );
+            navigate("/chat");
         }
     };
 
@@ -227,11 +221,7 @@ export const PromptsPage: React.FC = () => {
         sessionStorage.setItem("pending-prompt-use", promptData);
 
         // Navigate to chat
-        window.dispatchEvent(
-            new CustomEvent("use-prompt-in-chat", {
-                detail: { promptText: processedPrompt, groupId: pendingPromptGroup.id },
-            })
-        );
+        navigate("/chat");
 
         // Clean up
         setShowVariableDialog(false);
