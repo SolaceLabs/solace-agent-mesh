@@ -81,7 +81,7 @@ export function useStreamingTTS(options: UseStreamingTTSOptions): UseStreamingTT
         try {
             console.log(`[StreamingTTS] Requesting streaming TTS for text length: ${text.length}`);
             
-            const response = await fetch("/api/speech/tts/stream", {
+            const response = await fetch("/api/v1/speech/tts/stream", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

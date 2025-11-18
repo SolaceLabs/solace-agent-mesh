@@ -22,7 +22,7 @@ export const SpeechSettingsPanel: React.FC = () => {
     useEffect(() => {
         const checkConfig = async () => {
             try {
-                const response = await fetch("/api/speech/config");
+                const response = await fetch("/api/v1/speech/config");
                 if (response.ok) {
                     const config = await response.json();
                     setSttConfigured(config.sttExternal || false);
@@ -47,7 +47,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             setLoadingVoices(true);
             try {
                 const provider = settings.ttsProvider || 'gemini';
-                const response = await fetch(`/api/speech/voices?provider=${provider}`);
+                const response = await fetch(`/api/v1/speech/voices?provider=${provider}`);
                 if (response.ok) {
                     const data = await response.json();
                     setAvailableVoices(data.voices || []);
@@ -97,7 +97,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             }
 
             // Fetch voice sample
-            const response = await fetch('/api/speech/voice-sample', {
+            const response = await fetch('/api/v1/speech/voice-sample', {
                 method: 'POST',
                 body: formData,
             });

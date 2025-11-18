@@ -136,7 +136,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                     let sttExternal = false;
                     let ttsExternal = false;
                     try {
-                        const speechResponse = await fetch("/api/speech/config");
+                        const speechResponse = await fetch("/api/v1/speech/config");
                         if (speechResponse.ok) {
                             const speechConfig = await speechResponse.json();
                             sttExternal = speechConfig.sttExternal || false;

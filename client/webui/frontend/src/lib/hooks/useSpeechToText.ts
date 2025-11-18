@@ -242,7 +242,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
         
         // Check if external STT is configured
         try {
-            const configResponse = await fetch("/api/speech/config");
+            const configResponse = await fetch("/api/v1/speech/config");
             if (configResponse.ok) {
                 const config = await configResponse.json();
                 console.log("[useSpeechToText] Config response:", config);
@@ -307,7 +307,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                     formData.append("audio", audioBlob, `audio.${fileExtension}`);
                     formData.append("provider", settings.sttProvider || "openai");
 
-                    const response = await fetch("/api/speech/stt", {
+                    const response = await fetch("/api/v1/speech/stt", {
                         method: "POST",
                         body: formData,
                     });

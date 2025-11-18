@@ -398,8 +398,14 @@ class AudioService:
             if not audio_file.filename:
                 raise HTTPException(400, "No filename provided")
             
-            # Check file size (max 25MB)
+            # Check file size before reading (max 25MB) to prevent OOM
+            if audio_file.size and audio_file.size > 25 * 1024 * 1024:
+                raise HTTPException(413, "Audio file too large (max 25MB)")
+            
+            # Read content after size check
             content = await audio_file.read()
+            
+            # Double-check size after reading (in case size wasn't available before)
             if len(content) > 25 * 1024 * 1024:
                 raise HTTPException(413, "Audio file too large (max 25MB)")
             
@@ -465,8 +471,16 @@ class AudioService:
         Returns:
             SSML string
         """
-        # Escape XML special characters
+        # Escape XML special characters in text
         escaped_text = (text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&apos;"))
+        
+        # Escape XML special characters in voice name to prevent injection
+        escaped_voice = (voice
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
@@ -476,10 +490,9 @@ class AudioService:
         # For HD voices, the format is "locale-Name:DragonHDLatestNeural"
         # Azure expects just the voice name in SSML, not the :DragonHDLatestNeural suffix
         # The HD quality is specified via the voice name itself
-        voice_name = voice  # Use the full voice name as-is for HD voices
         
         return f"""<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">
-    <voice name="{voice_name}">
+    <voice name="{escaped_voice}">
         <prosody rate="medium" pitch="default">
             {escaped_text}
         </prosody>
@@ -1143,12 +1156,3 @@ class AudioService:
         """Get file extension from filename"""
         import os
         return os.path.splitext(filename)[1] or ".wav"
-    
-    async def _mock_save_artifact(self, *args, **kwargs):
-        """Mock artifact save for TTS tool"""
-        # This is a placeholder - proper integration with artifact service needed
-        return {
-            "status": "success",
-            "data_version": 1,
-            "artifact_id": "mock-id"
-        }

@@ -624,23 +624,9 @@ def get_audio_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> AudioService:
     """FastAPI dependency to get an instance of AudioService."""
-    log.debug("get_audio_service called")
+    log.debug("[get_audio_service] called")
     # AudioService expects app_config which contains the speech configuration
     app_config = component.component_config.get('app_config', {}) if hasattr(component, 'component_config') else {}
     log.debug(f"[get_audio_service] app_config keys: {app_config.keys()}")
     return AudioService(config=app_config)
 
-
-def get_current_user(request: Request) -> dict:
-    """FastAPI dependency to get the current user from request state."""
-    if hasattr(request.state, "user") and request.state.user:
-        return request.state.user
-    # Fallback for development mode
-    return {
-        "id": "sam_dev_user",
-        "user_id": "sam_dev_user",
-        "name": "Sam Dev User",
-        "email": "sam@dev.local",
-        "authenticated": True,
-        "auth_method": "development",
-    }

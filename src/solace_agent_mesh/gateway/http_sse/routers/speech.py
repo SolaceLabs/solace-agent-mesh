@@ -10,7 +10,8 @@ from pydantic import BaseModel
 from solace_ai_connector.common.log import log
 
 from ..services.audio_service import AudioService
-from ..dependencies import get_current_user, get_audio_service
+from ..dependencies import get_audio_service
+from ..shared.auth_utils import get_current_user
 
 
 router = APIRouter()
@@ -21,7 +22,7 @@ class TTSRequest(BaseModel):
     input: str
     voice: Optional[str] = None
     messageId: Optional[str] = None
-    provider: Optional[str] = None  # NEW: Allow provider selection from UI
+    provider: Optional[str] = None
 
 
 class StreamTTSRequest(BaseModel):
@@ -181,6 +182,13 @@ async def stream_audio(
         # Validate input
         if not request.input or not request.input.strip():
             raise HTTPException(400, "Input text is required")
+        
+        # Add max length validation to prevent abuse (100KB max for streaming)
+        if len(request.input) > 100000:
+            raise HTTPException(
+                413,
+                "Text too long (max 100000 characters for streaming)"
+            )
         
         async def audio_generator():
             async for chunk in audio_service.stream_speech(
