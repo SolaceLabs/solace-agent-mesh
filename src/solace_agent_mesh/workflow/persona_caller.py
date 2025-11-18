@@ -213,6 +213,8 @@ class PersonaCaller:
             topic=request_topic,
             user_properties=user_properties,
         )
+        
+        log.debug(f"{log_id} Published persona request to {request_topic} (sub_task_id: {sub_task_id})")
 
         # Set timeout tracking
         timeout_seconds = self.host.get_config("default_node_timeout_seconds", 300)

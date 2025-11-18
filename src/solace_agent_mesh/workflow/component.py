@@ -231,6 +231,7 @@ class WorkflowExecutorComponent(SamComponentBase):
     async def finalize_workflow_success(self, workflow_context: WorkflowExecutionContext):
         """Finalize successful workflow execution and publish result."""
         log_id = f"{self.log_identifier}[Workflow:{workflow_context.workflow_task_id}]"
+        log.info(f"{log_id} Finalizing workflow success")
         
         # Construct final output based on output mapping
         final_output = await self._construct_final_output(workflow_context)
@@ -281,6 +282,7 @@ class WorkflowExecutorComponent(SamComponentBase):
     ):
         """Finalize failed workflow execution and publish error."""
         log_id = f"{self.log_identifier}[Workflow:{workflow_context.workflow_task_id}]"
+        log.warning(f"{log_id} Finalizing workflow failure: {error}")
         
         # Create final task response
         final_task = a2a.create_final_task(

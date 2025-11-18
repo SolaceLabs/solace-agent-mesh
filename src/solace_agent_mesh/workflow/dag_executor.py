@@ -421,7 +421,7 @@ class DAGExecutor:
 
         # Launch all branches concurrently
         for branch in node.branches:
-            log.info(f"{log_id} Starting branch '{branch.id}'")
+            log.debug(f"{log_id} Starting branch '{branch.id}'")
 
             # Create temporary node for branch
             branch_node = AgentNode(
@@ -485,7 +485,7 @@ class DAGExecutor:
         loop_results = []
 
         for i, item in enumerate(items):
-            log.info(f"{log_id} Iteration {i+1}/{len(items)}")
+            log.debug(f"{log_id} Iteration {i+1}/{len(items)}")
 
             # Create a lightweight, temporary state for the iteration.
             # This avoids deep-copying the entire workflow state for each loop.
@@ -648,7 +648,7 @@ class DAGExecutor:
             return
 
         # Node succeeded
-        log.info(f"{log_id} Node '{node_id}' completed successfully")
+        log.debug(f"{log_id} Node '{node_id}' completed successfully")
 
         # Check if this was part of a Fork or Loop
         # We need to find if this node_id is being tracked in active_branches
