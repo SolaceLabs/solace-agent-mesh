@@ -24,7 +24,7 @@ class TestTTSAPI:
             "input": sample_text_for_tts
         }
         
-        response = api_client.post("/api/speech/tts", json=request_data)
+        response = api_client.post("/api/v1/speech/tts", json=request_data)
         
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/mpeg"
@@ -38,7 +38,7 @@ class TestTTSAPI:
             "voice": "Kore"
         }
         
-        response = api_client.post("/api/speech/tts", json=request_data)
+        response = api_client.post("/api/v1/speech/tts", json=request_data)
         
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/mpeg"
@@ -49,7 +49,7 @@ class TestTTSAPI:
             "input": ""
         }
         
-        response = api_client.post("/api/speech/tts", json=request_data)
+        response = api_client.post("/api/v1/speech/tts", json=request_data)
         
         assert response.status_code == 400
         assert "required" in response.json()["detail"].lower()
@@ -58,7 +58,7 @@ class TestTTSAPI:
         """Test TTS without input field"""
         request_data = {}
         
-        response = api_client.post("/api/speech/tts", json=request_data)
+        response = api_client.post("/api/v1/speech/tts", json=request_data)
         
         # Should return 422 for missing required field
         assert response.status_code == 422
@@ -69,7 +69,7 @@ class TestTTSAPI:
             "input": "a" * 10001
         }
         
-        response = api_client.post("/api/speech/tts", json=request_data)
+        response = api_client.post("/api/v1/speech/tts", json=request_data)
         
         assert response.status_code == 413
         assert "too long" in response.json()["detail"].lower()
@@ -82,7 +82,7 @@ class TestTTSAPI:
             "provider": "gemini"
         }
         
-        response = api_client.post("/api/speech/tts", json=request_data)
+        response = api_client.post("/api/v1/speech/tts", json=request_data)
         
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/mpeg"
@@ -95,7 +95,7 @@ class TestTTSAPI:
             "messageId": "test-message-123"
         }
         
-        response = api_client.post("/api/speech/tts", json=request_data)
+        response = api_client.post("/api/v1/speech/tts", json=request_data)
         
         assert response.status_code == 200
 
@@ -109,7 +109,7 @@ class TestTTSStreamingAPI:
             "input": long_text_for_tts
         }
         
-        response = api_client.post("/api/speech/tts/stream", json=request_data)
+        response = api_client.post("/api/v1/speech/tts/stream", json=request_data)
         
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/mpeg"
@@ -125,7 +125,7 @@ class TestTTSStreamingAPI:
             "runId": "test-run-456"
         }
         
-        response = api_client.post("/api/speech/tts/stream", json=request_data)
+        response = api_client.post("/api/v1/speech/tts/stream", json=request_data)
         
         assert response.status_code == 200
         # Check filename in Content-Disposition header
@@ -137,7 +137,7 @@ class TestTTSStreamingAPI:
             "input": ""
         }
         
-        response = api_client.post("/api/speech/tts/stream", json=request_data)
+        response = api_client.post("/api/v1/speech/tts/stream", json=request_data)
         
         assert response.status_code == 400
 
@@ -148,7 +148,7 @@ class TestTTSStreamingAPI:
             "input": long_text_for_tts
         }
         
-        response = api_client.post("/api/speech/tts/stream", json=request_data)
+        response = api_client.post("/api/v1/speech/tts/stream", json=request_data)
         
         assert response.status_code == 200
         # Verify Cache-Control header for streaming
@@ -161,7 +161,7 @@ class TestTTSVoicesAPI:
     @pytest.mark.skip(reason="Requires actual TTS service configuration")
     def test_get_available_voices(self, api_client: TestClient):
         """Test getting list of available voices"""
-        response = api_client.get("/api/speech/voices")
+        response = api_client.get("/api/v1/speech/voices")
         
         assert response.status_code == 200
         data = response.json()
@@ -173,7 +173,7 @@ class TestTTSVoicesAPI:
     @pytest.mark.skip(reason="Requires actual TTS service configuration")
     def test_get_voices_with_provider_filter(self, api_client: TestClient):
         """Test getting voices filtered by provider"""
-        response = api_client.get("/api/speech/voices?provider=azure")
+        response = api_client.get("/api/v1/speech/voices?provider=azure")
         
         assert response.status_code == 200
         data = response.json()
@@ -185,7 +185,7 @@ class TestTTSVoicesAPI:
     @pytest.mark.skip(reason="Requires actual TTS service configuration")
     def test_get_voices_default_voice(self, api_client: TestClient):
         """Test that default voice is returned"""
-        response = api_client.get("/api/speech/voices")
+        response = api_client.get("/api/v1/speech/voices")
         
         assert response.status_code == 200
         data = response.json()
@@ -202,7 +202,7 @@ class TestTTSConfiguration:
             "input": sample_text_for_tts
         }
         
-        response = api_client.post("/api/speech/tts", json=request_data)
+        response = api_client.post("/api/v1/speech/tts", json=request_data)
         
         # Should return 500 if TTS not configured
         if response.status_code == 500:
@@ -216,14 +216,14 @@ class TestTTSConfiguration:
         """Test switching between TTS providers"""
         # Test with Gemini
         response_gemini = api_client.post(
-            "/api/speech/tts",
+            "/api/v1/speech/tts",
             json={"input": sample_text_for_tts, "provider": "gemini"}
         )
         assert response_gemini.status_code == 200
         
         # Test with Azure
         response_azure = api_client.post(
-            "/api/speech/tts",
+            "/api/v1/speech/tts",
             json={"input": sample_text_for_tts, "provider": "azure"}
         )
         assert response_azure.status_code == 200
@@ -234,7 +234,7 @@ class TestSpeechConfigAPI:
 
     def test_get_speech_config(self, api_client: TestClient):
         """Test getting speech configuration"""
-        response = api_client.get("/api/speech/config")
+        response = api_client.get("/api/v1/speech/config")
         
         assert response.status_code == 200
         data = response.json()
@@ -247,7 +247,7 @@ class TestSpeechConfigAPI:
 
     def test_speech_config_structure(self, api_client: TestClient):
         """Test speech configuration has correct structure"""
-        response = api_client.get("/api/speech/config")
+        response = api_client.get("/api/v1/speech/config")
         
         assert response.status_code == 200
         data = response.json()

@@ -25,7 +25,7 @@ class TestSTTAPI:
         }
         
         # Make request
-        response = api_client.post("/api/speech/stt", files=files)
+        response = api_client.post("/api/v1/speech/stt", files=files)
         
         # Assert response
         assert response.status_code == 200
@@ -41,7 +41,7 @@ class TestSTTAPI:
             "audio": ("test.webm", mock_webm_audio_file, "audio/webm")
         }
         
-        response = api_client.post("/api/speech/stt", files=files)
+        response = api_client.post("/api/v1/speech/stt", files=files)
         
         assert response.status_code == 200
         data = response.json()
@@ -49,7 +49,7 @@ class TestSTTAPI:
 
     def test_stt_missing_audio_file(self, api_client: TestClient):
         """Test STT without audio file returns error"""
-        response = api_client.post("/api/speech/stt")
+        response = api_client.post("/api/v1/speech/stt")
         
         # Should return 422 for missing required field
         assert response.status_code == 422
@@ -62,7 +62,7 @@ class TestSTTAPI:
             "audio": ("test.txt", io.BytesIO(b"not audio"), "text/plain")
         }
         
-        response = api_client.post("/api/speech/stt", files=files)
+        response = api_client.post("/api/v1/speech/stt", files=files)
         
         # Should return 415 for unsupported media type
         assert response.status_code == 415
@@ -78,7 +78,7 @@ class TestSTTAPI:
             "provider": "openai"
         }
         
-        response = api_client.post("/api/speech/stt", files=files, data=data)
+        response = api_client.post("/api/v1/speech/stt", files=files, data=data)
         
         assert response.status_code == 200
         result = response.json()
@@ -95,7 +95,7 @@ class TestSTTAPI:
             "audio": ("large.wav", large_file, "audio/wav")
         }
         
-        response = api_client.post("/api/speech/stt", files=files)
+        response = api_client.post("/api/v1/speech/stt", files=files)
         
         # Should return 413 for payload too large
         assert response.status_code == 413
@@ -114,7 +114,7 @@ class TestSTTConfiguration:
             "audio": ("test.wav", mock_audio_file, "audio/wav")
         }
         
-        response = api_client.post("/api/speech/stt", files=files)
+        response = api_client.post("/api/v1/speech/stt", files=files)
         
         # Should return 500 if STT not configured
         if response.status_code == 500:
@@ -132,7 +132,7 @@ class TestSTTConfiguration:
         
         # Test with OpenAI
         response_openai = api_client.post(
-            "/api/speech/stt",
+            "/api/v1/speech/stt",
             files=files,
             data={"provider": "openai"}
         )
@@ -141,7 +141,7 @@ class TestSTTConfiguration:
         # Test with Azure
         files["audio"][1].seek(0)  # Reset file pointer
         response_azure = api_client.post(
-            "/api/speech/stt",
+            "/api/v1/speech/stt",
             files=files,
             data={"provider": "azure"}
         )
