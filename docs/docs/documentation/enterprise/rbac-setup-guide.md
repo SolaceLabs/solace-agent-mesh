@@ -208,14 +208,13 @@ authorization_service:
   user_to_role_assignments_path: "config/auth/user-to-role-assignments.yaml"
 
 namespace: "enterprise_prod"
-gateway_id: "enterprise_gateway"
 ```
 
 The `authorization_service` section configures the RBAC system. The `type` field specifies `default_rbac`, which tells Agent Mesh Enterprise to use the file-based RBAC system. The two path fields point to your RBAC configuration files—these paths are relative to the container's working directory, not your host system.
 
 **Important:** When using `type: default_rbac`, `role_to_scope_definitions_path` is **required**. The system will fail to start if these files are missing or invalid.
 
-The `namespace` and `gateway_id` fields configure the Agent Mesh Enterprise instance. The namespace isolates this instance from others, while the gateway ID identifies the web interface gateway.
+The `namespace` field configures the Agent Mesh Enterprise instance. The namespace isolates this instance from others.
 
 #### Alternative: Development Mode (Permissive)
 
@@ -227,7 +226,6 @@ authorization_service:
   type: "none"  # ⚠️ Grants full access to all users
 
 namespace: "enterprise_dev"
-gateway_id: "enterprise_gateway"
 ```
 
 :::danger Security Warning
@@ -243,7 +241,6 @@ If you omit the `authorization_service` block entirely, the system uses secure d
 # No authorization_service block = deny_all
 
 namespace: "enterprise_prod"
-gateway_id: "enterprise_gateway"
 ```
 
 When no authorization configuration is present, the system:
@@ -266,7 +263,6 @@ docker run -d \
   -v "$(pwd):/app" \
   -e SAM_AUTHORIZATION_CONFIG="/app/config/enterprise_config.yaml" \
   -e NAMESPACE=enterprise_prod \
-  -e WEBUI_GATEWAY_ID=enterprise_gateway \
   -e ... list here all other necessary env vars ...
   solace-agent-mesh-enterprise:<tagname>
 ```
@@ -361,7 +357,7 @@ gateway_specific_identities:
 
 The `users` section defines global user identities that apply across all gateways. Most configurations only need this section.
 
-The `gateway_specific_identities` section allows you to assign different roles to the same user identity on different gateways. This feature is useful in multi-gateway deployments where you want to grant different permissions based on which gateway a user accesses. The key format is `gateway_id:user_identity`, where `gateway_id` matches the gateway ID in your enterprise configuration.
+The `gateway_specific_identities` section allows you to assign different roles to the same user identity on different gateways. This feature is useful in multi-gateway deployments where you want to grant different permissions based on which gateway a user accesses. The key format is `gateway_id:user_identity`, where `gateway_id` matches the gateway ID in your configuration. The default gateway ID is `_default_enterprise_gateway`.
 
 ### Enterprise Configuration Structure
 
@@ -460,7 +456,6 @@ docker run -d \
   -e MS_GRAPH_CLIENT_ID=your-client-id \
   -e MS_GRAPH_CLIENT_SECRET=your-client-secret \
   -e NAMESPACE=enterprise_prod \
-  -e WEBUI_GATEWAY_ID=enterprise_gateway \
   solace-agent-mesh-enterprise:<tag>
 ```
 
