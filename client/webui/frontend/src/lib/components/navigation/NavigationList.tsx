@@ -2,7 +2,7 @@ import React from "react";
 
 import { NavigationButton } from "@/lib/components/navigation";
 import type { NavigationItem } from "@/lib/types";
-import { ToggleThemeButton } from "./ToggleThemeButton";
+import { SettingsDialog } from "@/lib/components/settings";
 
 interface NavigationListProps {
     items: NavigationItem[];
@@ -25,18 +25,20 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
             </ul>
 
             {/* Spacer */}
-            {bottomItems && bottomItems.length > 0 && <div className="flex-1" />}
+            <div className="flex-1" />
 
             {/* Bottom items */}
-            {bottomItems && bottomItems.length > 0 && (
-                <ul className="space-y-1">
-                    {bottomItems.map(item => (
-                        <li key={item.id} className="my-4">
-                            {item.id === "theme-toggle" ? <ToggleThemeButton /> : <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />}
-                        </li>
-                    ))}
-                </ul>
-            )}
+            <ul className="space-y-1">
+                {bottomItems && bottomItems.length > 0 && bottomItems.map(item => (
+                    <li key={item.id} className="my-4">
+                        <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
+                    </li>
+                ))}
+                {/* Settings Dialog */}
+                <li className="my-4 flex justify-center">
+                    <SettingsDialog iconOnly={true} />
+                </li>
+            </ul>
         </nav>
     );
 };

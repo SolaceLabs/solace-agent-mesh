@@ -5,10 +5,10 @@ import { AgentMeshPage, ChatPage, bottomNavigationItems, getTopNavigationItems, 
 import { ProjectsPage } from "@/lib/components/projects";
 import { PromptsPage } from "@/lib/components/pages/PromptsPage";
 import { TextSelectionProvider, SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
-import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
+import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider, AudioSettingsProvider } from "@/lib/providers";
 import { UnsavedChangesProvider, useUnsavedChangesContext } from "@/lib/contexts";
 
-import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext, useAudioSettings } from "@/lib/hooks";
 
 function AppContentInner() {
     const [activeNavItem, setActiveNavItem] = useState<string>("chat");
@@ -16,6 +16,7 @@ function AppContentInner() {
     const { configFeatureEnablement, projectsEnabled } = useConfigContext();
     const { isMenuOpen, menuPosition, selectedText, clearSelection } = useTextSelection();
     const { checkUnsavedChanges } = useUnsavedChangesContext();
+    const { settings } = useAudioSettings();
 
     // Get navigation items based on feature flags
     const topNavItems = useMemo(
@@ -25,6 +26,17 @@ function AppContentInner() {
 
     // Enable beforeunload warning when chat data is present
     useBeforeUnload();
+
+    // Apply font size to document root
+    useEffect(() => {
+        const fontSizeMap = {
+            small: "14px",
+            medium: "16px",
+            large: "18px",
+            "extra-large": "20px",
+        };
+        document.documentElement.style.fontSize = fontSizeMap[settings.fontSize];
+    }, [settings.fontSize]);
 
     // Listen for navigate-to-project events
     useEffect(() => {
@@ -150,11 +162,13 @@ function App() {
                     <AuthProvider>
                         <ProjectProvider>
                             <BrowserRouter>
-                                <ChatProvider>
-                                    <TaskProvider>
-                                        <AppContent />
-                                    </TaskProvider>
-                                </ChatProvider>
+                                <AudioSettingsProvider>
+                                        <ChatProvider>
+                                            <TaskProvider>
+                                                <AppContent />
+                                            </TaskProvider>
+                                        </ChatProvider>
+                                </AudioSettingsProvider>
                             </BrowserRouter>
                         </ProjectProvider>
                     </AuthProvider>

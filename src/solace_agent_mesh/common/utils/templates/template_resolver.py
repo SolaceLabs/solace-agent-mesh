@@ -10,9 +10,10 @@ from .liquid_renderer import render_liquid_template
 
 log = logging.getLogger(__name__)
 
-# Regex to match template blocks: «««template: params\ncontent\n»»»
+# Regex to match template blocks: «««template: params\ncontent\n»»» or «««template_liquid: params\ncontent\n»»»
+# Supports both 'template:' (legacy) and 'template_liquid:' (new)
 TEMPLATE_BLOCK_REGEX = re.compile(
-    r'«««template:\s*([^\n]+)\n(.*?)»»»',
+    r'«««template(?:_liquid)?:\s*([^\n]+)\n(.*?)»»»',
     re.DOTALL
 )
 
@@ -86,13 +87,15 @@ async def resolve_template_blocks_in_string(
         version = int(artifact_parts[1]) if len(artifact_parts) > 1 else "latest"
 
         try:
-            # Load the data artifact
+            # Load the data artifact with a large max_content_length (2MB)
+            # to ensure full JSON/YAML content is loaded for template rendering
             artifact_data = await load_artifact_content_or_metadata(
                 artifact_service,
                 **session_context,
                 filename=filename,
                 version=version,
                 load_metadata_only=False,
+                max_content_length=2_000_000,  # 2MB limit for template data
             )
 
             if artifact_data.get("status") != "success":

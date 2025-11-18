@@ -6,4 +6,5 @@ export { LoadingMessageRow } from "./LoadingMessageRow";
 export { SessionSidePanel } from "./SessionSidePanel";
 export { MoveSessionDialog } from "./MoveSessionDialog";
 export { SessionSearch } from "./SessionSearch";
+export { MessageHoverButtons } from "./MessageHoverButtons";
 export * from "./selection";

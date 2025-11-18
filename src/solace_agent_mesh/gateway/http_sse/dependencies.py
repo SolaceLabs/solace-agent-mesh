@@ -19,6 +19,7 @@ from ...common.services.identity_service import BaseIdentityService
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.task_context import TaskContextManager
 from ...gateway.http_sse.services.agent_card_service import AgentCardService
+from ...gateway.http_sse.services.audio_service import AudioService
 from ...gateway.http_sse.services.project_service import ProjectService
 from ...gateway.http_sse.services.feedback_service import FeedbackService
 from ...gateway.http_sse.services.people_service import PeopleService
@@ -617,6 +618,18 @@ def get_session_business_service_optional(
         )
         return None
     return SessionService(component=component)
+
+
+def get_audio_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> AudioService:
+    """FastAPI dependency to get an instance of AudioService."""
+    log.debug("[get_audio_service] called")
+    # AudioService expects app_config which contains the speech configuration
+    app_config = component.component_config.get('app_config', {}) if hasattr(component, 'component_config') else {}
+    log.debug(f"[get_audio_service] app_config keys: {app_config.keys()}")
+    return AudioService(config=app_config)
+
 
 
 def get_user_display_name(
