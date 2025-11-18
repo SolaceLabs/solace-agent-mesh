@@ -40,7 +40,7 @@ Agent Mesh Enterprise's OpenAPI tool integration supports:
 - **Multiple specification sources**: local files, remote URLs, or inline specs
 - **Server URL overrides**: Point specs to different environments (development, staging, production)
 - **Tool filtering**: Include or exclude specific API operations using allow/deny lists
-- **Authentication**: API key, OAuth2, and service account authentication
+- **Authentication**: API key, and service account authentication
 - **Automatic name conversion**: Handles camelCase operation IDs correctly
 
 ## Understanding OpenAPI Tools
@@ -86,7 +86,6 @@ Most modern REST APIs provide OpenAPI specifications. Check the API provider's d
 Depending on the API's authentication requirements, you may need:
 
 - **API Keys**: For APIs using API key authentication
-- **OAuth2 Credentials**: Client ID and client secret for OAuth2-protected APIs
 - **Service Account**: For Google Cloud and similar services
 - **Network Access**: Ensure your Agent Mesh Enterprise deployment can reach the API endpoints
 
@@ -319,7 +318,7 @@ tools:
 
 ## Authentication
 
-OpenAPI tools support three authentication methods: API key, OAuth2, and service account authentication.
+OpenAPI tools support two authentication methods: API key, and service account authentication.
 
 ### API Key Authentication
 
@@ -359,40 +358,6 @@ auth:
   name: apikey
   value: ${MY_API_KEY}
 ```
-
-### OAuth2 Authentication
-
-OAuth2 authentication uses the authorization code flow with client credentials.
-
-```yaml
-auth:
-  type: oauth2
-  scheme:
-    authorization_url: "https://example.com/oauth/authorize"
-    token_url: "https://example.com/oauth/token"
-    scopes:
-      - "read:api"
-      - "write:api"
-    token_endpoint_auth_method: "client_secret_basic" # or "client_secret_post"
-    grant_types:
-      - "authorization_code"
-  credential:
-    client_id: ${OAUTH_CLIENT_ID}
-    client_secret: ${OAUTH_CLIENT_SECRET}
-```
-
-**Parameters**:
-
-- `type`: Must be `"oauth2"`
-- `scheme.authorization_url`: The OAuth2 authorization endpoint
-- `scheme.token_url`: The OAuth2 token endpoint
-- `scheme.scopes`: List of OAuth2 scopes to request
-- `scheme.token_endpoint_auth_method`: How to authenticate with the token endpoint (default: `"client_secret_basic"`)
-- `scheme.grant_types`: List of supported grant types (default: `["authorization_code"]`)
-- `credential.client_id`: OAuth2 client ID
-- `credential.client_secret`: OAuth2 client secret
-
-The OAuth2 redirect URI is configured via the `OAUTH_TOOL_REDIRECT_URI` environment variable.
 
 ### Service Account Authentication
 
@@ -559,12 +524,6 @@ This section addresses common issues when configuring OpenAPI tools.
    - Verify `in: header` vs `in: query` matches API requirements
    - Check the `name` parameter matches what the API expects
    - Review API documentation for exact auth requirements
-
-3. **OAuth2 Configuration Issues**:
-   - Verify `authorization_url` and `token_url` are correct
-   - Check that scopes are valid for the API
-   - Ensure `OAUTH_TOOL_REDIRECT_URI` environment variable is set
-   - Verify redirect URI is registered with the OAuth provider
 
 ### API Calls Fail or Return Errors
 
