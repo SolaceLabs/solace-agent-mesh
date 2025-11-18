@@ -39,6 +39,7 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
 from google.adk.tools.mcp_tool import MCPToolset
+from google.adk.tools.openapi_tool import OpenAPIToolset
 from google.genai import types as adk_types
 from pydantic import BaseModel, ValidationError
 from solace_ai_connector.common.event import Event, EventType
@@ -3109,6 +3110,31 @@ class SamAgentComponent(SamComponentBase):
                                 "id": mcp_tool.name,
                                 "name": mcp_tool.name,
                                 "description": mcp_tool.description
+                                or "No description available.",
+                            }
+                        )
+                elif isinstance(tool, OpenAPIToolset):
+                    try:
+                        log.debug(
+                            "%s Retrieving tools from OpenAPIToolset for Agent %s...",
+                            self.log_identifier,
+                            self.agent_name,
+                        )
+                        openapi_tools = await tool.get_tools()
+                    except Exception as e:
+                        log.error(
+                            "%s Error retrieving tools from OpenAPIToolset for Agent Card %s: %s",
+                            self.log_identifier,
+                            self.agent_name,
+                            e,
+                        )
+                        continue
+                    for openapi_tool in openapi_tools:
+                        tool_manifest.append(
+                            {
+                                "id": openapi_tool.name,
+                                "name": openapi_tool.name,
+                                "description": openapi_tool.description
                                 or "No description available.",
                             }
                         )

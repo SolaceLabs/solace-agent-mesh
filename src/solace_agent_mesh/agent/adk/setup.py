@@ -683,6 +683,77 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
 
     return [mcp_toolset_instance], [], []
 
+
+async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    """
+    Loads an OpenAPI toolset by delegating to the enterprise configurator.
+
+    This function validates the tool configuration and attempts to load the OpenAPI tool
+    using the enterprise package. If the enterprise package is not available, it logs a
+    warning and returns empty results.
+
+    Args:
+        component: The SamAgentComponent instance
+        tool_config: Dictionary containing the tool's configuration
+
+    Returns:
+        ToolLoadingResult: Tuple of (tools, builtins, cleanup_hooks)
+                          Returns ([], [], []) if enterprise package not available
+    """
+    from pydantic import TypeAdapter
+    from ..tools.tool_config_types import OpenApiToolConfig
+
+    # Validate basic tool configuration structure
+    openapi_tool_adapter = TypeAdapter(OpenApiToolConfig)
+    try:
+        tool_config_model = openapi_tool_adapter.validate_python(tool_config)
+    except Exception as e:
+        log.error(
+            "%s Invalid OpenAPI tool configuration: %s",
+            component.log_identifier,
+            e,
+        )
+        raise
+
+    # Try to load the tool using the enterprise configurator
+    try:
+        from solace_agent_mesh_enterprise.auth.tool_configurator import (
+            configure_openapi_tool,
+        )
+
+        try:
+            openapi_toolset = configure_openapi_tool(
+                tool_type="openapi",
+                tool_config=tool_config,
+            )
+            openapi_toolset.origin = "openapi"
+
+            log.info(
+                "%s Loaded OpenAPI toolset via enterprise configurator",
+                component.log_identifier,
+            )
+
+            return [openapi_toolset], [], []
+
+        except Exception as e:
+            log.error(
+                "%s Failed to create OpenAPI tool %s: %s",
+                component.log_identifier,
+                tool_config.get("name", "unknown"),
+                e,
+            )
+            raise
+
+    except ImportError:
+        log.warning(
+            "%s OpenAPI tools require the solace-agent-mesh-enterprise package. "
+            "Skipping tool configuration: %s",
+            component.log_identifier,
+            tool_config.get("name", "unknown"),
+        )
+        return [], [], []
+
+
 def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[str]) -> ToolLoadingResult:
     """Loads internal framework tools that are not explicitly configured by the user."""
     loaded_tools: List[Union[BaseTool, Callable]] = []
@@ -804,6 +875,12 @@ async def load_adk_tools(
                         new_builtins,
                         new_cleanups,
                     ) = await _load_mcp_tool(component, tool_config)
+                elif tool_type == "openapi":
+                    (
+                        new_tools,
+                        new_builtins,
+                        new_cleanups,
+                    ) = await _load_openapi_tool(component, tool_config)
                 else:
                     log.warning(
                         "%s Unknown tool type '%s' in config: %s",

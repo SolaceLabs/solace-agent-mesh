@@ -241,6 +241,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAudioSettings(): AudioSettingsContextValue {
     const context = useContext(AudioSettingsContext);
     if (!context) {
