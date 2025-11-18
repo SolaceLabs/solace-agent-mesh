@@ -1,17 +1,7 @@
 import React, { useState, useRef } from "react";
 import { FileJson, Upload as UploadIcon, AlertCircle } from "lucide-react";
 import JSZip from "jszip";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    Button,
-    Input,
-    Label,
-} from "@/lib/components/ui";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
 
 interface ProjectImportDialogProps {
     open: boolean;
@@ -28,11 +18,7 @@ interface ProjectPreview {
     artifactNames: string[];
 }
 
-export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
-    open,
-    onOpenChange,
-    onImport,
-}) => {
+export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, onOpenChange, onImport }) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [selectedFileName, setSelectedFileName] = useState<string>("");
     const [projectPreview, setProjectPreview] = useState<ProjectPreview | null>(null);
@@ -55,9 +41,9 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
 
     const validateAndPreviewFile = async (file: File) => {
         setError(null);
-        
+
         // Validate file type
-        if (!file.name.endsWith('.zip')) {
+        if (!file.name.endsWith(".zip")) {
             setError("Please select a ZIP file");
             return false;
         }
@@ -72,30 +58,28 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
         try {
             // Use JSZip to read and parse the ZIP file
             const zip = await JSZip.loadAsync(file);
-            
+
             // Check for project.json
-            if (!zip.files['project.json']) {
+            if (!zip.files["project.json"]) {
                 setError("Invalid project export: missing project.json");
                 return false;
             }
 
             // Parse project.json
-            const projectJsonContent = await zip.files['project.json'].async('string');
+            const projectJsonContent = await zip.files["project.json"].async("string");
             const projectData = JSON.parse(projectJsonContent);
 
             // Validate version
-            if (projectData.version !== '1.0') {
+            if (projectData.version !== "1.0") {
                 setError(`Unsupported export version: ${projectData.version}`);
                 return false;
             }
 
             // Count artifacts in the ZIP
-            const artifactFiles = Object.keys(zip.files).filter(
-                name => name.startsWith('artifacts/') && name !== 'artifacts/'
-            );
+            const artifactFiles = Object.keys(zip.files).filter(name => name.startsWith("artifacts/") && name !== "artifacts/");
 
             // Extract artifact filenames (remove 'artifacts/' prefix)
-            const artifactNames = artifactFiles.map(path => path.replace('artifacts/', ''));
+            const artifactNames = artifactFiles.map(path => path.replace("artifacts/", ""));
 
             // Set preview with all metadata
             setProjectPreview({
@@ -188,110 +172,84 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>Import Project</DialogTitle>
-                    <DialogDescription>
-                        Import a project from a ZIP export file
-                    </DialogDescription>
+                    <DialogDescription>Import a project from a ZIP export file</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
                     {/* File Upload */}
                     <div className="space-y-2">
                         <Label>Project File</Label>
-                        
+
                         {!selectedFile ? (
                             <div
-                                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                                    isDragging
-                                        ? "border-primary bg-primary/5 scale-105"
-                                        : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
+                                className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+                                    isDragging ? "border-primary bg-primary/5 scale-105" : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
                                 }`}
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
                                 onDrop={handleDrop}
                                 onClick={() => fileInputRef.current?.click()}
                             >
-                                <UploadIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                                <p className="text-sm font-medium mb-1">
-                                    Drag and drop ZIP file here
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    or click to browse
-                                </p>
+                                <UploadIcon className="text-muted-foreground mx-auto mb-4 h-12 w-12" />
+                                <p className="mb-1 text-sm font-medium">Drag and drop ZIP file here</p>
+                                <p className="text-muted-foreground text-xs">or click to browse</p>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
-                                <FileJson className="h-5 w-5 text-primary flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium break-words line-clamp-2" title={selectedFileName}>
+                            <div className="bg-muted/50 flex items-center gap-3 rounded-lg border p-3">
+                                <FileJson className="text-primary h-5 w-5 flex-shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                    <p className="line-clamp-2 text-sm font-medium break-words" title={selectedFileName}>
                                         {selectedFileName}
                                     </p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                                    </p>
+                                    <p className="text-muted-foreground text-xs">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
                                 </div>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={handleChangeFile}
-                                    disabled={isImporting}
-                                    className="flex-shrink-0"
-                                >
+                                <Button variant="ghost" size="sm" onClick={handleChangeFile} disabled={isImporting} className="flex-shrink-0">
                                     Change
                                 </Button>
                             </div>
                         )}
 
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".zip"
-                            onChange={handleFileInputChange}
-                            className="hidden"
-                        />
+                        <input ref={fileInputRef} type="file" accept=".zip" onChange={handleFileInputChange} className="hidden" />
                     </div>
 
                     {/* Project Preview */}
                     {projectPreview && (
-                        <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                        <div className="bg-muted/30 space-y-3 rounded-lg border p-4">
                             <div>
-                                <Label className="text-xs text-muted-foreground">Original Name</Label>
+                                <Label className="text-muted-foreground text-xs">Original Name</Label>
                                 <p className="text-sm font-medium">{projectPreview.name}</p>
                             </div>
                             {projectPreview.description && (
                                 <div>
-                                    <Label className="text-xs text-muted-foreground">Description</Label>
+                                    <Label className="text-muted-foreground text-xs">Description</Label>
                                     <p className="text-sm">{projectPreview.description}</p>
                                 </div>
                             )}
                             {projectPreview.systemPrompt && (
                                 <div>
-                                    <Label className="text-xs text-muted-foreground">Instructions</Label>
-                                    <p className="text-sm line-clamp-3">{projectPreview.systemPrompt}</p>
+                                    <Label className="text-muted-foreground text-xs">Instructions</Label>
+                                    <p className="line-clamp-3 text-sm">{projectPreview.systemPrompt}</p>
                                 </div>
                             )}
                             {projectPreview.defaultAgentId && (
                                 <div>
-                                    <Label className="text-xs text-muted-foreground">Default Agent</Label>
-                                    <p className="text-sm font-mono">{projectPreview.defaultAgentId}</p>
+                                    <Label className="text-muted-foreground text-xs">Default Agent</Label>
+                                    <p className="font-mono text-sm">{projectPreview.defaultAgentId}</p>
                                 </div>
                             )}
                             <div>
-                                <Label className="text-xs text-muted-foreground">
-                                    Artifacts ({projectPreview.artifactCount} {projectPreview.artifactCount === 1 ? 'file' : 'files'})
+                                <Label className="text-muted-foreground text-xs">
+                                    Artifacts ({projectPreview.artifactCount} {projectPreview.artifactCount === 1 ? "file" : "files"})
                                 </Label>
                                 {projectPreview.artifactNames.length > 0 && (
                                     <div className="mt-1 space-y-1">
                                         {projectPreview.artifactNames.slice(0, 5).map((name, index) => (
                                             <div key={index} className="flex items-center gap-1.5 text-xs">
-                                                <FileJson className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                                <FileJson className="text-muted-foreground h-3 w-3 flex-shrink-0" />
                                                 <span className="truncate">{name}</span>
                                             </div>
                                         ))}
-                                        {projectPreview.artifactNames.length > 5 && (
-                                            <p className="text-xs text-muted-foreground italic">
-                                                + {projectPreview.artifactNames.length - 5} more files
-                                            </p>
-                                        )}
+                                        {projectPreview.artifactNames.length > 5 && <p className="text-muted-foreground text-xs italic">+ {projectPreview.artifactNames.length - 5} more files</p>}
                                     </div>
                                 )}
                             </div>
@@ -302,40 +260,25 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
                     {projectPreview && (
                         <div className="space-y-2">
                             <Label htmlFor="customName">Project Name</Label>
-                            <Input
-                                id="customName"
-                                value={customName}
-                                onChange={(e) => setCustomName(e.target.value)}
-                                placeholder="Enter project name"
-                                disabled={isImporting}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Name conflicts will be resolved automatically
-                            </p>
+                            <Input id="customName" value={customName} onChange={e => setCustomName(e.target.value)} placeholder="Enter project name" disabled={isImporting} />
+                            <p className="text-muted-foreground text-xs">Name conflicts will be resolved automatically</p>
                         </div>
                     )}
 
                     {/* Error Message */}
                     {error && (
-                        <div className="flex items-start gap-2 p-3 border border-destructive/50 bg-destructive/10 rounded-lg">
-                            <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
-                            <p className="text-sm text-destructive">{error}</p>
+                        <div className="border-destructive/50 bg-destructive/10 flex items-start gap-2 rounded-lg border p-3">
+                            <AlertCircle className="text-destructive mt-0.5 h-4 w-4 flex-shrink-0" />
+                            <p className="text-destructive text-sm">{error}</p>
                         </div>
                     )}
                 </div>
 
                 <DialogFooter>
-                    <Button
-                        variant="outline"
-                        onClick={handleClose}
-                        disabled={isImporting}
-                    >
+                    <Button variant="outline" onClick={handleClose} disabled={isImporting}>
                         Cancel
                     </Button>
-                    <Button
-                        onClick={handleImport}
-                        disabled={isImporting}
-                    >
+                    <Button onClick={handleImport} disabled={isImporting}>
                         {isImporting ? "Importing..." : "Import"}
                     </Button>
                 </DialogFooter>

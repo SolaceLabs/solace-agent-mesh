@@ -15,7 +15,7 @@ interface ProjectCardProps {
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport }) => {
     const [menuOpen, setMenuOpen] = useState(false);
-    
+
     const handleExport = (e: React.MouseEvent) => {
         e.stopPropagation();
         setMenuOpen(false);
@@ -50,18 +50,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                                 </PopoverTrigger>
                                 <PopoverContent align="start" side="bottom" className="w-48 p-1" sideOffset={0} onClick={e => e.stopPropagation()}>
                                     {onExport && (
-                                        <button
-                                            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
-                                            onClick={handleExport}
-                                        >
+                                        <button className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm" onClick={handleExport}>
                                             <Upload size={14} />
                                             Export Project
                                         </button>
                                     )}
-                                    <button
-                                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
-                                        onClick={handleDelete}
-                                    >
+                                    <button className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm" onClick={handleDelete}>
                                         <Trash2 size={14} />
                                         Delete
                                     </button>

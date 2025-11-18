@@ -237,7 +237,7 @@ export const PromptsPage: React.FC = () => {
 
             if (response.ok) {
                 const exportData = await response.json();
-                
+
                 // Create a blob and trigger download
                 const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
@@ -262,10 +262,7 @@ export const PromptsPage: React.FC = () => {
     };
 
     // Handle import
-    const handleImport = async (
-        importData: PromptImportData,
-        options: { preserve_command: boolean; preserve_category: boolean }
-    ) => {
+    const handleImport = async (importData: PromptImportData, options: { preserve_command: boolean; preserve_category: boolean }) => {
         try {
             const response = await authenticatedFetch("/api/v1/prompts/import", {
                 method: "POST",
@@ -281,7 +278,7 @@ export const PromptsPage: React.FC = () => {
 
             if (response.ok) {
                 const result = await response.json();
-                
+
                 // Show warnings if any
                 if (result.warnings && result.warnings.length > 0) {
                     result.warnings.forEach((warning: string) => {
@@ -294,11 +291,11 @@ export const PromptsPage: React.FC = () => {
                 setShowImportDialog(false);
                 setInitialMessage(null);
                 setEditingGroup(null);
-                
+
                 // Refresh prompts and select the newly imported one
                 await fetchPromptGroups();
                 setNewlyCreatedPromptId(result.prompt_group_id);
-                
+
                 addNotification("Prompt imported successfully", "success");
             } else {
                 const error = await response.json();
@@ -465,11 +462,7 @@ export const PromptsPage: React.FC = () => {
             )}
 
             {/* Import Dialog */}
-            <PromptImportDialog
-                open={showImportDialog}
-                onOpenChange={setShowImportDialog}
-                onImport={handleImport}
-            />
+            <PromptImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
         </div>
     );
 };

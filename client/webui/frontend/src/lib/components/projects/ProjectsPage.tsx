@@ -109,11 +109,8 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
 
     const handleExport = async (project: Project) => {
         try {
-            const response = await authenticatedFetch(
-                `/api/v1/projects/${project.id}/export`,
-                { credentials: "include" }
-            );
-            
+            const response = await authenticatedFetch(`/api/v1/projects/${project.id}/export`, { credentials: "include" });
+
             if (response.ok) {
                 const blob = await response.blob();
                 const url = URL.createObjectURL(blob);
@@ -124,7 +121,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                
+
                 addNotification("Project exported successfully", "success");
             } else {
                 const error = await response.json();
@@ -142,37 +139,31 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
             const formData = new FormData();
             formData.append("file", file);
             formData.append("options", JSON.stringify(options));
-            
-            const response = await authenticatedFetch(
-                "/api/v1/projects/import",
-                {
-                    method: "POST",
-                    credentials: "include",
-                    body: formData,
-                }
-            );
-            
+
+            const response = await authenticatedFetch("/api/v1/projects/import", {
+                method: "POST",
+                credentials: "include",
+                body: formData,
+            });
+
             if (response.ok) {
                 const result = await response.json();
-                
+
                 // Show warnings if any
                 if (result.warnings && result.warnings.length > 0) {
                     result.warnings.forEach((warning: string) => {
                         addNotification(warning, "info");
                     });
                 }
-                
+
                 // Refresh projects and select the newly imported one
                 await refetch();
                 const importedProject = filteredProjects.find(p => p.id === result.projectId);
                 if (importedProject) {
                     setSelectedProject(importedProject);
                 }
-                
-                addNotification(
-                    `Project imported successfully with ${result.artifactsImported} artifacts`,
-                    "success"
-                );
+
+                addNotification(`Project imported successfully with ${result.artifactsImported} artifacts`, "success");
             } else {
                 const error = await response.json();
                 const errorMessage = error.detail || "Failed to import project";
@@ -226,7 +217,16 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                 {showDetailView ? (
                     <ProjectDetailView project={selectedProject} onBack={handleBackToList} onStartNewChat={handleStartNewChat} onChatClick={handleChatClick} />
                 ) : (
-                    <ProjectCards projects={filteredProjects} searchQuery={searchQuery} onSearchChange={setSearchQuery} onProjectClick={handleProjectSelect} onCreateNew={handleCreateNew} onDelete={handleDeleteClick} onExport={handleExport} isLoading={isLoading} />
+                    <ProjectCards
+                        projects={filteredProjects}
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        onProjectClick={handleProjectSelect}
+                        onCreateNew={handleCreateNew}
+                        onDelete={handleDeleteClick}
+                        onExport={handleExport}
+                        isLoading={isLoading}
+                    />
                 )}
             </div>
 
@@ -246,11 +246,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
             />
 
             {/* Import Project Dialog */}
-            <ProjectImportDialog
-                open={showImportDialog}
-                onOpenChange={setShowImportDialog}
-                onImport={handleImport}
-            />
+            <ProjectImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
         </div>
     );
 };

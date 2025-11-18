@@ -1,16 +1,7 @@
 import React, { useState, useRef } from "react";
 import { CheckCircle, FileJson } from "lucide-react";
 
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    Button,
-    Input,
-    Label,
-} from "@/lib/components/ui";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
 import { Alert, AlertDescription } from "@/lib/components/ui/alert";
 import { MessageBanner } from "@/lib/components";
 
@@ -119,7 +110,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         if (files && files.length > 0) {
             // Simulate file input change event
             const fakeEvent = {
-                target: { files, value: "" }
+                target: { files, value: "" },
             } as React.ChangeEvent<HTMLInputElement>;
             handleFileChange(fakeEvent);
         }
@@ -195,7 +186,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                     {/* File Upload - Drag and Drop or Selected File Display */}
                     {!selectedFileName ? (
                         <div
-                            className={`flex flex-col items-center justify-center rounded-md border-2 border-dashed p-8 text-center transition-all cursor-pointer ${
+                            className={`flex cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed p-8 text-center transition-all ${
                                 isDragging ? "border-primary bg-primary/10 scale-[1.02]" : "border-muted-foreground/30"
                             }`}
                             onDragOver={handleDragOver}
@@ -204,24 +195,15 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                             onClick={handleUploadClick}
                         >
                             <FileJson className={`mb-3 h-10 w-10 transition-colors ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
-                            <p className={`mb-1 text-sm font-medium transition-colors ${isDragging ? "text-primary" : "text-foreground"}`}>
-                                {isDragging ? "Drop JSON file here" : "Drag and drop JSON file here"}
-                            </p>
+                            <p className={`mb-1 text-sm font-medium transition-colors ${isDragging ? "text-primary" : "text-foreground"}`}>{isDragging ? "Drop JSON file here" : "Drag and drop JSON file here"}</p>
                             <p className="text-muted-foreground text-xs">or click to browse</p>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleFileChange}
-                                accept=".json"
-                                disabled={isImporting}
-                                className="hidden"
-                            />
+                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" disabled={isImporting} className="hidden" />
                         </div>
                     ) : (
-                        <div className="flex items-center gap-3 rounded-md border p-4 bg-muted/30">
-                            <FileJson className="h-5 w-5 text-primary flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{selectedFileName}</p>
+                        <div className="bg-muted/30 flex items-center gap-3 rounded-md border p-4">
+                            <FileJson className="text-primary h-5 w-5 flex-shrink-0" />
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">{selectedFileName}</p>
                             </div>
                             <Button
                                 variant="ghost"
@@ -240,12 +222,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                     )}
 
                     {/* Error Display */}
-                    {error && (
-                        <MessageBanner
-                            variant="error"
-                            message={error}
-                        />
-                    )}
+                    {error && <MessageBanner variant="error" message={error} />}
 
                     {/* Preview */}
                     {importData && !error && (
@@ -255,36 +232,36 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                 <AlertDescription>File validated successfully. Review the details below:</AlertDescription>
                             </Alert>
 
-                            <div className="rounded-lg border p-4 space-y-3">
+                            <div className="space-y-3 rounded-lg border p-4">
                                 <div>
-                                    <Label className="text-xs text-muted-foreground">Name</Label>
+                                    <Label className="text-muted-foreground text-xs">Name</Label>
                                     <p className="font-medium">{importData.prompt.name}</p>
                                 </div>
 
                                 {importData.prompt.description && (
                                     <div>
-                                        <Label className="text-xs text-muted-foreground">Description</Label>
+                                        <Label className="text-muted-foreground text-xs">Description</Label>
                                         <p className="text-sm">{importData.prompt.description}</p>
                                     </div>
                                 )}
 
                                 {importData.prompt.category && (
                                     <div>
-                                        <Label className="text-xs text-muted-foreground">Category</Label>
+                                        <Label className="text-muted-foreground text-xs">Category</Label>
                                         <p className="text-sm">{importData.prompt.category}</p>
                                     </div>
                                 )}
 
                                 {importData.prompt.command && (
                                     <div>
-                                        <Label className="text-xs text-muted-foreground">Command</Label>
-                                        <p className="text-sm font-mono">/{importData.prompt.command}</p>
+                                        <Label className="text-muted-foreground text-xs">Command</Label>
+                                        <p className="font-mono text-sm">/{importData.prompt.command}</p>
                                     </div>
                                 )}
 
                                 {importData.prompt.metadata?.author_name && (
                                     <div>
-                                        <Label className="text-xs text-muted-foreground">Original Author</Label>
+                                        <Label className="text-muted-foreground text-xs">Original Author</Label>
                                         <p className="text-sm">{importData.prompt.metadata.author_name}</p>
                                     </div>
                                 )}
@@ -301,18 +278,10 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                             Chat Shortcut
                                         </Label>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-sm text-muted-foreground">/</span>
-                                            <Input
-                                                id="import-command"
-                                                value={editedCommand}
-                                                onChange={(e) => handleCommandChange(e.target.value)}
-                                                placeholder="e.g., code-review"
-                                                className="flex-1"
-                                            />
+                                            <span className="text-muted-foreground text-sm">/</span>
+                                            <Input id="import-command" value={editedCommand} onChange={e => handleCommandChange(e.target.value)} placeholder="e.g., code-review" className="flex-1" />
                                         </div>
-                                        <p className="text-xs text-muted-foreground">
-                                            You can modify the shortcut if needed. If it conflicts with an existing shortcut, a unique one will be generated automatically.
-                                        </p>
+                                        <p className="text-muted-foreground text-xs">You can modify the shortcut if needed. If it conflicts with an existing shortcut, a unique one will be generated automatically.</p>
                                     </div>
                                 )}
                             </div>
