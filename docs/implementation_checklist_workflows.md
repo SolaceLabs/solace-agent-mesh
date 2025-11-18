@@ -9,16 +9,16 @@ This document tracks the progress of the Prescriptive Workflows feature implemen
 
 ## Phase 1: Foundation & Data Structures
 
-- [ ] **Step 1: Directory Structure & Schemas**
-    - [ ] Create directory `src/solace_agent_mesh/workflow/`
-    - [ ] Create subdirectories `src/solace_agent_mesh/workflow/flow_control/` and `src/solace_agent_mesh/workflow/protocol/`
-    - [ ] Create directory `src/solace_agent_mesh/agent/sac/workflow_support/`
-    - [ ] Create JSON Schema `src/solace_agent_mesh/common/a2a_spec/schemas/workflow_node_request.json`
-    - [ ] Create JSON Schema `src/solace_agent_mesh/common/a2a_spec/schemas/workflow_node_result.json`
+- [x] **Step 1: Directory Structure & Schemas**
+    - [x] Create directory `src/solace_agent_mesh/workflow/`
+    - [x] Create subdirectories `src/solace_agent_mesh/workflow/flow_control/` and `src/solace_agent_mesh/workflow/protocol/`
+    - [x] Create directory `src/solace_agent_mesh/agent/sac/workflow_support/`
+    - [x] Create JSON Schema `src/solace_agent_mesh/common/a2a_spec/schemas/workflow_node_request.json`
+    - [x] Create JSON Schema `src/solace_agent_mesh/common/a2a_spec/schemas/workflow_node_result.json`
 
-- [ ] **Step 2: A2A Data Models**
-    - [ ] Modify `src/solace_agent_mesh/common/data_parts.py` to include `WorkflowNodeRequestData` and `WorkflowNodeResultData`
-    - [ ] Update `src/solace_agent_mesh/common/a2a/__init__.py` to export new models
+- [x] **Step 2: A2A Data Models**
+    - [x] Modify `src/solace_agent_mesh/common/data_parts.py` to include `WorkflowNodeRequestData` and `WorkflowNodeResultData`
+    - [x] Update `src/solace_agent_mesh/common/a2a/__init__.py` to export new models
 
 ## Phase 2: Workflow Configuration & Application
 

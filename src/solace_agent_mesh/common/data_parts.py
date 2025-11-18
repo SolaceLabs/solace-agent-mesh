@@ -4,7 +4,7 @@ These models correspond to the JSON schemas defined in a2a_spec/schemas/
 and are used for validating non-visible status update messages.
 """
 
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 
@@ -98,10 +98,56 @@ class ToolResultData(BaseModel):
     )
 
 
+class WorkflowNodeRequestData(BaseModel):
+    """
+    Data part sent by workflow to agent for node execution.
+    Corresponds to workflow_node_request.json schema.
+    """
+
+    type: Literal["workflow_node_request"] = Field(
+        "workflow_node_request", description="The constant type for this data part."
+    )
+    workflow_name: str = Field(..., description="Name of the workflow")
+    node_id: str = Field(..., description="ID of the workflow node")
+    input_schema: Optional[Dict[str, Any]] = Field(
+        None, description="JSON Schema for input (overrides agent card)"
+    )
+    output_schema: Optional[Dict[str, Any]] = Field(
+        None, description="JSON Schema for output (overrides agent card)"
+    )
+
+
+class WorkflowNodeResultData(BaseModel):
+    """
+    Data part returned by agent to workflow with execution result.
+    Corresponds to workflow_node_result.json schema.
+    """
+
+    type: Literal["workflow_node_result"] = Field(
+        "workflow_node_result", description="The constant type for this data part."
+    )
+    status: Literal["success", "failure"] = Field(
+        ..., description="Execution result status"
+    )
+    artifact_name: Optional[str] = Field(
+        None, description="Name of result artifact if success"
+    )
+    artifact_version: Optional[int] = Field(
+        None, description="Version of result artifact"
+    )
+    error_message: Optional[str] = Field(None, description="Error message if failure")
+    validation_errors: Optional[List[str]] = Field(
+        None, description="Schema validation errors if any"
+    )
+    retry_count: int = Field(0, description="Number of retries attempted")
+
+
 SignalData = Union[
     ToolInvocationStartData,
     LlmInvocationData,
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
     ToolResultData,
+    WorkflowNodeRequestData,
+    WorkflowNodeResultData,
 ]
