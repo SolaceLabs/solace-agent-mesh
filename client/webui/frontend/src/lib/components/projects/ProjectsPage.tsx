@@ -41,7 +41,7 @@ export const ProjectsPage: React.FC = () => {
             // Refetch projects to get artifact counts
             await refetch();
 
-            navigate(`projects/${newProject.id}`);
+            navigate(`/projects/${newProject.id}`);
         } finally {
             setIsCreating(false);
         }

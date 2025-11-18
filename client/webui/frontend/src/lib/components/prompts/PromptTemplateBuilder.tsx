@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, CardTitle } from "@/lib/components/ui";
+import React, { useState, useEffect } from "react";
 import { Sparkles, Loader2, AlertCircle, Pencil } from "lucide-react";
+
+import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, CardTitle } from "@/lib/components/ui";
 import { Header } from "@/lib/components/header";
 import { MessageBanner } from "@/lib/components/common";
-import { usePromptTemplateBuilder } from "./hooks/usePromptTemplateBuilder";
 import { useNavigationBlocker } from "@/lib/hooks";
+import type { PromptGroup } from "@/lib/types/prompts";
+
+import { usePromptTemplateBuilder } from "./hooks/usePromptTemplateBuilder";
 import { PromptBuilderChat } from "./PromptBuilderChat";
 import { TemplatePreviewPanel } from "./TemplatePreviewPanel";
-import type { PromptGroup } from "@/lib/types/prompts";
 
 interface PromptTemplateBuilderProps {
     onBack: () => void;
@@ -27,7 +29,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
 
     // For unsaved changes detection
     const [initialConfig, setInitialConfig] = useState<typeof config | null>(null);
-    const { allowNavigation, NavigationBlocker } = useNavigationBlocker();
+    const { allowNavigation, NavigationBlocker, setBlockingEnabled } = useNavigationBlocker();
 
     // Pre-populate config when editing and capture initial state
     useEffect(() => {
@@ -53,36 +55,41 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
         }
     }, [editingGroup, isEditing, updateConfig]);
 
-    // Check if there are unsaved changes
-    const hasUnsavedChanges = useMemo(() => {
-        if (!initialConfig) return false;
+    // Enable/disable navigation blocking based on unsaved changes
+    useEffect(() => {
+        if (!initialConfig) {
+            setBlockingEnabled(false);
+            return;
+        }
 
         // Check if current form has any actual content
         const hasContent = !!(config.name?.trim() || config.description?.trim() || config.category || config.command?.trim() || config.prompt_text?.trim());
 
         // If form is empty, no unsaved changes
-        if (!hasContent) return false;
+        if (!hasContent) {
+            setBlockingEnabled(false);
+            return;
+        }
 
         // Otherwise, check if values differ from initial state
-        return config.name !== initialConfig.name || config.description !== initialConfig.description || config.category !== initialConfig.category || config.command !== initialConfig.command || config.prompt_text !== initialConfig.prompt_text;
-    }, [config, initialConfig]);
+        const hasUnsavedChanges =
+            config.name !== initialConfig.name || config.description !== initialConfig.description || config.category !== initialConfig.category || config.command !== initialConfig.command || config.prompt_text !== initialConfig.prompt_text;
+
+        setBlockingEnabled(hasUnsavedChanges);
+    }, [config, initialConfig, setBlockingEnabled]);
 
     const handleClose = (skipCheck = false) => {
-        const doClose = () => {
-            resetConfig();
-            setBuilderMode("ai-assisted");
-            setIsReadyToSave(false);
-            setHighlightedFields([]);
-            setInitialConfig(null);
-            onBack();
-        };
-
-        if (hasUnsavedChanges && !skipCheck) {
+        if (skipCheck) {
             allowNavigation(() => {
-                doClose();
+                resetConfig();
+                setBuilderMode("ai-assisted");
+                setIsReadyToSave(false);
+                setHighlightedFields([]);
+                setInitialConfig(null);
+                onBack();
             });
         } else {
-            doClose();
+            onBack();
         }
     };
 
@@ -131,8 +138,6 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
     };
 
     const handleConfigUpdate = (updates: Record<string, unknown>) => {
-        console.log("PromptTemplateBuilder: Received config updates:", updates);
-
         // Filter to only fields that actually changed
         const changedFields = Object.keys(updates).filter(key => {
             const oldValue = (config as Record<string, unknown>)[key];
@@ -145,11 +150,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
             return normalizedOld !== normalizedNew;
         });
 
-        console.log("PromptTemplateBuilder: Changed fields:", changedFields);
-
         updateConfig(updates);
-        console.log("PromptTemplateBuilder: Config after update:", config);
-
         // Only show badges for fields that actually changed
         setHighlightedFields(changedFields);
     };
@@ -169,8 +170,6 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
 
     return (
         <>
-            <NavigationBlocker />
-
             <div className="flex h-full flex-col">
                 {/* Header with breadcrumbs */}
                 <Header
@@ -337,7 +336,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                         </div>
                     )}
                 </div>
-
+                <NavigationBlocker />
                 {/* Footer Actions */}
                 <div className="flex justify-end gap-2 border-t p-4">
                     <Button variant="ghost" onClick={() => handleClose()} disabled={isLoading}>

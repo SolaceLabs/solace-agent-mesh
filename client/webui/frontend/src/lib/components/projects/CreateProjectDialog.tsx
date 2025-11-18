@@ -11,19 +11,14 @@ interface CreateProjectDialogProps {
     isSubmitting?: boolean;
 }
 
-export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
-    isOpen,
-    onClose,
-    onSubmit,
-    isSubmitting = false,
-}) => {
+export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ isOpen, onClose, onSubmit, isSubmitting = false }) => {
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [error, setError] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (!name.trim()) {
             setError("Project name is required");
             return;
@@ -55,59 +50,34 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                 <form onSubmit={handleSubmit}>
                     <DialogHeader>
                         <DialogTitle>Create New Project</DialogTitle>
-                        <DialogDescription>
-                            Create a new project to organize your chats and files. You can add more details after creation.
-                        </DialogDescription>
+                        <DialogDescription>Create a new project to organize your chats and files. You can add more details after creation.</DialogDescription>
                     </DialogHeader>
-                    
+
                     <div className="space-y-4 py-4">
-                        {error && (
-                            <MessageBanner variant="error" message={error} />
-                        )}
-                        
+                        {error && <MessageBanner variant="error" message={error} />}
+
                         <div className="space-y-2">
                             <label htmlFor="project-name" className="text-sm font-medium">
                                 Project Name <span className="text-red-500">*</span>
                             </label>
-                            <Input
-                                id="project-name"
-                                value={name}
-                                onChange={e => setName(e.target.value)}
-                                disabled={isSubmitting}
-                                required
-                                maxLength={255}
-                            />
+                            <Input id="project-name" value={name} onChange={e => setName(e.target.value)} disabled={isSubmitting} required maxLength={255} />
                         </div>
-                        
+
                         <div className="space-y-2">
                             <label htmlFor="project-description" className="text-sm font-medium">
                                 Description
                             </label>
-                            <Textarea
-                                id="project-description"
-                                value={description}
-                                onChange={e => setDescription(e.target.value)}
-                                disabled={isSubmitting}
-                                rows={3}
-                                maxLength={1000}
-                            />
-                            <div className="text-xs text-muted-foreground text-right">
-                                {description.length}/1000 characters
-                            </div>
+                            <Textarea id="project-description" value={description} onChange={e => setDescription(e.target.value)} disabled={isSubmitting} rows={3} maxLength={1000} />
+                            <div className="text-muted-foreground text-right text-xs">{description.length}/1000 characters</div>
                         </div>
                     </div>
-                    
+
                     <DialogFooter>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={handleClose}
-                            disabled={isSubmitting}
-                        >
+                        <Button type="button" variant="ghost" onClick={handleClose} disabled={isSubmitting}>
                             Cancel
                         </Button>
                         <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? "Creating..." : "Create Project"}
+                            Create Project
                         </Button>
                     </DialogFooter>
                 </form>
