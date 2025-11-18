@@ -183,6 +183,7 @@ class PersonaCaller:
         workflow_context: WorkflowExecutionContext,
     ):
         """Publish A2A request to persona agent."""
+        log_id = f"{self.host.log_identifier}[PublishPersonaRequest:{persona_name}]"
 
         # Get persona request topic
         request_topic = a2a.get_agent_request_topic(self.host.namespace, persona_name)
