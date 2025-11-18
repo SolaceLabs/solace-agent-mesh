@@ -1,0 +1,74 @@
+test_case_id: "proxy_auth_oauth2_retry_001"
+description: "Tests that proxy retries with fresh token after receiving 401 from downstream agent"
+tags: ["all", "proxy", "auth", "oauth"]
+skip_intermediate_events: true
+
+# Configure OAuth mock to return two different tokens
+mock_oauth_server:
+  token_url: "https://test-oauth.example.com/token"
+  response_sequence:
+    - access_token: "expired_token_111"
+      expires_in: 3600
+    - access_token: "fresh_token_222"
+      expires_in: 3600
+
+# Configure downstream agent to reject first request, accept second
+downstream_agent_auth:
+  enabled: true
+  type: "bearer"
+  expected_value: "fresh_token_222"
+  should_fail_once: true  # First request returns 401, second succeeds
+
+# Configure proxy authentication
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  authentication:
+    type: "oauth2_client_credentials"
+    token_url: "https://test-oauth.example.com/token"
+    client_id: "test_oauth_client_id"
+    client_secret: "test_oauth_client_secret"
+    token_cache_duration_seconds: 3300
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "oauth_retry_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Test OAuth retry logic"
+  external_context:
+    a2a_session_id: "session_oauth_retry_001"
+
+downstream_a2a_agent_responses:
+  - id: "task-oauth-retry"
+    contextId: "session_oauth_retry_001"
+    kind: "task"
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Request succeeded after token refresh."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Request succeeded after token refresh."
+
+# Assert two token requests were made (initial + refresh)
+assert_oauth_token_requests:
+  - token_url: "https://test-oauth.example.com/token"
+    call_count: 2
+
+# Assert two A2A requests were made with different tokens
+assert_downstream_auth:
+  - request_index: 0
+    authorization_header:
+      exact: "Bearer expired_token_111"
+  - request_index: 1
+    authorization_header:
+      exact: "Bearer fresh_token_222"

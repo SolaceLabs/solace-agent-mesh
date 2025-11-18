@@ -19,7 +19,10 @@ from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
 from ...common.a2a.types import ArtifactInfo
 from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_file
-from ...common.constants import TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY, TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH
+from ...common.constants import (
+    TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY,
+    TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH,
+)
 from ...agent.utils.context_helpers import get_original_session_id
 
 if TYPE_CHECKING:
@@ -90,7 +93,11 @@ def ensure_correct_extension(filename_from_llm: str, desired_extension: str) -> 
 
 
 def format_artifact_uri(
-    app_name: str, user_id: str, session_id: str, filename: str, version: Union[int, str]
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    filename: str,
+    version: Union[int, str],
 ) -> str:
     """Formats the components into a standard artifact:// URI."""
     path = f"/{user_id}/{session_id}/{filename}"
@@ -383,6 +390,134 @@ async def save_artifact_with_metadata(
     }
 
 
+async def process_artifact_upload(
+    artifact_service: BaseArtifactService,
+    component: Any,
+    user_id: str,
+    session_id: str,
+    filename: str,
+    content_bytes: bytes,
+    mime_type: str,
+    metadata_json: Optional[str] = None,
+    log_prefix: str = "[ArtifactUpload]",
+) -> Dict[str, Any]:
+    """
+    Common logic for processing artifact uploads.
+
+    Handles filename validation, metadata parsing, artifact storage, and URI generation.
+
+    Args:
+        artifact_service: The artifact service instance to use for storage.
+        component: The component instance (agent or gateway) for configuration.
+        user_id: The user ID associated with the artifact.
+        session_id: The session ID associated with the artifact.
+        filename: The name of the artifact file.
+        content_bytes: The raw bytes of the artifact content.
+        mime_type: The MIME type of the artifact.
+        metadata_json: Optional JSON string containing artifact metadata.
+        log_prefix: Prefix for log messages.
+
+    Returns:
+        Dict with keys:
+            - status: "success" or "error"
+            - artifact_uri: The URI of the stored artifact (on success)
+            - version: The version number of the stored artifact (on success)
+            - message: Status message
+            - error: Error details (on error)
+    """
+    log.debug("%s Processing artifact upload for '%s'", log_prefix, filename)
+
+    # Validate filename
+    if not is_filename_safe(filename):
+        error_msg = f"Invalid filename: '{filename}'. Filename must not contain path separators or traversal sequences."
+        log.warning("%s %s", log_prefix, error_msg)
+        return {"status": "error", "message": error_msg, "error": "invalid_filename"}
+
+    # Validate content
+    if not content_bytes:
+        error_msg = "Uploaded file cannot be empty."
+        log.warning("%s %s", log_prefix, error_msg)
+        return {"status": "error", "message": error_msg, "error": "empty_file"}
+
+    # Parse metadata JSON if provided
+    metadata_dict = {}
+    if metadata_json and metadata_json.strip():
+        try:
+            metadata_dict = json.loads(metadata_json.strip())
+            if not isinstance(metadata_dict, dict):
+                log.warning(
+                    "%s Metadata JSON did not parse to a dictionary. Ignoring.",
+                    log_prefix,
+                )
+                metadata_dict = {}
+        except json.JSONDecodeError as json_err:
+            log.warning(
+                "%s Failed to parse metadata_json: %s. Proceeding without it.",
+                log_prefix,
+                json_err,
+            )
+            metadata_dict = {}
+
+    # Get app_name from component configuration
+    app_name = component.get_config("name", "A2A_WebUI_App")
+    current_timestamp = datetime.now(timezone.utc)
+
+    # Save artifact with metadata
+    try:
+        save_result = await save_artifact_with_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=filename,
+            content_bytes=content_bytes,
+            mime_type=mime_type,
+            metadata_dict=metadata_dict,
+            timestamp=current_timestamp,
+            schema_max_keys=component.get_config(
+                "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
+            ),
+        )
+
+        if save_result["status"] == "success":
+            saved_version = save_result.get("data_version")
+            artifact_uri = format_artifact_uri(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                version=saved_version,
+            )
+
+            log.info(
+                "%s Artifact '%s' uploaded successfully. URI: %s, Version: %s",
+                log_prefix,
+                filename,
+                artifact_uri,
+                saved_version,
+            )
+
+            return {
+                "status": "success",
+                "artifact_uri": artifact_uri,
+                "version": saved_version,
+                "message": save_result.get(
+                    "message", "Artifact uploaded successfully."
+                ),
+                "data_version": saved_version,
+                "metadata_version": save_result.get("metadata_version"),
+            }
+        else:
+            error_msg = save_result.get("message", "Failed to save artifact.")
+            log.error("%s %s", log_prefix, error_msg)
+            return {"status": "error", "message": error_msg, "error": "save_failed"}
+
+    except Exception as e:
+        error_msg = f"Unexpected error storing artifact: {str(e)}"
+        log.exception("%s %s", log_prefix, error_msg)
+        return {"status": "error", "message": error_msg, "error": "unexpected_error"}
+
+
 def format_metadata_for_llm(metadata: Dict[str, Any]) -> str:
     """Formats loaded metadata into an LLM-friendly text block."""
     lines = []
@@ -661,6 +796,51 @@ async def get_latest_artifact_version(
         return None
 
 
+async def get_artifact_counts_batch(
+    artifact_service: BaseArtifactService,
+    app_name: str,
+    user_id: str,
+    session_ids: List[str],
+) -> Dict[str, int]:
+    """
+    Get artifact counts for multiple sessions in a batch operation.
+    
+    Args:
+        artifact_service: The artifact service instance.
+        app_name: The application name.
+        user_id: The user ID.
+        session_ids: List of session IDs to get counts for.
+    
+    Returns:
+        Dict mapping session_id to artifact_count (excluding metadata files)
+    """
+    log_prefix = f"[ArtifactHelper:get_counts_batch] App={app_name}, User={user_id} -"
+    counts: Dict[str, int] = {}
+    
+    try:
+        list_keys_method = getattr(artifact_service, "list_artifact_keys")
+        
+        for session_id in session_ids:
+            try:
+                keys = await list_keys_method(
+                    app_name=app_name, user_id=user_id, session_id=session_id
+                )
+                # Count only non-metadata files
+                count = sum(1 for key in keys if not key.endswith(METADATA_SUFFIX))
+                counts[session_id] = count
+                log.debug("%s Session %s has %d artifacts", log_prefix, session_id, count)
+            except Exception as e:
+                log.warning("%s Failed to get count for session %s: %s", log_prefix, session_id, e)
+                counts[session_id] = 0
+                
+    except Exception as e:
+        log.exception("%s Error in batch count operation: %s", log_prefix, e)
+        # Return 0 for all sessions on error
+        return {session_id: 0 for session_id in session_ids}
+    
+    return counts
+
+
 async def get_artifact_info_list(
     artifact_service: BaseArtifactService,
     app_name: str,
@@ -687,7 +867,7 @@ async def get_artifact_info_list(
         keys = await list_keys_method(
             app_name=app_name, user_id=user_id, session_id=session_id
         )
-        log.info(
+        log.debug(
             "%s Found %d artifact keys. Fetching details...", log_prefix, len(keys)
         )
 
@@ -747,6 +927,9 @@ async def get_artifact_info_list(
                     else None
                 )
 
+                # Extract source from metadata
+                source = metadata.get("source")
+                
                 artifact_info_list.append(
                     ArtifactInfo(
                         filename=filename,
@@ -757,6 +940,7 @@ async def get_artifact_info_list(
                         description=description,
                         version=loaded_version_num,
                         version_count=version_count,
+                        source=source,
                     )
                 )
                 log.debug(
@@ -804,6 +988,7 @@ async def load_artifact_content_or_metadata(
     load_metadata_only: bool = False,
     return_raw_bytes: bool = False,
     max_content_length: Optional[int] = None,
+    include_line_numbers: bool = False,
     component: Optional[Any] = None,
     log_identifier_prefix: str = "[ArtifactHelper:load]",
     encoding: str = "utf-8",
@@ -990,25 +1175,49 @@ async def load_artifact_content_or_metadata(
                 if is_text:
                     try:
                         content_str = data_bytes.decode(encoding, errors=error_handling)
+                        original_content_str = content_str  # Save for line count calculation
+
+                        # Add line numbers if requested (before truncation)
+                        if include_line_numbers:
+                            lines = content_str.split('\n')
+                            numbered_lines = [f"{i+1}\t{line}" for i, line in enumerate(lines)]
+                            content_str = '\n'.join(numbered_lines)
+                            log.debug(
+                                "%s Added line numbers to %d lines.",
+                                log_identifier,
+                                len(lines)
+                            )
+
                         message_to_llm = ""
                         if len(content_str) > max_content_length:
                             truncated_content = content_str[:max_content_length] + "..."
 
-                            if max_content_length < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY:
-                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
+                            # Calculate line range if line numbers are included
+                            line_range_msg = ""
+                            if include_line_numbers:
+                                visible_line_count = truncated_content.count('\n') + 1
+                                total_line_count = original_content_str.count('\n') + 1
+                                line_range_msg = f" Lines 1-{visible_line_count} of {total_line_count} total."
+
+                            if (
+                                max_content_length
+                                < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
+                            ):
+                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters.{line_range_msg}
                                                 The artifact is larger ({len(content_str)} characters).
                                                 Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact."""
                             else:
-                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
+                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters.{line_range_msg}
                                                 The artifact content met the maximum allowed size of {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} characters.
                                                 Please continue with this truncated content as the full artifact cannot be provided."""
                             log.info(
-                                "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).",
+                                "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).%s",
                                 log_identifier,
                                 filename,
                                 version_to_load,
                                 len(truncated_content),
                                 max_content_length,
+                                line_range_msg,
                             )
                         else:
                             truncated_content = content_str

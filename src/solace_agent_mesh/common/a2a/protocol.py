@@ -5,7 +5,7 @@ parsing of JSON-RPC requests and responses.
 import logging
 import re
 import uuid
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 from a2a.types import (
     A2ARequest,
@@ -188,6 +188,11 @@ def get_sam_events_topic(namespace: str, category: str, action: str) -> str:
     return f"{namespace.rstrip('/')}/sam/events/{category}/{action}"
 
 
+def get_feedback_topic(namespace: str) -> str:
+    """Returns the topic for publishing user feedback events."""
+    return f"{namespace.rstrip('/')}/sam/v1/feedback/submit"
+
+
 def get_sam_events_subscription_topic(namespace: str, category: str) -> str:
     """Returns SAM system events subscription topic."""
     if not namespace:
@@ -195,6 +200,84 @@ def get_sam_events_subscription_topic(namespace: str, category: str) -> str:
     if not category:
         raise ValueError("Category cannot be empty.")
     return f"{namespace.rstrip('/')}/sam/events/{category}/>"
+
+
+def get_trust_card_topic(namespace: str, component_type: str, component_id: str) -> str:
+    """
+    Returns the topic for publishing a Trust Card.
+
+    IMPORTANT: The component_id parameter MUST be the exact broker client-username
+    that the component uses to authenticate with the Solace broker. This is critical
+    for trust verification - trust cards are validated against the actual broker
+    authentication identity.
+
+    Args:
+        namespace: SAM namespace
+        component_type: Type of component ("gateway", "agent", etc.)
+        component_id: MUST be the broker client-username (from broker_username config).
+                     DO NOT use arbitrary IDs like agent_name or gateway_id unless they
+                     match the broker_username exactly.
+
+    Returns:
+        Topic string: {namespace}/a2a/v1/trust/{component_type}/{component_id}
+
+    Raises:
+        ValueError: If any parameter is empty
+
+    Security Note:
+        Trust card verification relies on matching the topic component_id with the
+        authenticated broker client-username. Using a different value breaks the
+        security model and trust chain verification.
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not component_type:
+        raise ValueError("Component type cannot be empty.")
+    if not component_id:
+        raise ValueError("Component ID cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/trust/{component_type}/{component_id}"
+
+
+def get_trust_card_subscription_topic(namespace: str, component_type: Optional[str] = None) -> str:
+    """
+    Returns subscription pattern for Trust Cards.
+    
+    Args:
+        namespace: SAM namespace
+        component_type: Optional - subscribe to specific type, or None for all types
+    
+    Returns:
+        Subscription pattern
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    
+    if component_type:
+        return f"{get_a2a_base_topic(namespace)}/trust/{component_type}/*"
+    else:
+        return f"{get_a2a_base_topic(namespace)}/trust/*/*"
+
+
+def extract_trust_card_info_from_topic(topic: str) -> tuple[str, str]:
+    """
+    Extracts component type and ID from trust card topic.
+    
+    Args:
+        topic: Trust card topic
+    
+    Returns:
+        Tuple of (component_type, component_id)
+    
+    Raises:
+        ValueError: If topic format is invalid
+    """
+    parts = topic.split('/')
+    if len(parts) < 6 or parts[1] != 'a2a' or parts[2] != 'v1' or parts[3] != 'trust':
+        raise ValueError(f"Invalid trust card topic format: {topic}")
+    
+    component_type = parts[4]
+    component_id = parts[5]
+    return component_type, component_id
 
 
 def subscription_to_regex(subscription: str) -> str:
@@ -532,3 +615,75 @@ def extract_task_id_from_topic(
         subscription_pattern,
     )
     return None
+
+
+# --- Client Event Helpers ---
+
+
+def is_client_event(obj: Any) -> bool:
+    """
+    Checks if an object is a ClientEvent tuple (Task, UpdateEvent).
+
+    A ClientEvent is a tuple with 2 elements where the first element is a Task
+    and the second is either a TaskStatusUpdateEvent, TaskArtifactUpdateEvent, or None.
+
+    Args:
+        obj: The object to check.
+
+    Returns:
+        True if the object is a ClientEvent tuple, False otherwise.
+    """
+    if not isinstance(obj, tuple) or len(obj) != 2:
+        return False
+    
+    task, update_event = obj
+    
+    # First element must be a Task
+    if not isinstance(task, Task):
+        return False
+    
+    # Second element must be an update event or None
+    if update_event is not None and not isinstance(
+        update_event, (TaskStatusUpdateEvent, TaskArtifactUpdateEvent)
+    ):
+        return False
+    
+    return True
+
+
+def is_message_object(obj: Any) -> bool:
+    """
+    Checks if an object is a Message.
+
+    Args:
+        obj: The object to check.
+
+    Returns:
+        True if the object is a Message, False otherwise.
+    """
+    return isinstance(obj, Message)
+
+
+def unpack_client_event(
+    event: tuple,
+) -> Tuple[Task, Optional[Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent]]]:
+    """
+    Safely unpacks a ClientEvent tuple into its components.
+
+    Args:
+        event: A ClientEvent tuple (Task, UpdateEvent).
+
+    Returns:
+        A tuple of (Task, Optional[UpdateEvent]) where UpdateEvent can be
+        TaskStatusUpdateEvent, TaskArtifactUpdateEvent, or None.
+
+    Raises:
+        ValueError: If the event is not a valid ClientEvent tuple.
+    """
+    if not is_client_event(event):
+        raise ValueError(
+            f"Expected a ClientEvent tuple, got {type(event).__name__}"
+        )
+    
+    task, update_event = event
+    return task, update_event

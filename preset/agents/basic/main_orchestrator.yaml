@@ -38,7 +38,7 @@ apps:
       inject_response_format: true
       inject_user_profile: true
       session_service:
-        type: "${PERSISTENCE_TYPE, memory}"
+        type: "${PERSISTENCE_TYPE, sql}"
         database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite:///orchestrator-agent.db}"
         default_behavior: "PERSISTENT"
       artifact_service: *default_artifact_service
@@ -56,7 +56,19 @@ apps:
         description: "The Orchestrator component. It manages tasks and coordinates multi-agent workflows."
         defaultInputModes: [text]
         defaultOutputModes: [text, file]
-        skills: [] 
+        skills:
+        - id: strategic_planning
+          name: Strategic Planning
+          description: Analyzes complex requests and creates structured execution plans, breaking down multi-step goals into logical sequences with clear checkpoints and progress tracking.
+
+        - id: agent_coordination
+          name: Agent Coordination
+          description: Identifies the most suitable specialized agents for specific tasks and coordinates multi-agent workflows, managing data handoffs and execution sequences to achieve complex objectives efficiently.
+
+        - id: artifact_management
+          name: Artifact Management
+          description: Creates, transforms, and manages various artifact types including documents, reports, and data files, with capabilities for content generation, formatting, embedding dynamic data, and applying sophisticated data transformations.
+
 
       agent_card_publishing: 
         interval_seconds: 10

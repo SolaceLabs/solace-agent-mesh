@@ -106,6 +106,7 @@ Additional gateway types are available through the plugin ecosystem:
 
 - **Event Mesh Gateway**: External event mesh connectivity with message transformation
 - **Slack Gateway**: Slack bot integration for team collaboration
+- **Microsoft Teams Gateway** *(Enterprise)*: Teams bot integration with Azure AD authentication, file sharing, and real-time streaming responses (Docker deployment only)
 - **Custom Gateways**: Create your own gateway implementations
 
 For more information about plugins and how to configure them, see [Plugins](./plugins.md).
@@ -129,7 +130,7 @@ To create a gateway from scratch, you need to use the CLI `add gateway` command 
 sam add gateway my-interface
 ```
 
-To learn more about creating your own gateway, see [Create Custom Gateways](../developing/create-gateways.md).
+To learn more about creating your own gateway, see [Creating Custom Gateways](../developing/create-gateways.md).
 
 :::tip[Share and Reuse]
 If you would like to share your custom gateway with the community or re-use it within other projects, you can create a plugin for it. For more information, see [Create Plugins](./plugins.md#create-a-plugin).

@@ -5,7 +5,8 @@ import { formatBytes } from "@/lib/utils/format";
 /**
  * Checks if a filename indicates a text file.
  * @param fileName The name of the file.
- * @returns True if the file extension is .text or .txt (case-insensitive).
+ * @param mimeType The MIME type of the file.
+ * @returns True if the file is a text-based file (case-insensitive).
  */
 function isTextFile(fileName?: string, mimeType?: string): boolean {
     if (mimeType) {
@@ -15,7 +16,54 @@ function isTextFile(fileName?: string, mimeType?: string): boolean {
         }
     }
     if (!fileName) return false;
-    return fileName.toLowerCase().endsWith(".txt") || fileName.toLowerCase().endsWith(".text");
+
+    const lowerFileName = fileName.toLowerCase();
+
+    // Basic text files
+    if (lowerFileName.endsWith(".txt") || lowerFileName.endsWith(".text")) return true;
+
+    // Database/Query
+    if (lowerFileName.endsWith(".sql")) return true;
+
+    // Markup/Data
+    if (lowerFileName.endsWith(".xml")) return true;
+    if (lowerFileName.endsWith(".toml")) return true;
+    if (lowerFileName.endsWith(".ini")) return true;
+    if (lowerFileName.endsWith(".conf") || lowerFileName.endsWith(".config")) return true;
+    if (lowerFileName.endsWith(".properties")) return true;
+
+    // Programming Languages
+    if (lowerFileName.endsWith(".py")) return true;
+    if (lowerFileName.endsWith(".js") || lowerFileName.endsWith(".ts") || lowerFileName.endsWith(".jsx") || lowerFileName.endsWith(".tsx")) return true;
+    if (lowerFileName.endsWith(".java")) return true;
+    if (lowerFileName.endsWith(".c") || lowerFileName.endsWith(".cpp") || lowerFileName.endsWith(".h") || lowerFileName.endsWith(".hpp")) return true;
+    if (lowerFileName.endsWith(".cs")) return true;
+    if (lowerFileName.endsWith(".go")) return true;
+    if (lowerFileName.endsWith(".rs")) return true;
+    if (lowerFileName.endsWith(".rb")) return true;
+    if (lowerFileName.endsWith(".php")) return true;
+    if (lowerFileName.endsWith(".swift")) return true;
+    if (lowerFileName.endsWith(".kt")) return true;
+    if (lowerFileName.endsWith(".scala")) return true;
+
+    // Shell/Scripts
+    if (lowerFileName.endsWith(".sh")) return true;
+    if (lowerFileName.endsWith(".bash")) return true;
+    if (lowerFileName.endsWith(".zsh")) return true;
+    if (lowerFileName.endsWith(".bat") || lowerFileName.endsWith(".cmd")) return true;
+    if (lowerFileName.endsWith(".ps1")) return true;
+
+    // Web
+    if (lowerFileName.endsWith(".css")) return true;
+    if (lowerFileName.endsWith(".scss") || lowerFileName.endsWith(".sass") || lowerFileName.endsWith(".less")) return true;
+
+    // Documentation/Text
+    if (lowerFileName.endsWith(".log")) return true;
+    if (lowerFileName.endsWith(".env")) return true;
+    if (lowerFileName.endsWith(".gitignore") || lowerFileName.endsWith(".dockerignore")) return true;
+    if (lowerFileName.endsWith(".editorconfig")) return true;
+
+    return false;
 }
 
 /**
@@ -256,6 +304,14 @@ export const getFileContent = (file: FileAttachment | null) => {
         return file.content;
     }
 
+    // Check if content is already plain text (from streaming)
+    // @ts-expect-error - Custom property added during streaming
+    if (file.isPlainText) {
+        console.log("Content is plain text from streaming, returning as-is");
+        return file.content;
+    }
+
+    // Otherwise, decode as base64 (from backend API)
     try {
         return decodeBase64Content(file.content);
     } catch (e) {

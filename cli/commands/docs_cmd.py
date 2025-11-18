@@ -54,4 +54,7 @@ def docs(port: int):
         url = f"http://localhost:{port}/solace-agent-mesh/docs/documentation/getting-started/introduction/"
         click.echo(f"Starting documentation server on {url}")
         webbrowser.open_new_tab(url)
-        httpd.serve_forever()
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            click.echo("\nShutting down documentation server...")

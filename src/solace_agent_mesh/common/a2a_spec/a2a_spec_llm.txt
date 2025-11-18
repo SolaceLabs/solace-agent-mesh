@@ -7,6 +7,7 @@ The `a2a_spec` directory contains the complete Agent-to-Agent (A2A) communicatio
 - **Direct files:**
   - `a2a.json` - Complete JSON Schema specification for A2A protocol including all data types, requests, responses, and error definitions
   - `a2a_spec_llm.txt` - Developer guide documentation for the A2A specification
+  - `a2a_spec_llm_detail.txt` - Concatenated detailed documentation from all subdirectories
 - **Subdirectories:**
   - `schemas/` - JSON Schema definitions for agent communication signals (progress updates, tool invocations, LLM calls, artifact creation)
 
@@ -62,6 +63,10 @@ Task {
 **Purpose:** Developer documentation and usage guide for the A2A specification
 **Import:** Documentation file for reference
 
+#### a2a_spec_llm_detail.txt
+**Purpose:** Comprehensive documentation combining all subdirectory guides
+**Import:** Documentation file for reference
+
 ### Subdirectory APIs
 
 #### schemas/
@@ -79,10 +84,10 @@ with open('solace_agent_mesh/common/a2a_spec/schemas/agent_progress_update.json'
 
 **Available Schemas:**
 - `agent_progress_update.json` - General progress status messages
-- `artifact_creation_progress.json` - File/artifact creation tracking with chunked data
-- `llm_invocation.json` - LLM model invocation signals
+- `artifact_creation_progress.json` - File/artifact creation tracking with chunked data and status
+- `llm_invocation.json` - LLM model invocation signals with usage tracking
 - `tool_invocation_start.json` - Tool execution start notifications
-- `tool_result.json` - Tool execution completion results
+- `tool_result.json` - Tool execution completion results with optional LLM usage
 
 ## Complete Usage Guide
 
@@ -215,21 +220,33 @@ agent_card = {
 validate_agent_card(agent_card)
 ```
 
-### 5. Artifact Creation Progress Tracking
+### 5. Enhanced Artifact Creation Progress Tracking
 
 ```python
 # Load artifact creation schema
 with open('solace_agent_mesh/common/a2a_spec/schemas/artifact_creation_progress.json') as f:
     artifact_schema = json.load(f)
 
-# Track artifact creation with chunked data
+# Track artifact creation in progress with chunked data
 artifact_progress = {
     "type": "artifact_creation_progress",
     "filename": "report.pdf",
-    "bytes_saved": 1024,
+    "description": "Monthly sales report",
+    "status": "in-progress",
+    "bytes_transferred": 1024,
     "artifact_chunk": "JVBERi0xLjQKJcOkw7zDtsO..."  # Base64 encoded chunk
 }
 validate(instance=artifact_progress, schema=artifact_schema)
+
+# Track artifact completion
+artifact_completed = {
+    "type": "artifact_creation_progress",
+    "filename": "report.pdf",
+    "status": "completed",
+    "bytes_transferred": 5120,
+    "mime_type": "application/pdf"
+}
+validate(instance=artifact_completed, schema=artifact_schema)
 ```
 
 ### 6. LLM Invocation Tracking
@@ -239,13 +256,19 @@ validate(instance=artifact_progress, schema=artifact_schema)
 with open('solace_agent_mesh/common/a2a_spec/schemas/llm_invocation.json') as f:
     llm_schema = json.load(f)
 
-# Track LLM calls
+# Track LLM calls with usage information
 llm_invocation = {
     "type": "llm_invocation",
     "request": {
         "model": "gpt-4",
         "messages": [{"role": "user", "content": "Analyze this data"}],
         "temperature": 0.7
+    },
+    "usage": {
+        "input_tokens": 150,
+        "output_tokens": 75,
+        "cached_input_tokens": 50,
+        "model": "gpt-4"
     }
 }
 validate(instance=llm_invocation, schema=llm_schema)
@@ -296,14 +319,16 @@ def track_tool_invocation(tool_name, args, call_id):
     validate(instance=invocation, schema=tool_schema)
     return invocation
 
-# 4. Track tool results
-def track_tool_result(tool_name, result_data, call_id):
+# 4. Track tool results with LLM usage
+def track_tool_result(tool_name, result_data, call_id, llm_usage=None):
     result = {
         "type": "tool_result",
         "tool_name": tool_name,
         "result_data": result_data,
         "function_call_id": call_id
     }
+    if llm_usage:
+        result["llm_usage"] = llm_usage
     validate(instance=result, schema=result_schema)
     return result
 ```
@@ -402,6 +427,19 @@ error_response = {
 validator.validate_definition(error_response, 'JSONRPCErrorResponse')
 ```
 
-This comprehensive guide shows how to use both the main A2A specification and the specialized signal schemas together to build compliant agent-to-agent communication systems in the Solace Agent Mesh, including progress tracking, tool invocation monitoring, LLM call tracking, and artifact creation progress.
+### 10. Working with Different Transport Protocols
 
-# content_hash: 70d5dd9030447ae14b684049b5e111c72606e637df99d917420a25ac1f718bae
+```python
+# Create agent card with multiple transport interfaces
+agent_card_multi_transport = {
+    "name": "Multi-Transport Agent",
+    "description": "Agent supporting multiple transport protocols",
+    "url": "https://api.example.com/jsonrpc",
+    "preferredTransport": "JSONRPC",
+    "additionalInterfaces": [
+        {
+            "url": "https://api.example.com/jsonrpc",
+            "transport": "JSONRPC"
+        },
+
+# content_hash: b8b4bc87e9300c50f2500efdd840bb765e107bfbc1de283800934528e8092614

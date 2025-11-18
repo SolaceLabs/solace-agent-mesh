@@ -71,10 +71,26 @@ class ArtifactCreationProgressData(BaseModel):
         description="The constant type for this data part.",
     )
     filename: str = Field(..., description="The name of the artifact being created.")
-    bytes_saved: int = Field(..., description="The number of bytes saved so far.")
-    artifact_chunk: str = Field(
-        ...,
-        description="The chunk of artifact data that was saved in this progress update.",
+    status: Literal["in-progress", "completed", "failed"] = Field(
+        ..., description="The status of the artifact creation."
+    )
+    bytes_transferred: int = Field(
+        ..., description="The number of bytes transferred so far."
+    )
+    description: Optional[str] = Field(
+        None, description="An optional description of the artifact being created."
+    )
+    artifact_chunk: Optional[str] = Field(
+        None,
+        description="The chunk of artifact data that was transferred in this progress update. Only present for 'in-progress' status.",
+    )
+    mime_type: Optional[str] = Field(
+        None,
+        description="The MIME type of the artifact. Only present for 'completed' status.",
+    )
+    version: Optional[int] = Field(
+        None,
+        description="The version number of the artifact being created or updated.",
     )
 
 
@@ -96,6 +112,30 @@ class ToolResultData(BaseModel):
         None,
         description="Token usage if this tool made LLM calls (input_tokens, output_tokens, cached_input_tokens, model)",
     )
+
+
+class TemplateBlockData(BaseModel):
+    """
+    Data model for a buffered inline template block ready for resolution.
+    Corresponds to template_block.json schema.
+    """
+
+    type: Literal["template_block"] = Field(
+        "template_block", description="The constant type for this data part."
+    )
+    template_id: str = Field(
+        ..., description="UUID for tracking this specific template instance."
+    )
+    data_artifact: str = Field(
+        ..., description="Data artifact filename or filename:version."
+    )
+    jsonpath: Optional[str] = Field(
+        None, description="Optional JSONPath expression to filter data."
+    )
+    limit: Optional[int] = Field(
+        None, description="Optional limit on number of items/rows to pass to template."
+    )
+    template_content: str = Field(..., description="The full Liquid template content.")
 
 
 class WorkflowNodeRequestData(BaseModel):
@@ -148,6 +188,7 @@ SignalData = Union[
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
     ToolResultData,
+    TemplateBlockData,
     WorkflowNodeRequestData,
     WorkflowNodeResultData,
 ]

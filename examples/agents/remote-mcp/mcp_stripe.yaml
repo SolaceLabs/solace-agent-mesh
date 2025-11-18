@@ -1,0 +1,933 @@
+# Agent Configuration File: A2A ADK Agents Configurations
+#
+# This file has the configuration for the A2A ADK agents.
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: a2a_stripe_sse.log
+
+# Shared SAM config
+!include shared_config.yaml
+
+apps:
+# --- Stripe MCP Agent ---
+  - name: stripe_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+  
+    # --- App Level Config ---
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "StripeAgent"
+      model: *general_model
+      instruction: |
+        An agent that handles stripe operations. Use the tools to interact with stripe. Don't make up information.
+        If you don't know the answer, just say that you don't know. Do not try to make up an answer.
+        Do NOT use parallel tool calls.
+      
+      # --- Tools Definition (including MCP) ---
+      tools:
+        - tool_type: mcp
+          connection_params:
+            type: streamable-http
+            url: "https://mcp.stripe.com/"
+          auth:
+            type: oauth2
+          manifest:
+            - name: search_stripe_documentation
+              description: |
+                Search the Stripe documentation for the given question and language.
+
+                It takes two arguments:
+                - question (str): The user question to search an answer for in the Stripe documentation.
+                - language (str, optional): The programming language to search for in the the documentation.
+              inputSchema:
+                type: object
+                properties:
+                  question:
+                    type: string
+                    description: The user question about integrating with Stripe will be used to search the documentation.
+                  language:
+                    type: string
+                    description: The programming language to search for in the the documentation.
+                    enum:
+                      - dotnet
+                      - go
+                      - java
+                      - node
+                      - php
+                      - ruby
+                      - python
+                      - curl
+                  search_only_api_ref:
+                    type: boolean
+                    description: When set to true, search only in the Stripe API reference documentation instead of the full documentation set. Use true when users need specific API implementation details, code examples, or parameter references. Use false (default) for conceptual explanations, best practices, integration guides, or troubleshooting help.
+                required:
+                  - question
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: Search Stripe documentation
+            - name: get_stripe_account_info
+              description: |
+                This will get the account info for the logged in Stripe account.
+              inputSchema:
+                type: object
+                properties: {}
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: Get Stripe account information
+            - name: create_customer
+              description: |
+                This tool will create a customer in Stripe.
+
+                It takes two arguments:
+                - name (str): The name of the customer.
+                - email (str, optional): The email of the customer.
+              inputSchema:
+                type: object
+                properties:
+                  name:
+                    description: The name of the customer
+                    type: string
+                  email:
+                    description: The email of the customer
+                    format: email
+                    type: string
+                required:
+                  - name
+              annotations:
+                destructiveHint: false
+                idempotentHint: false
+                openWorldHint: true
+                readOnlyHint: false
+                title: Create customer
+            - name: list_customers
+              description: |
+                This tool will fetch a list of Customers from Stripe.
+
+                It takes two arguments:
+                - limit (int, optional): The number of customers to return.
+                - email (str, optional): A case-sensitive filter on the list based on the customer's email field.
+              inputSchema:
+                type: object
+                properties:
+                  limit:
+                    description: A limit on the number of objects to be returned. Limit can range between 1 and 100.
+                    minimum: 1
+                    maximum: 100
+                    type: integer
+                  email:
+                    description: A case-sensitive filter on the list based on the customer's email field. The value must be a string.
+                    type: string
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: List customers
+            - name: create_product
+              description: |
+                This tool will create a product in Stripe.
+
+                It takes two arguments:
+                - name (str): The name of the product.
+                - description (str, optional): The description of the product.
+              inputSchema:
+                type: object
+                properties:
+                  name:
+                    description: The name of the product.
+                    type: string
+                  description:
+                    description: The description of the product.
+                    type: string
+                required:
+                  - name
+              annotations:
+                destructiveHint: false
+                idempotentHint: false
+                openWorldHint: true
+                readOnlyHint: false
+                title: Create product
+            - name: list_products
+              description: |
+                This tool will fetch a list of Products from Stripe.
+
+                It takes one optional argument:
+                - limit (int, optional): The number of products to return.
+              inputSchema:
+                type: object
+                properties:
+                  limit:
+                    description: A limit on the number of objects to be returned. Limit can range between 1 and 100, and the default is 10.
+                    minimum: 1
+                    maximum: 100
+                    type: integer
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: List products
+            - name: create_price
+              description: |
+                This tool will create a price in Stripe. If a product has not already been specified, a product should be created first.
+
+                It takes three arguments:
+                - product (str): The ID of the product to create the price for.
+                - unit_amount (int): The unit amount of the price in currency minor units, e.g. cents for USD and yen for JPY.
+                - currency (str): The currency of the price.
+              inputSchema:
+                type: object
+                properties:
+                  product:
+                    description: The ID of the product to create the price for.
+                    type: string
+                  unit_amount:
+                    description: The unit amount of the price in cents.
+                    type: number
+                  currency:
+                    description: The currency of the price.
+                    type: string
+                  recurring:
+                    description: The recurring components of a price such as its interval.
+                    type: object
+                    properties:
+                      interval:
+                        description: Specifies billing frequency. Either day, week, month or year.
+                        enum:
+                          - day
+                          - month
+                          - week
+                          - year
+                        type: string
+                      interval_count:
+                        description: The number of intervals between subscription billings. For example, interval=month and interval_count=3 bills every 3 months. Maximum of three years interval allowed (3 years, 36 months, or 156 weeks).
+                        type: integer
+                    additionalProperties: false
+                    required:
+                      - interval
+                required:
+                  - currency
+                  - product
+                  - unit_amount
+              annotations:
+                destructiveHint: false
+                idempotentHint: false
+                openWorldHint: true
+                readOnlyHint: false
+                title: Create price
+            - name: list_prices
+              description: |
+                This tool will fetch a list of Prices from Stripe.
+
+                It takes two arguments.
+                - product (str, optional): The ID of the product to list prices for.
+                - limit (int, optional): The number of prices to return.
+
+                Note that the price unit_amount returned is in currency minor units, e.g. cents for USD and yen for JPY.
+              inputSchema:
+                type: object
+                properties:
+                  product:
+                    description: The ID of the product to list prices for.
+                    type: string
+                  limit:
+                    description: A limit on the number of objects to be returned. Limit can range between 1 and 100, and the default is 10.
+                    minimum: 1
+                    maximum: 100
+                    type: integer
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: List prices
+            - name: create_payment_link
+              description: |
+                This tool will create a payment link in Stripe.
+
+                It takes two arguments:
+                - price (str): The ID of the price to create the payment link for.
+                - quantity (int): The quantity of the product to include in the payment link.
+              inputSchema:
+                type: object
+                properties:
+                  price:
+                    description: The ID of the price to create the payment link for.
+                    type: string
+                  quantity:
+                    description: The quantity of the product to include.
+                    type: number
+                required:
+                  - price
+                  - quantity
+              annotations:
+                destructiveHint: false
+                idempotentHint: false
+                openWorldHint: true
+                readOnlyHint: false
+                title: Create payment link
+            - name: create_invoice
+              description: |2
+                  This tool will create an invoice in Stripe.
+
+                  It takes two arguments:
+                  - customer (str): The ID of the customer to create the invoice for.
+
+                  - days_until_due (int, optional): The number of days until the invoice is due.
+              inputSchema:
+                type: object
+                properties:
+                  customer:
+                    description: The ID of the customer to create the invoice for.
+                    type: string
+                  days_until_due:
+                    description: The number of days until the invoice is due.
+                    type: number
+                required:
+                  - customer
+              annotations:
+                destructiveHint: false
+                idempotentHint: false
+                openWorldHint: true
+                readOnlyHint: false
+                title: Create invoice
+            - name: list_invoices
+              description: |
+                This tool will fetch a list of Invoices from Stripe.
+
+                It takes two arguments:
+                - customer (str, optional): The ID of the customer to list invoices for.
+
+                - limit (int, optional): The number of invoices to return.
+              inputSchema:
+                type: object
+                properties:
+                  customer:
+                    description: The ID of the customer to list invoices for.
+                    type: string
+                  limit:
+                    description: A limit on the number of objects to be returned. Limit can range between 1 and 100, and the default is 10.
+                    minimum: 1
+                    maximum: 100
+                    type: integer
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: List invoices
+            - name: create_invoice_item
+              description: |
+                This tool will create an invoice item in Stripe.
+
+                It takes three arguments:
+                - customer (str): The ID of the customer to create the invoice item for.
+                - price (str): The ID of the price to create the invoice item for.
+                - invoice (str): The ID of the invoice to create the invoice item for.
+              inputSchema:
+                type: object
+                properties:
+                  customer:
+                    description: The ID of the customer to create the invoice item for.
+                    type: string
+                  price:
+                    description: The ID of the price for the item.
+                    type: string
+                  invoice:
+                    description: The ID of the invoice to create the item for.
+                    type: string
+                required:
+                  - customer
+                  - invoice
+                  - price
+              annotations:
+                destructiveHint: false
+                idempotentHint: false
+                openWorldHint: true
+                readOnlyHint: false
+                title: Create invoice item
+            - name: finalize_invoice
+              description: |
+                This tool will finalize an invoice in Stripe.
+
+                It takes one argument:
+                - invoice (str): The ID of the invoice to finalize.
+              inputSchema:
+                type: object
+                properties:
+                  invoice:
+                    description: The ID of the invoice to finalize.
+                    type: string
+                required:
+                  - invoice
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: false
+                title: Finalize invoice
+            - name: retrieve_balance
+              description: |
+                This tool will retrieve the balance from Stripe. It takes no input.
+              inputSchema:
+                type: object
+                properties: {}
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: Retrieve balance
+            - name: create_refund
+              description: |
+                This tool will refund a payment intent in Stripe.
+
+                It takes three arguments:
+                - payment_intent (str): The ID of the payment intent to refund.
+                - amount (int, optional): The amount to refund in currency minor units, e.g. cents for USD and yen for JPY.
+                - reason (str, optional): The reason for the refund. Options: "duplicate", "fraudulent", "requested_by_customer".
+              inputSchema:
+                type: object
+                properties:
+                  payment_intent:
+                    description: The ID of the PaymentIntent to refund.
+                    type: string
+                  amount:
+                    description: The amount to refund in cents.
+                    type: integer
+                  reason:
+                    description: The reason for the refund.
+                    enum:
+                      - duplicate
+                      - fraudulent
+                      - requested_by_customer
+                    type: string
+                required:
+                  - payment_intent
+              annotations:
+                destructiveHint: true
+                idempotentHint: false
+                openWorldHint: true
+                readOnlyHint: false
+                title: Create refund
+            - name: list_payment_intents
+              description: |
+                This tool will list payment intents in Stripe.
+
+                It takes two arguments:
+                - customer (str, optional): The ID of the customer to list payment intents for.
+                - limit (int, optional): The number of payment intents to return.
+
+                Note that the payment intent amount returned is in currency minor units, e.g. cents for USD and yen for JPY.
+              inputSchema:
+                type: object
+                properties:
+                  customer:
+                    description: The ID of the customer to list payment intents for.
+                    type: string
+                  limit:
+                    description: A limit on the number of objects to be returned. Limit can range between 1 and 100.
+                    minimum: 1
+                    maximum: 100
+                    type: integer
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: List payment intents
+            - name: list_subscriptions
+              description: |
+                This tool will list all subscriptions in Stripe.
+
+                It takes four arguments:
+                - customer (str, optional): The ID of the customer to list subscriptions for.
+
+                - price (str, optional): The ID of the price to list subscriptions for.
+                - status (str, optional): The status of the subscriptions to list.
+                - limit (int, optional): The number of subscriptions to return.
+              inputSchema:
+                type: object
+                properties:
+                  customer:
+                    description: The ID of the customer to list subscriptions for.
+                    type: string
+                  price:
+                    description: The ID of the price to list subscriptions for.
+                    type: string
+                  status:
+                    description: The status of the subscriptions to retrieve.
+                    enum:
+                      - active
+                      - all
+                      - canceled
+                      - incomplete
+                      - incomplete_expired
+                      - past_due
+                      - trialing
+                      - unpaid
+                    type: string
+                  limit:
+                    description: A limit on the number of objects to be returned. Limit can range between 1 and 100.
+                    minimum: 1
+                    maximum: 100
+                    type: integer
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: List subscriptions
+            - name: cancel_subscription
+              description: |
+                This tool will cancel a subscription in Stripe.
+
+                It takes the following arguments:
+                - subscription (str, required): The ID of the subscription to cancel.
+              inputSchema:
+                type: object
+                properties:
+                  subscription:
+                    description: The ID of the subscription to cancel.
+                    type: string
+                required:
+                  - subscription
+              annotations:
+                destructiveHint: true
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: false
+                title: Cancel subscription
+            - name: update_subscription
+              description: |2
+                  This tool will update an existing subscription in Stripe. If changing an existing subscription item, the existing subscription item has to be set to deleted and the new one has to be added.
+
+                  It takes the following arguments:
+                  - subscription (str, required): The ID of the subscription to update.
+                  - proration_behavior (str, optional): Determines how to handle prorations when the subscription items change. Options: 'create_prorations', 'none', 'always_invoice', 'none_implicit'.
+                  - items (array, optional): A list of subscription items to update, add, or remove. Each item can have the following properties:
+                    - id (str, optional): The ID of the subscription item to modify.
+                    - price (str, optional): The ID of the price to switch to.
+                    - quantity (int, optional): The quantity of the plan to subscribe to.
+                    - deleted (bool, optional): Whether to delete this item.
+              inputSchema:
+                type: object
+                properties:
+                  subscription:
+                    description: The ID of the subscription to update.
+                    type: string
+                  proration_behavior:
+                    description: Determines how to handle prorations when the subscription items change.
+                    enum:
+                      - always_invoice
+                      - create_prorations
+                      - none
+                      - none_implicit
+                    type: string
+                  items:
+                    description: A list of subscription items to update, add, or remove.
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          description: The ID of the subscription item to modify.
+                          type: string
+                        price:
+                          description: The ID of the price to switch to.
+                          type: string
+                        quantity:
+                          description: The quantity of the plan to subscribe to.
+                          type: number
+                        deleted:
+                          description: Whether to delete this item.
+                          type: boolean
+                      additionalProperties: false
+                required:
+                  - subscription
+              annotations:
+                destructiveHint: false
+                idempotentHint: false
+                openWorldHint: true
+                readOnlyHint: false
+                title: Update subscription
+            - name: list_coupons
+              description: |
+                This tool will fetch a list of Coupons from Stripe.
+
+                It takes one optional argument:
+                - limit (int, optional): The number of coupons to return.
+              inputSchema:
+                type: object
+                properties:
+                  limit:
+                    description: A limit on the number of objects to be returned. Limit can range between 1 and 100.
+                    minimum: 1
+                    maximum: 100
+                    type: integer
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: List coupons
+            - name: create_coupon
+              description: |
+                This tool will create a coupon in Stripe.
+
+                It takes several arguments:
+                - name (str): The name of the coupon.
+
+                Only use one of percent_off or amount_off, not both:
+                - percent_off (number, optional): The percentage discount to apply (between 0 and 100).
+                - amount_off (number, optional): The amount to subtract from an invoice (in currency minor units, e.g. cents for USD and yen for JPY).
+
+                Optional arguments for duration. Use if specific duration is desired, otherwise default to 'once'.
+                - duration (str, optional): How long the discount will last ('once', 'repeating', or 'forever'). Defaults to 'once'.
+                - duration_in_months (number, optional): The number of months the discount will last if duration is repeating.
+              inputSchema:
+                type: object
+                properties:
+                  name:
+                    description: Name of the coupon displayed to customers on invoices or receipts
+                    type: string
+                  percent_off:
+                    description: A positive float larger than 0, and smaller or equal to 100, that represents the discount the coupon will apply (required if amount_off is not passed)
+                    type: number
+                  amount_off:
+                    description: A positive integer representing the amount to subtract from an invoice total (required if percent_off is not passed)
+                    type: number
+                  currency:
+                    description: Three-letter ISO code for the currency of the amount_off parameter (required if amount_off is passed). Infer based on the amount_off. For example, if a coupon is $2 off, set currency to be USD.
+                    type: string
+                    default: USD
+                  duration:
+                    description: How long the discount will last. Defaults to "once"
+                    enum:
+                      - forever
+                      - once
+                      - repeating
+                    type: string
+                    default: once
+                  duration_in_months:
+                    description: The number of months the discount will last if duration is repeating
+                    type: number
+                required:
+                  - name
+              annotations:
+                destructiveHint: false
+                idempotentHint: false
+                openWorldHint: true
+                readOnlyHint: false
+                title: Create coupon
+            - name: update_dispute
+              description: |
+                When you receive a dispute, contacting your customer is always the best first step. If that doesn't work, you can submit evidence to help resolve the dispute in your favor. This tool helps.
+
+                It takes the following arguments:
+                - dispute (string): The ID of the dispute to update
+                - evidence (object, optional): Evidence to upload for the dispute.
+                    - cancellation_policy_disclosure (string)
+                    - cancellation_rebuttal (string)
+                    - duplicate_charge_explanation (string)
+                    - uncategorized_text (string, optional): Any additional evidence or statements.
+                - submit (boolean, optional): Whether to immediately submit evidence to the bank. If false, evidence is staged on the dispute.
+              inputSchema:
+                type: object
+                properties:
+                  dispute:
+                    description: The ID of the dispute to update
+                    type: string
+                  evidence:
+                    description: Evidence to upload, to respond to a dispute. Updating any field in the hash will submit all fields in the hash for review.
+                    type: object
+                    properties:
+                      cancellation_policy_disclosure:
+                        description: An explanation of how and when the customer was shown your refund policy prior to purchase.
+                        type: string
+                      duplicate_charge_explanation:
+                        description: An explanation of the difference between the disputed charge versus the prior charge that appears to be a duplicate.
+                        type: string
+                      uncategorized_text:
+                        description: Any additional evidence or statements.
+                        type: string
+                    additionalProperties: false
+                  submit:
+                    description: Whether to immediately submit evidence to the bank. If false, evidence is staged on the dispute.
+                    type: boolean
+                required:
+                  - dispute
+              annotations:
+                destructiveHint: false
+                idempotentHint: false
+                openWorldHint: true
+                readOnlyHint: false
+                title: Update dispute
+            - name: list_disputes
+              description: |
+                This tool will fetch a list of disputes in Stripe.
+
+                It takes the following arguments:
+                - charge (string, optional): Only return disputes associated to the charge specified by this charge ID.
+                - payment_intent (string, optional): Only return disputes associated to the PaymentIntent specified by this PaymentIntent ID.
+              inputSchema:
+                type: object
+                properties:
+                  charge:
+                    description: Only return disputes associated to the charge specified by this charge ID.
+                    type: string
+                  payment_intent:
+                    description: Only return disputes associated to the PaymentIntent specified by this PaymentIntent ID.
+                    type: string
+                  limit:
+                    description: A limit on the number of objects to be returned. Limit can range between 1 and 100, and the default is 10.
+                    minimum: 1
+                    maximum: 100
+                    default: 10
+                    type: integer
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: List disputes
+            - name: search_stripe_resources
+              description: |
+                This tool can be used to search for specific Stripe resources using a custom Stripe query syntax.
+                It is only able to search for the following resources: customers, payment_intents, charges, invoices, prices, products, subscriptions. It returns a maximum of 100 results.
+
+                IMPORTANT: For most use cases, prefer using the specific `list_` tools (e.g., `list_customers`, `list_payment_intents`) when you know the resource type you need. Only use this search tool when you need to:
+                - Search across multiple resource types simultaneously
+                - Search by field values that aren't supported by list tools
+                - Use complex query syntax that isn't supported by list tools
+
+                It takes one argument:
+                - query (str): The query consisting of the Stripe resource to query for and the query clause in Stripe's custom query syntax to query metadata for.
+
+                Note that any amount returned is in currency minor units, e.g. cents for USD and yen for JPY.
+              inputSchema:
+                type: object
+                properties:
+                  query:
+                    description: |
+                      This query string should be formatted as 'resource:query_clause', where 'resource' is one of (customers, payment_intents, charges, invoices, prices, products, subscriptions), and 'query_clause' is the actual query in Stripe's custom query syntax to query metadata for that resource.
+
+                      For example, for the query: customers:email:"jenny.rosen@example.com"
+                      resource: `customers`
+                      query_clause: `email:"jenny.rosen@example.com"`
+
+                      A query clause consists of a field, operator, and value.
+
+                      ## Query Fields for customers
+                      * created
+                      * email
+                      * metadata
+                      * name
+                      * phone
+
+                      ## Query Fields for payment_intents
+                      * amount
+                      * created
+                      * currency
+                      * customer
+                      * metadata
+                      * status
+
+                      ## Query Fields for charges
+                      * amount
+                      * billing_details.address.postal_code
+                      * created
+                      * currency
+                      * customer
+                      * disputed
+                      * metadata
+                      * payment_method_details.{{SOURCE}}.last4
+                      * payment_method_details.{{SOURCE}}.exp_month
+                      * payment_method_details.{{SOURCE}}.exp_year
+                      * payment_method_details.{{SOURCE}}.brand
+                      * payment_method_details.{{SOURCE}}.fingerprint
+                      * refunded
+                      * status
+
+                      ## Query Fields for invoices
+                      * created
+                      * currency
+                      * customer
+                      * last_finalization_error_code
+                      * last_finalization_error_type
+                      * metadata
+                      * number
+                      * receipt_number
+                      * status
+                      * subscription
+                      * total
+
+                      ## Query Fields for prices
+                      * active
+                      * currency
+                      * lookup_key
+                      * metadata
+                      * product
+                      * type
+
+                      ## Query Fields for products
+                      * active
+                      * description
+                      * metadata
+                      * name
+                      * shippable
+                      * url
+
+                      ## Query Fields for subscriptions
+                      * created
+                      * metadata
+                      * status
+                      * canceled_at
+
+                      ## Search Operators
+                      The following table lists the syntax that you can use to construct a query:
+
+                      | Syntax | Usage | Description | When to Use | Examples |
+                      |--------|-------|-------------|-------------|----------|
+                      | `:` | `field:value` | Exact match operator (case insensitive) | **ONLY when you know the exact complete value** | `currency:"eur"` returns records where the currency is exactly "EUR" |
+                      | `~` | `field~value` | Substring match operator (minimum 3 characters) | **ALWAYS use for domain searches, partial names, email parts** | `email~"foo.com"` returns emails containing "foo.com" |
+                      | `AND`, `and` | `field:value1 AND field:value2` | Returns records that match both clauses | Combining multiple conditions | `status:"active" AND amount:500` |
+                      | `OR`, `or` | `field:value1 OR field:value2` | Returns records that match either clause | Alternative conditions | `currency:"usd" OR currency:"eur"` |
+                      | `-` | `-field:value` | Returns records that don't match the clause | Excluding specific values | `-currency:"jpy"` returns records not in JPY |
+                      | `NULL`, `null` | `field:null` | Checks for field presence (empty/null values) | Finding empty fields | `url:null` returns records where URL field is empty |
+                      | `>`, `<`, `>=`, `<=`, `=` | `field>value`, `field<value`, etc. | Numeric comparison operators | Amount ranges, dates | `amount>="10"` returns records with amount >= 10 |
+                      | `` | `" """` | Escape quotes within quotes | When quotes are in the search value | `description:"the story called "The Sky and the Sea.""` |
+
+                      ## Query Rules
+                      * You can combine up to 10 query clauses in a search by separating them with a space or using AND/OR keywords (case insensitive)
+                      * You cannot combine AND and OR in the same query
+                      * No parentheses are supported for operator precedence
+                      * By default, the API combines clauses with AND logic
+                      * You must use quotation marks around string values (optional for numeric values)
+                      * You can escape quotes inside quotes with a backslash (\)
+
+                      ## Examples
+
+                      Input: Look up charges matching a custom metadata value.
+                      Output: charges:metadata['order_id']:'1234567890'
+
+                      Input: Look up charges matching the last 4 digits of the card used for the payment.
+                      Output: charges:payment_method_details.card.last4:4242
+
+                      Input: Look up customers matching an email.
+                      Output: customers:email:'jenny.rosen@example.com'
+
+                      Input: Look up PaymentIntents not in the USD currency.
+                      Output: payment_intents:-currency:'usd'
+
+                      Input: Filter invoice objects with a total greater than 1000.
+                      Output: invoices:total>1000
+
+                      Input: Filter payments with a amount over $100.
+                      Reasoning: Stripe "amount" field is in cents, so we use 1000 instead of 100
+                      Output: payment_intents:amount>1000
+
+                      Input: Look up charges matching a combination of metadata and currency.
+                      Output: charges:metadata['key']:'value' AND currency:'usd'
+
+                      Input: Search for customers with email containing "john".
+                      Output: customers:email~"john"
+
+                      Input: Find products where the description field is empty.
+                      Output: products:description:null
+
+                      Input: Search for payments with amounts greater than or equal to 5000.
+                      Output: payment_intents:amount>=5000
+
+                      Input: Search for products with description with escaped quotes.
+                      Output: products:description:"The story called "The Sky and the Sea"."
+                    type: string
+                required:
+                  - query
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: Search Stripe resources
+            - name: fetch_stripe_resources
+              description: |
+                Retrieve Stripe object details by ID.
+
+                IMPORTANT: Only call this tool after search_stripe_resources is called to get specific object IDs. Do not use this tool to discover or search for objects.
+
+                This tool fetches the object information from Stripe including all available fields. It is only able to fetch the following resources (prefixes):
+                - Payment Intents (pi_)
+                - Charges (ch_)
+                - Invoices (in_)
+                - Prices (price_)
+                - Products (prod_)
+                - Subscriptions (sub_)
+                - Customers (cus_)
+
+                It takes one argument:
+                - id (str): The unique identifier for the Stripe object (e.g. cus_123, pi_123).
+
+                Note that any amount returned is in currency minor units, e.g. cents for USD and yen for JPY.
+              inputSchema:
+                type: object
+                properties:
+                  id:
+                    description: The unique identifier for the Stripe object (e.g. cus_123, pi_123).
+                    type: string
+                required:
+                  - id
+              annotations:
+                destructiveHint: false
+                idempotentHint: true
+                openWorldHint: true
+                readOnlyHint: true
+                title: Fetch Stripe resources
+
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "sql"
+        database_url: "${STRIPE_DATABASE_URL, sqlite:///stripe-agent.db}"
+        default_behavior: "PERSISTENT"        
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      trust_manager:
+        enabled: ${TRUST_MANAGER_ENABLED, false}  # Enable or disable the trust manager
+        card_publish_interval_seconds: 10  # Publish every 10 seconds for testing
+        card_expiration_days: 7  # 1 week for development
+        verification_mode: "permissive"  # Log warnings, don't fail during initial testing
+        clock_skew_tolerance_seconds: 300  # 5 minutes tolerance
+        enable_time_validation: true
+        jwt_default_ttl_seconds: 3600  # 1 hour default JWT lifetime
+        jwt_max_ttl_seconds: 86400     # 24 hours maximum JWT lifetime
+  
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "An agent that handles canva operations."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"] 
+        skills: []
+  
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 60

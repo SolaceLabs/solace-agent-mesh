@@ -7,6 +7,7 @@ __pycache__/
 *.aider
 *.a2a*
 *.jsonl
+.claude/
 
 
 # C extensions
@@ -66,6 +67,7 @@ cover/
 
 # Django stuff:
 *.log
+*.log.*
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -162,4 +164,4 @@ my-dev-project
 
 # workaround requirements.txt not working in ci
 requirements.txt
-
+data/artifacts/

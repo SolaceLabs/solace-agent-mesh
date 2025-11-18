@@ -66,6 +66,7 @@ def create_status_update(
     message: Message,
     is_final: bool = False,
     metadata: Optional[Dict[str, Any]] = None,
+    state: TaskState = TaskState.working,
 ) -> TaskStatusUpdateEvent:
     """
     Creates a new TaskStatusUpdateEvent.
@@ -81,7 +82,7 @@ def create_status_update(
         A new `TaskStatusUpdateEvent` object.
     """
     task_status = task_helpers.create_task_status(
-        state=TaskState.working,
+        state=state,
         message=message,
     )
     return TaskStatusUpdateEvent(
@@ -181,3 +182,32 @@ def get_artifact_from_artifact_update(
     if event:
         return event.artifact
     return None
+
+
+# --- Type Checking Helpers ---
+
+
+def is_task_status_update(obj: Any) -> bool:
+    """
+    Checks if an object is a TaskStatusUpdateEvent.
+
+    Args:
+        obj: The object to check.
+
+    Returns:
+        True if the object is a TaskStatusUpdateEvent, False otherwise.
+    """
+    return isinstance(obj, TaskStatusUpdateEvent)
+
+
+def is_task_artifact_update(obj: Any) -> bool:
+    """
+    Checks if an object is a TaskArtifactUpdateEvent.
+
+    Args:
+        obj: The object to check.
+
+    Returns:
+        True if the object is a TaskArtifactUpdateEvent, False otherwise.
+    """
+    return isinstance(obj, TaskArtifactUpdateEvent)

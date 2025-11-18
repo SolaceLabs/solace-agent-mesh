@@ -10,23 +10,12 @@ from .constants import EARLY_EMBED_TYPES, LATE_EMBED_TYPES
 
 log = logging.getLogger(__name__)
 
-try:
-    from jsonpath_ng.ext import parse as jsonpath_parse
-
-    JSONPATH_NG_AVAILABLE = True
-except ImportError:
-    JSONPATH_NG_AVAILABLE = False
-
-try:
-    import pystache
-
-    PYSTACHE_AVAILABLE = True
-except ImportError:
-    PYSTACHE_AVAILABLE = False
+from jsonpath_ng.ext import parse as jsonpath_parse
+import pystache
 
 from google.adk.artifacts import BaseArtifactService
 
-from .types import DataFormat
+from .types import DataFormat, ResolutionMode
 
 
 def _apply_jsonpath(
@@ -45,13 +34,6 @@ def _apply_jsonpath(
         Tuple: (result_data, original_mime_type, error_string)
                result_data is typically a list of matched values.
     """
-    if not JSONPATH_NG_AVAILABLE:
-        return (
-            current_data,
-            mime_type,
-            "JSONPath modifier skipped: 'jsonpath-ng' not installed.",
-        )
-
     if not isinstance(current_data, (dict, list)):
         return (
             current_data,
@@ -457,13 +439,6 @@ async def _apply_template(
     """
     from .resolver import resolve_embeds_recursively_in_string, evaluate_embed
 
-    if not PYSTACHE_AVAILABLE:
-        return (
-            current_data,
-            mime_type,
-            "Template modifier skipped: 'pystache' not installed.",
-        )
-
     if not isinstance(current_data, (dict, list, str)):
         return (
             current_data,
@@ -661,6 +636,7 @@ async def _apply_template(
             context=context,
             resolver_func=evaluate_embed,
             types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
+            resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
             log_identifier=f"{log_id}[TemplateEmbeds]",
             config=resolver_config,
             max_depth=resolver_config.get("gateway_recursive_embed_depth", 12),

@@ -2,9 +2,9 @@
 Custom Solace AI Connector Component to host the FastAPI backend for the Web UI.
 """
 
-import logging
 import asyncio
 import json
+import logging
 import queue
 import re
 import threading
@@ -15,22 +15,20 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, UploadFile
 from fastapi import Request as FastAPIRequest
-
+from solace_ai_connector.common.event import Event, EventType
 from solace_ai_connector.components.inputs_outputs.broker_input import BrokerInput
 from solace_ai_connector.flow.app import App as SACApp
-from solace_ai_connector.common.event import Event, EventType
 
 from ...common.agent_registry import AgentRegistry
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.component import BaseGatewayComponent
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
-from .sse_event_buffer import SSEEventBuffer
+from . import dependencies
 from .components import VisualizationForwarderComponent
 from .components.task_logger_forwarder import TaskLoggerForwarderComponent
-from .services.feedback_service import FeedbackService
 from .services.task_logger_service import TaskLoggerService
-from . import dependencies
+from .sse_event_buffer import SSEEventBuffer
 
 log = logging.getLogger(__name__)
 
@@ -97,7 +95,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
         app_config = component_config.get("app_config", {})
         resolve_uris = app_config.get("resolve_artifact_uris_in_gateway", True)
 
-        super().__init__(resolve_artifact_uris_in_gateway=resolve_uris, **kwargs)
+        # HTTP SSE gateway configuration:
+        # - supports_inline_artifact_resolution=True: Artifacts are converted to FileParts
+        #   during embed resolution and rendered inline in the web UI
+        # - filter_tool_data_parts=False: Web UI displays all parts including tool execution details
+        super().__init__(
+            resolve_artifact_uris_in_gateway=resolve_uris,
+            supports_inline_artifact_resolution=True,
+            filter_tool_data_parts=False,
+            **kwargs
+        )
         log.info("%s Initializing Web UI Backend Component...", self.log_identifier)
 
         try:
@@ -115,6 +122,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.ssl_keyfile = self.get_config("ssl_keyfile", "")
             self.ssl_certfile = self.get_config("ssl_certfile", "")
             self.ssl_keyfile_password = self.get_config("ssl_keyfile_password", "")
+            self.model_config = self.get_config("model", None)
 
             log.info(
                 "%s WebUI-specific configuration retrieved (Host: %s, Port: %d).",
@@ -147,6 +155,30 @@ class WebUIBackendComponent(BaseGatewayComponent):
             interval_ms=cleanup_interval_sec * 1000,
         )
 
+        # Set up health check timer for agent registry
+        from ...common.constants import HEALTH_CHECK_INTERVAL_SECONDS
+
+        self.health_check_timer_id = f"agent_health_check_{self.gateway_id}"
+        health_check_interval_seconds = self.get_config(
+            "agent_health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS
+        )
+        if health_check_interval_seconds > 0:
+            log.info(
+                "%s Scheduling agent health check every %d seconds.",
+                self.log_identifier,
+                health_check_interval_seconds,
+            )
+            self.add_timer(
+                delay_ms=health_check_interval_seconds * 1000,
+                timer_id=self.health_check_timer_id,
+                interval_ms=health_check_interval_seconds * 1000,
+            )
+        else:
+            log.warning(
+                "%s Agent health check interval not configured or invalid, health checks will not run periodically.",
+                self.log_identifier,
+            )
+
         session_config = self._resolve_session_config()
         if session_config.get("type") == "sql":
             # SQL type explicitly configured - database_url is required
@@ -160,8 +192,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
         else:
             # Memory storage or no explicit configuration - no persistence service needed
             self.database_url = None
-            
-            # Validate that features requiring database persistence are not enabled
+
+        # Validate that features requiring runtime database persistence are not enabled without database
+        if self.database_url is None:
             task_logging_config = self.get_config("task_logging", {})
             if task_logging_config.get("enabled", False):
                 raise ValueError(
@@ -169,15 +202,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     "Either set session_service.type='sql' with a valid database_url, "
                     "or disable task_logging.enabled."
                 )
-            
+
             feedback_config = self.get_config("feedback_publishing", {})
             if feedback_config.get("enabled", False):
                 log.warning(
                     "%s Feedback publishing is enabled but database persistence is not configured. "
                     "Feedback will only be published to the broker, not stored locally.",
-                    self.log_identifier
+                    self.log_identifier,
                 )
 
+        platform_config = self.get_config("platform_service", {})
+        self.platform_database_url = platform_config.get("database_url")
         component_config = self.get_config("component_config", {})
         app_config = component_config.get("app_config", {})
 
@@ -220,27 +255,33 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._data_retention_timer_id = None
         data_retention_config = self.get_config("data_retention", {})
         if data_retention_config.get("enabled", True):
-            log.info("%s Data retention is enabled. Initializing service and timer...", self.log_identifier)
-            
+            log.info(
+                "%s Data retention is enabled. Initializing service and timer...",
+                self.log_identifier,
+            )
+
             # Import and initialize the DataRetentionService
             from .services.data_retention_service import DataRetentionService
-            
+
             session_factory = None
             if self.database_url:
                 # SessionLocal will be initialized later in setup_dependencies
                 # We'll pass a lambda that returns SessionLocal when called
-                session_factory = lambda: dependencies.SessionLocal() if dependencies.SessionLocal else None
-            
+                session_factory = lambda: (
+                    dependencies.SessionLocal() if dependencies.SessionLocal else None
+                )
+
             self.data_retention_service = DataRetentionService(
-                session_factory=session_factory,
-                config=data_retention_config
+                session_factory=session_factory, config=data_retention_config
             )
-            
+
             # Create and start the cleanup timer
-            cleanup_interval_hours = data_retention_config.get("cleanup_interval_hours", 24)
+            cleanup_interval_hours = data_retention_config.get(
+                "cleanup_interval_hours", 24
+            )
             cleanup_interval_ms = cleanup_interval_hours * 60 * 60 * 1000
             self._data_retention_timer_id = f"data_retention_cleanup_{self.gateway_id}"
-            
+
             self.add_timer(
                 delay_ms=cleanup_interval_ms,
                 timer_id=self._data_retention_timer_id,
@@ -253,21 +294,29 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 cleanup_interval_hours,
             )
         else:
-            log.info("%s Data retention is disabled via configuration.", self.log_identifier)
+            log.info(
+                "%s Data retention is disabled via configuration.", self.log_identifier
+            )
 
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
     def process_event(self, event: Event):
         if event.event_type == EventType.TIMER:
             timer_id = event.data.get("timer_id")
-            
+
             if timer_id == self._sse_cleanup_timer_id:
                 log.debug("%s SSE buffer cleanup timer triggered.", self.log_identifier)
                 self.sse_event_buffer.cleanup_stale_buffers()
                 return
-            
+            elif event.data.get("timer_id") == self.health_check_timer_id:
+                log.debug("%s Agent health check timer triggered.", self.log_identifier)
+                self._check_agent_health()
+                return
+
             if timer_id == self._data_retention_timer_id:
-                log.debug("%s Data retention cleanup timer triggered.", self.log_identifier)
+                log.debug(
+                    "%s Data retention cleanup timer triggered.", self.log_identifier
+                )
                 if self.data_retention_service:
                     try:
                         self.data_retention_service.cleanup_old_data()
@@ -339,7 +388,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             broker_input_cfg = {
                 "component_module": "broker_input",
                 "component_name": f"{self.gateway_id}_viz_broker_input",
-                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/viz/{self.gateway_id}/{uuid.uuid4().hex}",
+                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/viz/{self.gateway_id}",
                 "create_queue_on_start": True,
                 "component_config": {
                     "broker_url": main_broker_config.get("broker_url"),
@@ -354,14 +403,16 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     ),
                     "retry_interval": main_broker_config.get("retry_interval"),
                     "retry_count": main_broker_config.get("retry_count"),
-                    "temporary_queue": True,
+                    "temporary_queue": main_broker_config.get("temporary_queue", True),
                 },
             }
 
             forwarder_cfg = {
                 "component_class": VisualizationForwarderComponent,
                 "component_name": f"{self.gateway_id}_viz_forwarder",
-                "component_config": {"target_queue_ref": self._visualization_message_queue},
+                "component_config": {
+                    "target_queue_ref": self._visualization_message_queue
+                },
             }
 
             flow_config = {
@@ -412,7 +463,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     raise RuntimeError(
                         "Visualization flow setup error: BrokerInput not found."
                     )
-                log.info(
+                log.debug(
                     "%s Obtained reference to internal BrokerInput component.",
                     log_id_prefix,
                 )
@@ -471,7 +522,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             broker_input_cfg = {
                 "component_module": "broker_input",
                 "component_name": f"{self.gateway_id}_task_log_broker_input",
-                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/task_log/{self.gateway_id}/{uuid.uuid4().hex}",
+                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/task_log/{self.gateway_id}",
                 "create_queue_on_start": True,
                 "component_config": {
                     "broker_url": main_broker_config.get("broker_url"),
@@ -486,7 +537,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     ),
                     "retry_interval": main_broker_config.get("retry_interval"),
                     "retry_count": main_broker_config.get("retry_count"),
-                    "temporary_queue": True,
+                    "temporary_queue": main_broker_config.get("temporary_queue", True),
                 },
             }
 
@@ -858,7 +909,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
         Manages global subscription reference counts.
         """
         log_id_prefix = f"{self.log_identifier}[AddVizSub:{stream_id}]"
-        log.info(
+        log.debug(
             "%s Attempting to add subscription to topic: %s", log_id_prefix, topic_str
         )
 
@@ -1139,7 +1190,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         log_id_prefix,
                         username,
                     )
-                    return {"id": username, "name": username, "email": username, "user_info": user_info}
+                    return {
+                        "id": username,
+                        "name": username,
+                        "email": username,
+                        "user_info": user_info,
+                    }
 
             log.debug(
                 "%s No authenticated user in request.state, falling back to SessionManager.",
@@ -1173,7 +1229,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
             self.fastapi_app = fastapi_app_instance
 
-            setup_dependencies(self, self.database_url)
+            setup_dependencies(self, self.database_url, self.platform_database_url)
 
             # Instantiate services that depend on the database session factory.
             # This must be done *after* setup_dependencies has run.
@@ -1182,7 +1238,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self.task_logger_service = TaskLoggerService(
                 session_factory=session_factory, config=task_logging_config
             )
-            log.info(
+            log.debug(
                 "%s Services dependent on database session factory have been initialized.",
                 self.log_identifier,
             )
@@ -1197,7 +1253,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 app=self.fastapi_app,
                 host=self.fastapi_host,
                 port=port,
-                log_level="info",
+                log_level="warning",
                 lifespan="on",
                 ssl_keyfile=self.ssl_keyfile,
                 ssl_certfile=self.ssl_certfile,
@@ -1213,14 +1269,14 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 )
                 try:
                     self.fastapi_event_loop = asyncio.get_running_loop()
-                    log.info(
+                    log.debug(
                         "%s [_start_listener] Captured FastAPI event loop via startup event: %s",
                         self.log_identifier,
                         self.fastapi_event_loop,
                     )
 
                     if self.fastapi_event_loop:
-                        log.info(
+                        log.debug(
                             "%s Ensuring visualization flow is running...",
                             self.log_identifier,
                         )
@@ -1230,7 +1286,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             self._visualization_processor_task is None
                             or self._visualization_processor_task.done()
                         ):
-                            log.info(
+                            log.debug(
                                 "%s Starting visualization message processor task.",
                                 self.log_identifier,
                             )
@@ -1240,7 +1296,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                 )
                             )
                         else:
-                            log.info(
+                            log.debug(
                                 "%s Visualization message processor task already running.",
                                 self.log_identifier,
                             )
@@ -1272,7 +1328,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                     self.log_identifier,
                                 )
                         else:
-                            log.info("%s Task logging is disabled.", self.log_identifier)
+                            log.info(
+                                "%s Task logging is disabled.", self.log_identifier
+                            )
                     else:
                         log.error(
                             "%s FastAPI event loop not captured. Cannot start visualization processor.",
@@ -1288,24 +1346,36 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     self.stop_signal.set()
 
                 try:
-                    from solace_agent_mesh_enterprise.init_enterprise import start_enterprise_background_tasks
-                    log.info("%s Starting enterprise background tasks...", self.log_identifier)
+                    from solace_agent_mesh_enterprise.init_enterprise import (
+                        start_enterprise_background_tasks,
+                    )
+
+                    log.info(
+                        "%s Starting enterprise background tasks...",
+                        self.log_identifier,
+                    )
                     await start_enterprise_background_tasks(self)
-                    log.info("%s Enterprise background tasks started successfully", self.log_identifier)
+                    log.info(
+                        "%s Enterprise background tasks started successfully",
+                        self.log_identifier,
+                    )
                 except ImportError:
-                    log.debug("%s Enterprise package not available - skipping background tasks", self.log_identifier)
+                    log.debug(
+                        "%s Enterprise package not available - skipping background tasks",
+                        self.log_identifier,
+                    )
                 except RuntimeError as enterprise_err:
                     log.warning(
                         "%s Enterprise background tasks disabled: %s - Community features will continue normally",
                         self.log_identifier,
-                        enterprise_err
+                        enterprise_err,
                     )
                 except Exception as enterprise_err:
                     log.error(
                         "%s Failed to start enterprise background tasks: %s - Community features will continue normally",
                         self.log_identifier,
                         enterprise_err,
-                        exc_info=True
+                        exc_info=True,
                     )
 
             @self.fastapi_app.on_event("shutdown")
@@ -1316,18 +1386,29 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 )
 
                 try:
-                    from solace_agent_mesh_enterprise.init_enterprise import stop_enterprise_background_tasks
-                    log.info("%s Stopping enterprise background tasks...", self.log_identifier)
+                    from solace_agent_mesh_enterprise.init_enterprise import (
+                        stop_enterprise_background_tasks,
+                    )
+
+                    log.info(
+                        "%s Stopping enterprise background tasks...",
+                        self.log_identifier,
+                    )
                     await stop_enterprise_background_tasks()
-                    log.info("%s Enterprise background tasks stopped", self.log_identifier)
+                    log.info(
+                        "%s Enterprise background tasks stopped", self.log_identifier
+                    )
                 except ImportError:
-                    log.debug("%s Enterprise package not available - no background tasks to stop", self.log_identifier)
+                    log.debug(
+                        "%s Enterprise package not available - no background tasks to stop",
+                        self.log_identifier,
+                    )
                 except Exception as enterprise_err:
                     log.error(
                         "%s Failed to stop enterprise background tasks: %s",
                         self.log_identifier,
                         enterprise_err,
-                        exc_info=True
+                        exc_info=True,
                     )
 
             self.fastapi_thread = threading.Thread(
@@ -1392,18 +1473,19 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def cleanup(self):
         """Gracefully shuts down the component and the FastAPI server."""
         log.info("%s Cleaning up Web UI Backend Component...", self.log_identifier)
-        
+
         # Cancel timers
         self.cancel_timer(self._sse_cleanup_timer_id)
         if self._data_retention_timer_id:
             self.cancel_timer(self._data_retention_timer_id)
             log.info("%s Cancelled data retention cleanup timer.", self.log_identifier)
-        
+
         # Clean up data retention service
         if self.data_retention_service:
             self.data_retention_service = None
             log.info("%s Data retention service cleaned up.", self.log_identifier)
-        
+
+        self.cancel_timer(self.health_check_timer_id)
         log.info("%s Cleaning up visualization resources...", self.log_identifier)
         if self._visualization_message_queue:
             self._visualization_message_queue.put(None)
@@ -1419,7 +1501,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             self._visualization_processor_task.cancel()
 
-        if self._task_logger_processor_task and not self._task_logger_processor_task.done():
+        if (
+            self._task_logger_processor_task
+            and not self._task_logger_processor_task.done()
+        ):
             log.info("%s Cancelling task logger processor task...", self.log_identifier)
             self._task_logger_processor_task.cancel()
 
@@ -1730,6 +1815,94 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def get_agent_registry(self) -> AgentRegistry:
         return self.agent_registry
 
+    def _check_agent_health(self):
+        """
+        Checks the health of peer agents and de-registers unresponsive ones.
+        This is called periodically by the health check timer.
+        Uses TTL-based expiration to determine if an agent is unresponsive.
+        """
+
+        log.debug("%s Performing agent health check...", self.log_identifier)
+
+        # Get TTL from configuration or use default from constants
+        from ...common.constants import (
+            HEALTH_CHECK_INTERVAL_SECONDS,
+            HEALTH_CHECK_TTL_SECONDS,
+        )
+
+        ttl_seconds = self.get_config(
+            "agent_health_check_ttl_seconds", HEALTH_CHECK_TTL_SECONDS
+        )
+        health_check_interval = self.get_config(
+            "agent_health_check_interval_seconds", HEALTH_CHECK_INTERVAL_SECONDS
+        )
+
+        log.debug(
+            "%s Health check configuration: interval=%d seconds, TTL=%d seconds",
+            self.log_identifier,
+            health_check_interval,
+            ttl_seconds,
+        )
+
+        # Validate configuration values
+        if (
+            ttl_seconds <= 0
+            or health_check_interval <= 0
+            or ttl_seconds < health_check_interval
+        ):
+            log.error(
+                "%s agent_health_check_ttl_seconds (%d) and agent_health_check_interval_seconds (%d) must be positive and TTL must be greater than interval.",
+                self.log_identifier,
+                ttl_seconds,
+                health_check_interval,
+            )
+            raise ValueError(
+                f"Invalid health check configuration. agent_health_check_ttl_seconds ({ttl_seconds}) and agent_health_check_interval_seconds ({health_check_interval}) must be positive and TTL must be greater than interval."
+            )
+
+        # Get all agent names from the registry
+        agent_names = self.agent_registry.get_agent_names()
+        total_agents = len(agent_names)
+        agents_to_deregister = []
+
+        log.debug(
+            "%s Checking health of %d peer agents", self.log_identifier, total_agents
+        )
+
+        for agent_name in agent_names:
+            # Check if the agent's TTL has expired
+            is_expired, time_since_last_seen = self.agent_registry.check_ttl_expired(
+                agent_name, ttl_seconds
+            )
+
+            if is_expired:
+                log.warning(
+                    "%s Agent '%s' TTL has expired. De-registering. Time since last seen: %d seconds (TTL: %d seconds)",
+                    self.log_identifier,
+                    agent_name,
+                    time_since_last_seen,
+                    ttl_seconds,
+                )
+                agents_to_deregister.append(agent_name)
+
+        # De-register unresponsive agents
+        for agent_name in agents_to_deregister:
+            self._deregister_agent(agent_name)
+
+        log.debug(
+            "%s Agent health check completed. Total agents: %d, De-registered: %d",
+            self.log_identifier,
+            total_agents,
+            len(agents_to_deregister),
+        )
+
+    def _deregister_agent(self, agent_name: str):
+        """
+        De-registers an agent from the registry and publishes a de-registration event.
+        """
+        # Remove from registry
+        self.agent_registry.remove_agent(agent_name)
+
     def get_sse_manager(self) -> SSEManager:
         return self.sse_manager
 
@@ -1768,52 +1941,6 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def get_config_resolver(self) -> ConfigResolver:
         """Returns the instance of the ConfigResolver."""
         return self._config_resolver
-
-    async def _resolve_embeds_for_persistence(
-        self, message_content: str, session_id: str, user_id: str, log_identifier: str
-    ) -> str:
-        """
-        Resolves embeds in a message for database storage.
-        Returns the resolved text.
-
-        Args:
-            message_content: The message text that may contain embeds
-            session_id: The A2A session ID
-            user_id: The user ID
-            log_identifier: Logging identifier
-
-        Returns:
-            The message with embeds resolved (or original if resolution fails)
-        """
-        try:
-            embed_context = {
-                "artifact_service": self.shared_artifact_service,
-                "session_context": {
-                    "app_name": self.gateway_id,
-                    "user_id": user_id,
-                    "session_id": session_id,
-                },
-                "config": self.get_embed_config(),
-            }
-
-            resolved_text, _, _ = await resolve_embeds_in_string(
-                text=message_content,
-                context=embed_context,
-                resolver_func=evaluate_embed,
-                types_to_resolve=EARLY_EMBED_TYPES,
-                log_identifier=log_identifier,
-                config=embed_context["config"],
-            )
-
-            return resolved_text
-
-        except Exception as e:
-            log.warning(
-                "%s Error resolving embeds for storage: %s. Using original message.",
-                log_identifier,
-                e,
-            )
-            return message_content
 
     def _start_listener(self) -> None:
         """
@@ -1956,6 +2083,15 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             return
 
+        try:
+            from solace_agent_mesh_enterprise.auth.input_required import (
+                handle_input_required_request,
+            )
+
+            event_data = handle_input_required_request(event_data, sse_task_id, self)
+        except ImportError:
+            pass
+
         log.debug(
             "%s Sending update for A2A Task ID %s to SSE Task ID %s. Final chunk: %s",
             log_id_prefix,
@@ -1977,7 +2113,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             await self.sse_manager.send_event(
                 task_id=sse_task_id, event_data=sse_payload, event_type=sse_event_type
             )
-            log.info(
+            log.debug(
                 "%s Successfully sent %s via SSE for A2A Task ID %s.",
                 log_id_prefix,
                 sse_event_type,
@@ -2015,7 +2151,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             return
 
-        log.debug(
+        log.info(
             "%s Sending final response for A2A Task ID %s to SSE Task ID %s.",
             log_id_prefix,
             a2a_task_id,
@@ -2031,7 +2167,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             await self.sse_manager.send_event(
                 task_id=sse_task_id, event_data=sse_payload, event_type="final_response"
             )
-            log.info(
+            log.debug(
                 "%s Successfully sent final_response via SSE for A2A Task ID %s.",
                 log_id_prefix,
                 a2a_task_id,

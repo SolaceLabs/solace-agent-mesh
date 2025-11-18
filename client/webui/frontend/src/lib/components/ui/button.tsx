@@ -6,20 +6,20 @@ import { cn } from "@/lib/utils";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
-const commonTextStyles = "text-[var(--color-primary-wMain)] hover:text-[var(--color-primary-text-w60)] dark:text-[var(--color-primary-w20)] dark:hover:text-[var(--color-primary-text-w10)]";
-const commonButtonStyles = commonTextStyles + " hover:bg-[var(--color-primary-w10)] dark:hover:bg-[var(--color-primary-w60)]";
+const commonTextStyles = "text-[var(--color-primary-wMain)] enabled:hover:text-[var(--color-primary-text-w60)] dark:text-[var(--color-primary-w10)] dark:enabled:hover:text-[var(--color-white)]";
+const commonButtonStyles = commonTextStyles + " enabled:hover:bg-[var(--color-primary-w10)] dark:enabled:hover:bg-[var(--color-primary-w60)]";
 
 const buttonVariants = cva(
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm font-semibold transition-all disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:hover:bg-transparent dark:disabled:hover:bg-transparent",
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm font-semibold transition-all disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 cursor-pointer disabled:cursor-not-allowed",
     {
         variants: {
             variant: {
-                default: "text-[var(--color-primary-text-w10)] bg-[var(--color-primary-wMain)] hover:bg-[var(--color-primary-w100)] dark:hover:bg-[var(--color-primary-w60)]",
-                destructive: "text-[var(--color-primary-text-w10)] bg-[var(--color-error-wMain)] hover:bg-[var(--color-error-w70)]",
+                default: "text-[var(--color-primary-w10)] bg-[var(--color-primary-wMain)] enabled:hover:text-[var(--color-white)] enabled:hover:bg-[var(--color-primary-w100)] dark:enabled:hover:bg-[var(--color-primary-w60)]",
+                destructive: "text-[var(--color-primary-text-w10)] enabled:hover:text-[var(--color-white)] bg-[var(--color-error-wMain)] enabled:hover:bg-[var(--color-error-w70)]",
                 outline: commonButtonStyles + " border border-1 border-[var(--color-primary-wMain)]",
                 secondary: commonButtonStyles,
                 ghost: commonButtonStyles,
-                link: commonTextStyles + " underline-offset-4 hover:underline",
+                link: commonTextStyles + " underline-offset-4 enabled:hover:underline",
             },
             size: {
                 default: "h-9 px-5 py-2 has-[>svg]:px-3",

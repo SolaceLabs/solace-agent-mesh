@@ -74,6 +74,11 @@ export interface ArtifactInfo {
     versionCount?: number; // Optional: Total number of available versions
     description?: string | null; // Optional: Description of the artifact
     schema?: string | null | object; // Optional: Schema for the structure artifact
+    accumulatedContent?: string; // Optional: Accumulated content during creation (plain text from streaming)
+    isAccumulatedContentPlainText?: boolean; // Optional: True if accumulatedContent is plain text, false if base64
+    isDisplayed?: boolean; // Optional: Tracks if artifact is currently visible to user
+    needsEmbedResolution?: boolean; // Optional: Tracks if artifact needs download for embed resolution
+    source?: string; // Optional: Source of the artifact (e.g., "project")
 }
 
 /**
@@ -98,6 +103,25 @@ export interface Notification {
     type?: "success" | "info" | "error";
 }
 
+export interface ArtifactPart {
+    kind: "artifact";
+    status: "in-progress" | "completed" | "failed";
+    name: string;
+    description?: string;
+    bytesTransferred?: number;
+    file?: FileAttachment; // The completed file info
+    error?: string;
+}
+
+export type PartFE = Part | ArtifactPart;
+
+/**
+ * State for managing artifact rendering preferences and expanded state
+ */
+export interface ArtifactRenderingState {
+    expandedArtifacts: Set<string>;
+}
+
 /**
  * Represents a single message in the chat conversation.
  */
@@ -110,21 +134,23 @@ export interface MessageFE {
     isThinkingMessage?: boolean; // Specific flag for the "thinking" status message
     isComplete?: boolean; // ADDED: True if the agent response associated with this message is complete
     isError?: boolean; // ADDED: True if this message represents an error/failure
-    files?: FileAttachment[]; // Array of files returned by the agent with this message
     uploadedFiles?: File[]; // Array of files uploaded by the user with this message
-    artifactNotification?: {
-        // ADDED: For displaying artifact arrival notifications
-        name: string;
-        version?: number; // Optional: If version info is available from metadata
-    };
     toolEvents?: ToolEvent[]; // --- NEW: Array to hold tool call results ---
+    authenticationLink?: {
+        url: string;
+        text: string;
+        targetAgent?: string;
+        gatewayTaskId?: string;
+        authenticationAttempted?: boolean; // Track if auth button was clicked
+        rejected?: boolean; // Track if reject button was clicked
+    };
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
         messageId?: string; // Unique ID for the agent's message (if provided by backend)
         sessionId?: string; // The A2A session ID associated with this message exchange
         lastProcessedEventSequence?: number; // Sequence number of the last SSE event processed for this bubble
     };
-    parts: Part[];
+    parts: PartFE[];
 }
 
 // Layout Types
@@ -194,4 +220,6 @@ export interface Session {
     createdTime: string;
     updatedTime: string;
     name: string | null;
+    projectId?: string | null;
+    projectName?: string | null;
 }

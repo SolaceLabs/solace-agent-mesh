@@ -1,9 +1,14 @@
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import httpx
+import sqlalchemy as sa
+from fastapi import FastAPI, HTTPException
+from fastapi import Request as FastAPIRequest
+from fastapi import status
+from typing import TYPE_CHECKING
+
 import sqlalchemy as sa
 from a2a.types import InternalError, JSONRPCError
 from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
@@ -18,22 +23,36 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 
+from .routers.sessions import router as session_router
+from .routers.tasks import router as task_router
+from .routers.users import router as user_router
 from ...common import a2a
 from ...gateway.http_sse import dependencies
-from ...gateway.http_sse.routers import (
+from .routers import (
     agent_cards,
     artifacts,
     auth,
     config,
+    feedback,
     people,
     sse,
-    tasks,
+    speech,
     visualization,
-    feedback,
+    projects,
+    prompts,
 )
 from .routers.sessions import router as session_router
 from .routers.tasks import router as task_router
 from .routers.users import router as user_router
+
+from alembic import command
+from alembic.config import Config
+
+from a2a.types import InternalError, InvalidRequestError, JSONRPCError
+from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
+from ...common import a2a
+from ...gateway.http_sse import dependencies
+
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -107,6 +126,7 @@ def _extract_user_identifier(user_info: dict) -> str:
         or user_info.get("email")
         or user_info.get("name")
         or user_info.get("azp")
+        or user_info.get("user_id") # internal /user_info endpoint format maps identifier to user_id
     )
 
     if user_identifier and user_identifier.lower() == "unknown":
@@ -147,7 +167,7 @@ async def _create_user_state_without_identity_service(
             user_identifier,
         )
 
-    log.error(
+    log.debug(
         "AuthMiddleware: Internal IdentityService not configured on component. Using user ID: %s",
         final_user_id,
     )
@@ -208,6 +228,7 @@ def _create_auth_middleware(component):
             skip_paths = [
                 "/api/v1/config",
                 "/api/v1/auth/callback",
+                "/api/v1/auth/tool/callback",
                 "/api/v1/auth/login",
                 "/api/v1/auth/refresh",
                 "/api/v1/csrf-token",
@@ -451,17 +472,32 @@ def _run_enterprise_migrations(
         raise RuntimeError(f"Enterprise database migration failed: {e}") from e
 
 
-def _setup_database(component: "WebUIBackendComponent", database_url: str) -> None:
+def _setup_database(
+    component: "WebUIBackendComponent",
+    database_url: str,
+    platform_database_url: str = None
+) -> None:
     """
-    Initialize database connection and run all required migrations.
-    This sets up both community and enterprise database schemas.
+    Initialize database connections and run all required migrations.
+    Sets up both runtime and platform database schemas.
+
+    Args:
+        component: WebUIBackendComponent instance
+        database_url: Runtime database URL (sessions, tasks, chat) - REQUIRED
+        platform_database_url: Platform database URL (agents, connectors, deployments).
+                                If None, platform features will be unavailable.
     """
     dependencies.init_database(database_url)
     log.info("Persistence enabled - sessions will be stored in database")
     log.info("Running database migrations...")
 
     _run_community_migrations(database_url)
-    _run_enterprise_migrations(component, database_url)
+
+    if platform_database_url:
+        log.info("Platform database configured - running migrations")
+        _run_enterprise_migrations(component, platform_database_url)
+    else:
+        log.info("No platform database configured - skipping platform migrations")
 
 
 def _get_app_config(component: "WebUIBackendComponent") -> dict:
@@ -496,12 +532,20 @@ def _create_api_config(app_config: dict, database_url: str) -> dict:
     }
 
 
-def setup_dependencies(component: "WebUIBackendComponent", database_url: str = None):
+def setup_dependencies(
+    component: "WebUIBackendComponent",
+    database_url: str = None,
+    platform_database_url: str = None
+):
     """
-    This function initializes the simplified architecture while maintaining full
-    backward compatibility with existing API contracts.
+    Initialize dependencies for both runtime and platform databases.
 
-    If database_url is None, runs in compatibility mode with in-memory sessions.
+    Args:
+        component: WebUIBackendComponent instance
+        database_url: Runtime database URL (sessions, tasks, chat).
+                     If None, runs in compatibility mode with in-memory sessions.
+        platform_database_url: Platform database URL (agents, connectors, deployments).
+                                If None, platform features will be unavailable (returns 501).
 
     This function is idempotent and safe to call multiple times.
     """
@@ -514,7 +558,7 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
     dependencies.set_component_instance(component)
 
     if database_url:
-        _setup_database(component, database_url)
+        _setup_database(component, database_url, platform_database_url)
     else:
         log.warning(
             "No database URL provided - using in-memory session storage (data not persisted across restarts)"
@@ -525,14 +569,14 @@ def setup_dependencies(component: "WebUIBackendComponent", database_url: str = N
     api_config_dict = _create_api_config(app_config, database_url)
 
     dependencies.set_api_config(api_config_dict)
-    log.info("API configuration extracted and stored.")
+    log.debug("API configuration extracted and stored.")
 
     _setup_middleware(component)
     _setup_routers()
     _setup_static_files()
 
     _dependencies_initialized = True
-    log.info("[setup_dependencies] Dependencies initialization complete")
+    log.debug("[setup_dependencies] Dependencies initialization complete")
 
 
 def _setup_middleware(component: "WebUIBackendComponent") -> None:
@@ -562,7 +606,7 @@ def _setup_routers() -> None:
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
-    app.include_router(tasks.router, prefix=api_prefix, tags=["Tasks"])
+    app.include_router(task_router, prefix=api_prefix, tags=["Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
     app.include_router(
         artifacts.router, prefix=f"{api_prefix}/artifacts", tags=["Artifacts"]
@@ -574,7 +618,10 @@ def _setup_routers() -> None:
     )
     app.include_router(people.router, prefix=api_prefix, tags=["People"])
     app.include_router(auth.router, prefix=api_prefix, tags=["Auth"])
+    app.include_router(projects.router, prefix=api_prefix, tags=["Projects"])
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
+    app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
+    app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers from community repo

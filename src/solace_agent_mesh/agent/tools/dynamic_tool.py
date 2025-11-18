@@ -34,6 +34,7 @@ from ...common.utils.embeds import (
     LATE_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
 )
+from ...common.utils.embeds.types import ResolutionMode
 
 log = logging.getLogger(__name__)
 
@@ -182,6 +183,7 @@ class DynamicTool(BaseTool, ABC):
                     context=resolution_context,
                     resolver_func=evaluate_embed,
                     types_to_resolve=types_to_resolve,
+                    resolution_mode=ResolutionMode.TOOL_PARAMETER,
                     log_identifier=log_identifier,
                     config=self.tool_config,
                 )

@@ -190,3 +190,102 @@ async def test_programmatic_simple_tool_call(
     assert_llm_request_count(test_llm_server, 2, scenario_id)
 
     print(f"Scenario {scenario_id}: Completed successfully.")
+
+
+async def test_metadata_injection_with_config_values(
+    test_llm_server: TestLLMServer,
+    test_gateway_app_instance: TestGatewayComponent,
+    sam_app_under_test: SamAgentApp,
+    a2a_message_validator: A2AMessageValidator,
+):
+    """
+    Test that system_purpose and response_format config values are properly
+    injected into the LLM system instruction.
+    """
+    scenario_id = "metadata_injection_test_001"
+    print(f"\nRunning scenario: {scenario_id}")
+
+    llm_response_data = {
+        "id": "chatcmpl-metadata-test",
+        "object": "chat.completion",
+        "model": "test-llm-model-metadata",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "Metadata test response.",
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
+    }
+    prime_llm_server(test_llm_server, [llm_response_data])
+
+    target_agent = "TestAgent"
+    user_identity = "metadata_test_user@example.com"
+    input_texts = ["Test message for metadata validation"]
+
+    test_input_data = create_gateway_input_data(
+        target_agent=target_agent,
+        user_identity=user_identity,
+        text_parts_content=input_texts,
+        scenario_id=scenario_id,
+    )
+    task_id = await submit_test_input(
+        test_gateway_app_instance, test_input_data, scenario_id
+    )
+
+    all_events = await get_all_task_events(
+        test_gateway_app_instance, task_id, overall_timeout=5.0
+    )
+    terminal_event, aggregated_stream_text, terminal_event_text = (
+        extract_outputs_from_event_list(all_events, scenario_id)
+    )
+
+    from a2a.types import Task
+    assert isinstance(terminal_event, Task), f"Expected Task, got {type(terminal_event)}"
+
+    assert_llm_request_count(test_llm_server, 1, scenario_id)
+
+    captured_requests = test_llm_server.get_captured_requests()
+    assert len(captured_requests) > 0, f"Scenario {scenario_id}: No LLM requests captured"
+
+    first_request = captured_requests[0]
+
+    system_message = None
+    for msg in first_request.messages:
+        if msg.role == "system":
+            system_message = msg.content
+            break
+
+    assert system_message is not None, f"Scenario {scenario_id}: No system message found in LLM request"
+
+    # Extract text from system message (which might be a list of dicts or a string)
+    system_text = ""
+    if isinstance(system_message, list):
+        for part in system_message:
+            if isinstance(part, dict) and "text" in part:
+                system_text += part["text"]
+    elif isinstance(system_message, str):
+        system_text = system_message
+    else:
+        system_text = str(system_message)
+
+    # Verify that the actual values from gateway config were injected
+    expected_system_purpose = "Test gateway system purpose for metadata validation"
+    expected_response_format = "Test gateway response format for metadata validation"
+
+    assert expected_system_purpose in system_text, (
+        f"Scenario {scenario_id}: Expected system_purpose value '{expected_system_purpose}' in system instruction, "
+        f"got: {system_text[:500]}..."
+    )
+    assert expected_response_format in system_text, (
+        f"Scenario {scenario_id}: Expected response_format value '{expected_response_format}' in system instruction, "
+        f"got: {system_text[:500]}..."
+    )
+
+    print(f"Scenario {scenario_id}: System instruction injection verified successfully.")
+    print(f"  - System instruction contains: '{expected_system_purpose}'")
+    print(f"  - System instruction contains: '{expected_response_format}'")

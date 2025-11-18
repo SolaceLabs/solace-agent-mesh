@@ -19,9 +19,11 @@ from sam_test_infrastructure.llm_server.server import (
 from sam_test_infrastructure.gateway_interface.component import (
     TestGatewayComponent,
 )
+from sam_test_infrastructure.a2a_agent_server.server import TestA2AAgentServer
 from sam_test_infrastructure.artifact_service.service import (
     TestInMemoryArtifactService,
 )
+from sam_test_infrastructure.static_file_server.server import TestStaticFileServer
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from a2a.types import (
     TextPart,
@@ -35,6 +37,7 @@ from a2a.utils.message import get_data_parts, get_message_text
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
 from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
 from google.genai import types as adk_types  # Add this import
 import re
 import json
@@ -85,6 +88,8 @@ async def _setup_scenario_environment(
     test_db_engine,
     scenario_id: str,
     artifact_scope: str,
+    test_a2a_agent_server_harness: Optional[TestA2AAgentServer] = None,
+    mock_oauth_server: Optional[Any] = None,
 ) -> None:
     """
     Primes the LLM server and sets up initial artifacts based on the scenario definition.
@@ -129,6 +134,10 @@ async def _setup_scenario_environment(
         ).get("a2a_session_id", f"setup_session_for_{user_identity_for_artifacts}")
 
         for artifact_spec in setup_artifacts_spec:
+            # If the artifact spec explicitly provides an app_name, use it.
+            # This is crucial for proxy tests where the setup needs to match the proxy's target agent name.
+            if "app_name" in artifact_spec:
+                app_name_for_setup = artifact_spec["app_name"]
             filename = artifact_spec["filename"]
             mime_type = artifact_spec.get("mime_type", "application/octet-stream")
             content_str = artifact_spec.get("content")
@@ -174,6 +183,72 @@ async def _setup_scenario_environment(
                 )
             print(f"Scenario {scenario_id}: Setup artifact '{filename}' created.")
 
+    # Configure downstream agent auth expectations
+    if test_a2a_agent_server_harness:
+        downstream_auth_config = declarative_scenario.get("downstream_agent_auth", {})
+        if downstream_auth_config:
+            test_a2a_agent_server_harness.configure_auth_validation(
+                enabled=downstream_auth_config.get("enabled", True),
+                auth_type=downstream_auth_config.get("type"),
+                expected_value=downstream_auth_config.get("expected_value"),
+                should_fail_once=downstream_auth_config.get("should_fail_once", False),
+            )
+            print(
+                f"Scenario {scenario_id}: Configured downstream agent auth validation."
+            )
+
+        # Configure HTTP error simulation if specified
+        downstream_http_error = declarative_scenario.get("downstream_http_error")
+        if downstream_http_error:
+            status_code = downstream_http_error.get("status_code")
+            error_body = downstream_http_error.get("error_body")
+
+            if not status_code:
+                raise ValueError(
+                    f"Scenario {scenario_id}: 'downstream_http_error.status_code' is required"
+                )
+
+            test_a2a_agent_server_harness.configure_http_error_response(
+                status_code=status_code, error_body=error_body
+            )
+            print(
+                f"Scenario {scenario_id}: Configured downstream agent to return HTTP {status_code}."
+            )
+
+    # Configure OAuth mock server
+    if mock_oauth_server:
+        oauth_mock_config = declarative_scenario.get("mock_oauth_server", {})
+        if oauth_mock_config:
+            token_url = oauth_mock_config.get("token_url")
+            if not token_url:
+                raise ValueError(
+                    f"Scenario {scenario_id}: 'mock_oauth_server.token_url' is required"
+                )
+
+            # Check if we need a sequence of responses (for retry testing)
+            if "response_sequence" in oauth_mock_config:
+                mock_oauth_server.configure_token_endpoint_sequence(
+                    token_url=token_url,
+                    responses=oauth_mock_config["response_sequence"],
+                )
+                print(
+                    f"Scenario {scenario_id}: Configured OAuth mock with response sequence."
+                )
+            else:
+                # Single response configuration
+                mock_oauth_server.configure_token_endpoint(
+                    token_url=token_url,
+                    access_token=oauth_mock_config.get(
+                        "access_token", "test_token_12345"
+                    ),
+                    expires_in=oauth_mock_config.get("expires_in", 3600),
+                    error=oauth_mock_config.get("error"),
+                    status_code=oauth_mock_config.get("status_code", 200),
+                )
+                print(
+                    f"Scenario {scenario_id}: Configured OAuth mock endpoint at {token_url}."
+                )
+
     setup_tasks_spec = declarative_scenario.get("setup_tasks", [])
     if setup_tasks_spec:
         from sqlalchemy.orm import sessionmaker
@@ -195,7 +270,9 @@ async def _setup_scenario_environment(
                 end_time_ms = None
                 if task_spec.get("end_time_iso"):
                     end_time_ms = int(
-                        datetime.fromisoformat(task_spec.get("end_time_iso")).timestamp()
+                        datetime.fromisoformat(
+                            task_spec.get("end_time_iso")
+                        ).timestamp()
                         * 1000
                     )
 
@@ -214,6 +291,87 @@ async def _setup_scenario_environment(
             )
         finally:
             db_session.close()
+
+    setup_projects_spec = declarative_scenario.get("setup_projects", [])
+    if setup_projects_spec:
+        from sqlalchemy.orm import sessionmaker
+        from solace_agent_mesh.gateway.http_sse.repository.models import ProjectModel
+        from datetime import datetime, timezone
+        import uuid
+
+        Session = sessionmaker(bind=test_db_engine)
+        db_session = Session()
+        try:
+            for project_spec in setup_projects_spec:
+                created_at_iso = project_spec.get("created_at_iso")
+                created_at_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+                if created_at_iso:
+                    created_at_ms = int(
+                        datetime.fromisoformat(created_at_iso).timestamp() * 1000
+                    )
+
+                updated_at_ms = None
+                if project_spec.get("updated_at_iso"):
+                    updated_at_ms = int(
+                        datetime.fromisoformat(
+                            project_spec.get("updated_at_iso")
+                        ).timestamp()
+                        * 1000
+                    )
+
+                new_project = ProjectModel(
+                    id=project_spec.get("id", f"setup-project-{uuid.uuid4().hex}"),
+                    name=project_spec["name"],
+                    user_id=project_spec.get("user_id", "sam_dev_user"),
+                    description=project_spec.get("description"),
+                    system_prompt=project_spec.get("system_prompt"),
+                    default_agent_id=project_spec.get("default_agent_id"),
+                    created_at=created_at_ms,
+                    updated_at=updated_at_ms,
+                )
+                db_session.add(new_project)
+            db_session.commit()
+            print(
+                f"Scenario {scenario_id}: Setup {len(setup_projects_spec)} projects directly in the database."
+            )
+        finally:
+            db_session.close()
+
+
+async def _execute_gateway_actions(
+    actions: List[Dict[str, Any]],
+    test_gateway_app_instance: TestGatewayComponent,
+    task_id: str,
+    gateway_input_data: Dict[str, Any],
+    scenario_id: str,
+) -> None:
+    """
+    Executes a list of gateway actions after the initial input has been sent.
+    """
+    for i, action in enumerate(actions):
+        action_type = action.get("type")
+
+        if action_type == "cancel_task":
+            delay_seconds = action.get("delay_seconds", 0.1)
+            await asyncio.sleep(delay_seconds)
+
+            agent_name = gateway_input_data.get("target_agent_name")
+            user_identity = gateway_input_data.get("user_identity", "test_user")
+
+            print(
+                f"Scenario {scenario_id}: Executing cancel_task action for task {task_id} "
+                f"(agent: {agent_name}, delay: {delay_seconds}s)"
+            )
+
+            await test_gateway_app_instance.cancel_task(
+                agent_name=agent_name,
+                task_id=task_id,
+                user_identity=user_identity,
+            )
+        else:
+            raise ValueError(
+                f"Scenario {scenario_id}: Unknown gateway action type: {action_type}"
+            )
 
 
 async def _execute_gateway_and_collect_events(
@@ -301,7 +459,9 @@ async def _execute_http_and_collect_events(
     assert (
         session_id
     ), f"Scenario {scenario_id}: Failed to extract session_id (contextId) from HTTP response. Response: {response_data}"
-    print(f"Scenario {scenario_id}: Task {task_id} submitted via HTTP in session {session_id}.")
+    print(
+        f"Scenario {scenario_id}: Task {task_id} submitted via HTTP in session {session_id}."
+    )
 
     all_captured_events = await get_all_task_events(
         gateway_component=test_gateway_app_instance,
@@ -327,6 +487,69 @@ async def _execute_http_and_collect_events(
     )
 
 
+async def _assert_cancellation_sent(
+    cancellation_spec: Dict[str, Any],
+    test_gateway_app_instance: TestGatewayComponent,
+    test_a2a_agent_server_harness: Optional[TestA2AAgentServer],
+    task_id: str,
+    scenario_id: str,
+) -> None:
+    """
+    Asserts that cancellation was properly sent and received.
+    """
+    if not task_id:
+        pytest.fail(
+            f"Scenario {scenario_id}: Cannot assert cancellation without a task_id."
+        )
+
+    # Check if gateway sent the cancellation
+    if cancellation_spec.get("gateway_sent", False):
+        assert test_gateway_app_instance.was_cancel_called_for_task(task_id), (
+            f"Scenario {scenario_id}: Expected gateway to send cancellation for task {task_id}, "
+            f"but it was not sent."
+        )
+        print(
+            f"Scenario {scenario_id}: Verified gateway sent cancellation for task {task_id}"
+        )
+
+    # Check if downstream agent received the cancellation
+    if cancellation_spec.get("downstream_received", False):
+        if not test_a2a_agent_server_harness:
+            pytest.fail(
+                f"Scenario {scenario_id}: Cannot verify downstream received cancellation "
+                f"without test_a2a_agent_server_harness."
+            )
+
+        # The downstream agent receives the downstream task ID, not SAM's task ID
+        # If the spec provides a specific downstream_task_id to check, use that
+        # Otherwise, check if ANY cancel request was received (we may not know the downstream ID)
+        downstream_task_id = cancellation_spec.get("downstream_task_id")
+
+        if downstream_task_id:
+            # Check for specific downstream task ID
+            assert test_a2a_agent_server_harness.was_cancel_requested_for_task(
+                downstream_task_id
+            ), (
+                f"Scenario {scenario_id}: Expected downstream agent to receive cancellation "
+                f"for downstream task {downstream_task_id}, but it was not received."
+            )
+            print(
+                f"Scenario {scenario_id}: Verified downstream agent received cancellation "
+                f"for downstream task {downstream_task_id}"
+            )
+        else:
+            # Just verify that at least one cancel request was received
+            cancel_requests = test_a2a_agent_server_harness.get_cancel_requests()
+            assert len(cancel_requests) > 0, (
+                f"Scenario {scenario_id}: Expected downstream agent to receive at least one "
+                f"cancellation request, but none were received."
+            )
+            print(
+                f"Scenario {scenario_id}: Verified downstream agent received {len(cancel_requests)} "
+                f"cancellation request(s)"
+            )
+
+
 async def _assert_http_responses(
     webui_api_client: TestClient,
     http_responses_spec: List[Dict[str, Any]],
@@ -348,7 +571,9 @@ async def _assert_http_responses(
 
         request_spec = spec.get("request")
         if not request_spec:
-            pytest.fail(f"Scenario {scenario_id}: {context_path} is missing 'request' block.")
+            pytest.fail(
+                f"Scenario {scenario_id}: {context_path} is missing 'request' block."
+            )
 
         method = request_spec.get("method", "GET")
         path = request_spec.get("path")
@@ -358,7 +583,9 @@ async def _assert_http_responses(
         query_params = request_spec.get("query_params")
 
         if not path:
-            pytest.fail(f"Scenario {scenario_id}: {context_path}.request is missing 'path'.")
+            pytest.fail(
+                f"Scenario {scenario_id}: {context_path}.request is missing 'path'."
+            )
 
         response = webui_api_client.request(
             method, path, params=query_params, json=json_body
@@ -371,7 +598,9 @@ async def _assert_http_responses(
             )
 
         if "expected_content_type" in spec:
-            assert response.headers.get("content-type") == spec["expected_content_type"], (
+            assert (
+                response.headers.get("content-type") == spec["expected_content_type"]
+            ), (
                 f"Scenario {scenario_id}: {context_path} - Content-Type mismatch. "
                 f"Expected '{spec['expected_content_type']}', Got '{response.headers.get('content-type')}'."
             )
@@ -389,14 +618,14 @@ async def _assert_http_responses(
                 )
 
         if spec.get("expected_body_is_empty_list", False):
-            assert response.json() == [], (
-                f"Scenario {scenario_id}: {context_path} - Expected an empty list, but got: {response.json()}"
-            )
+            assert (
+                response.json() == []
+            ), f"Scenario {scenario_id}: {context_path} - Expected an empty list, but got: {response.json()}"
 
         if spec.get("expected_body_is_empty_dict", False):
-            assert response.json() == {}, (
-                f"Scenario {scenario_id}: {context_path} - Expected an empty dict, but got: {response.json()}"
-            )
+            assert (
+                response.json() == {}
+            ), f"Scenario {scenario_id}: {context_path} - Expected an empty dict, but got: {response.json()}"
 
         if "expected_json_body_matches" in spec:
             expected_subset = spec["expected_json_body_matches"]
@@ -408,9 +637,9 @@ async def _assert_http_responses(
                 )
 
             if "expected_list_length" in spec:
-                assert len(actual_json) == spec["expected_list_length"], (
-                    f"Scenario {scenario_id}: {context_path} - Expected list of length {spec['expected_list_length']}, but got {len(actual_json)}."
-                )
+                assert (
+                    len(actual_json) == spec["expected_list_length"]
+                ), f"Scenario {scenario_id}: {context_path} - Expected list of length {spec['expected_list_length']}, but got {len(actual_json)}."
 
             if isinstance(expected_subset, list):
                 _assert_list_subset(
@@ -437,7 +666,7 @@ async def _assert_http_responses(
 async def _assert_summary_in_text(
     text_to_search: str,
     artifact_identifiers: List[Dict[str, Any]],
-    component: "SamAgentComponent",
+    component: Any,
     user_id: str,
     session_id: str,
     app_name: str,
@@ -1518,6 +1747,23 @@ SKIPPED_PERSISTENCE_TESTS = [
     "api_search_and_filter_tasks_001",
 ]
 
+# A2A SDK Limitation: HTTP error tests are skipped because the SDK doesn't properly
+# surface HTTP errors in streaming mode. When the downstream agent returns an HTTP
+# error (e.g., 500, 503), the SDK attempts to parse the error response as Server-Sent
+# Events and reports an SSE protocol error instead of the actual HTTP status code.
+#
+# Expected behavior: HTTP 500 should be reported as "HTTP Error 500"
+# Actual behavior: Reported as "HTTP Error 400: Invalid SSE response... got 'application/json'"
+#
+# These tests should be unskipped once the A2A SDK is fixed to:
+# 1. Check HTTP status codes before attempting SSE parsing
+# 2. Surface HTTP errors with their actual status codes
+# 3. Only attempt SSE parsing for successful responses (2xx)
+SKIPPED_SDK_HTTP_ERROR_TESTS = [
+    "proxy_http_error_500_001",
+    "proxy_http_error_503_001",
+]
+
 
 @pytest.mark.asyncio
 async def test_declarative_scenario(
@@ -1544,6 +1790,10 @@ async def test_declarative_scenario(
     monkeypatch: pytest.MonkeyPatch,
     mcp_server_harness,
     request: pytest.FixtureRequest,
+    test_a2a_agent_server_harness: TestA2AAgentServer,
+    a2a_proxy_component: BaseProxyComponent,
+    mock_oauth_server,
+    test_static_file_server: TestStaticFileServer,
 ):
     """
     Executes a single declarative test scenario discovered by pytest_generate_tests.
@@ -1551,7 +1801,25 @@ async def test_declarative_scenario(
     scenario_id = declarative_scenario.get("test_case_id", "N/A")
     scenario_description = declarative_scenario.get("description", "No description")
 
+    # Substitute placeholders in the scenario data
+    from tests.integration.scenarios_declarative.placeholder_utils import (
+        substitute_placeholders,
+        create_test_context,
+    )
+
+    test_context = create_test_context(
+        test_static_file_server=test_static_file_server, test_llm_server=test_llm_server
+    )
+    declarative_scenario = substitute_placeholders(declarative_scenario, test_context)
+
     # --- Phase 0: MCP Configuration now handled by mcp_configured_sam_app fixture ---
+
+    if "downstream_a2a_agent_responses" in declarative_scenario:
+        responses_to_prime = declarative_scenario["downstream_a2a_agent_responses"]
+        test_a2a_agent_server_harness.prime_responses(responses_to_prime)
+        print(
+            f"Scenario {scenario_id}: Primed downstream A2A agent with {len(responses_to_prime)} responses."
+        )
 
     if "monkeypatch_spec" in declarative_scenario:
         for patch_spec in declarative_scenario["monkeypatch_spec"]:
@@ -1579,6 +1847,13 @@ async def test_declarative_scenario(
     if scenario_id in SKIPPED_PERSISTENCE_TESTS:
         pytest.xfail(f"Skipping failing persistence test '{scenario_id}' until fixed.")
 
+    if scenario_id in SKIPPED_SDK_HTTP_ERROR_TESTS:
+        pytest.skip(
+            f"Skipping '{scenario_id}' - A2A SDK doesn't properly surface HTTP errors in streaming mode. "
+            "The SDK attempts to parse HTTP error responses as SSE and reports protocol errors instead of "
+            "the actual HTTP status codes. See SKIPPED_SDK_HTTP_ERROR_TESTS comment for details."
+        )
+
     if scenario_id in SKIPPED_MERMAID_DIAGRAM_GENERATOR_SCENARIOS:
         pytest.xfail(
             f"Skipping test '{scenario_id}' because the 'mermaid_diagram_generator' requires Playwright, which is not available in this environment."
@@ -1605,9 +1880,96 @@ async def test_declarative_scenario(
         mixed_discovery_agent_component.agent_name: mixed_discovery_agent_component,
         complex_signatures_agent_component.agent_name: complex_signatures_agent_component,
         config_context_agent_component.agent_name: config_context_agent_component,
+        "TestAgent_Proxied": a2a_proxy_component,
     }
 
-    # --- Phase 1: Setup Environment (including config overrides) ---
+    # --- Phase 1: Setup Environment ---
+    await _setup_scenario_environment(
+        declarative_scenario,
+        test_llm_server,
+        test_artifact_service_instance,
+        test_db_engine,
+        scenario_id,
+        artifact_scope,
+        test_a2a_agent_server_harness=test_a2a_agent_server_harness,
+        mock_oauth_server=mock_oauth_server,
+    )
+
+    # Store original proxy configs to restore after test
+    original_proxy_auth_configs = {}
+    original_proxy_url_configs = {}
+
+    # Configure proxy URL override if specified (for testing unreachable agents)
+    if "proxy_config_override" in declarative_scenario:
+        proxy_override = declarative_scenario["proxy_config_override"]
+        agent_name = proxy_override.get("agent_name", "TestAgent_Proxied")
+        override_url = proxy_override.get("url")
+
+        if override_url:
+            # Find the agent config in the proxy's configuration
+            for agent_cfg in a2a_proxy_component.proxied_agents_config:
+                if agent_cfg.get("name") == agent_name:
+                    # Save original URL before modifying
+                    original_proxy_url_configs[agent_name] = agent_cfg.get("url")
+
+                    # Apply new URL
+                    agent_cfg["url"] = override_url
+
+                    # Update the indexed cache for O(1) lookups
+                    a2a_proxy_component._agent_config_by_name[agent_name] = agent_cfg
+
+                    print(
+                        f"Scenario {scenario_id}: Configured proxy URL override for {agent_name}: {override_url}"
+                    )
+                    break
+            else:
+                pytest.fail(
+                    f"Scenario {scenario_id}: Agent '{agent_name}' not found in proxy configuration for URL override"
+                )
+
+            # Clear cached clients to force reconnection with new URL
+            a2a_proxy_component.clear_client_cache()
+            print(
+                f"Scenario {scenario_id}: Cleared proxy client cache after URL override"
+            )
+
+    # Configure proxy authentication if specified
+    if "proxy_auth_config" in declarative_scenario:
+        proxy_auth_config = declarative_scenario["proxy_auth_config"]
+        agent_name = proxy_auth_config.get("agent_name", "TestAgent_Proxied")
+        auth_config = proxy_auth_config.get("authentication")
+
+        if auth_config:
+            # Clear cached authentication state from previous tests
+            # This ensures each test starts with a clean slate for authentication
+            a2a_proxy_component._a2a_clients.clear()
+            await a2a_proxy_component._oauth_token_cache.invalidate(agent_name)
+            print(f"Scenario {scenario_id}: Cleared cached auth state for {agent_name}")
+
+            # Find the agent config in the proxy's configuration
+            for agent_cfg in a2a_proxy_component.proxied_agents_config:
+                if agent_cfg.get("name") == agent_name:
+                    # Save original config before modifying
+                    original_proxy_auth_configs[agent_name] = agent_cfg.get(
+                        "authentication"
+                    )
+
+                    # Apply new config
+                    agent_cfg["authentication"] = auth_config
+
+                    # Update the indexed cache for O(1) lookups
+                    a2a_proxy_component._agent_config_by_name[agent_name] = agent_cfg
+
+                    print(
+                        f"Scenario {scenario_id}: Configured proxy auth for {agent_name}: {auth_config.get('type')}"
+                    )
+                    break
+            else:
+                pytest.fail(
+                    f"Scenario {scenario_id}: Agent '{agent_name}' not found in proxy configuration"
+                )
+
+    # Apply config overrides after environment setup
     if "test_runner_config_overrides" in declarative_scenario:
         if agent_config_overrides:
             # Get the component instance to patch
@@ -1645,15 +2007,6 @@ async def test_declarative_scenario(
             print(
                 f"Scenario {scenario_id}: Applied config overrides: {agent_config_overrides}"
             )
-
-    await _setup_scenario_environment(
-        declarative_scenario,
-        test_llm_server,
-        test_artifact_service_instance,
-        test_db_engine,
-        scenario_id,
-        artifact_scope,
-    )
 
     gateway_input_data = declarative_scenario.get("gateway_input")
     http_request_input = declarative_scenario.get("http_request_input")
@@ -1737,14 +2090,64 @@ async def test_declarative_scenario(
         )
     elif gateway_input_data:
         assertion_context_data = gateway_input_data
-        (
-            task_id,
-            all_captured_events,
-            aggregated_stream_text_for_final_assert,
-            text_from_terminal_event_for_final_assert,
-        ) = await _execute_gateway_and_collect_events(
-            test_gateway_app_instance, gateway_input_data, overall_timeout, scenario_id
+
+        # Check if we have post-input actions (like cancel_task)
+        gateway_actions_after_input = declarative_scenario.get(
+            "gateway_actions_after_input", []
         )
+
+        if gateway_actions_after_input:
+            # When we have actions to execute mid-flight, we need to:
+            # 1. Send the task immediately
+            # 2. Execute the actions (e.g., cancel) while task is in-flight
+            # 3. Then collect all events
+
+            task_id = await test_gateway_app_instance.send_test_input(
+                gateway_input_data
+            )
+            assert (
+                task_id
+            ), f"Scenario {scenario_id}: Failed to submit task via TestGatewayComponent."
+            print(f"Scenario {scenario_id}: Task {task_id} submitted.")
+
+            # Execute post-input actions (e.g., cancel) while task is running
+            await _execute_gateway_actions(
+                gateway_actions_after_input,
+                test_gateway_app_instance,
+                task_id,
+                gateway_input_data,
+                scenario_id,
+            )
+
+            # Now collect all events (including responses to actions like cancellation)
+            all_captured_events = await get_all_task_events(
+                gateway_component=test_gateway_app_instance,
+                task_id=task_id,
+                overall_timeout=overall_timeout,
+            )
+            assert (
+                all_captured_events
+            ), f"Scenario {scenario_id}: No events captured from gateway for task {task_id}."
+
+            # Extract outputs from all collected events
+            (
+                _terminal_event_obj_for_text,
+                aggregated_stream_text_for_final_assert,
+                text_from_terminal_event_for_final_assert,
+            ) = extract_outputs_from_event_list(all_captured_events, scenario_id)
+        else:
+            # No mid-flight actions, use the original flow
+            (
+                task_id,
+                all_captured_events,
+                aggregated_stream_text_for_final_assert,
+                text_from_terminal_event_for_final_assert,
+            ) = await _execute_gateway_and_collect_events(
+                test_gateway_app_instance,
+                gateway_input_data,
+                overall_timeout,
+                scenario_id,
+            )
     elif http_request_input:
         (
             task_id,
@@ -1760,9 +2163,7 @@ async def test_declarative_scenario(
             scenario_id,
         )
         # The WebUI test setup uses a default user. This is how auth is set up for tests.
-        user_id_for_assertions = http_request_input.get(
-            "user_identity", "sam_dev_user"
-        )
+        user_id_for_assertions = http_request_input.get("user_identity", "sam_dev_user")
         agent_name = (
             http_request_input.get("json_body", {})
             .get("params", {})
@@ -1791,14 +2192,19 @@ async def test_declarative_scenario(
             f"Scenario {scenario_id}: Task {task_id} execution and event collection complete."
         )
 
+    if "assert_downstream_request" in declarative_scenario:
+        await _assert_downstream_request(
+            expected_request_specs=declarative_scenario["assert_downstream_request"],
+            test_a2a_agent_server_harness=test_a2a_agent_server_harness,
+            scenario_id=scenario_id,
+        )
+
     try:
         # If a task was run, perform assertions on its execution
         if task_id:
             actual_events_list = all_captured_events
             captured_llm_requests = test_llm_server.get_captured_requests()
-            expected_llm_interactions = declarative_scenario.get(
-                "llm_interactions", []
-            )
+            expected_llm_interactions = declarative_scenario.get("llm_interactions", [])
             await _assert_llm_interactions(
                 expected_llm_interactions,
                 captured_llm_requests,
@@ -1839,6 +2245,24 @@ async def test_declarative_scenario(
             )
 
         # --- Phase 3: Final Assertions ---
+        # Assert downstream auth headers if specified
+        if "assert_downstream_auth" in declarative_scenario:
+            await _assert_downstream_auth_headers(
+                expected_auth_specs=declarative_scenario["assert_downstream_auth"],
+                test_a2a_agent_server_harness=test_a2a_agent_server_harness,
+                scenario_id=scenario_id,
+            )
+
+        # Assert OAuth token requests if specified
+        if "assert_oauth_token_requests" in declarative_scenario:
+            await _assert_oauth_token_requests(
+                expected_oauth_specs=declarative_scenario[
+                    "assert_oauth_token_requests"
+                ],
+                mock_oauth_server=mock_oauth_server,
+                scenario_id=scenario_id,
+            )
+
         # Perform HTTP assertions if specified
         expected_http_responses = declarative_scenario.get(
             "expected_http_responses", []
@@ -1849,6 +2273,16 @@ async def test_declarative_scenario(
             scenario_id=scenario_id,
             task_id=task_id,
         )
+
+        # Assert cancellation was sent if specified
+        if "assert_cancellation_sent" in declarative_scenario:
+            await _assert_cancellation_sent(
+                cancellation_spec=declarative_scenario["assert_cancellation_sent"],
+                test_gateway_app_instance=test_gateway_app_instance,
+                test_a2a_agent_server_harness=test_a2a_agent_server_harness,
+                task_id=task_id,
+                scenario_id=scenario_id,
+            )
 
         print(f"Scenario {scenario_id}: Completed.")
     except Exception as e:
@@ -1861,6 +2295,178 @@ async def test_declarative_scenario(
             ]
             pretty_print_event_history(event_payloads)
         raise e
+    finally:
+        # Restore original proxy configurations
+        if original_proxy_auth_configs:
+            for agent_name, original_auth in original_proxy_auth_configs.items():
+                for agent_cfg in a2a_proxy_component.proxied_agents_config:
+                    if agent_cfg.get("name") == agent_name:
+                        if original_auth is None:
+                            # Remove the authentication key if it wasn't there originally
+                            agent_cfg.pop("authentication", None)
+                        else:
+                            # Restore the original authentication config
+                            agent_cfg["authentication"] = original_auth
+
+                        # Update the indexed cache for O(1) lookups
+                        a2a_proxy_component._agent_config_by_name[agent_name] = (
+                            agent_cfg
+                        )
+
+                        print(
+                            f"Scenario {scenario_id}: Restored original auth config for {agent_name}"
+                        )
+                        break
+
+        if original_proxy_url_configs:
+            for agent_name, original_url in original_proxy_url_configs.items():
+                for agent_cfg in a2a_proxy_component.proxied_agents_config:
+                    if agent_cfg.get("name") == agent_name:
+                        agent_cfg["url"] = original_url
+
+                        # Update the indexed cache for O(1) lookups
+                        a2a_proxy_component._agent_config_by_name[agent_name] = (
+                            agent_cfg
+                        )
+
+                        print(
+                            f"Scenario {scenario_id}: Restored original URL for {agent_name}"
+                        )
+                        break
+            # Clear cache again after restoring URLs
+            a2a_proxy_component.clear_client_cache()
+
+
+async def _assert_downstream_auth_headers(
+    expected_auth_specs: List[Dict[str, Any]],
+    test_a2a_agent_server_harness: TestA2AAgentServer,
+    scenario_id: str,
+):
+    """
+    Asserts authentication headers sent to the downstream agent.
+    """
+    captured_auth = test_a2a_agent_server_harness.get_captured_auth_headers()
+
+    for i, spec in enumerate(expected_auth_specs):
+        context_path = f"assert_downstream_auth[{i}]"
+        request_index = spec.get("request_index", 0)
+
+        if request_index >= len(captured_auth):
+            pytest.fail(
+                f"Scenario {scenario_id}: {context_path} - Expected auth for request {request_index}, "
+                f"but only {len(captured_auth)} requests were captured."
+            )
+
+        actual_headers = captured_auth[request_index]
+
+        # Check Authorization header
+        if "authorization_header" in spec:
+            expected_auth = spec["authorization_header"]
+            actual_auth = actual_headers.get("authorization", "")
+
+            if "exact" in expected_auth:
+                expected_value = expected_auth["exact"]
+                # Handle empty string as "no header should be present"
+                if expected_value == "":
+                    assert actual_auth == "", (
+                        f"Scenario {scenario_id}: {context_path} - Expected no Authorization header, "
+                        f"but got '{actual_auth}'"
+                    )
+                else:
+                    assert actual_auth == expected_value, (
+                        f"Scenario {scenario_id}: {context_path} - Authorization header mismatch. "
+                        f"Expected '{expected_value}', Got '{actual_auth}'"
+                    )
+
+            if "starts_with" in expected_auth:
+                assert actual_auth.startswith(expected_auth["starts_with"]), (
+                    f"Scenario {scenario_id}: {context_path} - Authorization header doesn't start with expected prefix. "
+                    f"Expected to start with '{expected_auth['starts_with']}', Got '{actual_auth}'"
+                )
+
+            if "contains" in expected_auth:
+                assert expected_auth["contains"] in actual_auth, (
+                    f"Scenario {scenario_id}: {context_path} - Authorization header doesn't contain expected substring. "
+                    f"Expected to contain '{expected_auth['contains']}', Got '{actual_auth}'"
+                )
+
+        # Check X-API-Key header
+        if "api_key_header" in spec:
+            expected_key = spec["api_key_header"]
+            actual_key = actual_headers.get("x_api_key", "")
+
+            assert actual_key == expected_key, (
+                f"Scenario {scenario_id}: {context_path} - X-API-Key header mismatch. "
+                f"Expected '{expected_key}', Got '{actual_key}'"
+            )
+
+
+async def _assert_oauth_token_requests(
+    expected_oauth_specs: List[Dict[str, Any]],
+    mock_oauth_server: Any,
+    scenario_id: str,
+):
+    """
+    Asserts OAuth token requests made by the proxy.
+    """
+    for i, spec in enumerate(expected_oauth_specs):
+        context_path = f"assert_oauth_token_requests[{i}]"
+        token_url = spec.get("token_url")
+
+        if not token_url:
+            pytest.fail(
+                f"Scenario {scenario_id}: {context_path} - 'token_url' is required"
+            )
+
+        # Assert call count
+        if "call_count" in spec:
+            expected_count = spec["call_count"]
+            try:
+                mock_oauth_server.assert_token_requested(
+                    token_url, times=expected_count
+                )
+            except AssertionError as e:
+                pytest.fail(f"Scenario {scenario_id}: {context_path} - {e}")
+
+        # Assert request body
+        if "request_body_contains" in spec:
+            last_request = mock_oauth_server.get_last_token_request(token_url)
+            if not last_request:
+                pytest.fail(
+                    f"Scenario {scenario_id}: {context_path} - No requests captured for {token_url}"
+                )
+
+            request_body = last_request.content.decode("utf-8")
+            for key, value in spec["request_body_contains"].items():
+                expected_param = f"{key}={value}"
+                assert expected_param in request_body, (
+                    f"Scenario {scenario_id}: {context_path} - Request body doesn't contain '{expected_param}'. "
+                    f"Body: {request_body}"
+                )
+
+
+async def _assert_downstream_request(
+    expected_request_specs: List[Dict[str, Any]],
+    test_a2a_agent_server_harness: TestA2AAgentServer,
+    scenario_id: str,
+):
+    """
+    Asserts the requests captured by the downstream A2A agent server.
+    """
+    captured_requests = test_a2a_agent_server_harness.captured_requests
+    assert len(captured_requests) >= len(
+        expected_request_specs
+    ), f"Scenario {scenario_id}: Mismatch in number of downstream requests. Expected at least {len(expected_request_specs)}, Got {len(captured_requests)}"
+
+    for i, expected_spec in enumerate(expected_request_specs):
+        actual_request = captured_requests[i]
+        _assert_dict_subset(
+            expected_subset=expected_spec,
+            actual_superset=actual_request,
+            scenario_id=scenario_id,
+            event_index=i,  # Reusing event_index for request_index
+            context_path=f"Downstream Request [{i}]",
+        )
 
 
 def _extract_text_from_generic_update(event: TaskStatusUpdateEvent) -> str:
@@ -2002,6 +2608,9 @@ async def _assert_event_details(
                         or data.get("type") == "agent_status"
                     ):
                         text_to_assert_against = data.get("text", "")
+                        break
+                    elif data.get("type") == "agent_progress_update":
+                        text_to_assert_against = data.get("status_text", "")
                         break
 
         if "content_parts" in expected_spec and (
@@ -2148,6 +2757,18 @@ async def _assert_event_details(
                 expected_set == actual_set
             ), f"Scenario {scenario_id}: Event {event_index+1} - 'produced_artifacts' mismatch. Expected {expected_set}, Got {actual_set}"
 
+        if "metadata_contains" in expected_spec:
+            assert (
+                actual_event.metadata
+            ), f"Scenario {scenario_id}: Event {event_index+1} - Expected 'metadata' field to exist in final Task, but it was None."
+            _assert_dict_subset(
+                expected_subset=expected_spec["metadata_contains"],
+                actual_superset=actual_event.metadata,
+                scenario_id=scenario_id,
+                event_index=event_index,
+                context_path="Final Task metadata",
+            )
+
         text_for_final_assertion = ""
         if expected_spec.get("assert_content_against_stream", False):
             text_for_final_assertion = (
@@ -2183,10 +2804,36 @@ async def _assert_event_details(
             assert (
                 actual_event.code == expected_spec["error_code"]
             ), f"Scenario {scenario_id}: Event {event_index+1} - Error code mismatch. Expected {expected_spec['error_code']}, Got {actual_event.code}"
+
         if "error_message_contains" in expected_spec:
             assert (
                 expected_spec["error_message_contains"] in actual_event.message
             ), f"Scenario {scenario_id}: Event {event_index+1} - Error message content mismatch. Expected to contain '{expected_spec['error_message_contains']}', Got '{actual_event.message}'"
+
+        if "error_message_matches_regex" in expected_spec:
+            regex_pattern = expected_spec["error_message_matches_regex"]
+            assert re.search(
+                regex_pattern, actual_event.message, re.IGNORECASE
+            ), f"Scenario {scenario_id}: Event {event_index+1} - Error message regex mismatch. Pattern '{regex_pattern}' not found in '{actual_event.message}'"
+
+        if "error_data_contains" in expected_spec:
+            assert (
+                actual_event.data is not None
+            ), f"Scenario {scenario_id}: Event {event_index+1} - Expected error.data to exist, but it was None"
+
+            expected_data_subset = expected_spec["error_data_contains"]
+            if isinstance(actual_event.data, dict):
+                _assert_dict_subset(
+                    expected_subset=expected_data_subset,
+                    actual_superset=actual_event.data,
+                    scenario_id=scenario_id,
+                    event_index=event_index,
+                    context_path="error.data",
+                )
+            else:
+                pytest.fail(
+                    f"Scenario {scenario_id}: Event {event_index+1} - error.data is not a dict. Got type: {type(actual_event.data)}"
+                )
 
     if "assert_artifact_state" in expected_spec:
         assert (

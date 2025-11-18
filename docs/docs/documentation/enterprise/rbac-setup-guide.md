@@ -92,17 +92,18 @@ Before you begin, ensure you have:
 
 You need to create a directory structure on your host system to store RBAC configuration files. The Docker container will mount this directory to access your configurations.
 
-Create the directory structure:
+Create the directory structure as follows:
 
 ```bash
-mkdir -p sam-enterprise/configs/auth
+mkdir -p sam-enterprise/config/auth
 ```
 
-This command creates a `sam-enterprise` directory with a nested `configs/auth` subdirectory. The `auth` subdirectory will contain your RBAC configuration files, while the `configs` directory can hold other configuration files you might need.
+This command creates a `sam-enterprise` directory with a nested `config/auth` subdirectory. The `auth` subdirectory will contain your RBAC configuration files.
 
 ### Defining Roles and Permissions
 
-Create a file named `role-to-scope-definitions.yaml` in the `sam-enterprise/configs/auth` directory. This file defines all roles in your system and the scopes (permissions) associated with each role.
+Create a file named `role-to-scope-definitions.yaml` in the `sam-enterprise/config/auth` directory. 
+This file defines all roles in your system and the scopes (permissions) associated with each role.
 
 Here is an example configuration that defines three roles:
 
@@ -140,7 +141,7 @@ The `standard_user` role provides minimal permissions for basic operations. User
 
 ### Assigning Users to Roles
 
-Create a file named `user-to-role-assignments.yaml` in the `sam-enterprise/configs/auth` directory. This file maps user identities to roles.
+Create a file named `user-to-role-assignments.yaml` in the `sam-enterprise/config/auth` directory. This file maps user identities to roles.
 
 Here is an example configuration:
 
@@ -168,14 +169,14 @@ The `description` field is optional but recommended. It helps you document the p
 
 ### Creating the Enterprise Configuration
 
-Create a file named `enterprise_config.yaml` in the `sam-enterprise/configs` directory (not in the `auth` subdirectory). This file tells Agent Mesh Enterprise where to find your RBAC configuration files and how to use them.
+Create a file named `enterprise_config.yaml` in the `sam-enterprise/config` directory (not in the `auth` subdirectory). This file tells Agent Mesh Enterprise where to find your RBAC configuration files and how to use them.
 
 ```yaml
 # enterprise_config.yaml
 authorization_service:
   type: "default_rbac"
-  role_to_scope_definitions_path: "configs/auth/role-to-scope-definitions.yaml"
-  user_to_role_assignments_path: "configs/auth/user-to-role-assignments.yaml"
+  role_to_scope_definitions_path: "config/auth/role-to-scope-definitions.yaml"
+  user_to_role_assignments_path: "config/auth/user-to-role-assignments.yaml"
 
 namespace: "enterprise_prod"
 gateway_id: "enterprise_gateway"
@@ -187,38 +188,28 @@ The `namespace` and `gateway_id` fields configure the Agent Mesh Enterprise inst
 
 ### Running the Docker Container
 
-Now you can start the Docker container with your RBAC configuration. Navigate to your `sam-enterprise` directory and run:
+Now you can start the Docker container with your RBAC configuration. 
+Navigate to your `sam-enterprise` directory and run:
 
 ```bash
 cd sam-enterprise
 
 docker run -d \
   --name sam-enterprise \
-  -p 8000:8000 \
-  -p 5002:5002 \
-  -v "$(pwd)/configs:/app/configs" \
-  -e SAM_AUTHORIZATION_CONFIG="/app/configs/enterprise_config.yaml" \
+  -p 8001:8000 \
+  -v "$(pwd):/app" \
+  -e SAM_AUTHORIZATION_CONFIG="/app/config/enterprise_config.yaml" \
   -e NAMESPACE=enterprise_prod \
   -e WEBUI_GATEWAY_ID=enterprise_gateway \
   -e ... list here all other necessary env vars ...
-  solace-agent-mesh-enterprise:<tagname> run configs
+  solace-agent-mesh-enterprise:<tagname>
 ```
-
-This command performs several important operations:
-
-The `-d` flag runs the container in detached mode, which means it runs in the background and does not block your terminal.
-
-The `-p` flags map container ports to host ports. Port 8000 is the API port, and port 5002 is the web interface port. After the container starts, you can access the web interface at `http://localhost:5002`.
-
-The `-v` flag mounts your local `configs` directory to `/app/configs` inside the container. This mount allows the container to read your RBAC configuration files. The `$(pwd)` command expands to your current directory path, ensuring the mount works regardless of where you run the command.
-
-The `-e` flags set environment variables inside the container. The `SAM_AUTHORIZATION_CONFIG` variable tells Agent Mesh Enterprise where to find the main configuration file. The `NAMESPACE` and `WEBUI_GATEWAY_ID` variables must match the values in your `enterprise_config.yaml` file.
 
 ### Verifying Your Configuration
 
 After starting the container, you should verify that RBAC is working correctly. Follow these steps:
 
-1. Open your web browser and navigate to `http://localhost:5002`
+1. Open your web browser and navigate to `http://localhost:8001`
 2. Log in using one of the user identities defined in your `user-to-role-assignments.yaml` file
 3. Attempt to access features that the user should have permission to use
 4. Attempt to access features that the user should not have permission to use
@@ -234,7 +225,7 @@ docker logs sam-enterprise
 Look for log messages that indicate successful configuration loading. You should see messages similar to:
 
 ```
-INFO:solace_ai_connector:[ConfigurableRbacAuthSvc] Successfully loaded role-to-scope definitions from: /app/configs/auth/role-to-scope-definitions.yaml
+INFO:solace_ai_connector:[ConfigurableRbacAuthSvc] Successfully loaded role-to-scope definitions from: /app/config/auth/role-to-scope-definitions.yaml
 DEBUG:solace_ai_connector:[ConfigurableRbacAuthSvc] Role 'enterprise_admin' loaded with 1 direct scopes, 1 resolved scopes.
 DEBUG:solace_ai_connector:[ConfigurableRbacAuthSvc] Role 'data_analyst' loaded with 4 direct scopes, 4 resolved scopes.
 DEBUG:solace_ai_connector:[ConfigurableRbacAuthSvc] Role 'standard_user' loaded with 3 direct scopes, 3 resolved scopes.
@@ -317,8 +308,6 @@ authorization_service:
   user_to_role_assignments_path: "path/to/user-to-role-assignments.yaml"
 ```
 
-The paths you specify are relative to the container's working directory. When you mount your `configs` directory to `/app/configs`, you should use paths like `configs/auth/role-to-scope-definitions.yaml`.
-
 ## Advanced Configuration Options
 
 After you have a basic RBAC configuration working, you might want to explore advanced options that provide additional flexibility and integration capabilities.
@@ -381,7 +370,7 @@ To configure Microsoft Graph integration, modify your `enterprise_config.yaml`:
 # enterprise_config.yaml
 authorization_service:
   type: "default_rbac"
-  role_to_scope_definitions_path: "configs/auth/role-to-scope-definitions.yaml"
+  role_to_scope_definitions_path: "config/auth/role-to-scope-definitions.yaml"
   user_to_role_provider: "ms_graph"
   
   ms_graph_config:
@@ -399,9 +388,8 @@ Run the Docker container with the Microsoft Graph credentials:
 ```bash
 docker run -d \
   --name sam-enterprise \
-  -p 8000:8000 \
-  -p 5002:5002 \
-  -v "$(pwd)/config:/app/configs" \
+  -p 8000:8001 \
+  -v "$(pwd):/app" \
   -e MS_GRAPH_TENANT_ID=your-tenant-id \
   -e MS_GRAPH_CLIENT_ID=your-client-id \
   -e MS_GRAPH_CLIENT_SECRET=your-client-secret \
@@ -473,7 +461,7 @@ Next, check that the role assigned to the user has the necessary scopes. Review 
 Ensure that your configuration files are correctly mounted in the Docker container. You can verify the mount by running:
 
 ```bash
-docker exec -it sam-enterprise ls -la /app/configs/auth
+docker exec -it sam-enterprise ls -la /app/config/auth
 ```
 
 This command lists the files in the mounted directory. You should see your `role-to-scope-definitions.yaml` and `user-to-role-assignments.yaml` files.
@@ -487,7 +475,7 @@ docker logs sam-enterprise
 Look for messages with the `[ConfigurableRbacAuthSvc]` prefix. These messages indicate whether Agent Mesh Enterprise successfully loaded your configuration files and how it resolved roles and scopes. You should see messages like:
 
 ```
-INFO:solace_ai_connector:[ConfigurableRbacAuthSvc] Successfully loaded role-to-scope definitions from: /app/configs/auth/role-to-scope-definitions.yaml
+INFO:solace_ai_connector:[ConfigurableRbacAuthSvc] Successfully loaded role-to-scope definitions from: /app/config/auth/role-to-scope-definitions.yaml
 DEBUG:solace_ai_connector:[ConfigurableRbacAuthSvc] Role 'enterprise_admin' loaded with 1 direct scopes, 1 resolved scopes.
 DEBUG:solace_ai_connector:[ConfigurableRbacAuthSvc] Role 'data_analyst' loaded with 4 direct scopes, 4 resolved scopes.
 DEBUG:solace_ai_connector:[ConfigurableRbacAuthSvc] Role 'standard_user' loaded with 1 direct scopes, 1 resolved scopes.
@@ -497,14 +485,12 @@ DEBUG:solace_ai_connector:[ConfigurableRbacAuthSvc] Role 'standard_user' loaded 
 
 If you see error messages about missing configuration files or the system uses default authorization behavior, the container cannot find your configuration files.
 
-Verify that the file paths in your `enterprise_config.yaml` are correct. The paths should be relative to the container's working directory, typically `/app`. If you mounted your configs directory to `/app/configs`, your paths should start with `configs/`.
-
-Check that the volume mount in your Docker run command is correct. The mount should map your host directory to `/app/configs` in the container. Verify that you are using the correct path on your host system.
+Check that the volume mount in your Docker run command is correct. The mount should map your host directory to `/app` in the container. Verify that you are using the correct path on your host system.
 
 Ensure that file permissions allow the container user to read the files. On Linux systems, you might need to adjust file permissions:
 
 ```bash
-chmod 644 sam-enterprise/configs/auth/*.yaml
+chmod 644 sam-enterprise/config/auth/*.yaml
 ```
 
 Check for typos in file names or paths. The file names are case-sensitive, and even small typos prevent Agent Mesh Enterprise from finding your configuration files.
@@ -551,8 +537,8 @@ Temporarily assign the user to an administrator role to verify whether the issue
 Inspect the mounted configuration files inside the container to verify that they contain the expected content:
 
 ```bash
-docker exec -it sam-enterprise cat /app/configs/auth/role-to-scope-definitions.yaml
-docker exec -it sam-enterprise cat /app/configs/auth/user-to-role-assignments.yaml
+docker exec -it sam-enterprise cat /app/config/auth/role-to-scope-definitions.yaml
+docker exec -it sam-enterprise cat /app/config/auth/user-to-role-assignments.yaml
 ```
 
 This verification ensures that the files inside the container match your host files and that the volume mount is working correctly.

@@ -23,7 +23,7 @@ apps:
         You are an agent that can fetch content from web URLs using the 'web_request' tool.
         You can make various types of HTTP requests (GET, POST, etc.) and include custom headers or a body.
         The tool will return the fetched content (HTML converted to Markdown, other text types as is, or raw binary data).
-        You will then need to process this content based on the user's request.
+        Always analyze the content of the returned files from the web_request tool first before providing a final answer to the user.
         Always save useful fetched content as an artifact.
       tools:
         - tool_type: builtin
@@ -31,7 +31,7 @@ apps:
         - tool_type: builtin-group
           group_name: "artifact_management"
       session_service:
-        type: "${PERSISTENCE_TYPE, memory}"
+        type: "${PERSISTENCE_TYPE, sql}"
         database_url: "${AGENT_WEB_DATABASE_URL, sqlite:///web-agent.db}"
         default_behavior: "PERSISTENT"
       artifact_service: *default_artifact_service
@@ -45,7 +45,7 @@ apps:
         skills:
           - id: "web_request"
             name: "Web Request"
-            description: "Fetches content from a URL."
+            description: "Fetches and processes content from web URLs."
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
       inter_agent_communication:

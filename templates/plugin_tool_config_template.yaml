@@ -1,0 +1,109 @@
+# Plugin Metadata:
+# Name: __PLUGIN_KEBAB_CASE_NAME__
+# Version: __PLUGIN_VERSION__
+# Description: __PLUGIN_DESCRIPTION__
+# Author: __PLUGIN_AUTHOR_NAME__ <__PLUGIN_AUTHOR_EMAIL__>
+# 
+# --- Start of Agent Configuration Template ---
+# Solace Agent Mesh: Plugin Configuration Template
+#
+# This file serves as a template for creating new agent configurations from this plugin.
+# Use placeholders like __COMPONENT_KEBAB_CASE_NAME__, __COMPONENT_PASCAL_CASE_NAME__,
+# and __COMPONENT_UPPER_SNAKE_CASE_NAME__ where the specific component name should be inserted.
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: __COMPONENT_KEBAB_CASE_NAME__.log
+
+# To use the `shared_config.yaml` file, uncomment the following line and remove the `shared_config` section below.
+# !include ../shared_config.yaml
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8008}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+  - models:
+    general: &general_model
+      # This dictionary structure tells ADK to use the LiteLlm wrapper.
+      # 'model' uses the specific model identifier your endpoint expects.
+      model: ${LLM_SERVICE_GENERAL_MODEL_NAME} # Use env var for model name
+      # 'api_base' tells LiteLLM where to send the request.
+      api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
+      # 'api_key' provides authentication.
+      api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+
+  - services:
+    # Default session service configuration
+    session_service: &default_session_service
+      type: "memory"
+      default_behavior: "PERSISTENT"
+    
+    # Default artifact service configuration
+    artifact_service: &default_artifact_service
+      type: "filesystem"
+      base_path: "/tmp/samv2"
+      artifact_scope: namespace # Or "namespace", "app", "custom"
+
+apps:
+  - name: __COMPONENT_KEBAB_CASE_NAME__-app
+    app_base_path: . 
+    app_module: solace_agent_mesh.agent.sac.app 
+    broker:
+      <<: *broker_connection
+
+    # App Level Config
+    app_config:
+      namespace: ${NAMESPACE} 
+      supports_streaming: true 
+      agent_name: "__COMPONENT_PASCAL_CASE_NAME__" 
+      display_name: "__COMPONENT_SPACED_CAPITALIZED_NAME__ Agent"
+      model: *general_model 
+
+      instruction: |
+        You're __COMPONENT_SPACED_CAPITALIZED_NAME__ agent.
+        Configure its specific instructions here.
+
+      tools:
+        - group_name: artifact_management
+          tool_type: builtin-group
+
+        # --- Example Python Tools (defined in tools.py) ---
+        # - tool_type: python
+        #   component_module: __PLUGIN_SNAKE_CASE_NAME__.tools
+        #   component_base_path: . # Relative to where the agent runs
+        #   function_name: example_text_processor_tool
+        #   tool_config:
+        #     prefix: "PluginProcessed: "
+        
+        # - tool_type: python
+        #   component_module: __PLUGIN_SNAKE_CASE_NAME__.tools
+        #   component_base_path: .
+        #   function_name: example_file_creator_tool
+        #   tool_config: {} # Add specific config if needed by the tool
+
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: "__PLUGIN_DESCRIPTION__"
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills: [] # Remove brackets after adding entries
+          # - id: "example_tool"
+          #   name: "Example Tool"
+          #   description: "An example tool provided by the __PLUGIN_PASCAL_CASE_NAME__ plugin."
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 30

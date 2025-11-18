@@ -30,7 +30,7 @@ llm_interactions:
               - id: "call_123"
                 type: "function"
                 function:
-                  name: "web_request"
+                  name: "web_request_strict"
                   arguments: '{"url": "http://localhost:8000/api/data"}'
   - expected_request:
       messages:
@@ -41,7 +41,7 @@ llm_interactions:
             - id: "call_123"
               type: "function"
               function:
-                name: "web_request"
+                name: "web_request_strict"
                 arguments: '{"url": "http://localhost:8000/api/data"}'
       expected_tool_responses_in_llm_messages:
         - tool_call_id: "call_123"
@@ -49,7 +49,7 @@ llm_interactions:
             status: "error"
             message: "URL is not safe to request."
       tools_present:
-        - "web_request"
+        - "web_request_strict"
     static_response:
       choices:
         - message:
@@ -90,7 +90,7 @@ expected_gateway_output:
         messageId: '*'
         role: agent
     event_purpose: "tool_invocation_start"
-    expected_tool_name: "web_request"
+    expected_tool_name: "web_request_strict"
   - type: "status_update"
     kind: task
     id: '*'

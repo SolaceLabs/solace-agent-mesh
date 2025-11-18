@@ -1,0 +1,1169 @@
+# Agent Configuration File: A2A ADK Agents Configurations
+#
+# This file has the configuration for the A2A ADK agents.
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG # Changed from INFO to DEBUG to capture ADK INFO logs
+  log_file: a2a_atlassian_sse.log
+
+# Shared SAM config
+!include shared_config.yaml
+
+apps:
+# --- Atlassian (Jira/Confluence) MCP Agent ---
+  - name: atlassian_mcp_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+  
+    # --- App Level Config ---
+    app_config:
+      
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "AtlassianAgent"
+      model: *general_model # Or another appropriate model from shared_config.yaml
+      instruction: |
+        You can interact with Jira and Confluence using the Atlassian MCP server. When calling tools that require a cloudId, you can use the 'getAccessibleAtlassianResources' tool to find the cloudId for the user's Atlassian instance.
+        Do NOT use parallel tool calls.
+      
+      # --- Tools Definition (including MCP) ---
+      tools:
+        # - tool_type: mcp
+        #   connection_params:
+        #     type: stdio
+        #     command: "npx"
+        #     args:
+        #       - "-y"
+        #       - "mcp-remote"
+        #       - "https://mcp.atlassian.com/v1/sse"
+        - tool_type: mcp
+          connection_params:
+            type: sse
+            url: "https://mcp.atlassian.com/v1/sse"
+          auth:
+            type: oauth2
+            # scheme:
+            #   #grant_type: authorization_code
+            #   authorization_url: "https://mcp.atlassian.com/v1/oauth/authorize"
+            #   token_url: "https://atlassian-remote-mcp-production.atlassian-remote-mcp-server-production.workers.dev/v1/token"
+            #   scopes: [ "email", "profile", "openid" ]
+            # credential:
+            #   auth_type: oauth2
+            #   client_id: ${ATLASSIAN_CLIENT_ID}
+            #   client_secret: ${ATLASSIAN_CLIENT_SECRET}
+          manifest:
+          - id: atlassianUserInfo
+            description: Get current user info from Atlassian
+            name: atlassianUserInfo
+            inputSchema:
+              type: object
+              properties: {}
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getAccessibleAtlassianResources
+            description: Get cloudid to construct API calls to Atlassian REST APIs
+            name: getAccessibleAtlassianResources
+            inputSchema:
+              type: object
+              properties: {}
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getConfluenceSpaces
+            description: Get spaces from Confluence. Spaces are containers for pages and content,
+              organized by teams or topics. Use this to discover available spaces before accessing
+              their content. You can also use this with a space key to get the numerical space
+              ID needed for other operations.
+            name: getConfluenceSpaces
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                ids:
+                  anyOf:
+                  - type: string
+                  - type: array
+                    items:
+                      type: number
+                  description: Filter by specific numerical space IDs
+                keys:
+                  anyOf:
+                  - type: string
+                  - type: array
+                    items:
+                      type: string
+                  description: Filter by space keys (unique identifiers)
+                type:
+                  type: string
+                  enum:
+                  - global
+                  - collaboration
+                  - knowledge_base
+                  - personal
+                  description: Filter by space type
+                status:
+                  type: string
+                  enum:
+                  - current
+                  - archived
+                  description: Filter by space status
+                labels:
+                  anyOf:
+                  - type: string
+                  - type: array
+                    items:
+                      type: string
+                  description: Filter by space labels
+                favoritedBy:
+                  type: string
+                  description: Filter spaces favorited by a specific user account ID
+                notFavoritedBy:
+                  type: string
+                  description: Filter spaces not favorited by a specific user account ID
+                sort:
+                  type: string
+                  enum:
+                  - id
+                  - -id
+                  - key
+                  - -key
+                  - name
+                  - -name
+                  description: Sort order for results
+                descriptionFormat:
+                  type: string
+                  enum:
+                  - plain
+                  - view
+                  description: Format for space descriptions
+                includeIcon:
+                  type: boolean
+                  description: Include space icon information in response
+                cursor:
+                  type: string
+                  description: Pagination cursor for retrieving next page of results
+                limit:
+                  type: number
+                  description: 'Maximum number of spaces to return (default: 25, max: 250)'
+              required:
+              - cloudId
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getConfluencePage
+            description: Get a specific page or live doc data (including body content) from
+              Confluence by its ID. Returns the page body content converted to Markdown format.
+              You can extract the page ID from Confluence URLs - for example, from a URL like
+              https://yoursite.atlassian.net/wiki/spaces/SPACE/pages/123456789/Page+Title, the
+              page ID is "123456789". The URL can be used as the cloudId parameter, as the tool
+              will handle converting the site name to a cloud ID.
+            name: getConfluencePage
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                pageId:
+                  type: string
+                  description: The unique identifier of the page to retrieve. Can be extracted
+                    from Confluence URLs (e.g., the numeric ID in the URL path)
+              required:
+              - cloudId
+              - pageId
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getPagesInConfluenceSpace
+            description: Get all pages within a specific Confluence space. Useful for discovering
+              content structure and finding pages by title or status. Returns page body content
+              as Markdown.
+            name: getPagesInConfluenceSpace
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                spaceId:
+                  type: string
+                  description: The unique numerical identifier of the space to search within
+                limit:
+                  type: number
+                  description: 'Maximum number of pages to return (default: 25, max: 250)'
+                cursor:
+                  type: string
+                  description: Opaque cursor for pagination
+                status:
+                  type: string
+                  enum:
+                  - current
+                  - archived
+                  - deleted
+                  - trashed
+                  description: Filter pages by status
+                title:
+                  type: string
+                  description: Filter pages by title
+                sort:
+                  type: string
+                  enum:
+                  - id
+                  - -id
+                  - created-date
+                  - -created-date
+                  - modified-date
+                  - -modified-date
+                  - title
+                  - -title
+                  description: Sort pages by field(s)
+                depth:
+                  type: string
+                  enum:
+                  - all
+                  - root
+                  description: 'Filter pages by depth, default: all'
+                subtype:
+                  type: string
+                  enum:
+                  - live
+                  - page
+                  description: Filter pages by subtype. Use "live" for live docs or "page" for
+                    regular pages
+              required:
+              - cloudId
+              - spaceId
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getConfluencePageFooterComments
+            description: Get footer comments for a Confluence page. Footer comments are general
+              comments about the page that appear at the bottom, not tied to specific content.
+              Returns comment body content as Markdown.
+            name: getConfluencePageFooterComments
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                pageId:
+                  type: string
+                  description: The unique identifier of the page whose footer comments to retrieve
+                limit:
+                  type: number
+                  description: Maximum number of comments to return
+                cursor:
+                  type: string
+                  description: Pagination cursor for retrieving next page of results
+                status:
+                  type: string
+                  enum:
+                  - current
+                  - archived
+                  - trashed
+                  - deleted
+                  - historical
+                  - draft
+                  default: current
+                  description: Filter comments by status
+                sort:
+                  type: string
+                  enum:
+                  - id
+                  - -id
+                  - created-date
+                  - -created-date
+                  description: Sort order for comments
+              required:
+              - cloudId
+              - pageId
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getConfluencePageInlineComments
+            description: Get inline comments for a Confluence page. Inline comments are attached
+              to specific text selections within the page content.
+            name: getConfluencePageInlineComments
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                pageId:
+                  type: string
+                  description: The unique identifier of the page whose inline comments to retrieve
+                limit:
+                  type: number
+                  description: Maximum number of comments to return
+                cursor:
+                  type: string
+                  description: Pagination cursor for retrieving next page of results
+                status:
+                  type: string
+                  enum:
+                  - current
+                  - archived
+                  - trashed
+                  - deleted
+                  - historical
+                  - draft
+                  default: current
+                  description: Filter comments by status
+                resolutionStatus:
+                  type: string
+                  enum:
+                  - resolved
+                  - open
+                  - dangling
+                  - reopened
+                  default: open
+                  description: Filter comments by resolution status
+                sort:
+                  type: string
+                  enum:
+                  - id
+                  - -id
+                  - created-date
+                  - -created-date
+                  description: Sort order for comments
+              required:
+              - cloudId
+              - pageId
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getConfluencePageDescendants
+            description: Get all child pages (descendants) of a specific page in the page hierarchy.
+              Useful for exploring page structure and finding nested content.
+            name: getConfluencePageDescendants
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                pageId:
+                  type: string
+                  description: The unique identifier of the page whose descendants to retrieve
+                limit:
+                  type: number
+                  description: Maximum number of descendants to return
+                depth:
+                  type: number
+                  description: Maximum depth to traverse in the page hierarchy
+                cursor:
+                  type: string
+                  description: Pagination cursor for retrieving next page of results
+              required:
+              - cloudId
+              - pageId
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: createConfluencePage
+            description: Create a new page in Confluence. Can create regular pages or live docs
+              based on the subtype parameter.
+            name: createConfluencePage
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                spaceId:
+                  type: string
+                  description: The unique numerical identifier of the space where the page will
+                    be created
+                title:
+                  type: string
+                  description: The title of the new page
+                parentId:
+                  type: string
+                  description: The unique identifier of the parent page (if creating a child
+                    page)
+                body:
+                  type: string
+                  description: The content of the page. You **MUST** use markdown format.
+                isPrivate:
+                  type: boolean
+                  description: The page will be private. Only the user who creates this page
+                    will have permission to view and edit one.
+                subtype:
+                  type: string
+                  enum:
+                  - live
+                  description: The subtype of the page. Set to "live" to create a live doc,
+                    or omit to create a regular page.
+              required:
+              - cloudId
+              - spaceId
+              - body
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: updateConfluencePage
+            description: Update an existing page or Live Doc in Confluence.
+            name: updateConfluencePage
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                pageId:
+                  type: string
+                  description: The unique identifier of the existing page to update
+                title:
+                  type: string
+                  description: The new title for the page (if not provided, retains the existing
+                    title)
+                status:
+                  type: string
+                  enum:
+                  - current
+                  - draft
+                  default: current
+                  description: The status of the page to update (defaults to current). If draft
+                    is specified, then the page's draft version will be updated.
+                spaceId:
+                  type: string
+                  description: The unique numerical identifier of the space (if moving the page)
+                parentId:
+                  type: string
+                  description: The unique identifier of the parent page (if changing hierarchy)
+                body:
+                  type: string
+                  description: The content of the page. You **MUST** use markdown format.
+                versionMessage:
+                  type: string
+                  description: Optional message describing the changes made in this version
+              required:
+              - cloudId
+              - pageId
+              - body
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: createConfluenceFooterComment
+            description: Create a footer comment on a Confluence page or blog post. Footer comments
+              are general comments about the page that appear at the bottom.
+            name: createConfluenceFooterComment
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                pageId:
+                  type: string
+                  description: The id of the page to add the comment to.
+                parentCommentId:
+                  type: string
+                  description: The id of the parent comment to reply to.
+                attachmentId:
+                  type: string
+                  description: The id of the attachment to add to the comment.
+                customContentId:
+                  type: string
+                  description: The id of the custom content to add to the comment.
+                body:
+                  type: string
+                  description: The content of the comment in Markdown format.
+              required:
+              - cloudId
+              - body
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: createConfluenceInlineComment
+            description: Create an inline comment on a page or blog post. Inline comments are
+              attached to specific text selections within the page content.
+            name: createConfluenceInlineComment
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                pageId:
+                  type: string
+                  description: The id of the page to add the comment to.
+                parentCommentId:
+                  type: string
+                  description: The id of the parent comment to reply to.
+                body:
+                  type: string
+                  description: The content of the comment in Markdown format.
+                inlineCommentProperties:
+                  type: object
+                  properties:
+                    textSelection:
+                      type: string
+                      description: The text to highlight
+                    textSelectionMatchCount:
+                      type: number
+                      description: The number of matches for the selected text on the page (should
+                        be strictly greater than textSelectionMatchIndex)
+                    textSelectionMatchIndex:
+                      type: number
+                      description: The match index to highlight. This is zero-based. E.g. if
+                        you have 3 occurrences of "hello world" on a page and you want to highlight
+                        the second occurrence, you should pass 1 for textSelectionMatchIndex
+                        and 3 for textSelectionMatchCount.
+                  required:
+                  - textSelection
+                  - textSelectionMatchCount
+                  - textSelectionMatchIndex
+                  additionalProperties: false
+                  description: Object describing the text to highlight on the page/blog post.
+                    Only applicable for top level inline comments (not replies) and required
+                    in that case.
+              required:
+              - cloudId
+              - body
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: searchConfluenceUsingCql
+            description: Search content in Confluence using CQL (Confluence Query Language).
+              CQL is a powerful query language for finding pages, spaces, and content based
+              on various criteria like title, content, labels, creation date, etc.
+            name: searchConfluenceUsingCql
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                cql:
+                  type: string
+                  description: The CQL query string (e.g., "title ~ 'meeting' AND type = page")
+                cqlcontext:
+                  type: string
+                  description: The context for the CQL query execution
+                cursor:
+                  type: string
+                  description: Pagination cursor for retrieving next page of results
+                expand:
+                  type: string
+                  description: Comma-separated list of properties to expand in the response
+                limit:
+                  type: number
+                  description: 'Maximum number of results to return (default: 25, max: 250)'
+                prev:
+                  type: boolean
+                  description: Include previous page link in pagination
+                next:
+                  type: boolean
+                  description: Include next page link in pagination
+              required:
+              - cloudId
+              - cql
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getJiraIssue
+            description: Get the details of a Jira issue by issue id or key.
+            name: getJiraIssue
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                issueIdOrKey:
+                  type: string
+                  description: 'Issue id or key can be used to uniquely identify an existing
+                    issue.
+
+                    Issue id is a numerical identifier. An example issue id is 10000.
+
+                    Issue key is formatted as a project key followed by a hyphen ''-'' character
+                    and then followed by a sequential number.
+
+                    An example issue key is ISSUE-1.'
+                fields:
+                  type: array
+                  items:
+                    type: string
+                fieldsByKeys:
+                  type: boolean
+                expand:
+                  type: string
+                properties:
+                  type: array
+                  items:
+                    type: string
+                updateHistory:
+                  type: boolean
+                failFast:
+                  type: boolean
+              required:
+              - cloudId
+              - issueIdOrKey
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: editJiraIssue
+            description: Update the details of an existing Jira issue id or key.
+            name: editJiraIssue
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                issueIdOrKey:
+                  type: string
+                  description: 'Issue id or key can be used to uniquely identify an existing
+                    issue.
+
+                    Issue id is a numerical identifier. An example issue id is 10000.
+
+                    Issue key is formatted as a project key followed by a hyphen ''-'' character
+                    and then followed by a sequential number.
+
+                    An example issue key is ISSUE-1.'
+                fields:
+                  type: object
+                  additionalProperties: {}
+              required:
+              - cloudId
+              - issueIdOrKey
+              - fields
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: createJiraIssue
+            description: Create a new Jira issue in a given project with a given issue type.
+            name: createJiraIssue
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                projectKey:
+                  type: string
+                  description: "A project key in Jira is a unique identifier (a string of letters,\
+                    \ numbers and sometimes underscores) of a project.\n      There is a tool\
+                    \ \"getVisibleJiraProjects\" to look up which projects the user has create\
+                    \ permission to create a new Jira issue."
+                issueTypeName:
+                  type: string
+                  description: "A Jira issue type categorizes and  distinguishes different kinds\
+                    \ of work being tracked within a project.\n      It's a way to define what\
+                    \ a specific piece of work represents.\n      For example, in a Jira Software\
+                    \ project, there are \"Epic\", \"Story\", \"Task\", \"Bug\" or \"Subtask\"\
+                    \ issue types by default.\n      Or in Jira Service Management, there are\
+                    \ \"Change\", \"IT help\", \"Incident\", \"New feature\", \"Problem\", \"\
+                    Service request\", \"Service request with approval\" or \"Support\" issue\
+                    \ types by default.\n      User can remove those default ones and/or define\
+                    \ their own issue types as well.\n      There is a tool \"getJiraProjectIssueTypesMetadata\"\
+                    \ to get the available issue types in a given project."
+                summary:
+                  type: string
+                description:
+                  type: string
+                  description: The content of the issue's description in Markdown format.
+                parent:
+                  type: string
+                  description: The issue key or id of the parent issue for "Subtask" issue types.
+                assignee_account_id:
+                  type: string
+                  description: "During issue creation, we can set an assignee for the new issue.\n\
+                    \      The input must be an account id of a valid user in the given cloud\
+                    \ id.\n      There is a tool \"atlassianUserInfo\" to get the account id\
+                    \ of the current user.\n      There is a tool \"lookupJiraAccountId\" to\
+                    \ get the account ids of the existing users in Jira based on the user's\
+                    \ display name or email address."
+                additional_fields:
+                  type: object
+                  additionalProperties: {}
+              required:
+              - cloudId
+              - projectKey
+              - issueTypeName
+              - summary
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getTransitionsForJiraIssue
+            description: Get available transitions for an existing Jira issue id or key.
+            name: getTransitionsForJiraIssue
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                issueIdOrKey:
+                  type: string
+                  description: 'Issue id or key can be used to uniquely identify an existing
+                    issue.
+
+                    Issue id is a numerical identifier. An example issue id is 10000.
+
+                    Issue key is formatted as a project key followed by a hyphen ''-'' character
+                    and then followed by a sequential number.
+
+                    An example issue key is ISSUE-1.'
+                expand:
+                  type: string
+                transitionId:
+                  type: string
+                skipRemoteOnlyCondition:
+                  type: boolean
+                includeUnavailableTransitions:
+                  type: boolean
+                sortByOpsBarAndStatus:
+                  type: boolean
+              required:
+              - cloudId
+              - issueIdOrKey
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: transitionJiraIssue
+            description: Transition an existing Jira issue (that has issue id or key) to a new
+              status.
+            name: transitionJiraIssue
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                issueIdOrKey:
+                  type: string
+                  description: 'Issue id or key can be used to uniquely identify an existing
+                    issue.
+
+                    Issue id is a numerical identifier. An example issue id is 10000.
+
+                    Issue key is formatted as a project key followed by a hyphen ''-'' character
+                    and then followed by a sequential number.
+
+                    An example issue key is ISSUE-1.'
+                transition:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                  required:
+                  - id
+                  additionalProperties: false
+                fields:
+                  type: object
+                  additionalProperties: {}
+                update:
+                  type: object
+                  additionalProperties:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties:
+                        description: This is the field value. The actual value will depends
+                          on the field type.
+                    description: List of operations
+                historyMetadata:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    description:
+                      type: string
+                    descriptionKey:
+                      type: string
+                    activityDescription:
+                      type: string
+                    activityDescriptionKey:
+                      type: string
+                    emailDescription:
+                      type: string
+                    emailDescriptionKey:
+                      type: string
+                    actor:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        displayName:
+                          type: string
+                        type:
+                          type: string
+                        avatarUrl:
+                          type: string
+                        url:
+                          type: string
+                      additionalProperties: false
+                    generator:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        displayName:
+                          type: string
+                        type:
+                          type: string
+                        avatarUrl:
+                          type: string
+                        url:
+                          type: string
+                      additionalProperties: false
+                    cause:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        displayName:
+                          type: string
+                        type:
+                          type: string
+                        avatarUrl:
+                          type: string
+                        url:
+                          type: string
+                      additionalProperties: false
+                    extraData:
+                      type: object
+                      additionalProperties:
+                        type: string
+                  additionalProperties: false
+              required:
+              - cloudId
+              - issueIdOrKey
+              - transition
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: lookupJiraAccountId
+            description: Lookup account ids of existing users in Jira based on the user's display
+              name or email address.
+            name: lookupJiraAccountId
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                searchString:
+                  type: string
+              required:
+              - cloudId
+              - searchString
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: searchJiraIssuesUsingJql
+            description: Search Jira issues using Jira Query Language (JQL).
+            name: searchJiraIssuesUsingJql
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                jql:
+                  type: string
+                  description: A Jira Query Language (JQL) expression to search Jira issues
+                maxResults:
+                  type: number
+                  maximum: 100
+                  default: 50
+                  description: A maximum number of issue to search per page. Default is 50,
+                    max is 100
+                fields:
+                  type: array
+                  items:
+                    type: string
+                  default:
+                  - summary
+                  - description
+                  - status
+                  - issuetype
+                  - priority
+                  - created
+                nextPageToken:
+                  type: string
+                  description: This is used for pagination purpose to fetch more data if a JQL
+                    search has more issues in next pages
+              required:
+              - cloudId
+              - jql
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: addCommentToJiraIssue
+            description: Adds a comment to an existing Jira issue id or key.
+            name: addCommentToJiraIssue
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                issueIdOrKey:
+                  type: string
+                  description: 'Issue id or key can be used to uniquely identify an existing
+                    issue.
+
+                    Issue id is a numerical identifier. An example issue id is 10000.
+
+                    Issue key is formatted as a project key followed by a hyphen ''-'' character
+                    and then followed by a sequential number.
+
+                    An example issue key is ISSUE-1.'
+                commentBody:
+                  type: string
+                  description: The content of the comment in Markdown format.
+                commentVisibility:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                      - group
+                      - role
+                      description: Whether visibility of this comment is restricted to a group
+                        or role.
+                    value:
+                      type: string
+                      description: The name of the group or role that visibility of this comment
+                        is restricted to.
+                  required:
+                  - type
+                  - value
+                  additionalProperties: false
+              required:
+              - cloudId
+              - issueIdOrKey
+              - commentBody
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getJiraIssueRemoteIssueLinks
+            description: 'Get remote issue links (eg: Confluence links etc...) of an existing
+              Jira issue id or key'
+            name: getJiraIssueRemoteIssueLinks
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                issueIdOrKey:
+                  type: string
+                  description: 'Issue id or key can be used to uniquely identify an existing
+                    issue.
+
+                    Issue id is a numerical identifier. An example issue id is 10000.
+
+                    Issue key is formatted as a project key followed by a hyphen ''-'' character
+                    and then followed by a sequential number.
+
+                    An example issue key is ISSUE-1.'
+                globalId:
+                  type: string
+                  description: "An identifier for the remote item in the remote system.\n  \
+                    \        For example, the global ID for a remote item in Confluence would\
+                    \ consist of the app ID and page ID, like this: appId=456&pageId=123.\n\
+                    \          When a global ID is provided, this tool returns only the remote\
+                    \ issue link of the given Jira issue that has the provided global ID.\n\
+                    \          When no global ID is provided, this tool returns all the remote\
+                    \ issue links of the given Jira issue."
+              required:
+              - cloudId
+              - issueIdOrKey
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getVisibleJiraProjects
+            description: Get visible Jira projects for which the user has either view, browse,
+              edit or create permission on that project.
+            name: getVisibleJiraProjects
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                searchString:
+                  type: string
+                  description: Filter the results using a literal string. Projects with a matching
+                    key or name are returned (case insensitive)
+                action:
+                  type: string
+                  enum:
+                  - view
+                  - browse
+                  - edit
+                  - create
+                  default: create
+                  description: "\n      Filter results by projects for which the user can:\n\
+                    \      * view the project\n      * browse the project\n      * edit the\
+                    \ project\n      * create the project, meaning that they have the Create\
+                    \ issues project permission for the project in which the issue is created.\n\
+                    \      "
+                startAt:
+                  type: number
+                  default: 0
+                  description: The index of the first item to return in a page of results (page
+                    offset).
+                maxResults:
+                  type: number
+                  maximum: 50
+                  default: 50
+                  description: The maximum number of items to return per page.
+                expandIssueTypes:
+                  type: boolean
+                  default: true
+                  description: To include additional information about the issue types associated
+                    with the project
+              required:
+              - cloudId
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: getJiraProjectIssueTypesMetadata
+            description: Get a page of issue type metadata for a specified project. The issue
+              type metadata will be used to create issue.
+            name: getJiraProjectIssueTypesMetadata
+            inputSchema:
+              type: object
+              properties:
+                cloudId:
+                  type: string
+                  description: Unique identifier for an Atlassian Cloud instance in the form
+                    of a UUID. Can also be a site URL or extracted from Atlassian URLs - for
+                    example, from https://yoursite.atlassian.net/wiki/.... If not working, use
+                    the 'getAccessibleAtlassianResources' tool to find accessible Cloud IDs.
+                projectIdOrKey:
+                  type: string
+                startAt:
+                  type: number
+                  default: 0
+                  description: The index of the first item to return in a page of results (page
+                    offset).
+                maxResults:
+                  type: number
+                  maximum: 200
+                  default: 50
+                  description: The maximum number of items to return per page.
+              required:
+              - cloudId
+              - projectIdOrKey
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: search
+            description: Search Jira and Confluence using Rovo Search, ALWAYS use this tool
+              to search for Jira and Confluence content unless the word CQL or JQL is used in
+              the context
+            name: search
+            inputSchema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: The search query to use for Rovo Search
+              required:
+              - query
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+          - id: fetch
+            description: Get details of a Jira issue or Confluence page by ARI (Atlassian Resource
+              Identifier), if the id is not an ARI, then use a different tool to fetch the content
+            name: fetch
+            inputSchema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: Atlassian Resource Identifier (ARI) from search results, e.g.,
+                    "ari:cloud:jira:cloudId:issue/10107" or "ari:cloud:confluence:cloudId:page/123456789"
+              required:
+              - id
+              additionalProperties: false
+              $schema: http://json-schema.org/draft-07/schema#
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+      session_service:
+        type: "sql"
+        database_url: "${ATLASSIAN_DATABASE_URL, sqlite:///atlassian-agent.db}"
+        default_behavior: "PERSISTENT"        
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+  
+      # --- Agent Card Definition ---
+      agent_card:
+        description: "An agent that interacts with Jira and Confluence via the Atlassian MCP server."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"] # Can output Jira/Confluence data
+        skills: [] # Skills could be defined based on specific Jira/Confluence actions
+  
+      # --- Discovery & Communication ---
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 60 # Increase timeout for potentially longer Atlassian API calls
+      trust_manager:
+        enabled: ${TRUST_MANAGER_ENABLED, false}  # Enable or disable the trust manager
+        card_publish_interval_seconds: 10  # Publish every 10 seconds for testing
+        card_expiration_days: 7  # 1 week for development
+        verification_mode: "permissive"  # Log warnings, don't fail during initial testing
+        clock_skew_tolerance_seconds: 300  # 5 minutes tolerance
+        enable_time_validation: true
+        jwt_default_ttl_seconds: 3600  # 1 hour default JWT lifetime
+        jwt_max_ttl_seconds: 86400     # 24 hours maximum JWT lifetime

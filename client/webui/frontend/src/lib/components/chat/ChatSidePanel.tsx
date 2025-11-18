@@ -19,22 +19,58 @@ interface ChatSidePanelProps {
 
 export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning }) => {
     const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel } = useChatContext();
-    const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream } = useTaskContext();
+    const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream, loadTaskFromBackend } = useTaskContext();
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
+    const [isLoadingTask, setIsLoadingTask] = useState<boolean>(false);
 
     // Process task data for visualization when the selected workflow task ID changes
     useEffect(() => {
-        if (taskIdInSidePanel && monitoredTasks[taskIdInSidePanel]) {
-            const taskDetails = monitoredTasks[taskIdInSidePanel];
-            const vizTask = processTaskForVisualization(taskDetails.events || [], monitoredTasks, taskDetails);
-            setVisualizedTask(vizTask);
-        } else {
-            setVisualizedTask(null);
-        }
-    }, [taskIdInSidePanel, monitoredTasks]);
+        const loadTask = async () => {
+            if (!taskIdInSidePanel) {
+                setVisualizedTask(null);
+                return;
+            }
+
+            // Check if task is already in monitoredTasks
+            if (monitoredTasks[taskIdInSidePanel]) {
+                const taskDetails = monitoredTasks[taskIdInSidePanel];
+                const vizTask = processTaskForVisualization(taskDetails.events || [], monitoredTasks, taskDetails);
+                setVisualizedTask(vizTask);
+            } else {
+                // Task not in monitoredTasks, load from backend
+                setIsLoadingTask(true);
+                try {
+                    const loadedTask = await loadTaskFromBackend(taskIdInSidePanel);
+                    if (loadedTask) {
+                        // Process the loaded task for visualization
+                        // Note: loadTaskFromBackend already added all child tasks to monitoredTasks
+                        // so we can now pass the full monitoredTasks object
+                        const vizTask = processTaskForVisualization(loadedTask.events || [], monitoredTasks, loadedTask);
+                        setVisualizedTask(vizTask);
+                    } else {
+                        console.error(`ChatSidePanel: Failed to load task ${taskIdInSidePanel} from backend`);
+                        setVisualizedTask(null);
+                    }
+                } catch (error) {
+                    console.error(`ChatSidePanel: Error loading task ${taskIdInSidePanel}:`, error);
+                    setVisualizedTask(null);
+                } finally {
+                    setIsLoadingTask(false);
+                }
+            }
+        };
+
+        loadTask();
+    }, [taskIdInSidePanel, monitoredTasks, loadTaskFromBackend]);
 
     // Helper function to determine what to display in the workflow panel
     const getWorkflowPanelContent = () => {
+        if (isLoadingTask) {
+            return {
+                message: "Loading workflow data...",
+                showButton: false,
+            };
+        }
         if (isReconnecting || isTaskMonitorConnecting) {
             return {
                 message: "Connecting to task monitor ...",
@@ -96,7 +132,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
     if (isSidePanelCollapsed) {
         return (
             <div className="bg-background flex h-full w-full flex-col items-center border-l py-4">
-                <Button variant="ghost" size="sm" onClick={toggleCollapsed} className="h-10 w-10 p-0" tooltip="Expand Panel">
+                <Button data-testid="expandPanel" variant="ghost" size="sm" onClick={toggleCollapsed} className="h-10 w-10 p-0" tooltip="Expand Panel">
                     <PanelRightIcon className="size-5" />
                 </Button>
 
@@ -119,7 +155,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
             <div className="m-1 min-h-0 flex-1">
                 <Tabs value={activeSidePanelTab} onValueChange={value => handleTabClick(value as "files" | "workflow")} className="flex h-full flex-col">
                     <div className="flex gap-2 p-2">
-                        <Button variant="ghost" onClick={toggleCollapsed} className="p-1" tooltip="Collapse Panel">
+                        <Button data-testid="collapsePanel" variant="ghost" onClick={toggleCollapsed} className="p-1" tooltip="Collapse Panel">
                             <PanelRightIcon className="size-5" />
                         </Button>
                         <TabsList className="grid w-full grid-cols-2 bg-transparent p-0">

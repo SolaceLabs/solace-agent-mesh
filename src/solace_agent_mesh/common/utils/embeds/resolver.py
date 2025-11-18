@@ -5,6 +5,7 @@ Contains the main embed resolution functions, including the chain executor.
 import logging
 import asyncio
 import json
+import uuid
 from typing import Any, Callable, Dict, Optional, Set, Tuple, List, Union
 from .constants import (
     EMBED_REGEX,
@@ -20,16 +21,12 @@ from .converter import (
     serialize_data,
     _parse_string_to_list_of_dicts,
 )
-from .types import DataFormat
+from .types import DataFormat, ResolutionMode
 from ..mime_helpers import is_text_based_mime_type
 
 log = logging.getLogger(__name__)
 
-try:
-    import yaml
-    from .converter import PYYAML_AVAILABLE
-except ImportError:
-    PYYAML_AVAILABLE = False
+import yaml
 
 
 def _log_data_state(
@@ -85,10 +82,11 @@ async def _evaluate_artifact_content_embed_with_chain(
     output_format_from_directive: Optional[str],
     context: Any,
     log_identifier: str,
+    resolution_mode: "ResolutionMode",
     config: Optional[Dict] = None,
     current_depth: int = 0,
     visited_artifacts: Optional[Set[Tuple[str, int]]] = None,
-) -> Tuple[str, Optional[str], int]:
+) -> Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]:
     """
     Loads artifact content, recursively resolves its internal embeds if text-based,
     applies a chain of modifiers, and serializes the final result.
@@ -167,6 +165,7 @@ async def _evaluate_artifact_content_embed_with_chain(
                 context=context,
                 resolver_func=evaluate_embed,
                 types_to_resolve=EARLY_EMBED_TYPES.union(LATE_EMBED_TYPES),
+                resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
                 log_identifier=log_identifier,
                 config=config,
                 max_depth=config.get("gateway_recursive_embed_depth", 12),
@@ -181,7 +180,7 @@ async def _evaluate_artifact_content_embed_with_chain(
             current_format = DataFormat.STRING
             _log_data_state(
                 log_identifier,
-                f"[Depth:{current_depth}] After Recursive Resolution",
+                f"[Depth:{current_depth}] After Recursive Resolution (including templates)",
                 current_data,
                 current_format,
                 original_mime_type,
@@ -229,25 +228,17 @@ async def _evaluate_artifact_content_embed_with_chain(
                     original_mime_type,
                 )
         elif "yaml" in normalized_mime_type or "yml" in normalized_mime_type:
-            if PYYAML_AVAILABLE:
-                try:
-                    current_data = yaml.safe_load(current_data)
-                    current_format = DataFormat.JSON_OBJECT
-                    log.info(
-                        "%s [Depth:%d] Pre-parsed string as YAML (now JSON_OBJECT).",
-                        log_identifier,
-                        current_depth,
-                    )
-                except yaml.YAMLError:
-                    log.warning(
-                        "%s [Depth:%d] Failed to pre-parse as YAML despite MIME type '%s'. Content will be treated as STRING.",
-                        log_identifier,
-                        current_depth,
-                        original_mime_type,
-                    )
-            else:
+            try:
+                current_data = yaml.safe_load(current_data)
+                current_format = DataFormat.JSON_OBJECT
+                log.info(
+                    "%s [Depth:%d] Pre-parsed string as YAML (now JSON_OBJECT).",
+                    log_identifier,
+                    current_depth,
+                )
+            except yaml.YAMLError:
                 log.warning(
-                    "%s [Depth:%d] Skipping YAML pre-parsing for MIME type '%s' because PyYAML is not installed.",
+                    "%s [Depth:%d] Failed to pre-parse as YAML despite MIME type '%s'. Content will be treated as STRING.",
                     log_identifier,
                     current_depth,
                     original_mime_type,
@@ -422,6 +413,26 @@ async def _evaluate_artifact_content_embed_with_chain(
             err_msg = f"Unexpected error in modifier '{prefix}': {mod_err}"
             return f"[Error: {err_msg}]", err_msg, 0
 
+    if (
+        current_format == DataFormat.BYTES
+        and resolution_mode == ResolutionMode.A2A_MESSAGE_TO_USER
+    ):
+        log.info(
+            "%s [Depth:%d] Result is binary data in A2A_MESSAGE_TO_USER mode. Signaling for inline binary content.",
+            log_identifier,
+            current_depth,
+        )
+        filename_for_signal = artifact_spec_from_directive.split(":", 1)[0]
+        return (
+            None,
+            "SIGNAL_INLINE_BINARY_CONTENT",
+            {
+                "bytes": current_data,
+                "mime_type": original_mime_type,
+                "name": filename_for_signal,
+            },
+        )
+
     target_string_format = output_format_from_directive
     if target_string_format is None:
         log.warning(
@@ -486,9 +497,10 @@ async def resolve_embeds_in_string(
         ..., Union[Tuple[str, Optional[str], int], Tuple[None, str, Any]]
     ],
     types_to_resolve: Set[str],
+    resolution_mode: "ResolutionMode",
     log_identifier: str = "[EmbedUtil]",
     config: Optional[Dict[str, Any]] = None,
-) -> Tuple[str, int, List[Tuple[int, Any]]]:
+) -> Tuple[str, int, List[Tuple[int, Any, str]]]:
     """
     Resolves specified embed types within a string using a provided resolver function.
     This is the TOP-LEVEL resolver called by gateways. It handles signals and buffering.
@@ -520,7 +532,7 @@ async def resolve_embeds_in_string(
           The index corresponds to the start index of the embed directive in the original string.
     """
     resolved_parts = []
-    signals_found: List[Tuple[int, Any]] = []
+    signals_found: List[Tuple[int, Any, str]] = []
     last_end = 0
     original_length = len(text)
 
@@ -550,6 +562,7 @@ async def resolve_embeds_in_string(
                 format_spec,
                 context,
                 log_identifier,
+                resolution_mode,
                 config,
             )
 
@@ -566,10 +579,13 @@ async def resolve_embeds_in_string(
                     signal_type,
                     start,
                 )
+                placeholder = f"__EMBED_SIGNAL_{uuid.uuid4().hex}__"
+                resolved_parts.append(placeholder)
                 signals_found.append(
                     (
                         start,
                         resolved_value,
+                        placeholder,
                     )
                 )
             elif (
@@ -649,6 +665,34 @@ async def resolve_embeds_in_string(
             len(final_text),
         )
 
+    # If resolving late embeds, also resolve template blocks
+    # Templates are considered late embeds since they need artifact service access
+    if LATE_EMBED_TYPES.intersection(types_to_resolve):
+        try:
+            from ..templates import resolve_template_blocks_in_string
+
+            artifact_service = context.get("artifact_service")
+            session_context = context.get("session_context")
+
+            if artifact_service and session_context:
+                log.debug(
+                    "%s Resolving template blocks after late embed resolution.",
+                    log_identifier,
+                )
+                final_text = await resolve_template_blocks_in_string(
+                    text=final_text,
+                    artifact_service=artifact_service,
+                    session_context=session_context,
+                    log_identifier=f"{log_identifier}[TemplateResolve]",
+                )
+        except Exception as template_err:
+            log.warning(
+                "%s Failed to resolve template blocks: %s",
+                log_identifier,
+                template_err,
+            )
+            # Continue with final_text as-is
+
     return final_text, processed_until_index, signals_found
 
 
@@ -657,6 +701,7 @@ async def resolve_embeds_recursively_in_string(
     context: Any,
     resolver_func: Callable[..., Tuple[str, Optional[str], int]],
     types_to_resolve: Set[str],
+    resolution_mode: "ResolutionMode",
     log_identifier: str,
     config: Optional[Dict],
     max_depth: int,
@@ -709,6 +754,7 @@ async def resolve_embeds_recursively_in_string(
             format_spec,
             context,
             log_identifier,
+            resolution_mode,
             config,
             current_depth,
             visited_artifacts,
@@ -767,7 +813,39 @@ async def resolve_embeds_recursively_in_string(
         last_end = end
 
     resolved_parts.append(text[last_end:])
-    return "".join(resolved_parts)
+    result_text = "".join(resolved_parts)
+
+    # If resolving late embeds, also resolve template blocks
+    # Templates are considered late embeds since they need artifact service access
+    if LATE_EMBED_TYPES.intersection(types_to_resolve):
+        try:
+            from ..templates import resolve_template_blocks_in_string
+
+            artifact_service = context.get("artifact_service")
+            session_context = context.get("session_context")
+
+            if artifact_service and session_context:
+                log.debug(
+                    "%s [Depth:%d] Resolving template blocks after late embed resolution.",
+                    log_identifier,
+                    current_depth,
+                )
+                result_text = await resolve_template_blocks_in_string(
+                    text=result_text,
+                    artifact_service=artifact_service,
+                    session_context=session_context,
+                    log_identifier=f"{log_identifier}[TemplateResolve]",
+                )
+        except Exception as template_err:
+            log.warning(
+                "%s [Depth:%d] Failed to resolve template blocks: %s",
+                log_identifier,
+                current_depth,
+                template_err,
+            )
+            # Continue with result_text as-is
+
+    return result_text
 
 
 async def evaluate_embed(
@@ -776,6 +854,7 @@ async def evaluate_embed(
     format_spec: Optional[str],
     context: Dict[str, Any],
     log_identifier: str,
+    resolution_mode: "ResolutionMode",
     config: Optional[Dict] = None,
     current_depth: int = 0,
     visited_artifacts: Optional[Set[Tuple[str, int]]] = None,
@@ -812,6 +891,26 @@ async def evaluate_embed(
         log.info("%s Detected 'status_update' embed. Signaling.", log_identifier)
         return (None, "SIGNAL_STATUS_UPDATE", status_text)
 
+    elif embed_type == "artifact_return":
+        if resolution_mode == ResolutionMode.A2A_MESSAGE_TO_USER:
+            parts = expression.strip().split(":", 1)
+            filename = parts[0]
+            version = parts[1] if len(parts) > 1 else "latest"
+            log.info("%s Detected 'artifact_return' embed. Signaling.", log_identifier)
+            return (
+                None,
+                "SIGNAL_ARTIFACT_RETURN",
+                {"filename": filename, "version": version},
+            )
+        else:
+            log.warning(
+                "%s Ignoring 'artifact_return' embed in unsupported context: %s",
+                log_identifier,
+                resolution_mode.name,
+            )
+            original_embed_text = f"«{embed_type}:{expression}»"
+            return original_embed_text, None, len(original_embed_text.encode("utf-8"))
+
     elif embed_type == "artifact_content":
         artifact_spec, modifiers, output_format = _parse_modifier_chain(expression)
         if output_format is None and format_spec is not None:
@@ -822,17 +921,18 @@ async def evaluate_embed(
             )
             output_format = format_spec
 
-        final_string, error, size = await _evaluate_artifact_content_embed_with_chain(
+        result = await _evaluate_artifact_content_embed_with_chain(
             artifact_spec_from_directive=artifact_spec,
             modifiers_from_directive=modifiers,
             output_format_from_directive=output_format,
             context=context,
             log_identifier=log_identifier,
+            resolution_mode=resolution_mode,
             config=config,
             current_depth=current_depth,
             visited_artifacts=visited_artifacts or set(),
         )
-        return final_string, error, size
+        return result
 
     else:
         evaluator = EMBED_EVALUATORS.get(embed_type)

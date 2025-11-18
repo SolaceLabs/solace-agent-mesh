@@ -31,7 +31,7 @@ class SessionService:
     def _get_repositories(self, db: DbSession):
         """Create session repository for the given database session."""
         from ..repository import SessionRepository
-        session_repository = SessionRepository(db)
+        session_repository = SessionRepository()
         return session_repository
 
     def is_persistence_enabled(self) -> bool:
@@ -42,13 +42,19 @@ class SessionService:
         self,
         db: DbSession,
         user_id: UserId,
-        pagination: PaginationParams | None = None
+        pagination: PaginationParams | None = None,
+        project_id: str | None = None
     ) -> PaginatedResponse[Session]:
         """
-        Get paginated sessions for a user with full metadata.
-
+        Get paginated sessions for a user with full metadata including project names.
         Uses default pagination if none provided (page 1, size 20).
         Returns paginated response with pageNumber, pageSize, nextPage, totalPages, totalCount.
+
+        Args:
+            db: Database session
+            user_id: User ID to filter sessions by
+            pagination: Pagination parameters
+            project_id: Optional project ID to filter sessions by (for project-specific views)
         """
         if not user_id or user_id.strip() == "":
             raise ValueError("User ID cannot be empty")
@@ -56,9 +62,24 @@ class SessionService:
         pagination = get_pagination_or_default(pagination)
         session_repository = self._get_repositories(db)
 
-        # Pass pagination params directly - repository will handle offset calculation
-        sessions = session_repository.find_by_user(user_id, pagination)
-        total_count = session_repository.count_by_user(user_id)
+        # Fetch sessions with optional project filtering
+        sessions = session_repository.find_by_user(db, user_id, pagination, project_id=project_id)
+        total_count = session_repository.count_by_user(db, user_id, project_id=project_id)
+
+        # Enrich sessions with project names
+        # Collect unique project IDs
+        project_ids = [s.project_id for s in sessions if s.project_id]
+
+        if project_ids:
+            # Fetch all projects in one query
+            from ..repository.models import ProjectModel
+            projects = db.query(ProjectModel).filter(ProjectModel.id.in_(project_ids)).all()
+            project_map = {p.id: p.name for p in projects}
+
+            # Map project names to sessions
+            for session in sessions:
+                if session.project_id:
+                    session.project_name = project_map.get(session.project_id)
 
         return PaginatedResponse.create(sessions, total_count, pagination)
 
@@ -69,7 +90,7 @@ class SessionService:
             return None
 
         session_repository = self._get_repositories(db)
-        return session_repository.find_user_session(session_id, user_id)
+        return session_repository.find_user_session(db, session_id, user_id)
 
     def create_session(
         self,
@@ -78,6 +99,7 @@ class SessionService:
         name: str | None = None,
         agent_id: str | None = None,
         session_id: str | None = None,
+        project_id: str | None = None,
     ) -> Optional[Session]:
         if not self.is_persistence_enabled():
             log.debug("Persistence is not enabled. Skipping session creation in DB.")
@@ -95,13 +117,14 @@ class SessionService:
             user_id=user_id,
             name=name,
             agent_id=agent_id,
+            project_id=project_id,
             created_time=now_ms,
             updated_time=now_ms,
         )
 
         session_repository = self._get_repositories(db)
-        created_session = session_repository.save(session)
-        log.info("Created new session %s for user %s", created_session.id, user_id)
+        created_session = session_repository.save(db, session)
+        log.debug("Created new session %s for user %s", created_session.id, user_id)
 
         if not created_session:
             raise ValueError(f"Failed to save session for {session_id}")
@@ -121,12 +144,12 @@ class SessionService:
             raise ValueError("Session name cannot exceed 255 characters")
 
         session_repository = self._get_repositories(db)
-        session = session_repository.find_user_session(session_id, user_id)
+        session = session_repository.find_user_session(db, session_id, user_id)
         if not session:
             return None
 
         session.update_name(name)
-        updated_session = session_repository.save(session)
+        updated_session = session_repository.save(db, session)
 
         log.info("Updated session %s name to '%s'", session_id, name)
         return updated_session
@@ -138,7 +161,7 @@ class SessionService:
             raise ValueError("Invalid session ID")
 
         session_repository = self._get_repositories(db)
-        session = session_repository.find_user_session(session_id, user_id)
+        session = session_repository.find_user_session(db, session_id, user_id)
         if not session:
             log.warning(
                 "Attempted to delete non-existent session %s by user %s",
@@ -155,7 +178,7 @@ class SessionService:
             )
             return False
 
-        deleted = session_repository.delete(session_id, user_id)
+        deleted = session_repository.delete(db, session_id, user_id)
         if not deleted:
             return False
 
@@ -165,6 +188,155 @@ class SessionService:
             self._notify_agent_of_session_deletion(session_id, user_id, agent_id)
 
         return True
+
+    def soft_delete_session(
+        self, db: DbSession, session_id: SessionId, user_id: UserId
+    ) -> bool:
+        """
+        Soft delete a session (mark as deleted without removing from database).
+        
+        Args:
+            db: Database session
+            session_id: Session ID to soft delete
+            user_id: User ID performing the deletion
+            
+        Returns:
+            bool: True if soft deleted successfully, False otherwise
+        """
+        if not self._is_valid_session_id(session_id):
+            raise ValueError("Invalid session ID")
+
+        session_repository = self._get_repositories(db)
+        session = session_repository.find_user_session(db, session_id, user_id)
+        if not session:
+            log.warning(
+                "Attempted to soft delete non-existent session %s by user %s",
+                session_id,
+                user_id,
+            )
+            return False
+
+        if not session.can_be_deleted_by_user(user_id):
+            log.warning(
+                "User %s not authorized to soft delete session %s", user_id, session_id
+            )
+            return False
+
+        deleted = session_repository.soft_delete(db, session_id, user_id)
+        if not deleted:
+            return False
+
+        log.info("Session %s soft deleted successfully by user %s", session_id, user_id)
+        return True
+
+    def move_session_to_project(
+        self, db: DbSession, session_id: SessionId, user_id: UserId, new_project_id: str | None
+    ) -> Session | None:
+        """
+        Move a session to a different project.
+        
+        Args:
+            db: Database session
+            session_id: Session ID to move
+            user_id: User ID performing the move
+            new_project_id: New project ID (or None to remove from project)
+            
+        Returns:
+            Session: Updated session if successful, None otherwise
+            
+        Raises:
+            ValueError: If session or project validation fails
+        """
+        if not self._is_valid_session_id(session_id):
+            raise ValueError("Invalid session ID")
+
+        # Validate project exists and user has access if project_id is provided
+        if new_project_id:
+            from ..repository.models import ProjectModel
+            project = db.query(ProjectModel).filter(
+                ProjectModel.id == new_project_id,
+                ProjectModel.user_id == user_id,
+                ProjectModel.deleted_at.is_(None)
+            ).first()
+            
+            if not project:
+                raise ValueError(f"Project {new_project_id} not found or access denied")
+
+        session_repository = self._get_repositories(db)
+        updated_session = session_repository.move_to_project(db, session_id, user_id, new_project_id)
+        
+        if not updated_session:
+            log.warning(
+                "Failed to move session %s to project %s for user %s",
+                session_id,
+                new_project_id,
+                user_id,
+            )
+            return None
+
+        log.info(
+            "Session %s moved to project %s by user %s",
+            session_id,
+            new_project_id or "None",
+            user_id,
+        )
+        return updated_session
+
+    def search_sessions(
+        self,
+        db: DbSession,
+        user_id: UserId,
+        query: str,
+        pagination: PaginationParams | None = None,
+        project_id: str | None = None
+    ) -> PaginatedResponse[Session]:
+        """
+        Search sessions by name/title only.
+
+        Args:
+            db: Database session
+            user_id: User ID to filter sessions by
+            query: Search query string
+            pagination: Pagination parameters
+            project_id: Optional project ID to filter sessions by
+
+        Returns:
+            PaginatedResponse[Session]: Paginated search results
+        """
+        if not user_id or user_id.strip() == "":
+            raise ValueError("User ID cannot be empty")
+
+        if not query or query.strip() == "":
+            raise ValueError("Search query cannot be empty")
+
+        pagination = get_pagination_or_default(pagination)
+        session_repository = self._get_repositories(db)
+
+        # Search sessions
+        sessions = session_repository.search(db, user_id, query.strip(), pagination, project_id)
+        total_count = session_repository.count_search_results(db, user_id, query.strip(), project_id)
+
+        # Enrich sessions with project names
+        project_ids = [s.project_id for s in sessions if s.project_id]
+
+        if project_ids:
+            from ..repository.models import ProjectModel
+            projects = db.query(ProjectModel).filter(ProjectModel.id.in_(project_ids)).all()
+            project_map = {p.id: p.name for p in projects}
+
+            for session in sessions:
+                if session.project_id:
+                    session.project_name = project_map.get(session.project_id)
+
+        log.info(
+            "Search for '%s' by user %s returned %d results (total: %d)",
+            query,
+            user_id,
+            len(sessions),
+            total_count,
+        )
+
+        return PaginatedResponse.create(sessions, total_count, pagination)
 
     def save_task(
         self,
@@ -196,10 +368,10 @@ class SessionService:
         """
         # Validate session exists and belongs to user
         session_repository = self._get_repositories(db)
-        session = session_repository.find_user_session(session_id, user_id)
+        session = session_repository.find_user_session(db, session_id, user_id)
         if not session:
             raise ValueError(f"Session {session_id} not found for user {user_id}")
-        
+
         # Create task entity - pass strings directly
         task = ChatTask(
             id=task_id,
@@ -211,14 +383,14 @@ class SessionService:
             created_time=now_epoch_ms(),
             updated_time=None
         )
-        
+
         # Save via repository
-        task_repo = ChatTaskRepository(db)
-        saved_task = task_repo.save(task)
-        
+        task_repo = ChatTaskRepository()
+        saved_task = task_repo.save(db, task)
+
         # Update session activity
         session.mark_activity()
-        session_repository.save(session)
+        session_repository.save(db, session)
         
         log.info(f"Saved task {task_id} for session {session_id}")
         return saved_task
@@ -245,13 +417,13 @@ class SessionService:
         """
         # Validate session exists and belongs to user
         session_repository = self._get_repositories(db)
-        session = session_repository.find_user_session(session_id, user_id)
+        session = session_repository.find_user_session(db, session_id, user_id)
         if not session:
             raise ValueError(f"Session {session_id} not found for user {user_id}")
-        
+
         # Load tasks
-        task_repo = ChatTaskRepository(db)
-        return task_repo.find_by_session(session_id, user_id)
+        task_repo = ChatTaskRepository()
+        return task_repo.find_by_session(db, session_id, user_id)
 
     def get_session_messages_from_tasks(
         self,

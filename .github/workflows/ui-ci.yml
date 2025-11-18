@@ -99,6 +99,9 @@ jobs:
       - name: Build UI package
         run: npm run build-package
 
+      - name: Build Storybook
+        run: npm run build-storybook
+
       - name: Run WhiteSource Scan
         id: whitesource_scan
         uses: SolaceDev/solace-public-workflows/.github/actions/whitesource-scan@main

@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PanelLeftIcon, Edit } from "lucide-react";
+import { PanelLeftIcon } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
 import type { TextPart } from "@/lib/types";
-import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
+import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui";
+import { Spinner } from "@/lib/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useTaskContext } from "@/lib/hooks";
+import { useProjectContext } from "@/lib/providers";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
@@ -36,28 +39,11 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const {
-        agents,
-        sessionId,
-        messages,
-        setMessages,
-        selectedAgentName,
-        setSelectedAgentName,
-        isSidePanelCollapsed,
-        setIsSidePanelCollapsed,
-        openSidePanelTab,
-        setTaskIdInSidePanel,
-        isResponding,
-        latestStatusText,
-        sessionToDelete,
-        closeSessionDeleteModal,
-        confirmSessionDelete,
-        sessionName,
-    } = useChatContext();
+    const { activeProject } = useProjectContext();
+    const { agents, sessionName, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, isLoadingSession, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, currentTaskId } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
-    const [isChatSessionDialogOpen, setChatSessionDialogOpen] = useState(false);
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -103,6 +89,13 @@ export function ChatPage() {
         setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
     }, [isSessionSidePanelCollapsed]);
 
+    const breadcrumbs = undefined;
+
+    // Determine the page title
+    const pageTitle = useMemo(() => {
+        return sessionName || "New Chat";
+    }, [sessionName]);
+
     useEffect(() => {
         if (chatSidePanelRef.current && isSidePanelCollapsed) {
             chatSidePanelRef.current.resize(COLLAPSED_SIZE);
@@ -130,34 +123,6 @@ export function ChatPage() {
         };
     }, [isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
 
-    useEffect(() => {
-        if (!selectedAgentName && agents.length > 0) {
-            const orchestratorAgent = agents.find(agent => agent.name === "OrchestratorAgent");
-            const agentName = orchestratorAgent ? orchestratorAgent.name : agents[0].name;
-
-            setSelectedAgentName(agentName);
-
-            const selectedAgent = agents.find(agent => agent.name === agentName);
-            const displayedText = selectedAgent?.displayName ? `Hi! I'm the ${selectedAgent?.displayName}. How can I help?` : `Hi! I'm ${agentName}. How can I help?`;
-
-            setMessages(prev => {
-                const filteredMessages = prev.filter(msg => !msg.isStatusBubble);
-                return [
-                    ...filteredMessages,
-                    {
-                        role: "agent",
-                        kind: "message",
-                        messageId: `welcome-${Date.now()}`,
-                        parts: [{ kind: "text", text: displayedText }],
-                        isUser: false,
-                        isComplete: true,
-                        metadata: { sessionId, lastProcessedEventSequence: 0 },
-                    },
-                ];
-            });
-        }
-    }, [agents, selectedAgentName, sessionId, setMessages, setSelectedAgentName]);
-
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
         messages.forEach((message, index) => {
@@ -179,13 +144,14 @@ export function ChatPage() {
     }, [loadingMessage]);
 
     const handleViewProgressClick = useMemo(() => {
-        if (!loadingMessage?.taskId) return undefined;
+        // Use currentTaskId directly instead of relying on loadingMessage
+        if (!currentTaskId) return undefined;
 
         return () => {
-            setTaskIdInSidePanel(loadingMessage.taskId!);
+            setTaskIdInSidePanel(currentTaskId);
             openSidePanelTab("workflow");
         };
-    }, [loadingMessage?.taskId, setTaskIdInSidePanel, openSidePanelTab]);
+    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
 
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {
@@ -211,17 +177,37 @@ export function ChatPage() {
             </div>
             <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                 <Header
-                    title={sessionName || "New Chat"}
+                    title={
+                        <div className="flex items-center gap-3">
+                            <Tooltip delayDuration={300}>
+                                <TooltipTrigger className="truncate max-w-[400px] cursor-default text-left border-0 bg-transparent p-0 hover:bg-transparent font-inherit text-inherit">
+                                    {pageTitle}
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                    <p>{pageTitle}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                            {activeProject && (
+                                <Badge
+                                    variant="outline"
+                                    className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm max-w-[200px]"
+                                    title={activeProject.name}
+                                >
+                                    <span className="block truncate text-left">{activeProject.name}</span>
+                                </Badge>
+                            )}
+                        </div>
+                    }
+                    breadcrumbs={breadcrumbs}
                     leadingAction={
                         isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
-                                <Button variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Sessions Panel">
+                                <Button data-testid="showSessionsPanel" variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
                                     <PanelLeftIcon className="size-5" />
                                 </Button>
-                                <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
-                                <Button variant="ghost" onClick={() => setChatSessionDialogOpen(true)} className="h-10 w-10 p-0" tooltip="Start New Chat Session">
-                                    <Edit className="size-5" />
-                                </Button>
+                                <div className="h-6 border-r"></div>
+
+                                <ChatSessionDialog />
                             </div>
                         ) : null
                     }
@@ -231,16 +217,29 @@ export function ChatPage() {
                 <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
-                            <div className="flex h-full w-full flex-col py-6">
-                                <ChatMessageList className="text-base" ref={chatMessageListRef}>
-                                    {messages.map((message, index) => {
-                                        const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                        return <ChatMessage message={message} key={`${message.metadata?.sessionId || "session"}-${index}-${message.isUser ? "received" : "sent"}`} isLastWithTaskId={isLastWithTaskId} />;
-                                    })}
-                                </ChatMessageList>
-                                <div style={CHAT_STYLES}>
-                                    {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
-                                    <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                            <div className="flex h-full w-full flex-col">
+                                <div className="flex flex-1 flex-col py-6 min-h-0">
+                                    {isLoadingSession ? (
+                                        <div className="flex h-full items-center justify-center">
+                                            <Spinner size="medium" variant="primary">
+                                                <p className="text-sm text-muted-foreground mt-4">Loading session...</p>
+                                            </Spinner>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <ChatMessageList className="text-base" ref={chatMessageListRef}>
+                                                {messages.map((message, index) => {
+                                                    const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
+                                                    const messageKey = message.metadata?.messageId || `temp-${index}`;
+                                                    return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} />;
+                                                })}
+                                            </ChatMessageList>
+                                            <div style={CHAT_STYLES}>
+                                                {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
+                                                <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </ResizablePanel>
@@ -265,7 +264,6 @@ export function ChatPage() {
                     </ResizablePanelGroup>
                 </div>
             </div>
-            <ChatSessionDialog isOpen={isChatSessionDialogOpen} onClose={() => setChatSessionDialogOpen(false)} />
             <ChatSessionDeleteDialog isOpen={!!sessionToDelete} onClose={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`} />
         </div>
     );

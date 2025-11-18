@@ -14,6 +14,7 @@ from fastapi import (
     status,
 )
 from pydantic import BaseModel, Field
+import json
 from typing import List, Optional, Dict, Any, Set
 
 
@@ -31,6 +32,7 @@ if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
+trace_logger = logging.getLogger("sam_trace")
 
 router = APIRouter()
 
@@ -134,26 +136,32 @@ from sse_starlette.sse import EventSourceResponse
 
 def _generate_sse_url(fastapi_request: FastAPIRequest, stream_id: str) -> str:
     """
-    Generate SSE endpoint URL with proper scheme detection for reverse proxy scenarios.
+    Generate SSE endpoint URL with proper scheme and host detection for reverse proxy scenarios.
 
     Args:
         fastapi_request: The FastAPI request object
         stream_id: The stream ID for the SSE endpoint
 
     Returns:
-        Complete SSE URL with correct scheme (http/https)
+        Complete SSE URL with correct scheme (http/https) and host.
     """
-    forwarded_proto = fastapi_request.headers.get("x-forwarded-proto")
-    if forwarded_proto and forwarded_proto.lower() == "https":
-        scheme = "https"
-    else:
-        scheme = fastapi_request.url.scheme
-
-    return str(
-        fastapi_request.url_for(
-            "get_visualization_stream_events", stream_id=stream_id
-        ).replace(scheme=scheme)
+    base_url = fastapi_request.url_for(
+        "get_visualization_stream_events", stream_id=stream_id
     )
+
+    forwarded_proto = fastapi_request.headers.get("x-forwarded-proto")
+    forwarded_host = fastapi_request.headers.get("x-forwarded-host")
+
+    if forwarded_proto and forwarded_host:
+        # In a reverse proxy environment like GitHub Codespaces, reconstruct the URL
+        # using the forwarded headers to ensure it's publicly accessible.
+        return str(base_url.replace(scheme=forwarded_proto, netloc=forwarded_host))
+    elif forwarded_proto:
+        # Handle cases with only a forwarded protocol (standard reverse proxy)
+        return str(base_url.replace(scheme=forwarded_proto))
+    else:
+        # Default behavior when not behind a reverse proxy
+        return str(base_url)
 
 
 def _translate_target_to_solace_topics(
@@ -225,9 +233,75 @@ def _resolve_user_identity_for_authorization(
                 "%s No user_identity provided but authorization is enabled. This should not happen.",
                 log_id_prefix,
             )
-            raise ValueError("No user identity available when authorization is required")
+            raise ValueError(
+                "No user identity available when authorization is required"
+            )
 
     return user_identity
+
+
+def _include_for_visualization(event_payload: Dict[str, Any]) -> bool:
+    """
+    Check if an event should be included for visualization based on metadata.
+
+    Args:
+        event_payload: The event payload containing event data
+
+    Returns:
+        False if the event should be excluded from visualization (when visualization is False),
+        True otherwise (include by default)
+    """
+    try:
+        # Get the data field from the event payload
+        data_str = event_payload.get("data")
+        if not data_str:
+            return True  # Include by default if no data
+
+        # Parse the JSON data
+        try:
+            data = json.loads(data_str)
+        except (json.JSONDecodeError, TypeError):
+            return True
+
+        # Look for the full_payload in the data
+        full_payload = data.get("full_payload")
+        if not full_payload:
+            return True
+
+        # Check if full_payload has params
+        params = full_payload.get("params")
+        if not params:
+            return True
+
+        # Check if params has message
+        message = params.get("message")
+        if not message:
+            return True
+
+        # Check if message has metadata
+        metadata = message.get("metadata")
+        if not metadata:
+            return True
+
+        # Check the visualization setting in metadata
+        visualization_setting = metadata.get("visualization")
+        if visualization_setting is not None and (
+            (
+                isinstance(visualization_setting, str)
+                and visualization_setting.lower() == "false"
+            )
+            or (
+                isinstance(visualization_setting, bool)
+                and visualization_setting is False
+            )
+        ):
+            return False
+
+        return True
+
+    except Exception as e:
+        log.warning("Error checking visualization filter for event: %s", e)
+        return True
 
 
 @router.post(
@@ -315,7 +389,7 @@ async def subscribe_to_visualization_stream(
     resolved_user_identity = _resolve_user_identity_for_authorization(
         component, user_id
     )
-    log.info(
+    log.debug(
         "%s Resolved user identity for authorization: '%s' (from raw user_id: '%s')",
         log_id_prefix,
         resolved_user_identity,
@@ -333,7 +407,7 @@ async def subscribe_to_visualization_stream(
         user_config = await config_resolver.resolve_user_config(
             resolved_user_identity, gateway_context, {}
         )
-        log.info(
+        log.debug(
             "%s Resolved user_config for resolved_user_identity '%s': %s",
             log_id_prefix,
             resolved_user_identity,
@@ -451,7 +525,7 @@ async def subscribe_to_visualization_stream(
                 )
 
                 firehose_topic = f"{component.namespace.strip('/')}/a2a/>"
-                log.info(
+                log.debug(
                     "%s Adding firehose subscription '%s' for my_a2a_messages stream.",
                     log_id_prefix,
                     firehose_topic,
@@ -774,13 +848,27 @@ async def get_visualization_stream_events(
                             stream_id,
                         )
                         break
-                    yield event_payload
+                    if _include_for_visualization(event_payload):
+                        if trace_logger.isEnabledFor(logging.DEBUG):
+                            trace_logger.debug(
+                                "%s Yielding event for stream %s: %s",
+                                log_id_prefix,
+                                stream_id,
+                                event_payload,
+                            )
+                        else:
+                            log.debug(
+                                "%s Yielding event for stream %s",
+                                log_id_prefix,
+                                stream_id,
+                            )
+                        yield event_payload
                     sse_queue.task_done()
                 except asyncio.TimeoutError:
                     yield {"comment": "keep-alive"}
                     continue
                 except asyncio.CancelledError:
-                    log.info(
+                    log.debug(
                         "%s SSE event generator for stream %s cancelled.",
                         log_id_prefix,
                         stream_id,
@@ -794,7 +882,7 @@ async def get_visualization_stream_events(
                 e,
             )
         finally:
-            log.info(
+            log.debug(
                 "%s SSE event generator for stream %s finished.",
                 log_id_prefix,
                 stream_id,
@@ -1129,4 +1217,4 @@ async def unsubscribe_from_visualization_stream(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-log.info("Router for A2A Message Visualization initialized.")
+log.info("Initialized Router for A2A Message Visualization.")

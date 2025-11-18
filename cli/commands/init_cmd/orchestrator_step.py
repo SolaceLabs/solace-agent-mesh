@@ -84,33 +84,7 @@ def create_orchestrator_config(
         is_bool=True,
     )
 
-    session_type = ask_if_not_provided(
-        options,
-        "session_service_type",
-        "Enter session service type",
-        "sql",
-        skip_interactive,
-        choices=["sql", "memory", "vertex_rag"],
-    )
-
-    if session_type == "sql":
-        options["use_orchestrator_db"] = ask_if_not_provided(
-            options,
-            "use_orchestrator_db",
-            "Use default orchestrator database? (true/false)",
-            ORCHESTRATOR_DEFAULTS["use_orchestrator_db"],
-            skip_interactive,
-            is_bool=True,
-        )
-
-    session_behavior = ask_if_not_provided(
-        options,
-        "session_service_behavior",
-        "Enter session service behavior",
-        "PERSISTENT",
-        skip_interactive,
-        choices=["PERSISTENT", "RUN_BASED"],
-    )
+    options["use_orchestrator_db"] = ORCHESTRATOR_DEFAULTS["use_orchestrator_db"]
 
     artifact_type = ask_if_not_provided(
         options,
@@ -362,8 +336,8 @@ def create_orchestrator_config(
         return False
 
     try:
-        logging_config_dest_path = project_root / "configs" / "logging_config.ini"
-        logging_template_content = load_template("logging_config_template.ini")
+        logging_config_dest_path = project_root / "configs" / "logging_config.yaml"
+        logging_template_content = load_template("logging_config_template.yaml")
         with open(logging_config_dest_path, "w", encoding="utf-8") as f:
             f.write(logging_template_content)
         click.echo(
@@ -408,44 +382,17 @@ def create_orchestrator_config(
            c. Direct Execution: If the task is not suitable for delegation (neither to a single agent nor a multi-agent sequence) and falls within your own capabilities, execute the task yourself.
 
         Artifact Management Guidelines:
-        - If an artifact was created during the task (either by yourself or a delegated agent), you must use the `list_artifacts` tool to get the details of the created artifacts.
-        - You must then review the list of artifacts and return the ones that are important for the user by using the `signal_artifact_for_return` tool.
+        - You must review your artifacts and return the ones that are important for the user by using artifact_return embed. You can use list_artifacts to see all available artifacts.
         - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call."""
 
-        if session_type == "sql":
-            session_service_lines = [
-                f'type: "{session_type}"',
-                'database_url: "${ORCHESTRATOR_DATABASE_URL}"',
-                f'default_behavior: "{session_behavior}"',
-            ]
-            session_service_block = "\n" + "\n".join(
-                [f"        {line}" for line in session_service_lines]
-            )
-
-            data_dir = project_root / "data"
-            data_dir.mkdir(exist_ok=True)
-            orchestrator_db_file = data_dir / "orchestrator.db"
-            orchestrator_database_url = f"sqlite:///{orchestrator_db_file.resolve()}"
-
-            try:
-                env_path = project_root / ".env"
-                with open(env_path, "a", encoding="utf-8") as f:
-                    f.write(
-                        f'\nORCHESTRATOR_DATABASE_URL="{orchestrator_database_url}"\n'
-                    )
-                click.echo(
-                    f"  Added ORCHESTRATOR_DATABASE_URL to .env: {orchestrator_database_url}"
-                )
-            except Exception as e:
-                click.echo(
-                    click.style(
-                        f"Warning: Could not add ORCHESTRATOR_DATABASE_URL to .env: {e}",
-                        fg="yellow",
-                    ),
-                    err=True,
-                )
-        else:
-            session_service_block = "*default_session_service"
+        session_service_lines = [
+            f'type: "sql"',
+            'database_url: "${ORCHESTRATOR_DATABASE_URL, sqlite:///orchestrator.db}"',
+            f'default_behavior: "PERSISTENT"',
+        ]
+        session_service_block = "\n" + "\n".join(
+            [f"        {line}" for line in session_service_lines]
+        )
 
         orchestrator_replacements = {
             "__NAMESPACE__": "${NAMESPACE}",

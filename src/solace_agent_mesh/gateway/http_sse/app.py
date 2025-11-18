@@ -76,18 +76,11 @@ class WebUIBackendApp(BaseGatewayApp):
             "description": "If true, the gateway will resolve artifact:// URIs found in A2A messages and embed the content as bytes before sending to the UI. If false, URIs are passed through.",
         },
         {
-            "name": "system_purpose",
+            "name": "model",
             "required": False,
-            "type": "string",
-            "default": "",
-            "description": "Detailed description of the system's overall purpose, to be optionally used by agents.",
-        },
-        {
-            "name": "response_format",
-            "required": False,
-            "type": "string",
-            "default": "",
-            "description": "General guidelines on how agent responses should be structured, to be optionally used by agents.",
+            "type": "dict",
+            "default": None,
+            "description": "The model to use for the WebUI gateway.",
         },
         {
             "name": "frontend_welcome_message",
@@ -192,6 +185,25 @@ class WebUIBackendApp(BaseGatewayApp):
                     "required": False,
                     "default": None,
                     "description": "Database URL for SQL session service. Required if type is 'sql'.",
+                },
+            },
+        },
+        {
+            "name": "platform_service",
+            "required": False,
+            "type": "dict",
+            "default": {},
+            "description": "Configuration for the Platform Service (enterprise features: agents, connectors, deployments).",
+            "dict_schema": {
+                "database_url": {
+                    "type": "string",
+                    "required": False,
+                    "default": None,
+                    "description": (
+                        "Database URL for platform data (agents, connectors, deployments). "
+                        "REQUIRED for platform features to be available. "
+                        "Example: postgresql://user:pass@host:5432/platform_db"
+                    ),
                 },
             },
         },

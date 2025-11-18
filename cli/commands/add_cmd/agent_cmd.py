@@ -66,7 +66,7 @@ def _write_agent_yaml_from_data(
 
             if type_val == "sql":
                 database_url_placeholder = (
-                    f"${{{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL}}"
+                    f"${{{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL, sqlite:///{file_name_snake}.db}}"
                 )
                 session_service_lines.append(
                     f'database_url: "{database_url_placeholder}"'
@@ -383,74 +383,7 @@ def create_agent_config(
         skip_interactive,
     )
 
-    collected_options["session_service_type"] = ask_if_not_provided(
-        collected_options,
-        "session_service_type",
-        "Session service type",
-        AGENT_DEFAULTS["session_service_type"],
-        skip_interactive,
-        choices=[USE_DEFAULT_SHARED_SESSION, "sql", "memory", "vertex_rag"],
-    )
-
-    if collected_options.get("session_service_type") == "sql":
-        if DATABASE_URL_KEY not in collected_options:
-            use_own_db = False
-            if not skip_interactive:
-                use_own_db = ask_yes_no_question(
-                    f"Do you want to use your own database for the '{agent_name_camel_case}' agent?\n"
-                    f"  (If no, SQLite embedded database will be used)",
-                    default=False,
-                )
-
-            if use_own_db:
-                database_url = ask_if_not_provided(
-                    collected_options,
-                    DATABASE_URL_KEY,
-                    f"Enter the full database URL for the {agent_name_camel_case} agent (e.g., postgresql://user:pass@host/db)",
-                    none_interactive=skip_interactive,
-                )
-                collected_options[DATABASE_URL_KEY] = database_url
-            else:
-                data_dir = project_root / "data"
-                data_dir.mkdir(exist_ok=True)
-                db_file = data_dir / f"{formatted_names['SNAKE_CASE_NAME']}.db"
-                database_url = f"sqlite:///{db_file.resolve()}"
-                click.echo(
-                    f"  Using default SQLite database for {agent_name_camel_case} agent: {db_file}"
-                )
-                collected_options[DATABASE_URL_KEY] = database_url
-
-        try:
-            db_url = collected_options.get(DATABASE_URL_KEY)
-            if not db_url:
-                error_msg = "Database URL was not provided or determined despite SQL session service being selected."
-                click.echo(
-                    click.style(f"Internal Error: {error_msg}", fg="red"), err=True
-                )
-                raise ValueError(error_msg)
-
-            click.echo(f"  Validating database: {db_url}")
-            create_and_validate_database(
-                db_url, f"{agent_name_camel_case} agent database"
-            )
-        except Exception as e:
-            click.echo(
-                click.style(
-                    f"Error validating database URL '{collected_options.get(DATABASE_URL_KEY)}': {e}",
-                    fg="red",
-                ),
-                err=True,
-            )
-            return False
-
-    collected_options["session_service_behavior"] = ask_if_not_provided(
-        collected_options,
-        "session_service_behavior",
-        "Session service behavior",
-        AGENT_DEFAULTS["session_service_behavior"],
-        skip_interactive,
-        choices=["PERSISTENT", "RUN_BASED"],
-    )
+    collected_options["session_service_type"] = "sql"
 
     collected_options["artifact_service_type"] = ask_if_not_provided(
         collected_options,

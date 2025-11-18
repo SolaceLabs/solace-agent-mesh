@@ -1,16 +1,14 @@
+from typing import Any, Dict, Generator, List, Optional, TYPE_CHECKING
 import inspect
-import os
 import socket
+import pytest
+import time
 import subprocess
 import sys
 import tempfile
-import time
-from collections.abc import Generator
 from pathlib import Path
-from typing import Any
 
 import httpx
-import pytest
 import sqlalchemy as sa
 from a2a.types import (
     AgentCard,
@@ -29,15 +27,25 @@ from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifac
 from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
 from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
 from sam_test_infrastructure.llm_server.server import TestLLMServer
+from sam_test_infrastructure.a2a_agent_server.server import TestA2AAgentServer
+from sam_test_infrastructure.static_file_server.server import TestStaticFileServer
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 from sqlalchemy import create_engine, text
 
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
+from solace_agent_mesh.agent.adk.services import ScopedArtifactServiceWrapper
 from solace_agent_mesh.agent.tools.registry import tool_registry
 from solace_agent_mesh.common import a2a
 from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
 from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
+
+from tests.integration.test_support.a2a_agent.executor import (
+    DeclarativeAgentExecutor,
+)
+
+if TYPE_CHECKING:
+    from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
 
 
 @pytest.fixture(scope="session")
@@ -46,19 +54,21 @@ def test_db_engine():
     Creates a temporary SQLite database for the test session, runs migrations,
     and yields the SQLAlchemy engine.
     """
+    import os
+
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "test_integration.db"
         database_url = f"sqlite:///{db_path}"
         print(f"\n[SessionFixture] Creating test database at: {database_url}")
 
         engine = create_engine(database_url)
-        
+
         # Enable foreign keys for SQLite (database-agnostic approach)
         from sqlalchemy import event
-        
+
         @event.listens_for(engine, "connect")
         def set_sqlite_pragma(dbapi_conn, connection_record):
-            if database_url.startswith('sqlite'):
+            if database_url.startswith("sqlite"):
                 cursor = dbapi_conn.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
@@ -72,6 +82,12 @@ def test_db_engine():
 
         alembic_command.upgrade(alembic_cfg, "head")
         print("[SessionFixture] Database migrations applied.")
+
+        # Ensure the database file has write permissions
+        # This prevents "readonly database" errors when new connections are created
+        if db_path.exists():
+            os.chmod(db_path, 0o666)  # Read/write for owner, group, and others
+            print(f"[SessionFixture] Set write permissions on database file: {db_path}")
 
         yield engine
 
@@ -96,6 +112,11 @@ def clean_db_fixture(test_db_engine):
                 "chat_messages",
                 "tasks",
                 "sessions",
+                "prompt_group_users",  
+                "prompts",             
+                "prompt_groups",      
+                "project_users",      
+                "projects",            
                 "users",
             ]
             for table_name in tables_to_clean:
@@ -110,6 +131,7 @@ def find_free_port() -> int:
         s.bind(("", 0))
         return s.getsockname()[1]
 
+
 @pytest.fixture(scope="session")
 def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
     """
@@ -121,8 +143,6 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
     Yields:
         A dictionary containing the `connection_params` for both stdio and http.
     """
-    # Import moved inside the fixture to prevent module-level side effects (e.g., middleware patching)
-    # from affecting other apps in the unified test harness.
     from sam_test_infrastructure.mcp_server.server import TestMCPServer as server_module
 
     process = None
@@ -172,7 +192,9 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
         process2 = subprocess.Popen(
             command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        print(f"\nStarted TestMCPServer in streamable-http mode (PID: {process2.pid})...")
+        print(
+            f"\nStarted TestMCPServer in streamable-http mode (PID: {process2.pid})..."
+        )
 
         # Readiness check by polling the /health endpoint
         max_wait_seconds = 10
@@ -203,7 +225,11 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
             "url": http_url,
         }
 
-        connection_params = {"stdio": stdio_params, "http": http_params, "streamable_http": streamable_params}
+        connection_params = {
+            "stdio": stdio_params,
+            "http": http_params,
+            "streamable_http": streamable_params,
+        }
 
         yield connection_params
 
@@ -228,7 +254,9 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
                 )
             print("TestMCPServer (http) terminated.")
         if process2:
-            print(f"\nTerminating streamable-http TestMCPServer (PID: {process2.pid})...")
+            print(
+                f"\nTerminating streamable-http TestMCPServer (PID: {process2.pid})..."
+            )
             process2.terminate()
             try:
                 stdout, stderr = process2.communicate(timeout=5)
@@ -250,6 +278,135 @@ def mcp_server_harness() -> Generator[dict[str, Any], None, None]:
         print(
             "\nNo external TestMCPServer process to terminate for stdio mode (ADK manages process)."
         )
+
+
+@pytest.fixture
+def mock_oauth_server():
+    """
+    Provides a mock OAuth 2.0 token endpoint using respx.
+    Returns a helper object for configuring responses.
+    """
+
+    class MockOAuthServer:
+        def __init__(self):
+            import respx
+
+            # Allow unmocked requests to pass through to support real HTTP calls
+            # to TestA2AAgentServer while mocking OAuth token endpoints
+            self.mock = respx.mock(assert_all_called=False, assert_all_mocked=False)
+            # Pass through all localhost/127.0.0.1 requests to allow real test servers to work
+            self.mock.route(host="127.0.0.1").pass_through()
+            self.mock.route(host="localhost").pass_through()
+
+            # Explicitly pass through both agent card endpoint paths (old and new A2A spec)
+            # This ensures the A2A SDK's fallback logic works correctly
+            self.mock.route(path="/.well-known/agent-card.json").pass_through()
+
+            print(f"\n[MockOAuthServer] Initializing respx mock")
+            print(
+                f"[MockOAuthServer] Pass-through configured for: 127.0.0.1, localhost"
+            )
+            print(
+                f"[MockOAuthServer] Pass-through configured for agent card path: /.well-known/agent-card.json"
+            )
+
+            self.mock.start()
+            self._routes = {}
+            self._call_log = []
+
+            print(f"[MockOAuthServer] Mock started. ")
+
+        def configure_token_endpoint(
+            self,
+            token_url: str,
+            access_token: str = "test_token_12345",
+            expires_in: int = 3600,
+            error: Optional[Dict[str, Any]] = None,
+            status_code: int = 200,
+        ):
+            """Configure a token endpoint to return specific responses."""
+            print(f"\n[MockOAuthServer] Configuring token endpoint: {token_url}")
+
+            if error:
+                response = httpx.Response(status_code=status_code, json=error)
+                print(f"[MockOAuthServer] Will return error with status {status_code}")
+            else:
+                response = httpx.Response(
+                    status_code=200,
+                    json={
+                        "access_token": access_token,
+                        "token_type": "Bearer",
+                        "expires_in": expires_in,
+                    },
+                )
+                print(
+                    f"[MockOAuthServer] Will return access_token: {access_token[:20]}..."
+                )
+
+            route = self.mock.post(token_url).mock(return_value=response)
+            self._routes[token_url] = route
+            print(f"[MockOAuthServer] Route configured and stored")
+            return route
+
+        def configure_token_endpoint_sequence(
+            self, token_url: str, responses: List[Dict[str, Any]]
+        ):
+            """Configure a token endpoint to return a sequence of responses."""
+            http_responses = []
+            for resp_config in responses:
+                if "error" in resp_config:
+                    http_responses.append(
+                        httpx.Response(
+                            status_code=resp_config.get("status_code", 400),
+                            json=resp_config["error"],
+                        )
+                    )
+                else:
+                    http_responses.append(
+                        httpx.Response(
+                            status_code=200,
+                            json={
+                                "access_token": resp_config.get(
+                                    "access_token", "test_token"
+                                ),
+                                "token_type": "Bearer",
+                                "expires_in": resp_config.get("expires_in", 3600),
+                            },
+                        )
+                    )
+
+            route = self.mock.post(token_url).mock(side_effect=http_responses)
+            self._routes[token_url] = route
+            return route
+
+        def get_route(self, token_url: str):
+            """Get the respx route for a token URL."""
+            return self._routes.get(token_url)
+
+        def assert_token_requested(self, token_url: str, times: int = 1):
+            """Assert that a token endpoint was called a specific number of times."""
+            route = self._routes.get(token_url)
+            assert route is not None, f"No route configured for {token_url}"
+            assert (
+                route.call_count == times
+            ), f"Expected {times} calls to {token_url}, got {route.call_count}"
+
+        def get_last_token_request(self, token_url: str) -> Optional[Any]:
+            """Get the last request made to a token endpoint."""
+            route = self._routes.get(token_url)
+            if route and route.calls:
+                return route.calls.last.request
+            return None
+
+        def stop(self):
+            """Stop the mock."""
+            print(f"\n[MockOAuthServer] Stopping respx mock")
+            self.mock.stop()
+            print(f"[MockOAuthServer] Mock stopped")
+
+    server = MockOAuthServer()
+    yield server
+    server.stop()
 
 
 @pytest.fixture
@@ -370,6 +527,103 @@ def test_llm_server():
     print("TestLLMServer fixture: Server stopped.")
 
 
+@pytest.fixture(scope="session")
+def test_static_file_server():
+    """
+    Manages the lifecycle of the TestStaticFileServer for the test session.
+    Yields the TestStaticFileServer instance.
+    """
+    server = TestStaticFileServer(host="127.0.0.1", port=8089)
+    server.start()
+
+    max_retries = 20
+    retry_delay = 0.25
+    ready = False
+    for i in range(max_retries):
+        time.sleep(retry_delay)
+        try:
+            if server.started:
+                print(f"TestStaticFileServer confirmed started after {i + 1} attempts.")
+                ready = True
+                break
+            print(
+                f"TestStaticFileServer not ready yet (attempt {i + 1}/{max_retries})..."
+            )
+        except Exception as e:
+            print(
+                f"TestStaticFileServer readiness check (attempt {i + 1}/{max_retries}) encountered an error: {e}"
+            )
+
+    if not ready:
+        try:
+            server.stop()
+        except Exception:
+            pass
+        pytest.fail("TestStaticFileServer did not become ready in time.")
+
+    print(f"TestStaticFileServer fixture: Server ready at {server.url}")
+    yield server
+
+    print("TestStaticFileServer fixture: Stopping server...")
+    server.stop()
+    print("TestStaticFileServer fixture: Server stopped.")
+
+
+@pytest.fixture(scope="session")
+def test_a2a_agent_server_harness(
+    mock_agent_card: AgentCard,
+) -> Generator[TestA2AAgentServer, None, None]:
+    """
+    Manages the lifecycle of the TestA2AAgentServer for the test session.
+    Yields the TestA2AAgentServer instance.
+    """
+    port = find_free_port()
+    print(f"\n[TestA2AAgentServer] Starting on port {port}")
+    executor = DeclarativeAgentExecutor()
+    server = TestA2AAgentServer(
+        host="127.0.0.1",
+        port=port,
+        agent_card=mock_agent_card,
+        agent_executor=executor,
+    )
+    executor.server = server
+    print(f"[TestA2AAgentServer] Server URL will be: {server.url}")
+    server.start()
+
+    max_retries = 20
+    retry_delay = 0.25
+    ready = False
+    for i in range(max_retries):
+        time.sleep(retry_delay)
+        try:
+            if server.started:
+                print(f"TestA2AAgentServer confirmed started after {i+1} attempts.")
+                ready = True
+                break
+            print(f"TestA2AAgentServer not ready yet (attempt {i+1}/{max_retries})...")
+        except Exception as e:
+            print(
+                f"TestA2AAgentServer readiness check (attempt {i+1}/{max_retries}) encountered an error: {e}"
+            )
+
+    if not ready:
+        try:
+            server.stop()
+        except Exception:
+            pass
+        pytest.fail(f"TestA2AAgentServer did not become ready in time on port {port}.")
+
+    print(f"[TestA2AAgentServer] Server ready at {server.url}")
+    print(
+        f"[TestA2AAgentServer] Agent card endpoint: {server.url}/.well-known/agent-card.json"
+    )
+    yield server
+
+    print("\n[TestA2AAgentServer] Stopping server...")
+    server.stop()
+    print("[TestA2AAgentServer] Server stopped.")
+
+
 @pytest.fixture(autouse=True)
 def clear_llm_server_configs(test_llm_server: TestLLMServer):
     """
@@ -378,6 +632,17 @@ def clear_llm_server_configs(test_llm_server: TestLLMServer):
     Also clears the global static response.
     """
     test_llm_server.clear_all_configurations()
+
+
+@pytest.fixture(autouse=True)
+def clear_static_file_server_state(test_static_file_server: TestStaticFileServer):
+    """
+    Automatically clears configured responses and captured requests from the
+    TestStaticFileServer before each test.
+    """
+    yield
+    test_static_file_server.clear_configured_responses()
+    test_static_file_server.clear_captured_requests()
 
 
 @pytest.fixture()
@@ -433,6 +698,7 @@ def shared_solace_connector(
     request,
     mcp_server_harness,
     test_db_engine,
+    test_a2a_agent_server_harness: TestA2AAgentServer,
 ) -> SolaceAiConnector:
     """
     Creates and manages a single SolaceAiConnector instance with multiple agents
@@ -446,8 +712,10 @@ def shared_solace_connector(
         tools,
         model_suffix,
         session_behavior="RUN_BASED",
+        inject_system_purpose=False,
+        inject_response_format=False,
     ):
-        return {
+        config = {
             "namespace": "test_namespace",
             "supports_streaming": True,
             "agent_name": agent_name,
@@ -481,6 +749,13 @@ def shared_solace_connector(
             "tools": tools,
         }
 
+        if inject_system_purpose:
+            config["inject_system_purpose"] = True
+        if inject_response_format:
+            config["inject_response_format"] = True
+
+        return config
+
     test_agent_tools = [
         {
             "tool_type": "python",
@@ -492,7 +767,19 @@ def shared_solace_connector(
         {"tool_type": "builtin-group", "group_name": "artifact_management"},
         {"tool_type": "builtin-group", "group_name": "data_analysis"},
         {"tool_type": "builtin-group", "group_name": "test"},
-        {"tool_type": "builtin", "tool_name": "web_request"},
+        {
+            "tool_type": "builtin",
+            "tool_name": "web_request",
+            "tool_config": {"allow_loopback": True},
+        },
+        {
+            "tool_type": "python",
+            "component_module": "solace_agent_mesh.agent.tools.web_tools",
+            "function_name": "web_request",
+            "tool_name": "web_request_strict",
+            "component_base_path": ".",
+            "tool_config": {"allow_loopback": False},
+        },
         {"tool_type": "builtin", "tool_name": "mermaid_diagram_generator"},
         {
             "tool_type": "builtin",
@@ -543,14 +830,16 @@ def shared_solace_connector(
             "tool_type": "mcp",
             "tool_name": "get_data_streamable_http",
             "connection_params": mcp_server_harness["streamable_http"],
-        }
+        },
     ]
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",
         description="The main test agent (orchestrator)",
-        allow_list=["TestPeerAgentA", "TestPeerAgentB"],
+        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied", "TestAgent_Proxied_NoConvert"],
         tools=test_agent_tools,
         model_suffix="sam",
+        inject_system_purpose=True,
+        inject_response_format=True,
     )
 
     peer_agent_tools = [
@@ -673,6 +962,53 @@ def shared_solace_connector(
         model_suffix="config-context",
     )
 
+    # Generic Gateway test apps
+    minimal_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "MinimalTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.MinimalAdapter",
+        "adapter_config": {
+            "default_user_id": "minimal-user@example.com",
+            "default_target_agent": "TestAgent",
+        },
+        "artifact_service": {"type": "test_in_memory"},
+        "default_user_identity": "default-user@example.com",
+    }
+
+    auth_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "AuthTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.AuthTestAdapter",
+        "adapter_config": {
+            "require_token": False,
+            "valid_token": "valid-test-token",
+        },
+        "artifact_service": {"type": "test_in_memory"},
+        "default_user_identity": "fallback-user@example.com",
+    }
+
+    file_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "FileTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.FileAdapter",
+        "adapter_config": {
+            "max_file_size": 1024 * 1024,
+        },
+        "artifact_service": {"type": "test_in_memory"},
+    }
+
+    dispatching_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "DispatchingTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.DispatchingAdapter",
+        "adapter_config": {
+            "default_user_id": "dispatch-user@example.com",
+            "default_target_agent": "TestAgent",
+        },
+        "artifact_service": {"type": "test_in_memory"},
+        "default_user_identity": "default-dispatch@example.com",
+    }
+
     app_infos = [
         {
             "name": "WebUIBackendApp",
@@ -689,6 +1025,30 @@ def shared_solace_connector(
                 "task_logging": {"enabled": True},
                 "artifact_service": {"type": "test_in_memory"},
             },
+        },
+        {
+            "name": "MinimalGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": minimal_gateway_config,
+        },
+        {
+            "name": "AuthGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": auth_gateway_config,
+        },
+        {
+            "name": "FileGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": file_gateway_config,
+        },
+        {
+            "name": "DispatchingGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": dispatching_gateway_config,
         },
         {
             "name": "TestSamAgentApp",
@@ -726,6 +1086,9 @@ def shared_solace_connector(
                 "namespace": "test_namespace",
                 "gateway_id": "TestHarnessGateway_01",
                 "artifact_service": {"type": "test_in_memory"},
+                "task_logging": {"enabled": False},
+                "system_purpose": "Test gateway system purpose for metadata validation",
+                "response_format": "Test gateway response format for metadata validation",
             },
             "broker": {"dev_mode": True},
             "app_module": "sam_test_infrastructure.gateway_interface.app",
@@ -766,11 +1129,41 @@ def shared_solace_connector(
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.agent.sac.app",
         },
+        {
+            "name": "TestA2AProxyApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "proxied_agents": [
+                    {
+                        "name": "TestAgent_Proxied",
+                        "url": test_a2a_agent_server_harness.url,
+                        "request_timeout_seconds": 3,
+                        # convert_progress_updates defaults to true
+                    },
+                    {
+                        "name": "TestAgent_Proxied_NoConvert",
+                        "url": test_a2a_agent_server_harness.url,
+                        "request_timeout_seconds": 3,
+                        "convert_progress_updates": False,  # Disable text-to-data conversion
+                    }
+                ],
+                "artifact_service": {"type": "test_in_memory"},
+                "discovery_interval_seconds": 1,
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.proxies.a2a.app",
+        },
     ]
 
     session_monkeypatch.setattr(
         "solace_agent_mesh.agent.adk.services.TestInMemoryArtifactService",
         lambda: test_artifact_service_instance,
+    )
+    session_monkeypatch.setattr(
+        "solace_agent_mesh.agent.proxies.base.component.initialize_artifact_service",
+        lambda component: ScopedArtifactServiceWrapper(
+            wrapped_service=test_artifact_service_instance, component=component
+        ),
     )
 
     log_level_str = request.config.getoption("--log-cli-level") or "INFO"
@@ -1060,6 +1453,29 @@ def webui_api_client(
 
 
 @pytest.fixture(scope="session")
+def a2a_proxy_component(
+    shared_solace_connector: SolaceAiConnector,
+) -> "BaseProxyComponent":
+    """Retrieves the A2AProxyComponent instance."""
+    from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
+
+    app_instance = shared_solace_connector.get_app("TestA2AProxyApp")
+    assert app_instance, "Could not find TestA2AProxyApp in the connector."
+
+    if app_instance.flows and app_instance.flows[0].component_groups:
+        for group in app_instance.flows[0].component_groups:
+            for comp_wrapper in group:
+                component = (
+                    comp_wrapper.component
+                    if hasattr(comp_wrapper, "component")
+                    else comp_wrapper
+                )
+                if isinstance(component, BaseProxyComponent):
+                    return component
+    raise RuntimeError("A2AProxyComponent not found in the application flow.")
+
+
+@pytest.fixture(scope="session")
 def test_gateway_app_instance(
     shared_solace_connector: SolaceAiConnector,
 ) -> TestGatewayComponent:
@@ -1120,6 +1536,7 @@ def clear_test_gateway_state_between_tests(
     """
     yield
     test_gateway_app_instance.clear_captured_outputs()
+    test_gateway_app_instance.clear_all_captured_cancel_calls()
     if test_gateway_app_instance.task_context_manager:
         test_gateway_app_instance.task_context_manager.clear_all_contexts_for_testing()
 
@@ -1155,6 +1572,8 @@ def clear_all_agent_states_between_tests(
     mixed_discovery_agent_app_under_test: SamAgentApp,
     complex_signatures_agent_app_under_test: SamAgentApp,
     config_context_agent_app_under_test: SamAgentApp,
+    a2a_proxy_component: "BaseProxyComponent",
+    test_a2a_agent_server_harness: TestA2AAgentServer,
 ):
     """Clears state from all agent components after each test."""
     yield
@@ -1169,6 +1588,18 @@ def clear_all_agent_states_between_tests(
     _clear_agent_component_state(mixed_discovery_agent_app_under_test)
     _clear_agent_component_state(complex_signatures_agent_app_under_test)
     _clear_agent_component_state(config_context_agent_app_under_test)
+
+    # Clear proxy client cache to ensure fresh clients with updated auth config
+    a2a_proxy_component.clear_client_cache()
+
+    # Clear captured auth headers from downstream agent server
+    test_a2a_agent_server_harness.clear_captured_auth_headers()
+
+    # Clear captured A2A requests from downstream agent server
+    test_a2a_agent_server_harness.clear_captured_requests()
+
+    # Clear auth validation state from downstream agent server
+    test_a2a_agent_server_harness.clear_auth_state()
 
 
 @pytest.fixture(scope="function")
@@ -1237,7 +1668,7 @@ def a2a_message_validator(
     validator.deactivate()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def mock_agent_skills() -> AgentSkill:
     return AgentSkill(
         id="skill-1",
@@ -1250,14 +1681,20 @@ def mock_agent_skills() -> AgentSkill:
     )
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
-    from a2a.types import AgentCapabilities
+    from a2a.types import (
+        AgentCapabilities,
+        APIKeySecurityScheme,
+        HTTPAuthSecurityScheme,
+        In,
+        SecurityScheme,
+    )
 
     return AgentCard(
         name="test_agent",
         description="Test Agent Description",
-        url="http://test.com/test_path/agent.json",
+        url="http://test.com/test_path/agent-card.json",
         version="1.0.0",
         protocol_version="0.3.0",
         capabilities=AgentCapabilities(
@@ -1268,6 +1705,18 @@ def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
         skills=[mock_agent_skills],
         default_input_modes=["text/plain"],
         default_output_modes=["text/plain"],
+        # Support both bearer and apikey authentication (OR relationship)
+        security=[{"bearer": []}, {"apikey": []}],
+        security_schemes={
+            "bearer": SecurityScheme(
+                root=HTTPAuthSecurityScheme(type="http", scheme="bearer")
+            ),
+            "apikey": SecurityScheme(
+                root=APIKeySecurityScheme(
+                    type="apiKey", name="X-API-Key", in_=In.header
+                )
+            ),
+        },
     )
 
 

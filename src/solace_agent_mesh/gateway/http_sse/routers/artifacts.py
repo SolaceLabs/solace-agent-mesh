@@ -4,7 +4,7 @@ FastAPI router for managing session-specific artifacts via REST endpoints.
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from fastapi import (
     APIRouter,
@@ -13,6 +13,7 @@ from fastapi import (
     Form,
     HTTPException,
     Path,
+    Query,
     UploadFile,
     status,
     Request as FastAPIRequest,
@@ -39,38 +40,42 @@ from ....common.utils.embeds import (
     evaluate_embed,
     resolve_embeds_recursively_in_string,
 )
+from ....common.utils.embeds.types import ResolutionMode
 from ....common.utils.mime_helpers import is_text_based_mime_type
+from ....common.utils.templates import resolve_template_blocks_in_string
 from ..dependencies import (
+    get_project_service_optional,
     ValidatedUserConfig,
     get_sac_component,
     get_session_validator,
     get_shared_artifact_service,
-    get_user_config,
     get_user_id,
     get_session_manager,
     get_session_business_service_optional,
     get_db_optional,
 )
+from ..services.project_service import ProjectService
 
-if TYPE_CHECKING:
-    from ....gateway.http_sse.component import WebUIBackendComponent
 
 from ..session_manager import SessionManager
 from ..services.session_service import SessionService
 from sqlalchemy.orm import Session
 
 from ....agent.utils.artifact_helpers import (
-    DEFAULT_SCHEMA_MAX_KEYS,
-    format_artifact_uri,
     get_artifact_info_list,
     load_artifact_content_or_metadata,
-    save_artifact_with_metadata,
+    process_artifact_upload,
 )
+
+if TYPE_CHECKING:
+    from ....gateway.http_sse.component import WebUIBackendComponent
 
 log = logging.getLogger(__name__)
 
+
 class ArtifactUploadResponse(BaseModel):
     """Response model for artifact upload with camelCase fields."""
+
     uri: str
     session_id: str = Field(..., alias="sessionId")
     filename: str
@@ -85,6 +90,80 @@ class ArtifactUploadResponse(BaseModel):
 router = APIRouter()
 
 
+def _resolve_storage_context(
+    session_id: str,
+    project_id: str | None,
+    user_id: str,
+    validate_session: Callable[[str, str], bool],
+    project_service: ProjectService | None,
+    log_prefix: str
+) -> tuple[str, str, str]:
+    """
+    Resolve storage context from session or project parameters.
+
+    Returns:
+        tuple: (storage_user_id, storage_session_id, context_type)
+
+    Raises:
+        HTTPException: If no valid context found
+    """
+    # Priority 1: Session context
+    if session_id and session_id.strip() and session_id not in ["null", "undefined"]:
+        if not validate_session(session_id, user_id):
+            log.warning("%s Session validation failed", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found or access denied.",
+            )
+        return user_id, session_id, "session"
+
+    # Priority 2: Project context (only if persistence is enabled)
+    elif project_id and project_id.strip() and project_id not in ["null", "undefined"]:
+        if project_service is None:
+            log.warning("%s Project context requested but persistence not enabled", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Project context requires database configuration.",
+            )
+
+        from ....gateway.http_sse.dependencies import SessionLocal
+
+        if SessionLocal is None:
+            log.warning("%s Project context requested but database not configured", log_prefix)
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="Project context requires database configuration.",
+            )
+
+        db = SessionLocal()
+        try:
+            project = project_service.get_project(db, project_id, user_id)
+            if not project:
+                log.warning("%s Project not found or access denied", log_prefix)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Project not found or access denied.",
+                )
+            return project.user_id, f"project-{project_id}", "project"
+        except HTTPException:
+            raise
+        except Exception as e:
+            log.error("%s Error resolving project context: %s", log_prefix, e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to resolve project context"
+            )
+        finally:
+            db.close()
+
+    # No valid context
+    log.warning("%s No valid context found", log_prefix)
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="No valid context provided.",
+    )
+
+
 @router.post(
     "/upload",
     status_code=status.HTTP_201_CREATED,
@@ -95,7 +174,11 @@ router = APIRouter()
 async def upload_artifact_with_session(
     request: FastAPIRequest,
     upload_file: UploadFile = File(..., description="The file content to upload"),
-    sessionId: str | None = Form(None, description="Session ID (null/empty to create new session)", alias="sessionId"),
+    sessionId: str | None = Form(
+        None,
+        description="Session ID (null/empty to create new session)",
+        alias="sessionId",
+    ),
     filename: str = Form(..., description="The name of the artifact to create/update"),
     metadata_json: str | None = Form(
         None, description="JSON string of artifact metadata (e.g., description, source)"
@@ -106,7 +189,9 @@ async def upload_artifact_with_session(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:create"])),
     session_manager: SessionManager = Depends(get_session_manager),
-    session_service: SessionService | None = Depends(get_session_business_service_optional),
+    session_service: SessionService | None = Depends(
+        get_session_business_service_optional
+    ),
     db: Session | None = Depends(get_db_optional),
 ):
     """
@@ -129,7 +214,11 @@ async def upload_artifact_with_session(
     else:
         # Create new session when no sessionId provided (like chat does for new conversations)
         effective_session_id = session_manager.create_new_session_id(request)
-        log.info("%sCreated new session for file upload: %s", log_prefix, effective_session_id)
+        log.info(
+            "%sCreated new session for file upload: %s",
+            log_prefix,
+            effective_session_id,
+        )
 
         # Persist session in database if persistence is available (matching chat pattern)
         if session_service and db:
@@ -139,17 +228,27 @@ async def upload_artifact_with_session(
                     user_id=user_id,
                     session_id=effective_session_id,
                     agent_id=None,  # Will be determined when first message is sent
-                    name=None,      # Will be set when first message is sent
+                    name=None,  # Will be set when first message is sent
                 )
                 db.commit()
-                log.info("%sSession created and committed to database: %s", log_prefix, effective_session_id)
+                log.info(
+                    "%sSession created and committed to database: %s",
+                    log_prefix,
+                    effective_session_id,
+                )
             except Exception as session_error:
                 db.rollback()
-                log.warning("%sSession persistence failed, continuing with in-memory session: %s",
-                           log_prefix, session_error)
+                log.warning(
+                    "%sSession persistence failed, continuing with in-memory session: %s",
+                    log_prefix,
+                    session_error,
+                )
         else:
-            log.debug("%sNo persistence available - using in-memory session: %s",
-                     log_prefix, effective_session_id)
+            log.debug(
+                "%sNo persistence available - using in-memory session: %s",
+                log_prefix,
+                effective_session_id,
+            )
 
     # Validate inputs
     if not filename or not filename.strip():
@@ -174,56 +273,83 @@ async def upload_artifact_with_session(
 
     # Validate session (now that we have an effective_session_id)
     if not validate_session(effective_session_id, user_id):
-        log.warning("%sSession validation failed for session: %s", log_prefix, effective_session_id)
+        log.warning(
+            "%sSession validation failed for session: %s",
+            log_prefix,
+            effective_session_id,
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid session or insufficient permissions.",
         )
 
-    log.info("%sUploading file '%s' to session '%s'", log_prefix, filename.strip(), effective_session_id)
+    log.info(
+        "%sUploading file '%s' to session '%s'",
+        log_prefix,
+        filename.strip(),
+        effective_session_id,
+    )
 
     try:
         # Read and validate file content
         content_bytes = await upload_file.read()
-        if not content_bytes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File is empty.",
-            )
 
         mime_type = upload_file.content_type or "application/octet-stream"
         filename_clean = filename.strip()
 
-        log.debug("%sProcessing file: %s (%d bytes, %s)", log_prefix, filename_clean, len(content_bytes), mime_type)
+        log.debug(
+            "%sProcessing file: %s (%d bytes, %s)",
+            log_prefix,
+            filename_clean,
+            len(content_bytes),
+            mime_type,
+        )
 
-        # Parse and validate metadata
-        metadata = {}
-        if metadata_json and metadata_json.strip():
-            try:
-                metadata = json.loads(metadata_json.strip())
-                if not isinstance(metadata, dict):
-                    raise ValueError("Metadata must be a JSON object")
-            except (json.JSONDecodeError, ValueError) as e:
-                log.warning("%sInvalid metadata JSON: %s", log_prefix, e)
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid JSON in metadata field: {str(e)}",
-                )
-
-        app_name = component.get_config("name", "A2A_WebUI_App")
-
-        # Store the artifact using the service
-        artifact_uri = await artifact_service.store(
-            app_name=app_name,
+        # Use the common upload helper
+        upload_result = await process_artifact_upload(
+            artifact_service=artifact_service,
+            component=component,
             user_id=user_id,
             session_id=effective_session_id,
             filename=filename_clean,
             content_bytes=content_bytes,
             mime_type=mime_type,
-            metadata=metadata,
+            metadata_json=metadata_json,
+            log_prefix=log_prefix,
         )
 
-        log.info("%sArtifact stored successfully: %s (%d bytes)", log_prefix, artifact_uri, len(content_bytes))
+        if upload_result["status"] != "success":
+            error_msg = upload_result.get("message", "Failed to upload artifact")
+            error_type = upload_result.get("error", "unknown")
+
+            if error_type in ["invalid_filename", "empty_file"]:
+                status_code = status.HTTP_400_BAD_REQUEST
+            else:
+                status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+            log.error("%s%s", log_prefix, error_msg)
+            raise HTTPException(status_code=status_code, detail=error_msg)
+
+        artifact_uri = upload_result["artifact_uri"]
+        saved_version = upload_result["version"]
+
+        log.info(
+            "%sArtifact stored successfully: %s (%d bytes), version: %s",
+            log_prefix,
+            artifact_uri,
+            len(content_bytes),
+            saved_version,
+        )
+
+        # Get metadata from upload result (it was already parsed and validated)
+        metadata_dict = {}
+        if metadata_json and metadata_json.strip():
+            try:
+                metadata_dict = json.loads(metadata_json.strip())
+                if not isinstance(metadata_dict, dict):
+                    metadata_dict = {}
+            except json.JSONDecodeError:
+                metadata_dict = {}
 
         # Return standardized response using Pydantic model (ensures camelCase conversion)
         return ArtifactUploadResponse(
@@ -232,8 +358,10 @@ async def upload_artifact_with_session(
             filename=filename_clean,
             size=len(content_bytes),
             mime_type=mime_type,  # Will be returned as "mimeType" due to alias
-            metadata=metadata,
-            created_at=datetime.now(timezone.utc).isoformat(),  # Will be returned as "createdAt" due to alias
+            metadata=metadata_dict,
+            created_at=datetime.now(
+                timezone.utc
+            ).isoformat(),  # Will be returned as "createdAt" due to alias
         )
 
     except HTTPException:
@@ -261,33 +389,32 @@ async def upload_artifact_with_session(
 )
 async def list_artifact_versions(
     session_id: str = Path(
-        ..., title="Session ID", description="The session ID to get artifacts from"
+        ..., title="Session ID", description="The session ID to get artifacts from (or 'null' for project context)"
     ),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
+    project_id: Optional[str] = Query(None, description="Project ID for project context"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
 ):
     """
     Lists the available integer versions for a given artifact filename
-    associated with the current user and session ID.
+    associated with the specified context (session or project).
     """
 
     log_prefix = f"[ArtifactRouter:ListVersions:{filename}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
-    # Validate session exists and belongs to user
-    if not validate_session(session_id, user_id):
-        log.warning("%s Session validation failed or access denied.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied.",
-        )
+    # Resolve storage context
+    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+        session_id, project_id, user_id, validate_session, project_service, log_prefix
+    )
 
     if artifact_service is None:
-        log.error("%s Artifact service is not configured or available.", log_prefix)
+        log.error("%s Artifact service not available.", log_prefix)
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Artifact service is not configured.",
@@ -307,10 +434,13 @@ async def list_artifact_versions(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+                log_prefix, context_type, storage_user_id, storage_session_id)
+
         versions = await artifact_service.list_versions(
             app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
+            user_id=storage_user_id,
+            session_id=storage_session_id,
             filename=filename,
         )
         log.info("%s Found versions: %s", log_prefix, versions)
@@ -319,7 +449,7 @@ async def list_artifact_versions(
         log.warning("%s Artifact not found.", log_prefix)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Artifact '{filename}' not found for this session.",
+            detail=f"Artifact '{filename}' not found.",
         )
     except Exception as e:
         log.exception("%s Error listing artifact versions: %s", log_prefix, e)
@@ -343,35 +473,33 @@ async def list_artifact_versions(
 )
 async def list_artifacts(
     session_id: str = Path(
-        ..., title="Session ID", description="The session ID to list artifacts for"
+        ..., title="Session ID", description="The session ID to list artifacts for (or 'null' for project context)"
     ),
+    project_id: Optional[str] = Query(None, description="Project ID for project context"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
 ):
     """
     Lists detailed information (filename, size, type, modified date, uri)
-    for all artifacts associated with the specified user and session ID
-    by calling the artifact helper function.
+    for all artifacts associated with the specified context (session or project).
     """
 
     log_prefix = f"[ArtifactRouter:ListInfo] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
-    # Validate session exists and belongs to user
-    if not validate_session(session_id, user_id):
-        log.warning(
-            "%s Session validation failed for session_id=%s, user_id=%s",
-            log_prefix,
-            session_id,
-            user_id,
+    # Resolve storage context (projects vs sessions). This allows for project artiacts
+    # to be listed before a session is created.
+    try:
+        storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+            session_id, project_id, user_id, validate_session, project_service, log_prefix
         )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied.",
-        )
+    except HTTPException:
+        log.info("%s No valid context found, returning empty list", log_prefix)
+        return []
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -383,22 +511,21 @@ async def list_artifacts(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+                log_prefix, context_type, storage_user_id, storage_session_id)
+
         artifact_info_list = await get_artifact_info_list(
             artifact_service=artifact_service,
             app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
+            user_id=storage_user_id,
+            session_id=storage_session_id,
         )
 
-        log.info(
-            "%s Returning %d artifact details.", log_prefix, len(artifact_info_list)
-        )
+        log.info("%s Returning %d artifact details.", log_prefix, len(artifact_info_list))
         return artifact_info_list
 
     except Exception as e:
-        log.exception(
-            "%s Error retrieving artifact details via helper: %s", log_prefix, e
-        )
+        log.exception("%s Error retrieving artifact details: %s", log_prefix, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve artifact details: {str(e)}",
@@ -412,23 +539,30 @@ async def list_artifacts(
 )
 async def get_latest_artifact(
     session_id: str = Path(
-        ..., title="Session ID", description="The session ID to get artifacts from"
+        ..., title="Session ID", description="The session ID to get artifacts from (or 'null' for project context)"
     ),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
+    project_id: Optional[str] = Query(None, description="Project ID for project context"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
 ):
     """
     Retrieves the content of the latest version of the specified artifact
-    associated with the current user and session ID.
+    associated with the specified context (session or project).
     """
     log_prefix = (
         f"[ArtifactRouter:GetLatest:{filename}] User={user_id}, Session={session_id} -"
     )
     log.info("%s Request received.", log_prefix)
+
+    # Resolve storage context
+    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+        session_id, project_id, user_id, validate_session, project_service, log_prefix
+    )
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -439,10 +573,14 @@ async def get_latest_artifact(
 
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
+
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+                log_prefix, context_type, storage_user_id, storage_session_id)
+
         artifact_part = await artifact_service.load_artifact(
             app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
+            user_id=storage_user_id,
+            session_id=storage_session_id,
             filename=filename,
         )
 
@@ -488,17 +626,32 @@ async def get_latest_artifact(
                     context=context_for_resolver,
                     resolver_func=evaluate_embed,
                     types_to_resolve=LATE_EMBED_TYPES,
+                    resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
                     log_identifier=f"{log_prefix}[RecursiveResolve]",
                     config=config_for_resolver,
                     max_depth=component.gateway_recursive_embed_depth,
                     max_total_size=component.gateway_max_artifact_resolve_size_bytes,
                 )
-                data_bytes = resolved_content_string.encode("utf-8")
                 log.info(
                     "%s Recursive embed resolution complete. New size: %d bytes.",
                     log_prefix,
-                    len(data_bytes),
+                    len(resolved_content_string),
                 )
+
+                # Also resolve any template blocks in the artifact
+                resolved_content_string = await resolve_template_blocks_in_string(
+                    text=resolved_content_string,
+                    artifact_service=artifact_service,
+                    session_context=context_for_resolver["session_context"],
+                    log_identifier=f"{log_prefix}[TemplateResolve]",
+                )
+                log.info(
+                    "%s Template block resolution complete. Final size: %d bytes.",
+                    log_prefix,
+                    len(resolved_content_string),
+                )
+
+                data_bytes = resolved_content_string.encode("utf-8")
             except UnicodeDecodeError as ude:
                 log.warning(
                     "%s Failed to decode artifact for recursive resolution: %s. Serving original content.",
@@ -547,7 +700,7 @@ async def get_latest_artifact(
 )
 async def get_specific_artifact_version(
     session_id: str = Path(
-        ..., title="Session ID", description="The session ID to get artifacts from"
+        ..., title="Session ID", description="The session ID to get artifacts from (or 'null' for project context)"
     ),
     filename: str = Path(..., title="Filename", description="The name of the artifact"),
     version: int | str = Path(
@@ -555,26 +708,25 @@ async def get_specific_artifact_version(
         title="Version",
         description="The specific version number to retrieve, or 'latest'",
     ),
+    project_id: Optional[str] = Query(None, description="Project ID for project context"),
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
     user_id: str = Depends(get_user_id),
     validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
     component: "WebUIBackendComponent" = Depends(get_sac_component),
+    project_service: ProjectService | None = Depends(get_project_service_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:load"])),
 ):
     """
     Retrieves the content of a specific version of the specified artifact
-    associated with the current user and session ID.
+    associated with the specified context (session or project).
     """
     log_prefix = f"[ArtifactRouter:GetVersion:{filename} v{version}] User={user_id}, Session={session_id} -"
     log.info("%s Request received.", log_prefix)
 
-    # Validate session exists and belongs to user
-    if not validate_session(session_id, user_id):
-        log.warning("%s Session validation failed or access denied.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied.",
-        )
+    # Resolve storage context
+    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+        session_id, project_id, user_id, validate_session, project_service, log_prefix
+    )
 
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -586,11 +738,14 @@ async def get_specific_artifact_version(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+                log_prefix, context_type, storage_user_id, storage_session_id)
+
         load_result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
             app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
+            user_id=storage_user_id,
+            session_id=storage_session_id,
             filename=filename,
             version=version,
             load_metadata_only=False,
@@ -666,17 +821,32 @@ async def get_specific_artifact_version(
                     context=context_for_resolver,
                     resolver_func=evaluate_embed,
                     types_to_resolve=LATE_EMBED_TYPES,
+                    resolution_mode=ResolutionMode.RECURSIVE_ARTIFACT_CONTENT,
                     log_identifier=f"{log_prefix}[RecursiveResolve]",
                     config=config_for_resolver,
                     max_depth=component.gateway_recursive_embed_depth,
                     max_total_size=component.gateway_max_artifact_resolve_size_bytes,
                 )
-                data_bytes = resolved_content_string.encode("utf-8")
                 log.info(
                     "%s Recursive embed resolution complete. New size: %d bytes.",
                     log_prefix,
-                    len(data_bytes),
+                    len(resolved_content_string),
                 )
+
+                # Also resolve any template blocks in the artifact
+                resolved_content_string = await resolve_template_blocks_in_string(
+                    text=resolved_content_string,
+                    artifact_service=artifact_service,
+                    session_context=context_for_resolver["session_context"],
+                    log_identifier=f"{log_prefix}[TemplateResolve]",
+                )
+                log.info(
+                    "%s Template block resolution complete. Final size: %d bytes.",
+                    log_prefix,
+                    len(resolved_content_string),
+                )
+
+                data_bytes = resolved_content_string.encode("utf-8")
             except UnicodeDecodeError as ude:
                 log.warning(
                     "%s Failed to decode artifact for recursive resolution: %s. Serving original content.",
@@ -785,7 +955,6 @@ async def get_artifact_by_uri(
             version,
         )
 
-
         log.info(
             "%s User '%s' authorized to access artifact URI.",
             log_id_prefix,
@@ -826,162 +995,6 @@ async def get_artifact_by_uri(
         raise HTTPException(
             status_code=500, detail="Internal server error fetching artifact by URI"
         )
-
-
-@router.post(
-    "/{session_id}/{filename}",
-    status_code=status.HTTP_201_CREATED,
-    response_model=dict[str, Any],
-    summary="Upload Artifact (Create/Update Version with Metadata)",
-    description="Uploads file content and optional metadata to create or update an artifact version.",
-)
-async def upload_artifact(
-    session_id: str = Path(
-        ..., title="Session ID", description="The session ID to upload artifacts to"
-    ),
-    filename: str = Path(
-        ..., title="Filename", description="The name of the artifact to create/update"
-    ),
-    upload_file: UploadFile = File(..., description="The file content to upload"),
-    metadata_json: str | None = Form(
-        None, description="JSON string of artifact metadata (e.g., description, source)"
-    ),
-    artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
-    user_id: str = Depends(get_user_id),
-    validate_session: Callable[[str, str], bool] = Depends(get_session_validator),
-    component: "WebUIBackendComponent" = Depends(get_sac_component),
-    user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:create"])),
-):
-    """
-    Uploads a file to create a new version of the specified artifact
-    associated with the current user and session ID. Also saves associated metadata.
-    """
-    log_prefix = (
-        f"[ArtifactRouter:Post:{filename}] User={user_id}, Session={session_id} -"
-    )
-    log.info(
-        "%s Request received. Upload filename: '%s', content type: %s",
-        log_prefix,
-        upload_file.filename,
-        upload_file.content_type,
-    )
-
-    # Validate session exists and belongs to user
-    if not validate_session(session_id, user_id):
-        log.warning("%s Session validation failed or access denied.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or access denied.",
-        )
-
-    if artifact_service is None:
-        log.error("%s Artifact service is not configured or available.", log_prefix)
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Artifact service is not configured.",
-        )
-
-    try:
-        content_bytes = await upload_file.read()
-        if not content_bytes:
-            log.warning("%s Uploaded file is empty.", log_prefix)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Uploaded file cannot be empty.",
-            )
-
-        mime_type = upload_file.content_type or "application/octet-stream"
-
-        parsed_metadata = {}
-        if metadata_json:
-            try:
-                parsed_metadata = json.loads(metadata_json)
-                if not isinstance(parsed_metadata, dict):
-                    log.warning(
-                        "%s Metadata JSON did not parse to a dictionary. Ignoring.",
-                        log_prefix,
-                    )
-                    parsed_metadata = {}
-            except json.JSONDecodeError as json_err:
-                log.warning(
-                    "%s Failed to parse metadata_json: %s. Proceeding without it.",
-                    log_prefix,
-                    json_err,
-                )
-
-        app_name = component.get_config("name", "A2A_WebUI_App")
-        current_timestamp = datetime.now(timezone.utc)
-
-        save_result = await save_artifact_with_metadata(
-            artifact_service=artifact_service,
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=filename,
-            content_bytes=content_bytes,
-            mime_type=mime_type,
-            metadata_dict=parsed_metadata,
-            timestamp=current_timestamp,
-            schema_max_keys=component.get_config(
-                "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
-            ),
-        )
-
-        if save_result["status"] == "success":
-            log.info(
-                "%s Artifact and metadata processing completed. Data version: %s, Metadata version: %s. Message: %s",
-                log_prefix,
-                save_result.get("data_version"),
-                save_result.get("metadata_version"),
-                save_result.get("message"),
-            )
-            saved_version = save_result.get("data_version")
-            artifact_uri = format_artifact_uri(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename,
-                version=saved_version,
-            )
-            log.info(
-                "%s Successfully saved artifact. Returning URI: %s",
-                log_prefix,
-                artifact_uri,
-            )
-            return {
-                "filename": filename,
-                "data_version": saved_version,
-                "metadata_version": save_result.get("metadata_version"),
-                "mime_type": mime_type,
-                "size": len(content_bytes),
-                "message": save_result.get("message"),
-                "status": save_result["status"],
-                "uri": artifact_uri,
-            }
-        else:
-            log.error(
-                "%s Failed to save artifact and metadata: %s",
-                log_prefix,
-                save_result.get("message"),
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=save_result.get(
-                    "message", "Failed to save artifact with metadata."
-                ),
-            )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.exception("%s Error saving artifact: %s", log_prefix, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save artifact: {str(e)}",
-        )
-    finally:
-        await upload_file.close()
-        log.debug("%s Upload file closed.", log_prefix)
 
 
 @router.delete(

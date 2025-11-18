@@ -6,6 +6,8 @@ into appropriate HTTP responses with consistent formatting. These handlers
 can be used by any FastAPI application for uniform error handling.
 """
 
+import logging
+
 from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -23,6 +25,8 @@ from .exceptions import (
     ExternalServiceError,
 )
 from .error_dto import EventErrorDTO
+
+log = logging.getLogger(__name__)
 
 
 def create_error_response(
@@ -105,7 +109,18 @@ async def webui_backend_exception_handler(
     request: Request, exc: WebUIBackendException
 ) -> JSONResponse:
     """Handle generic WebUI backend exceptions - 500 Internal Server Error."""
-    error_dto = EventErrorDTO.create("An unexpected server error occurred.")
+    log.error(
+        f"WebUIBackendException: {exc.message}",
+        extra={
+            "path": request.url.path,
+            "method": request.method,
+            "details": exc.details if hasattr(exc, 'details') else None
+        },
+        exc_info=True
+    )
+
+    message = exc.message if exc.message else "An unexpected server error occurred."
+    error_dto = EventErrorDTO.create(message)
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=error_dto.model_dump())
 
 
@@ -113,9 +128,8 @@ async def http_exception_handler(
     request: Request, exc: HTTPException
 ) -> JSONResponse:
     """Handle FastAPI HTTPExceptions with standardized format."""
-    # Map common HTTP status codes to standard messages
+    # Map common HTTP status codes to standard messages (only used as fallback)
     message_map = {
-        400: "bad request",
         401: "An authentication error occurred. Try logging out and in again.",
         403: "You do not have permissions to perform this operation",
         404: f"Resource not found with path {request.url.path}",
@@ -127,7 +141,7 @@ async def http_exception_handler(
         503: "Service is unavailable.",
     }
 
-    message = message_map.get(exc.status_code, exc.detail)
+    message = exc.detail if exc.detail else message_map.get(exc.status_code, "bad request")
     error_dto = EventErrorDTO.create(message)
     return JSONResponse(status_code=exc.status_code, content=error_dto.model_dump())
 

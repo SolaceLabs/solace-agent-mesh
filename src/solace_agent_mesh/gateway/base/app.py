@@ -19,6 +19,7 @@ from ...common.a2a import (
 
 log = logging.getLogger(__name__)
 
+
 class BaseGatewayComponent(ComponentBase):
     pass
 
@@ -37,6 +38,27 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "type": "string",
             "default": None,
             "description": "Unique ID for this gateway instance. Auto-generated if omitted.",
+        },
+        {
+            "name": "default_agent_name",
+            "required": False,
+            "type": "string",
+            "default": None,
+            "description": "Default agent to route messages to if not specified by the platform or user.",
+        },
+        {
+            "name": "system_purpose",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": "Detailed description of the system's overall purpose, to be optionally used by agents.",
+        },
+        {
+            "name": "response_format",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": "General guidelines on how agent responses should be structured, to be optionally used by agents.",
         },
         {
             "name": "artifact_service",
@@ -143,8 +165,14 @@ class BaseGatewayApp(App):
 
         base_params = BaseGatewayApp.app_schema.get("config_parameters", [])
 
-        merged_config_parameters = list(base_params)
-        merged_config_parameters.extend(specific_params)
+        # Start with the child's parameters to give them precedence.
+        merged_config_parameters = list(specific_params)
+        specific_param_names = {p["name"] for p in specific_params}
+
+        # Add base parameters only if they are not already defined in the child.
+        for base_param in base_params:
+            if base_param["name"] not in specific_param_names:
+                merged_config_parameters.append(base_param)
 
         cls.app_schema = {"config_parameters": merged_config_parameters}
         log.debug(
@@ -244,6 +272,20 @@ class BaseGatewayApp(App):
                 )
             },
         ]
+
+        # Add trust card subscription if trust manager is enabled
+        trust_config = resolved_app_config_block.get("trust_manager")
+        if trust_config and trust_config.get("enabled", False):
+            from ...common.a2a.protocol import get_trust_card_subscription_topic
+
+            trust_card_topic = get_trust_card_subscription_topic(self.namespace)
+            subscriptions.append({"topic": trust_card_topic})
+            log.info(
+                "Trust Manager enabled for gateway '%s', added trust card subscription: %s",
+                self.gateway_id,
+                trust_card_topic,
+            )
+
         log.info(
             "Generated Solace subscriptions for gateway '%s': %s",
             self.gateway_id,
@@ -272,7 +314,7 @@ class BaseGatewayApp(App):
         broker_config["queue_name"] = (
             f"{self.namespace.strip('/')}/q/gdk/gateway/{self.gateway_id}"
         )
-        broker_config["temporary_queue"] = True
+        broker_config["temporary_queue"] = modified_app_info.get("broker", {}).get("temporary_queue", True)
         log.debug(
             "Injected broker settings for gateway '%s': %s",
             self.gateway_id,
