@@ -37,17 +37,17 @@ This document tracks the progress of the Prescriptive Workflows feature implemen
 
 ## Phase 3: Core Workflow Components
 
-- [ ] **Step 5: Execution Context & State**
-    - [ ] Create `src/solace_agent_mesh/workflow/workflow_execution_context.py`
-    - [ ] Define `WorkflowExecutionState` Pydantic model
-    - [ ] Define `WorkflowExecutionContext` class
+- [x] **Step 5: Execution Context & State**
+    - [x] Create `src/solace_agent_mesh/workflow/workflow_execution_context.py`
+    - [x] Define `WorkflowExecutionState` Pydantic model
+    - [x] Define `WorkflowExecutionContext` class
 
-- [ ] **Step 6: Persona Caller**
-    - [ ] Create `src/solace_agent_mesh/workflow/persona_caller.py`
-    - [ ] Implement `PersonaCaller` class
-    - [ ] Implement `call_persona` method
-    - [ ] Implement sub-task ID generation and tracking
-    - [ ] Implement timeout tracking
+- [x] **Step 6: Persona Caller**
+    - [x] Create `src/solace_agent_mesh/workflow/persona_caller.py`
+    - [x] Implement `PersonaCaller` class
+    - [x] Implement `call_persona` method
+    - [x] Implement sub-task ID generation and tracking
+    - [x] Implement timeout tracking
 
 ## Phase 4: DAG Execution Engine
 
