@@ -22,18 +22,18 @@ This document tracks the progress of the Prescriptive Workflows feature implemen
 
 ## Phase 2: Workflow Configuration & Application
 
-- [ ] **Step 3: Workflow Configuration Models**
-    - [ ] Create `src/solace_agent_mesh/workflow/app.py`
-    - [ ] Define `WorkflowNode` base class and specific node types (`AgentNode`, `ConditionalNode`, `ForkNode`, `LoopNode`)
-    - [ ] Define `WorkflowDefinition` class
-    - [ ] Define `WorkflowAppConfig` class
+- [x] **Step 3: Workflow Configuration Models**
+    - [x] Create `src/solace_agent_mesh/workflow/app.py`
+    - [x] Define `WorkflowNode` base class and specific node types (`AgentNode`, `ConditionalNode`, `ForkNode`, `LoopNode`)
+    - [x] Define `WorkflowDefinition` class
+    - [x] Define `WorkflowAppConfig` class
 
-- [ ] **Step 4: WorkflowApp Implementation**
-    - [ ] Implement `WorkflowApp` class in `src/solace_agent_mesh/workflow/app.py`
-    - [ ] Implement `__init__` with config validation
-    - [ ] Implement schema auto-population logic
-    - [ ] Implement `_generate_subscriptions`
-    - [ ] Implement component instantiation logic
+- [x] **Step 4: WorkflowApp Implementation**
+    - [x] Implement `WorkflowApp` class in `src/solace_agent_mesh/workflow/app.py`
+    - [x] Implement `__init__` with config validation
+    - [x] Implement schema auto-population logic
+    - [x] Implement `_generate_subscriptions`
+    - [x] Implement component instantiation logic
 
 ## Phase 3: Core Workflow Components
 
