@@ -1,10 +1,11 @@
+import { useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { NavigationSidebar, ToastContainer, Button, bottomNavigationItems, getTopNavigationItems } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { ChatProvider } from "@/lib/providers";
 
-import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext, useAudioSettings } from "@/lib/hooks";
 
 function AppLayoutContent() {
     const location = useLocation();
@@ -12,12 +13,24 @@ function AppLayoutContent() {
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
     const { isMenuOpen, menuPosition, selectedText, clearSelection } = useTextSelection();
+    const { settings } = useAudioSettings();
 
     // Get navigation items based on feature flags
     const topNavItems = getTopNavigationItems(configFeatureEnablement);
 
     // Enable beforeunload warning when chat data is present
     useBeforeUnload();
+
+    // Apply font size to document root
+    useEffect(() => {
+        const fontSizeMap = {
+            small: "14px",
+            medium: "16px",
+            large: "18px",
+            "extra-large": "20px",
+        };
+        document.documentElement.style.fontSize = fontSizeMap[settings.fontSize];
+    }, [settings.fontSize]);
 
     const getActiveItem = () => {
         const path = location.pathname;

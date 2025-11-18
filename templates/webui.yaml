@@ -51,3 +51,122 @@ apps:
       frontend_bot_name: __FRONTEND_BOT_NAME__
       frontend_collect_feedback: __FRONTEND_COLLECT_FEEDBACK__
       frontend_logo_url: __FRONTEND_LOGO_URL__
+      
+      # --- Frontend Feature Flags ---
+      # Uncomment to control speech features in the UI
+      # frontend_feature_enablement:
+      #   speechToText: true   # Set to false to hide Speech-to-Text settings & microphone
+      #   textToSpeech: true   # Set to false to hide Text-to-Speech settings & speaker button
+      #   projects: true
+      #   promptLibrary: true
+
+      # --- Speech Configuration (STT/TTS) ---
+      speech:
+        # stt:
+        #   provider: openai
+        #   url: "https://api.openai.com/v1/audio/transcriptions"
+        #   api_key: "${OPENAI_API_KEY}"
+        #   model: "whisper-1"
+        stt:
+          provider: azure
+          azure:
+            api_key: "${AZURE_SPEECH_KEY}"
+            region: "${AZURE_SPEECH_REGION}"
+            language: en-US
+        
+        # Text-to-Speech Configuration
+        tts:
+          provider: ${TTS_PROVIDER, gemini}  # "gemini", "azure", or "polly" (can be overridden by UI)
+          
+          # Azure Neural Voices Configuration
+          azure:
+            api_key: "${AZURE_SPEECH_KEY}"
+            region: "${AZURE_SPEECH_REGION}"
+            default_voice: "en-US-Andrew:DragonHDLatestNeural"
+            voices:
+              # DragonHD Latest Neural Voices (Highest Quality)
+              - "en-US-Ava:DragonHDLatestNeural"
+              - "en-US-Ava3:DragonHDLatestNeural"
+              - "en-US-Adam:DragonHDLatestNeural"
+              - "en-US-Alloy:DragonHDLatestNeural"
+              - "en-US-Andrew:DragonHDLatestNeural"
+              - "en-US-Andrew2:DragonHDLatestNeural"
+              - "en-US-Andrew3:DragonHDLatestNeural"
+              - "en-US-Aria:DragonHDLatestNeural"
+              - "en-US-Brian:DragonHDLatestNeural"
+              - "en-US-Davis:DragonHDLatestNeural"
+              - "en-US-Emma:DragonHDLatestNeural"
+              - "en-US-Emma2:DragonHDLatestNeural"
+              - "en-US-Jenny:DragonHDLatestNeural"
+              - "en-US-MultiTalker-Ava-Andrew:DragonHDLatestNeural"
+              - "en-US-Nova:DragonHDLatestNeural"
+              - "en-US-Phoebe:DragonHDLatestNeural"
+              - "en-US-Serena:DragonHDLatestNeural"
+              - "en-US-Steffan:DragonHDLatestNeural"
+              # Standard Neural Voices
+              - "en-US-JennyNeural"
+              - "en-US-GuyNeural"
+              - "en-US-AriaNeural"
+              - "en-US-DavisNeural"
+              - "en-US-JaneNeural"
+              - "en-US-JasonNeural"
+              - "en-US-NancyNeural"
+              - "en-US-TonyNeural"
+              - "en-GB-LibbyNeural"
+              - "en-GB-RyanNeural"
+              - "en-GB-SoniaNeural"
+              - "en-AU-NatashaNeural"
+              - "en-AU-WilliamNeural"
+          
+          # Google Gemini Configuration
+          gemini:
+            api_key: "${GEMINI_API_KEY}"
+            model: "gemini-2.5-flash-preview-tts"
+            default_voice: "Kore"
+            language: "en-US"
+            voices:
+            - "Kore"
+            - "Puck"
+            - "Zephyr"
+            - "Charon"
+            - "Fenrir"
+            - "Leda"
+            - "Aoede"
+            - "Callirhoe"
+            - "Umbriel"
+            - "Enceladus"
+            - "Iapetus"
+            - "Erinome"
+            - "Algieba"
+            - "Despina"
+            - "Algenib"
+            - "Achernar"
+            - "Schedar"
+            - "Gacrux"
+            - "Pulcherrima"
+            - "Achird"
+            - "Zubenelgenubi"
+            - "Vindemiatrix"
+            - "Sadachbia"
+            - "Sadaltager"
+            - "Sulafat"
+            - "Autonoe"
+            - "Laomedeia"
+            - "Orus"
+            - "Rasalgethi"
+            - "Alnilam"
+        
+        # Frontend Speech Tab Default Settings (optional)
+        speechTab:
+          advancedMode: false
+          speechToText:
+            speechToText: true
+            engineSTT: "external"  # Use external for better quality
+            languageSTT: "en-US"
+          textToSpeech:
+            textToSpeech: true
+            engineTTS: "external"  # Use external for better quality
+            voice: "Kore"
+            playbackRate: 1.0
+            cacheTTS: true
+
