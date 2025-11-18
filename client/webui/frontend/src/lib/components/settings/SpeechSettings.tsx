@@ -18,22 +18,37 @@ export const SpeechSettingsPanel: React.FC = () => {
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
     const ttsEnabled = configFeatureEnablement?.textToSpeech ?? true;
 
-    // Check STT/TTS configuration status
+    // Check STT/TTS configuration status and auto-reset provider if needed
     useEffect(() => {
         const checkConfig = async () => {
             try {
                 const response = await fetch("/api/v1/speech/config");
                 if (response.ok) {
                     const config = await response.json();
-                    setSttConfigured(config.sttExternal || false);
-                    setTtsConfigured(config.ttsExternal || false);
+                    const sttExt = config.sttExternal || false;
+                    const ttsExt = config.ttsExternal || false;
+                    
+                    setSttConfigured(sttExt);
+                    setTtsConfigured(ttsExt);
+                    
+                    // Auto-reset provider to browser if external not configured
+                    if (!sttExt && settings.sttProvider !== "browser") {
+                        console.warn("External STT not configured, resetting provider to browser");
+                        updateSetting("sttProvider", "browser");
+                        updateSetting("engineSTT", "browser");
+                    }
+                    if (!ttsExt && settings.ttsProvider !== "browser") {
+                        console.warn("External TTS not configured, resetting provider to browser");
+                        updateSetting("ttsProvider", "browser");
+                        updateSetting("engineTTS", "browser");
+                    }
                 }
             } catch (error) {
                 console.error("Error checking speech config:", error);
             }
         };
         checkConfig();
-    }, []);
+    }, [settings.sttProvider, settings.ttsProvider, updateSetting]);
 
     // Load voices when TTS provider changes
     useEffect(() => {

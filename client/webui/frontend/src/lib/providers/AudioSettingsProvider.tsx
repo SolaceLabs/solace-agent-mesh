@@ -162,12 +162,16 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                         if (updated.engineSTT === "external" && !sttExternal) {
                             console.warn("External STT not configured, falling back to browser mode");
                             updated.engineSTT = "browser";
+                            updated.sttProvider = "browser";
                             localStorage.setItem(STORAGE_KEY_MAP.engineSTT, "browser");
+                            localStorage.setItem(STORAGE_KEY_MAP.sttProvider, "browser");
                         }
                         if (updated.engineTTS === "external" && !ttsExternal) {
                             console.warn("External TTS not configured, falling back to browser mode");
                             updated.engineTTS = "browser";
+                            updated.ttsProvider = "browser";
                             localStorage.setItem(STORAGE_KEY_MAP.engineTTS, "browser");
+                            localStorage.setItem(STORAGE_KEY_MAP.ttsProvider, "browser");
                         }
 
                         return updated;
