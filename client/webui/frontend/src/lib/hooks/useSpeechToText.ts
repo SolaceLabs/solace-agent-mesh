@@ -256,7 +256,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                     return;
                 }
             }
-        } catch (err) {
+        } catch {
             const errorMsg = "Failed to check STT configuration. Please try again.";
             setError(errorMsg);
             onError?.(errorMsg);
@@ -359,7 +359,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
             onError?.(errorMsg);
             cleanup();
         }
-    }, [onTranscriptionComplete, onError, cleanup]);
+    }, [settings.sttProvider, onTranscriptionComplete, onError, cleanup, updateSetting]);
 
     const stopExternalRecording = useCallback(async () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
@@ -378,7 +378,7 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
         } else {
             await startExternalRecording();
         }
-    }, [isBrowserMode, startBrowserRecording, startExternalRecording, updateSetting]);
+    }, [isBrowserMode, startBrowserRecording, startExternalRecording]);
 
     const stopRecording = useCallback(async () => {
         if (isBrowserMode) {

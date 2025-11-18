@@ -106,6 +106,7 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
             setWasCompleteOnMount(true);
             preExistingCompleteMessages.add(messageId);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Only run on mount
 
     // Auto-play streaming TTS as content arrives

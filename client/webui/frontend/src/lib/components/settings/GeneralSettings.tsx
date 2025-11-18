@@ -1,10 +1,9 @@
 import React from "react";
-import { Type, SunMoon } from "lucide-react";
-import { useAudioSettings, useThemeContext } from "@/lib/hooks";
-import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from "@/lib/components/ui";
+import { SunMoon } from "lucide-react";
+import { useThemeContext } from "@/lib/hooks";
+import { Label, Switch } from "@/lib/components/ui";
 
 export const GeneralSettings: React.FC = () => {
-    const { settings, updateSetting } = useAudioSettings();
     const { currentTheme, toggleTheme } = useThemeContext();
 
     return (
@@ -25,28 +24,6 @@ export const GeneralSettings: React.FC = () => {
                         checked={currentTheme === "dark"}
                         onCheckedChange={toggleTheme}
                     />
-                </div>
-
-                {/* Font Size Control */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Type className="size-4" />
-                        <Label className="font-medium">Font Size</Label>
-                    </div>
-                    <Select
-                        value={settings.fontSize || "medium"}
-                        onValueChange={(value: "small" | "medium" | "large" | "extra-large") => updateSetting("fontSize", value)}
-                    >
-                        <SelectTrigger className="w-40">
-                            <SelectValue placeholder="Select font size" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="small">Small</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="large">Large</SelectItem>
-                            <SelectItem value="extra-large">Extra Large</SelectItem>
-                        </SelectContent>
-                    </Select>
                 </div>
             </div>
         </div>
