@@ -1,22 +1,3 @@
-FROM python:3.11-slim AS base
-
-ENV PYTHONUNBUFFERED=1
-
-# Install system dependencies and uv
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    ffmpeg \
-    git && \
-    curl -LsSf https://astral.sh/uv/install.sh | sh && \
-    mv /root/.local/bin/uv /usr/local/bin/uv && \
-    rm -rf /var/lib/apt/lists/* && \
-    curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y --no-install-recommends nodejs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
 # ============================================================
 # UI Build Stages - Run in parallel with separate caches
 # ============================================================
@@ -28,7 +9,7 @@ RUN apt-get update && \
 # ============================================================
 
 # Build Config Portal UI
-FROM base AS ui-config-portal
+FROM node:20-trixie-slim AS ui-config-portal
 WORKDIR /build/config_portal/frontend
 COPY config_portal/frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -37,7 +18,7 @@ COPY config_portal/frontend ./
 RUN npm run build
 
 # Build WebUI
-FROM base AS ui-webui
+FROM node:20-trixie-slim AS ui-webui
 WORKDIR /build/client/webui/frontend
 COPY client/webui/frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -46,7 +27,7 @@ COPY client/webui/frontend ./
 RUN npm run build
 
 # Build Documentation
-FROM base AS ui-docs
+FROM node:20-trixie-slim AS ui-docs
 WORKDIR /build/docs
 COPY docs/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
@@ -65,16 +46,30 @@ RUN npm run build
 # - Source code changes only rebuild the wheel build layer
 # - Independent from UI build stages - Python changes don't rebuild UI
 # ============================================================
+FROM python:3.11-slim AS builder
 
-# Builder stage for creating wheels and runtime environment
-FROM base AS builder
+# Install system dependencies and uv
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    ffmpeg \
+    git && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/uv && \
+    rm -rf /var/lib/apt/lists/* && \
+    python3 -m venv /opt/venv && \
+    curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    uv pip install --system hatch
 
 WORKDIR /app
 
-# Install hatch with cache mount (before copying deps for better layer caching)
-# This layer is invalidated only when base image changes, not when pyproject.toml changes
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system hatch
+ENV VIRTUAL_ENV=/opt/venv
+ENV UV_LINK_MODE=copy
+ENV UV_COMPILE_BYTECODE=1
 
 # Sync dependencies from lock file directly into venv (cached layer)
 # This is the expensive step with 188 packages (~8s with cache, ~280MB downloads without)
@@ -83,9 +78,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    UV_PROJECT_ENVIRONMENT=/opt/venv uv sync \
+    uv sync \
         --frozen \
         --no-dev \
+        --active \
         --no-install-project
 
 # Copy Python source code and essential files (skip UI source code)
@@ -114,7 +110,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Install only the wheel package (not dependencies, they're already installed)
 # This is fast since all deps are already in the venv
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --python=/opt/venv/bin/python --no-deps /app/dist/solace_agent_mesh-*.whl
+    uv pip install /app/dist/solace_agent_mesh-*.whl
 
 # Runtime stage
 FROM python:3.11-slim AS runtime
@@ -129,21 +125,15 @@ RUN apt-get update && \
     ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
+
 # Install playwright temporarily just for browser installation (cached layer)
 # This is separate from the full venv to keep this layer cached
 # We'll use the playwright from the full venv at runtime
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --no-cache-dir playwright
-
-# Install Playwright system dependencies (cached layer)
-RUN playwright install-deps chromium
-
-# Install Playwright browsers with cache (cached layer)
-# This layer stays cached because it doesn't depend on builder stage
-# Registry cache with mode=max ensures this expensive download is cached
-# sharing=locked prevents concurrent builds from corrupting the cache
-RUN --mount=type=cache,target=/var/cache/playwright,sharing=locked \
-    PLAYWRIGHT_BROWSERS_PATH=/var/cache/playwright playwright install chromium
+    --mount=type=cache,target=/root/.cache/playwright \
+    python -m pip install playwright && \
+    playwright install-deps chromium && \
+    playwright install chromium
 
 # Create non-root user and Playwright cache directory
 RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai && \
@@ -151,15 +141,12 @@ RUN groupadd -r solaceai && useradd --create-home -r -g solaceai solaceai && \
     chown -R solaceai:solaceai /var/cache/playwright
 
 WORKDIR /app
-RUN chown -R solaceai:solaceai /app /tmp
+RUN chown -R solaceai:solaceai /app
 
 # Copy the pre-built virtual environment from builder
 # This avoids slow pip install in runtime (UV already did it)
 # Copied AFTER Playwright setup so Playwright layers stay cached
 COPY --from=builder /opt/venv /opt/venv
-
-# Set Playwright to use the cached browser location
-ENV PLAYWRIGHT_BROWSERS_PATH=/var/cache/playwright
 
 COPY preset /preset
 
