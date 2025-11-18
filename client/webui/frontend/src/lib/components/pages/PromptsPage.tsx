@@ -1,24 +1,19 @@
 import React, { useState, useEffect } from "react";
-import type { PromptGroup } from "@/lib/types/prompts";
-import { PromptTemplateBuilder } from "@/lib/components/prompts/PromptTemplateBuilder";
-import { PromptCards } from "@/lib/components/prompts/PromptCards";
-import { VersionHistoryPage } from "@/lib/components/prompts/VersionHistoryPage";
-import { PromptDeleteDialog } from "@/lib/components/prompts/PromptDeleteDialog";
-import { GeneratePromptDialog } from "@/lib/components/prompts/GeneratePromptDialog";
-import { VariableDialog } from "@/lib/components/chat/VariableDialog";
-import { EmptyState, Header } from "@/lib/components";
-import { Button } from "@/lib/components/ui";
+import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
 import { RefreshCcw } from "lucide-react";
+
 import { useChatContext } from "@/lib/hooks";
-import { detectVariables } from "@/lib/utils/promptUtils";
-import { authenticatedFetch } from "@/lib/utils/api";
-import { useLoaderData, useNavigate } from "react-router-dom";
+import type { PromptGroup } from "@/lib/types/prompts";
+import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
+import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage } from "@/lib/components/prompts";
+import { authenticatedFetch, detectVariables } from "@/lib/utils";
 
 /**
  * Main page for managing prompt library with AI-assisted builder
  */
 export const PromptsPage: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const loaderData = useLoaderData<{ promptId?: string; view?: string; mode?: string }>();
 
     const { addNotification } = useChatContext();
@@ -65,9 +60,7 @@ export const PromptsPage: React.FC = () => {
                 // Load the prompt group for editing
                 const loadPromptForEdit = async () => {
                     try {
-                        const response = await authenticatedFetch(`/api/v1/prompts/groups/${loaderData.promptId}`, {
-                            credentials: "include",
-                        });
+                        const response = await authenticatedFetch(`/api/v1/prompts/groups/${loaderData.promptId}`);
                         if (response.ok) {
                             const group = await response.json();
                             setEditingGroup(group);
@@ -85,13 +78,9 @@ export const PromptsPage: React.FC = () => {
                 const mode = loaderData.mode === "ai-assisted" ? "ai-assisted" : "manual";
                 setBuilderInitialMode(mode);
 
-                // Check for pending task description from sessionStorage
-                if (mode === "ai-assisted") {
-                    const pendingTask = sessionStorage.getItem("pending-prompt-task");
-                    if (pendingTask) {
-                        setInitialMessage(pendingTask);
-                        sessionStorage.removeItem("pending-prompt-task");
-                    }
+                // Check for pending task description from router state
+                if (mode === "ai-assisted" && location.state?.taskDescription) {
+                    setInitialMessage(location.state.taskDescription);
                 }
 
                 setShowBuilder(true);
@@ -100,9 +89,7 @@ export const PromptsPage: React.FC = () => {
             // Load the prompt group for version history
             const loadPromptGroup = async () => {
                 try {
-                    const response = await authenticatedFetch(`/api/v1/prompts/groups/${loaderData.promptId}`, {
-                        credentials: "include",
-                    });
+                    const response = await authenticatedFetch(`/api/v1/prompts/groups/${loaderData.promptId}`);
                     if (response.ok) {
                         const group = await response.json();
                         setVersionHistoryGroup(group);
@@ -130,7 +117,6 @@ export const PromptsPage: React.FC = () => {
         try {
             const response = await authenticatedFetch(`/api/v1/prompts/groups/${deletingPrompt.id}`, {
                 method: "DELETE",
-                credentials: "include",
             });
             if (response.ok) {
                 if (versionHistoryGroup?.id === deletingPrompt.id) {
@@ -151,7 +137,6 @@ export const PromptsPage: React.FC = () => {
     };
 
     const handleEdit = (group: PromptGroup) => {
-        // Navigate to edit route
         navigate(`/prompts/${group.id}/edit`);
     };
 
@@ -159,7 +144,6 @@ export const PromptsPage: React.FC = () => {
         try {
             const response = await authenticatedFetch(`/api/v1/prompts/${promptId}/make-production`, {
                 method: "PATCH",
-                credentials: "include",
             });
 
             if (response.ok) {
@@ -178,10 +162,10 @@ export const PromptsPage: React.FC = () => {
 
     // Handle AI builder generation
     const handleGeneratePrompt = (taskDescription: string) => {
-        // Store the task description in sessionStorage for the AI builder
-        sessionStorage.setItem("pending-prompt-task", taskDescription);
         setShowGenerateDialog(false);
-        navigate("/prompts/new?mode=ai-assisted");
+        navigate("/prompts/new?mode=ai-assisted", {
+            state: { taskDescription },
+        });
     };
 
     // Handle use in chat
@@ -198,13 +182,13 @@ export const PromptsPage: React.FC = () => {
             setShowVariableDialog(true);
         } else {
             // No variables - navigate directly to chat
-            const promptData = JSON.stringify({
-                promptText,
-                groupId: prompt.id,
-                groupName: prompt.name,
+            navigate("/chat", {
+                state: {
+                    promptText,
+                    groupId: prompt.id,
+                    groupName: prompt.name,
+                },
             });
-            sessionStorage.setItem("pending-prompt-use", promptData);
-            navigate("/chat");
         }
     };
 
@@ -212,16 +196,14 @@ export const PromptsPage: React.FC = () => {
     const handleVariableSubmit = (processedPrompt: string) => {
         if (!pendingPromptGroup) return;
 
-        // Store the processed prompt in sessionStorage
-        const promptData = JSON.stringify({
-            promptText: processedPrompt,
-            groupId: pendingPromptGroup.id,
-            groupName: pendingPromptGroup.name,
+        // Navigate to chat with prompt data
+        navigate("/chat", {
+            state: {
+                promptText: processedPrompt,
+                groupId: pendingPromptGroup.id,
+                groupName: pendingPromptGroup.name,
+            },
         });
-        sessionStorage.setItem("pending-prompt-use", promptData);
-
-        // Navigate to chat
-        navigate("/chat");
 
         // Clean up
         setShowVariableDialog(false);

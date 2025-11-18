@@ -1,22 +1,50 @@
 import React, { useRef, useState, useEffect, useMemo } from "react";
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import { Ban, Paperclip, Send } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { useChatContext, useDragAndDrop, useAgentSelection } from "@/lib/hooks";
-import type { AgentCardInfo } from "@/lib/types";
-import type { PromptGroup } from "@/lib/types/prompts";
+import type { AgentCardInfo, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 
 import { FileBadge } from "./file/FileBadge";
-import { PromptsCommand } from "./PromptsCommand";
+import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PastedTextBadge, PasteActionDialog, isLargeText, type PastedArtifactItem } from "./paste";
 
+const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
+    switch (command) {
+        case "create-template":
+            if (!conversationContext) {
+                return "Help me create a new prompt template.";
+            }
+
+            return [
+                "I want to create a reusable prompt template based on this conversation I just had:",
+                "",
+                "<conversation_history>",
+                conversationContext,
+                "</conversation_history>",
+                "",
+                "Please help me create a prompt template by:",
+                "",
+                "1. **Analyzing the Pattern**: Identify the core task/question pattern in this conversation",
+                "2. **Extracting Variables**: Determine which parts should be variables (use {{variable_name}} syntax)",
+                "3. **Generalizing**: Make it reusable for similar tasks",
+                "4. **Suggesting Metadata**: Recommend a name, description, category, and chat shortcut",
+                "",
+                "Focus on capturing what made this conversation successful so it can be reused with different inputs.",
+            ].join("\n");
+        default:
+            return "";
+    }
+};
+
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
 
@@ -45,32 +73,29 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const prevSessionIdRef = useRef<string | null>(sessionId);
 
     useEffect(() => {
-        // Check for pending prompt use on mount or session change
-        const promptData = sessionStorage.getItem("pending-prompt-use");
-        if (promptData) {
-            sessionStorage.removeItem("pending-prompt-use");
-            try {
-                const { promptText, groupId, groupName } = JSON.parse(promptData);
+        // Check for pending prompt use from router state
+        if (location.state?.promptText) {
+            const { promptText, groupId, groupName } = location.state;
 
-                // Check if prompt has variables
-                const variables = detectVariables(promptText);
-                if (variables.length > 0) {
-                    // Show variable dialog
-                    setPendingPromptGroup({
-                        id: groupId,
-                        name: groupName,
-                        production_prompt: { prompt_text: promptText },
-                    } as PromptGroup);
-                    setShowVariableDialog(true);
-                } else {
-                    setInputValue(promptText);
-                    setTimeout(() => {
-                        chatInputRef.current?.focus();
-                    }, 100);
-                }
-            } catch (error) {
-                console.error("Error parsing prompt data:", error);
+            // Check if prompt has variables
+            const variables = detectVariables(promptText);
+            if (variables.length > 0) {
+                // Show variable dialog
+                setPendingPromptGroup({
+                    id: groupId,
+                    name: groupName,
+                    production_prompt: { prompt_text: promptText },
+                } as PromptGroup);
+                setShowVariableDialog(true);
+            } else {
+                setInputValue(promptText);
+                setTimeout(() => {
+                    chatInputRef.current?.focus();
+                }, 100);
             }
+
+            // Clear the location state to prevent re-triggering
+            navigate(location.pathname, { replace: true, state: {} });
             return; // Don't clear input if we just set it
         }
 
@@ -82,7 +107,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }
         prevSessionIdRef.current = sessionId;
         setContextText(null);
-    }, [sessionId]);
+    }, [sessionId, location.state, location.pathname, navigate]);
 
     useEffect(() => {
         if (prevIsRespondingRef.current && !isResponding) {
@@ -330,36 +355,22 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }, 100);
     };
 
-    // Handle reserved command
-    const handleReservedCommand = (command: string, context?: string) => {
-        if (command === "create-template") {
-            // Create enhanced message for AI builder
-            const enhancedMessage = context
-                ? `I want to create a reusable prompt template based on this conversation I just had:
+    // Handle chat command
+    const handleChatCommand = (command: ChatCommand, context?: string) => {
+        const enhancedMessage = createEnhancedMessage(command, context);
 
-<conversation_history>
-${context}
-</conversation_history>
+        switch (command) {
+            case "create-template": {
+                // Navigate to prompts page with AI-assisted mode and pass task description
+                navigate("/prompts/new?mode=ai-assisted", {
+                    state: { taskDescription: enhancedMessage },
+                });
 
-Please help me create a prompt template by:
-
-1. **Analyzing the Pattern**: Identify the core task/question pattern in this conversation
-2. **Extracting Variables**: Determine which parts should be variables (use {{variable_name}} syntax)
-3. **Generalizing**: Make it reusable for similar tasks
-4. **Suggesting Metadata**: Recommend a name, description, category, and chat shortcut
-
-Focus on capturing what made this conversation successful so it can be reused with different inputs.`
-                : "Help me create a new prompt template.";
-
-            // Store in sessionStorage for the AI builder
-            sessionStorage.setItem("pending-prompt-task", enhancedMessage);
-
-            // Navigate to prompts page with AI-assisted mode
-            navigate("/prompts/new?mode=ai-assisted");
-
-            // Clear input
-            setInputValue("");
-            setShowPromptsCommand(false);
+                // Clear input
+                setInputValue("");
+                setShowPromptsCommand(false);
+                break;
+            }
         }
     };
 
@@ -433,7 +444,7 @@ Focus on capturing what made this conversation successful so it can be reused wi
                 textAreaRef={chatInputRef}
                 onPromptSelect={handlePromptSelect}
                 messages={messages}
-                onReservedCommand={handleReservedCommand}
+                onReservedCommand={handleChatCommand}
             />
 
             {/* Variable Dialog for "Use in Chat" */}

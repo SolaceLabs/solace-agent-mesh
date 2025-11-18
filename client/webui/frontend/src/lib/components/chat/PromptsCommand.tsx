@@ -6,14 +6,15 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, FileText, Plus } from "lucide-react";
-import type { PromptGroup } from "@/lib/types/prompts";
-import type { MessageFE } from "@/lib/types";
+import type { MessageFE, PromptGroup } from "@/lib/types";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { VariableDialog } from "./VariableDialog";
 import { authenticatedFetch } from "@/lib/utils/api";
 
+export type ChatCommand = "create-template";
+
 interface ReservedCommand {
-    command: string;
+    command: ChatCommand;
     name: string;
     description: string;
     icon: typeof FileText;
@@ -34,7 +35,7 @@ interface PromptsCommandProps {
     textAreaRef: React.RefObject<HTMLTextAreaElement | null>;
     onPromptSelect: (promptText: string) => void;
     messages?: MessageFE[];
-    onReservedCommand?: (command: string, context?: string) => void;
+    onReservedCommand?: (command: ChatCommand, context?: string) => void;
 }
 
 export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose, textAreaRef, onPromptSelect, messages = [], onReservedCommand }) => {
