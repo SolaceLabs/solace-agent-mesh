@@ -89,6 +89,7 @@ docker run -itd -p 8001:8000 \
   -e LLM_SERVICE_GENERAL_MODEL_NAME="<YOUR_MODEL_NAME>" \
   -e NAMESPACE="<YOUR_NAMESPACE>" \
   -e SOLACE_DEV_MODE="true" \
+  -e SAM_AUTHORIZATION_CONFIG="/preset/auth/insecure_permissive_auth_config.yaml" \
   --name sam-ent-dev \
   solace-agent-mesh-enterprise:<tag>
 ```
@@ -172,6 +173,8 @@ Replace the placeholder values with your actual configuration. In addition to th
 - `<YOUR_BROKER_PASSWORD>`: The password for broker authentication
 
 The `SOLACE_DEV_MODE="false"` environment variable tells the container to connect to the external broker specified by the other SOLACE_BROKER parameters instead of using the embedded broker.
+
+**Ensure you have setup proper RBAC authorization for production deployments.** See the [RBAC Setup Guide](./rbac-setup-guide.md) for instructions.
 
 <details>
     <summary>How to find your credentials</summary>

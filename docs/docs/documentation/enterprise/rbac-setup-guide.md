@@ -213,7 +213,7 @@ gateway_id: "enterprise_gateway"
 
 The `authorization_service` section configures the RBAC system. The `type` field specifies `default_rbac`, which tells Agent Mesh Enterprise to use the file-based RBAC system. The two path fields point to your RBAC configuration files—these paths are relative to the container's working directory, not your host system.
 
-**Important:** When using `type: default_rbac`, both `role_to_scope_definitions_path` and `user_to_role_assignments_path` are **required**. The system will fail to start if these files are missing or invalid.
+**Important:** When using `type: default_rbac`, `role_to_scope_definitions_path` is **required**. The system will fail to start if these files are missing or invalid.
 
 The `namespace` and `gateway_id` fields configure the Agent Mesh Enterprise instance. The namespace isolates this instance from others, while the gateway ID identifies the web interface gateway.
 
