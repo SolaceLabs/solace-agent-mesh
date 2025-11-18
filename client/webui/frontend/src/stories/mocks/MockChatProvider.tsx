@@ -35,7 +35,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     currentPreviewedVersionNumber: null,
     previewFileContent: null,
     isLoadingSession: false,
-
+    
     // Actions
     setMessages: () => {},
     setTaskIdInSidePanel: () => {},
