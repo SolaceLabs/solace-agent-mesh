@@ -51,20 +51,20 @@ This document tracks the progress of the Prescriptive Workflows feature implemen
 
 ## Phase 4: DAG Execution Engine
 
-- [ ] **Step 7: DAG Executor (Base & Sequential)**
-    - [ ] Create `src/solace_agent_mesh/workflow/dag_executor.py`
-    - [ ] Implement `DAGExecutor` initialization and dependency graph building
-    - [ ] Implement `validate_dag`
-    - [ ] Implement `get_next_nodes`
-    - [ ] Implement `execute_workflow` loop
-    - [ ] Implement `_execute_agent_node`
-    - [ ] Implement input mapping resolution
+- [x] **Step 7: DAG Executor (Base & Sequential)**
+    - [x] Create `src/solace_agent_mesh/workflow/dag_executor.py`
+    - [x] Implement `DAGExecutor` initialization and dependency graph building
+    - [x] Implement `validate_dag`
+    - [x] Implement `get_next_nodes`
+    - [x] Implement `execute_workflow` loop
+    - [x] Implement `_execute_agent_node`
+    - [x] Implement input mapping resolution
 
-- [ ] **Step 8: Flow Control Logic**
-    - [ ] Create `src/solace_agent_mesh/workflow/flow_control/conditional.py`
-    - [ ] Update `DAGExecutor` with `_execute_conditional_node`
-    - [ ] Update `DAGExecutor` with `_execute_fork_node`
-    - [ ] Update `DAGExecutor` with `_execute_loop_node`
+- [x] **Step 8: Flow Control Logic**
+    - [x] Create `src/solace_agent_mesh/workflow/flow_control/conditional.py`
+    - [x] Update `DAGExecutor` with `_execute_conditional_node`
+    - [x] Update `DAGExecutor` with `_execute_fork_node`
+    - [x] Update `DAGExecutor` with `_execute_loop_node`
 
 ## Phase 5: Workflow Executor Component
 
