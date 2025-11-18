@@ -4,7 +4,7 @@ import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { Ban, Paperclip, Send } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
-import { useChatContext, useDragAndDrop, useAgentSelection, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useAgentSelection } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
@@ -18,11 +18,8 @@ import {
     isLargeText,
     type PastedArtifactItem
 } from "./paste";
-import { DeepResearchSettingsPanel } from "./DeepResearchSettingsPanel";
-import { ToolsSelector } from "./ToolsSelector";
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
-    const { toolConfigStatus } = useConfigContext();
     const {
         isResponding,
         isCancelling,
@@ -38,19 +35,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setPreviewArtifact,
         openSidePanelTab,
         messages,
-        // Deep Research
-        deepResearchEnabled,
-        setDeepResearchEnabled,
-        deepResearchSettings,
-        setDeepResearchSettings,
-        // Web Search
-        webSearchEnabled,
-        setWebSearchEnabled
     } = useChatContext();
     
-    // Get tool configuration status from config
-    const webSearchConfigured = toolConfigStatus?.web_search;
-    const deepResearchConfigured = toolConfigStatus?.deep_research;
     const { handleAgentSelection } = useAgentSelection();
 
     // File selection support
@@ -73,9 +59,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     
     const [showVariableDialog, setShowVariableDialog] = useState(false);
     const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
-    
-    // Deep Research Settings Panel State
-    const [showDeepResearchSettings, setShowDeepResearchSettings] = useState(false);
 
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
@@ -512,13 +495,7 @@ Focus on capturing what made this conversation successful so it can be reused wi
                 ref={chatInputRef}
                 value={inputValue}
                 onChange={handleInputChange}
-                placeholder={
-                    deepResearchEnabled
-                        ? "What do you want to research?"
-                        : webSearchEnabled
-                            ? "What do you want to search for?"
-                            : "How can I help you today? (Type '/' to insert a prompt)"
-                }
+                placeholder="How can I help you today? (Type '/' to insert a prompt)"
                 className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none focus:outline-none focus:ring-0"
                 rows={1}
                 onPaste={handlePaste}
@@ -535,58 +512,11 @@ Focus on capturing what made this conversation successful so it can be reused wi
                     <Paperclip className="size-4" />
                 </Button>
 
-                {/* Tools Selector with Deep Research and Web Search toggles */}
-                <div className="relative">
-                    <ToolsSelector
-                        deepResearchEnabled={deepResearchEnabled}
-                        webSearchEnabled={webSearchEnabled}
-                        onDeepResearchToggle={setDeepResearchEnabled}
-                        onWebSearchToggle={setWebSearchEnabled}
-                        disabled={isResponding}
-                        agents={agents}
-                        deepResearchSettings={deepResearchSettings}
-                        onDeepResearchSettingsClick={() => setShowDeepResearchSettings(!showDeepResearchSettings)}
-                        webSearchConfigured={webSearchConfigured}
-                        deepResearchConfigured={deepResearchConfigured}
-                    />
-
-                    {/* Deep Research Settings Panel (positioned above) */}
-                    {deepResearchEnabled && showDeepResearchSettings && (
-                        <div className="absolute bottom-full left-0 mb-2 z-50">
-                            <DeepResearchSettingsPanel
-                                settings={deepResearchSettings}
-                                onSettingsChange={setDeepResearchSettings}
-                                isOpen={showDeepResearchSettings}
-                                onToggle={() => setShowDeepResearchSettings(!showDeepResearchSettings)}
-                            />
-                        </div>
-                    )}
-                </div>
-
                 <div>Agent: </div>
                 <Select
-                    value={
-                        deepResearchEnabled
-                            ? 'DeepResearchAgent'
-                            : webSearchEnabled
-                                ? 'WebSearchAgent'
-                                : selectedAgentName
-                    }
+                    value={selectedAgentName}
                     onValueChange={(agentName) => {
                         handleAgentSelection(agentName);
-                        
-                        // Check if the new agent has the required skills for active tools
-                        const newAgent = agents.find(a => a.name === agentName);
-                        
-                        // Turn off deep research if new agent doesn't have the skill
-                        if (deepResearchEnabled && !newAgent?.skills?.some(s => s.id === 'deep_research')) {
-                            setDeepResearchEnabled(false);
-                        }
-                        
-                        // Turn off web search if new agent doesn't have the skill
-                        if (webSearchEnabled && !newAgent?.skills?.some(s => s.id === 'web_search')) {
-                            setWebSearchEnabled(false);
-                        }
                     }}
                     disabled={isResponding || agents.length === 0}
                 >

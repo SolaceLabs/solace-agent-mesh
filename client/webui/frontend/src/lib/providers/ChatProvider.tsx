@@ -6,7 +6,6 @@ import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import type { Project } from "@/lib/types/projects";
 import type { RAGSearchResult } from "@/lib/types/fe";
-import { DEFAULT_DEEP_RESEARCH_SETTINGS, type DeepResearchSettings } from "@/lib/components/chat/deepResearchSettings";
 
 // Type for tasks loaded from the API
 interface TaskFromAPI {
@@ -92,14 +91,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const ragDataRef = useRef<RAGSearchResult[]>([]);
     const [ragEnabled] = useState<boolean>(true);
     
-    // Deep Research State
-    const [deepResearchEnabled, setDeepResearchEnabled] = useState<boolean>(false);
-    const [deepResearchSettings, _setDeepResearchSettings] = useState<DeepResearchSettings>(DEFAULT_DEEP_RESEARCH_SETTINGS);
-    
-    // Web Search State
-    const [webSearchEnabled, setWebSearchEnabled] = useState<boolean>(false);
-    const [webSearchConfigured, setWebSearchConfigured] = useState<boolean | undefined>(undefined); // undefined = unknown, true = configured, false = not configured
-    
     // Wrapper to keep ref in sync with state
     const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
         _setRagData(prev => {
@@ -107,41 +98,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             ragDataRef.current = newData;
             return newData;
         });
-    }, []);
-    
-    // Deep Research Settings Management
-    const DEEP_RESEARCH_STORAGE_KEY = 'deep_research_settings';
-    
-    const setDeepResearchSettings = useCallback((settings: Partial<DeepResearchSettings>) => {
-        _setDeepResearchSettings(prev => {
-            const newSettings = { ...prev, ...settings };
-            // Persist to localStorage
-            try {
-                localStorage.setItem(DEEP_RESEARCH_STORAGE_KEY, JSON.stringify(newSettings));
-            } catch (error) {
-                console.error('Failed to save deep research settings:', error);
-            }
-            return newSettings;
-        });
-    }, []);
-    
-    // Load deep research settings from localStorage on mount
-    useEffect(() => {
-        try {
-            const saved = localStorage.getItem(DEEP_RESEARCH_STORAGE_KEY);
-            if (saved) {
-                const settings = JSON.parse(saved);
-                // Migrate old settings: if maxIterations is less than 5, update it to 10
-                if (settings.maxIterations && settings.maxIterations < 5) {
-                    console.log('Migrating old deep research settings: updating maxIterations from', settings.maxIterations, 'to 10');
-                    settings.maxIterations = 10;
-                    localStorage.setItem(DEEP_RESEARCH_STORAGE_KEY, JSON.stringify(settings));
-                }
-                _setDeepResearchSettings(settings);
-            }
-        } catch (error) {
-            console.error('Failed to load deep research settings:', error);
-        }
     }, []);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
@@ -1156,29 +1112,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     // Handle tool results that may contain RAG metadata
                                     console.log("ChatProvider: Received tool_result data part:", data);
                                     
-                                    const toolName = (data as any).tool_name;
                                     const resultData = (data as any).result_data;
-                                    
-                                    // Check for web search API key errors
-                                    if ((toolName === '_web_search_tavily' || toolName === '_web_search_google') &&
-                                        typeof resultData === 'string' &&
-                                        (resultData.includes('API_KEY') || resultData.includes('environment variable not set'))) {
-                                        // Mark web search as not configured
-                                        setWebSearchConfigured(false);
-                                        
-                                        // Show user-friendly notification for missing API keys
-                                        const missingKey = resultData.includes('TAVILY') ? 'TAVILY_API_KEY' :
-                                                          resultData.includes('GOOGLE_SEARCH_API_KEY') ? 'GOOGLE_SEARCH_API_KEY or GOOGLE_CSE_ID' :
-                                                          'API key';
-                                        addNotification(
-                                            `Web Search is not configured. Missing ${missingKey}. Please contact your administrator to enable web search functionality.`,
-                                            'error'
-                                        );
-                                    } else if ((toolName === '_web_search_tavily' || toolName === '_web_search_google') &&
-                                               resultData && typeof resultData === 'object') {
-                                        // Web search succeeded - mark as configured
-                                        setWebSearchConfigured(true);
-                                    }
                                     
                                     // Check if result_data contains rag_metadata
                                     if (resultData && typeof resultData === 'object' && resultData.rag_metadata) {
@@ -1525,9 +1459,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isFinalizing.current = false;
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
-            // Reset deep research and web search state on new session
-            setDeepResearchEnabled(false);
-            setWebSearchEnabled(false);
             // Clear RAG data on new session
             setRagData([]);
             // Artifacts will be automatically refreshed by useArtifacts hook when sessionId changes
@@ -1912,17 +1843,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
                 if (currentInput) {
-                    let messageText = currentInput;
-                    
-                    // If deep research is enabled, prepend settings instruction to the message
-                    if (deepResearchEnabled) {
-                        const durationMinutes = deepResearchSettings.maxRuntimeSeconds / 60;
-                        const sourcesText = deepResearchSettings.sources.join(', ');
-                        messageText = `[RESEARCH SETTINGS: Duration=${durationMinutes} minutes, Max Iterations=${deepResearchSettings.maxIterations}, Sources=${sourcesText}]\n\n${currentInput}`;
-                        console.log('ChatProvider handleSubmit: Prepended research settings to message:', messageText);
-                    }
-                    
-                    messageParts.push({ kind: "text", text: messageText });
+                    messageParts.push({ kind: "text", text: currentInput });
                 }
                 messageParts.push(...uploadedFileParts);
 
@@ -1933,65 +1854,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // 3. Construct the A2A message
                 console.log(`ChatProvider handleSubmit: Using sessionId for contextId: ${sessionId}`);
                 
-                // Determine target agent based on enabled tools
-                let effectiveAgentName = selectedAgentName;
-                let toolMetadata = {};
-                
-                if (deepResearchEnabled) {
-                    // Find agent with deep_research skill
-                    const deepResearchAgent = agents.find(
-                        a => a.skills?.some(s => s.id === 'deep_research')
-                    );
-                    if (deepResearchAgent) {
-                        effectiveAgentName = deepResearchAgent.name;
-                        console.log(`ChatProvider handleSubmit: Deep Research enabled, routing to ${effectiveAgentName}`);
-                        console.log(`ChatProvider handleSubmit: Deep Research settings:`, deepResearchSettings);
-                        
-                        toolMetadata = {
-                            deep_research_mode: true,
-                            deep_research_settings: {
-                                max_runtime_seconds: deepResearchSettings.maxRuntimeSeconds,
-                                max_iterations: deepResearchSettings.maxIterations,
-                                sources: deepResearchSettings.sources
-                            }
-                        };
-                    } else {
-                        console.warn('ChatProvider handleSubmit: Deep Research enabled but no agent with deep_research skill found');
-                        addNotification('Deep Research agent not available', 'error');
-                        setIsResponding(false);
-                        return;
-                    }
-                } else if (webSearchEnabled) {
-                    // Find agent with web_search skill
-                    console.log('ChatProvider handleSubmit: Looking for web_search agent. Available agents:', agents.map(a => ({
-                        name: a.name,
-                        skills: a.skills?.map(s => s.id)
-                    })));
-                    
-                    const webSearchAgent = agents.find(
-                        a => a.skills?.some(s => s.id === 'web_search')
-                    );
-                    
-                    console.log('ChatProvider handleSubmit: Found web search agent:', webSearchAgent);
-                    
-                    if (webSearchAgent) {
-                        effectiveAgentName = webSearchAgent.name;
-                        console.log(`ChatProvider handleSubmit: Web Search enabled, routing to ${effectiveAgentName}`);
-                        
-                        toolMetadata = {
-                            web_search_mode: true
-                        };
-                    } else {
-                        console.warn('ChatProvider handleSubmit: Web Search enabled but no agent with web_search skill found');
-                        console.warn('Available agents:', agents);
-                        addNotification('Web Search agent not available', 'error');
-                        setIsResponding(false);
-                        return;
-                    }
-                }
-                
-                console.log(`ChatProvider handleSubmit: Tool metadata:`, toolMetadata);
-                
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
@@ -1999,9 +1861,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     kind: "message",
                     contextId: sessionId,
                     metadata: {
-                        agent_name: effectiveAgentName,
+                        agent_name: selectedAgentName,
                         project_id: activeProject?.id || null,
-                        ...toolMetadata
                     },
                 };
                 
@@ -2101,7 +1962,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, INLINE_FILE_SIZE_LIMIT_BYTES, activeProject, deepResearchEnabled, deepResearchSettings, webSearchEnabled, agents]
+        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, INLINE_FILE_SIZE_LIMIT_BYTES, activeProject]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
@@ -2287,15 +2148,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         addNotification,
         selectedAgentName,
         setSelectedAgentName,
-        // Deep Research
-        deepResearchEnabled,
-        setDeepResearchEnabled,
-        deepResearchSettings,
-        setDeepResearchSettings,
-        // Web Search
-        webSearchEnabled,
-        setWebSearchEnabled,
-        webSearchConfigured,
         artifacts,
         artifactsLoading,
         artifactsRefetch,

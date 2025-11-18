@@ -2,7 +2,6 @@ import React, { createContext, type FormEvent } from "react";
 
 import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
 import type { RAGSearchResult } from "@/lib/types/fe";
-import type { DeepResearchSettings } from "@/lib/components/chat/deepResearchSettings";
 
 export interface ChatState {
     configCollectFeedback: boolean;
@@ -16,12 +15,6 @@ export interface ChatState {
     isCancelling: boolean;
     latestStatusText: React.RefObject<string | null>;
     isLoadingSession: boolean;
-    // Deep Research State
-    deepResearchEnabled: boolean;
-    deepResearchSettings: DeepResearchSettings;
-    // Web Search State
-    webSearchEnabled: boolean;
-    webSearchConfigured?: boolean; // undefined = unknown, true = configured, false = not configured
     // Agents
     agents: AgentCardInfo[];
     agentsError: string | null;
@@ -68,11 +61,6 @@ export interface ChatActions {
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "error") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
-    // Deep Research Actions
-    setDeepResearchEnabled: React.Dispatch<React.SetStateAction<boolean>>;
-    setDeepResearchSettings: (settings: Partial<DeepResearchSettings>) => void;
-    // Web Search Actions
-    setWebSearchEnabled: React.Dispatch<React.SetStateAction<boolean>>;
     uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string) => Promise<{ uri: string; sessionId: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
