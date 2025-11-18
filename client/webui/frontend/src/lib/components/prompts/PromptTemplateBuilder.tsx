@@ -11,7 +11,7 @@ import {
     Label,
     CardTitle,
 } from '@/lib/components/ui';
-import { Sparkles, Loader2, AlertCircle, Pencil, Download } from 'lucide-react';
+import { Sparkles, Loader2, AlertCircle, Pencil } from 'lucide-react';
 import { Header } from '@/lib/components/header';
 import { MessageBanner } from '@/lib/components/common';
 import { usePromptTemplateBuilder } from './hooks/usePromptTemplateBuilder';
@@ -28,7 +28,6 @@ interface PromptTemplateBuilderProps {
     editingGroup?: PromptGroup | null;
     isEditing?: boolean;
     initialMode?: 'manual' | 'ai-assisted';
-    onImport?: () => void;
 }
 
 export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
@@ -38,7 +37,6 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
     editingGroup,
     isEditing = false,
     initialMode,
-    onImport,
 }) => {
     const {
         config,
@@ -253,17 +251,6 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                             Edit Manually
                         </Button>
                     ] : [
-                        ...(onImport ? [
-                            <Button
-                                key="import"
-                                onClick={onImport}
-                                variant="ghost"
-                                size="sm"
-                            >
-                                <Download className="h-3 w-3 mr-1" />
-                                Import Prompt
-                            </Button>
-                        ] : []),
                         <Button
                             key="build-with-ai"
                             onClick={handleSwitchToAI}

@@ -13,7 +13,7 @@ import { PromptImportDialog } from "@/lib/components/prompts/PromptImportDialog"
 import { VariableDialog } from "@/lib/components/chat/VariableDialog";
 import { EmptyState, Header } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
-import { RefreshCcw } from "lucide-react";
+import { RefreshCcw, Download } from "lucide-react";
 import { useChatContext } from "@/lib/hooks";
 import { detectVariables } from "@/lib/utils/promptUtils";
 import { authenticatedFetch } from "@/lib/utils/api";
@@ -338,7 +338,6 @@ export const PromptsPage: React.FC = () => {
                         setInitialMessage(null);
                         setEditingGroup(null);
                     }}
-                    onImport={() => setShowImportDialog(true)}
                     onSuccess={async (createdNewVersion?: boolean, createdPromptId?: string | null) => {
                         setShowBuilder(false);
                         setInitialMessage(null);
@@ -382,13 +381,6 @@ export const PromptsPage: React.FC = () => {
                 {/* Dialogs rendered globally */}
                 {deletingPrompt && <PromptDeleteDialog key={`delete-${deletingPrompt.id}`} isOpen={true} onClose={() => setDeletingPrompt(null)} onConfirm={handleDeleteConfirm} promptName={deletingPrompt.name} />}
                 <GeneratePromptDialog isOpen={showGenerateDialog} onClose={() => setShowGenerateDialog(false)} onGenerate={handleGeneratePrompt} />
-                
-                {/* Import Dialog */}
-                <PromptImportDialog
-                    open={showImportDialog}
-                    onOpenChange={setShowImportDialog}
-                    onImport={handleImport}
-                />
             </>
         );
     }
@@ -420,7 +412,11 @@ export const PromptsPage: React.FC = () => {
             <Header
                 title="Prompts"
                 buttons={[
-                    <Button data-testid="refreshPrompts" disabled={isLoading} variant="ghost" tooltip="Refresh Prompts" onClick={() => fetchPromptGroups()}>
+                    <Button key="importPrompt" variant="ghost" title="Import Prompt" onClick={() => setShowImportDialog(true)}>
+                        <Download className="size-4" />
+                        Import Prompt
+                    </Button>,
+                    <Button key="refreshPrompts" data-testid="refreshPrompts" disabled={isLoading} variant="ghost" title="Refresh Prompts" onClick={() => fetchPromptGroups()}>
                         <RefreshCcw className="size-4" />
                         Refresh Prompts
                     </Button>,
