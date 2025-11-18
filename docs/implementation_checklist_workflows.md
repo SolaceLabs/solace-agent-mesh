@@ -90,10 +90,10 @@ This document tracks the progress of the Prescriptive Workflows feature implemen
     - [x] Implement `_inject_workflow_instructions`
     - [x] Implement `_finalize_workflow_node_execution`
 
-- [ ] **Step 11: SamAgentComponent Integration**
-    - [ ] Modify `src/solace_agent_mesh/agent/sac/component.py` to initialize handler
-    - [ ] Modify `src/solace_agent_mesh/agent/protocol/event_handlers.py` to delegate to handler
-    - [ ] Ensure configuration passing
+- [x] **Step 11: SamAgentComponent Integration**
+    - [x] Modify `src/solace_agent_mesh/agent/sac/component.py` to initialize handler
+    - [x] Modify `src/solace_agent_mesh/agent/protocol/event_handlers.py` to delegate to handler
+    - [x] Ensure configuration passing
 
 ## Phase 7: Cleanup & Finalization
 

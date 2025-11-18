@@ -76,6 +76,7 @@ from ...common.middleware.registry import MiddlewareRegistry
 from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
 from ...agent.tools.registry import tool_registry
 from ...common.sac.sam_component_base import SamComponentBase
+from .workflow_support.handler import WorkflowNodeHandler
 
 log = logging.getLogger(__name__)
 
@@ -251,6 +252,10 @@ class SamAgentComponent(SamComponentBase):
             Callable[[CallbackContext, LlmRequest], Optional[str]]
         ] = None
         self._active_background_tasks = set()
+        
+        # Initialize workflow support
+        self.workflow_handler = WorkflowNodeHandler(self)
+        
         try:
             self.agent_specific_state: Dict[str, Any] = {}
             init_func_details = self.get_config("agent_init_function")

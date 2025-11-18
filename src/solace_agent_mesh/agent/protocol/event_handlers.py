@@ -245,6 +245,64 @@ async def handle_a2a_request(component, message: SolaceMessage):
         # For Send, we will generate it.
         logical_task_id = None
         method = a2a.get_request_method(a2a_request)
+        
+        # Check for workflow mode
+        if method in ["message/send", "message/stream"]:
+            a2a_message = a2a.get_message_from_send_request(a2a_request)
+            workflow_data = component.workflow_handler.extract_workflow_context(a2a_message)
+            
+            if workflow_data:
+                log.info(
+                    "%s Detected workflow node request for node '%s' in workflow '%s'. Delegating to WorkflowNodeHandler.",
+                    component.log_identifier,
+                    workflow_data.node_id,
+                    workflow_data.workflow_name,
+                )
+                
+                # Extract context needed for handler
+                logical_task_id = str(a2a.get_request_id(a2a_request))
+                original_session_id = a2a_message.context_id
+                user_id = message.get_user_properties().get("userId", "default_user")
+                
+                # For workflow nodes, we use the original session ID as the effective session ID
+                # because the workflow executor manages the session scope.
+                # Or should we use a unique session ID for the node execution?
+                # The design doc says: "Re-run agent with updated session" in retry logic.
+                # And "Load artifact from artifact service... session_id=session.id".
+                # The workflow executor passes `execution_id` as `contextId`.
+                # Let's use that.
+                
+                a2a_context = {
+                    "logical_task_id": logical_task_id,
+                    "session_id": original_session_id,
+                    "effective_session_id": original_session_id,
+                    "user_id": user_id,
+                    "jsonrpc_request_id": jsonrpc_request_id,
+                    "original_solace_message": message,
+                    "replyToTopic": reply_topic_from_peer,
+                    "a2a_user_config": a2a_user_config,
+                    "statusTopic": status_topic_from_peer,
+                }
+                
+                # Execute as workflow node
+                # Note: execute_workflow_node is async
+                loop = component.get_async_loop()
+                if loop and loop.is_running():
+                    asyncio.run_coroutine_threadsafe(
+                        component.workflow_handler.execute_workflow_node(
+                            a2a_message,
+                            workflow_data,
+                            a2a_context
+                        ),
+                        loop
+                    )
+                else:
+                    log.error(
+                        "%s Async loop not available. Cannot execute workflow node.",
+                        component.log_identifier,
+                    )
+                return
+
         if method == "tasks/cancel":
             logical_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
             log.info(
