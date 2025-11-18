@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Mic, Volume2, AlertCircle, Info, Play, Loader2 } from "lucide-react";
+import { Mic, Volume2, AlertCircle, Play, Loader2 } from "lucide-react";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
 import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input, Button } from "@/lib/components/ui";
+import { MessageBanner } from "@/lib/components/common";
 
 export const SpeechSettingsPanel: React.FC = () => {
     const { settings, updateSetting } = useAudioSettings();
@@ -208,20 +209,20 @@ export const SpeechSettingsPanel: React.FC = () => {
 
                 {/* STT Configuration Warning - Only show for External API */}
                 {settings.speechToText && settings.sttProvider !== "browser" && sttConfigured === false && (
-                    <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 p-3 border border-yellow-200 dark:border-yellow-900">
+                    <div className="rounded-md bg-[var(--color-warning-w20)] dark:bg-[var(--color-warning-w95)] p-3 border border-[var(--color-warning-w40)] dark:border-[var(--color-warning-w80)]">
                         <div className="flex gap-2">
-                            <AlertCircle className="size-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                            <AlertCircle className="size-5 text-[var(--color-warning-wMain)] flex-shrink-0 mt-0.5" />
                             <div className="flex-1 text-sm">
-                                <p className="font-semibold text-yellow-800 dark:text-yellow-400 mb-1">
+                                <p className="font-semibold text-[var(--color-warning-w80)] dark:text-[var(--color-warning-w30)] mb-1">
                                     External STT Not Configured
                                 </p>
-                                <p className="text-yellow-700 dark:text-yellow-500 mb-2">
-                                    To use External API mode, add configuration to your <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 rounded text-xs">webui.yaml</code>:
+                                <p className="text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)] mb-2">
+                                    To use External API mode, add configuration to your <code className="px-1 py-0.5 bg-[var(--color-warning-w30)] dark:bg-[var(--color-warning-w90)] rounded text-xs">webui.yaml</code>:
                                 </p>
                                 <div className="space-y-2">
                                     <div>
-                                        <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-400 mb-1">OpenAI Whisper:</p>
-                                        <pre className="text-xs bg-yellow-100 dark:bg-yellow-900/40 p-2 rounded overflow-x-auto">
+                                        <p className="text-xs font-semibold text-[var(--color-warning-w80)] dark:text-[var(--color-warning-w30)] mb-1">OpenAI Whisper:</p>
+                                        <pre className="text-xs bg-[var(--color-warning-w30)] dark:bg-[var(--color-warning-w90)] p-2 rounded overflow-x-auto">
 {`speech:
   stt:
     provider: openai
@@ -232,8 +233,8 @@ export const SpeechSettingsPanel: React.FC = () => {
                                         </pre>
                                     </div>
                                     <div>
-                                        <p className="text-xs font-semibold text-yellow-800 dark:text-yellow-400 mb-1">Azure Speech:</p>
-                                        <pre className="text-xs bg-yellow-100 dark:bg-yellow-900/40 p-2 rounded overflow-x-auto">
+                                        <p className="text-xs font-semibold text-[var(--color-warning-w80)] dark:text-[var(--color-warning-w30)] mb-1">Azure Speech:</p>
+                                        <pre className="text-xs bg-[var(--color-warning-w30)] dark:bg-[var(--color-warning-w90)] p-2 rounded overflow-x-auto">
 {`speech:
   stt:
     provider: azure
@@ -244,7 +245,7 @@ export const SpeechSettingsPanel: React.FC = () => {
                                         </pre>
                                     </div>
                                 </div>
-                                <p className="text-yellow-700 dark:text-yellow-500 mt-2 text-xs">
+                                <p className="text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)] mt-2 text-xs">
                                     Or use Browser mode (free, no setup required).
                                 </p>
                             </div>
@@ -254,17 +255,10 @@ export const SpeechSettingsPanel: React.FC = () => {
 
                 {/* Browser STT Info */}
                 {settings.speechToText && settings.sttProvider === "browser" && (
-                    <div className="rounded-md bg-blue-50 dark:bg-blue-950/20 p-3 border border-blue-200 dark:border-blue-900">
-                        <div className="flex gap-2">
-                            <Info className="size-5 text-blue-600 dark:text-blue-500 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1 text-sm text-blue-700 dark:text-blue-400">
-                                <p className="font-semibold mb-1">Browser Mode (Free)</p>
-                                <p className="text-xs">
-                                    Uses your browser's built-in speech recognition. Works in Chrome, Edge, and Safari. No API key or backend configuration required.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <MessageBanner
+                        variant="info"
+                        message="Browser Mode (Free) - Uses your browser's built-in speech recognition. Works in Chrome, Edge, and Safari. No API key or backend configuration required."
+                    />
                 )}
 
                 {/* Language */}
@@ -348,24 +342,24 @@ export const SpeechSettingsPanel: React.FC = () => {
 
                 {/* TTS Configuration Warning - Only show for External API */}
                 {settings.textToSpeech && settings.ttsProvider !== "browser" && ttsConfigured === false && (
-                    <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 p-3 border border-yellow-200 dark:border-yellow-900">
+                    <div className="rounded-md bg-[var(--color-warning-w20)] dark:bg-[var(--color-warning-w95)] p-3 border border-[var(--color-warning-w40)] dark:border-[var(--color-warning-w80)]">
                         <div className="flex gap-2">
-                            <AlertCircle className="size-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                            <AlertCircle className="size-5 text-[var(--color-warning-wMain)] flex-shrink-0 mt-0.5" />
                             <div className="flex-1 text-sm">
-                                <p className="font-semibold text-yellow-800 dark:text-yellow-400 mb-1">
+                                <p className="font-semibold text-[var(--color-warning-w80)] dark:text-[var(--color-warning-w30)] mb-1">
                                     External TTS Not Configured
                                 </p>
-                                <p className="text-yellow-700 dark:text-yellow-500 mb-2">
-                                    To use External API mode, configure TTS in your <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 rounded text-xs">webui.yaml</code>. Example for Gemini:
+                                <p className="text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)] mb-2">
+                                    To use External API mode, configure TTS in your <code className="px-1 py-0.5 bg-[var(--color-warning-w30)] dark:bg-[var(--color-warning-w90)] rounded text-xs">webui.yaml</code>. Example for Gemini:
                                 </p>
-                                <pre className="text-xs bg-yellow-100 dark:bg-yellow-900/40 p-2 rounded overflow-x-auto">
+                                <pre className="text-xs bg-[var(--color-warning-w30)] dark:bg-[var(--color-warning-w90)] p-2 rounded overflow-x-auto">
 {`speech:
   tts:
     provider: gemini
     api_key: \${GEMINI_API_KEY}
     model: gemini-2.0-flash-exp`}
                                 </pre>
-                                <p className="text-yellow-700 dark:text-yellow-500 mt-2 text-xs">
+                                <p className="text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)] mt-2 text-xs">
                                     Or use Browser mode (free, no setup required).
                                 </p>
                             </div>
@@ -375,17 +369,17 @@ export const SpeechSettingsPanel: React.FC = () => {
 
                 {/* TTS Configuration Warning for Polly - Only show for External API */}
                 {settings.textToSpeech && settings.ttsProvider === "polly" && ttsConfigured === false && (
-                    <div className="rounded-md bg-yellow-50 dark:bg-yellow-950/20 p-3 border border-yellow-200 dark:border-yellow-900">
+                    <div className="rounded-md bg-[var(--color-warning-w20)] dark:bg-[var(--color-warning-w95)] p-3 border border-[var(--color-warning-w40)] dark:border-[var(--color-warning-w80)]">
                         <div className="flex gap-2">
-                            <AlertCircle className="size-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                            <AlertCircle className="size-5 text-[var(--color-warning-wMain)] flex-shrink-0 mt-0.5" />
                             <div className="flex-1 text-sm">
-                                <p className="font-semibold text-yellow-800 dark:text-yellow-400 mb-1">
+                                <p className="font-semibold text-[var(--color-warning-w80)] dark:text-[var(--color-warning-w30)] mb-1">
                                     External TTS Not Configured
                                 </p>
-                                <p className="text-yellow-700 dark:text-yellow-500 mb-2">
-                                    To use AWS Polly, configure TTS in your <code className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/40 rounded text-xs">webui.yaml</code>:
+                                <p className="text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)] mb-2">
+                                    To use AWS Polly, configure TTS in your <code className="px-1 py-0.5 bg-[var(--color-warning-w30)] dark:bg-[var(--color-warning-w90)] rounded text-xs">webui.yaml</code>:
                                 </p>
-                                <pre className="text-xs bg-yellow-100 dark:bg-yellow-900/40 p-2 rounded overflow-x-auto">
+                                <pre className="text-xs bg-[var(--color-warning-w30)] dark:bg-[var(--color-warning-w90)] p-2 rounded overflow-x-auto">
 {`speech:
   tts:
     provider: polly
@@ -396,7 +390,7 @@ export const SpeechSettingsPanel: React.FC = () => {
       engine: neural  # or 'standard'
       default_voice: Joanna`}
                                 </pre>
-                                <p className="text-yellow-700 dark:text-yellow-500 mt-2 text-xs">
+                                <p className="text-[var(--color-warning-w70)] dark:text-[var(--color-warning-w40)] mt-2 text-xs">
                                     Or use Browser mode (free, no setup required).
                                 </p>
                             </div>
@@ -406,17 +400,10 @@ export const SpeechSettingsPanel: React.FC = () => {
 
                 {/* Browser TTS Info */}
                 {settings.textToSpeech && settings.ttsProvider === "browser" && (
-                    <div className="rounded-md bg-blue-50 dark:bg-blue-950/20 p-3 border border-blue-200 dark:border-blue-900">
-                        <div className="flex gap-2">
-                            <Info className="size-5 text-blue-600 dark:text-blue-500 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1 text-sm text-blue-700 dark:text-blue-400">
-                                <p className="font-semibold mb-1">Browser Mode (Free)</p>
-                                <p className="text-xs">
-                                    Uses your browser's built-in text-to-speech. No API key or backend configuration required. Voice quality depends on your browser and operating system.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <MessageBanner
+                        variant="info"
+                        message="Browser Mode (Free) - Uses your browser's built-in text-to-speech. No API key or backend configuration required. Voice quality depends on your browser and operating system."
+                    />
                 )}
 
                 {/* Voice Selection - Only show for External API */}

@@ -62,9 +62,9 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({
         
         // Flash the button to provide visual feedback
         if (buttonRef.current) {
-          buttonRef.current.classList.add('bg-gray-100', 'dark:bg-gray-700');
+          buttonRef.current.classList.add('bg-[var(--color-secondary-w20)]', 'dark:bg-[var(--color-secondary-w80)]');
           setTimeout(() => {
-            buttonRef.current?.classList.remove('bg-gray-100', 'dark:bg-gray-700');
+            buttonRef.current?.classList.remove('bg-[var(--color-secondary-w20)]', 'dark:bg-[var(--color-secondary-w80)]');
           }, 200);
         }
       }
@@ -94,12 +94,12 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({
         ref={buttonRef}
         variant="ghost"
         size="icon"
-        className="h-8 w-8 hover:bg-gray-100 dark:hover:bg-gray-800"
+        className="h-8 w-8"
         onClick={handleCopy}
         tooltip={isCopied ? "Copied!" : "Copy to clipboard"}
       >
         {isCopied ? (
-          <Check className="h-4 w-4 text-green-500" />
+          <Check className="h-4 w-4 text-[var(--color-success-wMain)]" />
         ) : (
           <Copy className="h-4 w-4" />
         )}

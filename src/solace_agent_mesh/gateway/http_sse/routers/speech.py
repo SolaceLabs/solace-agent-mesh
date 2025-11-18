@@ -30,6 +30,7 @@ class StreamTTSRequest(BaseModel):
     input: str
     voice: Optional[str] = None
     runId: Optional[str] = None
+    provider: Optional[str] = None
 
 
 @router.post("/stt")
@@ -196,7 +197,8 @@ async def stream_audio(
                 voice=request.voice,
                 user_id=user.get("user_id", "anonymous"),
                 session_id=user.get("session_id", "default"),
-                app_name=user.get("app_name", "webui")
+                app_name=user.get("app_name", "webui"),
+                provider=request.provider  # Pass provider from request
             ):
                 yield chunk
         

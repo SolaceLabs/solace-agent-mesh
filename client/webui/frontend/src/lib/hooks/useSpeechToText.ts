@@ -238,18 +238,14 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
 
     // External STT implementation
     const startExternalRecording = useCallback(async () => {
-        console.log("[useSpeechToText] Starting external recording, checking config...");
-        
         // Check if external STT is configured
         try {
             const configResponse = await fetch("/api/v1/speech/config");
             if (configResponse.ok) {
                 const config = await configResponse.json();
-                console.log("[useSpeechToText] Config response:", config);
                 
                 if (!config.sttExternal) {
                     // Auto-switch to browser mode
-                    console.warn("[useSpeechToText] External STT not configured, switching to browser mode");
                     updateSetting("engineSTT", "browser");
                     
                     const errorMsg = "External STT is not configured. Switched to Browser mode. Please click the microphone button again.";
@@ -259,18 +255,13 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                     // Don't try to start recording - user needs to click again
                     return;
                 }
-            } else {
-                console.error("[useSpeechToText] Failed to fetch config:", configResponse.status);
             }
         } catch (err) {
-            console.error("[useSpeechToText] Failed to check STT configuration:", err);
             const errorMsg = "Failed to check STT configuration. Please try again.";
             setError(errorMsg);
             onError?.(errorMsg);
             return;
         }
-
-        console.log("[useSpeechToText] External STT is configured, proceeding with recording");
         
         try {
             // Request microphone permission
@@ -305,7 +296,9 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                     // Send to backend with provider preference
                     const formData = new FormData();
                     formData.append("audio", audioBlob, `audio.${fileExtension}`);
-                    formData.append("provider", settings.sttProvider || "openai");
+                    if (settings.sttProvider && settings.sttProvider !== "browser") {
+                        formData.append("provider", settings.sttProvider);
+                    }
 
                     const response = await fetch("/api/v1/speech/stt", {
                         method: "POST",
@@ -314,7 +307,6 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
 
                     if (!response.ok) {
                         const errorText = await response.text();
-                        console.error("[useSpeechToText] STT API error:", response.status, errorText);
                         
                         // Try to parse error message from backend for all error codes
                         let backendMessage = "";

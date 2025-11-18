@@ -527,12 +527,10 @@ class AudioService:
         """
         
         try:
-            log.info("[AudioService] Starting Azure TTS generation")
             
             # Import Azure SDK
             try:
                 import azure.cognitiveservices.speech as speechsdk
-                log.info("[AudioService] Azure SDK imported successfully")
             except ImportError as e:
                 log.error(f"[AudioService] Azure SDK not installed: {e}")
                 raise HTTPException(
@@ -820,13 +818,11 @@ class AudioService:
         """
         
         try:
-            log.info("[AudioService] Starting AWS Polly TTS generation")
             
             # Import boto3
             try:
                 import boto3
                 from botocore.exceptions import ClientError as BotoClientError, BotoCoreError
-                log.info("[AudioService] boto3 imported successfully")
             except ImportError as e:
                 log.error(f"[AudioService] boto3 not installed: {e}")
                 raise HTTPException(
@@ -872,7 +868,6 @@ class AudioService:
                     aws_secret_access_key=aws_secret_access_key,
                     region_name=region
                 )
-                log.info(f"[AudioService] Created Polly client for region {region}")
             except Exception as e:
                 log.error(f"[AudioService] Failed to create Polly client: {e}")
                 raise HTTPException(500, f"Failed to create AWS Polly client: {str(e)}")
@@ -892,7 +887,6 @@ class AudioService:
                 # Read audio stream
                 if 'AudioStream' in response:
                     audio_data = response['AudioStream'].read()
-                    log.info(f"[AudioService] Successfully generated {len(audio_data)} bytes of audio")
                     return audio_data
                 else:
                     raise HTTPException(500, "No audio stream in Polly response")
@@ -953,15 +947,8 @@ class AudioService:
             user_id, session_id, voice, len(text), provider
         )
         
-        try:
-            # Get TTS configuration with detailed debugging
-            log.info(f"[AudioService] Full config keys: {list(self.config.keys())}")
-            log.info(f"[AudioService] Has 'speech' key: {'speech' in self.config}")
-            log.info(f"[AudioService] Speech config: {self.speech_config}")
-            
+        try:            
             tts_config = self.speech_config.get("tts", {}) if self.speech_config else {}
-            log.info(f"[AudioService] TTS config exists: {bool(tts_config)}")
-            log.info(f"[AudioService] TTS config keys: {list(tts_config.keys()) if tts_config else 'empty'}")
             
             if not tts_config:
                 log.error("[AudioService] TTS not configured in speech.tts")
@@ -1003,7 +990,8 @@ class AudioService:
         voice: Optional[str],
         user_id: str,
         session_id: str,
-        app_name: str = "webui"
+        app_name: str = "webui",
+        provider: Optional[str] = None
     ) -> AsyncGenerator[bytes, None]:
         """
         Stream speech audio for long text with intelligent sentence-based chunking.
@@ -1015,15 +1003,12 @@ class AudioService:
             user_id: User identifier
             session_id: Session identifier
             app_name: Application name
+            provider: Optional provider override (azure, gemini, polly)
             
         Yields:
             Audio data chunks as bytes
         """
-        log.info(
-            "[AudioService] Streaming speech for user=%s, session=%s, text_len=%d",
-            user_id, session_id, len(text)
-        )
-        
+    
         # Split text into sentence-based chunks for more natural audio boundaries
         import re
         
@@ -1045,7 +1030,6 @@ class AudioService:
         if current_chunk:
             chunks.append(current_chunk.strip())
         
-        log.info("[AudioService] Split text into %d chunks for streaming", len(chunks))
         
         # Generate and yield chunks immediately (no buffering)
         for i, chunk in enumerate(chunks):
@@ -1058,7 +1042,8 @@ class AudioService:
                     user_id=user_id,
                     session_id=session_id,
                     app_name=app_name,
-                    message_id=f"chunk_{i}"
+                    message_id=f"chunk_{i}",
+                    provider=provider  # Pass provider to generate_speech
                 )
                 
                 if audio_data:

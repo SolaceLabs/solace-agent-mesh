@@ -302,6 +302,7 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
                         input: text,
                         voice: settings.voice,
                         runId: messageId || `tts-${Date.now()}`,
+                        provider: settings.ttsProvider,
                     }),
                 });
 
