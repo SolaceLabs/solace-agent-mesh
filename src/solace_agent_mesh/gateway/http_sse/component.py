@@ -1253,7 +1253,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 app=self.fastapi_app,
                 host=self.fastapi_host,
                 port=port,
-                log_level="critical",
+                log_level="warning",
                 lifespan="on",
                 ssl_keyfile=self.ssl_keyfile,
                 ssl_certfile=self.ssl_certfile,
