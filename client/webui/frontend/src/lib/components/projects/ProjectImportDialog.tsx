@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { FileJson, Upload as UploadIcon, AlertCircle } from "lucide-react";
+import JSZip from "jszip";
 import {
     Dialog,
     DialogContent,
@@ -70,7 +71,6 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
 
         try {
             // Use JSZip to read and parse the ZIP file
-            const JSZip = (await import('jszip')).default;
             const zip = await JSZip.loadAsync(file);
             
             // Check for project.json
