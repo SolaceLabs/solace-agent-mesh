@@ -23,9 +23,6 @@ export interface SpeechSettings {
     // Advanced
     conversationMode: boolean;
     advancedMode: boolean;
-
-    // UI Settings
-    fontSize: "small" | "medium" | "large" | "extra-large";
 }
 
 interface AudioSettingsContextValue {
@@ -64,8 +61,6 @@ const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
     
     conversationMode: "conversationMode",
     advancedMode: "advancedMode",
-    
-    fontSize: "fontSize",
 };
 
 const DEFAULT_SETTINGS: SpeechSettings = {
@@ -88,8 +83,6 @@ const DEFAULT_SETTINGS: SpeechSettings = {
 
     conversationMode: false,
     advancedMode: false,
-
-    fontSize: "medium",
 };
 
 function loadSettingsFromStorage(): SpeechSettings {
@@ -248,6 +241,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAudioSettings(): AudioSettingsContextValue {
     const context = useContext(AudioSettingsContext);
     if (!context) {
