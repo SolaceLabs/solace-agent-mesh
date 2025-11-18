@@ -288,7 +288,7 @@ export function useStreamingTTS(options: UseStreamingTTSOptions): UseStreamingTT
             isPlayingQueueRef.current = false;
             playNextInQueue();
         });
-    }, []);
+    }, [onEnd, onTTSEnd]);
 
     /**
      * Internal processing function using streaming endpoint for much faster performance
@@ -450,8 +450,11 @@ export function useStreamingTTS(options: UseStreamingTTSOptions): UseStreamingTT
      * Reset when message changes
      */
     useEffect(() => {
+        // Capture current value at the start of the effect
+        const processedSentences = processedSentencesRef.current;
+
         // Clear state when message changes
-        processedSentencesRef.current.clear();
+        processedSentences.clear();
         lastTextRef.current = "";
         lastTextLengthRef.current = 0;
         isStoppedRef.current = false; // Reset stopped flag for new message
@@ -461,6 +464,9 @@ export function useStreamingTTS(options: UseStreamingTTSOptions): UseStreamingTT
         pendingTextRef.current = null; // Clear any pending updates
 
         return () => {
+            // Capture current value for cleanup
+            const processedSentences = processedSentencesRef.current;
+
             // Cleanup on unmount only if actually playing
             if (isPlayingQueueRef.current || audioQueueRef.current.length > 0) {
                 console.log("[StreamingTTS] Cleanup: stopping playback for message change/unmount");
@@ -488,7 +494,7 @@ export function useStreamingTTS(options: UseStreamingTTSOptions): UseStreamingTT
                 audioQueueRef.current = [];
                 isPlayingQueueRef.current = false;
             }
-            processedSentencesRef.current.clear();
+            processedSentences.clear();
             lastTextRef.current = "";
             lastTextLengthRef.current = 0;
             processingPromiseRef.current = null;

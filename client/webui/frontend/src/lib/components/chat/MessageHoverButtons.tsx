@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Copy, Check } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { cn } from "@/lib/utils";
@@ -17,16 +17,16 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ messag
     const buttonRef = useRef<HTMLButtonElement>(null);
 
     // Extract text content from message parts
-    const getTextContent = (): string => {
+    const getTextContent = useCallback((): string => {
         if (!message.parts || message.parts.length === 0) {
             return "";
         }
         const textParts = message.parts.filter(p => p.kind === "text") as TextPart[];
         return textParts.map(p => p.text).join("");
-    };
+    }, [message.parts]);
 
     // Copy functionality
-    const handleCopy = () => {
+    const handleCopy = useCallback(() => {
         const text = getTextContent();
         if (text.trim()) {
             navigator.clipboard
@@ -42,7 +42,7 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ messag
         } else {
             addNotification("No text content to copy", "info");
         }
-    };
+    }, [getTextContent, addNotification]);
 
     // Reset copied state after 2 seconds
     useEffect(() => {
@@ -74,7 +74,7 @@ export const MessageHoverButtons: React.FC<MessageHoverButtonsProps> = ({ messag
         return () => {
             document.removeEventListener("keydown", handleKeyDown);
         };
-    }, []);
+    }, [handleCopy]);
 
     // Don't show buttons for status messages
     if (message.isStatusBubble || message.isStatusMessage) {

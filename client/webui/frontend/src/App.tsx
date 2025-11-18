@@ -16,13 +16,13 @@ function App() {
                 <ConfigProvider>
                     <AuthProvider>
                         <ProjectProvider>
-                            <TaskProvider>
-                                <AudioSettingsProvider>
+                            <AudioSettingsProvider>
+                                <TaskProvider>
                                     <TextSelectionProvider>
                                         <AppContent />
                                     </TextSelectionProvider>
-                                </AudioSettingsProvider>
-                            </TaskProvider>
+                                </TaskProvider>
+                            </AudioSettingsProvider>
                         </ProjectProvider>
                     </AuthProvider>
                 </ConfigProvider>
