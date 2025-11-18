@@ -58,7 +58,7 @@ export const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({ isOpen
 
                         <div className="space-y-2">
                             <label htmlFor="project-name" className="text-sm font-medium">
-                                Project Name <span className="text-red-500">*</span>
+                                Project Name <span className="text-[var(--color-brand-wMain)]">*</span>
                             </label>
                             <Input id="project-name" value={name} onChange={e => setName(e.target.value)} disabled={isSubmitting} required maxLength={255} />
                         </div>
