@@ -4,11 +4,12 @@ import { MockAuthProvider } from "./MockAuthProvider";
 import { MockTaskProvider } from "./MockTaskProvider";
 import { MockConfigProvider } from "./MockConfigProvider";
 import type { AuthContextValue } from "@/lib/contexts/AuthContext";
-import { ThemeProvider, type ChatContextValue, type ConfigContextValue, type SelectionContextValue, type TaskContextValue } from "@/lib";
+import { ThemeProvider, type AudioSettingsContextValue, type ChatContextValue, type ConfigContextValue, type SelectionContextValue, type TaskContextValue } from "@/lib";
 import { MockChatProvider } from "./MockChatProvider";
 import { MockProjectProvider } from "./MockProjectProvider";
 import type { ProjectContextValue } from "@/lib/types/projects";
 import { MockTextSelectionProvider } from "./MockTextSelectionProvider";
+import { MockAudioSettingsProvider } from "./MockAudioSettingsProvider";
 
 interface RouterValues {
     initialPath?: string;
@@ -20,6 +21,7 @@ interface StoryProviderProps {
     authContextValues?: Partial<AuthContextValue>;
     chatContextValues?: Partial<ChatContextValue>;
     textSelectionContextValues?: Partial<SelectionContextValue>;
+    audioSettingsContextValues?: Partial<AudioSettingsContextValue>;
     projectContextValues?: Partial<ProjectContextValue>;
     taskContextValues?: Partial<TaskContextValue>;
     configContextValues?: Partial<ConfigContextValue>;
@@ -45,18 +47,29 @@ interface StoryProviderProps {
  * </StoryProvider>
  * ```
  */
-export const StoryProvider: React.FC<StoryProviderProps> = ({ children, authContextValues = {}, chatContextValues = {}, textSelectionContextValues = {}, projectContextValues = {}, taskContextValues = {}, configContextValues = {} }) => {
+export const StoryProvider: React.FC<StoryProviderProps> = ({
+    children,
+    authContextValues = {},
+    chatContextValues = {},
+    textSelectionContextValues = {},
+    audioSettingsContextValues = {},
+    projectContextValues = {},
+    taskContextValues = {},
+    configContextValues = {},
+}) => {
     const content = (
         <ThemeProvider>
             <MockConfigProvider mockValues={configContextValues}>
                 <MockAuthProvider mockValues={authContextValues}>
-                    <MockProjectProvider mockValues={projectContextValues}>
-                        <MockTextSelectionProvider mockValues={textSelectionContextValues}>
-                            <MockTaskProvider mockValues={taskContextValues}>
-                                <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
-                            </MockTaskProvider>
-                        </MockTextSelectionProvider>
-                    </MockProjectProvider>
+                    <MockAudioSettingsProvider mockValues={audioSettingsContextValues}>
+                        <MockProjectProvider mockValues={projectContextValues}>
+                            <MockTextSelectionProvider mockValues={textSelectionContextValues}>
+                                <MockTaskProvider mockValues={taskContextValues}>
+                                    <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
+                                </MockTaskProvider>
+                            </MockTextSelectionProvider>
+                        </MockProjectProvider>
+                    </MockAudioSettingsProvider>
                 </MockAuthProvider>
             </MockConfigProvider>
         </ThemeProvider>
