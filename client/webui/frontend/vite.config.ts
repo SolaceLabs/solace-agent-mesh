@@ -10,7 +10,14 @@ export default defineConfig(({ mode }) => {
     const backendTarget = `http://localhost:${backendPort}`;
 
     return {
-        plugins: [react(), tailwindcss()],
+        plugins: [
+            react({
+                babel: {
+                    plugins: [["babel-plugin-react-compiler", {}]],
+                },
+            }),
+            tailwindcss(),
+        ],
         resolve: {
             alias: {
                 "@": path.resolve(__dirname, "./src"),
