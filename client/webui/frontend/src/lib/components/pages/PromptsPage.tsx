@@ -105,7 +105,7 @@ export const PromptsPage: React.FC = () => {
             setVersionHistoryGroup(null);
             setEditingGroup(null);
         }
-    }, [loaderData]);
+    }, [loaderData, location.state?.taskDescription]);
 
     const handleDeleteClick = (id: string, name: string) => {
         setDeletingPrompt({ id, name });
