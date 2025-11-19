@@ -32,6 +32,7 @@ const iconMap = {
  * */
 export interface MessageBannerBaseProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof messageBannerVariants> {
     message: string;
+    icon?: React.ReactNode;
     action?: (event: React.MouseEvent<HTMLButtonElement>) => void;
     buttonText?: string;
     button?: React.ReactNode;
@@ -41,12 +42,12 @@ export interface MessageBannerBaseProps extends React.HTMLAttributes<HTMLDivElem
 
 export type MessageBannerProps = MessageBannerBaseProps;
 
-function MessageBanner({ className, variant = "error", message, button, action, buttonText, dismissible = false, onDismiss, ...props }: MessageBannerProps) {
+function MessageBanner({ className, variant = "error", message, icon, button, action, buttonText, dismissible = false, onDismiss, ...props }: MessageBannerProps) {
     const IconComponent = iconMap[variant || "error"];
 
     return (
         <div className={cn(messageBannerVariants({ variant, className }), "items-start")} role="alert" aria-live="polite" {...props}>
-            <IconComponent className="size-5 shrink-0" />
+            {icon || <IconComponent className="size-5 shrink-0" />}
             <span>{message}</span>
 
             <div className="ml-auto flex items-center gap-1">
