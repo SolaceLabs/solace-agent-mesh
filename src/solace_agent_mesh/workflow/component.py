@@ -95,58 +95,41 @@ class WorkflowExecutorComponent(SamComponentBase):
         """Placeholder invoke method. Logic in process_event."""
         return None
 
-    def process_event(self, event: Event):
+    def _get_component_id(self) -> str:
+        """Returns the workflow name as the component identifier."""
+        return self.workflow_name
+
+    def _get_component_type(self) -> str:
+        """Returns 'workflow' as the component type."""
+        return "workflow"
+
+    async def _handle_message_async(self, message: SolaceMessage, topic: str) -> None:
         """
-        Process incoming events (messages, timers, cache expiry).
-        Delegates to async event handlers on component's event loop.
+        Async handler for incoming messages.
         """
-        loop = self.get_async_loop()
-        if not loop or not loop.is_running():
-            log.error(
-                f"{self.log_identifier} Async loop not available. Cannot process event: {event.event_type}"
-            )
-            return
+        # Determine message type based on topic
+        request_topic = a2a.get_agent_request_topic(
+            self.namespace, self.workflow_name
+        )
+        discovery_topic = a2a.get_discovery_topic(self.namespace)
+        response_sub = a2a.get_agent_response_subscription_topic(
+            self.namespace, self.workflow_name
+        )
+        status_sub = a2a.get_agent_status_subscription_topic(
+            self.namespace, self.workflow_name
+        )
 
-        if event.event_type == EventType.MESSAGE:
-            message = event.data
-            topic = message.get_topic()
-            
-            # Determine message type based on topic
-            request_topic = a2a.get_agent_request_topic(
-                self.namespace, self.workflow_name
-            )
-            discovery_topic = a2a.get_discovery_topic(self.namespace)
-            response_sub = a2a.get_agent_response_subscription_topic(
-                self.namespace, self.workflow_name
-            )
-            status_sub = a2a.get_agent_status_subscription_topic(
-                self.namespace, self.workflow_name
-            )
-
-            coro = None
-            if topic == request_topic:
-                coro = handle_task_request(self, message)
-            elif topic == discovery_topic:
-                handle_agent_card_message(self, message)
-            elif a2a.topic_matches_subscription(
-                topic, response_sub
-            ) or a2a.topic_matches_subscription(topic, status_sub):
-                coro = handle_persona_response(self, message)
-            else:
-                log.warning(f"{self.log_identifier} Unknown topic: {topic}")
-                message.call_acknowledgements()
-
-            if coro:
-                asyncio.run_coroutine_threadsafe(coro, loop)
-
-        elif event.event_type == EventType.TIMER:
-            # Timer for periodic operations (if needed)
-            pass
-
-        elif event.event_type == EventType.CACHE_EXPIRY:
-            # Handle persona call timeouts
-            coro = self.handle_cache_expiry_event(event.data)
-            asyncio.run_coroutine_threadsafe(coro, loop)
+        if topic == request_topic:
+            await handle_task_request(self, message)
+        elif topic == discovery_topic:
+            handle_agent_card_message(self, message)
+        elif a2a.topic_matches_subscription(
+            topic, response_sub
+        ) or a2a.topic_matches_subscription(topic, status_sub):
+            await handle_persona_response(self, message)
+        else:
+            log.warning(f"{self.log_identifier} Unknown topic: {topic}")
+            message.call_acknowledgements()
 
     async def _async_setup_and_run(self) -> None:
         """
