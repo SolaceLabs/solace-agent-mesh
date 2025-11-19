@@ -7,7 +7,7 @@ import uuid
 import re
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
-from a2a.types import MessageSendParams, SendMessageRequest, A2AMessage
+from a2a.types import MessageSendParams, SendMessageRequest, Message as A2AMessage
 
 from ..common import a2a
 from ..common.data_parts import WorkflowNodeRequestData

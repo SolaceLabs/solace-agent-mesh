@@ -6,6 +6,7 @@ Enables a standard agent to act as a workflow node.
 import logging
 import json
 import asyncio
+import re
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ValidationError
@@ -29,7 +30,7 @@ from ....common.data_parts import (
     WorkflowNodeResultData,
 )
 from ....agent.adk.runner import run_adk_async_task_thread_wrapper
-from ....common.utils.embeds.parser import parse_embeds
+from ....common.utils.embeds.constants import EMBED_REGEX
 
 if TYPE_CHECKING:
     from ..component import SamAgentComponent
@@ -93,9 +94,7 @@ class WorkflowNodeHandler:
             workflow_data = WorkflowNodeRequestData.model_validate(first_part.data)
             return workflow_data
         except ValidationError as e:
-            log.error(
-                f"{self.host.log_identifier} Invalid workflow request data: {e}"
-            )
+            log.error(f"{self.host.log_identifier} Invalid workflow request data: {e}")
             return None
 
     async def execute_workflow_node(
@@ -194,28 +193,30 @@ class WorkflowNodeHandler:
         a2a_context: Dict[str, Any],
     ):
         """Execute agent with output validation and retry logic."""
-        
+
         # Create callback for instruction injection
-        workflow_callback = self._create_workflow_callback(
-            workflow_data, output_schema
-        )
+        workflow_callback = self._create_workflow_callback(workflow_data, output_schema)
 
         # We need to register this callback with the agent.
         # Since SamAgentComponent manages the agent lifecycle, we need a way to inject this.
         # SamAgentComponent supports `_agent_system_instruction_callback`.
         # We can temporarily override it or chain it.
-        
+
         original_callback = self.host._agent_system_instruction_callback
-        
+
         def chained_callback(context, request):
             # Call original if exists
-            original_instr = original_callback(context, request) if original_callback else None
+            original_instr = (
+                original_callback(context, request) if original_callback else None
+            )
             # Call workflow callback
             workflow_instr = workflow_callback(context, request)
-            
+
             parts = []
-            if original_instr: parts.append(original_instr)
-            if workflow_instr: parts.append(workflow_instr)
+            if original_instr:
+                parts.append(original_instr)
+            if workflow_instr:
+                parts.append(workflow_instr)
             return "\n\n".join(parts) if parts else None
 
         self.host.set_agent_system_instruction_callback(chained_callback)
@@ -226,26 +227,26 @@ class WorkflowNodeHandler:
             # However, handle_a2a_request is designed to run the agent and return.
             # It calls `run_adk_async_task_thread_wrapper`.
             # We can call that directly.
-            
+
             # Prepare ADK content
             user_id = a2a_context.get("user_id")
             session_id = a2a_context.get("effective_session_id")
-            
+
             adk_content = await a2a.translate_a2a_to_adk_content(
                 a2a_message=message,
                 component=self.host,
                 user_id=user_id,
                 session_id=session_id,
             )
-            
+
             adk_session = await self.host.session_service.get_session(
                 app_name=self.host.agent_name,
                 user_id=user_id,
                 session_id=session_id,
             )
-            
+
             if not adk_session:
-                 adk_session = await self.host.session_service.create_session(
+                adk_session = await self.host.session_service.create_session(
                     app_name=self.host.agent_name,
                     user_id=user_id,
                     session_id=session_id,
@@ -253,7 +254,7 @@ class WorkflowNodeHandler:
 
             run_config = RunConfig(
                 streaming_mode=StreamingMode.SSE,
-                max_llm_calls=self.host.get_config("max_llm_calls_per_task", 20)
+                max_llm_calls=self.host.get_config("max_llm_calls_per_task", 20),
             )
 
             # Execute
@@ -264,7 +265,7 @@ class WorkflowNodeHandler:
                 run_config,
                 a2a_context,
             )
-            
+
             # After execution, we need to validate the result.
             # The result is in the session history.
             # We need to fetch the updated session.
@@ -273,21 +274,15 @@ class WorkflowNodeHandler:
                 user_id=user_id,
                 session_id=session_id,
             )
-            
+
             last_event = adk_session.events[-1] if adk_session.events else None
-            
+
             result_data = await self._finalize_workflow_node_execution(
-                adk_session,
-                last_event,
-                workflow_data,
-                output_schema,
-                retry_count=0
+                adk_session, last_event, workflow_data, output_schema, retry_count=0
             )
-            
+
             # Send result back to workflow
-            await self._return_workflow_result(
-                workflow_data, result_data, a2a_context
-            )
+            await self._return_workflow_result(workflow_data, result_data, a2a_context)
 
         finally:
             # Restore original callback
@@ -303,9 +298,7 @@ class WorkflowNodeHandler:
         def inject_instructions(
             callback_context: CallbackContext, llm_request: LlmRequest
         ) -> Optional[str]:
-            return self._generate_workflow_instructions(
-                workflow_data, output_schema
-            )
+            return self._generate_workflow_instructions(workflow_data, output_schema)
 
         return inject_instructions
 
@@ -397,7 +390,7 @@ If you cannot complete the task, use:
         try:
             # If version is missing, assume latest (None)
             version = int(result_embed.version) if result_embed.version else None
-            
+
             artifact = await self.host.artifact_service.load_artifact(
                 app_name=self.host.agent_name,
                 user_id=session.user_id,
@@ -446,7 +439,7 @@ If you cannot complete the task, use:
             type="workflow_node_result",
             status="success",
             artifact_name=result_embed.artifact_name,
-            artifact_version=version or 0, # TODO: get actual version if None
+            artifact_version=version or 0,  # TODO: get actual version if None
             retry_count=retry_count,
         )
 
@@ -464,22 +457,55 @@ If you cannot complete the task, use:
             if part.text:
                 text_content += part.text
 
-        # Parse embeds
-        embeds = parse_embeds(text_content, types=["result"])
+        # Parse embeds using EMBED_REGEX
+        result_embeds = []
+        for match in EMBED_REGEX.finditer(text_content):
+            embed_type = match.group(1)
+            if embed_type == "result":
+                expression = match.group(2)
+                result_embeds.append(expression)
 
-        if not embeds:
+        if not result_embeds:
             return None
 
-        # Take last result embed
-        result_embed_dict = embeds[-1]
+        # Take last result embed and parse its parameters
+        # Format: artifact=<name>:v<version> status=<success|failure> message="<text>"
+        expression = result_embeds[-1]
 
-        # Parse embed parameters
-        # The parser returns a dict of params
+        # Parse parameters from expression
+        params = {}
+
+        # Match key=value patterns, handling quoted values
+        param_pattern = r'(\w+)=(?:"([^"]*)"|([^\s]+))'
+        for param_match in re.finditer(param_pattern, expression):
+            key = param_match.group(1)
+            # Use quoted value if present, otherwise use unquoted
+            value = (
+                param_match.group(2)
+                if param_match.group(2) is not None
+                else param_match.group(3)
+            )
+            params[key] = value
+
+        # Extract artifact name and version
+        artifact_spec = params.get("artifact", "")
+        artifact_name = artifact_spec
+        version = None
+
+        # Check if version is in artifact spec (e.g., "filename:v1")
+        if ":v" in artifact_spec:
+            parts = artifact_spec.split(":v")
+            artifact_name = parts[0]
+            try:
+                version = int(parts[1])
+            except (ValueError, IndexError):
+                pass
+
         return ResultEmbed(
-            artifact_name=result_embed_dict.get("artifact"),
-            version=result_embed_dict.get("v"), # parser might use 'v' if in string
-            status=result_embed_dict.get("status", "success"),
-            message=result_embed_dict.get("message"),
+            artifact_name=artifact_name,
+            version=version,
+            status=params.get("status", "success"),
+            message=params.get("message"),
         )
 
     def _validate_artifact(
@@ -487,10 +513,10 @@ If you cannot complete the task, use:
     ) -> Optional[List[str]]:
         """Validate artifact content against schema."""
         from .validator import validate_against_schema
-        
+
         if not artifact_part.inline_data:
             return ["Artifact has no inline data"]
-            
+
         try:
             data = json.loads(artifact_part.inline_data.data.decode("utf-8"))
             return validate_against_schema(data, schema)
@@ -544,43 +570,25 @@ Remember to end your response with the result embed:
         )
         await self.host.session_service.append_event(session, feedback_event)
 
-        # Re-run agent with updated session
-        run_config = RunConfig(
-            streaming_mode=StreamingMode.SSE,
-            max_llm_calls=self.host.get_config("max_llm_calls_per_task", 20),
+        # TODO: Implement actual retry execution logic
+        # The retry logic requires:
+        # 1. Re-running the agent with the updated session containing validation feedback
+        # 2. Passing the original a2a_context through the call chain
+        # 3. Recursively calling _finalize_workflow_node_execution to validate the new output
+        #
+        # For MVP, validation errors are logged and the workflow node returns failure
+        # after max retries. Future enhancement should implement full retry with execution.
+
+        log.warning(
+            f"{log_id} Retry with validation error feedback is not fully implemented. "
+            f"Returning failure after {retry_count} retries."
         )
 
-        # Execute agent again
-        try:
-            # We need to pass a dummy a2a_context or reuse the previous one?
-            # The runner needs it.
-            # We don't have easy access to the original a2a_context here unless passed down.
-            # But wait, we are inside `_execute_with_output_validation` which has `a2a_context`.
-            # But this is a separate method.
-            # We should pass `a2a_context` to `_finalize_workflow_node_execution` and then here.
-            # For now, let's assume we can get it from session state if needed, or pass empty dict if runner allows.
-            # Actually, `run_adk_async_task_thread_wrapper` requires `a2a_context`.
-            # Let's update the signature chain.
-            pass 
-
-        except Exception as e:
-            log.error(f"{log_id} Retry execution failed: {e}")
-            return WorkflowNodeResultData(
-                type="workflow_node_result",
-                status="failure",
-                error_message=f"Retry execution failed: {e}",
-                retry_count=retry_count,
-            )
-            
-        # NOTE: The retry logic requires recursively calling the runner and then finalize again.
-        # This is getting complex to implement in this snippet without full context passing.
-        # For MVP, we might skip the actual re-execution implementation here and just return failure.
-        # Or we need to refactor to pass `a2a_context` down.
-        
         return WorkflowNodeResultData(
             type="workflow_node_result",
             status="failure",
-            error_message="Retry logic not fully implemented in MVP handler",
+            error_message=f"Output validation failed after {retry_count} attempts. Retry execution not yet implemented.",
+            validation_errors=validation_errors,
             retry_count=retry_count,
         )
 
@@ -601,9 +609,7 @@ Remember to end your response with the result embed:
 
         # Create task status
         task_state = (
-            TaskState.completed
-            if result_data.status == "success"
-            else TaskState.failed
+            TaskState.completed if result_data.status == "success" else TaskState.failed
         )
         task_status = a2a.create_task_status(state=task_state, message=result_message)
 
@@ -621,7 +627,10 @@ Remember to end your response with the result embed:
 
         # Create JSON-RPC response
         response = a2a.create_success_response(
-            result=final_task, request_id=a2a.get_request_id(a2a_context.get("original_solace_message")) # Wait, we need the request object or ID
+            result=final_task,
+            request_id=a2a.get_request_id(
+                a2a_context.get("original_solace_message")
+            ),  # Wait, we need the request object or ID
         )
         # a2a_context has jsonrpc_request_id
         response = a2a.create_success_response(

@@ -1,0 +1,448 @@
+# Workflow Configuration Example: Customer Onboarding Workflow
+#
+# This file demonstrates the Prescriptive Workflows feature with a customer
+# onboarding pipeline that extracts information from documents, validates it,
+# and creates customer accounts.
+#
+# This example includes:
+# 1. Three persona agents (ExtractInfoAgent, ValidateInfoAgent, CreateAccountAgent)
+# 2. A workflow that orchestrates these agents with schema validation
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: workflow_example.log
+
+# Shared SAM config (inline for this example)
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8008}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+  - models:
+    planning: &planning_model
+      model: ${LLM_SERVICE_PLANNING_MODEL_NAME}
+      api_base: ${LLM_SERVICE_ENDPOINT}
+      api_key: ${LLM_SERVICE_API_KEY}
+      parallel_tool_calls: true
+      max_tokens: ${MAX_TOKENS, 16000}
+      temperature: 0.1
+      cache_strategy: "5m"
+
+    multimodal: &multimodal_model "gemini-2.5-flash-preview-04-17"
+
+  - services:
+    session_service: &default_session_service
+      type: "sql"
+      default_behavior: "PERSISTENT"
+      database_url: ${SESSION_DATABASE_URL, sqlite:///session.db}
+
+    artifact_service: &default_artifact_service
+      type: "filesystem"
+      base_path: "/tmp/samv2"
+      artifact_scope: namespace
+
+apps:
+  # ============================================================================
+  # PERSONA AGENT 1: ExtractInfoAgent
+  # Extracts customer information from documents
+  # ============================================================================
+  - name: extract_info_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "ExtractInfoAgent"
+      display_name: "Document Information Extractor"
+      model: *multimodal_model
+
+      instruction: |
+        You are a document information extraction specialist. Your job is to extract
+        customer information from documents accurately and completely.
+
+        WORKFLOW MODE INSTRUCTIONS:
+        When running as part of a workflow, you MUST follow these rules:
+
+        1. Load the document artifact specified in the input
+        2. Extract the following customer information:
+           - customer_name: The full name of the customer
+           - email: The customer's email address
+           - phone: The customer's phone number (if present)
+
+        3. Create a structured output artifact using create_structured_output tool with:
+           - A descriptive filename like "customer_info.json"
+           - The extracted data as a JSON object
+
+        4. Mark your result with the result embed at the end of your response:
+           «result:artifact=customer_info.json status=success»
+
+        5. If extraction fails (document unreadable, missing data, etc.):
+           «result:status=failure message="Description of the problem"»
+
+        IMPORTANT: Do not hallucinate or make up data. Only extract information
+        that is clearly present in the document.
+
+      # Input schema - workflow will validate this
+      input_schema:
+        type: object
+        properties:
+          document_filename:
+            type: string
+            description: "Name of the document artifact to process"
+        required: [document_filename]
+
+      # Output schema - workflow will validate this
+      output_schema:
+        type: object
+        properties:
+          customer_name:
+            type: string
+            description: "Extracted customer full name"
+          email:
+            type: string
+            description: "Extracted email address"
+          phone:
+            type: string
+            description: "Extracted phone number (optional)"
+        required: [customer_name, email]
+
+      tools:
+        - tool_type: builtin
+          tool_name: "load_artifact"
+        - tool_type: builtin
+          tool_name: "convert_file_to_markdown"
+        - tool_type: builtin
+          tool_name: "create_structured_output"
+
+      session_service:
+        <<: *default_session_service
+
+      artifact_service:
+        <<: *default_artifact_service
+
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+
+      agent_card:
+        description: "Extracts customer information from documents with high accuracy"
+        defaultInputModes: ["file"]
+        defaultOutputModes: ["text"]
+        skills:
+          - name: "extract_customer_info"
+            description: "Extract customer name, email, and phone from documents"
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # PERSONA AGENT 2: ValidateInfoAgent
+  # Validates extracted customer information
+  # ============================================================================
+  - name: validate_info_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "ValidateInfoAgent"
+      display_name: "Customer Info Validator"
+      model: *planning_model
+
+      instruction: |
+        You are a data validation specialist. Your job is to validate customer
+        information for correctness and completeness.
+
+        WORKFLOW MODE INSTRUCTIONS:
+        When running as part of a workflow, you MUST follow these rules:
+
+        1. Receive customer information in the input
+        2. Validate each field using your reasoning:
+           - customer_name: Must not be empty, should look like a real name
+           - email: Must be valid email format (user@domain.tld)
+             * Should contain @ symbol
+             * Should have domain with at least one dot
+             * Should not have spaces
+           - phone: If provided, must be valid format
+             * Should contain only digits, spaces, dashes, parentheses, or plus sign
+             * Should be 10-15 digits long (excluding separators)
+
+        3. Create a validation result using create_structured_output tool with:
+           - A descriptive filename like "validation_result.json"
+           - The validation result as a JSON object
+
+        4. Mark your result with the result embed:
+           «result:artifact=validation_result.json status=success»
+
+        5. The output MUST include:
+           - is_valid: true if all checks pass, false otherwise
+           - error_message: Only if is_valid is false, describe what failed
+
+        Be thorough but reasonable in validation. Minor formatting variations
+        are acceptable if the data is clearly legitimate.
+
+        IMPORTANT: You have the intelligence to validate these fields without
+        external tools. Use your reasoning to check the format and validity.
+
+      # Input schema
+      input_schema:
+        type: object
+        properties:
+          customer_name:
+            type: string
+          email:
+            type: string
+          phone:
+            type: string
+
+      # Output schema
+      output_schema:
+        type: object
+        properties:
+          is_valid:
+            type: boolean
+            description: "Whether all validation checks passed"
+          error_message:
+            type: string
+            description: "Error message if validation failed"
+        required: [is_valid]
+
+      tools:
+        - tool_type: builtin
+          tool_name: "create_structured_output"
+
+      session_service:
+        <<: *default_session_service
+
+      artifact_service:
+        <<: *default_artifact_service
+
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+
+      agent_card:
+        description: "Validates customer information for correctness and completeness"
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills:
+          - name: "validate_customer_data"
+            description: "Validate customer name, email, and phone number"
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # PERSONA AGENT 3: CreateAccountAgent
+  # Creates customer accounts (simulated)
+  # ============================================================================
+  - name: create_account_agent_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "CreateAccountAgent"
+      display_name: "Account Creator"
+      model: *planning_model
+
+      instruction: |
+        You are an account creation specialist. Your job is to create customer
+        accounts based on validated customer information.
+
+        WORKFLOW MODE INSTRUCTIONS:
+        When running as part of a workflow, you MUST follow these rules:
+
+        1. Receive validated customer information
+        2. Generate a unique account ID in the format "CUST-XXXXXXXX" where X is
+           a random alphanumeric character
+        3. Create a result artifact with create_structured_output containing:
+           - account_id: The generated account ID (e.g., "CUST-A1B2C3D4")
+           - status: "created"
+           - timestamp: Current ISO timestamp
+
+        4. Mark your result with the result embed:
+           «result:artifact=account_result.json status=success»
+
+        5. If account creation fails:
+           «result:status=failure message="Description of the problem"»
+
+        IMPORTANT: You can generate the account ID and timestamp yourself.
+        Use your reasoning to create a unique identifier.
+
+      # Input schema
+      input_schema:
+        type: object
+        properties:
+          customer_name:
+            type: string
+          email:
+            type: string
+          phone:
+            type: string
+        required: [customer_name, email]
+
+      # Output schema
+      output_schema:
+        type: object
+        properties:
+          account_id:
+            type: string
+            description: "Generated account identifier"
+          status:
+            type: string
+            description: "Account creation status"
+          timestamp:
+            type: string
+            description: "Account creation timestamp"
+        required: [account_id, status]
+
+      tools:
+        - tool_type: builtin
+          tool_name: "create_structured_output"
+
+      session_service:
+        <<: *default_session_service
+
+      artifact_service:
+        <<: *default_artifact_service
+
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+
+      agent_card:
+        description: "Creates customer accounts from validated information"
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills:
+          - name: "create_account"
+            description: "Create a new customer account"
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # WORKFLOW: CustomerOnboardingWorkflow
+  # Orchestrates the three agents above in a DAG
+  # ============================================================================
+  - name: customer_onboarding_workflow
+    app_base_path: .
+    app_module: solace_agent_mesh.workflow.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "CustomerOnboardingWorkflow"
+      display_name: "Customer Onboarding Pipeline"
+
+      # Workflow definition
+      workflow:
+        description: "Complete customer onboarding workflow from document to account"
+
+        # Workflow-level input schema (optional)
+        input_schema:
+          type: object
+          properties:
+            document_filename:
+              type: string
+              description: "Name of the onboarding document artifact"
+          required: [document_filename]
+
+        # Workflow-level output schema (optional)
+        output_schema:
+          type: object
+          properties:
+            account_id:
+              type: string
+              description: "Created account identifier"
+            customer_name:
+              type: string
+              description: "Customer name"
+            onboarding_status:
+              type: string
+              description: "Overall onboarding status"
+          required: [account_id, onboarding_status]
+
+        # Workflow DAG
+        nodes:
+          # Node 1: Extract customer info from document
+          - id: extract_info
+            type: agent
+            agent_persona: "ExtractInfoAgent"
+            input:
+              # Map workflow input to node input
+              document_filename: "{{workflow.input.document_filename}}"
+
+          # Node 2: Validate extracted info
+          - id: validate_info
+            type: agent
+            agent_persona: "ValidateInfoAgent"
+            depends_on: [extract_info]
+            input:
+              # Map previous node output to this node input
+              customer_name: "{{extract_info.output.customer_name}}"
+              email: "{{extract_info.output.email}}"
+              phone: "{{extract_info.output.phone}}"
+
+          # Node 3: Conditional routing based on validation
+          - id: validation_check
+            type: conditional
+            depends_on: [validate_info]
+            condition: "{{validate_info.output.is_valid}} == true"
+            true_branch: create_account
+            false_branch: null  # Workflow fails if validation fails
+
+          # Node 4: Create account if validation passed
+          - id: create_account
+            type: agent
+            agent_persona: "CreateAccountAgent"
+            depends_on: [validation_check]
+            input:
+              customer_name: "{{extract_info.output.customer_name}}"
+              email: "{{extract_info.output.email}}"
+              phone: "{{extract_info.output.phone}}"
+
+        # Map final workflow output
+        output_mapping:
+          account_id: "{{create_account.output.account_id}}"
+          customer_name: "{{extract_info.output.customer_name}}"
+          onboarding_status: "{{create_account.output.status}}"
+
+        # Optional skills for workflow agent card
+        skills:
+          - name: "onboard_customer"
+            description: "Complete customer onboarding from document to account"
+
+      # Workflow execution settings
+      max_workflow_execution_time_seconds: 600  # 10 minutes
+      default_node_timeout_seconds: 120  # 2 minutes per node
+      node_cancellation_timeout_seconds: 30
+
+      # Session and artifact services
+      session_service:
+        <<: *default_session_service
+
+      artifact_service:
+        <<: *default_artifact_service
+
+      # Agent card for the workflow (auto-populated from workflow definition)
+      agent_card:
+        description: "Complete customer onboarding workflow from document to account"
+        defaultInputModes: ["file"]
+        defaultOutputModes: ["text"]
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }

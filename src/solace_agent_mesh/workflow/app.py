@@ -171,12 +171,10 @@ class WorkflowApp(App):
         workflow_name = app_config.agent_name
         workflow_def = app_config.workflow
 
-        # Auto-populate agent card schemas
-        if not app_config.agent_card.input_schema and workflow_def.input_schema:
-            app_config.agent_card.input_schema = workflow_def.input_schema
-
-        if not app_config.agent_card.output_schema and workflow_def.output_schema:
-            app_config.agent_card.output_schema = workflow_def.output_schema
+        # Auto-populate agent card with workflow schemas in skills
+        # Note: AgentCardConfig doesn't have input_schema/output_schema directly
+        # These should be specified in the agent_card.skills in the YAML config
+        # or they can be added to the workflow definition's skills field
 
         # Generate subscriptions
         subscriptions = self._generate_subscriptions(namespace, workflow_name)
@@ -186,12 +184,12 @@ class WorkflowApp(App):
             "component_name": workflow_name,
             "component_module": "solace_agent_mesh.workflow.component",
             "component_config": {"app_config": app_config.model_dump()},
+            "subscriptions": subscriptions,  # Include subscriptions in component
         }
 
         # Update app_info with validated config
         app_info["app_config"] = app_config.model_dump()
-        app_info["subscriptions"] = subscriptions
-        app_info["component_list"] = [component_info]
+        app_info["components"] = [component_info]  # Use 'components' not 'component_list'
 
         # Call parent App constructor
         super().__init__(app_info, **kwargs)

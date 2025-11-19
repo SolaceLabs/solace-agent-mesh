@@ -44,7 +44,10 @@
       "Bash(awk -F',' '{files[$1]+=$2; ins[$1]+=$3; del[$1]+=$4} END {for (name in files) print name \"\"\"\",\"\"\"\" files[name] \"\"\"\",\"\"\"\" ins[name] \"\"\"\",\"\"\"\" del[name]}')",
       "Bash(sort -t',' -k3 -nr)",
       "Bash(gh pr view:*)",
-      "Bash(gh pr diff:*)"
+      "Bash(gh pr diff:*)",
+      "Bash(/usr/bin/env /Users/edfunnekotter/github/solace-agent-mesh/.venv/bin/python -m solace_ai_connector.main:*)",
+      "Bash(/usr/bin/env:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []
