@@ -1,4 +1,5 @@
-import { MessageBanner } from "@/lib/components/common/MessageBanner";
+import { Button } from "@/lib";
+import { BANNER_BUTTON_STYLES, MessageBanner } from "@/lib/components/common/MessageBanner";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 
 const meta = {
@@ -85,6 +86,26 @@ export const DismissibleBannerWithAction: Story = {
         buttonText: "Click here",
         action: () => alert("This action will do something"),
         onDismiss: () => alert("Banner will be dismissed"),
+    },
+};
+
+export const BannerWithCustomButton: Story = {
+    args: {
+        variant: "warning",
+        message: "Dissms me",
+        button: <Button onClick={() => alert("Custom button will do something")}>Custom button</Button>,
+    },
+};
+
+export const BannerWithCustomButtonAndSameStyles: Story = {
+    args: {
+        variant: "warning",
+        message: "Dissms me",
+        button: (
+            <Button className={BANNER_BUTTON_STYLES} onClick={() => alert("Custom button will do something")}>
+                Custom button
+            </Button>
+        ),
     },
 };
 
