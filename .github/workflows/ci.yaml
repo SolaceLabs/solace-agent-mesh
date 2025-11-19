@@ -183,7 +183,7 @@ jobs:
           file: Dockerfile
           platforms: ${{ matrix.platform.name }}
           tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
-          push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) || github.ref_name == 'build-optimization' }}
+          push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
           cache-from: ${{ steps.cache_list.outputs.cache_from }}
           cache-to: ${{ steps.image_name.outputs.cache_to }}
           provenance: false
@@ -195,7 +195,7 @@ jobs:
   merge-manifest:
     name: Create Multi-Platform Manifest
     needs: [prepare-metadata, build-platform]
-    if: fromJSON(needs.prepare-metadata.outputs.docker_push) || ${{ github.ref_name == 'build-optimization' }}
+    if: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
@@ -237,7 +237,7 @@ jobs:
           echo "Created tags: ${tags}"
 
       - name: Create and Push Multi-Platform Manifest
-        if: fromJSON(needs.prepare-metadata.outputs.docker_push) || ${{ github.ref_name == 'build-optimization' }}
+        if: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
         run: |
           # Define the platform-specific tags
           AMD_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-amd64"
