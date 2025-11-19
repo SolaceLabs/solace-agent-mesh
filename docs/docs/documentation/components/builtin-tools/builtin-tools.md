@@ -65,11 +65,9 @@ The following sections detail the available tool groups and the individual tools
 **Description**: Tools for creating, loading, and managing file artifacts.
 
 **Individual Tools**:
-- `create_artifact`
 - `append_to_artifact`
 - `list_artifacts`
 - `load_artifact`
-- `signal_artifact_for_return`
 - `apply_embed_and_create_artifact`
 - `extract_content_from_artifact`
 

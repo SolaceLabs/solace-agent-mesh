@@ -42,6 +42,7 @@ from ....common.utils.embeds import (
 )
 from ....common.utils.embeds.types import ResolutionMode
 from ....common.utils.mime_helpers import is_text_based_mime_type
+from ....common.utils.templates import resolve_template_blocks_in_string
 from ..dependencies import (
     get_project_service_optional,
     ValidatedUserConfig,
@@ -704,12 +705,26 @@ async def get_latest_artifact(
                     max_depth=component.gateway_recursive_embed_depth,
                     max_total_size=component.gateway_max_artifact_resolve_size_bytes,
                 )
-                data_bytes = resolved_content_string.encode("utf-8")
                 log.info(
                     "%s Recursive embed resolution complete. New size: %d bytes.",
                     log_prefix,
-                    len(data_bytes),
+                    len(resolved_content_string),
                 )
+
+                # Also resolve any template blocks in the artifact
+                resolved_content_string = await resolve_template_blocks_in_string(
+                    text=resolved_content_string,
+                    artifact_service=artifact_service,
+                    session_context=context_for_resolver["session_context"],
+                    log_identifier=f"{log_prefix}[TemplateResolve]",
+                )
+                log.info(
+                    "%s Template block resolution complete. Final size: %d bytes.",
+                    log_prefix,
+                    len(resolved_content_string),
+                )
+
+                data_bytes = resolved_content_string.encode("utf-8")
             except UnicodeDecodeError as ude:
                 log.warning(
                     "%s Failed to decode artifact for recursive resolution: %s. Serving original content.",
@@ -885,12 +900,26 @@ async def get_specific_artifact_version(
                     max_depth=component.gateway_recursive_embed_depth,
                     max_total_size=component.gateway_max_artifact_resolve_size_bytes,
                 )
-                data_bytes = resolved_content_string.encode("utf-8")
                 log.info(
                     "%s Recursive embed resolution complete. New size: %d bytes.",
                     log_prefix,
-                    len(data_bytes),
+                    len(resolved_content_string),
                 )
+
+                # Also resolve any template blocks in the artifact
+                resolved_content_string = await resolve_template_blocks_in_string(
+                    text=resolved_content_string,
+                    artifact_service=artifact_service,
+                    session_context=context_for_resolver["session_context"],
+                    log_identifier=f"{log_prefix}[TemplateResolve]",
+                )
+                log.info(
+                    "%s Template block resolution complete. Final size: %d bytes.",
+                    log_prefix,
+                    len(resolved_content_string),
+                )
+
+                data_bytes = resolved_content_string.encode("utf-8")
             except UnicodeDecodeError as ude:
                 log.warning(
                     "%s Failed to decode artifact for recursive resolution: %s. Serving original content.",

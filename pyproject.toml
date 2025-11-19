@@ -32,6 +32,7 @@ dependencies = [
     "python-jwt==4.1.0",
     "asteval==1.0.6",
     "pystache==0.6.8",
+    "python-liquid==2.1.0",
     "pandas==2.3.2",
     "numpy==2.2.6",
     "plotly==6.3.0",
@@ -56,14 +57,15 @@ dependencies = [
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
-    "solace_ai_connector==1.4.1",
+    "solace_ai_connector==3.0.1",
     "holidays==0.81.0",
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
     "alembic==1.16.5",
     "openai==1.99.9",
     "boto3==1.40.37",
-    "psycopg2-binary==2.9.10"
+    "psycopg2-binary==2.9.10",
+    "azure-cognitiveservices-speech==1.41.1"
 ]
 
 [project.optional-dependencies]
@@ -174,6 +176,9 @@ markers = [
     "security: marks tests related to security and authorization",
     "error: marks tests related to error handling scenarios",
     "validation: marks tests related to input validation",
+    "prompts: marks tests related to the prompts library feature",
+    "versioning: marks tests related to version management",
+    "search: marks tests related to search and filtering functionality",
 
     # Agent Tools
     # Markers for the built-in agent tools.

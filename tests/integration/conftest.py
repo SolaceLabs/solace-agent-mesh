@@ -112,7 +112,11 @@ def clean_db_fixture(test_db_engine):
                 "chat_messages",
                 "tasks",
                 "sessions",
-                "projects",
+                "prompt_group_users",  
+                "prompts",             
+                "prompt_groups",      
+                "project_users",      
+                "projects",            
                 "users",
             ]
             for table_name in tables_to_clean:
