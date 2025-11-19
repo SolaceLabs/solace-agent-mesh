@@ -6,3 +6,5 @@ export { PromptBuilderChat } from "./PromptBuilderChat";
 export { TemplatePreviewPanel } from "./TemplatePreviewPanel";
 export { PromptDeleteDialog } from "./PromptDeleteDialog";
 export { PromptRestoreDialog } from "./PromptRestoreDialog";
+export { VersionHistoryPage } from "./VersionHistoryPage";
+export { GeneratePromptDialog } from "./GeneratePromptDialog";

@@ -131,7 +131,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
 
     return (
         <div className="absolute inset-0 h-full w-full">
-            <ResizablePanelGroup direction="horizontal" className="h-full">
+            <ResizablePanelGroup id="promptCardsPanelGroup" direction="horizontal" className="h-full">
                 <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={selectedPrompt ? 100 : 100} id="promptCardsMainPanel">
                     <div className="flex h-full flex-col pt-6 pb-6 pl-6">
                         {!isLibraryEmpty && (
