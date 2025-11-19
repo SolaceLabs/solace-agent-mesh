@@ -80,7 +80,9 @@ async def _inject_project_context(
     from ..utils.artifact_copy_utils import copy_project_artifacts_to_session
 
     if SessionLocal is None:
-        log.warning("%sProject context injection skipped: database not configured", log_prefix)
+        log.warning(
+            "%sProject context injection skipped: database not configured", log_prefix
+        )
         return message_text
 
     db = SessionLocal()
@@ -94,7 +96,9 @@ async def _inject_project_context(
         # Only inject full context for new sessions
         if inject_full_context:
             # Start with clear workspace framing
-            context_parts.append(f'You are working in the project workspace: "{project.name}"')
+            context_parts.append(
+                f'You are working in the project workspace: "{project.name}"'
+            )
 
             # Add system prompt if exists
             if project.system_prompt and project.system_prompt.strip():
@@ -165,7 +169,9 @@ async def _inject_project_context(
                             context_parts.append(new_files_context)
 
             except Exception as e:
-                log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
+                log.warning(
+                    "%sFailed to copy project artifacts to session: %s", log_prefix, e
+                )
                 # Do not fail the entire request, just log the warning
 
         # Inject all gathered context into the message, ending with user query
@@ -269,12 +275,21 @@ async def _submit_task(
             if SessionLocal is not None:
                 db = SessionLocal()
                 try:
-                    session_details = session_service.get_session_details(db, frontend_session_id, user_id)
+                    session_details = session_service.get_session_details(
+                        db, frontend_session_id, user_id
+                    )
                     if session_details and session_details.project_id:
                         project_id = session_details.project_id
-                        log.info("%sFound project_id %s from session database for session %s", log_prefix, project_id, frontend_session_id)
+                        log.info(
+                            "%sFound project_id %s from session database for session %s",
+                            log_prefix,
+                            project_id,
+                            frontend_session_id,
+                        )
                 except Exception as e:
-                    log.warning("%sFailed to lookup session project_id: %s", log_prefix, e)
+                    log.warning(
+                        "%sFailed to lookup session project_id: %s", log_prefix, e
+                    )
                 finally:
                     db.close()
 
@@ -328,7 +343,7 @@ async def _submit_task(
                 if hasattr(part, "text"):
                     message_text = part.text
                     break
-        
+
         # Project context injection - always inject for project sessions to ensure new files are available
         # Skip if project_service is None (persistence disabled)
         modified_message = payload.params.message
@@ -390,7 +405,9 @@ async def _submit_task(
                     new_parts.insert(0, new_text_part)
 
                 # Update the message with the new parts
-                modified_message = a2a.update_message_parts(payload.params.message, new_parts)
+                modified_message = a2a.update_message_parts(
+                    payload.params.message, new_parts
+                )
 
         # Use the helper to get the unwrapped parts from the modified message (with project context if applied).
         a2a_parts = a2a.get_parts_from_message(modified_message)
@@ -527,8 +544,8 @@ async def search_tasks(
         )
 
 
-@router.get("/tasks/{task_id}", tags=["Tasks"])
-async def get_task_as_stim_file(
+@router.get("/tasks/{task_id}/events", tags=["Tasks"])
+async def get_task_events(
     task_id: str,
     request: FastAPIRequest,
     db: DBSession = Depends(get_db),
@@ -537,9 +554,11 @@ async def get_task_as_stim_file(
     repo: ITaskRepository = Depends(get_task_repository),
 ):
     """
-    Retrieves the complete event history for a single task and returns it as a `.stim` file.
+    Retrieves the complete event history for a task and all its child tasks as JSON.
+    Returns events in the same format as the SSE stream for workflow visualization.
+    Recursively loads all descendant tasks to enable full workflow rendering.
     """
-    log_prefix = f"[GET /api/v1/tasks/{task_id}] "
+    log_prefix = f"[GET /api/v1/tasks/{task_id}/events] "
     log.info("%sRequest from user %s", log_prefix, user_id)
 
     try:
@@ -559,8 +578,253 @@ async def get_task_as_stim_file(
                 detail="You do not have permission to view this task.",
             )
 
-        # Format into .stim structure
-        stim_data = create_stim_from_task_data(task, events)
+        # Transform task events into A2AEventSSEPayload format for the frontend
+        # Need to reconstruct the SSE structure from stored data
+        formatted_events = []
+        for event in events:
+            # event.payload contains the raw A2A JSON-RPC message
+            # event.created_time is epoch milliseconds
+            # event.direction is simplified (request, response, status, error, etc)
+
+            # Convert timestamp from epoch milliseconds to ISO 8601
+            from datetime import datetime, timezone
+            timestamp_dt = datetime.fromtimestamp(event.created_time / 1000, tz=timezone.utc)
+            timestamp_iso = timestamp_dt.isoformat()
+
+            # Extract metadata from payload using similar logic to SSE component
+            payload = event.payload
+            message_id = payload.get("id")
+            source_entity = "unknown"
+            target_entity = "unknown"
+            method = "N/A"
+
+            # Parse based on direction
+            if event.direction == "request":
+                # It's a request - extract target from message metadata
+                method = payload.get("method", "N/A")
+                if "params" in payload and "message" in payload.get("params", {}):
+                    message = payload["params"]["message"]
+                    if isinstance(message, dict) and "metadata" in message:
+                        target_entity = message["metadata"].get("agent_name", "unknown")
+            elif event.direction in ["status", "response", "error"]:
+                # It's a response - extract source from result metadata
+                if "result" in payload:
+                    result = payload["result"]
+                    if isinstance(result, dict):
+                        # Check for agent_name in metadata
+                        if "metadata" in result:
+                            source_entity = result["metadata"].get("agent_name", "unknown")
+                        # For status updates, check the message inside
+                        if "message" in result:
+                            message = result["message"]
+                            if isinstance(message, dict) and "metadata" in message:
+                                if source_entity == "unknown":
+                                    source_entity = message["metadata"].get("agent_name", "unknown")
+
+            # Map stored direction to SSE direction format
+            direction_map = {
+                "request": "request",
+                "response": "task",
+                "status": "status-update",
+                "error": "error_response",
+            }
+            sse_direction = direction_map.get(event.direction, event.direction)
+
+            # Build the A2AEventSSEPayload structure
+            formatted_event = {
+                "event_type": "a2a_message",
+                "timestamp": timestamp_iso,
+                "solace_topic": event.topic,
+                "direction": sse_direction,
+                "source_entity": source_entity,
+                "target_entity": target_entity,
+                "message_id": message_id,
+                "task_id": task_id,
+                "payload_summary": {
+                    "method": method,
+                    "params_preview": None,
+                },
+                "full_payload": payload,
+            }
+            formatted_events.append(formatted_event)
+
+        # Use database-level query to get all related tasks efficiently
+        related_task_ids = repo.find_all_by_parent_chain(db, task_id)
+        log.info(
+            "%sFound %d related tasks for task_id %s",
+            log_prefix,
+            len(related_task_ids),
+            task_id,
+        )
+
+        # Load and format all related tasks
+        all_tasks = {}
+        all_tasks[task_id] = {
+            "events": formatted_events,
+            "initial_request_text": task.initial_request_text or "",
+        }
+
+        # Load remaining related tasks
+        for tid in related_task_ids:
+            if tid == task_id:
+                continue  # Already loaded
+
+            task_result = repo.find_by_id_with_events(db, tid)
+            if not task_result:
+                continue
+
+            related_task, related_events = task_result
+
+            # Check permissions for each related task
+            if related_task.user_id != user_id and not can_read_all:
+                log.warning(
+                    "%sSkipping related task %s due to permission check",
+                    log_prefix,
+                    tid,
+                )
+                continue
+
+            # Format events for this related task
+            related_formatted_events = []
+            for event in related_events:
+                from datetime import datetime, timezone
+
+                timestamp_dt = datetime.fromtimestamp(
+                    event.created_time / 1000, tz=timezone.utc
+                )
+                timestamp_iso = timestamp_dt.isoformat()
+                payload = event.payload
+                message_id = payload.get("id")
+                source_entity = "unknown"
+                target_entity = "unknown"
+                method = "N/A"
+
+                if event.direction == "request":
+                    method = payload.get("method", "N/A")
+                    if "params" in payload and "message" in payload.get("params", {}):
+                        message = payload["params"]["message"]
+                        if isinstance(message, dict) and "metadata" in message:
+                            target_entity = message["metadata"].get(
+                                "agent_name", "unknown"
+                            )
+                elif event.direction in ["status", "response", "error"]:
+                    if "result" in payload:
+                        result = payload["result"]
+                        if isinstance(result, dict):
+                            if "metadata" in result:
+                                source_entity = result["metadata"].get(
+                                    "agent_name", "unknown"
+                                )
+                            if "message" in result:
+                                message = result["message"]
+                                if isinstance(message, dict) and "metadata" in message:
+                                    if source_entity == "unknown":
+                                        source_entity = message["metadata"].get(
+                                            "agent_name", "unknown"
+                                        )
+
+                direction_map = {
+                    "request": "request",
+                    "response": "task",
+                    "status": "status-update",
+                    "error": "error_response",
+                }
+                sse_direction = direction_map.get(event.direction, event.direction)
+
+                formatted_event = {
+                    "event_type": "a2a_message",
+                    "timestamp": timestamp_iso,
+                    "solace_topic": event.topic,
+                    "direction": sse_direction,
+                    "source_entity": source_entity,
+                    "target_entity": target_entity,
+                    "message_id": message_id,
+                    "task_id": tid,
+                    "payload_summary": {"method": method, "params_preview": None},
+                    "full_payload": payload,
+                }
+                related_formatted_events.append(formatted_event)
+
+            all_tasks[tid] = {
+                "events": related_formatted_events,
+                "initial_request_text": related_task.initial_request_text or "",
+            }
+
+        # Return all tasks (parent + children) for the frontend to process
+        return {"tasks": all_tasks}
+
+    except HTTPException:
+        # Re-raise HTTPExceptions (404, 403, etc.) without modification
+        raise
+    except Exception as e:
+        log.exception("%sError retrieving task events: %s", log_prefix, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while retrieving the task events.",
+        )
+
+
+@router.get("/tasks/{task_id}", tags=["Tasks"])
+async def get_task_as_stim_file(
+    task_id: str,
+    request: FastAPIRequest,
+    db: DBSession = Depends(get_db),
+    user_id: UserId = Depends(get_user_id),
+    user_config: dict = Depends(get_user_config),
+    repo: ITaskRepository = Depends(get_task_repository),
+):
+    """
+    Retrieves the complete event history for a task and all its child tasks, returning it as a `.stim` file.
+    """
+    log_prefix = f"[GET /api/v1/tasks/{task_id}] "
+    log.info("%sRequest from user %s", log_prefix, user_id)
+
+    try:
+        # Find all related task IDs (parent chain + all children)
+        related_task_ids = repo.find_all_by_parent_chain(db, task_id)
+
+        if not related_task_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task with ID '{task_id}' not found.",
+            )
+
+        # Load all tasks and their events
+        tasks_dict = {}
+        events_dict = {}
+        can_read_all = user_config.get("scopes", {}).get("tasks:read:all", False)
+
+        for tid in related_task_ids:
+            result = repo.find_by_id_with_events(db, tid)
+            if result:
+                task, events = result
+
+                # Check permissions for each task
+                if task.user_id != user_id and not can_read_all:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You do not have permission to view this task.",
+                    )
+
+                tasks_dict[tid] = task
+                events_dict[tid] = events
+
+        if task_id not in tasks_dict:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Task with ID '{task_id}' not found.",
+            )
+
+        # Determine the root task (the one without a parent)
+        root_task_id = task_id
+        for tid, task in tasks_dict.items():
+            if task.parent_task_id is None:
+                root_task_id = tid
+                break
+
+        # Format into .stim structure with all tasks
+        from ..utils.stim_utils import create_stim_from_task_hierarchy
+        stim_data = create_stim_from_task_hierarchy(tasks_dict, events_dict, root_task_id)
 
         yaml_content = yaml.dump(
             stim_data,
@@ -572,8 +836,8 @@ async def get_task_as_stim_file(
 
         return Response(
             content=yaml_content,
-            media_type="application/x-yaml",
-            headers={"Content-Disposition": f'attachment; filename="{task_id}.stim"'},
+            media_type="application/yaml",
+            headers={"Content-Disposition": f'attachment; filename="{root_task_id}.stim"'},
         )
 
     except HTTPException:

@@ -39,6 +39,6 @@ export const FilterNoResultsFound: Story = {
         const input = await canvas.findByTestId("agentSearchInput");
         await userEvent.type(input, "test");
 
-        await canvas.findByText("No agents match your search");
+        await canvas.findByText("No Agents Match Your Filter");
     },
 };

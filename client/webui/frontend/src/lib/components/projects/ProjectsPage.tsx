@@ -3,7 +3,7 @@ import { RefreshCcw } from "lucide-react";
 
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
-import { ProjectsListView } from "./ProjectsListView";
+import { ProjectCards } from "./ProjectCards";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { useProjectContext } from "@/lib/providers";
 import { useChatContext } from "@/lib/hooks";
@@ -22,18 +22,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const {
-        isLoading,
-        createProject,
-        selectedProject,
-        setSelectedProject,
-        setActiveProject,
-        refetch,
-        searchQuery,
-        setSearchQuery,
-        filteredProjects,
-        deleteProject,
-    } = useProjectContext();
+    const { isLoading, createProject, selectedProject, setSelectedProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
     const { handleNewSession, handleSwitchSession } = useChatContext();
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
@@ -47,10 +36,10 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
 
             const newProject = await createProject(formData);
             setShowCreateDialog(false);
-            
+
             // Refetch projects to get artifact counts
             await refetch();
-            
+
             // Auto-select the newly created project
             setSelectedProject(newProject);
         } finally {
@@ -67,7 +56,6 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     };
 
     const handleChatClick = async (sessionId: string) => {
-
         if (selectedProject) {
             setActiveProject(selectedProject);
         }
@@ -142,42 +130,24 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                 <Header
                     title="Projects"
                     buttons={[
-                        <Button key="refresh-projects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
+                        <Button key="refreshProjects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
                             <RefreshCcw className="size-4" />
-                            Refresh
-                        </Button>
+                            Refresh Projects
+                        </Button>,
                     ]}
                 />
             )}
-            
-            <div className="flex-1 min-h-0">
+
+            <div className="min-h-0 flex-1">
                 {showDetailView ? (
-                    <ProjectDetailView
-                        project={selectedProject}
-                        onBack={handleBackToList}
-                        onStartNewChat={handleStartNewChat}
-                        onChatClick={handleChatClick}
-                    />
+                    <ProjectDetailView project={selectedProject} onBack={handleBackToList} onStartNewChat={handleStartNewChat} onChatClick={handleChatClick} />
                 ) : (
-                    <ProjectsListView
-                        projects={filteredProjects}
-                        searchQuery={searchQuery}
-                        onSearchChange={setSearchQuery}
-                        onProjectClick={handleProjectSelect}
-                        onCreateNew={handleCreateNew}
-                        onDelete={handleDeleteClick}
-                        isLoading={isLoading}
-                    />
+                    <ProjectCards projects={filteredProjects} searchQuery={searchQuery} onSearchChange={setSearchQuery} onProjectClick={handleProjectSelect} onCreateNew={handleCreateNew} onDelete={handleDeleteClick} isLoading={isLoading} />
                 )}
             </div>
-            
+
             {/* Create Project Dialog */}
-            <CreateProjectDialog
-                isOpen={showCreateDialog}
-                onClose={() => setShowCreateDialog(false)}
-                onSubmit={handleCreateProject}
-                isSubmitting={isCreating}
-            />
+            <CreateProjectDialog isOpen={showCreateDialog} onClose={() => setShowCreateDialog(false)} onSubmit={handleCreateProject} isSubmitting={isCreating} />
 
             {/* Delete Project Dialog */}
             <DeleteProjectDialog

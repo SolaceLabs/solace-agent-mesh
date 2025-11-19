@@ -281,20 +281,18 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
     return (
         <div className="flex h-full flex-col gap-4 py-6 pl-6">
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
                 {/* Session Search */}
                 <div className="pr-4">
                     <SessionSearch onSessionSelect={handleSwitchSession} projectId={selectedProjectId} />
                 </div>
-
-                <div className="text-lg">Chat Session History</div>
 
                 {/* Project Filter - Only show when persistence is enabled */}
                 {persistenceEnabled && projectNames.length > 0 && (
                     <div className="flex items-center gap-2 pr-4">
                         <label className="text-sm font-medium">Project:</label>
                         <Select value={selectedProject} onValueChange={setSelectedProject}>
-                            <SelectTrigger className="w-[200px] rounded-md">
+                            <SelectTrigger className="flex-1 rounded-md">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -315,7 +313,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     <ul>
                         {filteredSessions.map(session => (
                             <li key={session.id} className="group my-2 pr-4">
-                                <div className={`flex items-center gap-2 rounded px-4 py-2 ${session.id === sessionId ? "bg-muted" : ""}`}>
+                                <div className={`flex items-center gap-2 rounded px-2 py-2 ${session.id === sessionId ? "bg-muted" : ""}`}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}

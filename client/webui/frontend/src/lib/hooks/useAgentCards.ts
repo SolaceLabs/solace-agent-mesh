@@ -57,8 +57,7 @@ interface useAgentCardsReturn {
 export const useAgentCards = (): useAgentCardsReturn => {
     const { configServerUrl } = useConfigContext();
     const [agents, setAgents] = useState<AgentCardInfo[]>([]);
-    const [agentNameMap, setAgentNameMap] = useState<Record<string, string>>({});
-    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
 
     const fetchAgents = useCallback(async () => {
@@ -74,15 +73,6 @@ export const useAgentCards = (): useAgentCardsReturn => {
             const data: AgentCard[] = await response.json();
             const transformedAgents = data.map(transformAgentCard);
             setAgents(transformedAgents);
-
-            // Create a mapping of agent names to display names for easy lookup
-            const nameDisplayNameMap: Record<string, string> = {};
-            transformedAgents.forEach(agent => {
-                if (agent.name) {
-                    nameDisplayNameMap[agent.name] = agent.displayName || agent.name;
-                }
-            });
-            setAgentNameMap(nameDisplayNameMap);
         } catch (err: unknown) {
             console.error("Error fetching agents:", err);
             setError(err instanceof Error ? err.message : "Could not load agent information.");
@@ -95,6 +85,16 @@ export const useAgentCards = (): useAgentCardsReturn => {
     useEffect(() => {
         fetchAgents();
     }, [fetchAgents]);
+
+    const agentNameMap = useMemo(() => {
+        const nameDisplayNameMap: Record<string, string> = {};
+        agents.forEach(agent => {
+            if (agent.name) {
+                nameDisplayNameMap[agent.name] = agent.displayName || agent.name;
+            }
+        });
+        return nameDisplayNameMap;
+    }, [agents]);
 
     return useMemo(
         () => ({

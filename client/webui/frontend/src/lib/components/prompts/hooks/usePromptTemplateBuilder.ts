@@ -3,6 +3,7 @@ import { detectVariables, validatePromptText } from '@/lib/utils/promptUtils';
 import { useChatContext } from '@/lib/hooks';
 import type { PromptGroup } from '@/lib/types/prompts';
 import { isReservedCommand } from '@/lib/constants/reservedCommands';
+import { authenticatedFetch } from '@/lib/utils/api';
 
 export interface TemplateConfig {
     name?: string;
@@ -128,7 +129,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
             };
 
             // Call API to create prompt group
-            const response = await fetch('/api/v1/prompts/groups', {
+            const response = await authenticatedFetch('/api/v1/prompts/groups', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -196,7 +197,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                 if (config.command !== editingGroup?.command) updateData.command = config.command;
                 updateData.initial_prompt = config.prompt_text;
 
-                const response = await fetch(`/api/v1/prompts/groups/${groupId}`, {
+                const response = await authenticatedFetch(`/api/v1/prompts/groups/${groupId}`, {
                     method: 'PATCH',
                     headers: {
                         'Content-Type': 'application/json',
@@ -232,7 +233,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     if (config.category !== editingGroup?.category) updateData.category = config.category;
                     if (config.command !== editingGroup?.command) updateData.command = config.command;
 
-                    const groupResponse = await fetch(`/api/v1/prompts/groups/${groupId}`, {
+                    const groupResponse = await authenticatedFetch(`/api/v1/prompts/groups/${groupId}`, {
                         method: 'PATCH',
                         headers: {
                             'Content-Type': 'application/json',
@@ -251,7 +252,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
 
                 // Then update prompt text if it changed
                 if (promptTextChanged && editingPromptId) {
-                    const promptResponse = await fetch(`/api/v1/prompts/${editingPromptId}`, {
+                    const promptResponse = await authenticatedFetch(`/api/v1/prompts/${editingPromptId}`, {
                         method: 'PATCH',
                         headers: {
                             'Content-Type': 'application/json',

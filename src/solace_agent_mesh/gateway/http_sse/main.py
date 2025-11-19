@@ -36,6 +36,7 @@ from .routers import (
     feedback,
     people,
     sse,
+    speech,
     visualization,
     projects,
     prompts,
@@ -166,7 +167,7 @@ async def _create_user_state_without_identity_service(
             user_identifier,
         )
 
-    log.error(
+    log.debug(
         "AuthMiddleware: Internal IdentityService not configured on component. Using user ID: %s",
         final_user_id,
     )
@@ -620,6 +621,7 @@ def _setup_routers() -> None:
     app.include_router(projects.router, prefix=api_prefix, tags=["Projects"])
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
+    app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers from community repo

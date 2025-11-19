@@ -5,7 +5,7 @@ import { AgentMeshPage, ChatPage, bottomNavigationItems, getTopNavigationItems, 
 import { ProjectsPage } from "@/lib/components/projects";
 import { PromptsPage } from "@/lib/components/pages/PromptsPage";
 import { TextSelectionProvider, SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
-import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider } from "@/lib/providers";
+import { AuthProvider, ChatProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider, AudioSettingsProvider } from "@/lib/providers";
 import { UnsavedChangesProvider, useUnsavedChangesContext } from "@/lib/contexts";
 
 import { useAuthContext, useBeforeUnload, useConfigContext } from "@/lib/hooks";
@@ -150,11 +150,13 @@ function App() {
                     <AuthProvider>
                         <ProjectProvider>
                             <BrowserRouter>
-                                <ChatProvider>
-                                    <TaskProvider>
-                                        <AppContent />
-                                    </TaskProvider>
-                                </ChatProvider>
+                                <AudioSettingsProvider>
+                                        <ChatProvider>
+                                            <TaskProvider>
+                                                <AppContent />
+                                            </TaskProvider>
+                                        </ChatProvider>
+                                </AudioSettingsProvider>
                             </BrowserRouter>
                         </ProjectProvider>
                     </AuthProvider>
