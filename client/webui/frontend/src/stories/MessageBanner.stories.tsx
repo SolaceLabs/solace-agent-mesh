@@ -1,6 +1,7 @@
 import { Button } from "@/lib";
 import { BANNER_BUTTON_STYLES, MessageBanner } from "@/lib/components/common/MessageBanner";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
+import { Sparkles } from "lucide-react";
 
 const meta = {
     title: "Common/MessageBanner",
@@ -50,6 +51,14 @@ export const InfoBanner: Story = {
     args: {
         variant: "info",
         message: "Ensure all dependencies are installed",
+    },
+};
+
+export const CustomIconBanner: Story = {
+    args: {
+        variant: "info",
+        message: "This banner has a custom icon",
+        icon: <Sparkles className="size-4" />,
     },
 };
 
