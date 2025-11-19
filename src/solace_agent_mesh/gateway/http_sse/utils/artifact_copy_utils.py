@@ -6,6 +6,8 @@ import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from sqlalchemy.orm import Session as DbSession
+
 from ....agent.utils.artifact_helpers import (
     get_artifact_info_list,
     load_artifact_content_or_metadata,
@@ -31,6 +33,7 @@ async def has_pending_project_context(
     session_id: str,
     artifact_service: BaseArtifactService,
     app_name: str,
+    db: DbSession,
 ) -> bool:
     """
     Check if session has any artifacts with pending project context.
@@ -43,6 +46,7 @@ async def has_pending_project_context(
         session_id: Session ID
         artifact_service: Artifact service instance
         app_name: Application name for artifact storage
+        db: Database session
 
     Returns:
         True if any artifacts have project_context_pending=True metadata
@@ -84,6 +88,7 @@ async def clear_pending_project_context(
     session_id: str,
     artifact_service: BaseArtifactService,
     app_name: str,
+    db: DbSession,
     log_prefix: str = "",
 ) -> None:
     """
@@ -96,6 +101,7 @@ async def clear_pending_project_context(
         session_id: Session ID
         artifact_service: Artifact service instance
         app_name: Application name for artifact storage
+        db: Database session
         log_prefix: Optional prefix for log messages
     """
     try:
@@ -165,6 +171,7 @@ async def copy_project_artifacts_to_session(
     session_id: str,
     project_service: "ProjectService",
     component: "WebUIBackendComponent",
+    db: "DbSession",
     log_prefix: str = "",
 ) -> tuple[int, list[str]]:
     """
@@ -182,6 +189,7 @@ async def copy_project_artifacts_to_session(
         session_id: ID of the session to copy artifacts to
         project_service: ProjectService instance for accessing projects
         component: WebUIBackendComponent for accessing artifact service
+        db: Database session to use for queries
         log_prefix: Optional prefix for log messages
 
     Returns:
@@ -194,13 +202,10 @@ async def copy_project_artifacts_to_session(
         log.debug("%sNo project_id provided, skipping artifact copy", log_prefix)
         return 0, []
 
-    from ....gateway.http_sse.dependencies import SessionLocal
-
-    if SessionLocal is None:
-        log.warning("%sArtifact copy skipped: database not configured", log_prefix)
+    if db is None:
+        log.warning("%sArtifact copy skipped: database session not provided", log_prefix)
         return 0, []
 
-    db = SessionLocal()
     try:
         project = project_service.get_project(db, project_id, user_id)
         if not project:
@@ -372,5 +377,3 @@ async def copy_project_artifacts_to_session(
     except Exception as e:
         log.warning("%sFailed to copy project artifacts to session: %s", log_prefix, e)
         return 0, []
-    finally:
-        db.close()

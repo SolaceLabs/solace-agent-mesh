@@ -120,6 +120,7 @@ async def _inject_project_context(
                     session_id=session_id,
                     project_service=project_service,
                     component=component,
+                    db=db,
                     log_prefix=log_prefix,
                 )
 
@@ -136,8 +137,10 @@ async def _inject_project_context(
                     )
 
                     if project_artifacts:
-                        all_artifact_descriptions = []  # For new sessions - all files
-                        new_artifact_descriptions = []  # For existing sessions - only new files
+                        # For new sessions - all files
+                        all_artifact_descriptions = []
+                        # For existing sessions - only new files
+                        new_artifact_descriptions = []
 
                         for artifact_info in project_artifacts:
                             # Build description for all artifacts (for new sessions)
@@ -192,6 +195,7 @@ async def _inject_project_context(
                         session_id=session_id,
                         artifact_service=artifact_service,
                         app_name=project_service.app_name,
+                        db=db,
                         log_prefix=log_prefix,
                     )
                 except Exception as e:
@@ -356,21 +360,28 @@ async def _submit_task(
             # Check if there are artifacts with pending project context
             if frontend_session_id and not should_inject_full_context:
                 from ..utils.artifact_copy_utils import has_pending_project_context
+                from ....gateway.http_sse.dependencies import SessionLocal
+
                 artifact_service = component.get_shared_artifact_service()
-                if artifact_service:
-                    has_pending = await has_pending_project_context(
-                        user_id=client_id,
-                        session_id=session_id,
-                        artifact_service=artifact_service,
-                        app_name=component.gateway_id,
-                    )
-                    if has_pending:
-                        should_inject_full_context = True
-                        log.info(
-                            "%sDetected pending project context for session %s, will inject full context",
-                            log_prefix,
-                            session_id,
+                if artifact_service and SessionLocal:
+                    db = SessionLocal()
+                    try:
+                        has_pending = await has_pending_project_context(
+                            user_id=client_id,
+                            session_id=session_id,
+                            artifact_service=artifact_service,
+                            app_name=component.gateway_id,
+                            db=db,
                         )
+                        if has_pending:
+                            should_inject_full_context = True
+                            log.info(
+                                "%sDetected pending project context for session %s, will inject full context",
+                                log_prefix,
+                                session_id,
+                            )
+                    finally:
+                        db.close()
 
             modified_message_text = await _inject_project_context(
                 project_id=project_id,

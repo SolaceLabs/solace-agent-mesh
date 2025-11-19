@@ -312,6 +312,7 @@ class SessionService:
                     session_id=session_id,
                     project_service=project_service,
                     component=self.component,
+                    db=db,
                     log_prefix=log_prefix,
                 )
 
