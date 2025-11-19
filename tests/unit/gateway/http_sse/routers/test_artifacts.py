@@ -131,7 +131,13 @@ class TestUploadArtifactWithSession:
         
         # Mock component
         mock_component = MagicMock()
-        mock_component.get_config.return_value = "TestApp"
+        def mock_get_config(key, default=None):
+            if key == "name":
+                return "TestApp"
+            elif key == "gateway_max_upload_size_bytes":
+                return 100 * 1024 * 1024  # 100MB
+            return default
+        mock_component.get_config.side_effect = mock_get_config
         
         # Mock validation functions
         mock_validate_session = MagicMock(return_value=True)
@@ -595,7 +601,13 @@ class TestListArtifactVersions:
         mock_artifact_service.list_versions = AsyncMock()
         
         mock_component = MagicMock()
-        mock_component.get_config.return_value = "TestApp"
+        def mock_get_config(key, default=None):
+            if key == "name":
+                return "TestApp"
+            elif key == "gateway_max_upload_size_bytes":
+                return 100 * 1024 * 1024  # 100MB
+            return default
+        mock_component.get_config.side_effect = mock_get_config
         
         mock_validate_session = MagicMock(return_value=True)
         
@@ -754,7 +766,13 @@ class TestListArtifacts:
         mock_artifact_service = MagicMock(spec=BaseArtifactService)
         
         mock_component = MagicMock()
-        mock_component.get_config.return_value = "TestApp"
+        def mock_get_config(key, default=None):
+            if key == "name":
+                return "TestApp"
+            elif key == "gateway_max_upload_size_bytes":
+                return 100 * 1024 * 1024  # 100MB
+            return default
+        mock_component.get_config.side_effect = mock_get_config
         
         mock_validate_session = MagicMock(return_value=True)
         
@@ -844,7 +862,13 @@ class TestDeleteArtifact:
         mock_artifact_service.delete_artifact = AsyncMock()
         
         mock_component = MagicMock()
-        mock_component.get_config.return_value = "TestApp"
+        def mock_get_config(key, default=None):
+            if key == "name":
+                return "TestApp"
+            elif key == "gateway_max_upload_size_bytes":
+                return 100 * 1024 * 1024  # 100MB
+            return default
+        mock_component.get_config.side_effect = mock_get_config
         
         mock_validate_session = MagicMock(return_value=True)
         

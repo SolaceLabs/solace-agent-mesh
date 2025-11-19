@@ -83,6 +83,8 @@ def _patch_mock_component_config(factory):
             return "A2A_WebUI_App"
         elif key == "projects":
             return {"enabled": True}
+        elif key == "gateway_max_upload_size_bytes":
+            return 100 * 1024 * 1024  # Default 100MB for tests
 
         if callable(original_side_effect):
             return original_side_effect(key, default)

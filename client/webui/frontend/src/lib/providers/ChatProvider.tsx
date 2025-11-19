@@ -1698,8 +1698,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         // Large file: upload and get URI
                         const result = await uploadArtifactFile(file);
                         
-                        if (result && 'uri' in result) {
-                            // Success - track filename AND sessionId for potential cleanup
+                        // Check for success FIRST - must have both uri and sessionId
+                        if (result && 'uri' in result && result.uri && result.sessionId) {
+                            // SUCCESS - track filename AND sessionId for potential cleanup
                             const uploadedFile = {
                                 filename: file.name,
                                 sessionId: result.sessionId
@@ -1715,14 +1716,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 },
                             });
                         } else {
-                            // FAILURE - Clean up and stop
+                            // ANY failure case (error object, null, or missing fields) - Clean up and stop
+                            console.error(`[handleSubmit] File upload failed for "${file.name}". Result:`, result);
                             await cleanupUploadedFiles(successfullyUploadedFiles);
                             
                             const cleanupMessage = successfullyUploadedFiles.length > 0
                                 ? ' Previously uploaded files have been cleaned up.'
                                 : '';
+                            
+                            const errorDetail = result && 'error' in result ? ` (${result.error})` : '';
                             addNotification(
-                                `File upload failed for "${file.name}".${cleanupMessage} Message not sent.`,
+                                `File upload failed for "${file.name}"${errorDetail}.${cleanupMessage} Message not sent.`,
                                 "error"
                             );
                             
