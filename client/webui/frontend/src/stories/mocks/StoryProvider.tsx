@@ -1,4 +1,5 @@
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
 
 import { MockAuthProvider } from "./MockAuthProvider";
 import { MockTaskProvider } from "./MockTaskProvider";
@@ -56,6 +57,7 @@ export const StoryProvider: React.FC<StoryProviderProps> = ({
     projectContextValues = {},
     taskContextValues = {},
     configContextValues = {},
+    routerValues = {},
 }) => {
     const content = (
         <ThemeProvider>
@@ -75,5 +77,6 @@ export const StoryProvider: React.FC<StoryProviderProps> = ({
         </ThemeProvider>
     );
 
-    return content;
+    // Wrap with MemoryRouter to provide routing context for components using useNavigate()
+    return <MemoryRouter initialEntries={routerValues.initialPath ? [routerValues.initialPath] : ["/"]}>{content}</MemoryRouter>;
 };
