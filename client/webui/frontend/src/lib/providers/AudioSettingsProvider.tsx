@@ -25,7 +25,7 @@ export interface SpeechSettings {
     advancedMode: boolean;
 }
 
-interface AudioSettingsContextValue {
+export interface AudioSettingsContextValue {
     settings: SpeechSettings;
     isInitialized: boolean;
     updateSetting: <K extends keyof SpeechSettings>(key: K, value: SpeechSettings[K]) => void;
@@ -39,7 +39,7 @@ interface AudioSettingsContextValue {
     onTTSEnd: () => void;
 }
 
-const AudioSettingsContext = createContext<AudioSettingsContextValue | undefined>(undefined);
+export const AudioSettingsContext = createContext<AudioSettingsContextValue | undefined>(undefined);
 
 const STORAGE_KEY_MAP: Record<keyof SpeechSettings, string> = {
     speechToText: "speechToText",
