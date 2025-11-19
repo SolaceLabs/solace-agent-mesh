@@ -73,7 +73,7 @@ export const DismissibleBanner: Story = {
     args: {
         variant: "info",
         dismissible: true,
-        message: "Dissms me",
+        message: "Dismiss me",
         onDismiss: () => alert("Banner will be dismissed"),
     },
 };
@@ -83,7 +83,7 @@ export const BannerWithCustomButton: Story = {
         variant: "warning",
         message: (
             <div className="flex w-full items-start justify-between">
-                <span>Dissmis me</span>
+                <span>Dismiss me</span>
                 <Button variant="outline" className="border-white px-1 py-1 text-xs hover:!bg-current/50" onClick={() => alert("Custom button will do something")}>
                     Custom button
                 </Button>
@@ -93,6 +93,16 @@ export const BannerWithCustomButton: Story = {
 };
 
 export const LongMessage: Story = {
+    args: {
+        variant: "info",
+        dismissible: true,
+        onDismiss: () => alert("Banner will be dismissed"),
+        message:
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+    },
+};
+
+export const LongMessageCustomButton: Story = {
     args: {
         variant: "info",
         dismissible: true,
