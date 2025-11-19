@@ -1,5 +1,5 @@
 import { Button } from "@/lib";
-import { BANNER_BUTTON_STYLES, MessageBanner } from "@/lib/components/common/MessageBanner";
+import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { Sparkles } from "lucide-react";
 
@@ -54,18 +54,18 @@ export const InfoBanner: Story = {
     },
 };
 
+export const SuccessBanner: Story = {
+    args: {
+        variant: "success",
+        message: "Updated details successfully",
+    },
+};
+
 export const CustomIconBanner: Story = {
     args: {
         variant: "info",
         message: "This banner has a custom icon",
         icon: <Sparkles className="size-4" />,
-    },
-};
-
-export const SuccessBanner: Story = {
-    args: {
-        variant: "success",
-        message: "Updated details successfully",
     },
 };
 
@@ -78,31 +78,15 @@ export const DismissibleBanner: Story = {
     },
 };
 
-export const BannerWithAction: Story = {
-    args: {
-        variant: "warning",
-        message: "Dissms me",
-        buttonText: "Click here",
-        action: () => alert("This action will do something"),
-    },
-};
-
-export const DismissibleBannerWithAction: Story = {
-    args: {
-        variant: "info",
-        dismissible: true,
-        message: "Dissms me",
-        buttonText: "Click here",
-        action: () => alert("This action will do something"),
-        onDismiss: () => alert("Banner will be dismissed"),
-    },
-};
-
 export const BannerWithCustomButton: Story = {
     args: {
         variant: "warning",
         message: "Dissms me",
-        button: <Button onClick={() => alert("Custom button will do something")}>Custom button</Button>,
+        button: (
+            <Button variant="outline" className="border-white px-1 py-1 text-xs hover:!bg-current/50" onClick={() => alert("Custom button will do something")}>
+                Custom button
+            </Button>
+        ),
     },
 };
 
@@ -111,7 +95,7 @@ export const BannerWithCustomButtonAndSameStyles: Story = {
         variant: "warning",
         message: "Dissms me",
         button: (
-            <Button className={BANNER_BUTTON_STYLES} onClick={() => alert("Custom button will do something")}>
+            <Button variant="outline" className="border-white px-1 py-1 text-xs hover:!bg-current/50" onClick={() => alert("Custom button will do something")}>
                 Custom button
             </Button>
         ),
@@ -124,8 +108,11 @@ export const LongMessage: Story = {
         dismissible: true,
         message:
             "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
-        buttonText: "Click here",
-        action: () => alert("This action will do something"),
+        button: (
+            <Button variant="outline" className="border-white px-1 py-1 text-xs hover:!bg-current/50" onClick={() => alert("Custom button will do something")}>
+                Click Here
+            </Button>
+        ),
         onDismiss: () => alert("Banner will be dismissed"),
     },
 };
