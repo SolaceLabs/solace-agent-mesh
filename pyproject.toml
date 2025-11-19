@@ -57,14 +57,15 @@ dependencies = [
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
-    "solace_ai_connector==3.0.0",
+    "solace_ai_connector==3.0.1",
     "holidays==0.81.0",
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
     "alembic==1.16.5",
     "openai==1.99.9",
     "boto3==1.40.37",
-    "psycopg2-binary==2.9.10"
+    "psycopg2-binary==2.9.10",
+    "azure-cognitiveservices-speech==1.41.1"
 ]
 
 [project.optional-dependencies]

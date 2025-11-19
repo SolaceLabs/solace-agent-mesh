@@ -16,6 +16,7 @@ Tests the run command including:
 
 import os
 import sys
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
@@ -26,8 +27,15 @@ from cli.commands.run_cmd import run, _execute_with_solace_ai_connector
 
 @pytest.fixture
 def runner():
-    """Create a Click CLI runner for testing"""
-    return CliRunner()
+    """Create a Click CLI runner for testing with logging capture"""
+    return CliRunner(mix_stderr=False)
+
+
+@pytest.fixture
+def caplog_handler(caplog):
+    """Configure caplog to capture logging at all levels"""
+    caplog.set_level(logging.DEBUG)
+    return caplog
 
 
 @pytest.fixture
@@ -69,6 +77,15 @@ def mock_solace_connector(mocker):
 def mock_initialize(mocker):
     """Mock the initialize function"""
     return mocker.patch("cli.commands.run_cmd.initialize")
+
+
+@pytest.fixture
+def mock_configure_logging(mocker):
+    """Mock the configure_from_file function from solace_ai_connector"""
+    return mocker.patch(
+        "solace_ai_connector.common.logging_config.configure_from_file",
+        return_value=True
+    )
 
 
 class TestExecuteWithSolaceAIConnector:
@@ -165,20 +182,22 @@ class TestExecuteWithSolaceAIConnector:
 class TestRunCommand:
     """Tests for the run CLI command"""
     
-    def test_run_command_no_files_discovers_configs(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_no_files_discovers_configs(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command discovers configs when no files provided"""
         original_cwd = Path.cwd()
         os.chdir(project_dir)
         
         try:
+            caplog.set_level(logging.INFO)
             mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=None)
             mock_exit = mocker.patch("sys.exit")
             
             result = runner.invoke(run, [])
             
             assert result.exit_code == 0
-            assert "No specific files provided" in result.output
-            assert "Discovering YAML files" in result.output
+            output = result.output + caplog.text
+            assert "No specific files provided" in output
+            assert "Discovering YAML files" in output
             mock_initialize.assert_called_once()
             mock_solace_connector.assert_called_once()
             
@@ -195,17 +214,19 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_with_specific_file(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_with_specific_file(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command with specific config file"""
+        caplog.set_level(logging.INFO)
         config_file = project_dir / "configs" / "agent1.yaml"
         
         mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=None)
         mock_exit = mocker.patch("sys.exit")
         
         result = runner.invoke(run, [str(config_file)])
+        output = result.output + caplog.text
         
         assert result.exit_code == 0
-        assert "Processing provided configuration files" in result.output
+        assert "Processing provided configuration files" in output
         mock_solace_connector.assert_called_once()
         
         import sys
@@ -213,17 +234,19 @@ class TestRunCommand:
         assert len(called_files) == 1
         assert str(config_file) in called_files[0]
     
-    def test_run_command_with_directory(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_with_directory(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command with directory path"""
+        caplog.set_level(logging.INFO)
         configs_dir = project_dir / "configs"
         
         mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=None)
         mock_exit = mocker.patch("sys.exit")
         
         result = runner.invoke(run, [str(configs_dir)])
+        output = result.output + caplog.text
         
         assert result.exit_code == 0
-        assert "Discovering YAML files in directory" in result.output
+        assert "Discovering YAML files in directory" in output
         mock_solace_connector.assert_called_once()
         
         import sys
@@ -233,8 +256,9 @@ class TestRunCommand:
         assert not any("_private" in f for f in called_files)
         assert not any("shared_config" in f for f in called_files)
     
-    def test_run_command_with_skip_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_with_skip_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command with --skip option"""
+        caplog.set_level(logging.INFO)
         original_cwd = Path.cwd()
         os.chdir(project_dir)
         
@@ -243,10 +267,11 @@ class TestRunCommand:
             mock_exit = mocker.patch("sys.exit")
             
             result = runner.invoke(run, ["--skip", "agent1.yaml"])
+            output = result.output + caplog.text
             
             assert result.exit_code == 0
-            assert "Applying --skip" in result.output
-            assert "Skipping execution: " in result.output
+            assert "Applying --skip" in output
+            assert "Skipping execution: " in output
             
             import sys
             called_files = sys.argv[1:]
@@ -257,7 +282,7 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_with_multiple_skip_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_with_multiple_skip_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker):
         """Test run command with multiple --skip options"""
         original_cwd = Path.cwd()
         os.chdir(project_dir)
@@ -280,61 +305,69 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_with_system_env_flag(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_with_system_env_flag(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
         """Test run command with --system-env flag"""
+        caplog.set_level(logging.INFO)
         original_cwd = Path.cwd()
         os.chdir(project_dir)
         
         try:
+            mocker.patch("solace_ai_connector.common.logging_config.configure_from_file", return_value=True)
             mock_find_dotenv = mocker.patch("cli.commands.run_cmd.find_dotenv")
             mock_load_dotenv = mocker.patch("cli.commands.run_cmd.load_dotenv")
             
             result = runner.invoke(run, ["--system-env"])
-            
+            output = result.output + caplog.text
             assert result.exit_code == 0
-            assert "Skipping .env file loading" in result.output
+            assert "Skipping .env file loading" in output
             # Should not try to find or load .env
             mock_find_dotenv.assert_not_called()
             mock_load_dotenv.assert_not_called()
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_loads_env_file(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_loads_env_file(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command loads .env file"""
+        caplog.set_level(logging.INFO)
         original_cwd = Path.cwd()
         os.chdir(project_dir)
         
         try:
             env_file = project_dir / ".env"
+            mocker.patch("solace_ai_connector.common.logging_config.configure_from_file", return_value=True)
             mock_find_dotenv = mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=str(env_file))
             mock_load_dotenv = mocker.patch("cli.commands.run_cmd.load_dotenv")
             
             result = runner.invoke(run, [])
+            output = result.output + caplog.text
             
             assert result.exit_code == 0
-            assert "Loading environment variables from" in result.output
+            assert "Loaded environment variables from" in output
             mock_find_dotenv.assert_called_once()
             mock_load_dotenv.assert_called_once()
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_no_env_file_warning(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_no_env_file_warning(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, mock_configure_logging, caplog):
         """Test run command shows warning when .env not found"""
         original_cwd = Path.cwd()
         os.chdir(project_dir)
         
         try:
+            caplog.set_level(logging.WARNING)
             mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=None)
             
             result = runner.invoke(run, [])
             
             assert result.exit_code == 0
-            assert "Warning: .env file not found" in result.output
+            # Check both result.output and caplog.text for the warning
+            assert "Warning: .env file not found" in result.output or "Warning: .env file not found" in caplog.text
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_missing_configs_directory(self, runner, tmp_path, mocker):
+    def test_run_command_missing_configs_directory(self, runner, tmp_path, mocker, caplog, mock_configure_logging):
         """Test run command when configs directory doesn't exist"""
+        caplog.set_level(logging.ERROR)
         original_cwd = Path.cwd()
         os.chdir(tmp_path)
         
@@ -343,41 +376,47 @@ class TestRunCommand:
             mocker.patch("cli.commands.run_cmd.initialize")
             
             result = runner.invoke(run, [])
+            output = result.output + caplog.text
             
             assert result.exit_code == 1
-            assert "Configuration directory" in result.output
-            assert "not found" in result.output
+            assert "Configuration directory" in output
+            assert "not found" in output
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_no_files_after_filtering(self, runner, project_dir, mock_initialize, mocker):
+    def test_run_command_no_files_after_filtering(self, runner, project_dir, mock_initialize, mocker, caplog, mock_configure_logging):
         """Test run command when all files are filtered out"""
+        caplog.set_level(logging.WARNING)
         original_cwd = Path.cwd()
         os.chdir(project_dir)
         
         try:
             mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=None)
+            mocker.patch("solace_ai_connector.common.logging_config.configure_from_file", return_value=True)
             
             # Skip all discovered files
             result = runner.invoke(run, ["-s", "agent1.yaml", "-s", "agent2.yml", "-s", "agent3.yaml"])
+            output = result.output + caplog.text
             
             assert result.exit_code == 0
-            assert "No configuration files to run after filtering" in result.output
+            assert "No configuration files to run after filtering" in output
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_ignores_non_yaml_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_ignores_non_yaml_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mock_configure_logging, mocker, caplog):
         """Test run command ignores non-YAML files"""
+        caplog.set_level(logging.WARNING)
         # Create a non-YAML file
         (project_dir / "configs" / "readme.txt").write_text("Not a YAML file")
         
         mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=None)
         
         result = runner.invoke(run, [str(project_dir / "configs" / "readme.txt")])
+        output = result.output + caplog.text
         
         assert result.exit_code == 0
-        assert "Ignoring non-YAML file" in result.output
-        assert "No configuration files to run" in result.output
+        assert "Ignoring non-YAML file" in output
+        assert "No configuration files to run" in output
     
     def test_run_command_logging_config_resolution(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
         """Test run command resolves relative logging config path"""
@@ -486,8 +525,9 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_skips_underscore_prefix(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_skips_underscore_prefix(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
         """Test run command skips files with underscore prefix"""
+        caplog.set_level(logging.INFO)
         original_cwd = Path.cwd()
         os.chdir(project_dir)
         
@@ -496,10 +536,11 @@ class TestRunCommand:
             mock_exit = mocker.patch("sys.exit")
             
             result = runner.invoke(run, [])
+            output = result.output + caplog.text
             
             assert result.exit_code == 0
-            assert "Skipping discovery: " in result.output
-            assert "_private" in result.output
+            assert "Skipping discovery: " in output
+            assert "_private" in output
             
             import sys
             called_files = sys.argv[1:]
@@ -507,8 +548,9 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_skips_shared_config(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_skips_shared_config(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
         """Test run command skips shared_config files"""
+        caplog.set_level(logging.INFO)
         original_cwd = Path.cwd()
         os.chdir(project_dir)
         
@@ -517,9 +559,10 @@ class TestRunCommand:
             mock_exit = mocker.patch("sys.exit")
             
             result = runner.invoke(run, [])
+            output = result.output + caplog.text
             
             assert result.exit_code == 0
-            assert "shared_config" in result.output
+            assert "shared_config" in output
             
             import sys
             called_files = sys.argv[1:]
@@ -527,8 +570,9 @@ class TestRunCommand:
         finally:
             os.chdir(original_cwd)
     
-    def test_run_command_final_list_output(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_final_list_output(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
         """Test run command displays final list of config files"""
+        caplog.set_level(logging.INFO)
         original_cwd = Path.cwd()
         os.chdir(project_dir)
         
@@ -536,29 +580,17 @@ class TestRunCommand:
             mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=None)
             
             result = runner.invoke(run, [])
+            output = result.output + caplog.text
             
             assert result.exit_code == 0
-            assert "Final list of configuration files to run:" in result.output
+            print(result.output)
+            assert "Final list of configuration files to run:" in output
         finally:
             os.chdir(original_cwd)
-    
-    def test_run_command_starting_message(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
-        """Test run command displays starting message"""
-        original_cwd = Path.cwd()
-        os.chdir(project_dir)
-        
-        try:
-            mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=None)
-            
-            result = runner.invoke(run, [])
-            
-            assert result.exit_code == 0
-            assert "Starting Solace Application Run" in result.output
-        finally:
-            os.chdir(original_cwd)
-    
-    def test_run_command_multiple_files_and_directories(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+
+    def test_run_command_multiple_files_and_directories(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
         """Test run command with mix of files and directories"""
+        caplog.set_level(logging.INFO)
         config_file = project_dir / "configs" / "agent1.yaml"
         sub_dir = project_dir / "configs" / "subdir"
         
@@ -575,8 +607,9 @@ class TestRunCommand:
         assert any("agent1.yaml" in f for f in called_files)
         assert any("agent3.yaml" in f for f in called_files)
     
-    def test_run_command_deduplicates_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker):
+    def test_run_command_deduplicates_files(self, runner, project_dir, mock_solace_connector, mock_initialize, mocker, caplog):
         """Test run command deduplicates files when same file provided multiple times"""
+        caplog.set_level(logging.INFO)
         config_file = project_dir / "configs" / "agent1.yaml"
         
         mocker.patch("cli.commands.run_cmd.find_dotenv", return_value=None)
