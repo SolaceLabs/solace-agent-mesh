@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { NavigationSidebar, ToastContainer, Button, bottomNavigationItems, getTopNavigationItems } from "@/lib/components";
@@ -12,6 +13,31 @@ function AppLayoutContent() {
     const { isAuthenticated, login, useAuthorization } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
     const { isMenuOpen, menuPosition, selectedText, clearSelection } = useTextSelection();
+
+    // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            const bodyStyle = document.body.style.pointerEvents;
+            const hasOpenOverlays = document.querySelector('[data-state="open"]');
+
+            // If no overlays (dialogs, popovers, etc.) are open but pointer-events is set to none, remove it
+            if (!hasOpenOverlays && bodyStyle === "none") {
+                document.body.style.removeProperty("pointer-events");
+            }
+        });
+
+        // Observe changes to body styles and DOM changes for overlays
+        observer.observe(document.body, {
+            attributes: true,
+            attributeFilter: ["style"],
+            childList: true,
+            subtree: true,
+        });
+
+        return () => {
+            observer.disconnect();
+        };
+    }, []);
 
     // Get navigation items based on feature flags
     const topNavItems = getTopNavigationItems(configFeatureEnablement);
