@@ -1,7 +1,6 @@
 import logging
 import os
 import sys
-import warnings
 from pathlib import Path
 
 import click
@@ -59,7 +58,7 @@ def _execute_with_solace_ai_connector(config_file_paths: list[str]):
     help="Use system environment variables only; do not load .env file.",
 )
 
-def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool, suppress_warnings: bool):
+def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
     """
     Run the Solace application with specified or discovered YAML configuration files.
 
@@ -97,7 +96,6 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool, s
                 os.environ["LOGGING_CONFIG_PATH"] = absolute_logging_path
 
     try:
-        from solace_ai_connector.common.logging_config import configure_from_file
         if configure_from_file():
             log = logging.getLogger(__name__)
             log.info("Logging reconfigured from LOGGING_CONFIG_PATH")
