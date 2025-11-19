@@ -102,15 +102,23 @@ class TestUploadArtifactWithSession:
     @pytest.fixture
     def mock_dependencies(self):
         """Create mock dependencies for upload tests."""
-        # Mock FastAPI Request
+        # Mock FastAPI Request - don't include Content-Length to avoid early size check
         mock_request = MagicMock()
-        mock_request.headers = {}
+        mock_request.headers = {}  # No Content-Length header
         
-        # Mock UploadFile
+        # Mock UploadFile with chunked reading simulation
         mock_upload_file = MagicMock(spec=UploadFile)
         mock_upload_file.filename = "test.txt"
         mock_upload_file.content_type = "text/plain"
-        mock_upload_file.read = AsyncMock(return_value=b"test content")
+        
+        # Simulate chunked reading: first chunk returns content, second returns empty (EOF)
+        async def mock_read_chunks(size=-1):
+            if not hasattr(mock_read_chunks, 'called'):
+                mock_read_chunks.called = True
+                return b"test content"
+            return b""  # EOF
+        
+        mock_upload_file.read = mock_read_chunks
         mock_upload_file.close = AsyncMock()
         
         # Mock artifact service
@@ -438,8 +446,16 @@ class TestUploadArtifactWithSession:
         """Test upload with large file content."""
         # Setup
         deps = mock_dependencies
-        large_content = b"x" * (10 * 1024 * 1024)  # 10MB file
-        deps['upload_file'].read = AsyncMock(return_value=large_content)
+        large_content = b"x" * (9 * 1024 * 1024)  # 9MB file (well below 100MB limit to account for overhead)
+        
+        # Simulate chunked reading for large file
+        async def mock_read_large_chunks(size=-1):
+            if not hasattr(mock_read_large_chunks, 'called'):
+                mock_read_large_chunks.called = True
+                return large_content
+            return b""  # EOF
+        
+        deps['upload_file'].read = mock_read_large_chunks
         
         # Mock successful upload result
         with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.process_artifact_upload') as mock_process:
@@ -477,8 +493,8 @@ class TestUploadArtifactWithSession:
         deps = mock_dependencies
         
         file_types = [
-            ("image.png", "image/png", b"\x89PNG\r\n\x1a\n"),
-            ("document.pdf", "application/pdf", b"%PDF-1.4"),
+            ("image.png", "image/png", b"\x89PNG\r\n\x1a\n" + b"x" * 100),
+            ("document.pdf", "application/pdf", b"%PDF-1.4" + b"x" * 100),
             ("data.json", "application/json", b'{"key": "value"}'),
             ("script.py", "text/x-python", b"print('hello')"),
             ("unknown.xyz", "application/octet-stream", b"binary data")
@@ -487,7 +503,15 @@ class TestUploadArtifactWithSession:
         for filename, mime_type, content in file_types:
             deps['upload_file'].filename = filename
             deps['upload_file'].content_type = mime_type
-            deps['upload_file'].read = AsyncMock(return_value=content)
+            
+            # Simulate chunked reading for each file type
+            async def mock_read_file_chunks(size=-1, file_content=content):
+                if not hasattr(mock_read_file_chunks, 'called'):
+                    mock_read_file_chunks.called = True
+                    return file_content
+                return b""  # EOF
+            
+            deps['upload_file'].read = mock_read_file_chunks
             
             # Mock successful upload result
             with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.process_artifact_upload') as mock_process:
