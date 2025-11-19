@@ -1609,6 +1609,35 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
     }, [addNotification, closeCurrentEventSource, isResponding]);
 
+    const cleanupUploadedFiles = useCallback(
+        async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
+            if (uploadedFiles.length === 0) {
+                return;
+            }
+            
+            for (const { filename, sessionId: fileSessionId } of uploadedFiles) {
+                try {
+                    const deleteUrl = `${apiPrefix}/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`;
+
+                    // Use the session ID that was used during upload
+                    const response = await authenticatedFetch(deleteUrl, {
+                        method: "DELETE",
+                        credentials: "include",
+                    });
+                                        
+                    if (!response.ok && response.status !== 204) {
+                        const errorData = await response.json().catch(() => ({ detail: `Failed to delete ${filename}` }));
+                        console.error(`[cleanupUploadedFiles] Failed to cleanup file ${filename}:`, errorData.detail || `HTTP error ${response.status}`);
+                    } 
+                } catch (error) {
+                    console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
+                    // Continue cleanup even if one fails
+                }
+            }
+        },
+        [apiPrefix]
+    );
+
     const handleSubmit = useCallback(
         async (event: FormEvent, files?: File[] | null, userInputText?: string | null) => {
             event.preventDefault();
@@ -1641,56 +1670,67 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setMessages(prev => [...prev, userMsg]);
 
             try {
-                // 1. Process files using hybrid approach
-                const fileUploadErrors: string[] = [];
-                const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
+                // 1. Process files using hybrid approach with fail-fast
+                const uploadedFileParts: FilePart[] = [];
+                const successfullyUploadedFiles: Array<{ filename: string; sessionId: string }> = []; // Track large files for cleanup
+
+                console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
+
+                for (const file of currentFiles) {                    
                     if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
-                        // Small file: send inline as base64
+                        // Small file: send inline as base64 (no cleanup needed)
                         const base64Content = await fileToBase64(file);
-                        return {
+                        uploadedFileParts.push({
                             kind: "file",
                             file: {
                                 bytes: base64Content,
                                 name: file.name,
                                 mimeType: file.type,
                             },
-                        };
+                        });
                     } else {
                         // Large file: upload and get URI
                         const result = await uploadArtifactFile(file);
+                        
                         if (result && 'uri' in result) {
-                            return {
+                            // Success - track filename AND sessionId for potential cleanup
+                            const uploadedFile = {
+                                filename: file.name,
+                                sessionId: result.sessionId
+                            };
+                            successfullyUploadedFiles.push(uploadedFile);
+                            
+                            uploadedFileParts.push({
                                 kind: "file",
                                 file: {
                                     uri: result.uri,
                                     name: file.name,
                                     mimeType: file.type,
                                 },
-                            };
-                        } else if (result && 'error' in result) {
-                            // Collect error message to send to LLM
-                            fileUploadErrors.push(result.error);
-                            return null;
+                            });
                         } else {
-                            addNotification(`Failed to upload large file: ${file.name}`, "error");
-                            fileUploadErrors.push(`Failed to upload "${file.name}": Unknown error`);
-                            return null;
+                            // FAILURE - Clean up and stop
+                            await cleanupUploadedFiles(successfullyUploadedFiles);
+                            
+                            const cleanupMessage = successfullyUploadedFiles.length > 0
+                                ? ' Previously uploaded files have been cleaned up.'
+                                : '';
+                            addNotification(
+                                `File upload failed for "${file.name}".${cleanupMessage} Message not sent.`,
+                                "error"
+                            );
+                            
+                            setIsResponding(false);
+                            setMessages(prev => prev.filter(msg => msg.metadata?.messageId !== userMsg.metadata?.messageId));
+                            return; // Exit handleSubmit
                         }
                     }
-                });
-
-                const uploadedFileParts = (await Promise.all(filePartsPromises)).filter((p): p is FilePart => p !== null);
-
+                }
+                
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
                 if (currentInput) {
                     messageParts.push({ kind: "text", text: currentInput });
-                }
-                
-                // Add file upload errors as text parts so LLM knows what happened
-                if (fileUploadErrors.length > 0) {
-                    const errorText = fileUploadErrors.join('\n\n');
-                    messageParts.push({ kind: "text", text: `\n\n[File Upload Errors]\n${errorText}` });
                 }
                 
                 messageParts.push(...uploadedFileParts);
@@ -1807,7 +1847,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, INLINE_FILE_SIZE_LIMIT_BYTES, activeProject]
+        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, INLINE_FILE_SIZE_LIMIT_BYTES, activeProject, cleanupUploadedFiles]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");

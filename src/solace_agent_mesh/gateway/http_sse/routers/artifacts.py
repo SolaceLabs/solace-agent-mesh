@@ -71,6 +71,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+LOAD_FILE_CHUNK_SIZE = 1024 * 1024  # 1MB chunks
 
 class ArtifactUploadResponse(BaseModel):
     """Response model for artifact upload with camelCase fields."""
@@ -291,7 +292,7 @@ async def upload_artifact_with_session(
 
     try:
         # ===== VALIDATE FILE SIZE BEFORE READING =====
-        max_upload_size = component.get_config("gateway_max_upload_size_bytes", 52428800)
+        max_upload_size = component.get_config("gateway_max_upload_size_bytes")
         
         # Check Content-Length header first (if available)
         content_length = request.headers.get("content-length")
@@ -314,22 +315,53 @@ async def upload_artifact_with_session(
             except ValueError:
                 log.warning("%s Invalid Content-Length header: %s", log_prefix, content_length)
         
-        # Read file content
-        content_bytes = await upload_file.read()
+        # Read file content in chunks with size validation
+        chunk_size = LOAD_FILE_CHUNK_SIZE
+        content_bytes = bytearray()
+        total_bytes_read = 0
         
-        # Double-check actual size (safety net in case Content-Length was missing/wrong)
-        actual_size = len(content_bytes)
-        if actual_size > max_upload_size:
-            error_msg = (
-                f"File '{upload_file.filename}' rejected: actual size {actual_size:,} bytes "
-                f"exceeds maximum {max_upload_size:,} bytes "
-                f"({actual_size / (1024*1024):.2f} MB > {max_upload_size / (1024*1024):.2f} MB)"
-            )
-            log.warning("%s %s", log_prefix, error_msg)
+        try:
+            while True:
+                chunk = await upload_file.read(chunk_size)
+                if not chunk:
+                    break  # End of file
+                
+                chunk_len = len(chunk)
+                total_bytes_read += chunk_len
+                
+                # Validate size during reading (fail fast)
+                if total_bytes_read > max_upload_size:
+                    error_msg = (
+                        f"File '{upload_file.filename}' rejected: size exceeds maximum {max_upload_size:,} bytes "
+                        f"(read {total_bytes_read:,} bytes so far, "
+                        f"{total_bytes_read / (1024*1024):.2f} MB > {max_upload_size / (1024*1024):.2f} MB)"
+                    )
+                    log.warning("%s %s", log_prefix, error_msg)
+                    
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=error_msg
+                    )
+                
+                content_bytes.extend(chunk)
             
+            # Convert to bytes for consistency with existing code
+            content_bytes = bytes(content_bytes)
+            
+            log.debug(
+                "%s File read successfully in chunks: %d bytes total",
+                log_prefix,
+                total_bytes_read
+            )
+            
+        except HTTPException:
+            # Re-raise HTTP exceptions (size limit exceeded)
+            raise
+        except Exception as read_error:
+            log.exception("%s Error reading uploaded file: %s", log_prefix, read_error)
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=error_msg  # Use string instead of dict
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to read uploaded file"
             )
 
         mime_type = upload_file.content_type or "application/octet-stream"
