@@ -266,12 +266,16 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                     }
                 };
                 
+                // Get RAG data for this task to pass to timeline
+                const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+                
                 return (
                     <div className="my-2">
                         <InlineResearchProgress
                             progress={data}
                             isComplete={message.isComplete}
                             onClick={handleProgressClick}
+                            ragData={taskRagData}
                         />
                     </div>
                 );
@@ -391,40 +395,127 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean }> = ({ message, isLastWithTaskId }) => {
     const chatContext = useChatContext();
-    const { ragData } = chatContext;
+    const { ragData, openSidePanelTab, setTaskIdInSidePanel } = chatContext;
     
     if (!message) {
         return null;
     }
     
     // Check if this is a completed deep research message
-    const isDeepResearchComplete = message.isComplete &&
-        message.parts?.some(p => {
-            if (p.kind === "data") {
-                const data = (p as DataPart).data as unknown as ResearchProgressData;
-                return data?.type === "deep_research_progress";
-            }
-            return false;
-        });
+    // Check both for progress data part (during session) and ragData search_type (after refresh)
+    const hasProgressPart = message.parts?.some(p => {
+        if (p.kind === "data") {
+            const data = (p as DataPart).data as unknown as ResearchProgressData;
+            return data?.type === "deep_research_progress";
+        }
+        return false;
+    });
     
     // Get RAG metadata for this task
     const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+    
+    console.log('[ChatMessage] Task RAG data:', {
+        taskId: message.taskId,
+        taskRagDataCount: taskRagData?.length,
+        taskRagData: taskRagData,
+        hasProgressPart,
+        isComplete: message.isComplete
+    });
+    
     const hasRagSources = taskRagData && taskRagData.length > 0 &&
         taskRagData.some(r => r.sources && r.sources.length > 0);
+    
+    // Check if ragData indicates deep research (works after page refresh)
+    const hasDeepResearchRagData = taskRagData?.some(r => r.search_type === 'deep_research');
+    
+    const isDeepResearchComplete = message.isComplete && (hasProgressPart || hasDeepResearchRagData) && hasRagSources;
+    
+    console.log('[ChatMessage] Deep research detection:', {
+        isDeepResearchComplete,
+        hasProgressPart,
+        hasDeepResearchRagData,
+        hasRagSources
+    });
     
     // Check if this is a completed web search message (has web_search sources but not deep research)
     // Only show for the last message with this taskId to avoid duplicates
     const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources &&
         taskRagData.some(r => r.search_type === 'web_search') && isLastWithTaskId;
     
+    // Handler for deep research sources click
+    const handleDeepResearchClick = () => {
+        if (message.taskId) {
+            setTaskIdInSidePanel(message.taskId);
+            openSidePanelTab("rag");
+        }
+    };
+    
     return (
         <>
             {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
-            {/* Render sources after completed deep research or web search */}
-            {(isDeepResearchComplete || isWebSearchComplete) && hasRagSources && (
+            {/* Render sources and timeline after completed deep research */}
+            {isDeepResearchComplete && hasRagSources && (() => {
+                // Filter to only show fetched sources (not snippets)
+                const allSources = taskRagData.flatMap(r => r.sources);
+                const fetchedSources = allSources.filter(source => {
+                    const wasFetched = source.metadata?.fetched === true ||
+                                      source.metadata?.fetch_status === 'success' ||
+                                      (source.content_preview && source.content_preview.includes('[Full Content Fetched]'));
+                    return wasFetched;
+                });
+                
+                console.log('[ChatMessage] Source filtering:', {
+                    totalSources: allSources.length,
+                    fetchedSources: fetchedSources.length,
+                    allSourcesSample: allSources.slice(0, 2).map(s => ({
+                        url: s.url,
+                        title: s.title,
+                        fetched: s.metadata?.fetched,
+                        fetch_status: s.metadata?.fetch_status,
+                        hasFullContentMarker: s.content_preview?.includes('[Full Content Fetched]')
+                    }))
+                });
+                
+                return (
+                    <>
+                        <Sources
+                            ragMetadata={{ sources: fetchedSources }}
+                            isDeepResearch={isDeepResearchComplete}
+                            onDeepResearchClick={handleDeepResearchClick}
+                        />
+                        {/* Show timeline accordion for completed deep research */}
+                        <div className="mb-4">
+                            <InlineResearchProgress
+                                progress={{
+                                    type: 'deep_research_progress',
+                                    phase: 'writing',
+                                    status_text: 'Research complete',
+                                    progress_percentage: 100,
+                                    current_iteration: 0,
+                                    total_iterations: 0,
+                                    sources_found: fetchedSources.length,
+                                    current_query: '',
+                                    fetching_urls: [],
+                                    elapsed_seconds: 0,
+                                    max_runtime_seconds: 0
+                                }}
+                                isComplete={true}
+                                onClick={handleDeepResearchClick}
+                                ragData={taskRagData}
+                            />
+                        </div>
+                    </>
+                );
+            })()}
+            {/* Render sources after completed web search */}
+            {isWebSearchComplete && hasRagSources && (
                 <div className="my-4">
-                    <Sources ragMetadata={{ sources: taskRagData.flatMap(r => r.sources) }} />
+                    <Sources
+                        ragMetadata={{ sources: taskRagData.flatMap(r => r.sources) }}
+                        isDeepResearch={false}
+                        onDeepResearchClick={handleDeepResearchClick}
+                    />
                 </div>
             )}
         </>

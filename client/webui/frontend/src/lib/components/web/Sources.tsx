@@ -286,9 +286,11 @@ function TabWithIcon({ label, icon }: TabWithIconProps) {
 interface SourcesProps {
   messageId?: string;
   taskId?: string;
+  isDeepResearch?: boolean;
+  onDeepResearchClick?: () => void;
 }
 
-export function Sources({ ragMetadata }: SourcesProps & { ragMetadata?: { sources?: RAGSource[] } }) {
+export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchClick }: SourcesProps & { ragMetadata?: { sources?: RAGSource[] } }) {
   // Process and categorize sources by type with deduplication
   const sourcesByType = useMemo(() => {
     if (!ragMetadata?.sources) {
@@ -340,6 +342,23 @@ export function Sources({ ragMetadata }: SourcesProps & { ragMetadata?: { source
   // Don't render if no sources
   if (sourcesByType.all.length === 0) {
     return null;
+  }
+
+  // For deep research, show only stacked favicons (up to 3) with count
+  if (isDeepResearch) {
+    return (
+      <div
+        className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+        role="button"
+        aria-label="View deep research sources"
+        onClick={onDeepResearchClick}
+      >
+        <StackedFavicons sources={sourcesByType.all} end={3} size={20} />
+        <span className="text-sm text-gray-600 dark:text-gray-400">
+          {sourcesByType.all.length} {sourcesByType.all.length === 1 ? 'source' : 'sources'}
+        </span>
+      </div>
+    );
   }
 
   // Determine which tabs to show based on available sources

@@ -174,8 +174,26 @@ class ResearchCitationTracker:
         self.research_question = research_question
         self.citations: Dict[str, Dict[str, Any]] = {}
         self.citation_counter = 0
+        self.source_to_citation: Dict[str, str] = {}  # Map URL to citation_id for updates
+        self.queries: List[Dict[str, Any]] = []  # Track queries and their sources
+        self.current_query: Optional[str] = None
+        self.current_query_sources: List[str] = []
     
-    def add_citation(self, result: SearchResult) -> str:
+    def start_query(self, query: str):
+        """Start tracking a new query"""
+        # Save previous query if it exists
+        if self.current_query:
+            self.queries.append({
+                "query": self.current_query,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_citation_ids": self.current_query_sources.copy()
+            })
+        
+        # Start new query
+        self.current_query = query
+        self.current_query_sources = []
+    
+    def add_citation(self, result: SearchResult, query: Optional[str] = None) -> str:
         """Add citation and return citation ID"""
         # Use 'search' prefix to match the citation rendering system
         citation_id = f"search{self.citation_counter}"
@@ -191,6 +209,7 @@ class ResearchCitationTracker:
             "content_preview": result.content[:200] + "..." if len(result.content) > 200 else result.content,
             "relevance_score": result.relevance_score,
             "source_url": result.url or "N/A",  # Use source_url key (not just url)
+            "url": result.url,  # Also add url field for frontend
             "metadata": {
                 "title": result.title,
                 "link": result.url,
@@ -202,15 +221,53 @@ class ResearchCitationTracker:
         }
         
         result.citation_id = citation_id
+        
+        # Track URL to citation_id mapping for later updates
+        if result.url:
+            self.source_to_citation[result.url] = citation_id
+        
+        # Track this citation for the current query
+        if self.current_query:
+            self.current_query_sources.append(citation_id)
+        
         return citation_id
+    
+    def update_citation_after_fetch(self, result: SearchResult) -> None:
+        """Update citation with fetched content and metadata"""
+        if not result.url or result.url not in self.source_to_citation:
+            return
+        
+        citation_id = self.source_to_citation[result.url]
+        if citation_id in self.citations:
+            # Update content preview with fetched content
+            self.citations[citation_id]["content_preview"] = result.content[:500] + "..." if len(result.content) > 500 else result.content
+            # Update metadata with fetched flag
+            self.citations[citation_id]["metadata"]["fetched"] = result.metadata.get("fetched", False)
+            self.citations[citation_id]["metadata"]["fetch_status"] = result.metadata.get("fetch_status", "")
+            log.info("[DeepResearch:Citation] Updated citation %s with fetched content", citation_id)
     
     def get_rag_metadata(self) -> Dict[str, Any]:
         """Format citations for RAG system"""
+        # Save the last query if it exists
+        if self.current_query:
+            self.queries.append({
+                "query": self.current_query,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source_citation_ids": self.current_query_sources.copy()
+            })
+            self.current_query = None
+            self.current_query_sources = []
+        
+        # Return single search result with all sources
+        # Store query information in metadata for frontend to reconstruct timeline
         return {
             "query": self.research_question,
             "search_type": "deep_research",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "sources": list(self.citations.values())
+            "sources": list(self.citations.values()),
+            "metadata": {
+                "queries": self.queries  # Include query breakdown for timeline
+            }
         }
 
 
@@ -887,6 +944,7 @@ async def _fetch_selected_sources(
     selected_sources: List[SearchResult],
     tool_context: ToolContext,
     tool_config: Optional[Dict[str, Any]],
+    citation_tracker: ResearchCitationTracker,
     start_time: float = 0,
     max_runtime_seconds: Optional[int] = None
 ) -> Dict[str, int]:
@@ -939,6 +997,9 @@ async def _fetch_selected_sources(
                 source.metadata["fetch_status"] = "success"
                 success_count += 1
                 log.info("%s Successfully fetched content from %s", log_identifier, source.url)
+                
+                # Update citation tracker with fetched metadata
+                citation_tracker.update_citation_after_fetch(source)
             else:
                 source.metadata["fetched"] = False
                 source.metadata["fetch_error"] = "No content in response"
@@ -1194,7 +1255,7 @@ Write your research report now. Format in Markdown.
             model=llm.model,
             contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=report_prompt)])],
             config=adk_types.GenerateContentConfig(
-                temperature=0.7,
+                temperature=1.0,
                 max_output_tokens=8000  # Reduced from 32000 for faster generation
             )
         )
@@ -1368,6 +1429,9 @@ async def deep_research(
             # Search with current queries
             iteration_findings = []
             for query_idx, query in enumerate(queries, 1):
+                # Start tracking this query in citation tracker
+                citation_tracker.start_query(query)
+                
                 # Calculate sub-progress within iteration
                 query_progress = iteration_progress_base + (query_idx / len(queries)) * (70 / max_iterations) * 0.3
                 
@@ -1390,6 +1454,7 @@ async def deep_research(
                 )
                 
                 # Deduplicate against ALL previously seen sources (web-only version)
+                query_findings = []
                 for result in results:
                     # For web sources, use URL or title as unique key
                     key = result.url or f"web:{result.title}"
@@ -1397,11 +1462,12 @@ async def deep_research(
                     # Only add if not seen before
                     if key not in seen_sources_global:
                         seen_sources_global.add(key)
+                        query_findings.append(result)
                         iteration_findings.append(result)
-            
-            # Add citations for new findings
-            for finding in iteration_findings:
-                citation_tracker.add_citation(finding)
+                
+                # Add citations for this query's findings
+                for finding in query_findings:
+                    citation_tracker.add_citation(finding, query)
             
             all_findings.extend(iteration_findings)
             
@@ -1463,7 +1529,7 @@ async def deep_research(
             
             # Fetch selected sources (still within analyzing phase) - only for web sources
             if selected_sources:
-                fetch_stats = await _fetch_selected_sources(selected_sources, tool_context, tool_config, start_time, max_runtime_seconds)
+                fetch_stats = await _fetch_selected_sources(selected_sources, tool_context, tool_config, citation_tracker, start_time, max_runtime_seconds)
                 log.info("%s Iteration %d fetch stats: %s", log_identifier, iteration, fetch_stats)
             
             # Continue analyzing phase - reflect on findings
@@ -1607,7 +1673,7 @@ Performs comprehensive, iterative research across multiple sources.
 
 This tool conducts deep research by:
 1. Breaking down the research question into searchable queries
-2. Searching across web, knowledge bases, and enterprise sources
+2. Searching across web and knowledge base sources
 3. Reflecting on findings to identify gaps
 4. Refining queries and conducting additional searches
 5. Synthesizing findings into a comprehensive report with citations
@@ -1620,6 +1686,11 @@ Use this tool when you need to:
 
 The tool provides real-time progress updates and generates a detailed
 research report with proper citations for all sources.
+
+IMPORTANT: Before calling this tool, you MUST ask the user:
+"Would you like a quick search (5 minutes) or in-depth research (10 minutes)?"
+
+Then use their response to set the research_type parameter.
 """,
     category="research",
     category_name=CATEGORY_NAME,
@@ -1632,33 +1703,25 @@ research report with proper citations for all sources.
                 type=adk_types.Type.STRING,
                 description="The research question or topic to investigate"
             ),
+            "research_type": adk_types.Schema(
+                type=adk_types.Type.STRING,
+                description="Type of research: 'quick' for 5-minute search (3 iterations) or 'in-depth' for 10-minute comprehensive research (10 iterations). Default: 'quick'",
+                enum=["quick", "in-depth"],
+                nullable=True
+            ),
             "sources": adk_types.Schema(
                 type=adk_types.Type.ARRAY,
                 items=adk_types.Schema(
                     type=adk_types.Type.STRING,
                     enum=["web", "kb"]
                 ),
-                description="Sources to search (default: ['web', 'kb']). Web search requires Google or Tavily API keys. KB search requires configured knowledge bases.",
-                nullable=True
-            ),
-            "max_iterations": adk_types.Schema(
-                type=adk_types.Type.INTEGER,
-                description="Maximum research iterations (default: 2, max: 3)",
-                minimum=1,
-                maximum=5,
-                nullable=True
-            ),
-            "max_sources_per_iteration": adk_types.Schema(
-                type=adk_types.Type.INTEGER,
-                description="Maximum results per source per iteration (default: 5)",
-                minimum=1,
-                maximum=10,
+                description="Sources to search (default: ['web']). Web search requires Google or Tavily API keys. KB search requires configured knowledge bases.",
                 nullable=True
             ),
             "kb_ids": adk_types.Schema(
                 type=adk_types.Type.ARRAY,
                 items=adk_types.Schema(type=adk_types.Type.STRING),
-                description="Specific knowledge base IDs to search",
+                description="Specific knowledge base IDs to search (only used if 'kb' is in sources)",
                 nullable=True
             )
         },

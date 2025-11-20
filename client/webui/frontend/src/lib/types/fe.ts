@@ -246,6 +246,14 @@ export interface RAGSearchResult {
     timestamp: string;
     sources: RAGSource[];
     task_id?: string;
+    metadata?: {
+        queries?: Array<{
+            query: string;
+            timestamp: string;
+            source_citation_ids: string[];
+        }>;
+        [key: string]: any;
+    };
 }
 
 export interface RAGSearchResultEvent {

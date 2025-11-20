@@ -164,126 +164,157 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         );
     }
 
-    // Check if all data is deep_research (hide Sources tab if so)
+    // Check if all data is deep_research
     const isAllDeepResearch = ragData.every(search => search.search_type === 'deep_research');
     
     // Calculate total sources across all searches
     const totalSources = ragData.reduce((sum, search) => sum + search.sources.length, 0);
     
+    // // For deep research, categorize sources by whether they have full content or just snippets
+    // const categorizedSources = React.useMemo(() => {
+    //     if (!isAllDeepResearch) return { readInFull: [], snippets: [] };
+        
+    //     const readInFull: RAGSearchResult['sources'] = [];
+    //     const snippets: RAGSearchResult['sources'] = [];
+        
+    //     // Track which sources we've already added - use URL as key and keep the best version
+    //     const seenUrls = new Map<string, { source: RAGSearchResult['sources'][0], wasFetched: boolean }>();
+        
+    //     ragData.forEach(search => {
+    //         search.sources.forEach(source => {
+    //             const url = source.url || source.source_url || '';
+    //             if (!url) return;
+                
+    //             // Check if this source was fetched (has full content)
+    //             const wasFetched = Boolean(
+    //                 source.metadata?.fetched === true ||
+    //                 source.metadata?.fetch_status === 'success' ||
+    //                 (source.content_preview && source.content_preview.includes('[Full Content Fetched]'))
+    //             );
+                
+    //             // Check if we've seen this URL before
+    //             const existing = seenUrls.get(url);
+                
+    //             if (existing) {
+    //                 // If we already have a fetched version, skip this one
+    //                 if (existing.wasFetched) {
+    //                     return;
+    //                 }
+    //                 // If this one is fetched but the existing isn't, replace it
+    //                 if (wasFetched && !existing.wasFetched) {
+    //                     seenUrls.set(url, { source, wasFetched });
+    //                 }
+    //             } else {
+    //                 // First time seeing this URL
+    //                 seenUrls.set(url, { source, wasFetched });
+    //             }
+    //         });
+    //     });
+        
+    //     // Now categorize all unique sources
+    //     seenUrls.forEach(({ source, wasFetched }) => {
+    //         if (wasFetched) {
+    //             readInFull.push(source);
+    //         } else {
+    //             snippets.push(source);
+    //         }
+    //     });
+        
+    //     return { readInFull, snippets };
+    // }, [ragData, isAllDeepResearch]);
+    
+    // Simple source item component for deep research
+    const SimpleSourceItem: React.FC<{ source: RAGSearchResult['sources'][0] }> = ({ source }) => {
+        const url = source.url || source.source_url;
+        const title = source.title || source.filename || 'Unknown';
+        const favicon = source.metadata?.favicon || (url ? `https://www.google.com/s2/favicons?domain=${url}&sz=32` : '');
+        
+        return (
+            <div className="flex items-center gap-2 py-1.5 hover:bg-muted/50 rounded px-2 -mx-2">
+                {favicon && (
+                    <img
+                        src={favicon}
+                        alt=""
+                        className="h-4 w-4 rounded flex-shrink-0"
+                        onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                    />
+                )}
+                {url ? (
+                    <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:underline truncate"
+                        title={title}
+                    >
+                        {title}
+                    </a>
+                ) : (
+                    <span className="text-sm truncate" title={title}>
+                        {title}
+                    </span>
+                )}
+            </div>
+        );
+    };
+    
+    // Get all unique FETCHED sources for deep research (filter out snippets)
+    const allUniqueSources = React.useMemo(() => {
+        if (!isAllDeepResearch) return [];
+        
+        const sourceMap = new Map<string, RAGSearchResult['sources'][0]>();
+        
+        ragData.forEach(search => {
+            search.sources.forEach(source => {
+                // Only include fetched sources (not snippets)
+                const wasFetched = source.metadata?.fetched === true ||
+                                  source.metadata?.fetch_status === 'success' ||
+                                  (source.content_preview && source.content_preview.includes('[Full Content Fetched]'));
+                
+                if (!wasFetched) {
+                    return; // Skip snippet-only sources
+                }
+                
+                const key = source.url || source.source_url || source.title || '';
+                if (key && !sourceMap.has(key)) {
+                    sourceMap.set(key, source);
+                }
+            });
+        });
+        
+        const uniqueSources = Array.from(sourceMap.values());
+        
+        console.log('[RAGInfoPanel] Deep research source filtering:', {
+            totalSourcesBeforeFilter: ragData.reduce((sum, s) => sum + s.sources.length, 0),
+            uniqueFetchedSources: uniqueSources.length,
+            sampleSources: uniqueSources.slice(0, 3).map(s => ({
+                url: s.url,
+                title: s.title,
+                fetched: s.metadata?.fetched,
+                fetch_status: s.metadata?.fetch_status
+            }))
+        });
+        
+        return uniqueSources;
+    }, [ragData, isAllDeepResearch]);
+    
     return (
         <div className="h-full flex flex-col overflow-hidden">
             {isAllDeepResearch ? (
-                // Deep research: Activity tab only (sources shown inline in chat)
+                // Deep research: Show all sources in a simple list
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="px-4 pt-4 pb-2 flex-shrink-0">
-                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                            Research Activity
-                        </h3>
-                    </div>
-                    <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0">
+                    <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0">
                         <div className="mb-3">
-                            <p className="text-xs text-muted-foreground">
-                                {ragData.length} search{ragData.length !== 1 ? "es" : ""} performed
-                            </p>
+                            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                                {allUniqueSources.length} Sources
+                            </h3>
                         </div>
-                        
-                        <div className="space-y-2">
-                            {ragData.map((search, searchIdx) => {
-                                // Build timeline events for this search
-                                const events: TimelineEvent[] = [];
-                                
-                                // Add search event
-                                events.push({
-                                    type: 'search',
-                                    timestamp: search.timestamp,
-                                    content: search.query
-                                });
-                                
-                                // Add read events for sources that were fetched/analyzed
-                                search.sources.forEach(source => {
-                                    if (source.url || source.title) {
-                                        const sourceType = source.metadata?.source_type || 'web';
-                                        events.push({
-                                            type: 'read',
-                                            timestamp: source.retrieved_at || search.timestamp,
-                                            content: source.title || source.url || 'Unknown',
-                                            url: source.url,
-                                            favicon: source.metadata?.favicon || (source.url ? `https://www.google.com/s2/favicons?domain=${source.url}&sz=32` : ''),
-                                            title: source.title,
-                                            source_type: sourceType
-                                        });
-                                    }
-                                });
-                                
-                                return (
-                                    <React.Fragment key={searchIdx}>
-                                        {events.map((event, eventIdx) => (
-                                            <div key={`${searchIdx}-${eventIdx}`} className="flex items-start gap-3 py-2">
-                                                {/* Icon */}
-                                                <div className="flex-shrink-0 mt-0.5">
-                                                    {event.type === 'thinking' && (
-                                                        <Brain className="h-4 w-4 text-muted-foreground" />
-                                                    )}
-                                                    {event.type === 'search' && (
-                                                        <Search className="h-4 w-4 text-muted-foreground" />
-                                                    )}
-                                                    {event.type === 'read' && (() => {
-                                                        // Web-only version - only web sources
-                                                        if (event.favicon && event.favicon.trim() !== '') {
-                                                            // Web source with favicon
-                                                            return (
-                                                                <img
-                                                                    src={event.favicon}
-                                                                    alt=""
-                                                                    className="h-4 w-4 rounded"
-                                                                    onError={(e) => {
-                                                                        (e.target as HTMLImageElement).style.display = 'none';
-                                                                    }}
-                                                                />
-                                                            );
-                                                        } else {
-                                                            // Web source without favicon or unknown
-                                                            return <Globe className="h-4 w-4 text-muted-foreground" />;
-                                                        }
-                                                    })()}
-                                                </div>
-                                                
-                                                {/* Content */}
-                                                <div className="flex-1 min-w-0">
-                                                    {event.type === 'search' && (
-                                                        <div className="text-sm">
-                                                            <span className="text-muted-foreground">Searched for </span>
-                                                            <span className="font-medium">{event.content}</span>
-                                                        </div>
-                                                    )}
-                                                    {event.type === 'read' && (
-                                                        <div className="text-sm">
-                                                            <span className="text-muted-foreground">Read </span>
-                                                            {event.url ? (
-                                                                <a
-                                                                    href={event.url}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="text-primary hover:underline font-medium"
-                                                                >
-                                                                    {event.title || new URL(event.url).hostname}
-                                                                </a>
-                                                            ) : (
-                                                                <span className="font-medium">{event.content}</span>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                    {event.type === 'thinking' && (
-                                                        <div className="text-sm text-muted-foreground">
-                                                            {event.content}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </React.Fragment>
-                                );
-                            })}
+                        <div className="space-y-1">
+                            {allUniqueSources.map((source, idx) => (
+                                <SimpleSourceItem key={`source-${idx}`} source={source} />
+                            ))}
                         </div>
                     </div>
                 </div>

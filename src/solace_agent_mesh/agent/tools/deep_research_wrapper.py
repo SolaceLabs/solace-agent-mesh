@@ -1,9 +1,8 @@
 """
-Deep Research Tool Wrapper with Automatic Parameter Injection
+Deep Research Tool Wrapper with Simplified User Interaction
 
-This wrapper automatically extracts deep_research_settings from the message metadata
-and injects them into the tool call, ensuring user preferences are always respected
-regardless of what parameters the LLM provides.
+This wrapper prompts users to choose between "quick search" or "in-depth" research,
+then translates that choice into appropriate runtime parameters.
 """
 
 from typing import Any, Dict, List, Optional
@@ -15,85 +14,52 @@ from .deep_research_tools import deep_research
 
 async def deep_research_with_auto_params(
     research_question: str,
+    research_type: str = "quick",
     sources: Optional[List[str]] = None,
     max_iterations: int = 2,
     max_sources_per_iteration: int = 5,
     kb_ids: Optional[List[str]] = None,
-    max_runtime_seconds: Optional[int] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Wrapper for deep_research that automatically injects parameters from metadata.
+    Wrapper for deep_research that translates research type to runtime parameters.
     
     This function:
-    1. Extracts deep_research_settings from the task context metadata
-    2. Overrides LLM-provided parameters with user's preferences
-    3. Calls the actual deep_research function with corrected parameters
+    1. Takes a simple research_type parameter ("quick" or "in-depth")
+    2. Translates it to appropriate runtime limits:
+       - "quick": 5 minutes (300 seconds), 2 iterations
+       - "in-depth": 10 minutes (600 seconds), 3 iterations
+    3. Calls the actual deep_research function with these parameters
     
-    This ensures user settings are ALWAYS respected, regardless of what the LLM provides.
+    This provides a simplified interface that doesn't confuse users with technical settings.
     """
     log_identifier = "[DeepResearchWrapper]"
     
-    log.info("%s Wrapper called with LLM parameters: max_runtime_seconds=%s, max_iterations=%s, sources=%s",
-            log_identifier, max_runtime_seconds, max_iterations, sources)
+    log.info("%s Wrapper called with research_type=%s", log_identifier, research_type)
     
-    # Extract metadata from tool context
-    if tool_context and tool_context.state:
-        a2a_context = tool_context.state.get("a2a_context", {})
-        log.info("%s Found a2a_context in tool_context.state", log_identifier)
-        
-        # Try to get the original message metadata
-        # The metadata should be available in the a2a_context
-        original_metadata = a2a_context.get("original_message_metadata", {})
-        log.info("%s original_message_metadata keys: %s", log_identifier, list(original_metadata.keys()))
-        
-        # Check for deep_research_settings in metadata
-        if "deep_research_settings" in original_metadata:
-            settings = original_metadata["deep_research_settings"]
-            log.info("%s Found deep_research_settings in metadata: %s", log_identifier, settings)
-            
-            # Override parameters with user's settings
-            if "max_runtime_seconds" in settings and settings["max_runtime_seconds"]:
-                max_runtime_seconds = settings["max_runtime_seconds"]
-                log.info("%s Overriding max_runtime_seconds with user setting: %d", 
-                        log_identifier, max_runtime_seconds)
-            
-            if "max_iterations" in settings and settings["max_iterations"]:
-                max_iterations = settings["max_iterations"]
-                log.info("%s Overriding max_iterations with user setting: %d", 
-                        log_identifier, max_iterations)
-            
-            if "sources" in settings and settings["sources"]:
-                # Validate sources - only allow web and kb (no gdrive, sharepoint, etc.)
-                allowed_sources = {"web", "kb"}
-                user_sources = settings["sources"]
-                
-                # Filter to only allowed sources
-                validated_sources = [s for s in user_sources if s in allowed_sources]
-                
-                if validated_sources:
-                    sources = validated_sources
-                    log.info("%s Overriding sources with validated user setting: %s (filtered from: %s)",
-                            log_identifier, sources, user_sources)
-                else:
-                    # If no valid sources, use default
-                    sources = ["web"]
-                    log.warning("%s User requested invalid sources %s, using default: %s",
-                               log_identifier, user_sources, sources)
-            
-            log.info("%s ✅ Applied user settings from metadata: duration=%ds, iterations=%d, sources=%s",
-                    log_identifier, max_runtime_seconds or 0, max_iterations, sources or "default")
-        else:
-            log.warning("%s ⚠️ No deep_research_settings found in metadata, using LLM-provided or default parameters",
-                       log_identifier)
+    # Translate research type to runtime parameters
+    if research_type.lower() in ["in-depth", "indepth", "in_depth", "deep", "comprehensive"]:
+        max_runtime_seconds = 600  # 10 minutes
+        max_iterations = 10
+        research_mode = "in-depth"
+        log.info("%s Using IN-DEPTH mode: 10 minutes, 10 iterations", log_identifier)
     else:
-        log.warning("%s ⚠️ No tool_context or tool_context.state available", log_identifier)
+        # Default to quick search for any other value
+        max_runtime_seconds = 300  # 5 minutes
+        max_iterations = 3
+        research_mode = "quick"
+        log.info("%s Using QUICK mode: 5 minutes, 3 iterations", log_identifier)
     
-    log.info("%s Calling deep_research with final parameters: max_runtime_seconds=%s, max_iterations=%s, sources=%s",
-            log_identifier, max_runtime_seconds, max_iterations, sources)
+    # Set default sources if not provided
+    if sources is None:
+        sources = ["web"]
+        log.info("%s Using default sources: %s", log_identifier, sources)
     
-    # Call the actual deep_research function with (potentially overridden) parameters
+    log.info("%s Final parameters: mode=%s, duration=%ds, iterations=%d, sources=%s",
+            log_identifier, research_mode, max_runtime_seconds, max_iterations, sources)
+    
+    # Call the actual deep_research function with translated parameters
     return await deep_research(
         research_question=research_question,
         sources=sources,

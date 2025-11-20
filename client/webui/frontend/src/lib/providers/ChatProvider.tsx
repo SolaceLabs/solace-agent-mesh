@@ -1124,9 +1124,26 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 search_type: ragMetadata.search_type,
                                                 timestamp: ragMetadata.timestamp,
                                                 sources: ragMetadata.sources,
-                                                task_id: currentTaskIdFromResult
+                                                task_id: currentTaskIdFromResult,
+                                                metadata: ragMetadata.metadata // Preserve metadata with query breakdown
                                             };
-                                            setRagData(prev => [...prev, ragSearchResult]);
+                                            
+                                            // For deep research: REPLACE all previous entries for this task with the final metadata
+                                            // This ensures we have the complete, properly structured data with metadata.queries
+                                            if (ragMetadata.search_type === 'deep_research') {
+                                                console.log("ChatProvider: Replacing deep research entries with final metadata");
+                                                setRagData(prev => {
+                                                    // Remove all previous deep research entries for this task
+                                                    const filtered = prev.filter(
+                                                        r => !(r.search_type === 'deep_research' && r.task_id === currentTaskIdFromResult)
+                                                    );
+                                                    // Add the final complete entry
+                                                    return [...filtered, ragSearchResult];
+                                                });
+                                            } else {
+                                                // For regular web search: append as before
+                                                setRagData(prev => [...prev, ragSearchResult]);
+                                            }
                                             console.log("ChatProvider: RAG search result added to state from tool_result");
                                         }
                                     }
