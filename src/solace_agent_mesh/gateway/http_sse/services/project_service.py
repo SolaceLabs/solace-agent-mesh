@@ -307,6 +307,80 @@ class ProjectService:
         self.logger.info(f"Finished adding {len(files)} artifacts to project {project_id}")
         return results
 
+    async def update_artifact_metadata(
+        self,
+        db,
+        project_id: str,
+        user_id: str,
+        filename: str,
+        description: Optional[str] = None
+    ) -> bool:
+        """
+        Update metadata (description) for a project artifact.
+        
+        Args:
+            db: The database session
+            project_id: The project ID
+            user_id: The requesting user ID
+            filename: The filename of the artifact to update
+            description: New description for the artifact
+            
+        Returns:
+            bool: True if update was successful, False if project not found
+            
+        Raises:
+            ValueError: If user cannot modify the project or artifact service is missing
+        """
+        project = self.get_project(db, project_id, user_id)
+        if not project:
+            return False
+
+        if not self.artifact_service:
+            self.logger.warning(f"Attempted to update artifact metadata in project {project_id} but no artifact service is configured.")
+            raise ValueError("Artifact service is not configured")
+
+        storage_session_id = f"project-{project.id}"
+        
+        self.logger.info(f"Updating metadata for artifact '{filename}' in project {project_id} for user {user_id}")
+        
+        # Load the current artifact to get its content and existing metadata
+        try:
+            artifact_part = await self.artifact_service.load_artifact(
+                app_name=self.app_name,
+                user_id=project.user_id,
+                session_id=storage_session_id,
+                filename=filename,
+            )
+            
+            if not artifact_part or not artifact_part.inline_data:
+                self.logger.warning(f"Artifact '{filename}' not found in project {project_id}")
+                return False
+            
+            # Prepare updated metadata
+            metadata = {"source": "project"}
+            if description is not None:
+                metadata["description"] = description
+            
+            # Save the artifact with updated metadata
+            await save_artifact_with_metadata(
+                artifact_service=self.artifact_service,
+                app_name=self.app_name,
+                user_id=project.user_id,
+                session_id=storage_session_id,
+                filename=filename,
+                content_bytes=artifact_part.inline_data.data,
+                mime_type=artifact_part.inline_data.mime_type,
+                metadata_dict=metadata,
+                timestamp=datetime.now(timezone.utc),
+            )
+            
+            self.logger.info(f"Successfully updated metadata for artifact '{filename}' in project {project_id}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error updating artifact metadata: {e}")
+            raise
+
     async def delete_artifact_from_project(self, db, project_id: str, user_id: str, filename: str) -> bool:
         """
         Deletes an artifact from a project.

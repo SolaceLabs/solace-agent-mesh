@@ -388,6 +388,56 @@ async def add_project_artifacts(
         )
 
 
+@router.patch("/projects/{project_id}/artifacts/{filename}", status_code=status.HTTP_200_OK)
+async def update_project_artifact_metadata(
+    project_id: str,
+    filename: str,
+    description: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Update metadata (description) for a project artifact.
+    """
+    user_id = user.get("id")
+    log.info(f"User {user_id} attempting to update metadata for artifact '{filename}' in project {project_id}")
+
+    try:
+        success = await project_service.update_artifact_metadata(
+            db=db,
+            project_id=project_id,
+            user_id=user_id,
+            filename=filename,
+            description=description,
+        )
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project or artifact not found, or access denied."
+            )
+        
+        return {"message": "Artifact metadata updated successfully"}
+    except ValueError as e:
+        log.warning(f"Validation error updating artifact metadata in project {project_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(
+            "Error updating metadata for artifact '%s' in project %s for user %s: %s",
+            filename,
+            project_id,
+            user_id,
+            e,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update artifact metadata"
+        )
+
+
 @router.delete("/projects/{project_id}/artifacts/{filename}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project_artifact(
     project_id: str,
