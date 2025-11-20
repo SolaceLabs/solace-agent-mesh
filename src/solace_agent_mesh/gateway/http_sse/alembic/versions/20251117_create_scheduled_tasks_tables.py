@@ -1,7 +1,7 @@
 """Create scheduled tasks tables
 
 Revision ID: 20251117_create_scheduled_tasks_tables
-Revises: 20251108_prompt_tables_complete
+Revises: 20251115_add_parent_task_id
 Create Date: 2025-11-17
 
 This migration creates the infrastructure for scheduled tasks:
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20251117_create_scheduled_tasks_tables"
-down_revision: str | Sequence[str] | None = "20251108_prompt_tables_complete"
+down_revision: str | Sequence[str] | None = "20251115_add_parent_task_id"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
