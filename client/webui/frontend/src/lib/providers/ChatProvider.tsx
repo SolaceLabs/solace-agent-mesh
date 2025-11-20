@@ -1680,6 +1680,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const uploadedFileParts: FilePart[] = [];
                 const successfullyUploadedFiles: Array<{ filename: string; sessionId: string }> = []; // Track large files for cleanup
 
+                // Track the effective session ID for this message (may be created during file upload)
+                let effectiveSessionId = sessionId;
+
                 console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
 
                 for (const file of currentFiles) {
@@ -1700,6 +1703,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                         // Check for success FIRST - must have both uri and sessionId
                         if (result && "uri" in result && result.uri && result.sessionId) {
+                            // Update effective session ID if backend created a new one during upload
+                            if (result.sessionId !== sessionId) {
+                                console.log(`[handleSubmit] File upload created new session: ${result.sessionId}`);
+                                effectiveSessionId = result.sessionId;
+                            }
+
                             // SUCCESS - track filename AND sessionId for potential cleanup
                             const uploadedFile = {
                                 filename: file.name,
@@ -1745,13 +1754,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // 3. Construct the A2A message
-                console.log(`ChatProvider handleSubmit: Using sessionId for contextId: ${sessionId}`);
+                console.log(`ChatProvider handleSubmit: Using effectiveSessionId for contextId: ${effectiveSessionId}`);
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
                     messageId: `msg-${v4()}`,
                     kind: "message",
-                    contextId: sessionId,
+                    contextId: effectiveSessionId,
                     metadata: {
                         agent_name: selectedAgentName,
                         project_id: activeProject?.id || null,
@@ -1818,13 +1827,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                     // If it was a new session, generate and persist its name
                     if (isNewSession) {
+                        let newSessionName = "New Chat";
                         const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
                         const combinedText = textParts
                             .map(p => p.text)
                             .join(" ")
                             .trim();
+
                         if (combinedText) {
-                            const newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
+                            newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
+                        } else if (currentFiles.length > 0) {
+                            // No text, but files were sent - derive name from files
+                            if (currentFiles.length === 1) {
+                                newSessionName = currentFiles[0].name;
+                            } else {
+                                newSessionName = `${currentFiles[0].name} +${currentFiles.length - 1} more`;
+                            }
+                        }
+
+                        if (newSessionName) {
                             setSessionName(newSessionName);
                             await updateSessionName(responseSessionId, newSessionName);
                         }
