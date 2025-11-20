@@ -1,5 +1,5 @@
 export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
-  return `
+    return `
 	  break-words
     leading-[24px]
 
@@ -30,12 +30,9 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
     [&_ul_ul]:mt-1 [&_ul_ul]:mb-1
     [&_ol_ol]:mt-1 [&_ol_ol]:mb-1
 
-    /* Code */
+    /* Code - inline code only (code blocks handled by CodeBlock component) */
     [&_code]:bg-transparent [&_code]:py-0.5 [&_code]:rounded
     [&_code]:text-sm [&_code]:font-mono [&_code]:font-semibold [&_code]:text-foreground [&_code]:break-words
-    [&_pre]:bg-transparent [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:max-w-full
-    [&_pre]:mb-4 [&_pre]:border [&_pre]:border-border [&_pre]:whitespace-pre-wrap
-    [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-sm [&_pre_code]:break-words
 
     /* Blockquotes */
     [&_blockquote]:border-l-4 [&_blockquote]:border-border [&_blockquote]:pl-4
@@ -57,12 +54,12 @@ export const getThemeHtmlStyles = (additionalClasses: string = ""): string => {
 
     ${additionalClasses}
   `
-    .trim()
-    .replace(/\s+/g, " ");
+        .trim()
+        .replace(/\s+/g, " ");
 };
 
 export const getThemeButtonHtmlStyles = (additionalClasses: string = ""): string => {
-  return `
+    return `
     /* Buttons - "important" overrides for flow controls */
     [&>button]:bg-[var(--color-background-w10)]
     [&>button]:dark:!bg-[var(--color-background-w100)]
@@ -76,6 +73,6 @@ export const getThemeButtonHtmlStyles = (additionalClasses: string = ""): string
 
     ${additionalClasses}
   `
-    .trim()
-    .replace(/\s+/g, " ");
+        .trim()
+        .replace(/\s+/g, " ");
 };
