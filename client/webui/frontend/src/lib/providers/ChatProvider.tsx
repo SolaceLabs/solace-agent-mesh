@@ -59,6 +59,7 @@ import type {
     TaskStatusUpdateEvent,
     TextPart,
     ArtifactPart,
+    AgentCardInfo,
 } from "@/lib/types";
 
 interface ChatProviderProps {
@@ -169,7 +170,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const combinedText = textParts?.map(p => p.text).join("") || "";
 
         return {
-            id: message.metadata?.messageId || `msg-${crypto.randomUUID()}`,
+            id: message.metadata?.messageId || `msg-${v4()}`,
             type: message.isUser ? "user" : "agent",
             text: combinedText,
             parts: message.parts,
@@ -342,20 +343,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string, description?: string): Promise<{ uri: string; sessionId: string } | null> => {
+        async (file: File, overrideSessionId?: string, description?: string): Promise<{ uri: string; sessionId: string } | { error: string } | null> => {
             const effectiveSessionId = overrideSessionId || sessionId;
             const formData = new FormData();
             formData.append("upload_file", file);
             formData.append("filename", file.name);
             // Send sessionId as form field (can be empty string for new sessions)
             formData.append("sessionId", effectiveSessionId || "");
-            
+
             // Add description as metadata if provided
             if (description) {
                 const metadata = { description };
                 formData.append("metadata_json", JSON.stringify(metadata));
             }
-            
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
@@ -364,7 +365,29 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: `Failed to upload ${file.name}` }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+
+                    // Enhanced error handling for file size errors
+                    if (response.status === 413) {
+                        // Extract file size information if available
+                        const actualSize = errorData.actual_size_bytes;
+                        const maxSize = errorData.max_size_bytes;
+
+                        let errorMessage;
+                        if (actualSize && maxSize) {
+                            const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
+                            const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
+                            errorMessage = `File "${file.name}" is too large: ${actualSizeMB} MB exceeds the maximum allowed size of ${maxSizeMB} MB`;
+                        } else {
+                            errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size`;
+                        }
+
+                        addNotification(errorMessage, "error");
+                        return { error: errorMessage };
+                    }
+
+                    // Default error handling for other errors
+                    const errorMessage = errorData.detail || `HTTP error ${response.status}`;
+                    throw new Error(errorMessage);
                 }
                 const result = await response.json();
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
@@ -372,8 +395,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Return both URI and sessionId (backend may have created a new session)
                 return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
             } catch (error) {
-                addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`, "error");
-                return null;
+                const errorMessage = error instanceof Error ? error.message : "Unknown error";
+                addNotification(`Error uploading artifact "${file.name}": ${errorMessage}`);
+                return { error: `Failed to upload "${file.name}": ${errorMessage}` };
             }
         },
         [apiPrefix, sessionId, addNotification, artifactsRefetch]
@@ -733,7 +757,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isError: true,
                         isComplete: true,
                         metadata: {
-                            messageId: `msg-${crypto.randomUUID()}`,
+                            messageId: `msg-${v4()}`,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -1081,7 +1105,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isUser: false,
                             isComplete: isFinalEvent || hasNewFiles,
                             metadata: {
-                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
+                                messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
                                 lastProcessedEventSequence: currentEventSequence,
                             },
@@ -1230,7 +1254,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${crypto.randomUUID()}`,
+                        id: `req-${v4()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
@@ -1310,7 +1334,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${crypto.randomUUID()}`,
+                        id: `req-${v4()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
@@ -1509,7 +1533,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         try {
             const cancelRequest: CancelTaskRequest = {
                 jsonrpc: "2.0",
-                id: `req-${crypto.randomUUID()}`,
+                id: `req-${v4()}`,
                 method: "tasks/cancel",
                 params: {
                     id: currentTaskId,
@@ -1591,6 +1615,35 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
     }, [addNotification, closeCurrentEventSource, isResponding]);
 
+    const cleanupUploadedFiles = useCallback(
+        async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
+            if (uploadedFiles.length === 0) {
+                return;
+            }
+
+            for (const { filename, sessionId: fileSessionId } of uploadedFiles) {
+                try {
+                    const deleteUrl = `${apiPrefix}/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`;
+
+                    // Use the session ID that was used during upload
+                    const response = await authenticatedFetch(deleteUrl, {
+                        method: "DELETE",
+                        credentials: "include",
+                    });
+
+                    if (!response.ok && response.status !== 204) {
+                        const errorData = await response.json().catch(() => ({ detail: `Failed to delete ${filename}` }));
+                        console.error(`[cleanupUploadedFiles] Failed to cleanup file ${filename}:`, errorData.detail || `HTTP error ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
+                    // Continue cleanup even if one fails
+                }
+            }
+        },
+        [apiPrefix]
+    );
+
     const handleSubmit = useCallback(
         async (event: FormEvent, files?: File[] | null, userInputText?: string | null) => {
             event.preventDefault();
@@ -1614,7 +1667,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 metadata: {
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     sessionId: sessionId,
                     lastProcessedEventSequence: 0,
                 },
@@ -1623,45 +1676,68 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setMessages(prev => [...prev, userMsg]);
 
             try {
-                // 1. Process files using hybrid approach
-                const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
+                // 1. Process files using hybrid approach with fail-fast
+                const uploadedFileParts: FilePart[] = [];
+                const successfullyUploadedFiles: Array<{ filename: string; sessionId: string }> = []; // Track large files for cleanup
+
+                console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
+
+                for (const file of currentFiles) {
                     if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
-                        // Small file: send inline as base64
+                        // Small file: send inline as base64 (no cleanup needed)
                         const base64Content = await fileToBase64(file);
-                        return {
+                        uploadedFileParts.push({
                             kind: "file",
                             file: {
                                 bytes: base64Content,
                                 name: file.name,
                                 mimeType: file.type,
                             },
-                        };
+                        });
                     } else {
                         // Large file: upload and get URI
                         const result = await uploadArtifactFile(file);
-                        if (result) {
-                            return {
+
+                        // Check for success FIRST - must have both uri and sessionId
+                        if (result && "uri" in result && result.uri && result.sessionId) {
+                            // SUCCESS - track filename AND sessionId for potential cleanup
+                            const uploadedFile = {
+                                filename: file.name,
+                                sessionId: result.sessionId,
+                            };
+                            successfullyUploadedFiles.push(uploadedFile);
+
+                            uploadedFileParts.push({
                                 kind: "file",
                                 file: {
                                     uri: result.uri,
                                     name: file.name,
                                     mimeType: file.type,
                                 },
-                            };
+                            });
                         } else {
-                            addNotification(`Failed to upload large file: ${file.name}`, "error");
-                            return null;
+                            // ANY failure case (error object, null, or missing fields) - Clean up and stop
+                            console.error(`[handleSubmit] File upload failed for "${file.name}". Result:`, result);
+                            await cleanupUploadedFiles(successfullyUploadedFiles);
+
+                            const cleanupMessage = successfullyUploadedFiles.length > 0 ? " Previously uploaded files have been cleaned up." : "";
+
+                            const errorDetail = result && "error" in result ? ` (${result.error})` : "";
+                            addNotification(`File upload failed for "${file.name}"${errorDetail}.${cleanupMessage} Message not sent.`, "error");
+
+                            setIsResponding(false);
+                            setMessages(prev => prev.filter(msg => msg.metadata?.messageId !== userMsg.metadata?.messageId));
+                            return; // Exit handleSubmit
                         }
                     }
-                });
-
-                const uploadedFileParts = (await Promise.all(filePartsPromises)).filter((p): p is FilePart => p !== null);
+                }
 
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
                 if (currentInput) {
                     messageParts.push({ kind: "text", text: currentInput });
                 }
+
                 messageParts.push(...uploadedFileParts);
 
                 if (messageParts.length === 0) {
@@ -1673,7 +1749,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     kind: "message",
                     contextId: sessionId,
                     metadata: {
@@ -1685,7 +1761,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${crypto.randomUUID()}`,
+                    id: `req-${v4()}`,
                     method: "message/stream",
                     params: {
                         message: a2aMessage,
@@ -1776,7 +1852,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, INLINE_FILE_SIZE_LIMIT_BYTES, activeProject]
+        [
+            sessionId,
+            isResponding,
+            isCancelling,
+            selectedAgentName,
+            closeCurrentEventSource,
+            addNotification,
+            apiPrefix,
+            uploadArtifactFile,
+            updateSessionName,
+            saveTaskToBackend,
+            serializeMessageBubble,
+            INLINE_FILE_SIZE_LIMIT_BYTES,
+            activeProject,
+            cleanupUploadedFiles,
+        ]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
@@ -1846,22 +1937,41 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Don't show welcome message if we're loading a session
         if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
             // Priority order for agent selection:
-            // 1. Project's default agent (if in project context)
-            // 2. OrchestratorAgent (fallback)
-            // 3. First available agent
+            // 1. URL parameter agent (?agent=AgentName)
+            // 2. Project's default agent (if in project context)
+            // 3. OrchestratorAgent (fallback)
+            // 4. First available agent
             let selectedAgent = agents[0];
 
-            if (activeProject?.defaultAgentId) {
-                const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
-                if (projectDefaultAgent) {
-                    selectedAgent = projectDefaultAgent;
-                    console.log(`Using project default agent: ${selectedAgent.name}`);
+            // Check URL parameter first
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlAgentName = urlParams.get("agent");
+            let urlAgent: AgentCardInfo | undefined;
+
+            if (urlAgentName) {
+                urlAgent = agents.find(agent => agent.name === urlAgentName);
+                if (urlAgent) {
+                    selectedAgent = urlAgent;
+                    console.log(`Using URL parameter agent: ${selectedAgent.name}`);
                 } else {
-                    console.warn(`Project default agent "${activeProject.defaultAgentId}" not found, falling back to OrchestratorAgent`);
+                    console.warn(`URL parameter agent "${urlAgentName}" not found in available agents, falling back to priority order`);
+                }
+            }
+
+            // If no URL agent found, follow existing priority order
+            if (!urlAgent) {
+                if (activeProject?.defaultAgentId) {
+                    const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
+                    if (projectDefaultAgent) {
+                        selectedAgent = projectDefaultAgent;
+                        console.log(`Using project default agent: ${selectedAgent.name}`);
+                    } else {
+                        console.warn(`Project default agent "${activeProject.defaultAgentId}" not found, falling back to OrchestratorAgent`);
+                        selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+                    }
+                } else {
                     selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
                 }
-            } else {
-                selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
             }
 
             setSelectedAgentName(selectedAgent.name);

@@ -1486,6 +1486,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 ssl_keyfile=self.ssl_keyfile,
                 ssl_certfile=self.ssl_certfile,
                 ssl_keyfile_password=self.ssl_keyfile_password,
+                log_config=None
             )
             self.uvicorn_server = uvicorn.Server(config)
 

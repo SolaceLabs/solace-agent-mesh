@@ -5,6 +5,7 @@ Handles ADK Agent and Runner initialization, including tool loading and callback
 import functools
 import inspect
 import logging
+import os
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 
 from google.adk import tools as adk_tools_module
@@ -501,6 +502,35 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
     )
     return loaded_tools, enabled_builtin_tools, []
 
+def validate_filesystem_path(path, log_identifier=""):
+    """
+    Validates that a filesystem path exists and is accessible.
+    
+    Args:
+        path: The filesystem path to validate
+        log_identifier: Optional identifier for logging
+        
+    Returns:
+        bool: True if the path exists and is accessible, False otherwise
+        
+    Raises:
+        ValueError: If the path doesn't exist or isn't accessible
+    """
+    if not path:
+        raise ValueError(f"{log_identifier} Filesystem path is empty or None")
+        
+    if not os.path.exists(path):
+        raise ValueError(f"{log_identifier} Filesystem path does not exist: {path}")
+        
+    if not os.path.isdir(path):
+        raise ValueError(f"{log_identifier} Filesystem path is not a directory: {path}")
+        
+    # Check if the directory is readable and writable
+    if not os.access(path, os.R_OK | os.W_OK):
+        raise ValueError(f"{log_identifier} Filesystem path is not readable and writable: {path}")
+        
+    return True
+
 async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
     """Loads an MCP toolset based on connection parameters."""
     from pydantic import TypeAdapter
@@ -548,6 +578,31 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
             raise ValueError(
                 f"MCP tool 'args' parameter must be a list, got {type(args_list)}"
             )
+            
+        # Check if this is the filesystem MCP server
+        if args_list and any("@modelcontextprotocol/server-filesystem" in arg for arg in args_list):
+            # Find the index of the server-filesystem argument
+            server_fs_index = -1
+            for i, arg in enumerate(args_list):
+                if "@modelcontextprotocol/server-filesystem" in arg:
+                    server_fs_index = i
+                    break
+            
+            # All arguments after server-filesystem are directory paths
+            if server_fs_index >= 0 and server_fs_index + 1 < len(args_list):
+                directory_paths = args_list[server_fs_index + 1:]
+                
+                for path in directory_paths:
+                    try:
+                        validate_filesystem_path(path, log_identifier=component.log_identifier)
+                        log.info(
+                            "%s Validated filesystem path for MCP server: %s",
+                            component.log_identifier,
+                            path
+                        )
+                    except ValueError as e:
+                        log.error("%s", str(e))
+                        raise ValueError(f"MCP filesystem server path validation failed: {e}")
         final_connection_args = {
             k: v
             for k, v in connection_args.items()
@@ -627,6 +682,77 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
     )
 
     return [mcp_toolset_instance], [], []
+
+
+async def _load_openapi_tool(component: "SamAgentComponent", tool_config: Dict) -> ToolLoadingResult:
+    """
+    Loads an OpenAPI toolset by delegating to the enterprise configurator.
+
+    This function validates the tool configuration and attempts to load the OpenAPI tool
+    using the enterprise package. If the enterprise package is not available, it logs a
+    warning and returns empty results.
+
+    Args:
+        component: The SamAgentComponent instance
+        tool_config: Dictionary containing the tool's configuration
+
+    Returns:
+        ToolLoadingResult: Tuple of (tools, builtins, cleanup_hooks)
+                          Returns ([], [], []) if enterprise package not available
+    """
+    from pydantic import TypeAdapter
+    from ..tools.tool_config_types import OpenApiToolConfig
+
+    # Validate basic tool configuration structure
+    openapi_tool_adapter = TypeAdapter(OpenApiToolConfig)
+    try:
+        tool_config_model = openapi_tool_adapter.validate_python(tool_config)
+    except Exception as e:
+        log.error(
+            "%s Invalid OpenAPI tool configuration: %s",
+            component.log_identifier,
+            e,
+        )
+        raise
+
+    # Try to load the tool using the enterprise configurator
+    try:
+        from solace_agent_mesh_enterprise.auth.tool_configurator import (
+            configure_openapi_tool,
+        )
+
+        try:
+            openapi_toolset = configure_openapi_tool(
+                tool_type="openapi",
+                tool_config=tool_config,
+            )
+            openapi_toolset.origin = "openapi"
+
+            log.info(
+                "%s Loaded OpenAPI toolset via enterprise configurator",
+                component.log_identifier,
+            )
+
+            return [openapi_toolset], [], []
+
+        except Exception as e:
+            log.error(
+                "%s Failed to create OpenAPI tool %s: %s",
+                component.log_identifier,
+                tool_config.get("name", "unknown"),
+                e,
+            )
+            raise
+
+    except ImportError:
+        log.warning(
+            "%s OpenAPI tools require the solace-agent-mesh-enterprise package. "
+            "Skipping tool configuration: %s",
+            component.log_identifier,
+            tool_config.get("name", "unknown"),
+        )
+        return [], [], []
+
 
 def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[str]) -> ToolLoadingResult:
     """Loads internal framework tools that are not explicitly configured by the user."""
@@ -749,6 +875,12 @@ async def load_adk_tools(
                         new_builtins,
                         new_cleanups,
                     ) = await _load_mcp_tool(component, tool_config)
+                elif tool_type == "openapi":
+                    (
+                        new_tools,
+                        new_builtins,
+                        new_cleanups,
+                    ) = await _load_openapi_tool(component, tool_config)
                 else:
                     log.warning(
                         "%s Unknown tool type '%s' in config: %s",

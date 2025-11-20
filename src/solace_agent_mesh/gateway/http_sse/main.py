@@ -32,6 +32,7 @@ from .routers import (
     feedback,
     people,
     sse,
+    speech,
     visualization,
     projects,
     prompts,
@@ -613,6 +614,7 @@ def _setup_routers() -> None:
     app.include_router(projects.router, prefix=api_prefix, tags=["Projects"])
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
+    app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
     
     # Mount scheduled tasks router if available
     if _scheduled_tasks_available and scheduled_tasks:

@@ -1,5 +1,7 @@
+import { Button } from "@/lib";
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
+import { Sparkles } from "lucide-react";
 
 const meta = {
     title: "Common/MessageBanner",
@@ -59,32 +61,34 @@ export const SuccessBanner: Story = {
     },
 };
 
+export const CustomIconBanner: Story = {
+    args: {
+        variant: "info",
+        message: "This banner has a custom icon",
+        icon: <Sparkles className="size-4" />,
+    },
+};
+
 export const DismissibleBanner: Story = {
     args: {
         variant: "info",
         dismissible: true,
-        message: "Dissms me",
+        message: "Dismiss me",
         onDismiss: () => alert("Banner will be dismissed"),
     },
 };
 
-export const BannerWithAction: Story = {
+export const BannerWithCustomButton: Story = {
     args: {
         variant: "warning",
-        message: "Dissms me",
-        buttonText: "Click here",
-        action: () => alert("This action will do something"),
-    },
-};
-
-export const DismissibleBannerWithAction: Story = {
-    args: {
-        variant: "info",
-        dismissible: true,
-        message: "Dissms me",
-        buttonText: "Click here",
-        action: () => alert("This action will do something"),
-        onDismiss: () => alert("Banner will be dismissed"),
+        message: (
+            <div className="flex w-full items-start justify-between">
+                <span>Dismiss me</span>
+                <Button variant="outline" className="border-white px-1 py-1 text-xs hover:!bg-current/50" onClick={() => alert("Custom button will do something")}>
+                    Custom button
+                </Button>
+            </div>
+        ),
     },
 };
 
@@ -92,10 +96,27 @@ export const LongMessage: Story = {
     args: {
         variant: "info",
         dismissible: true,
+        onDismiss: () => alert("Banner will be dismissed"),
         message:
             "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
-        buttonText: "Click here",
-        action: () => alert("This action will do something"),
+    },
+};
+
+export const LongMessageCustomButton: Story = {
+    args: {
+        variant: "info",
+        dismissible: true,
         onDismiss: () => alert("Banner will be dismissed"),
+        message: (
+            <div className="flex w-full items-start justify-between">
+                <span>
+                    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo
+                    consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+                </span>
+                <Button variant="outline" className="border-white px-1 py-1 text-xs hover:!bg-current/50" onClick={() => alert("Custom button will do something")}>
+                    Click here
+                </Button>
+            </div>
+        ),
     },
 };

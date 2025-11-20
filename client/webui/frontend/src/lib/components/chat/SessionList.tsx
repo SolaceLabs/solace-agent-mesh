@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
+import { useNavigate } from "react-router-dom";
 
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft } from "lucide-react";
 
@@ -35,6 +36,7 @@ interface SessionListProps {
 }
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
+    const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification } = useChatContext();
     const { configServerUrl, persistenceEnabled } = useConfigContext();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -158,16 +160,8 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const handleGoToProject = (session: Session) => {
         if (!session.projectId) return;
 
-        // Dispatch event to navigate to projects page and select this project
-        if (typeof window !== "undefined") {
-            window.dispatchEvent(
-                new CustomEvent("navigate-to-project", {
-                    detail: {
-                        projectId: session.projectId,
-                    },
-                })
-            );
-        }
+        // Navigate to projects page with the project ID
+        navigate(`/projects/${session.projectId}`);
     };
 
     const handleMoveConfirm = async (targetProjectId: string | null) => {
