@@ -72,6 +72,22 @@ dependencies = [
 gcs = ["google-cloud-storage==3.5.0"]
 vertex = ["google-cloud-aiplatform==1.126.1"]
 employee_tools = ["holidays==0.81.0"]
+test = [
+    "pytest-asyncio",
+    "pytest>=8.0.0",
+    "pytest-mock>=3.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-httpx>=0.35.0",
+    "fastmcp==2.11.2",  # Pin for mcp compatibility - newer versions require Icon
+    "httpx>=0.25",
+    "respx",
+    "ruff",
+    "testcontainers",
+    "aiosqlite",
+    "psycopg2-binary",
+    "asyncpg",
+]
 
 [tool.hatch.envs.hatch-test]
 parallel = false
@@ -84,7 +100,7 @@ dependencies = [
     "pytest-cov>=4.0.0",
     "pytest-xdist>=3.5.0",
     "pytest-httpx>=0.35.0",
-    "fastmcp",
+    "fastmcp==2.11.2",  # Pin for mcp compatibility - newer versions require Icon
     "httpx>=0.25",
     "respx",
     "ruff",
