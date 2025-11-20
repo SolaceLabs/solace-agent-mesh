@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
-import { RefreshCcw } from "lucide-react";
+import { RefreshCcw, Upload } from "lucide-react";
 
 import { useChatContext } from "@/lib/hooks";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
-import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage } from "@/lib/components/prompts";
-import { authenticatedFetch, detectVariables } from "@/lib/utils";
+import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
+import { authenticatedFetch, detectVariables, downloadBlob } from "@/lib/utils";
 
 /**
  * Main page for managing prompt library with AI-assisted builder
@@ -29,6 +29,7 @@ export const PromptsPage: React.FC = () => {
     const [newlyCreatedPromptId, setNewlyCreatedPromptId] = useState<string | null>(null);
     const [showVariableDialog, setShowVariableDialog] = useState(false);
     const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
+    const [showImportDialog, setShowImportDialog] = useState(false);
 
     // Fetch prompt groups
     const fetchPromptGroups = async () => {
@@ -235,6 +236,117 @@ export const PromptsPage: React.FC = () => {
         }
     };
 
+    // Handle export
+    const handleExport = async (prompt: PromptGroup) => {
+        try {
+            const response = await authenticatedFetch(`/api/v1/prompts/groups/${prompt.id}/export`);
+
+            if (response.ok) {
+                const exportData = await response.json();
+
+                // Create a blob and trigger download using utility
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+                const filename = `prompt-${prompt.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.json`;
+                downloadBlob(blob, filename);
+
+                addNotification("Prompt exported successfully", "success");
+            } else {
+                const error = await response.json();
+                const errorMessage = error.detail || "Failed to export prompt";
+                addNotification(errorMessage, "error");
+            }
+        } catch (error) {
+            console.error("Failed to export prompt:", error);
+            addNotification("Failed to export prompt", "error");
+        }
+    };
+
+    // Handle import
+    const handleImport = async (importData: PromptImportData, options: { preserveCommand: boolean; preserveCategory: boolean }) => {
+        try {
+            // Convert camelCase to snake_case for backend API
+            const apiPayload = {
+                prompt_data: {
+                    version: importData.version,
+                    exported_at: importData.exportedAt,
+                    prompt: {
+                        name: importData.prompt.name,
+                        description: importData.prompt.description,
+                        category: importData.prompt.category,
+                        command: importData.prompt.command,
+                        prompt_text: importData.prompt.promptText,
+                        metadata: importData.prompt.metadata
+                            ? {
+                                  author_name: importData.prompt.metadata.authorName,
+                                  original_version: importData.prompt.metadata.originalVersion,
+                                  original_created_at: importData.prompt.metadata.originalCreatedAt,
+                              }
+                            : undefined,
+                    },
+                },
+                options: {
+                    preserve_command: options.preserveCommand,
+                    preserve_category: options.preserveCategory,
+                },
+            };
+
+            const response = await authenticatedFetch("/api/v1/prompts/import", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(apiPayload),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+
+                // Show warnings if any (combine into single notification for better UX)
+                if (result.warnings && result.warnings.length > 0) {
+                    const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
+                    addNotification(warningMessage, "info");
+                }
+
+                // Navigate back to prompts page
+                setShowBuilder(false);
+                setShowImportDialog(false);
+                setInitialMessage(null);
+                setEditingGroup(null);
+
+                // Refresh prompts and select the newly imported one
+                await fetchPromptGroups();
+                setNewlyCreatedPromptId(result.prompt_group_id);
+
+                addNotification("Prompt imported successfully", "success");
+            } else {
+                const error = await response.json();
+                const errorMessage = error.detail || "Failed to import prompt";
+                throw new Error(errorMessage);
+            }
+        } catch (error) {
+            console.error("Failed to import prompt:", error);
+            throw error; // Re-throw to let dialog handle it
+        }
+    };
+
+    // Type for import data
+    interface PromptImportData {
+        version: string;
+        exportedAt: number;
+        prompt: {
+            name: string;
+            description?: string;
+            category?: string;
+            command?: string;
+            promptText: string;
+            metadata?: {
+                authorName?: string;
+                originalVersion: number;
+                originalCreatedAt: number;
+            };
+        };
+    }
+
     if (showBuilder) {
         return (
             <>
@@ -284,7 +396,11 @@ export const PromptsPage: React.FC = () => {
             <Header
                 title="Prompts"
                 buttons={[
-                    <Button data-testid="refreshPrompts" disabled={isLoading} variant="ghost" tooltip="Refresh Prompts" onClick={() => fetchPromptGroups()}>
+                    <Button key="importPrompt" variant="ghost" title="Import Prompt" onClick={() => setShowImportDialog(true)}>
+                        <Upload className="size-4" />
+                        Import Prompt
+                    </Button>,
+                    <Button key="refreshPrompts" data-testid="refreshPrompts" disabled={isLoading} variant="ghost" title="Refresh Prompts" onClick={() => fetchPromptGroups()}>
                         <RefreshCcw className="size-4" />
                         Refresh Prompts
                     </Button>,
@@ -304,6 +420,7 @@ export const PromptsPage: React.FC = () => {
                         onViewVersions={group => navigate(`/prompts/${group.id}/versions`)}
                         onUseInChat={handleUseInChat}
                         onTogglePin={handleTogglePin}
+                        onExport={handleExport}
                         newlyCreatedPromptId={newlyCreatedPromptId}
                     />
                 </div>
@@ -326,6 +443,9 @@ export const PromptsPage: React.FC = () => {
                     }}
                 />
             )}
+
+            {/* Import Dialog */}
+            <PromptImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
         </div>
     );
 };
