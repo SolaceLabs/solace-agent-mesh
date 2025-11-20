@@ -1680,7 +1680,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const uploadedFileParts: FilePart[] = [];
                 const successfullyUploadedFiles: Array<{ filename: string; sessionId: string }> = []; // Track large files for cleanup
 
-                // Track the effective session ID for this message (may be created during file upload)
+                // Track the effective session ID for this message (may be updated if large file upload)
                 let effectiveSessionId = sessionId;
 
                 console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
@@ -1705,16 +1705,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         if (result && "uri" in result && result.uri && result.sessionId) {
                             // Update effective session ID if backend created a new one during upload
                             if (result.sessionId !== sessionId) {
-                                console.log(`[handleSubmit] File upload created new session: ${result.sessionId}`);
                                 effectiveSessionId = result.sessionId;
                             }
 
-                            // SUCCESS - track filename AND sessionId for potential cleanup
-                            const uploadedFile = {
+                            successfullyUploadedFiles.push({
                                 filename: file.name,
                                 sessionId: result.sessionId,
-                            };
-                            successfullyUploadedFiles.push(uploadedFile);
+                            });
 
                             uploadedFileParts.push({
                                 kind: "file",
@@ -1736,7 +1733,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                             setIsResponding(false);
                             setMessages(prev => prev.filter(msg => msg.metadata?.messageId !== userMsg.metadata?.messageId));
-                            return; // Exit handleSubmit
+                            return;
                         }
                     }
                 }
