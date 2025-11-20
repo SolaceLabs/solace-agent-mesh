@@ -4,6 +4,9 @@ Business service for project-related operations.
 
 from typing import List, Optional, TYPE_CHECKING
 import logging
+import json
+import zipfile
+from io import BytesIO
 from fastapi import UploadFile
 from datetime import datetime, timezone
 
@@ -521,3 +524,269 @@ class ProjectService:
             self.logger.info(f"Successfully soft deleted project {project_id} and {deleted_count} associated sessions")
 
         return success
+
+    async def export_project_as_zip(
+        self, db, project_id: str, user_id: str
+    ) -> BytesIO:
+        """
+        Create ZIP file with project data and artifacts.
+        Returns in-memory ZIP file.
+        
+        Args:
+            db: Database session
+            project_id: The project ID
+            user_id: The requesting user ID
+            
+        Returns:
+            BytesIO: In-memory ZIP file
+            
+        Raises:
+            ValueError: If project not found or access denied
+        """
+        # Get project
+        project = self.get_project(db, project_id, user_id)
+        if not project:
+            raise ValueError("Project not found or access denied")
+        
+        # Get artifacts
+        artifacts = await self.get_project_artifacts(db, project_id, user_id)
+        
+        # Calculate total size
+        total_size = sum(artifact.size for artifact in artifacts)
+        
+        # Create export metadata
+        from ..routers.dto.project_dto import (
+            ProjectExportFormat,
+            ProjectExportData,
+            ProjectExportMetadata,
+            ArtifactMetadata,
+        )
+        
+        export_data = ProjectExportFormat(
+            version="1.0",
+            exported_at=int(datetime.now(timezone.utc).timestamp() * 1000),
+            project=ProjectExportData(
+                name=project.name,
+                description=project.description,
+                system_prompt=project.system_prompt,
+                default_agent_id=project.default_agent_id,
+                metadata=ProjectExportMetadata(
+                    original_created_at=project.created_at,
+                    artifact_count=len(artifacts),
+                    total_size_bytes=total_size,
+                ),
+            ),
+            artifacts=[
+                ArtifactMetadata(
+                    filename=artifact.filename,
+                    mime_type=artifact.mime_type or "application/octet-stream",
+                    size=artifact.size,
+                    metadata={
+                        "description": artifact.description,
+                        "source": artifact.source,
+                    } if artifact.description or artifact.source else {},
+                )
+                for artifact in artifacts
+            ],
+        )
+        
+        # Create ZIP in memory
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Add project.json
+            project_json = export_data.model_dump(by_alias=True, mode='json')
+            zip_file.writestr('project.json', json.dumps(project_json, indent=2))
+            
+            # Add artifacts
+            if self.artifact_service and artifacts:
+                storage_session_id = f"project-{project.id}"
+                for artifact in artifacts:
+                    try:
+                        # Load artifact content
+                        artifact_part = await self.artifact_service.load_artifact(
+                            app_name=self.app_name,
+                            user_id=project.user_id,
+                            session_id=storage_session_id,
+                            filename=artifact.filename,
+                        )
+                        
+                        if artifact_part and artifact_part.inline_data:
+                            # Add to ZIP under artifacts/ directory
+                            zip_file.writestr(
+                                f'artifacts/{artifact.filename}',
+                                artifact_part.inline_data.data
+                            )
+                    except Exception as e:
+                        self.logger.warning(
+                            f"Failed to add artifact {artifact.filename} to export: {e}"
+                        )
+        
+        zip_buffer.seek(0)
+        return zip_buffer
+
+    async def import_project_from_zip(
+        self, db, zip_file: UploadFile, user_id: str,
+        preserve_name: bool = False, custom_name: Optional[str] = None
+    ) -> tuple[Project, int, List[str]]:
+        """
+        Import project from ZIP file.
+        
+        Args:
+            db: Database session
+            zip_file: Uploaded ZIP file
+            user_id: The importing user ID
+            preserve_name: Whether to preserve original name
+            custom_name: Custom name to use (overrides preserve_name)
+            
+        Returns:
+            tuple: (created_project, artifacts_count, warnings)
+            
+        Raises:
+            ValueError: If ZIP is invalid or import fails
+        """
+        warnings = []
+        
+        # Read ZIP file
+        zip_content = await zip_file.read()
+        zip_buffer = BytesIO(zip_content)
+        
+        try:
+            with zipfile.ZipFile(zip_buffer, 'r') as zip_ref:
+                # Validate ZIP structure
+                if 'project.json' not in zip_ref.namelist():
+                    raise ValueError("Invalid project export: missing project.json")
+                
+                # Parse project.json
+                project_json_content = zip_ref.read('project.json').decode('utf-8')
+                project_data = json.loads(project_json_content)
+                
+                # Validate version
+                if project_data.get('version') != '1.0':
+                    raise ValueError(
+                        f"Unsupported export version: {project_data.get('version')}"
+                    )
+                
+                # Determine project name
+                original_name = project_data['project']['name']
+                if custom_name:
+                    desired_name = custom_name
+                elif preserve_name:
+                    desired_name = original_name
+                else:
+                    desired_name = original_name
+                
+                # Resolve name conflicts
+                final_name = self._resolve_project_name_conflict(db, desired_name, user_id)
+                if final_name != desired_name:
+                    warnings.append(
+                        f"Name conflict resolved: '{desired_name}' → '{final_name}'"
+                    )
+                
+                # Get default agent ID, but set to None if not provided
+                # The agent may not exist in the target environment
+                imported_agent_id = project_data['project'].get('defaultAgentId')
+                
+                # Create project (agent validation happens in create_project if needed)
+                project = await self.create_project(
+                    db=db,
+                    name=final_name,
+                    user_id=user_id,
+                    description=project_data['project'].get('description'),
+                    system_prompt=project_data['project'].get('systemPrompt'),
+                    default_agent_id=imported_agent_id,
+                )
+                
+                # Add warning if agent was specified but may not exist
+                if imported_agent_id:
+                    warnings.append(
+                        f"Default agent '{imported_agent_id}' was imported. "
+                        "Verify it exists in your environment."
+                    )
+                
+                # Import artifacts
+                artifacts_imported = 0
+                if self.artifact_service:
+                    storage_session_id = f"project-{project.id}"
+                    artifact_files = [
+                        name for name in zip_ref.namelist()
+                        if name.startswith('artifacts/') and name != 'artifacts/'
+                    ]
+                    
+                    for artifact_path in artifact_files:
+                        try:
+                            filename = artifact_path.replace('artifacts/', '')
+                            content_bytes = zip_ref.read(artifact_path)
+                            
+                            # Find metadata from project.json
+                            artifact_meta = next(
+                                (a for a in project_data.get('artifacts', [])
+                                 if a['filename'] == filename),
+                                None
+                            )
+                            
+                            metadata = artifact_meta.get('metadata', {}) if artifact_meta else {}
+                            mime_type = artifact_meta.get('mimeType', 'application/octet-stream') if artifact_meta else 'application/octet-stream'
+                            
+                            # Save artifact
+                            from ....agent.utils.artifact_helpers import save_artifact_with_metadata
+                            await save_artifact_with_metadata(
+                                artifact_service=self.artifact_service,
+                                app_name=self.app_name,
+                                user_id=project.user_id,
+                                session_id=storage_session_id,
+                                filename=filename,
+                                content_bytes=content_bytes,
+                                mime_type=mime_type,
+                                metadata_dict=metadata,
+                                timestamp=datetime.now(timezone.utc),
+                            )
+                            artifacts_imported += 1
+                        except Exception as e:
+                            self.logger.warning(
+                                f"Failed to import artifact {artifact_path}: {e}"
+                            )
+                            warnings.append(f"Failed to import artifact: {filename}")
+                
+                self.logger.info(
+                    f"Successfully imported project {project.id} with {artifacts_imported} artifacts"
+                )
+                return project, artifacts_imported, warnings
+                
+        except zipfile.BadZipFile:
+            raise ValueError("Invalid ZIP file")
+        except json.JSONDecodeError:
+            raise ValueError("Invalid project.json format")
+        except KeyError as e:
+            raise ValueError(f"Missing required field in project.json: {e}")
+
+    def _resolve_project_name_conflict(
+        self, db, desired_name: str, user_id: str
+    ) -> str:
+        """
+        Resolve project name conflicts by appending (2), (3), etc.
+        Similar to prompt import conflict resolution.
+        
+        Args:
+            db: Database session
+            desired_name: The desired project name
+            user_id: The user ID
+            
+        Returns:
+            str: A unique project name
+        """
+        project_repository = self._get_repositories(db)
+        existing_projects = project_repository.get_user_projects(user_id)
+        existing_names = {p.name.lower() for p in existing_projects}
+        
+        if desired_name.lower() not in existing_names:
+            return desired_name
+        
+        # Try appending (2), (3), etc.
+        counter = 2
+        while True:
+            candidate = f"{desired_name} ({counter})"
+            if candidate.lower() not in existing_names:
+                return candidate
+            counter += 1
+            if counter > 100:  # Safety limit
+                raise ValueError("Unable to resolve name conflict")

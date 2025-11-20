@@ -1,6 +1,6 @@
 {
     "name": "@SolaceLabs/solace-agent-mesh-ui",
-    "version": "1.8.2",
+    "version": "1.9.0",
     "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
     "author": "SolaceLabs <solacelabs@solace.com>",
     "license": "Apache-2.0",
@@ -87,6 +87,7 @@
         "html-react-parser": "^5.2.5",
         "js-yaml": "^4.1.0",
         "json-edit-react": "^1.27.2",
+        "jszip": "^3.10.1",
         "lucide-react": "^0.511.0",
         "marked": "^15.0.12",
         "react": "19.0.0",
