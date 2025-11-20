@@ -21,38 +21,24 @@ const iconMap = {
     success: CheckCircle,
 };
 
-type ActionProps =
-    | {
-          action: (event: React.MouseEvent<HTMLButtonElement>) => void;
-          buttonText: string;
-      }
-    | {
-          action?: undefined;
-          buttonText?: undefined;
-      };
-
 export interface MessageBannerBaseProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof messageBannerVariants> {
-    message: string;
+    message: string | React.ReactNode;
+    icon?: React.ReactNode;
     dismissible?: boolean;
     onDismiss?: () => void;
 }
 
-export type MessageBannerProps = MessageBannerBaseProps & ActionProps;
+export type MessageBannerProps = MessageBannerBaseProps;
 
-function MessageBanner({ className, variant = "error", message, action, buttonText, dismissible = false, onDismiss, ...props }: MessageBannerProps) {
+function MessageBanner({ className, variant = "error", message, icon, dismissible = false, onDismiss, ...props }: MessageBannerProps) {
     const IconComponent = iconMap[variant || "error"];
 
     return (
         <div className={cn(messageBannerVariants({ variant, className }), "items-start")} role="alert" aria-live="polite" {...props}>
-            <IconComponent className="size-5 shrink-0" />
-            <span>{message}</span>
+            {icon || <IconComponent className="size-5 shrink-0" />}
+            {typeof message === "string" ? <span>{message}</span> : message}
 
             <div className="ml-auto flex items-center gap-1">
-                {action && buttonText && (
-                    <Button variant="link" className="h-min p-0 font-normal text-current underline hover:text-current/60 dark:hover:text-white" onClick={action}>
-                        {buttonText}
-                    </Button>
-                )}
                 {dismissible && onDismiss && (
                     <Button variant="link" className="h-min self-center p-0" onClick={onDismiss} aria-label="Dismiss">
                         <X className="size-3" />
