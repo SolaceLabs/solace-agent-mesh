@@ -307,3 +307,76 @@ class TestPromptsVersioning:
         assert versions[0]["version"] == 3
         assert versions[1]["version"] == 2
         assert versions[2]["version"] == 1
+
+    def test_update_prompt_text_directly(
+        self, api_client: TestClient, gateway_adapter: GatewayAdapter
+    ):
+        """Test PATCH /api/v1/prompts/{prompt_id} updates prompt text directly"""
+        # Create initial prompt
+        group_id = "prompt-text-update"
+        gateway_adapter.seed_prompt_group(
+            group_id=group_id,
+            name="Prompt for Text Update",
+            user_id="sam_dev_user",
+            initial_prompt="Original prompt text",
+        )
+
+        # Get the prompt ID
+        group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
+        assert group_response.status_code == 200
+        group_data = group_response.json()
+        prompt_id = group_data["production_prompt"]["id"]
+        original_version = group_data["production_prompt"]["version"]
+
+        # Update the prompt text directly
+        response = api_client.patch(
+            f"/api/v1/prompts/{prompt_id}",
+            json={"prompt_text": "Updated prompt text"},
+        )
+
+        # Assert update succeeded
+        assert response.status_code == 200
+        updated_prompt = response.json()
+        assert updated_prompt["id"] == prompt_id
+        assert updated_prompt["prompt_text"] == "Updated prompt text"
+        assert updated_prompt["version"] == original_version  # Version number unchanged
+        assert updated_prompt["user_id"] == "sam_dev_user"
+
+        # Verify the update persisted
+        group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
+        assert group_response.status_code == 200
+        group_data = group_response.json()
+        assert group_data["production_prompt"]["prompt_text"] == "Updated prompt text"
+
+    def test_update_prompt_text_unauthorized(
+        self,
+        api_client: TestClient,
+        secondary_api_client: TestClient,
+        gateway_adapter: GatewayAdapter,
+    ):
+        """Test that users cannot update prompt text of other users' prompts"""
+        # Create prompt as primary user
+        group_id = "prompt-unauthorized-update"
+        gateway_adapter.seed_prompt_group(
+            group_id=group_id,
+            name="Private Prompt",
+            user_id="sam_dev_user",
+            initial_prompt="Original text",
+        )
+
+        # Get the prompt ID
+        group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
+        assert group_response.status_code == 200
+        prompt_id = group_response.json()["production_prompt"]["id"]
+
+        # Try to update as secondary user
+        response = secondary_api_client.patch(
+            f"/api/v1/prompts/{prompt_id}",
+            json={"prompt_text": "Hacked text"},
+        )
+        assert response.status_code == 404
+
+        # Verify text was not changed
+        group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
+        assert group_response.status_code == 200
+        assert group_response.json()["production_prompt"]["prompt_text"] == "Original text"

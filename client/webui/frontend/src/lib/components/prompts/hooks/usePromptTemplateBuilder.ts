@@ -266,16 +266,6 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                             addNotification(errorMessage, "error");
                             throw new Error(errorMessage);
                         }
-
-                        // If we just overwrote a non-active version, optionally make it active
-                        // Only do this if we're editing the currently active version
-                        if (isEditingActiveVersion) {
-                            // The active version was updated, no need to change production_prompt_id
-                            // It's already pointing to the correct prompt
-                        } else {
-                            // We overwrote an older version - it stays inactive
-                            // No need to update production_prompt_id
-                        }
                     }
 
                     setSaveStatus("success");
