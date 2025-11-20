@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal, MessageSquare, Star } from "lucide-react";
+import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal, MessageSquare, Star, Download } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -16,9 +16,10 @@ interface PromptDisplayCardProps {
     onViewVersions?: (prompt: PromptGroup) => void;
     onUseInChat?: (prompt: PromptGroup) => void;
     onTogglePin?: (id: string, currentStatus: boolean) => void;
+    onExport?: (prompt: PromptGroup) => void;
 }
 
-export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelected, onPromptClick, onEdit, onDelete, onViewVersions, onUseInChat, onTogglePin }) => {
+export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelected, onPromptClick, onEdit, onDelete, onViewVersions, onUseInChat, onTogglePin, onExport }) => {
     const { configFeatureEnablement } = useConfigContext();
     const versionHistoryEnabled = configFeatureEnablement?.promptVersionHistory ?? true;
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -60,6 +61,14 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
         }
     };
 
+    const handleExport = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setDropdownOpen(false);
+        if (onExport) {
+            onExport(prompt);
+        }
+    };
+
     return (
         <GridCard isSelected={isSelected} onClick={onPromptClick}>
             <div className="flex h-full w-full flex-col">
@@ -98,6 +107,12 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                                     <DropdownMenuItem onClick={handleUseInChat}>
                                         <MessageSquare size={14} className="mr-2" />
                                         Use in Chat
+                                    </DropdownMenuItem>
+                                )}
+                                {onExport && (
+                                    <DropdownMenuItem onClick={handleExport}>
+                                        <Download size={14} className="mr-2" />
+                                        Export Prompt
                                     </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem onClick={handleEdit}>
