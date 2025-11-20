@@ -350,13 +350,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             formData.append("filename", file.name);
             // Send sessionId as form field (can be empty string for new sessions)
             formData.append("sessionId", effectiveSessionId || "");
-            
+
             // Add description as metadata if provided
             if (description) {
                 const metadata = { description };
                 formData.append("metadata_json", JSON.stringify(metadata));
             }
-            
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
@@ -365,13 +365,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: `Failed to upload ${file.name}` }));
-                    
+
                     // Enhanced error handling for file size errors
                     if (response.status === 413) {
                         // Extract file size information if available
                         const actualSize = errorData.actual_size_bytes;
                         const maxSize = errorData.max_size_bytes;
-                        
+
                         let errorMessage;
                         if (actualSize && maxSize) {
                             const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
@@ -380,11 +380,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         } else {
                             errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size`;
                         }
-                        
+
                         addNotification(errorMessage, "error");
                         return { error: errorMessage };
                     }
-                    
+
                     // Default error handling for other errors
                     const errorMessage = errorData.detail || `HTTP error ${response.status}`;
                     throw new Error(errorMessage);
@@ -1620,7 +1620,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             if (uploadedFiles.length === 0) {
                 return;
             }
-            
+
             for (const { filename, sessionId: fileSessionId } of uploadedFiles) {
                 try {
                     const deleteUrl = `${apiPrefix}/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`;
@@ -1630,11 +1630,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         method: "DELETE",
                         credentials: "include",
                     });
-                                        
+
                     if (!response.ok && response.status !== 204) {
                         const errorData = await response.json().catch(() => ({ detail: `Failed to delete ${filename}` }));
                         console.error(`[cleanupUploadedFiles] Failed to cleanup file ${filename}:`, errorData.detail || `HTTP error ${response.status}`);
-                    } 
+                    }
                 } catch (error) {
                     console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
                     // Continue cleanup even if one fails
@@ -1682,7 +1682,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
 
-                for (const file of currentFiles) {                    
+                for (const file of currentFiles) {
                     if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
                         // Small file: send inline as base64 (no cleanup needed)
                         const base64Content = await fileToBase64(file);
@@ -1697,16 +1697,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     } else {
                         // Large file: upload and get URI
                         const result = await uploadArtifactFile(file);
-                        
+
                         // Check for success FIRST - must have both uri and sessionId
-                        if (result && 'uri' in result && result.uri && result.sessionId) {
+                        if (result && "uri" in result && result.uri && result.sessionId) {
                             // SUCCESS - track filename AND sessionId for potential cleanup
                             const uploadedFile = {
                                 filename: file.name,
-                                sessionId: result.sessionId
+                                sessionId: result.sessionId,
                             };
                             successfullyUploadedFiles.push(uploadedFile);
-                            
+
                             uploadedFileParts.push({
                                 kind: "file",
                                 file: {
@@ -1719,30 +1719,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             // ANY failure case (error object, null, or missing fields) - Clean up and stop
                             console.error(`[handleSubmit] File upload failed for "${file.name}". Result:`, result);
                             await cleanupUploadedFiles(successfullyUploadedFiles);
-                            
-                            const cleanupMessage = successfullyUploadedFiles.length > 0
-                                ? ' Previously uploaded files have been cleaned up.'
-                                : '';
-                            
-                            const errorDetail = result && 'error' in result ? ` (${result.error})` : '';
-                            addNotification(
-                                `File upload failed for "${file.name}"${errorDetail}.${cleanupMessage} Message not sent.`,
-                                "error"
-                            );
-                            
+
+                            const cleanupMessage = successfullyUploadedFiles.length > 0 ? " Previously uploaded files have been cleaned up." : "";
+
+                            const errorDetail = result && "error" in result ? ` (${result.error})` : "";
+                            addNotification(`File upload failed for "${file.name}"${errorDetail}.${cleanupMessage} Message not sent.`, "error");
+
                             setIsResponding(false);
                             setMessages(prev => prev.filter(msg => msg.metadata?.messageId !== userMsg.metadata?.messageId));
                             return; // Exit handleSubmit
                         }
                     }
                 }
-                
+
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
                 if (currentInput) {
                     messageParts.push({ kind: "text", text: currentInput });
                 }
-                
+
                 messageParts.push(...uploadedFileParts);
 
                 if (messageParts.length === 0) {
@@ -1857,7 +1852,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, INLINE_FILE_SIZE_LIMIT_BYTES, activeProject, cleanupUploadedFiles]
+        [
+            sessionId,
+            isResponding,
+            isCancelling,
+            selectedAgentName,
+            closeCurrentEventSource,
+            addNotification,
+            apiPrefix,
+            uploadArtifactFile,
+            updateSessionName,
+            saveTaskToBackend,
+            serializeMessageBubble,
+            INLINE_FILE_SIZE_LIMIT_BYTES,
+            activeProject,
+            cleanupUploadedFiles,
+        ]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
@@ -1935,9 +1945,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Check URL parameter first
             const urlParams = new URLSearchParams(window.location.search);
-            const urlAgentName = urlParams.get('agent');
+            const urlAgentName = urlParams.get("agent");
             let urlAgent: AgentCardInfo | undefined;
-            
+
             if (urlAgentName) {
                 urlAgent = agents.find(agent => agent.name === urlAgentName);
                 if (urlAgent) {

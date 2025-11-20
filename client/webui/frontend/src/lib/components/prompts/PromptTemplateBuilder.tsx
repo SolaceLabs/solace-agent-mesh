@@ -203,7 +203,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                 <div className="flex min-h-0 flex-1">
                     {/* Left Panel - AI Chat (keep mounted but hidden to preserve chat history) */}
                     <div className={`w-[40%] overflow-hidden border-r ${builderMode === "manual" ? "hidden" : ""}`}>
-                        <PromptBuilderChat onConfigUpdate={handleConfigUpdate} currentConfig={config} onReadyToSave={setIsReadyToSave} initialMessage={initialMessage} />
+                        <PromptBuilderChat onConfigUpdate={handleConfigUpdate} currentConfig={config} onReadyToSave={setIsReadyToSave} initialMessage={initialMessage} isEditing={isEditing} />
                     </div>
 
                     {/* Right Panel - Template Preview (only in AI mode) */}

@@ -257,11 +257,11 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             if (result) {
                 // Type guard: check if result is an error
-                if ('error' in result) {
-                    addNotification(`Failed to create artifact: ${result.error}`, 'error');
+                if ("error" in result) {
+                    addNotification(`Failed to create artifact: ${result.error}`, "error");
                     return;
                 }
-                
+
                 // Now TypeScript knows result has uri and sessionId
                 // If a new session was created, update our sessionId
                 if (result.sessionId && result.sessionId !== sessionId) {
