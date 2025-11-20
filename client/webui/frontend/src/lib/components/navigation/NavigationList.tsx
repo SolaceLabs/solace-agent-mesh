@@ -29,11 +29,13 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
 
             {/* Bottom items */}
             <ul className="space-y-1">
-                {bottomItems && bottomItems.length > 0 && bottomItems.map(item => (
-                    <li key={item.id} className="my-4">
-                        <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
-                    </li>
-                ))}
+                {bottomItems &&
+                    bottomItems.length > 0 &&
+                    bottomItems.map(item => (
+                        <li key={item.id} className="my-4">
+                            <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
+                        </li>
+                    ))}
                 {/* Settings Dialog */}
                 <li className="my-4 flex justify-center">
                     <SettingsDialog iconOnly={true} />

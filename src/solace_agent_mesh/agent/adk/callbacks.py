@@ -943,22 +943,22 @@ def _generate_fenced_artifact_instruction() -> str:
     return f"""\
 **Creating Text-Based Artifacts (`{open_delim}save_artifact: ...`):**
 
-**When to Create Artifacts:**
+When to Create Artifacts:
 Create an artifact when the content provides value as a standalone file, such as:
 - Content with special formatting (HTML, Markdown, CSS).
 - Documents intended for use outside the conversation (reports, emails).
 - Structured reference content (schedules, guides, templates).
 - Substantial text documents or technical documentation.
 
-**When NOT to Create Artifacts:**
+When NOT to Create Artifacts:
 - Simple answers, explanations, or conversational responses.
 - Brief advice, opinions, or short lists.
 
-**Behavior of Created Artifacts:**
+Behavior of Created Artifacts:
 - They are sent to the user as an interactive file component.
 - The user can see the content, so there is no need to return or embed it again.
 
-**Parameters for `{open_delim}save_artifact: ...`**:
+Parameters for `{open_delim}save_artifact: ...`:
 - `filename="your_filename.ext"` (REQUIRED)
 - `mime_type="text/plain"` (optional, defaults to text/plain)
 - `description="A brief description."` (optional)
@@ -976,29 +976,34 @@ def _generate_inline_template_instruction() -> str:
 
 Use inline Liquid templates to dynamically render data from artifacts for user-friendly display. This is faster and more accurate than reading the artifact and reformatting it yourself.
 
-**IMPORTANT: Template Format**
-- Templates use **Liquid template syntax** (same as Shopify/Jekyll templates)
+IMPORTANT: Template Format
+- Templates use Liquid template syntax (same as Shopify/Jekyll templates)
 
-**When to Use Inline Templates:**
+When to Use Inline Templates:
 - Formatting CSV, JSON, or YAML data into tables or lists.
 - Applying simple transformations (filtering, limiting rows).
 
-**Parameters for `{open_delim}template_liquid: ...`:**
+Parameters for `{open_delim}template_liquid: ...`:
 - `data="filename.ext"` (REQUIRED): The data artifact to render. Can include version: `data="file.csv:2"`.
 - `jsonpath="$.expression"` (optional): JSONPath to extract a subset of JSON/YAML data.
 - `limit="N"` (optional): Limit to the first N rows (CSV) or items (JSON/YAML arrays).
 
-**Data Context for Liquid Templates:**
-- **CSV data**: Available as `headers` (array of column names) and `data_rows` (array of row arrays).
-- **JSON/YAML arrays**: Available as `items`.
-- **JSON/YAML objects**: Keys are directly available (e.g., `name`, `email`).
+Data Context for Liquid Templates:
+- CSV data: Available as `headers` (array of column names) and `data_rows` (array of row arrays).
+- JSON/YAML arrays: Available as `items`.
+- JSON/YAML objects: Keys are directly available (e.g., `name`, `email`).
 
-**Example - CSV Table:**
+Example - CSV Table:
 {open_delim}template_liquid: data="sales_data.csv" limit="5"
 | {{% for h in headers %}}{{{{ h }}}} | {{% endfor %}}
 |{{% for h in headers %}}---|{{% endfor %}}
 {{% for row in data_rows %}}| {{% for cell in row %}}{{{{ cell }}}} | {{% endfor %}}{{% endfor %}}
 {close_delim}
+
+Negative Examples
+Use {{ issues.size }} instead of {{ issues|length }}
+Use {{ forloop.index }} instead of {{ loop.index }} (Liquid uses forloop not loop)
+Use {{ issue.fields.description | truncate: 200 }} instead of slicing with [:200]
 
 The rendered output will appear inline in your response automatically.
 """
@@ -1008,7 +1013,7 @@ def _generate_artifact_creation_instruction() -> str:
     return """
     **Creating Text-Based Artifacts:**
 
-    **When to Create Text-based Artifacts:**
+    When to Create Text-based Artifacts:
     Create an artifact when the content provides value as a standalone file:
     - Content with special formatting (HTML, Markdown, CSS, structured markup) that requires proper rendering
     - Content explicitly intended for use outside this conversation (reports, emails, presentations, reference documents)
@@ -1017,7 +1022,7 @@ def _generate_artifact_creation_instruction() -> str:
     - Substantial text documents
     - Technical documentation meant as reference material
 
-    **When NOT to Create Text-based Artifacts:**
+    When NOT to Create Text-based Artifacts:
     - Simple answers, explanations, or conversational responses
     - Brief advice, opinions, or quick information
     - Short lists, summaries, or single paragraphs
@@ -1148,7 +1153,7 @@ Examples:
 - `The result of 23.5 * 4.2 is {open_delim}math:23.5 * 4.2 | .2f{close_delim}` (Embeds calculated result with 2 decimal places)
 
 The following embeds are resolved *late* (by the gateway before final display):
-- `{open_delim}artifact_return:filename[:version]{close_delim}`: **This is the primary way to return an artifact to the user.** It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it. Note: artifact_return is not necessary if the artifact was just created by you in this same response, since newly created artifacts are automatically attached to your message.
+- `{open_delim}artifact_return:filename[:version]{close_delim}`: This is the primary way to return an artifact to the user. It attaches the specified artifact to the message. The embed itself is removed from the text. Use this instead of describing a file and expecting the user to download it. Note: artifact_return is not necessary if the artifact was just created by you in this same response, since newly created artifacts are automatically attached to your message.
 """
 
     artifact_content_instruction = f"""
@@ -1158,7 +1163,7 @@ The following embeds are resolved *late* (by the gateway before final display):
     - Available modifiers: {modifier_list}.
     - The `format:output_format` step *must* be the last step in the chain. Supported formats include `text`, `datauri`, `json`, `json_pretty`, `csv`. Formatting as datauri, will include the data URI prefix, so do not add it yourself.
     - Use `artifact_meta` first to check size; embedding large files may fail.
-    - **Efficient workflows for large artifacts:**
+    - Efficient workflows for large artifacts:
         - To extract specific line ranges: `load_artifact(filename, version, include_line_numbers=True)` to identify lines, then use `slice_lines:start:end` modifier to extract that range.
         - To fill templates with many placeholders: use `artifact_search_and_replace_regex` with `replacements` array (single atomic operation instead of multiple calls).
         - Line numbers are display-only; `slice_lines` always operates on original content.

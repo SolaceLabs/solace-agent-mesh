@@ -20,10 +20,7 @@ export const GeneralSettings: React.FC = () => {
                         <SunMoon className="size-4" />
                         <Label className="font-medium">Dark Mode</Label>
                     </div>
-                    <Switch
-                        checked={currentTheme === "dark"}
-                        onCheckedChange={toggleTheme}
-                    />
+                    <Switch checked={currentTheme === "dark"} onCheckedChange={toggleTheme} />
                 </div>
             </div>
         </div>
