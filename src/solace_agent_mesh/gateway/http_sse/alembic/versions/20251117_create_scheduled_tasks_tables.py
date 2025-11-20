@@ -1,6 +1,6 @@
 """Create scheduled tasks tables
 
-Revision ID: 20251117_scheduled_tasks
+Revision ID: 20251117_create_scheduled_tasks_tables
 Revises: 20251108_prompt_tables_complete
 Create Date: 2025-11-17
 
@@ -14,7 +14,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "20251117_scheduled_tasks"
+revision: str = "20251117_create_scheduled_tasks_tables"
 down_revision: str | Sequence[str] | None = "20251108_prompt_tables_complete"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

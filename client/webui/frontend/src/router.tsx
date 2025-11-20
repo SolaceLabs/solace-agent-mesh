@@ -1,6 +1,6 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 
-import { AgentMeshPage, ChatPage, ProjectsPage, PromptsPage } from "./lib";
+import { AgentMeshPage, ChatPage, ProjectsPage, PromptsPage, ScheduledTasksPage } from "./lib";
 import AppLayout from "./AppLayout";
 
 export const createRouter = () => {
@@ -68,6 +68,10 @@ export const createRouter = () => {
                 {
                     path: "agents",
                     element: <AgentMeshPage />,
+                },
+                {
+                    path: "schedules",
+                    element: <ScheduledTasksPage />,
                 },
                 {
                     path: "*",
