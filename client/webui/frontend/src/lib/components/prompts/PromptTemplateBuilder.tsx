@@ -283,6 +283,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({
                         currentConfig={config}
                         onReadyToSave={setIsReadyToSave}
                         initialMessage={initialMessage}
+                        isEditing={isEditing}
                     />
                 </div>
                 

@@ -22,9 +22,10 @@ interface PromptBuilderChatProps {
     currentConfig: TemplateConfig;
     onReadyToSave: (ready: boolean) => void;
     initialMessage?: string | null;
+    isEditing?: boolean;
 }
 
-export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUpdate, currentConfig, onReadyToSave, initialMessage }) => {
+export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUpdate, currentConfig, onReadyToSave, initialMessage, isEditing = false }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -54,10 +55,15 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                 const response = await authenticatedFetch("/api/v1/prompts/chat/init");
                 const data = await response.json();
 
+                // Use different greeting message for editing mode
+                const greetingMessage = isEditing
+                    ? "Hi! I'll help you edit this prompt template. What changes would you like to make?"
+                    : data.message;
+
                 setMessages([
                     {
                         role: "assistant",
-                        content: data.message,
+                        content: greetingMessage,
                         timestamp: new Date(),
                     },
                 ]);
@@ -137,10 +143,15 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                 }
             } catch (error) {
                 console.error("Failed to initialize chat:", error);
+                // Use different fallback message for editing mode
+                const fallbackMessage = isEditing
+                    ? "Hi! I'll help you edit this prompt template. What changes would you like to make?"
+                    : "Hi! I'll help you create a prompt template. What kind of recurring task would you like to template?";
+                
                 setMessages([
                     {
                         role: "assistant",
-                        content: "Hi! I'll help you create a prompt template. What kind of recurring task would you like to template?",
+                        content: fallbackMessage,
                         timestamp: new Date(),
                     },
                 ]);
