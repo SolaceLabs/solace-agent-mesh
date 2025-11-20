@@ -1698,13 +1698,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             },
                         });
                     } else {
-                        // Large file: upload and get URI
-                        const result = await uploadArtifactFile(file);
+                        // Large file: upload and get URI, pass effectiveSessionId to ensure all files go to the same session
+                        const result = await uploadArtifactFile(file, effectiveSessionId);
 
                         // Check for success FIRST - must have both uri and sessionId
                         if (result && "uri" in result && result.uri && result.sessionId) {
-                            // Update effective session ID if backend created a new one during upload
-                            if (result.sessionId !== sessionId) {
+                            // Update effective session ID once if backend has created a new session
+                            if (!effectiveSessionId) {
                                 effectiveSessionId = result.sessionId;
                             }
 
