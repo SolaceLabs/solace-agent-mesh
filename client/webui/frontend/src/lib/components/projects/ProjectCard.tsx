@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { FileText, FolderOpen, MoreHorizontal, Upload, Trash2 } from "lucide-react";
+import { FileText, FolderOpen, MoreHorizontal, Download, Trash2 } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
-import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger } from "@/lib/components/ui";
+import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Popover, PopoverContent, PopoverTrigger, Menu } from "@/lib/components/ui";
+import type { MenuAction } from "@/lib/components/ui/menu";
 import type { Project } from "@/lib/types/projects";
 import { formatTimestamp } from "@/lib/utils/format";
 
@@ -16,21 +17,32 @@ interface ProjectCardProps {
 export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDelete, onExport }) => {
     const [menuOpen, setMenuOpen] = useState(false);
 
-    const handleExport = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setMenuOpen(false);
-        if (onExport) {
-            onExport(project);
-        }
-    };
-
-    const handleDelete = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setMenuOpen(false);
-        if (onDelete) {
-            onDelete(project);
-        }
-    };
+    const menuActions: MenuAction[] = [
+        ...(onExport
+            ? [
+                  {
+                      id: "export",
+                      label: "Export Project",
+                      icon: <Download size={14} />,
+                      onClick: () => {
+                          setMenuOpen(false);
+                          onExport(project);
+                      },
+                  },
+              ]
+            : []),
+        {
+            id: "delete",
+            label: "Delete",
+            icon: <Trash2 size={14} />,
+            onClick: () => {
+                setMenuOpen(false);
+                if (onDelete) {
+                    onDelete(project);
+                }
+            },
+        },
+    ];
 
     return (
         <GridCard onClick={onClick}>
@@ -49,16 +61,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent align="start" side="bottom" className="w-48 p-1" sideOffset={0} onClick={e => e.stopPropagation()}>
-                                    {onExport && (
-                                        <button className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm" onClick={handleExport}>
-                                            <Upload size={14} />
-                                            Export Project
-                                        </button>
-                                    )}
-                                    <button className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm" onClick={handleDelete}>
-                                        <Trash2 size={14} />
-                                        Delete
-                                    </button>
+                                    <Menu actions={menuActions} />
                                 </PopoverContent>
                             </Popover>
                         )}

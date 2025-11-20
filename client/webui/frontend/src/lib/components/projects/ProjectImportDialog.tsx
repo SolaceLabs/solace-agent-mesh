@@ -1,7 +1,8 @@
 import React, { useState, useRef } from "react";
-import { FileJson, Upload as UploadIcon, AlertCircle } from "lucide-react";
+import { FileJson, Upload as UploadIcon } from "lucide-react";
 import JSZip from "jszip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Button, Input, Label } from "@/lib/components/ui";
+import { MessageBanner } from "@/lib/components/common";
 
 interface ProjectImportDialogProps {
     open: boolean;
@@ -70,8 +71,10 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
             const projectData = JSON.parse(projectJsonContent);
 
             // Validate version
+            // Currently only version 1.0 is supported. Future versions may require migration logic.
+            // TODO: Consider implementing version migration strategies if format changes are needed
             if (projectData.version !== "1.0") {
-                setError(`Unsupported export version: ${projectData.version}`);
+                setError(`Unsupported export version: ${projectData.version}. Only version 1.0 is currently supported.`);
                 return false;
             }
 
@@ -266,12 +269,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                     )}
 
                     {/* Error Message */}
-                    {error && (
-                        <div className="border-destructive/50 bg-destructive/10 flex items-start gap-2 rounded-lg border p-3">
-                            <AlertCircle className="text-destructive mt-0.5 h-4 w-4 flex-shrink-0" />
-                            <p className="text-destructive text-sm">{error}</p>
-                        </div>
-                    )}
+                    {error && <MessageBanner variant="error" message={error} />}
                 </div>
 
                 <DialogFooter>

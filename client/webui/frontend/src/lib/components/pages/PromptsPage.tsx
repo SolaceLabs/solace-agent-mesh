@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
-import { RefreshCcw, Download } from "lucide-react";
+import { RefreshCcw, Upload } from "lucide-react";
 
 import { useChatContext } from "@/lib/hooks";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
 import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
-import { authenticatedFetch, detectVariables } from "@/lib/utils";
+import { authenticatedFetch, detectVariables, downloadBlob } from "@/lib/utils";
 
 /**
  * Main page for managing prompt library with AI-assisted builder
@@ -239,23 +239,15 @@ export const PromptsPage: React.FC = () => {
     // Handle export
     const handleExport = async (prompt: PromptGroup) => {
         try {
-            const response = await authenticatedFetch(`/api/v1/prompts/groups/${prompt.id}/export`, {
-                credentials: "include",
-            });
+            const response = await authenticatedFetch(`/api/v1/prompts/groups/${prompt.id}/export`);
 
             if (response.ok) {
                 const exportData = await response.json();
 
-                // Create a blob and trigger download
+                // Create a blob and trigger download using utility
                 const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `prompt-${prompt.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                const filename = `prompt-${prompt.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.json`;
+                downloadBlob(blob, filename);
 
                 addNotification("Prompt exported successfully", "success");
             } else {
@@ -270,28 +262,49 @@ export const PromptsPage: React.FC = () => {
     };
 
     // Handle import
-    const handleImport = async (importData: PromptImportData, options: { preserve_command: boolean; preserve_category: boolean }) => {
+    const handleImport = async (importData: PromptImportData, options: { preserveCommand: boolean; preserveCategory: boolean }) => {
         try {
+            // Convert camelCase to snake_case for backend API
+            const apiPayload = {
+                prompt_data: {
+                    version: importData.version,
+                    exported_at: importData.exportedAt,
+                    prompt: {
+                        name: importData.prompt.name,
+                        description: importData.prompt.description,
+                        category: importData.prompt.category,
+                        command: importData.prompt.command,
+                        prompt_text: importData.prompt.promptText,
+                        metadata: importData.prompt.metadata
+                            ? {
+                                  author_name: importData.prompt.metadata.authorName,
+                                  original_version: importData.prompt.metadata.originalVersion,
+                                  original_created_at: importData.prompt.metadata.originalCreatedAt,
+                              }
+                            : undefined,
+                    },
+                },
+                options: {
+                    preserve_command: options.preserveCommand,
+                    preserve_category: options.preserveCategory,
+                },
+            };
+
             const response = await authenticatedFetch("/api/v1/prompts/import", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                credentials: "include",
-                body: JSON.stringify({
-                    prompt_data: importData,
-                    options,
-                }),
+                body: JSON.stringify(apiPayload),
             });
 
             if (response.ok) {
                 const result = await response.json();
 
-                // Show warnings if any
+                // Show warnings if any (combine into single notification for better UX)
                 if (result.warnings && result.warnings.length > 0) {
-                    result.warnings.forEach((warning: string) => {
-                        addNotification(warning, "info");
-                    });
+                    const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
+                    addNotification(warningMessage, "info");
                 }
 
                 // Navigate back to prompts page
@@ -319,17 +332,17 @@ export const PromptsPage: React.FC = () => {
     // Type for import data
     interface PromptImportData {
         version: string;
-        exported_at: number;
+        exportedAt: number;
         prompt: {
             name: string;
             description?: string;
             category?: string;
             command?: string;
-            prompt_text: string;
+            promptText: string;
             metadata?: {
-                author_name?: string;
-                original_version: number;
-                original_created_at: number;
+                authorName?: string;
+                originalVersion: number;
+                originalCreatedAt: number;
             };
         };
     }
@@ -384,7 +397,7 @@ export const PromptsPage: React.FC = () => {
                 title="Prompts"
                 buttons={[
                     <Button key="importPrompt" variant="ghost" title="Import Prompt" onClick={() => setShowImportDialog(true)}>
-                        <Download className="size-4" />
+                        <Upload className="size-4" />
                         Import Prompt
                     </Button>,
                     <Button key="refreshPrompts" data-testid="refreshPrompts" disabled={isLoading} variant="ghost" title="Refresh Prompts" onClick={() => fetchPromptGroups()}>

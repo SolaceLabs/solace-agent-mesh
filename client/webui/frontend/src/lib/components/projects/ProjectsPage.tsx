@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { RefreshCcw, Download } from "lucide-react";
+import { RefreshCcw, Upload } from "lucide-react";
 import { useLoaderData, useNavigate } from "react-router-dom";
 
 import { CreateProjectDialog } from "./CreateProjectDialog";
@@ -13,6 +13,7 @@ import type { Project } from "@/lib/types/projects";
 import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
 import { authenticatedFetch } from "@/lib/utils/api";
+import { downloadBlob } from "@/lib/utils/download";
 
 export const ProjectsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -101,18 +102,12 @@ export const ProjectsPage: React.FC = () => {
 
     const handleExport = async (project: Project) => {
         try {
-            const response = await authenticatedFetch(`/api/v1/projects/${project.id}/export`, { credentials: "include" });
+            const response = await authenticatedFetch(`/api/v1/projects/${project.id}/export`);
 
             if (response.ok) {
                 const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
+                downloadBlob(blob, filename);
 
                 addNotification("Project exported successfully", "success");
             } else {
@@ -134,18 +129,16 @@ export const ProjectsPage: React.FC = () => {
 
             const response = await authenticatedFetch("/api/v1/projects/import", {
                 method: "POST",
-                credentials: "include",
                 body: formData,
             });
 
             if (response.ok) {
                 const result = await response.json();
 
-                // Show warnings if any
+                // Show warnings if any (combine into single notification for better UX)
                 if (result.warnings && result.warnings.length > 0) {
-                    result.warnings.forEach((warning: string) => {
-                        addNotification(warning, "info");
-                    });
+                    const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
+                    addNotification(warningMessage, "info");
                 }
 
                 // Refresh projects and navigate to the newly imported one
@@ -174,7 +167,7 @@ export const ProjectsPage: React.FC = () => {
                     title="Projects"
                     buttons={[
                         <Button key="importProject" variant="ghost" title="Import Project" onClick={() => setShowImportDialog(true)}>
-                            <Download className="size-4" />
+                            <Upload className="size-4" />
                             Import Project
                         </Button>,
                         <Button key="refreshProjects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>

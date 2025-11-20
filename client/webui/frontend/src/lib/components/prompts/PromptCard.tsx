@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal, MessageSquare, Star, Upload } from "lucide-react";
+import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal, MessageSquare, Star, Download } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -111,7 +111,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                                 )}
                                 {onExport && (
                                     <DropdownMenuItem onClick={handleExport}>
-                                        <Upload size={14} className="mr-2" />
+                                        <Download size={14} className="mr-2" />
                                         Export Prompt
                                     </DropdownMenuItem>
                                 )}

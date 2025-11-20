@@ -7,17 +7,17 @@ import { MessageBanner } from "@/lib/components";
 
 interface PromptImportData {
     version: string;
-    exported_at: number;
+    exportedAt: number;
     prompt: {
         name: string;
         description?: string;
         category?: string;
         command?: string;
-        prompt_text: string;
+        promptText: string;
         metadata?: {
-            author_name?: string;
-            original_version: number;
-            original_created_at: number;
+            authorName?: string;
+            originalVersion: number;
+            originalCreatedAt: number;
         };
     };
 }
@@ -25,7 +25,7 @@ interface PromptImportData {
 interface PromptImportDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onImport: (data: PromptImportData, options: { preserve_command: boolean; preserve_category: boolean }) => Promise<void>;
+    onImport: (data: PromptImportData, options: { preserveCommand: boolean; preserveCategory: boolean }) => Promise<void>;
 }
 
 export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, onOpenChange, onImport }) => {
@@ -66,12 +66,14 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                 return;
             }
 
+            // Currently only version 1.0 is supported. Future versions may require migration logic.
+            // TODO: Consider implementing version migration strategies if format changes are needed
             if (data.version !== "1.0") {
-                setError(`Unsupported export format version: ${data.version}`);
+                setError(`Unsupported export format version: ${data.version}. Only version 1.0 is currently supported.`);
                 return;
             }
 
-            if (!data.prompt.name || !data.prompt.prompt_text) {
+            if (!data.prompt.name || !data.prompt.promptText) {
                 setError("Invalid export format: missing prompt name or text");
                 return;
             }
@@ -141,8 +143,8 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
             };
 
             await onImport(updatedImportData, {
-                preserve_command: !!editedCommand,
-                preserve_category: true, // Always preserve category
+                preserveCommand: !!editedCommand,
+                preserveCategory: true, // Always preserve category
             });
 
             // Reset state and close dialog
@@ -259,10 +261,10 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                     </div>
                                 )}
 
-                                {importData.prompt.metadata?.author_name && (
+                                {importData.prompt.metadata?.authorName && (
                                     <div>
                                         <Label className="text-muted-foreground text-xs">Original Author</Label>
-                                        <p className="text-sm">{importData.prompt.metadata.author_name}</p>
+                                        <p className="text-sm">{importData.prompt.metadata.authorName}</p>
                                     </div>
                                 )}
                             </div>
