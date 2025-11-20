@@ -188,9 +188,10 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                 const isEditingActiveVersion = editingGroup?._isEditingActiveVersion ?? true;
                 const editingPromptId = editingGroup?._editingPromptId || editingGroup?.production_prompt_id;
 
-                if (createNewVersion && promptTextChanged) {
+                if (createNewVersion) {
                     // Create new version by updating group with initial_prompt
                     // This automatically makes the new version active
+                    // Always include initial_prompt when creating new version, even if only metadata changed
                     const updateData: Record<string, unknown> = {};
                     if (config.name !== editingGroup?.name) updateData.name = config.name;
                     if (config.description !== editingGroup?.description) updateData.description = config.description;
@@ -215,7 +216,8 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     }
 
                     setSaveStatus("success");
-                    addNotification("New version created and activated successfully!", "success");
+                    const message = promptTextChanged ? "New version created and activated successfully!" : "Changes saved successfully!";
+                    addNotification(message, "success");
                     setIsLoading(false);
                     return true;
                 } else {
@@ -263,16 +265,6 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                             const errorMessage = error.message || error.detail || "Failed to update prompt text";
                             addNotification(errorMessage, "error");
                             throw new Error(errorMessage);
-                        }
-
-                        // If we just overwrote a non-active version, optionally make it active
-                        // Only do this if we're editing the currently active version
-                        if (isEditingActiveVersion) {
-                            // The active version was updated, no need to change production_prompt_id
-                            // It's already pointing to the correct prompt
-                        } else {
-                            // We overwrote an older version - it stays inactive
-                            // No need to update production_prompt_id
                         }
                     }
 
