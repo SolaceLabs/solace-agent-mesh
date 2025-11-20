@@ -87,6 +87,37 @@ const MessageActions: React.FC<{
     );
 };
 
+/**
+ * Transform technical workflow error messages into user-friendly ones
+ */
+const getUserFriendlyErrorMessage = (technicalMessage: string): string => {
+    // Pattern: "Workflow failed: Node 'X' failed: Node execution error: No FilePart found in message for structured schema"
+    if (technicalMessage.includes("No FilePart found in message for structured schema")) {
+        return "This workflow requires a file to be uploaded. Please attach a file and try again.";
+    }
+
+    // Pattern: "Workflow failed: Node 'X' failed: Node execution error: ..."
+    if (technicalMessage.includes("Workflow failed:") && technicalMessage.includes("Node execution error:")) {
+        const match = technicalMessage.match(/Node execution error:\s*(.+)$/);
+        if (match) {
+            return `The workflow encountered an error: ${match[1]}`;
+        }
+    }
+
+    // Pattern: "Workflow failed: ..."
+    if (technicalMessage.startsWith("Workflow failed:")) {
+        return technicalMessage.replace(/^Workflow failed:\s*/, "The workflow encountered an error: ");
+    }
+
+    // Pattern: Generic task failure
+    if (technicalMessage.toLowerCase().includes("task failed")) {
+        return "The request could not be completed. Please try again or contact support.";
+    }
+
+    // Default: return the original message if no pattern matches
+    return technicalMessage;
+};
+
 const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
     const { sessionId } = useChatContext();
@@ -102,10 +133,11 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
 
     const renderContent = () => {
         if (message.isError) {
+            const friendlyErrorMessage = getUserFriendlyErrorMessage(displayText);
             return (
                 <div className="flex items-center">
                     <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
-                    <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>
+                    <MarkdownHTMLConverter>{friendlyErrorMessage}</MarkdownHTMLConverter>
                 </div>
             );
         }
@@ -226,6 +258,19 @@ const getChatBubble = (
     const variant = message.isUser ? "sent" : "received";
     const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
     const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
+
+    // Debug logging for error messages
+    if (message.isError) {
+        console.log('[ChatMessage] Error message debug:', {
+            isUser: message.isUser,
+            isComplete: message.isComplete,
+            taskId: message.taskId,
+            isLastWithTaskId: isLastWithTaskId,
+            showWorkflowButton,
+            showFeedbackActions,
+            parts: message.parts,
+        });
+    }
 
     const handleViewWorkflowClick = () => {
         if (message.taskId) {

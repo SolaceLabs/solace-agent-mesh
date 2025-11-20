@@ -395,6 +395,14 @@ class SamAgentAppConfig(SamConfigBase):
         default=True,
         description="Inject instructions about the 'artifact_content' embed type.",
     )
+    input_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON Schema for validating agent input when used as a workflow node.",
+    )
+    output_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON Schema for validating agent output when used as a workflow node.",
+    )
     agent_card: AgentCardConfig = Field(
         ..., description="Static definition of this agent's capabilities for discovery."
     )

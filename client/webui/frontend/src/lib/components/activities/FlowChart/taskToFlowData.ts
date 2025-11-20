@@ -558,8 +558,16 @@ function handleTaskFailed(step: VisualizerStep, manager: TimelineLayoutManager, 
     }
 
     if (!sourceAgentNode) {
-        console.error(`[Timeline] Could not find source agent node for TASK_FAILED: ${sourceName}`);
-        return;
+        // Fallback: If we can't find a matching source agent, use the orchestrator agent from the current phase
+        // This handles cases where the task fails before any agent activity (e.g., early validation errors)
+        console.warn(`[Timeline] Could not find source agent node for TASK_FAILED: ${sourceName}. Using orchestrator agent as fallback.`);
+        if (currentPhase.orchestratorAgent) {
+            sourceAgentNode = currentPhase.orchestratorAgent;
+            sourceHandle = "orch-bottom-output";
+        } else {
+            console.error(`[Timeline] No orchestrator agent available in current phase for TASK_FAILED`);
+            return;
+        }
     }
 
     // Create a new target node with error state

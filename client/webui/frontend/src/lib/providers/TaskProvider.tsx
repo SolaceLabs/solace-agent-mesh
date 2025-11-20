@@ -353,6 +353,29 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         }
     }, [apiPrefix]);
 
+    const registerTaskEarly = useCallback((taskId: string, initialRequestText: string) => {
+        console.log(`TaskProvider: Pre-registering task ${taskId} before SSE events arrive`);
+        setMonitoredTasks(prevTasks => {
+            // Only register if not already present
+            if (prevTasks[taskId]) {
+                console.log(`TaskProvider: Task ${taskId} already exists, skipping pre-registration`);
+                return prevTasks;
+            }
+
+            const now = new Date();
+            const newTask: TaskFE = {
+                taskId,
+                initialRequestText,
+                events: [],
+                firstSeen: now,
+                lastUpdated: now,
+            };
+
+            setMonitoredTaskOrder(prevOrder => [taskId, ...prevOrder.filter(id => id !== taskId)]);
+            return { ...prevTasks, [taskId]: newTask };
+        });
+    }, []);
+
     const contextValue: TaskContextValue = {
         isTaskMonitorConnecting,
         isTaskMonitorConnected,
@@ -366,6 +389,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         disconnectTaskMonitorStream,
         setHighlightedStepId,
         loadTaskFromBackend,
+        registerTaskEarly,
     };
 
     return <TaskContext.Provider value={contextValue}>{children}</TaskContext.Provider>;

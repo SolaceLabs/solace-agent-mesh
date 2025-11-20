@@ -136,8 +136,8 @@ class WorkflowExecutorComponent(SamComponentBase):
         Async initialization called by SamComponentBase.
         Sets up services and publishes workflow agent card.
         """
-        # Publish workflow agent card
-        await self._publish_workflow_agent_card()
+        # Set up periodic agent card publishing
+        self._setup_periodic_agent_card_publishing()
 
         # Component is now ready to receive requests
         log.info(f"{self.log_identifier} Workflow ready: {self.workflow_name}")
@@ -146,26 +146,102 @@ class WorkflowExecutorComponent(SamComponentBase):
         """Pre-cleanup before async loop stops."""
         pass
 
-    async def _publish_workflow_agent_card(self):
-        """Publish workflow as an agent card for discovery."""
-        agent_card = AgentCard(
+    def _setup_periodic_agent_card_publishing(self) -> None:
+        """
+        Sets up periodic publishing of the workflow agent card.
+        Similar to SamAgentComponent's _publish_agent_card method.
+        """
+        try:
+            publish_config = self.get_config("agent_card_publishing", {})
+            publish_interval_sec = publish_config.get("interval_seconds")
+
+            if publish_interval_sec and publish_interval_sec > 0:
+                log.info(
+                    f"{self.log_identifier} Scheduling workflow agent card publishing "
+                    f"every {publish_interval_sec} seconds."
+                )
+
+                # Publish immediately on first call
+                self._publish_workflow_agent_card_sync()
+
+                # Set up periodic timer
+                self.add_timer(
+                    delay_ms=publish_interval_sec * 1000,
+                    timer_id="workflow_agent_card_publish",
+                    interval_ms=publish_interval_sec * 1000,
+                    callback=lambda timer_data: self._publish_workflow_agent_card_sync(),
+                )
+            else:
+                log.warning(
+                    f"{self.log_identifier} Workflow agent card publishing interval not "
+                    f"configured or invalid, card will not be published periodically."
+                )
+        except Exception as e:
+            log.exception(
+                f"{self.log_identifier} Error during agent card publishing setup: {e}"
+            )
+
+    def _publish_workflow_agent_card_sync(self) -> None:
+        """
+        Synchronous wrapper for publishing workflow agent card.
+        Called by timer callback.
+        """
+        try:
+            agent_card = self._create_workflow_agent_card()
+            discovery_topic = a2a.get_discovery_topic(self.namespace)
+            self.publish_a2a_message(
+                payload=agent_card.model_dump(exclude_none=True), topic=discovery_topic
+            )
+            log.debug(
+                f"{self.log_identifier} Published workflow agent card to {discovery_topic}"
+            )
+        except Exception as e:
+            log.error(
+                f"{self.log_identifier} Failed to publish workflow agent card: {e}"
+            )
+
+    def _create_workflow_agent_card(self) -> AgentCard:
+        """Create the workflow agent card."""
+        # Build extensions list
+        extensions_list = []
+
+        # Add schema extension if schemas are defined
+        SCHEMAS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/schemas"
+        input_schema = self.workflow_definition.input_schema
+        output_schema = self.workflow_definition.output_schema
+
+        if input_schema or output_schema:
+            schema_params = {}
+            if input_schema:
+                schema_params["input_schema"] = input_schema
+            if output_schema:
+                schema_params["output_schema"] = output_schema
+
+            from a2a.types import AgentExtension
+            schemas_extension = AgentExtension(
+                uri=SCHEMAS_EXTENSION_URI,
+                description="Input and output JSON schemas for the workflow.",
+                params=schema_params,
+            )
+            extensions_list.append(schemas_extension)
+
+        capabilities = AgentCapabilities(
+            streaming=False,
+            extensions=extensions_list if extensions_list else None,
+        )
+
+        return AgentCard(
             name=self.workflow_name,
             display_name=self.get_config("display_name"),
             description=self.workflow_definition.description,
-            input_schema=self.workflow_definition.input_schema,
-            output_schema=self.workflow_definition.output_schema,
             defaultInputModes=["text"],
             defaultOutputModes=["text"],
             skills=self.workflow_definition.skills or [],
-            capabilities=AgentCapabilities(streaming=False),
+            capabilities=capabilities,
             version="1.0.0",
             url=f"solace:{a2a.get_agent_request_topic(self.namespace, self.workflow_name)}",
         )
 
-        discovery_topic = a2a.get_discovery_topic(self.namespace)
-        self.publish_a2a_message(
-            payload=agent_card.model_dump(exclude_none=True), topic=discovery_topic
-        )
 
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
         """Handle persona call timeout via cache expiry."""
@@ -215,14 +291,14 @@ class WorkflowExecutorComponent(SamComponentBase):
         """Finalize successful workflow execution and publish result."""
         log_id = f"{self.log_identifier}[Workflow:{workflow_context.workflow_task_id}]"
         log.info(f"{log_id} Finalizing workflow success")
-        
+
         # Construct final output based on output mapping
         final_output = await self._construct_final_output(workflow_context)
-        
+
         # Create final result artifact if needed, or just pass data
         # For MVP, we'll assume the output is small enough to pass in metadata or as text
         # But A2A protocol expects artifacts or text.
-        
+
         # Create final task response
         final_task = a2a.create_final_task(
             task_id=workflow_context.a2a_context["logical_task_id"],
@@ -249,15 +325,27 @@ class WorkflowExecutorComponent(SamComponentBase):
             request_id=workflow_context.a2a_context["jsonrpc_request_id"],
         )
 
+        # DEBUG: Log task ID when sending success response to gateway/client
+        log.error(
+            f"{log_id} [TASK_ID_DEBUG] SENDING workflow SUCCESS response to gateway/client | "
+            f"logical_task_id={workflow_context.a2a_context['logical_task_id']} | "
+            f"jsonrpc_request_id={workflow_context.a2a_context['jsonrpc_request_id']} | "
+            f"response_topic={response_topic} | "
+            f"client_id={workflow_context.a2a_context.get('client_id')} | "
+            f"context_id={workflow_context.a2a_context['session_id']}"
+        )
+
         self.publish_a2a_message(
-            payload=response.model_dump(exclude_none=True), topic=response_topic
+            payload=response.model_dump(exclude_none=True),
+            topic=response_topic,
+            user_properties={"a2aUserConfig": workflow_context.a2a_context.get("a2a_user_config", {})},
         )
 
         # ACK original message
         original_message = workflow_context.a2a_context.get("original_solace_message")
         if original_message:
             original_message.call_acknowledgements()
-            
+
         await self._cleanup_workflow_state(workflow_context)
 
     async def finalize_workflow_failure(
@@ -266,7 +354,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         """Finalize failed workflow execution and publish error."""
         log_id = f"{self.log_identifier}[Workflow:{workflow_context.workflow_task_id}]"
         log.warning(f"{log_id} Finalizing workflow failure: {error}")
-        
+
         # Create final task response
         final_task = a2a.create_final_task(
             task_id=workflow_context.a2a_context["logical_task_id"],
@@ -290,8 +378,21 @@ class WorkflowExecutorComponent(SamComponentBase):
             request_id=workflow_context.a2a_context["jsonrpc_request_id"],
         )
 
+        # DEBUG: Log task ID when sending failure response to gateway/client
+        log.error(
+            f"{log_id} [TASK_ID_DEBUG] SENDING workflow FAILURE response to gateway/client | "
+            f"logical_task_id={workflow_context.a2a_context['logical_task_id']} | "
+            f"jsonrpc_request_id={workflow_context.a2a_context['jsonrpc_request_id']} | "
+            f"response_topic={response_topic} | "
+            f"client_id={workflow_context.a2a_context.get('client_id')} | "
+            f"context_id={workflow_context.a2a_context['session_id']} | "
+            f"error={str(error)}"
+        )
+
         self.publish_a2a_message(
-            payload=response.model_dump(exclude_none=True), topic=response_topic
+            payload=response.model_dump(exclude_none=True),
+            topic=response_topic,
+            user_properties={"a2aUserConfig": workflow_context.a2a_context.get("a2a_user_config", {})},
         )
 
         # ACK original message (we handled the error gracefully)
@@ -324,7 +425,8 @@ class WorkflowExecutorComponent(SamComponentBase):
         """Persist workflow state to session service."""
         session = await self._get_workflow_session(workflow_context)
         session.state["workflow_execution"] = workflow_state.model_dump()
-        await self.session_service.update_session(session)
+        # Note: Session state is persisted automatically by the SessionService
+        # when managed through ADK operations (get_session, append_event, etc.)
 
     async def _cleanup_workflow_state(self, workflow_context: WorkflowExecutionContext):
         """Clean up workflow state on completion."""
@@ -337,7 +439,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         state.metadata["status"] = "completed"
 
         session.state["workflow_execution"] = state.model_dump()
-        await self.session_service.update_session(session)
+        # Note: Session state is persisted automatically by the SessionService
 
         # Remove from active workflows
         with self.active_workflows_lock:
@@ -354,61 +456,23 @@ class WorkflowExecutorComponent(SamComponentBase):
     async def _load_node_output(
         self, artifact_name: str, artifact_version: int, workflow_context: WorkflowExecutionContext
     ) -> Any:
-        """Load a node's output artifact."""
+        """Load a node's output artifact.
+
+        Artifacts are namespace-scoped, so all agents and workflows in the same
+        namespace can access the same artifact store regardless of which component
+        created them.
+        """
         import json
-        
+
         artifact = await self.artifact_service.load_artifact(
-            app_name=self.workflow_name, # Artifacts are stored under workflow's app name? Or persona's?
-            # Design doc says: "Result artifacts use the same artifact service as agent outputs"
-            # But persona agents run in their own context.
-            # If persona agents save artifacts, they save under THEIR app_name.
-            # But we need to know WHICH app_name.
-            # The artifact_name alone isn't enough if we don't know the app_name.
-            # Wait, the persona agent returns the artifact name.
-            # If the persona agent saves it, it's under the persona's name.
-            # BUT, the workflow executor needs to read it.
-            # If we use a shared artifact service (e.g. S3), we need the persona's app name.
-            # The `WorkflowNodeResultData` doesn't include app_name.
-            # We can infer it from the node definition (agent_persona).
-            #
-            # However, `_finalize_fork_node` saves merged artifacts under `self.host.agent_name` (workflow name).
-            # So we need to handle both cases.
-            #
-            # For now, let's assume artifacts are accessible.
-            # If it's a persona output, we might need to look under persona's name.
-            # But `load_artifact` takes `app_name`.
-            #
-            # Let's try to find the node that produced this artifact to get the persona name.
-            # But `_load_node_output` is called with just artifact info.
-            #
-            # Actually, `handle_node_completion` knows the node_id.
-            # We should pass node_id or persona name to this method.
-            #
-            # Refactoring `_load_node_output` to take `node_id` is hard because `DAGExecutor` calls it.
-            #
-            # Let's assume for MVP that we can try loading from workflow's app_name first,
-            # and if not found, maybe we need a better strategy.
-            #
-            # Wait, `PersonaCaller` invokes the agent. The agent saves the artifact.
-            # The agent uses its own `app_name`.
-            # So we MUST know the agent name to load the artifact.
-            #
-            # In `handle_node_completion`, we know the `node_id`.
-            # We can look up the node in `self.nodes` to get `agent_persona`.
-            #
-            # Let's update `DAGExecutor` to pass the persona name?
-            # Or update `_load_node_output` to take an optional `owner_app_name`.
-            
+            app_name=self.workflow_name,
             user_id=workflow_context.a2a_context["user_id"],
             session_id=workflow_context.a2a_context["session_id"],
             filename=artifact_name,
             version=artifact_version
         )
-        
+
         if not artifact or not artifact.inline_data:
-            # Try looking up the node to find the persona name
-            # This is a bit hacky, we should pass it down.
-            # But for now, let's just fail if not found.
             raise ValueError(f"Artifact {artifact_name} v{artifact_version} not found")
             
         return json.loads(artifact.inline_data.data.decode("utf-8"))

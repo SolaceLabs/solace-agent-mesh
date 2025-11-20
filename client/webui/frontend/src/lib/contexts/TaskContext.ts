@@ -18,6 +18,7 @@ interface TaskActions {
     disconnectTaskMonitorStream: () => Promise<void>;
     setHighlightedStepId: (stepId: string | null) => void;
     loadTaskFromBackend: (taskId: string) => Promise<TaskFE | null>;
+    registerTaskEarly: (taskId: string, initialRequestText: string) => void;
 }
 
 export type TaskContextValue = TaskState & TaskActions;

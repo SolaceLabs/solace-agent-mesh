@@ -154,6 +154,9 @@ class WorkflowAppConfig(SamAgentAppConfig):
 class WorkflowApp(App):
     """Custom App class for workflow orchestration."""
 
+    # Define app schema for validation (empty for now, could be extended)
+    app_schema: Dict[str, Any] = {"config_parameters": []}
+
     def __init__(self, app_info: Dict[str, Any], **kwargs):
         log.debug("Initializing WorkflowApp...")
 
@@ -169,7 +172,7 @@ class WorkflowApp(App):
         # Extract workflow-specific settings
         namespace = app_config.namespace
         workflow_name = app_config.agent_name
-        workflow_def = app_config.workflow
+        # workflow_def = app_config.workflow  # Available if needed for future enhancements
 
         # Auto-populate agent card with workflow schemas in skills
         # Note: AgentCardConfig doesn't have input_schema/output_schema directly
@@ -190,6 +193,23 @@ class WorkflowApp(App):
         # Update app_info with validated config
         app_info["app_config"] = app_config.model_dump()
         app_info["components"] = [component_info]  # Use 'components' not 'component_list'
+
+        # Configure broker for workflow messaging
+        broker_config = app_info.setdefault("broker", {})
+        broker_config["input_enabled"] = True
+        broker_config["output_enabled"] = True
+        log.debug("Injected broker.input_enabled=True and broker.output_enabled=True")
+
+        generated_queue_name = f"{namespace.strip('/')}/q/a2a/{workflow_name}"
+        broker_config["queue_name"] = generated_queue_name
+        log.debug("Injected generated broker.queue_name: %s", generated_queue_name)
+
+        broker_config["temporary_queue"] = app_info.get("broker", {}).get(
+            "temporary_queue", True
+        )
+        log.debug(
+            "Set broker_config.temporary_queue = %s", broker_config["temporary_queue"]
+        )
 
         # Call parent App constructor
         super().__init__(app_info, **kwargs)

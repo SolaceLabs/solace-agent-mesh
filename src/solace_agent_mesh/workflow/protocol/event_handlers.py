@@ -47,9 +47,25 @@ async def handle_task_request(
         reply_to = user_properties.get("replyTo")
 
         # Create A2A context
-        workflow_task_id = str(uuid.uuid4())
+        # The gateway/client is the source of truth for the task ID.
+        # The workflow adopts the ID from the JSON-RPC request envelope.
+        logical_task_id = str(request_id)
+
+        # Use the logical task ID as the workflow task ID for tracking
+        workflow_task_id = logical_task_id
+
+        # DEBUG: Log task ID reception from gateway/client
+        log.error(
+            f"{component.log_identifier} [TASK_ID_DEBUG] RECEIVED workflow request from gateway/client | "
+            f"logical_task_id={logical_task_id} | "
+            f"jsonrpc_request_id={request_id} | "
+            f"client_id={client_id} | "
+            f"replyTo={reply_to} | "
+            f"context_id={a2a_message.context_id}"
+        )
+
         a2a_context = {
-            "logical_task_id": workflow_task_id,
+            "logical_task_id": logical_task_id,
             "session_id": a2a_message.context_id,
             "user_id": user_id,
             "client_id": client_id,
@@ -95,7 +111,7 @@ async def _initialize_workflow_state(
         workflow_name=component.workflow_name,
         execution_id=execution_id,
         start_time=datetime.now(timezone.utc),
-        pending_nodes=component.dag_executor.get_initial_nodes(),
+        pending_nodes=[],  # Will be populated by execute_workflow loop
     )
 
     # Store in session
@@ -113,7 +129,8 @@ async def _initialize_workflow_state(
         )
 
     session.state["workflow_execution"] = state.model_dump()
-    await component.session_service.update_session(session)
+    # Note: Session state is persisted automatically by the SessionService
+    # when managed through ADK operations (get_session, append_event, etc.)
 
     return state
 

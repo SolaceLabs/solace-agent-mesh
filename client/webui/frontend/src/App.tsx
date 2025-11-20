@@ -151,11 +151,11 @@ function App() {
                         <ProjectProvider>
                             <BrowserRouter>
                                 <AudioSettingsProvider>
+                                    <TaskProvider>
                                         <ChatProvider>
-                                            <TaskProvider>
-                                                <AppContent />
-                                            </TaskProvider>
+                                            <AppContent />
                                         </ChatProvider>
+                                    </TaskProvider>
                                 </AudioSettingsProvider>
                             </BrowserRouter>
                         </ProjectProvider>

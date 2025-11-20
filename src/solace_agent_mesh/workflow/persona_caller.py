@@ -11,6 +11,7 @@ from a2a.types import MessageSendParams, SendMessageRequest, Message as A2AMessa
 
 from ..common import a2a
 from ..common.data_parts import WorkflowNodeRequestData
+from ..common.agent_card_utils import get_schemas_from_agent_card
 from .app import WorkflowNode
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 
@@ -46,14 +47,13 @@ class PersonaCaller:
         # Resolve input data
         input_data = await self._resolve_node_input(node, workflow_state)
 
-        # Get persona schemas from agent registry
+        # Get schemas from agent card extensions if available
         persona_card = self.host.agent_registry.get_agent(node.agent_persona)
-        input_schema = node.input_schema_override or (
-            persona_card.input_schema if persona_card else None
-        )
-        output_schema = node.output_schema_override or (
-            persona_card.output_schema if persona_card else None
-        )
+        card_input_schema, card_output_schema = get_schemas_from_agent_card(persona_card)
+
+        # Use override schemas if provided, otherwise use schemas from agent card
+        input_schema = node.input_schema_override or card_input_schema
+        output_schema = node.output_schema_override or card_output_schema
 
         # Construct A2A message
         message = self._construct_persona_message(
@@ -162,10 +162,11 @@ class PersonaCaller:
             if key != "query":
                 parts.append(a2a.create_data_part(data={key: value}))
 
-        # Construct message
-        message = A2AMessage(
+        # Construct message using helper function
+        message = a2a.create_user_message(
             parts=parts,
-            contextId=workflow_state.execution_id,
+            task_id=sub_task_id,
+            context_id=workflow_state.execution_id,
             metadata={
                 "workflow_name": workflow_state.workflow_name,
                 "node_id": node.id,

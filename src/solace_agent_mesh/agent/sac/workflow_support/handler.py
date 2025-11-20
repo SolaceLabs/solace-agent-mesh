@@ -7,6 +7,9 @@ import logging
 import json
 import asyncio
 import re
+import yaml
+import csv
+import io
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ValidationError
@@ -21,6 +24,8 @@ from google.adk.agents.run_config import StreamingMode
 from a2a.types import (
     Message as A2AMessage,
     FilePart,
+    FileWithBytes,
+    FileWithUri,
     TaskState,
 )
 
@@ -106,34 +111,59 @@ class WorkflowNodeHandler:
         """Execute agent as a workflow node with validation."""
         log_id = f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}]"
 
-        # Determine effective schemas
-        input_schema = workflow_data.input_schema or self.input_schema
-        output_schema = workflow_data.output_schema or self.output_schema
+        try:
+            # Determine effective schemas
+            input_schema = workflow_data.input_schema or self.input_schema
+            output_schema = workflow_data.output_schema or self.output_schema
 
-        # Validate input if schema exists
-        if input_schema:
-            validation_errors = self._validate_input(message, input_schema)
+            # Default input schema to single text field if not provided
+            if not input_schema:
+                input_schema = {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"}
+                    },
+                    "required": ["text"]
+                }
+                log.debug(f"{log_id} No input schema provided, using default text schema")
 
-            if validation_errors:
-                log.error(f"{log_id} Input validation failed: {validation_errors}")
+            # Validate input if schema exists
+            if input_schema:
+                validation_errors = await self._validate_input(message, input_schema, a2a_context)
 
-                # Return validation error immediately
-                result_data = WorkflowNodeResultData(
-                    type="workflow_node_result",
-                    status="failure",
-                    error_message=f"Input validation failed: {validation_errors}",
-                )
-                return await self._return_workflow_result(
-                    workflow_data, result_data, a2a_context
-                )
+                if validation_errors:
+                    log.error(f"{log_id} Input validation failed: {validation_errors}")
 
-        # Input valid, proceed with execution
-        return await self._execute_with_output_validation(
-            message, workflow_data, output_schema, a2a_context
-        )
+                    # Return validation error immediately
+                    result_data = WorkflowNodeResultData(
+                        type="workflow_node_result",
+                        status="failure",
+                        error_message=f"Input validation failed: {validation_errors}",
+                    )
+                    return await self._return_workflow_result(
+                        workflow_data, result_data, a2a_context
+                    )
 
-    def _validate_input(
-        self, message: A2AMessage, input_schema: Dict[str, Any]
+            # Input valid, proceed with execution
+            return await self._execute_with_output_validation(
+                message, workflow_data, output_schema, a2a_context
+            )
+
+        except Exception as e:
+            # Catch any unhandled exceptions and return as workflow node failure
+            log.warning(f"{log_id} Workflow node execution failed: {e}")
+
+            result_data = WorkflowNodeResultData(
+                type="workflow_node_result",
+                status="failure",
+                error_message=f"Node execution error: {str(e)}",
+            )
+            return await self._return_workflow_result(
+                workflow_data, result_data, a2a_context
+            )
+
+    async def _validate_input(
+        self, message: A2AMessage, input_schema: Dict[str, Any], a2a_context: Dict[str, Any]
     ) -> Optional[List[str]]:
         """
         Validate message content against input schema.
@@ -142,48 +172,222 @@ class WorkflowNodeHandler:
         from .validator import validate_against_schema
 
         # Extract input data from message
-        input_data = self._extract_input_data(message, input_schema)
+        input_data = await self._extract_input_data(message, input_schema, a2a_context)
 
         # Validate against schema
         errors = validate_against_schema(input_data, input_schema)
 
         return errors if errors else None
 
-    def _extract_input_data(
-        self, message: A2AMessage, input_schema: Dict[str, Any]
+    async def _extract_input_data(
+        self, message: A2AMessage, input_schema: Dict[str, Any], a2a_context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Extract structured input data from message parts.
-        If an input schema is active, it prioritizes the content of the first
-        FilePart for validation. Otherwise, it combines text and data parts.
+
+        Handles two cases:
+        1. Single text field schema: Aggregates all text parts into 'text' field
+        2. Structured schema: Extracts from first FilePart (JSON/YAML/CSV)
+
+        Returns:
+            Validated input data dictionary
         """
-        input_data = {}
+        log_id = f"{self.host.log_identifier}[ExtractInput]"
 
-        # If a schema is present, prioritize the first FilePart
-        if input_schema:
-            # Unwrap parts
-            unwrapped_parts = [p.root for p in message.parts]
-            file_parts = [p for p in unwrapped_parts if isinstance(p, FilePart)]
-            if file_parts:
-                # For validation, we'd load the file content here.
-                # This example assumes the content is loaded into `input_data`.
-                # The actual implementation will handle byte decoding and parsing.
-                # For MVP, we assume the file content IS the input data if it's JSON.
-                # TODO: Implement file content loading/parsing
-                pass
+        # Check if this is a single text field schema
+        if self._is_single_text_schema(input_schema):
+            log.debug(f"{log_id} Using single text field extraction")
+            return await self._extract_text_input(message)
 
-        # Fallback for no schema or no FilePart: combine text and data
+        # Otherwise, extract from FilePart
+        log.debug(f"{log_id} Using structured FilePart extraction")
+        return await self._extract_file_input(message, input_schema, a2a_context)
+
+    def _is_single_text_schema(self, schema: Dict[str, Any]) -> bool:
+        """
+        Check if schema represents a single text field.
+        Returns True if schema has exactly one property named 'text' of type 'string'.
+        """
+        if schema.get("type") != "object":
+            return False
+
+        properties = schema.get("properties", {})
+        if len(properties) != 1:
+            return False
+
+        if "text" not in properties:
+            return False
+
+        return properties["text"].get("type") == "string"
+
+    async def _extract_text_input(self, message: A2AMessage) -> Dict[str, Any]:
+        """
+        Extract text input by aggregating all text parts.
+        Returns: {"text": "<aggregated_text>"}
+        """
         unwrapped_parts = [p.root for p in message.parts]
+        text_parts = []
+
         for part in unwrapped_parts:
             if hasattr(part, "text") and part.text:
-                input_data.setdefault("query", "")
-                input_data["query"] += part.text
-            elif hasattr(part, "data") and part.data:
-                if part.data.get("type") == "workflow_node_request":
-                    continue
-                input_data.update(part.data)
+                text_parts.append(part.text)
 
-        return input_data
+        aggregated_text = "\n".join(text_parts) if text_parts else ""
+        return {"text": aggregated_text}
+
+    async def _extract_file_input(
+        self, message: A2AMessage, input_schema: Dict[str, Any], a2a_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Extract input data from first FilePart in message.
+        Handles both inline bytes and URI references.
+        """
+        log_id = f"{self.host.log_identifier}[ExtractFile]"
+
+        # Find first FilePart
+        unwrapped_parts = [p.root for p in message.parts]
+        file_parts = [p for p in unwrapped_parts if isinstance(p, FilePart)]
+
+        if not file_parts:
+            raise ValueError("No FilePart found in message for structured schema")
+
+        file_part = file_parts[0]
+
+        # Determine if this is bytes or URI
+        if isinstance(file_part, FileWithBytes):
+            log.debug(f"{log_id} Processing FileWithBytes")
+            return await self._process_file_with_bytes(file_part, input_schema, a2a_context)
+        elif isinstance(file_part, FileWithUri):
+            log.debug(f"{log_id} Processing FileWithUri")
+            return await self._process_file_with_uri(file_part, a2a_context)
+        else:
+            raise ValueError(f"Unknown FilePart type: {type(file_part)}")
+
+    async def _process_file_with_bytes(
+        self, file_part: FileWithBytes, input_schema: Dict[str, Any], a2a_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Process inline file bytes: decode, validate, and save to artifact store.
+        """
+        log_id = f"{self.host.log_identifier}[ProcessBytes]"
+
+        # Decode bytes according to MIME type
+        mime_type = file_part.mime_type
+        data = self._decode_file_bytes(file_part.data, mime_type)
+
+        log.debug(f"{log_id} Decoded {mime_type} file data")
+
+        # Save to artifact store with appropriate name
+        artifact_name = self._generate_input_artifact_name(mime_type)
+
+        await self.host.artifact_service.save_artifact(
+            app_name=self.host.agent_name,
+            user_id=a2a_context["user_id"],
+            session_id=a2a_context["effective_session_id"],
+            filename=artifact_name,
+            data=file_part.data,
+            mime_type=mime_type,
+        )
+
+        log.info(f"{log_id} Saved input data to artifact: {artifact_name}")
+
+        return data
+
+    async def _process_file_with_uri(
+        self, file_part: FileWithUri, a2a_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Process file URI: load artifact and decode.
+        """
+        log_id = f"{self.host.log_identifier}[ProcessURI]"
+
+        # Parse URI to extract artifact name and version
+        # Expected format: artifact://<filename>?version=<version>
+        artifact_name, version = self._parse_artifact_uri(file_part.uri)
+
+        log.debug(f"{log_id} Loading artifact: {artifact_name} v{version}")
+
+        # Load artifact
+        artifact = await self.host.artifact_service.load_artifact(
+            app_name=self.host.agent_name,
+            user_id=a2a_context["user_id"],
+            session_id=a2a_context["effective_session_id"],
+            filename=artifact_name,
+            version=version,
+        )
+
+        if not artifact or not artifact.inline_data:
+            raise ValueError(f"Artifact not found or has no data: {artifact_name}")
+
+        # Decode artifact data
+        mime_type = artifact.inline_data.mime_type
+        data = self._decode_file_bytes(artifact.inline_data.data, mime_type)
+
+        log.info(f"{log_id} Loaded and decoded artifact: {artifact_name}")
+
+        return data
+
+    def _decode_file_bytes(self, data: bytes, mime_type: str) -> Dict[str, Any]:
+        """
+        Decode file bytes according to MIME type.
+        Supports: application/json, application/yaml, text/yaml, text/csv
+        """
+        log_id = f"{self.host.log_identifier}[Decode]"
+
+        if mime_type in ["application/json", "text/json"]:
+            return json.loads(data.decode("utf-8"))
+
+        elif mime_type in ["application/yaml", "text/yaml", "application/x-yaml"]:
+            return yaml.safe_load(data.decode("utf-8"))
+
+        elif mime_type in ["text/csv", "application/csv"]:
+            # CSV to dict list
+            csv_text = data.decode("utf-8")
+            reader = csv.DictReader(io.StringIO(csv_text))
+            return {"rows": list(reader)}
+
+        else:
+            raise ValueError(f"Unsupported MIME type for input data: {mime_type}")
+
+    def _generate_input_artifact_name(self, mime_type: str) -> str:
+        """
+        Generate artifact name for input data based on MIME type.
+        Format: {agent-name}_input_data.{ext}
+        """
+        ext_map = {
+            "application/json": "json",
+            "text/json": "json",
+            "application/yaml": "yaml",
+            "text/yaml": "yaml",
+            "application/x-yaml": "yaml",
+            "text/csv": "csv",
+            "application/csv": "csv",
+        }
+
+        extension = ext_map.get(mime_type, "dat")
+        return f"{self.host.agent_name}_input_data.{extension}"
+
+    def _parse_artifact_uri(self, uri: str) -> tuple[str, Optional[int]]:
+        """
+        Parse artifact URI to extract filename and version.
+        Format: artifact://<filename>?version=<version>
+        Returns: (filename, version)
+        """
+        # Remove artifact:// prefix
+        if uri.startswith("artifact://"):
+            uri = uri[11:]
+
+        # Split on query params
+        if "?" in uri:
+            filename, query = uri.split("?", 1)
+            # Parse version from query
+            for param in query.split("&"):
+                if param.startswith("version="):
+                    version_str = param.split("=", 1)[1]
+                    return filename, int(version_str)
+            return filename, None
+
+        return uri, None
 
     async def _execute_with_output_validation(
         self,
@@ -599,53 +803,93 @@ Remember to end your response with the result embed:
         a2a_context: Dict[str, Any],
     ):
         """Return workflow node result to workflow executor."""
+        try:
+            # Create message with result data part
+            result_message = a2a.create_agent_parts_message(
+                parts=[a2a.create_data_part(data=result_data.model_dump())],
+                task_id=a2a_context["logical_task_id"],
+                context_id=a2a_context["session_id"],
+            )
 
-        # Create message with result data part
-        result_message = a2a.create_agent_parts_message(
-            parts=[a2a.create_data_part(data=result_data.model_dump())],
-            task_id=a2a_context["logical_task_id"],
-            context_id=a2a_context["session_id"],
-        )
+            # Create task status
+            task_state = (
+                TaskState.completed if result_data.status == "success" else TaskState.failed
+            )
+            task_status = a2a.create_task_status(state=task_state, message=result_message)
 
-        # Create task status
-        task_state = (
-            TaskState.completed if result_data.status == "success" else TaskState.failed
-        )
-        task_status = a2a.create_task_status(state=task_state, message=result_message)
+            # Create final task
+            final_task = a2a.create_final_task(
+                task_id=a2a_context["logical_task_id"],
+                context_id=a2a_context["session_id"],
+                final_status=task_status,
+                metadata={
+                    "agent_name": self.host.agent_name,
+                    "workflow_node_id": workflow_data.node_id,
+                    "workflow_name": workflow_data.workflow_name,
+                },
+            )
 
-        # Create final task
-        final_task = a2a.create_final_task(
-            task_id=a2a_context["logical_task_id"],
-            context_id=a2a_context["session_id"],
-            final_status=task_status,
-            metadata={
-                "agent_name": self.host.agent_name,
-                "workflow_node_id": workflow_data.node_id,
-                "workflow_name": workflow_data.workflow_name,
-            },
-        )
+            # Create JSON-RPC response
+            response = a2a.create_success_response(
+                result=final_task, request_id=a2a_context["jsonrpc_request_id"]
+            )
 
-        # Create JSON-RPC response
-        response = a2a.create_success_response(
-            result=final_task,
-            request_id=a2a.get_request_id(
-                a2a_context.get("original_solace_message")
-            ),  # Wait, we need the request object or ID
-        )
-        # a2a_context has jsonrpc_request_id
-        response = a2a.create_success_response(
-            result=final_task, request_id=a2a_context["jsonrpc_request_id"]
-        )
+            # Publish to workflow's response topic
+            response_topic = a2a_context.get("replyToTopic")
 
-        # Publish to workflow's response topic
-        response_topic = a2a_context.get("replyToTopic")
-        self.host.publish_a2a_message(
-            payload=response.model_dump(exclude_none=True),
-            topic=response_topic,
-            user_properties={"a2aUserConfig": a2a_context.get("a2a_user_config")},
-        )
+            # DEBUG: Log task ID when agent returns result to workflow executor
+            log.error(
+                f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "
+                f"[TASK_ID_DEBUG] AGENT returning result to WORKFLOW EXECUTOR | "
+                f"sub_task_id={a2a_context['logical_task_id']} | "
+                f"jsonrpc_request_id={a2a_context['jsonrpc_request_id']} | "
+                f"result_status={result_data.status} | "
+                f"response_topic={response_topic} | "
+                f"workflow_name={workflow_data.workflow_name} | "
+                f"node_id={workflow_data.node_id}"
+            )
 
-        # ACK original message
-        original_message = a2a_context.get("original_solace_message")
-        if original_message:
-            original_message.call_acknowledgements()
+            if not response_topic:
+                log.error(
+                    f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "
+                    f"No replyToTopic in a2a_context! Cannot send workflow node result. "
+                    f"a2a_context keys: {list(a2a_context.keys())}"
+                )
+                # Still ACK the message to avoid redelivery
+                original_message = a2a_context.get("original_solace_message")
+                if original_message:
+                    original_message.call_acknowledgements()
+                return
+
+            log.info(
+                f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "
+                f"Publishing workflow node result (status={result_data.status}) to {response_topic}"
+            )
+
+            self.host.publish_a2a_message(
+                payload=response.model_dump(exclude_none=True),
+                topic=response_topic,
+                user_properties={"a2aUserConfig": a2a_context.get("a2a_user_config")},
+            )
+
+            # ACK original message
+            original_message = a2a_context.get("original_solace_message")
+            if original_message:
+                original_message.call_acknowledgements()
+
+        except Exception as e:
+            log.error(
+                f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "
+                f"CRITICAL: Failed to return workflow node result to workflow executor: {e}",
+                exc_info=True
+            )
+            # Try to ACK message even on error to avoid redelivery loop
+            try:
+                original_message = a2a_context.get("original_solace_message")
+                if original_message:
+                    original_message.call_acknowledgements()
+            except Exception as ack_e:
+                log.error(
+                    f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "
+                    f"Failed to ACK message after error: {ack_e}"
+                )

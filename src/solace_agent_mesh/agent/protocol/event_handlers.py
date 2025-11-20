@@ -1799,6 +1799,7 @@ def publish_agent_card(component):
         )
         DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name"
         TOOLS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools"
+        SCHEMAS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/schemas"
 
         extensions_list = []
 
@@ -1860,6 +1861,30 @@ def publish_agent_card(component):
                 params=tools_params.model_dump(exclude_none=True),
             )
             extensions_list.append(tools_extension)
+
+        # Create the extension object for the agent's input/output schemas.
+        input_schema = component.get_config("input_schema")
+        output_schema = component.get_config("output_schema")
+
+        if input_schema or output_schema:
+            schema_params = {}
+            if input_schema:
+                schema_params["input_schema"] = input_schema
+            if output_schema:
+                schema_params["output_schema"] = output_schema
+
+            schemas_extension = AgentExtension(
+                uri=SCHEMAS_EXTENSION_URI,
+                description="Input and output JSON schemas for the agent.",
+                params=schema_params,
+            )
+            extensions_list.append(schemas_extension)
+            log.debug(
+                "%s Added schemas extension (input: %s, output: %s)",
+                component.log_identifier,
+                "present" if input_schema else "none",
+                "present" if output_schema else "none",
+            )
 
         # Build the capabilities object, including our custom extensions.
         capabilities = AgentCapabilities(

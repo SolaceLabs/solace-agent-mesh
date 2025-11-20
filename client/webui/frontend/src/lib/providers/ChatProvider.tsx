@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
 import { v4 } from "uuid";
 
-import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useAgentCards, useTaskContext } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import type { Project } from "@/lib/types/projects";
 
@@ -70,6 +70,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
     const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
     const { activeProject, setActiveProject, projects } = useProjectContext();
+    const { registerTaskEarly } = useTaskContext();
 
     const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
 
@@ -761,9 +762,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             switch (result.kind) {
                 case "task":
                     isFinalEvent = true;
-                    // For the final task object, we only use it as a signal to end the turn.
-                    // The content has already been streamed via status_updates.
-                    messageToProcess = undefined;
+                    // For the final task object, extract the error message if the task failed
+                    // This handles cases where the task fails before streaming any status updates
+                    if (result.status?.state === "failed" && result.status?.message) {
+                        messageToProcess = result.status.message;
+                    } else {
+                        // For successful tasks, content has already been streamed via status_updates
+                        messageToProcess = undefined;
+                    }
                     currentTaskIdFromResult = result.id;
                     break;
                 case "status-update":
@@ -1047,6 +1053,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const newContentParts = messageToProcess?.parts?.filter(p => p.kind !== "data") || [];
             const hasNewFiles = newContentParts.some(p => p.kind === "file");
 
+            // Check if this is a failed task
+            const isTaskFailed = result.kind === "task" && result.status?.state === "failed";
+
             // Update UI state based on processed parts
             setMessages(prevMessages => {
                 const newMessages = [...prevMessages];
@@ -1060,11 +1069,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Check if we can append to the last message
-                if (lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
+                if (lastMessage && !lastMessage.isUser && lastMessage.taskId === currentTaskIdFromResult && newContentParts.length > 0) {
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
                         parts: [...lastMessage.parts, ...newContentParts],
                         isComplete: isFinalEvent || hasNewFiles,
+                        isError: isTaskFailed || lastMessage.isError,
                         metadata: {
                             ...lastMessage.metadata,
                             lastProcessedEventSequence: currentEventSequence,
@@ -1072,15 +1082,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     };
                     newMessages[newMessages.length - 1] = updatedMessage;
                 } else {
-                    // Only create a new bubble if there is visible content to render.
-                    const hasVisibleContent = newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file");
+                    // For failed tasks, always create a message bubble even if there are no content parts
+                    // For other cases, only create a new bubble if there is visible content to render
+                    const hasVisibleContent = isTaskFailed || newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file");
                     if (hasVisibleContent) {
                         const newBubble: MessageFE = {
                             role: "agent",
                             parts: newContentParts,
-                            taskId: (result as TaskStatusUpdateEvent).taskId,
+                            taskId: currentTaskIdFromResult,
                             isUser: false,
                             isComplete: isFinalEvent || hasNewFiles,
+                            isError: isTaskFailed,
                             metadata: {
                                 messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
@@ -1764,6 +1776,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 console.log(`ChatProvider handleSubmit: Received taskId ${taskId}. Setting currentTaskId and taskIdInSidePanel.`);
                 setCurrentTaskId(taskId);
                 setTaskIdInSidePanel(taskId);
+
+                // Pre-register the task in the task monitor so it's available for visualization immediately
+                // This prevents race conditions where the side panel tries to visualize before SSE events arrive
+                const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
+                const initialRequestText = textParts.map(p => p.text).join(" ").trim() || "Task started...";
+                registerTaskEarly(taskId, initialRequestText);
 
                 // Update user message with taskId so it's included in final save
                 setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, taskId: taskId } : msg)));

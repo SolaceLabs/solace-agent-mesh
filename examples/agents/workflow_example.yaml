@@ -77,9 +77,10 @@ apps:
            - email: The customer's email address
            - phone: The customer's phone number (if present)
 
-        3. Create a structured output artifact using create_structured_output tool with:
+        3. Create a JSON artifact using save_artifact tool with:
            - A descriptive filename like "customer_info.json"
            - The extracted data as a JSON object
+           - mime_type: "application/json"
 
         4. Mark your result with the result embed at the end of your response:
            «result:artifact=customer_info.json status=success»
@@ -116,11 +117,9 @@ apps:
 
       tools:
         - tool_type: builtin
-          tool_name: "load_artifact"
-        - tool_type: builtin
           tool_name: "convert_file_to_markdown"
-        - tool_type: builtin
-          tool_name: "create_structured_output"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
 
       session_service:
         <<: *default_session_service
@@ -136,8 +135,10 @@ apps:
         defaultInputModes: ["file"]
         defaultOutputModes: ["text"]
         skills:
-          - name: "extract_customer_info"
+          - id: extract_customer_info
+            name: "Extract Customer Info"
             description: "Extract customer name, email, and phone from documents"
+            tags: ["document-processing", "data-extraction", "customer-onboarding"]
 
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
@@ -177,9 +178,10 @@ apps:
              * Should contain only digits, spaces, dashes, parentheses, or plus sign
              * Should be 10-15 digits long (excluding separators)
 
-        3. Create a validation result using create_structured_output tool with:
+        3. Create a validation result using save_artifact tool with:
            - A descriptive filename like "validation_result.json"
            - The validation result as a JSON object
+           - mime_type: "application/json"
 
         4. Mark your result with the result embed:
            «result:artifact=validation_result.json status=success»
@@ -218,8 +220,8 @@ apps:
         required: [is_valid]
 
       tools:
-        - tool_type: builtin
-          tool_name: "create_structured_output"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
 
       session_service:
         <<: *default_session_service
@@ -235,8 +237,10 @@ apps:
         defaultInputModes: ["text"]
         defaultOutputModes: ["text"]
         skills:
-          - name: "validate_customer_data"
+          - id: validate_customer_data
+            name: "Validate Customer Data"
             description: "Validate customer name, email, and phone number"
+            tags: ["data-validation", "quality-assurance", "customer-onboarding"]
 
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
@@ -268,10 +272,12 @@ apps:
         1. Receive validated customer information
         2. Generate a unique account ID in the format "CUST-XXXXXXXX" where X is
            a random alphanumeric character
-        3. Create a result artifact with create_structured_output containing:
+        3. Create a result artifact with save_artifact containing:
+           - A descriptive filename like "account_result.json"
            - account_id: The generated account ID (e.g., "CUST-A1B2C3D4")
            - status: "created"
            - timestamp: Current ISO timestamp
+           - mime_type: "application/json"
 
         4. Mark your result with the result embed:
            «result:artifact=account_result.json status=success»
@@ -310,8 +316,8 @@ apps:
         required: [account_id, status]
 
       tools:
-        - tool_type: builtin
-          tool_name: "create_structured_output"
+        - tool_type: builtin-group
+          group_name: "artifact_management"
 
       session_service:
         <<: *default_session_service
@@ -327,8 +333,10 @@ apps:
         defaultInputModes: ["text"]
         defaultOutputModes: ["text"]
         skills:
-          - name: "create_account"
+          - id: create_account
+            name: "Create Account"
             description: "Create a new customer account"
+            tags: ["account-management", "provisioning", "customer-onboarding"]
 
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
@@ -423,8 +431,10 @@ apps:
 
         # Optional skills for workflow agent card
         skills:
-          - name: "onboard_customer"
+          - id: onboard_customer
+            name: "Onboard Customer"
             description: "Complete customer onboarding from document to account"
+            tags: ["workflow", "customer-onboarding", "automation", "end-to-end"]
 
       # Workflow execution settings
       max_workflow_execution_time_seconds: 600  # 10 minutes
