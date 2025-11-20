@@ -1,7 +1,8 @@
 import os
 import shutil
 import subprocess
-from sys import stdout, exit as sys_exit
+from sys import exit as sys_exit
+from sys import stdout
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
@@ -9,6 +10,35 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 class CustomBuildHook(BuildHookInterface):
     def initialize(self, version, build_data):
         super().initialize(version, build_data)
+
+        # Check if we should skip UI builds (static assets already present)
+        skip_ui_build = os.environ.get("SAM_SKIP_UI_BUILD", "").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+
+        if skip_ui_build:
+            self.app.display_info("SAM_SKIP_UI_BUILD is set, skipping UI build steps\n")
+            self.app.display_info("Verifying static assets exist...\n")
+
+            required_paths = [
+                "config_portal/frontend/static",
+                "client/webui/frontend/static",
+                "docs/build",
+            ]
+
+            missing = [p for p in required_paths if not os.path.exists(p)]
+            if missing:
+                raise RuntimeError(
+                    f"SAM_SKIP_UI_BUILD is set but required static assets are missing: {', '.join(missing)}"
+                )
+
+            self.app.display_info(
+                "All required static assets found, proceeding with Python build only\n"
+            )
+            return
+
         npm = shutil.which("npm")
         if npm is None:
             raise RuntimeError(

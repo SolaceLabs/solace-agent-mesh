@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { RefreshCcw, Download } from "lucide-react";
+import { useLoaderData, useNavigate } from "react-router-dom";
 
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
@@ -13,11 +14,10 @@ import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
 import { authenticatedFetch } from "@/lib/utils/api";
 
-interface ProjectsPageProps {
-    onProjectActivated: () => void;
-}
+export const ProjectsPage: React.FC = () => {
+    const navigate = useNavigate();
+    const loaderData = useLoaderData<{ projectId?: string }>();
 
-export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }) => {
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -25,8 +25,9 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
     const [isDeleting, setIsDeleting] = useState(false);
     const [showImportDialog, setShowImportDialog] = useState(false);
 
-    const { isLoading, createProject, selectedProject, setSelectedProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
+    const { projects, isLoading, createProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
     const { handleNewSession, handleSwitchSession, addNotification } = useChatContext();
+    const selectedProject = useMemo(() => projects.find(p => p.id === loaderData?.projectId) || null, [projects, loaderData?.projectId]);
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
         setIsCreating(true);
@@ -43,19 +44,18 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
             // Refetch projects to get artifact counts
             await refetch();
 
-            // Auto-select the newly created project
-            setSelectedProject(newProject);
+            navigate(`/projects/${newProject.id}`);
         } finally {
             setIsCreating(false);
         }
     };
 
     const handleProjectSelect = (project: Project) => {
-        setSelectedProject(project);
+        navigate(`/projects/${project.id}`);
     };
 
     const handleBackToList = () => {
-        setSelectedProject(null);
+        navigate("/projects");
     };
 
     const handleChatClick = async (sessionId: string) => {
@@ -63,7 +63,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
             setActiveProject(selectedProject);
         }
         await handleSwitchSession(sessionId);
-        onProjectActivated();
+        navigate("chat");
     };
 
     const handleCreateNew = () => {
@@ -90,22 +90,14 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         }
     };
 
-    const handleStartNewChat = async () => {
-        // Activate the project and start a new chat session
+    const handleStartNewChat = useCallback(async () => {
         if (selectedProject) {
             setActiveProject(selectedProject);
             // Start a new session while preserving the active project context
             await handleNewSession(true);
-            // Navigate to chat page
-            onProjectActivated();
-            // Dispatch focus event after navigation to ensure ChatInputArea is mounted
-            setTimeout(() => {
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("focus-chat-input"));
-                }
-            }, 150);
+            navigate("chat");
         }
-    };
+    }, [selectedProject, setActiveProject, handleNewSession, navigate]);
 
     const handleExport = async (project: Project) => {
         try {
@@ -156,12 +148,9 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                     });
                 }
 
-                // Refresh projects and select the newly imported one
+                // Refresh projects and navigate to the newly imported one
                 await refetch();
-                const importedProject = filteredProjects.find(p => p.id === result.projectId);
-                if (importedProject) {
-                    setSelectedProject(importedProject);
-                }
+                navigate(`/projects/${result.projectId}`);
 
                 addNotification(`Project imported successfully with ${result.artifactsImported} artifacts`, "success");
             } else {
@@ -174,23 +163,6 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
             throw error; // Re-throw to let dialog handle it
         }
     };
-
-    // Handle event-based navigation for state-based routing
-    // Listens for navigate-to-project events and selects the project
-    useEffect(() => {
-        const handleNavigateToProject = (event: CustomEvent) => {
-            const { projectId } = event.detail;
-            const project = filteredProjects.find(p => p.id === projectId);
-            if (project) {
-                setSelectedProject(project);
-            }
-        };
-
-        window.addEventListener("navigate-to-project", handleNavigateToProject as EventListener);
-        return () => {
-            window.removeEventListener("navigate-to-project", handleNavigateToProject as EventListener);
-        };
-    }, [filteredProjects, setSelectedProject]);
 
     // Determine if we should show list or detail view
     const showDetailView = selectedProject !== null;

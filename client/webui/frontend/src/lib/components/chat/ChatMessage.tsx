@@ -92,10 +92,11 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     const { sessionId } = useChatContext();
 
     // Extract text content from message parts
-    const textContent = message.parts
-        ?.filter(p => p.kind === "text")
-        .map(p => (p as TextPart).text)
-        .join("") || "";
+    const textContent =
+        message.parts
+            ?.filter(p => p.kind === "text")
+            .map(p => (p as TextPart).text)
+            .join("") || "";
 
     // Trim text for user messages to prevent trailing whitespace issues
     const displayText = message.isUser ? textContent.trim() : textContent;
@@ -155,10 +156,7 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     // Wrap AI messages with SelectableMessageContent for text selection
     if (!message.isUser) {
         return (
-            <SelectableMessageContent
-                messageId={message.metadata?.messageId || ''}
-                isAIMessage={true}
-            >
+            <SelectableMessageContent messageId={message.metadata?.messageId || ""} isAIMessage={true}>
                 {renderContent()}
             </SelectableMessageContent>
         );
@@ -184,11 +182,7 @@ const getUploadedFiles = (message: MessageFE) => {
     return null;
 };
 
-const getChatBubble = (
-    message: MessageFE,
-    chatContext: ChatContextValue,
-    isLastWithTaskId?: boolean
-) => {
+const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
     const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
 
     if (message.isStatusBubble) {
@@ -238,10 +232,10 @@ const getChatBubble = (
     const renderArtifactOrFilePart = (part: ArtifactPart | FilePart, index: number) => {
         // Create unique key for expansion state using taskId (or messageId) + filename
         const uniqueKey = message.taskId
-            ? `${message.taskId}-${part.kind === 'file' ? (part as FilePart).file.name : (part as ArtifactPart).name}`
+            ? `${message.taskId}-${part.kind === "file" ? (part as FilePart).file.name : (part as ArtifactPart).name}`
             : message.metadata?.messageId
-                ? `${message.metadata.messageId}-${part.kind === 'file' ? (part as FilePart).file.name : (part as ArtifactPart).name}`
-                : undefined;
+              ? `${message.metadata.messageId}-${part.kind === "file" ? (part as FilePart).file.name : (part as ArtifactPart).name}`
+              : undefined;
 
         if (part.kind === "file") {
             const filePart = part as FilePart;
@@ -305,7 +299,7 @@ const getChatBubble = (
                     <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />
                 </div>
             ) : null}
-            
+
             {/* Show hover buttons below bubble for user messages */}
             {message.isUser && (
                 <div className="flex justify-end">
@@ -317,7 +311,7 @@ const getChatBubble = (
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean }> = ({ message, isLastWithTaskId }) => {
     const chatContext = useChatContext();
-    
+
     if (!message) {
         return null;
     }

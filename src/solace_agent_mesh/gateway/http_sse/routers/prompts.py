@@ -537,7 +537,8 @@ async def update_prompt_group(
         for field, value in update_data.items():
             setattr(group, field, value)
         
-        # If prompt text changed, create a new version
+        # If initial_prompt is provided, always create a new version
+        # This happens when user clicks "Save New Version" button
         if hasattr(group_data, 'initial_prompt') and group_data.initial_prompt:
             # Get next version number
             max_version_result = db.query(func.max(PromptModel.version)).filter(
@@ -845,6 +846,57 @@ async def create_prompt_version(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create prompt version"
+        )
+
+
+@router.patch("/{prompt_id}", response_model=PromptResponse)
+async def update_prompt(
+    prompt_id: str,
+    prompt_data: PromptCreate,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_user_id),
+    _: None = Depends(check_prompts_enabled),
+):
+    """Update an existing prompt's content (requires write permission)."""
+    try:
+        prompt = db.query(PromptModel).filter(
+            PromptModel.id == prompt_id
+        ).first()
+        
+        if not prompt:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Prompt not found"
+            )
+        
+        # Check write permission on the group
+        check_permission(db, prompt.group_id, user_id, "write")
+        
+        # Update prompt text
+        prompt.prompt_text = prompt_data.prompt_text
+        prompt.updated_at = now_epoch_ms()
+        
+        db.commit()
+        db.refresh(prompt)
+        
+        return PromptResponse(
+            id=prompt.id,
+            prompt_text=prompt.prompt_text,
+            group_id=prompt.group_id,
+            user_id=prompt.user_id,
+            version=prompt.version,
+            created_at=prompt.created_at,
+            updated_at=prompt.updated_at,
+        )
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        log.error(f"Error updating prompt {prompt_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update prompt"
         )
 
 
