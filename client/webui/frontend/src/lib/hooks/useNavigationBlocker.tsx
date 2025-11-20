@@ -1,23 +1,19 @@
 import React, { useState, useEffect, useCallback, type JSX } from "react";
 import { useBlocker } from "react-router-dom";
-import { ConfirmationDialog } from "@/lib/components/ui";
+import { ConfirmationDialog } from "../components/common/ConfirmationDialog";
 
 // Confirmation dialog component used as blocker
 interface NavigationConfirmationDialogProps {
     isOpen: boolean;
     onConfirm: () => void;
     onCancel: () => void;
+    onOpenChange: (isOpen: boolean) => void;
 }
 
-const NavigationConfirmationDialog: React.FC<NavigationConfirmationDialogProps> = ({ isOpen, onConfirm, onCancel }) => {
-    return isOpen ? (
-        <ConfirmationDialog
-            title="Unsaved Changes Will Be Discarded"
-            message="Leaving the form will discard any unsaved changes. Are you sure you want to leave?"
-            onClose={onCancel}
-            onConfirm={onConfirm}
-        />
-    ) : null;
+const NavigationConfirmationDialog: React.FC<NavigationConfirmationDialogProps> = ({ isOpen, onConfirm, onCancel, onOpenChange }) => {
+    return (
+        <ConfirmationDialog title="Unsaved Changes Will Be Discarded" message="Leaving the form will discard any unsaved changes. Are you sure you want to leave?" onClose={onCancel} onConfirm={onConfirm} open={isOpen} onOpenChange={onOpenChange} />
+    );
 };
 
 interface UseNavigationBlockerReturn {
@@ -31,9 +27,7 @@ export function useNavigationBlocker(): UseNavigationBlockerReturn {
     const [isNavigationAllowed, setIsNavigationAllowed] = useState(false);
     const [blockingEnabled, setBlockingEnabled] = useState(false);
 
-    const blocker = useBlocker(({ currentLocation, nextLocation }) =>
-        blockingEnabled && !isNavigationAllowed && currentLocation.pathname !== nextLocation.pathname
-    );
+    const blocker = useBlocker(({ currentLocation, nextLocation }) => blockingEnabled && !isNavigationAllowed && currentLocation.pathname !== nextLocation.pathname);
 
     useEffect(() => {
         if (blocker.state === "blocked") {
@@ -63,7 +57,7 @@ export function useNavigationBlocker(): UseNavigationBlockerReturn {
     }, []);
 
     const NavigationBlocker = useCallback(() => {
-        return <NavigationConfirmationDialog isOpen={showConfirmationDialog} onConfirm={confirmNavigation} onCancel={cancelNavigation} />;
+        return <NavigationConfirmationDialog isOpen={showConfirmationDialog} onConfirm={confirmNavigation} onCancel={cancelNavigation} onOpenChange={setShowConfirmationDialog} />;
     }, [showConfirmationDialog, confirmNavigation, cancelNavigation]);
 
     return {

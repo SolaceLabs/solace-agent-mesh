@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { RefreshCcw } from "lucide-react";
+import { useLoaderData, useNavigate } from "react-router-dom";
 
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
-import { ProjectsListView } from "./ProjectsListView";
+import { ProjectCards } from "./ProjectCards";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { useProjectContext } from "@/lib/providers";
 import { useChatContext } from "@/lib/hooks";
@@ -11,30 +12,19 @@ import type { Project } from "@/lib/types/projects";
 import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
 
-interface ProjectsPageProps {
-    onProjectActivated: () => void;
-}
+export const ProjectsPage: React.FC = () => {
+    const navigate = useNavigate();
+    const loaderData = useLoaderData<{ projectId?: string }>();
 
-export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }) => {
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const {
-        isLoading,
-        createProject,
-        selectedProject,
-        setSelectedProject,
-        setActiveProject,
-        refetch,
-        searchQuery,
-        setSearchQuery,
-        filteredProjects,
-        deleteProject,
-    } = useProjectContext();
+    const { projects, isLoading, createProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
     const { handleNewSession, handleSwitchSession } = useChatContext();
+    const selectedProject = useMemo(() => projects.find(p => p.id === loaderData?.projectId) || null, [projects, loaderData?.projectId]);
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
         setIsCreating(true);
@@ -47,32 +37,30 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
 
             const newProject = await createProject(formData);
             setShowCreateDialog(false);
-            
+
             // Refetch projects to get artifact counts
             await refetch();
-            
-            // Auto-select the newly created project
-            setSelectedProject(newProject);
+
+            navigate(`/projects/${newProject.id}`);
         } finally {
             setIsCreating(false);
         }
     };
 
     const handleProjectSelect = (project: Project) => {
-        setSelectedProject(project);
+        navigate(`/projects/${project.id}`);
     };
 
     const handleBackToList = () => {
-        setSelectedProject(null);
+        navigate("/projects");
     };
 
     const handleChatClick = async (sessionId: string) => {
-
         if (selectedProject) {
             setActiveProject(selectedProject);
         }
         await handleSwitchSession(sessionId);
-        onProjectActivated();
+        navigate("chat");
     };
 
     const handleCreateNew = () => {
@@ -99,39 +87,14 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
         }
     };
 
-    const handleStartNewChat = async () => {
-        // Activate the project and start a new chat session
+    const handleStartNewChat = useCallback(async () => {
         if (selectedProject) {
             setActiveProject(selectedProject);
             // Start a new session while preserving the active project context
             await handleNewSession(true);
-            // Navigate to chat page
-            onProjectActivated();
-            // Dispatch focus event after navigation to ensure ChatInputArea is mounted
-            setTimeout(() => {
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("focus-chat-input"));
-                }
-            }, 150);
+            navigate("chat");
         }
-    };
-
-    // Handle event-based navigation for state-based routing
-    // Listens for navigate-to-project events and selects the project
-    useEffect(() => {
-        const handleNavigateToProject = (event: CustomEvent) => {
-            const { projectId } = event.detail;
-            const project = filteredProjects.find(p => p.id === projectId);
-            if (project) {
-                setSelectedProject(project);
-            }
-        };
-
-        window.addEventListener("navigate-to-project", handleNavigateToProject as EventListener);
-        return () => {
-            window.removeEventListener("navigate-to-project", handleNavigateToProject as EventListener);
-        };
-    }, [filteredProjects, setSelectedProject]);
+    }, [selectedProject, setActiveProject, handleNewSession, navigate]);
 
     // Determine if we should show list or detail view
     const showDetailView = selectedProject !== null;
@@ -142,42 +105,24 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onProjectActivated }
                 <Header
                     title="Projects"
                     buttons={[
-                        <Button key="refresh-projects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
+                        <Button key="refreshProjects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
                             <RefreshCcw className="size-4" />
-                            Refresh
-                        </Button>
+                            Refresh Projects
+                        </Button>,
                     ]}
                 />
             )}
-            
-            <div className="flex-1 min-h-0">
+
+            <div className="min-h-0 flex-1">
                 {showDetailView ? (
-                    <ProjectDetailView
-                        project={selectedProject}
-                        onBack={handleBackToList}
-                        onStartNewChat={handleStartNewChat}
-                        onChatClick={handleChatClick}
-                    />
+                    <ProjectDetailView project={selectedProject} onBack={handleBackToList} onStartNewChat={handleStartNewChat} onChatClick={handleChatClick} />
                 ) : (
-                    <ProjectsListView
-                        projects={filteredProjects}
-                        searchQuery={searchQuery}
-                        onSearchChange={setSearchQuery}
-                        onProjectClick={handleProjectSelect}
-                        onCreateNew={handleCreateNew}
-                        onDelete={handleDeleteClick}
-                        isLoading={isLoading}
-                    />
+                    <ProjectCards projects={filteredProjects} searchQuery={searchQuery} onSearchChange={setSearchQuery} onProjectClick={handleProjectSelect} onCreateNew={handleCreateNew} onDelete={handleDeleteClick} isLoading={isLoading} />
                 )}
             </div>
-            
+
             {/* Create Project Dialog */}
-            <CreateProjectDialog
-                isOpen={showCreateDialog}
-                onClose={() => setShowCreateDialog(false)}
-                onSubmit={handleCreateProject}
-                isSubmitting={isCreating}
-            />
+            <CreateProjectDialog isOpen={showCreateDialog} onClose={() => setShowCreateDialog(false)} onSubmit={handleCreateProject} isSubmitting={isCreating} />
 
             {/* Delete Project Dialog */}
             <DeleteProjectDialog

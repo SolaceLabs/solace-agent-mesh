@@ -8,8 +8,8 @@ export interface Prompt {
     group_id: string;
     user_id: string;
     version: number;
-    created_at: number;  // epoch milliseconds
-    updated_at: number;  // epoch milliseconds
+    created_at: number; // epoch milliseconds
+    updated_at: number; // epoch milliseconds
 }
 
 export interface PromptGroup {
@@ -23,8 +23,8 @@ export interface PromptGroup {
     production_prompt_id?: string;
     is_shared: boolean;
     is_pinned: boolean;
-    created_at: number;  // epoch milliseconds
-    updated_at: number;  // epoch milliseconds
+    created_at: number; // epoch milliseconds
+    updated_at: number; // epoch milliseconds
     production_prompt?: Prompt;
     _editingPromptId?: string;
     _isEditingActiveVersion?: boolean;
@@ -58,14 +58,14 @@ export interface PromptGroupListResponse {
 }
 
 // AI-Assisted Builder Types
-export interface ChatMessage {
-    role: 'user' | 'assistant';
+export interface PromptChatMessage {
+    role: "user" | "assistant";
     content: string;
 }
 
 export interface PromptBuilderChatRequest {
     message: string;
-    conversation_history: ChatMessage[];
+    conversation_history: PromptChatMessage[];
     current_template?: Record<string, unknown>;
 }
 

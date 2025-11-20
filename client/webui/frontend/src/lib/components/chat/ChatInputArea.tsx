@@ -1,43 +1,60 @@
-import React, { useRef, useState, useEffect, useMemo } from "react";
+import React, { useRef, useState, useEffect, useMemo, useCallback } from "react";
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import { Ban, Paperclip, Send } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
-import { useChatContext, useDragAndDrop, useAgentSelection } from "@/lib/hooks";
+import { MessageBanner } from "@/lib/components/common";
+import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext } from "@/lib/hooks";
 import type { AgentCardInfo } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
 
 import { FileBadge } from "./file/FileBadge";
-import { PromptsCommand } from "./PromptsCommand";
+import { AudioRecorder } from "./AudioRecorder";
+import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { VariableDialog } from "./VariableDialog";
-import {
-    PastedTextBadge,
-    PasteActionDialog,
-    isLargeText,
-    type PastedArtifactItem
-} from "./paste";
+import { PastedTextBadge, PasteActionDialog, isLargeText, type PastedArtifactItem } from "./paste";
+
+const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
+    switch (command) {
+        case "create-template":
+            if (!conversationContext) {
+                return "Help me create a new prompt template.";
+            }
+
+            return [
+                "I want to create a reusable prompt template based on this conversation I just had:",
+                "",
+                "<conversation_history>",
+                conversationContext,
+                "</conversation_history>",
+                "",
+                "Please help me create a prompt template by:",
+                "",
+                "1. **Analyzing the Pattern**: Identify the core task/question pattern in this conversation",
+                "2. **Extracting Variables**: Determine which parts should be variables (use {{variable_name}} syntax)",
+                "3. **Generalizing**: Make it reusable for similar tasks",
+                "4. **Suggesting Metadata**: Recommend a name, description, category, and chat shortcut",
+                "",
+                "Focus on capturing what made this conversation successful so it can be reused with different inputs.",
+            ].join("\n");
+        default:
+            return "";
+    }
+};
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
-    const {
-        isResponding,
-        isCancelling,
-        selectedAgentName,
-        sessionId,
-        setSessionId,
-        handleSubmit,
-        handleCancel,
-        uploadArtifactFile,
-        artifactsRefetch,
-        addNotification,
-        artifacts,
-        setPreviewArtifact,
-        openSidePanelTab,
-        messages,
-    } = useChatContext();
-    
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
+    const { settings } = useAudioSettings();
+    const { configFeatureEnablement } = useConfigContext();
+
+    // Feature flags
+    const sttEnabled = configFeatureEnablement?.speechToText ?? true;
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,45 +71,48 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const prevIsRespondingRef = useRef<boolean>(isResponding);
 
     const [inputValue, setInputValue] = useState<string>("");
-    
+
     const [showPromptsCommand, setShowPromptsCommand] = useState(false);
-    
+
     const [showVariableDialog, setShowVariableDialog] = useState(false);
     const [pendingPromptGroup, setPendingPromptGroup] = useState<PromptGroup | null>(null);
 
+    // STT error state for persistent banner
+    const [sttError, setSttError] = useState<string | null>(null);
+
+    // Track recording state to disable input
+    const [isRecording, setIsRecording] = useState(false);
+
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
-    
+
     useEffect(() => {
-        // Check for pending prompt use on mount or session change
-        const promptData = sessionStorage.getItem('pending-prompt-use');
-        if (promptData) {
-            sessionStorage.removeItem('pending-prompt-use');
-            try {
-                const { promptText, groupId, groupName } = JSON.parse(promptData);
-                
-                // Check if prompt has variables
-                const variables = detectVariables(promptText);
-                if (variables.length > 0) {
-                    // Show variable dialog
-                    setPendingPromptGroup({
-                        id: groupId,
-                        name: groupName,
-                        production_prompt: { prompt_text: promptText }
-                    } as PromptGroup);
-                    setShowVariableDialog(true);
-                } else {
-                    setInputValue(promptText);
-                    setTimeout(() => {
-                        chatInputRef.current?.focus();
-                    }, 100);
-                }
-            } catch (error) {
-                console.error('Error parsing prompt data:', error);
+        // Check for pending prompt use from router state
+        if (location.state?.promptText) {
+            const { promptText, groupId, groupName } = location.state;
+
+            // Check if prompt has variables
+            const variables = detectVariables(promptText);
+            if (variables.length > 0) {
+                // Show variable dialog
+                setPendingPromptGroup({
+                    id: groupId,
+                    name: groupName,
+                    production_prompt: { prompt_text: promptText },
+                } as PromptGroup);
+                setShowVariableDialog(true);
+            } else {
+                setInputValue(promptText);
+                setTimeout(() => {
+                    chatInputRef.current?.focus();
+                }, 100);
             }
+
+            // Clear the location state to prevent re-triggering
+            navigate(location.pathname, { replace: true, state: {} });
             return; // Don't clear input if we just set it
         }
-        
+
         // Only clear if session actually changed (not just initialized)
         if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId) {
             setInputValue("");
@@ -101,7 +121,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }
         prevSessionIdRef.current = sessionId;
         setContextText(null);
-    }, [sessionId]);
+    }, [sessionId, location.state, location.pathname, navigate]);
 
     useEffect(() => {
         if (prevIsRespondingRef.current && !isResponding) {
@@ -127,23 +147,22 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         };
     }, []);
 
-
     // Handle follow-up question from text selection
     useEffect(() => {
         const handleFollowUp = async (event: Event) => {
             const customEvent = event as CustomEvent;
             const { text, prompt, autoSubmit } = customEvent.detail;
             setContextText(text);
-            
+
             // If a prompt is provided, pre-fill the input
             if (prompt) {
                 setInputValue(prompt + " ");
-                
+
                 if (autoSubmit) {
                     // Small delay to ensure state is updated
                     setTimeout(async () => {
                         const fullMessage = `${prompt}\n\nContext: "${text}"`;
-                        const fakeEvent = new Event('submit') as unknown as FormEvent;
+                        const fakeEvent = new Event("submit") as unknown as FormEvent;
                         await handleSubmit(fakeEvent, [], fullMessage);
                         setContextText(null);
                         setInputValue("");
@@ -152,16 +171,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     return;
                 }
             }
-            
+
             // Focus the input for custom questions
             setTimeout(() => {
                 chatInputRef.current?.focus();
             }, 100);
         };
 
-        window.addEventListener('follow-up-question', handleFollowUp);
+        window.addEventListener("follow-up-question", handleFollowUp);
         return () => {
-            window.removeEventListener('follow-up-question', handleFollowUp);
+            window.removeEventListener("follow-up-question", handleFollowUp);
         };
     }, [handleSubmit, scrollToBottom]);
 
@@ -199,15 +218,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         // Handle file pastes (existing logic)
         if (clipboardData.files && clipboardData.files.length > 0) {
             event.preventDefault(); // Prevent the default paste behavior for files
-            
+
             // Filter out duplicates based on name, size, and last modified time
-            const newFiles = Array.from(clipboardData.files).filter(newFile =>
-                !selectedFiles.some(existingFile =>
-                    existingFile.name === newFile.name &&
-                    existingFile.size === newFile.size &&
-                    existingFile.lastModified === newFile.lastModified
-                )
-            );
+            const newFiles = Array.from(clipboardData.files).filter(newFile => !selectedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size && existingFile.lastModified === newFile.lastModified));
             if (newFiles.length > 0) {
                 setSelectedFiles(prev => [...prev, ...newFiles]);
             }
@@ -215,7 +228,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }
 
         // Handle text pastes - show artifact form for large text
-        const pastedText = clipboardData.getData('text');
+        const pastedText = clipboardData.getData("text");
         if (pastedText && isLargeText(pastedText)) {
             // Large text - show artifact creation form
             event.preventDefault();
@@ -230,8 +243,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
         try {
             // Determine MIME type
-            let mimeType = 'text/plain';
-            if (fileType !== 'auto') {
+            let mimeType = "text/plain";
+            if (fileType !== "auto") {
                 mimeType = fileType;
             }
 
@@ -243,11 +256,18 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             const result = await uploadArtifactFile(file, sessionId, description);
 
             if (result) {
+                // Type guard: check if result is an error
+                if ("error" in result) {
+                    addNotification(`Failed to create artifact: ${result.error}`, "error");
+                    return;
+                }
+
+                // Now TypeScript knows result has uri and sessionId
                 // If a new session was created, update our sessionId
                 if (result.sessionId && result.sessionId !== sessionId) {
                     setSessionId(result.sessionId);
                 }
-                
+
                 // Create a badge item for this pasted artifact
                 const artifactItem: PastedArtifactItem = {
                     id: `paste-artifact-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -258,16 +278,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 setPastedArtifactItems(prev => {
                     return [...prev, artifactItem];
                 });
-                
+
                 addNotification(`Artifact "${title}" created from pasted content.`);
                 // Refresh artifacts panel
                 await artifactsRefetch();
             } else {
-                addNotification(`Failed to create artifact from pasted content.`, 'error');
+                addNotification(`Failed to create artifact from pasted content.`, "error");
             }
         } catch (error) {
-            console.error('Error saving artifact:', error);
-            addNotification(`Error creating artifact: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+            console.error("Error saving artifact:", error);
+            addNotification(`Error creating artifact: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
         } finally {
             setPendingPasteContent(null);
             setShowArtifactForm(false);
@@ -283,19 +303,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(
-        () => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0),
-        [isResponding, inputValue, selectedFiles]
-    );
+    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0), [isResponding, inputValue, selectedFiles]);
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
         if (isSubmittingEnabled) {
-            let fullMessage = inputValue.trim()
+            let fullMessage = inputValue.trim();
             if (contextText) {
                 fullMessage = `${fullMessage}\n\nContext: "${contextText}"`;
             }
-            
+
             await handleSubmit(event, selectedFiles, fullMessage);
             setSelectedFiles([]);
             setPastedArtifactItems([]);
@@ -325,16 +342,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
         const value = event.target.value;
         setInputValue(value);
-        
+
         // Check if "/" is typed at start or after space
         const cursorPosition = event.target.selectionStart;
         const textBeforeCursor = value.substring(0, cursorPosition);
         const lastChar = textBeforeCursor[textBeforeCursor.length - 1];
         const charBeforeLast = textBeforeCursor[textBeforeCursor.length - 2];
-        
-        if (lastChar === '/' && (!charBeforeLast || charBeforeLast === ' ' || charBeforeLast === '\n')) {
+
+        if (lastChar === "/" && (!charBeforeLast || charBeforeLast === " " || charBeforeLast === "\n")) {
             setShowPromptsCommand(true);
-        } else if (showPromptsCommand && !textBeforeCursor.includes('/')) {
+        } else if (showPromptsCommand && !textBeforeCursor.includes("/")) {
             setShowPromptsCommand(false);
         }
     };
@@ -345,52 +362,36 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         const cursorPosition = chatInputRef.current?.selectionStart || 0;
         const textBeforeCursor = inputValue.substring(0, cursorPosition);
         const textAfterCursor = inputValue.substring(cursorPosition);
-        
+
         // Find the last "/" before cursor
-        const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
+        const lastSlashIndex = textBeforeCursor.lastIndexOf("/");
         const newText = textBeforeCursor.substring(0, lastSlashIndex) + promptText + textAfterCursor;
-        
+
         setInputValue(newText);
         setShowPromptsCommand(false);
-        
+
         // Focus back on input
         setTimeout(() => {
             chatInputRef.current?.focus();
         }, 100);
     };
 
-    // Handle reserved command
-    const handleReservedCommand = (command: string, context?: string) => {
-        if (command === 'create-template') {
-            // Create enhanced message for AI builder
-            const enhancedMessage = context
-                ? `I want to create a reusable prompt template based on this conversation I just had:
+    // Handle chat command
+    const handleChatCommand = (command: ChatCommand, context?: string) => {
+        const enhancedMessage = createEnhancedMessage(command, context);
 
-<conversation_history>
-${context}
-</conversation_history>
+        switch (command) {
+            case "create-template": {
+                // Navigate to prompts page with AI-assisted mode and pass task description
+                navigate("/prompts/new?mode=ai-assisted", {
+                    state: { taskDescription: enhancedMessage },
+                });
 
-Please help me create a prompt template by:
-
-1. **Analyzing the Pattern**: Identify the core task/question pattern in this conversation
-2. **Extracting Variables**: Determine which parts should be variables (use {{variable_name}} syntax)
-3. **Generalizing**: Make it reusable for similar tasks
-4. **Suggesting Metadata**: Recommend a name, description, category, and chat shortcut
-
-Focus on capturing what made this conversation successful so it can be reused with different inputs.`
-                : 'Help me create a new prompt template.';
-
-            // Store in sessionStorage before dispatching event
-            sessionStorage.setItem('pending-template-context', enhancedMessage);
-            
-            // Dispatch custom event to navigate to prompts page with context
-            window.dispatchEvent(new CustomEvent('create-template-from-session', {
-                detail: { initialMessage: enhancedMessage }
-            }));
-            
-            // Clear input
-            setInputValue('');
-            setShowPromptsCommand(false);
+                // Clear input
+                setInputValue("");
+                setShowPromptsCommand(false);
+                break;
+            }
         }
     };
 
@@ -405,7 +406,7 @@ Focus on capturing what made this conversation successful so it can be reused wi
         if (artifact) {
             // Use the existing artifact preview functionality
             setPreviewArtifact(artifact);
-            openSidePanelTab('files');
+            openSidePanelTab("files");
         }
     };
 
@@ -419,6 +420,26 @@ Focus on capturing what made this conversation successful so it can be reused wi
         }, 100);
     };
 
+    // Handle transcription from AudioRecorder
+    const handleTranscription = useCallback(
+        (text: string) => {
+            // Append transcribed text to current input
+            const newText = inputValue ? `${inputValue} ${text}` : text;
+            setInputValue(newText);
+
+            // Focus the input after transcription
+            setTimeout(() => {
+                chatInputRef.current?.focus();
+            }, 100);
+        },
+        [inputValue]
+    );
+
+    // Handle STT errors with persistent banner
+    const handleTranscriptionError = useCallback((error: string) => {
+        setSttError(error);
+    }, []);
+
     return (
         <div
             className={`rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
@@ -427,6 +448,13 @@ Focus on capturing what made this conversation successful so it can be reused wi
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
         >
+            {/* STT Error Banner */}
+            {sttError && (
+                <div className="mb-3">
+                    <MessageBanner variant="error" message={sttError} dismissible onDismiss={() => setSttError(null)} />
+                </div>
+            )}
+
             {/* Hidden File Input */}
             <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} accept="*/*" disabled={isResponding} />
 
@@ -441,30 +469,19 @@ Focus on capturing what made this conversation successful so it can be reused wi
 
             {/* Pasted Artifact Items */}
             {(() => {
-                return pastedArtifactItems.length > 0 && (
-                    <div className="mb-2 flex flex-wrap gap-2">
-                        {pastedArtifactItems.map((item, index) => (
-                            <PastedTextBadge
-                                key={item.id}
-                                id={item.id}
-                                index={index + 1}
-                                textPreview={item.filename}
-                                onClick={() => handleViewPastedArtifact(item.filename)}
-                                onRemove={() => handleRemovePastedArtifact(item.id)}
-                            />
-                        ))}
-                    </div>
+                return (
+                    pastedArtifactItems.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-2">
+                            {pastedArtifactItems.map((item, index) => (
+                                <PastedTextBadge key={item.id} id={item.id} index={index + 1} textPreview={item.filename} onClick={() => handleViewPastedArtifact(item.filename)} onRemove={() => handleRemovePastedArtifact(item.id)} />
+                            ))}
+                        </div>
+                    )
                 );
             })()}
 
             {/* Artifact Creation Dialog */}
-            <PasteActionDialog
-                isOpen={showArtifactForm}
-                content={pendingPasteContent || ''}
-                onSaveAsArtifact={handleSaveAsArtifact}
-                onCancel={handleCancelArtifactForm}
-                existingArtifacts={artifacts.map(a => a.filename)}
-            />
+            <PasteActionDialog isOpen={showArtifactForm} content={pendingPasteContent || ""} onSaveAsArtifact={handleSaveAsArtifact} onCancel={handleCancelArtifactForm} existingArtifacts={artifacts.map(a => a.filename)} />
 
             {/* Prompts Command Popover */}
             <PromptsCommand
@@ -475,7 +492,7 @@ Focus on capturing what made this conversation successful so it can be reused wi
                 textAreaRef={chatInputRef}
                 onPromptSelect={handlePromptSelect}
                 messages={messages}
-                onReservedCommand={handleReservedCommand}
+                onReservedCommand={handleChatCommand}
             />
 
             {/* Variable Dialog for "Use in Chat" */}
@@ -495,10 +512,11 @@ Focus on capturing what made this conversation successful so it can be reused wi
                 ref={chatInputRef}
                 value={inputValue}
                 onChange={handleInputChange}
-                placeholder="How can I help you today? (Type '/' to insert a prompt)"
-                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none focus:outline-none focus:ring-0"
+                placeholder={isRecording ? "Recording..." : "How can I help you today? (Type '/' to insert a prompt)"}
+                className="field-sizing-content max-h-50 min-h-0 resize-none rounded-2xl border-none p-3 text-base/normal shadow-none transition-[height] duration-500 ease-in-out focus-visible:outline-none"
                 rows={1}
                 onPaste={handlePaste}
+                disabled={isRecording}
                 onKeyDown={event => {
                     if (event.key === "Enter" && !event.shiftKey && isSubmittingEnabled) {
                         onSubmit(event);
@@ -507,7 +525,7 @@ Focus on capturing what made this conversation successful so it can be reused wi
             />
 
             {/* Buttons */}
-            <div className="m-2 flex items-center gap-2 relative">
+            <div className="relative m-2 flex items-center gap-2">
                 <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file">
                     <Paperclip className="size-4" />
                 </Button>
@@ -515,7 +533,7 @@ Focus on capturing what made this conversation successful so it can be reused wi
                 <div>Agent: </div>
                 <Select
                     value={selectedAgentName}
-                    onValueChange={(agentName) => {
+                    onValueChange={agentName => {
                         handleAgentSelection(agentName);
                     }}
                     disabled={isResponding || agents.length === 0}
@@ -531,6 +549,12 @@ Focus on capturing what made this conversation successful so it can be reused wi
                         ))}
                     </SelectContent>
                 </Select>
+
+                {/* Spacer to push buttons to the right */}
+                <div className="flex-1" />
+
+                {/* Microphone button - show if STT feature enabled and STT setting enabled */}
+                {sttEnabled && settings.speechToText && <AudioRecorder disabled={isResponding} onTranscriptionComplete={handleTranscription} onError={handleTranscriptionError} onRecordingStateChange={setIsRecording} />}
 
                 {isResponding && !isCancelling ? (
                     <Button data-testid="cancel" className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Cancel">

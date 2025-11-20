@@ -14,6 +14,7 @@ interface WebUIGatewayData {
   webui_enable_embed_resolution?: boolean;
   webui_frontend_welcome_message?: string;
   webui_frontend_bot_name?: string;
+  webui_frontend_logo_url?: string;
   webui_frontend_collect_feedback?: boolean;
   database_url?: string;
   [key: string]: string | number | boolean | undefined;
@@ -38,6 +39,7 @@ export default function WebUIGatewaySetup({
       webui_frontend_welcome_message: webUiGatewayData.webui_frontend_welcome_message ?? "",
       webui_frontend_bot_name:
         webUiGatewayData.webui_frontend_bot_name ?? "Solace Agent Mesh",
+      webui_frontend_logo_url: webUiGatewayData.webui_frontend_logo_url ?? "",
       webui_frontend_collect_feedback:
         webUiGatewayData.webui_frontend_collect_feedback ?? false,
     };
@@ -227,6 +229,21 @@ export default function WebUIGatewaySetup({
                 value={webUiGatewayData.webui_frontend_bot_name || "Solace Agent Mesh"}
                 onChange={handleChange}
                 placeholder="Solace Agent Mesh"
+              />
+            </FormField>
+
+            <FormField
+              label="Frontend Logo URL"
+              htmlFor="webui_frontend_logo_url"
+              error={errors.webui_frontend_logo_url}
+              helpText="URL to a custom logo image (PNG, SVG, JPG) or a data URI"
+            >
+              <Input
+                id="webui_frontend_logo_url"
+                name="webui_frontend_logo_url"
+                value={webUiGatewayData.webui_frontend_logo_url || ""}
+                onChange={handleChange}
+                placeholder="https://example.com/logo.png or data:image/svg+xml;base64,..."
               />
             </FormField>
 

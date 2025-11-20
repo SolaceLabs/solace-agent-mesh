@@ -107,6 +107,13 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "default": 10_000_000,  # 10MB
             "description": "Maximum allowed message size in bytes for messages published by the gateway.",
         },
+        {
+            "name": "gateway_max_upload_size_bytes",
+            "required": False,
+            "type": "integer",
+            "default": 52428800,  # 50MB
+            "description": "Maximum file upload size in bytes. Validated before reading file content to prevent memory exhaustion.",
+        },
         # --- Default User Identity Configuration ---
         {
             "name": "default_user_identity",
@@ -254,6 +261,9 @@ class BaseGatewayApp(App):
         )
         self.gateway_max_message_size_bytes: int = resolved_app_config_block.get(
             "gateway_max_message_size_bytes", 10_000_000
+        )
+        self.gateway_max_upload_size_bytes: int = resolved_app_config_block.get(
+            "gateway_max_upload_size_bytes", 52428800
         )
 
         modified_app_info = app_info.copy()

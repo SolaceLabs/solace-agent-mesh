@@ -60,6 +60,7 @@ import type {
     TaskStatusUpdateEvent,
     TextPart,
     ArtifactPart,
+    AgentCardInfo,
 } from "@/lib/types";
 
 interface ChatProviderProps {
@@ -85,16 +86,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
-    
+
     // RAG State
     const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
     const ragDataRef = useRef<RAGSearchResult[]>([]);
     const [ragEnabled] = useState<boolean>(true);
-    
+
     // Wrapper to keep ref in sync with state
     const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
         _setRagData(prev => {
-            const newData = typeof data === 'function' ? data(prev) : data;
+            const newData = typeof data === "function" ? data(prev) : data;
             ragDataRef.current = newData;
             return newData;
         });
@@ -184,7 +185,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const combinedText = textParts?.map(p => p.text).join("") || "";
 
         return {
-            id: message.metadata?.messageId || `msg-${crypto.randomUUID()}`,
+            id: message.metadata?.messageId || `msg-${v4()}`,
             type: message.isUser ? "user" : "agent",
             text: combinedText,
             parts: message.parts,
@@ -322,7 +323,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
                 // Extract RAG data from task metadata
                 const allRagData: RAGSearchResult[] = [];
-                
+
                 for (const task of migratedTasks) {
                     if (task.taskMetadata?.feedback) {
                         feedbackMap[task.taskId] = {
@@ -330,11 +331,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             text: task.taskMetadata.feedback.text || "",
                         };
                     }
-                    
+
                     // Restore RAG data if present
                     if (task.taskMetadata?.rag_data && Array.isArray(task.taskMetadata.rag_data)) {
                         allRagData.push(...task.taskMetadata.rag_data);
-                    } 
+                    }
                 }
 
                 // Extract agent name from the most recent task
@@ -350,7 +351,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Update state
                 setMessages(allMessages);
                 setSubmittedFeedback(feedbackMap);
-                
+
                 // Restore RAG data
                 if (allRagData.length > 0) {
                     setRagData(allRagData);
@@ -370,20 +371,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string, description?: string): Promise<{ uri: string; sessionId: string } | null> => {
+        async (file: File, overrideSessionId?: string, description?: string): Promise<{ uri: string; sessionId: string } | { error: string } | null> => {
             const effectiveSessionId = overrideSessionId || sessionId;
             const formData = new FormData();
             formData.append("upload_file", file);
             formData.append("filename", file.name);
             // Send sessionId as form field (can be empty string for new sessions)
             formData.append("sessionId", effectiveSessionId || "");
-            
+
             // Add description as metadata if provided
             if (description) {
                 const metadata = { description };
                 formData.append("metadata_json", JSON.stringify(metadata));
             }
-            
+
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
@@ -392,7 +393,29 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: `Failed to upload ${file.name}` }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+
+                    // Enhanced error handling for file size errors
+                    if (response.status === 413) {
+                        // Extract file size information if available
+                        const actualSize = errorData.actual_size_bytes;
+                        const maxSize = errorData.max_size_bytes;
+
+                        let errorMessage;
+                        if (actualSize && maxSize) {
+                            const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
+                            const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
+                            errorMessage = `File "${file.name}" is too large: ${actualSizeMB} MB exceeds the maximum allowed size of ${maxSizeMB} MB`;
+                        } else {
+                            errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size`;
+                        }
+
+                        addNotification(errorMessage, "error");
+                        return { error: errorMessage };
+                    }
+
+                    // Default error handling for other errors
+                    const errorMessage = errorData.detail || `HTTP error ${response.status}`;
+                    throw new Error(errorMessage);
                 }
                 const result = await response.json();
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
@@ -400,8 +423,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Return both URI and sessionId (backend may have created a new session)
                 return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
             } catch (error) {
-                addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`, "error");
-                return null;
+                const errorMessage = error instanceof Error ? error.message : "Unknown error";
+                addNotification(`Error uploading artifact "${file.name}": ${errorMessage}`);
+                return { error: `Failed to upload "${file.name}": ${errorMessage}` };
             }
         },
         [apiPrefix, sessionId, addNotification, artifactsRefetch]
@@ -760,7 +784,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isError: true,
                         isComplete: true,
                         metadata: {
-                            messageId: `msg-${crypto.randomUUID()}`,
+                            messageId: `msg-${v4()}`,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -1033,27 +1057,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     // Deep research progress tracking - keep the data part for ChatMessage to render
                                     // Clear latestStatusText so LoadingMessageRow doesn't show duplicate status
                                     latestStatusText.current = null;
-                                     
+
                                     // Also track queries and sources for RAG display
                                     const progressData = data;
                                     const currentQuery = progressData.current_query;
                                     const fetchingUrls = progressData.fetching_urls || [];
                                     const phase = progressData.phase;
-                                    
+
                                     // Convert deep research progress to RAG data for source display
                                     if (phase === "searching" && currentQuery && currentQuery.trim()) {
                                         // Track new query
                                         setRagData(prev => {
-                                            const existingQuery = prev.find(
-                                                r => r.search_type === 'deep_research' &&
-                                                     r.query === currentQuery &&
-                                                     r.task_id === currentTaskIdFromResult
-                                            );
-                                            
+                                            const existingQuery = prev.find(r => r.search_type === "deep_research" && r.query === currentQuery && r.task_id === currentTaskIdFromResult);
+
                                             if (!existingQuery) {
                                                 const newEntry = {
                                                     query: currentQuery,
-                                                    search_type: 'deep_research' as const,
+                                                    search_type: "deep_research" as const,
                                                     timestamp: new Date().toISOString(),
                                                     sources: [],
                                                     task_id: currentTaskIdFromResult,
@@ -1065,20 +1085,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     } else if (phase === "analyzing" && fetchingUrls.length > 0) {
                                         // Add sources to most recent query
                                         setRagData(prev => {
-                                            const deepResearchEntries = prev.filter(
-                                                r => r.search_type === 'deep_research' && r.task_id === currentTaskIdFromResult
-                                            );
-                                            
+                                            const deepResearchEntries = prev.filter(r => r.search_type === "deep_research" && r.task_id === currentTaskIdFromResult);
+
                                             if (deepResearchEntries.length > 0) {
                                                 const updated = [...prev];
                                                 const lastQueryIndex = updated.lastIndexOf(deepResearchEntries[deepResearchEntries.length - 1]);
-                                                
+
                                                 if (lastQueryIndex !== -1) {
                                                     const existingUrls = new Set(updated[lastQueryIndex].sources.map(s => s.source_url || s.url));
-                                                    
+
                                                     fetchingUrls.forEach((urlInfo: any) => {
                                                         const url = urlInfo.url;
-                                                        const sourceType = urlInfo.source_type || 'web';
+                                                        const sourceType = urlInfo.source_type || "web";
                                                         if (url && !existingUrls.has(url)) {
                                                             updated[lastQueryIndex].sources.push({
                                                                 citation_id: `search${updated[lastQueryIndex].sources.length}`,
@@ -1089,33 +1107,33 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                                 relevance_score: 1.0,
                                                                 retrieved_at: new Date().toISOString(),
                                                                 metadata: {
-                                                                    favicon: urlInfo.favicon || (sourceType === 'web' ? `https://www.google.com/s2/favicons?domain=${url}&sz=32` : ''),
-                                                                    type: 'web_search',
+                                                                    favicon: urlInfo.favicon || (sourceType === "web" ? `https://www.google.com/s2/favicons?domain=${url}&sz=32` : ""),
+                                                                    type: "web_search",
                                                                     source_type: sourceType,
-                                                                }
+                                                                },
                                                             });
                                                             existingUrls.add(url);
                                                         }
                                                     });
                                                 }
-                                                
+
                                                 return updated;
                                             }
                                             return prev;
                                         });
                                     }
-                                    
+
                                     // Don't return early - let the data part flow through to the message
                                     break;
                                 }
                                 case "tool_result": {
                                     // Handle tool results that may contain RAG metadata
                                     console.log("ChatProvider: Received tool_result data part:", data);
-                                    
+
                                     const resultData = (data as any).result_data;
-                                    
+
                                     // Check if result_data contains rag_metadata
-                                    if (resultData && typeof resultData === 'object' && resultData.rag_metadata) {
+                                    if (resultData && typeof resultData === "object" && resultData.rag_metadata) {
                                         const ragMetadata = resultData.rag_metadata;
                                         console.log("ChatProvider: Found RAG metadata in tool_result.result_data:", ragMetadata);
                                         if (ragMetadata && ragEnabled) {
@@ -1125,18 +1143,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 timestamp: ragMetadata.timestamp,
                                                 sources: ragMetadata.sources,
                                                 task_id: currentTaskIdFromResult,
-                                                metadata: ragMetadata.metadata // Preserve metadata with query breakdown
+                                                metadata: ragMetadata.metadata, // Preserve metadata with query breakdown
                                             };
-                                            
+
                                             // For deep research: REPLACE all previous entries for this task with the final metadata
                                             // This ensures we have the complete, properly structured data with metadata.queries
-                                            if (ragMetadata.search_type === 'deep_research') {
+                                            if (ragMetadata.search_type === "deep_research") {
                                                 console.log("ChatProvider: Replacing deep research entries with final metadata");
                                                 setRagData(prev => {
                                                     // Remove all previous deep research entries for this task
-                                                    const filtered = prev.filter(
-                                                        r => !(r.search_type === 'deep_research' && r.task_id === currentTaskIdFromResult)
-                                                    );
+                                                    const filtered = prev.filter(r => !(r.search_type === "deep_research" && r.task_id === currentTaskIdFromResult));
                                                     // Add the final complete entry
                                                     return [...filtered, ragSearchResult];
                                                 });
@@ -1200,20 +1216,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
                 return false;
             });
-            
-            const newContentParts = messageToProcess?.parts?.filter(p => {
-                // Keep deep_research_progress data parts
-                if (p.kind === "data") {
-                    const dataPart = p as DataPart;
-                    return dataPart.data && (dataPart.data as any).type === "deep_research_progress";
-                }
-                // Filter out text parts if we have deep research progress (to show progress-only)
-                if (p.kind === "text" && hasDeepResearchProgress) {
-                    return false;
-                }
-                // Keep files and artifacts
-                return true;
-            }) || [];
+
+            const newContentParts =
+                messageToProcess?.parts?.filter(p => {
+                    // Keep deep_research_progress data parts
+                    if (p.kind === "data") {
+                        const dataPart = p as DataPart;
+                        return dataPart.data && (dataPart.data as any).type === "deep_research_progress";
+                    }
+                    // Filter out text parts if we have deep research progress (to show progress-only)
+                    if (p.kind === "text" && hasDeepResearchProgress) {
+                        return false;
+                    }
+                    // Keep files and artifacts
+                    return true;
+                }) || [];
             const hasNewFiles = newContentParts.some(p => p.kind === "file");
 
             // Update UI state based on processed parts
@@ -1229,15 +1246,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Check if this is a deep research progress update
-                const isProgressUpdate = newContentParts.length === 1 &&
-                    newContentParts[0].kind === "data" &&
-                    (newContentParts[0] as DataPart).data &&
-                    ((newContentParts[0] as DataPart).data as any).type === "deep_research_progress";
+                const isProgressUpdate = newContentParts.length === 1 && newContentParts[0].kind === "data" && (newContentParts[0] as DataPart).data && ((newContentParts[0] as DataPart).data as any).type === "deep_research_progress";
 
                 // For progress updates, always update the same message (don't replace, just update the data)
                 // The InlineResearchProgress component will handle showing all stages
                 if (isProgressUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
-                    
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
                         parts: newContentParts,
@@ -1263,11 +1276,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 } else {
                     // Only create a new bubble if there is visible content to render.
                     // Include deep_research_progress data parts as visible content
-                    const hasVisibleContent = newContentParts.some(p =>
-                        (p.kind === "text" && (p as TextPart).text.trim()) ||
-                        p.kind === "file" ||
-                        (p.kind === "data" && (p as DataPart).data && (p as DataPart).data.type === "deep_research_progress")
-                    );
+                    const hasVisibleContent = newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || (p.kind === "data" && (p as DataPart).data && (p as DataPart).data.type === "deep_research_progress"));
                     if (hasVisibleContent) {
                         const newBubble: MessageFE = {
                             role: "agent",
@@ -1276,7 +1285,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isUser: false,
                             isComplete: isFinalEvent || hasNewFiles,
                             metadata: {
-                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
+                                messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
                                 lastProcessedEventSequence: currentEventSequence,
                             },
@@ -1353,7 +1362,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             const taskStatus = hasError ? "error" : "completed";
 
                             const taskRagData = ragDataRef.current.filter(r => r.task_id === currentTaskIdFromResult);
-                            
+
                             // Save complete task (don't wait for completion)
                             saveTaskToBackend({
                                 task_id: currentTaskIdFromResult,
@@ -1415,7 +1424,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
-        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble, downloadAndResolveArtifact, setArtifacts, setRagData]
+        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble, downloadAndResolveArtifact, setArtifacts, setRagData, ragEnabled]
     );
 
     const handleNewSession = useCallback(
@@ -1428,7 +1437,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${crypto.randomUUID()}`,
+                        id: `req-${v4()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
@@ -1510,7 +1519,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${crypto.randomUUID()}`,
+                        id: `req-${v4()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
@@ -1709,7 +1718,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         try {
             const cancelRequest: CancelTaskRequest = {
                 jsonrpc: "2.0",
-                id: `req-${crypto.randomUUID()}`,
+                id: `req-${v4()}`,
                 method: "tasks/cancel",
                 params: {
                     id: currentTaskId,
@@ -1791,6 +1800,35 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
     }, [addNotification, closeCurrentEventSource, isResponding]);
 
+    const cleanupUploadedFiles = useCallback(
+        async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
+            if (uploadedFiles.length === 0) {
+                return;
+            }
+
+            for (const { filename, sessionId: fileSessionId } of uploadedFiles) {
+                try {
+                    const deleteUrl = `${apiPrefix}/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`;
+
+                    // Use the session ID that was used during upload
+                    const response = await authenticatedFetch(deleteUrl, {
+                        method: "DELETE",
+                        credentials: "include",
+                    });
+
+                    if (!response.ok && response.status !== 204) {
+                        const errorData = await response.json().catch(() => ({ detail: `Failed to delete ${filename}` }));
+                        console.error(`[cleanupUploadedFiles] Failed to cleanup file ${filename}:`, errorData.detail || `HTTP error ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
+                    // Continue cleanup even if one fails
+                }
+            }
+        },
+        [apiPrefix]
+    );
+
     const handleSubmit = useCallback(
         async (event: FormEvent, files?: File[] | null, userInputText?: string | null) => {
             event.preventDefault();
@@ -1814,7 +1852,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 metadata: {
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     sessionId: sessionId,
                     lastProcessedEventSequence: 0,
                 },
@@ -1823,45 +1861,68 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setMessages(prev => [...prev, userMsg]);
 
             try {
-                // 1. Process files using hybrid approach
-                const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
+                // 1. Process files using hybrid approach with fail-fast
+                const uploadedFileParts: FilePart[] = [];
+                const successfullyUploadedFiles: Array<{ filename: string; sessionId: string }> = []; // Track large files for cleanup
+
+                console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
+
+                for (const file of currentFiles) {
                     if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
-                        // Small file: send inline as base64
+                        // Small file: send inline as base64 (no cleanup needed)
                         const base64Content = await fileToBase64(file);
-                        return {
+                        uploadedFileParts.push({
                             kind: "file",
                             file: {
                                 bytes: base64Content,
                                 name: file.name,
                                 mimeType: file.type,
                             },
-                        };
+                        });
                     } else {
                         // Large file: upload and get URI
                         const result = await uploadArtifactFile(file);
-                        if (result) {
-                            return {
+
+                        // Check for success FIRST - must have both uri and sessionId
+                        if (result && "uri" in result && result.uri && result.sessionId) {
+                            // SUCCESS - track filename AND sessionId for potential cleanup
+                            const uploadedFile = {
+                                filename: file.name,
+                                sessionId: result.sessionId,
+                            };
+                            successfullyUploadedFiles.push(uploadedFile);
+
+                            uploadedFileParts.push({
                                 kind: "file",
                                 file: {
                                     uri: result.uri,
                                     name: file.name,
                                     mimeType: file.type,
                                 },
-                            };
+                            });
                         } else {
-                            addNotification(`Failed to upload large file: ${file.name}`, "error");
-                            return null;
+                            // ANY failure case (error object, null, or missing fields) - Clean up and stop
+                            console.error(`[handleSubmit] File upload failed for "${file.name}". Result:`, result);
+                            await cleanupUploadedFiles(successfullyUploadedFiles);
+
+                            const cleanupMessage = successfullyUploadedFiles.length > 0 ? " Previously uploaded files have been cleaned up." : "";
+
+                            const errorDetail = result && "error" in result ? ` (${result.error})` : "";
+                            addNotification(`File upload failed for "${file.name}"${errorDetail}.${cleanupMessage} Message not sent.`, "error");
+
+                            setIsResponding(false);
+                            setMessages(prev => prev.filter(msg => msg.metadata?.messageId !== userMsg.metadata?.messageId));
+                            return; // Exit handleSubmit
                         }
                     }
-                });
-
-                const uploadedFileParts = (await Promise.all(filePartsPromises)).filter((p): p is FilePart => p !== null);
+                }
 
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
                 if (currentInput) {
                     messageParts.push({ kind: "text", text: currentInput });
                 }
+
                 messageParts.push(...uploadedFileParts);
 
                 if (messageParts.length === 0) {
@@ -1870,11 +1931,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // 3. Construct the A2A message
                 console.log(`ChatProvider handleSubmit: Using sessionId for contextId: ${sessionId}`);
-                
+
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     kind: "message",
                     contextId: sessionId,
                     metadata: {
@@ -1882,13 +1943,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         project_id: activeProject?.id || null,
                     },
                 };
-                
+
                 console.log(`ChatProvider handleSubmit: Full A2A message:`, JSON.stringify(a2aMessage, null, 2));
 
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${crypto.randomUUID()}`,
+                    id: `req-${v4()}`,
                     method: "message/stream",
                     params: {
                         message: a2aMessage,
@@ -1979,7 +2040,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, INLINE_FILE_SIZE_LIMIT_BYTES, activeProject]
+        [
+            sessionId,
+            isResponding,
+            isCancelling,
+            selectedAgentName,
+            closeCurrentEventSource,
+            addNotification,
+            apiPrefix,
+            uploadArtifactFile,
+            updateSessionName,
+            saveTaskToBackend,
+            serializeMessageBubble,
+            INLINE_FILE_SIZE_LIMIT_BYTES,
+            activeProject,
+            cleanupUploadedFiles,
+        ]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
@@ -2049,22 +2125,41 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Don't show welcome message if we're loading a session
         if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
             // Priority order for agent selection:
-            // 1. Project's default agent (if in project context)
-            // 2. OrchestratorAgent (fallback)
-            // 3. First available agent
+            // 1. URL parameter agent (?agent=AgentName)
+            // 2. Project's default agent (if in project context)
+            // 3. OrchestratorAgent (fallback)
+            // 4. First available agent
             let selectedAgent = agents[0];
 
-            if (activeProject?.defaultAgentId) {
-                const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
-                if (projectDefaultAgent) {
-                    selectedAgent = projectDefaultAgent;
-                    console.log(`Using project default agent: ${selectedAgent.name}`);
+            // Check URL parameter first
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlAgentName = urlParams.get("agent");
+            let urlAgent: AgentCardInfo | undefined;
+
+            if (urlAgentName) {
+                urlAgent = agents.find(agent => agent.name === urlAgentName);
+                if (urlAgent) {
+                    selectedAgent = urlAgent;
+                    console.log(`Using URL parameter agent: ${selectedAgent.name}`);
                 } else {
-                    console.warn(`Project default agent "${activeProject.defaultAgentId}" not found, falling back to OrchestratorAgent`);
+                    console.warn(`URL parameter agent "${urlAgentName}" not found in available agents, falling back to priority order`);
+                }
+            }
+
+            // If no URL agent found, follow existing priority order
+            if (!urlAgent) {
+                if (activeProject?.defaultAgentId) {
+                    const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
+                    if (projectDefaultAgent) {
+                        selectedAgent = projectDefaultAgent;
+                        console.log(`Using project default agent: ${selectedAgent.name}`);
+                    } else {
+                        console.warn(`Project default agent "${activeProject.defaultAgentId}" not found, falling back to OrchestratorAgent`);
+                        selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+                    }
+                } else {
                     selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
                 }
-            } else {
-                selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
             }
 
             setSelectedAgentName(selectedAgent.name);

@@ -20,22 +20,58 @@ interface ChatSidePanelProps {
 
 export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning }) => {
     const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel, ragData, ragEnabled } = useChatContext();
-    const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream } = useTaskContext();
+    const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream, loadTaskFromBackend } = useTaskContext();
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
+    const [isLoadingTask, setIsLoadingTask] = useState<boolean>(false);
 
     // Process task data for visualization when the selected workflow task ID changes
     useEffect(() => {
-        if (taskIdInSidePanel && monitoredTasks[taskIdInSidePanel]) {
-            const taskDetails = monitoredTasks[taskIdInSidePanel];
-            const vizTask = processTaskForVisualization(taskDetails.events || [], monitoredTasks, taskDetails);
-            setVisualizedTask(vizTask);
-        } else {
-            setVisualizedTask(null);
-        }
-    }, [taskIdInSidePanel, monitoredTasks]);
+        const loadTask = async () => {
+            if (!taskIdInSidePanel) {
+                setVisualizedTask(null);
+                return;
+            }
+
+            // Check if task is already in monitoredTasks
+            if (monitoredTasks[taskIdInSidePanel]) {
+                const taskDetails = monitoredTasks[taskIdInSidePanel];
+                const vizTask = processTaskForVisualization(taskDetails.events || [], monitoredTasks, taskDetails);
+                setVisualizedTask(vizTask);
+            } else {
+                // Task not in monitoredTasks, load from backend
+                setIsLoadingTask(true);
+                try {
+                    const loadedTask = await loadTaskFromBackend(taskIdInSidePanel);
+                    if (loadedTask) {
+                        // Process the loaded task for visualization
+                        // Note: loadTaskFromBackend already added all child tasks to monitoredTasks
+                        // so we can now pass the full monitoredTasks object
+                        const vizTask = processTaskForVisualization(loadedTask.events || [], monitoredTasks, loadedTask);
+                        setVisualizedTask(vizTask);
+                    } else {
+                        console.error(`ChatSidePanel: Failed to load task ${taskIdInSidePanel} from backend`);
+                        setVisualizedTask(null);
+                    }
+                } catch (error) {
+                    console.error(`ChatSidePanel: Error loading task ${taskIdInSidePanel}:`, error);
+                    setVisualizedTask(null);
+                } finally {
+                    setIsLoadingTask(false);
+                }
+            }
+        };
+
+        loadTask();
+    }, [taskIdInSidePanel, monitoredTasks, loadTaskFromBackend]);
 
     // Helper function to determine what to display in the workflow panel
     const getWorkflowPanelContent = () => {
+        if (isLoadingTask) {
+            return {
+                message: "Loading workflow data...",
+                showButton: false,
+            };
+        }
         if (isReconnecting || isTaskMonitorConnecting) {
             return {
                 message: "Connecting to task monitor ...",
@@ -128,27 +164,15 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                             <PanelRightIcon className="size-5" />
                         </Button>
                         <TabsList className="grid w-full grid-cols-3 bg-transparent p-0">
-                            <TabsTrigger
-                                value="files"
-                                title="Files"
-                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-l-md border border-r-0 data-[state=active]:z-10"
-                            >
+                            <TabsTrigger value="files" title="Files" className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-l-md border border-r-0 data-[state=active]:z-10">
                                 <FileText className="mr-2 h-4 w-4" />
                                 Files
                             </TabsTrigger>
-                            <TabsTrigger
-                                value="workflow"
-                                title="Workflow"
-                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none border-x-0 border-y data-[state=active]:z-10"
-                            >
+                            <TabsTrigger value="workflow" title="Workflow" className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none border-x-0 border-y data-[state=active]:z-10">
                                 <Network className="mr-2 h-4 w-4" />
                                 Workflow
                             </TabsTrigger>
-                            <TabsTrigger
-                                value="rag"
-                                title="Sources"
-                                className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-r-md border border-l-0 data-[state=active]:z-10"
-                            >
+                            <TabsTrigger value="rag" title="Sources" className="border-border bg-muted data-[state=active]:bg-background relative cursor-pointer rounded-none rounded-r-md border border-l-0 data-[state=active]:z-10">
                                 <Link2 className="mr-2 h-4 w-4" />
                                 Sources
                             </TabsTrigger>

@@ -17,6 +17,7 @@ const defaultMockTaskContext: TaskContextValue = {
     connectTaskMonitorStream: async () => {},
     disconnectTaskMonitorStream: async () => {},
     setHighlightedStepId: () => {},
+    loadTaskFromBackend: async () => null,
 };
 
 interface MockTaskProviderProps {

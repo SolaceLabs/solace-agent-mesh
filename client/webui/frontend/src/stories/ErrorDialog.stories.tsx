@@ -8,7 +8,7 @@ const meta = {
         layout: "fullscreen",
         docs: {
             description: {
-                component: "The button component",
+                component: "The Error dialog component",
             },
         },
     },
