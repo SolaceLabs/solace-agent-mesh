@@ -17,8 +17,8 @@ The solution leverages the existing A2A (Agent-to-Agent) protocol but introduces
 
 ### 3.1. Workflow Identification (Discovery Phase)
 *   **Mechanism**: We utilize the standard `AgentCard` structure.
-*   **Differentiation**: A workflow agent is identified by the presence of a specific extension in its Agent Card (e.g., `agent_type: workflow`).
-*   **Schema Source**: The input contract is read from the standard `input_schema` field of the Agent Card.
+*   **Differentiation**: A workflow agent is identified by the presence of a specific extension in its Agent Card (`https://solace.com/a2a/extensions/agent-type` with param `type="workflow"`).
+*   **Schema Source**: The input contract is read from the `https://solace.com/a2a/extensions/sam/schemas` extension in the Agent Card. This URI is shared between standard agents and workflows.
 *   **Fallback**: If a workflow agent does not publish an `input_schema`, the system defaults to a generic schema: `{"text": "string"}`.
 
 ### 3.2. Tool Factory Logic
@@ -27,7 +27,7 @@ The `SamAgentComponent`'s peer tool injection logic (`_inject_peer_tools_callbac
 *   **Standard Agent**: Instantiates `PeerAgentTool`.
 *   **Workflow Agent**: Instantiates `WorkflowAgentTool`.
 
-This decision happens at runtime during the `before_model_callback` phase, ensuring the toolset is always up-to-date with the registry.
+This decision happens at runtime during the `before_model_callback` phase, ensuring the toolset is always up-to-date with the registry. The logic will inspect the `agent_type` extension to make this determination.
 
 ### 3.3. `WorkflowAgentTool` Design
 This class is responsible for presenting the workflow to the LLM and handling the invocation mechanics.
