@@ -2,17 +2,19 @@
  * API client functions for token usage tracking
  */
 
-import type { ApiResponse, CurrentUsage, MonthlyUsageHistory, QuotaStatus, TransactionsResponse, AllUsersResponse, SetQuotaRequest, UserQuotaConfig, ResetUsageResponse } from "../types/token-usage";
+import { authenticatedFetch } from "../utils/api";
+import type { ApiResponse, CurrentUsage, MonthlyUsageHistory, QuotaStatus, TransactionsResponse, AllUsersResponse, SetQuotaRequest, UserQuotaConfig, ResetUsageResponse, SessionTokenUsage } from "../types/token-usage";
 
 const API_BASE = "/api/v1";
 
 /**
- * Fetch wrapper with error handling
+ * Fetch wrapper with error handling using authenticatedFetch
  */
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<ApiResponse<T>> {
     try {
-        const response = await fetch(url, {
+        const response = await authenticatedFetch(url, {
             ...options,
+            credentials: "include",
             headers: {
                 "Content-Type": "application/json",
                 ...options?.headers,
@@ -70,6 +72,14 @@ export async function getTransactions(params?: { task_id?: string; limit?: numbe
 
     const url = `${API_BASE}/usage/transactions${queryParams.toString() ? `?${queryParams}` : ""}`;
     const response = await fetchApi<TransactionsResponse>(url);
+    return response.data;
+}
+
+/**
+ * Get token usage for a specific session
+ */
+export async function getSessionUsage(sessionId: string): Promise<SessionTokenUsage> {
+    const response = await fetchApi<SessionTokenUsage>(`${API_BASE}/usage/session/${sessionId}`);
     return response.data;
 }
 

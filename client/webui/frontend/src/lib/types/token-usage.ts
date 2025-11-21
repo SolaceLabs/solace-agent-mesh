@@ -144,3 +144,22 @@ export interface SourceDistributionData {
     usage: number;
     percentage: number;
 }
+
+/**
+ * Session-specific token usage for real-time context tracking
+ */
+export interface SessionTokenUsage {
+    sessionId: string;
+    totalTokens: number;
+    promptTokens: number;
+    completionTokens: number;
+    cachedTokens: number;
+    costUsd: string;
+    modelBreakdown: {
+        [model: string]: {
+            tokens: number;
+            cost: string;
+        };
+    };
+    lastUpdated: number;
+}

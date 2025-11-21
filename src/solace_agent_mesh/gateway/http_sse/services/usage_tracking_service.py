@@ -512,3 +512,80 @@ class UsageTrackingService:
             "offset": offset,
             "has_more": (offset + len(transactions)) < total,
         }
+
+    def get_session_usage(self, user_id: str, session_id: str) -> dict:
+        """
+        Get token usage for a specific session.
+        
+        Args:
+            user_id: User identifier
+            session_id: Session identifier
+            
+        Returns:
+            Dictionary with session usage metrics
+        """
+        from sqlalchemy import text
+        from ..shared import now_epoch_ms
+        
+        # Aggregate from token_transactions table joined with chat_tasks
+        # Note: chat_tasks.id IS the task_id
+        query = text("""
+            SELECT
+                tt.model,
+                tt.transaction_type,
+                SUM(tt.raw_tokens) as total_tokens,
+                SUM(tt.token_cost) as total_cost
+            FROM token_transactions tt
+            INNER JOIN chat_tasks ct ON tt.task_id = ct.id
+            WHERE ct.session_id = :session_id
+            AND tt.user_id = :user_id
+            GROUP BY tt.model, tt.transaction_type
+        """)
+        
+        result = self.db.execute(query, {"session_id": session_id, "user_id": user_id})
+        rows = result.fetchall()
+        
+        # Aggregate results
+        total_tokens = 0
+        prompt_tokens = 0
+        completion_tokens = 0
+        cached_tokens = 0
+        total_cost_credits = 0
+        model_breakdown = {}
+        
+        for row in rows:
+            model = row[0]
+            trans_type = row[1]
+            tokens = row[2]
+            cost = row[3]
+            
+            total_tokens += tokens
+            total_cost_credits += cost
+            
+            if trans_type == "prompt":
+                prompt_tokens += tokens
+            elif trans_type == "completion":
+                completion_tokens += tokens
+            elif trans_type == "cached":
+                cached_tokens += tokens
+            
+            # Build model breakdown
+            if model not in model_breakdown:
+                model_breakdown[model] = {"tokens": 0, "cost": ""}
+            
+            model_breakdown[model]["tokens"] += tokens
+            model_breakdown[model]["cost"] = f"${(cost / 1_000_000):.4f}"
+        
+        # Convert total cost from credits to USD
+        cost_usd = f"${(total_cost_credits / 1_000_000):.4f}"
+        
+        return {
+            "session_id": session_id,
+            "total_tokens": total_tokens,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "cached_tokens": cached_tokens,
+            "cost_usd": cost_usd,
+            "model_breakdown": model_breakdown,
+            "last_updated": now_epoch_ms(),
+        }

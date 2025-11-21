@@ -4,10 +4,11 @@ API Router for providing frontend configuration.
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
 from ..routers.dto.requests.project_requests import CreateProjectRequest, UpdateProjectRequest
+from ..shared.auth_utils import get_current_user
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -80,9 +81,11 @@ def _determine_projects_enabled(
 async def get_app_config(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
     api_config: Dict[str, Any] = Depends(get_api_config),
+    user: Optional[Dict[str, Any]] = Depends(get_current_user),
 ):
     """
     Provides configuration settings needed by the frontend application.
+    Includes current user information when available.
     """
     log_prefix = "[GET /api/v1/config] "
     log.info("%sRequest received.", log_prefix)
@@ -266,6 +269,28 @@ async def get_app_config(
             "engineTTS": "external" if tts_configured else "browser",
             "ttsProvider": tts_provider,
         }
+        
+        # Extract user information
+        user_info = None
+        if user:
+            user_id = (
+                user.get("id")
+                or user.get("user_id")
+                or user.get("username")
+                or user.get("email")
+                or "anonymous"
+            )
+            user_name = user.get("name") or user.get("username") or user_id
+            user_email = user.get("email") or f"{user_id}@local"
+            
+            user_info = {
+                "id": user_id,
+                "name": user_name,
+                "email": user_email,
+                "authenticated": user.get("authenticated", False),
+                "auth_method": user.get("auth_method", "none"),
+            }
+            log.debug("%s User info: id=%s, name=%s, email=%s", log_prefix, user_id, user_name, user_email)
 
         config_data = {
             "frontend_server_url": "",
@@ -287,6 +312,7 @@ async def get_app_config(
             "validation_limits": _get_validation_limits(),
             "tool_config_status": tool_config_status,
             "tts_settings": tts_settings,
+            "user": user_info,
         }
         log.debug("%sReturning frontend configuration.", log_prefix)
         return config_data

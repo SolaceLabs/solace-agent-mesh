@@ -22,6 +22,7 @@ from .dto.usage_dto import (
     SetQuotaRequestDTO,
     ResetUsageResponseDTO,
 )
+from .dto.session_usage_dto import SessionTokenUsageDTO
 
 log = logging.getLogger(__name__)
 
@@ -454,3 +455,41 @@ async def get_usage_trends(
 
 # Export routers
 __all__ = ["router", "admin_router"]
+
+@router.get("/session/{session_id}")
+async def get_session_usage(
+    session_id: str,
+    user_id: str = Depends(get_user_id),
+    usage_service: UsageTrackingService = Depends(get_usage_service),
+):
+    """
+    Get token usage for a specific session.
+    
+    Returns real-time token usage metrics for the session including:
+    - Total tokens used
+    - Breakdown by token type (prompt, completion, cached)
+    - Cost in USD
+    - Per-model breakdown
+    """
+    try:
+        session_usage = usage_service.get_session_usage(user_id, session_id)
+        
+        # Convert to DTO for camelCase serialization
+        usage_dto = SessionTokenUsageDTO(
+            session_id=session_usage["session_id"],
+            total_tokens=session_usage["total_tokens"],
+            prompt_tokens=session_usage["prompt_tokens"],
+            completion_tokens=session_usage["completion_tokens"],
+            cached_tokens=session_usage["cached_tokens"],
+            cost_usd=session_usage["cost_usd"],
+            model_breakdown=session_usage["model_breakdown"],
+            last_updated=session_usage["last_updated"],
+        )
+        
+        return {
+            "success": True,
+            "data": usage_dto.model_dump(by_alias=True),
+        }
+    except Exception as e:
+        log.error(f"Error fetching session usage for {session_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch session usage: {str(e)}")
