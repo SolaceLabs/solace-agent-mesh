@@ -223,7 +223,7 @@ For local development and testing only, you can disable authorization:
 ```yaml
 # enterprise_config.yaml - DEVELOPMENT ONLY
 authorization_service:
-  type: "none"  # ⚠️ Grants full access to all users
+  type: "none"  # Grants full access to all users
 
 namespace: "enterprise_dev"
 ```
