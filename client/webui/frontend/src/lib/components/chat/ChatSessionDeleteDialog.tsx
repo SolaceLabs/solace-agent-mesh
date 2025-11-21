@@ -1,38 +1,25 @@
 import React from "react";
-
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
-import { Button } from "@/lib/components/ui/button";
+import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 interface ChatSessionDeleteDialogProps {
-    isOpen: boolean;
+    open: boolean;
     onClose: () => void;
     onConfirm: () => void;
     sessionName: string;
 }
 
-export const ChatSessionDeleteDialog = React.memo<ChatSessionDeleteDialogProps>(({ isOpen, onClose, onConfirm, sessionName }) => {
-    if (!isOpen) {
-        return null;
-    }
-
+export const ChatSessionDeleteDialog = React.memo<ChatSessionDeleteDialogProps>(({ open, onClose, onConfirm, sessionName }) => {
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Delete Chat Session?</DialogTitle>
-                    <DialogDescription>
-                        This action cannot be undone. This chat session and any associated artifacts will be permanently deleted: <strong>{sessionName}</strong>
-                    </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                    <Button variant="ghost" onClick={onClose} title="Cancel">
-                        Cancel
-                    </Button>
-                    <Button onClick={onConfirm} title="Delete">
-                        Delete
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <ConfirmationDialog
+            open={open}
+            onOpenChange={open => !open && onClose()}
+            title="Delete Chat"
+            content={
+                <div>
+                    This action cannot be undone. This chat session and any associated artifacts will be permanently deleted: <strong>{sessionName}</strong>
+                </div>
+            }
+            onConfirm={onConfirm}
+        />
     );
 });
