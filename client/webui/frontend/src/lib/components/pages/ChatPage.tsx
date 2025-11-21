@@ -273,7 +273,7 @@ export function ChatPage() {
                     </ResizablePanelGroup>
                 </div>
             </div>
-            <ChatSessionDeleteDialog open={!!sessionToDelete} onClose={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`} />
+            <ChatSessionDeleteDialog open={!!sessionToDelete} onClose={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
         </div>
     );
 }
