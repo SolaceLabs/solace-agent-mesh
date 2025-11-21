@@ -144,18 +144,18 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
                 ]}
             />
 
-            {/* Description section */}
-            {project.description && (
-                <div className="border-b px-8 py-4">
-                    <h3 className="text-foreground mb-2 text-sm font-semibold">Description</h3>
-                    <p className="text-muted-foreground text-sm">{project.description}</p>
-                </div>
-            )}
-
             {/* Content area with left and right panels */}
             <div className="flex min-h-0 flex-1">
-                {/* Left Panel - Project Chats */}
-                <div className="w-[60%] overflow-y-auto border-r">{onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} />}</div>
+                {/* Left Panel - Description and Project Chats */}
+                <div className="w-[60%] overflow-y-auto border-r">
+                    {/* Description section */}
+                    {project.description && (
+                        <div className="px-8 py-4">
+                            <p className="text-muted-foreground text-sm">{project.description}</p>
+                        </div>
+                    )}
+                    {onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} />}
+                </div>
 
                 {/* Right Panel - Metadata Sidebar */}
                 <div className="bg-muted/30 w-[40%] overflow-y-auto">
