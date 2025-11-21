@@ -39,7 +39,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                 description: editingGroup.description,
                 category: editingGroup.category,
                 command: editingGroup.command,
-                prompt_text: editingGroup.production_prompt?.prompt_text || "",
+                promptText: editingGroup.production_prompt?.promptText || "",
             };
             updateConfig(initialData);
             setInitialConfig(initialData);
@@ -50,7 +50,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                 description: "",
                 category: undefined,
                 command: "",
-                prompt_text: "",
+                promptText: "",
             });
         }
     }, [editingGroup, isEditing, updateConfig]);
@@ -63,7 +63,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
         }
 
         // Check if current form has any actual content
-        const hasContent = !!(config.name?.trim() || config.description?.trim() || config.category || config.command?.trim() || config.prompt_text?.trim());
+        const hasContent = !!(config.name?.trim() || config.description?.trim() || config.category || config.command?.trim() || config.promptText?.trim());
 
         // If form is empty, no unsaved changes
         if (!hasContent) {
@@ -73,7 +73,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
 
         // Otherwise, check if values differ from initial state
         const hasUnsavedChanges =
-            config.name !== initialConfig.name || config.description !== initialConfig.description || config.category !== initialConfig.category || config.command !== initialConfig.command || config.prompt_text !== initialConfig.prompt_text;
+            config.name !== initialConfig.name || config.description !== initialConfig.description || config.category !== initialConfig.category || config.command !== initialConfig.command || config.promptText !== initialConfig.promptText;
 
         setBlockingEnabled(hasUnsavedChanges);
     }, [config, initialConfig, setBlockingEnabled]);
@@ -302,15 +302,15 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                             id="template-prompt"
                                             data-testid="prompt-text-input"
                                             placeholder="Enter your prompt template here. Use {{Variable Name}} for placeholders."
-                                            value={config.prompt_text || ""}
-                                            onChange={e => updateConfig({ prompt_text: e.target.value })}
+                                            value={config.promptText || ""}
+                                            onChange={e => updateConfig({ promptText: e.target.value })}
                                             rows={12}
-                                            className={`placeholder:text-muted-foreground/50 font-mono ${validationErrors.prompt_text ? "border-red-500" : ""}`}
+                                            className={`placeholder:text-muted-foreground/50 font-mono ${validationErrors.promptText ? "border-red-500" : ""}`}
                                         />
-                                        {validationErrors.prompt_text && (
+                                        {validationErrors.promptText && (
                                             <p className="flex items-center gap-1 text-sm text-red-600">
                                                 <AlertCircle className="h-3 w-3" />
-                                                {validationErrors.prompt_text}
+                                                {validationErrors.promptText}
                                             </p>
                                         )}
 

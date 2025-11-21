@@ -171,7 +171,7 @@ export const PromptsPage: React.FC = () => {
 
     // Handle use in chat
     const handleUseInChat = (prompt: PromptGroup) => {
-        const promptText = prompt.production_prompt?.prompt_text || "";
+        const promptText = prompt.production_prompt?.promptText || "";
 
         // Check if prompt has variables
         const variables = detectVariables(promptText);

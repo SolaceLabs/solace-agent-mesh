@@ -98,7 +98,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 setPendingPromptGroup({
                     id: groupId,
                     name: groupName,
-                    production_prompt: { prompt_text: promptText },
+                    production_prompt: { promptText: promptText },
                 } as PromptGroup);
                 setShowVariableDialog(true);
             } else {

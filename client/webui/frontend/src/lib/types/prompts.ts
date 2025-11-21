@@ -4,7 +4,7 @@
 
 export interface Prompt {
     id: string;
-    prompt_text: string;
+    promptText: string;
     group_id: string;
     user_id: string;
     version: number;
@@ -47,7 +47,7 @@ export interface PromptGroupUpdate {
 }
 
 export interface PromptCreate {
-    prompt_text: string;
+    promptText: string;
 }
 
 export interface PromptGroupListResponse {
