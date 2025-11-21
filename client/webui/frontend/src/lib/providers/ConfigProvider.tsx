@@ -20,6 +20,13 @@ interface BackendConfig {
         projectDescriptionMax?: number;
         projectInstructionsMax?: number;
     };
+    user?: {
+        id: string;
+        name: string;
+        email: string;
+        authenticated: boolean;
+        auth_method: string;
+    };
 }
 
 interface ConfigProviderProps {
@@ -111,6 +118,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     persistenceEnabled: data.persistence_enabled ?? false,
                     projectsEnabled,
                     validationLimits: data.validation_limits,
+                    user: data.user,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;
