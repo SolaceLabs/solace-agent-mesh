@@ -138,11 +138,11 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                 )}
 
                 {/* Content - no background */}
-                {prompt.production_prompt && (
+                {prompt.productionPrompt && (
                     <div>
                         <h3 className="text-muted-foreground mb-2 text-xs font-semibold">Content</h3>
                         <div className="font-mono text-xs break-words whitespace-pre-wrap">
-                            {prompt.production_prompt.promptText.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
+                            {prompt.productionPrompt.promptText.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
                                 if (part.match(/\{\{[^}]+\}\}/)) {
                                     return (
                                         <span key={index} className="bg-primary/20 text-primary rounded px-1 font-medium">

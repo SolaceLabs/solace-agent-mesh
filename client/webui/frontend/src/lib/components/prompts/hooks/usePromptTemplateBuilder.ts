@@ -30,8 +30,8 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                 description: editingGroup.description,
                 category: editingGroup.category,
                 command: editingGroup.command,
-                promptText: editingGroup.production_prompt?.promptText || "",
-                detected_variables: detectVariables(editingGroup.production_prompt?.promptText || ""),
+                promptText: editingGroup.productionPrompt?.promptText || "",
+                detected_variables: detectVariables(editingGroup.productionPrompt?.promptText || ""),
             };
         }
         return {};
@@ -184,7 +184,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
                     return false;
                 }
 
-                const promptTextChanged = config.promptText !== editingGroup?.production_prompt?.promptText;
+                const promptTextChanged = config.promptText !== editingGroup?.productionPrompt?.promptText;
                 const isEditingActiveVersion = editingGroup?._isEditingActiveVersion ?? true;
                 const editingPromptId = editingGroup?._editingPromptId || editingGroup?.production_prompt_id;
 

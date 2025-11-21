@@ -105,7 +105,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         // This allows editing any version, not just the active one
         const groupWithSelectedVersion: PromptGroup = {
             ...currentGroup,
-            production_prompt: selectedVersion
+            productionPrompt: selectedVersion
                 ? {
                       id: selectedVersion.id,
                       promptText: selectedVersion.promptText,
@@ -115,7 +115,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                       created_at: selectedVersion.created_at,
                       updated_at: selectedVersion.updated_at,
                   }
-                : currentGroup.production_prompt,
+                : currentGroup.productionPrompt,
             // Store the actual production_prompt_id separately so we know if we're editing the active version
             _editingPromptId: selectedVersion?.id,
             _isEditingActiveVersion: selectedVersion?.id === currentGroup.production_prompt_id,

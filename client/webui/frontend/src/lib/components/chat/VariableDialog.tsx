@@ -15,7 +15,7 @@ interface VariableDialogProps {
 }
 
 export const VariableDialog: React.FC<VariableDialogProps> = ({ group, onSubmit, onClose }) => {
-    const promptText = group.production_prompt?.promptText || "";
+    const promptText = group.productionPrompt?.promptText || "";
     const variables = detectVariables(promptText);
 
     const [values, setValues] = useState<Record<string, string>>(() => {

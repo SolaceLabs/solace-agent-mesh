@@ -25,7 +25,7 @@ export interface PromptGroup {
     is_pinned: boolean;
     created_at: number; // epoch milliseconds
     updated_at: number; // epoch milliseconds
-    production_prompt?: Prompt;
+    productionPrompt?: Prompt;
     _editingPromptId?: string;
     _isEditingActiveVersion?: boolean;
     _selectedVersionId?: string;

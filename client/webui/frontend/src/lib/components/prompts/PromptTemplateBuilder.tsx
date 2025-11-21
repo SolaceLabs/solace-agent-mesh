@@ -39,7 +39,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                 description: editingGroup.description,
                 category: editingGroup.category,
                 command: editingGroup.command,
-                promptText: editingGroup.production_prompt?.promptText || "",
+                promptText: editingGroup.productionPrompt?.promptText || "",
             };
             updateConfig(initialData);
             setInitialConfig(initialData);
