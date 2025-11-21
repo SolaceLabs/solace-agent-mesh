@@ -278,7 +278,7 @@ export function ChatPage() {
             <ChatSessionDeleteDialog isOpen={!!sessionToDelete} onClose={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || `Session ${sessionToDelete?.id.substring(0, 8)}`} />
 
             {/* Context Usage Indicator - floating bottom-right */}
-            {sessionId && <ContextUsageIndicator sessionId={sessionId} />}
+            {sessionId && <ContextUsageIndicator sessionId={sessionId} messageCount={messages.length} />}
         </div>
     );
 }

@@ -2,6 +2,7 @@
 Session domain entity.
 """
 
+from typing import Dict, Any
 from pydantic import BaseModel, ConfigDict
 
 from ...shared import now_epoch_ms
@@ -23,6 +24,10 @@ class Session(BaseModel):
     updated_time: int | None = None
     deleted_at: int | None = None
     deleted_by: str | None = None
+    
+    # Compression support
+    is_compression_branch: bool = False
+    compression_metadata: Dict[str, Any] | None = None
 
     def update_name(self, new_name: str) -> None:
         """Update session name with validation."""

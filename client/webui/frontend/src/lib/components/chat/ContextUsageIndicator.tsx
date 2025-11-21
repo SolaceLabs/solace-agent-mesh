@@ -1,31 +1,39 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Sparkles, Loader2 } from "lucide-react";
 
 import { Button } from "@/lib/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { Progress } from "@/lib/components/ui/progress";
+import { MessageBanner } from "@/lib/components/common";
 import { getSessionUsage } from "@/lib/api/token-usage-api";
+import { compressAndBranchSession } from "@/lib/api/sessions-api";
 import type { SessionTokenUsage } from "@/lib/types/token-usage";
 import { getModelContextLimit, formatTokenCount, calculateContextPercentage, getUsageColor, getUsageBgColor } from "@/lib/utils/modelContextLimits";
+import { useChatContext } from "@/lib/hooks";
 
 interface ContextUsageIndicatorProps {
     sessionId: string;
     onRefresh?: () => void;
+    messageCount?: number;
 }
 
 const STORAGE_KEY = "context-indicator-position";
 const DEFAULT_POSITION = { x: 16, y: 80 }; // right-4 (16px), bottom-20 (80px)
 
-export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ sessionId, onRefresh }) => {
+export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ sessionId, onRefresh, messageCount = 0 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [sessionUsage, setSessionUsage] = useState<SessionTokenUsage | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [position, setPosition] = useState(DEFAULT_POSITION);
     const [isDragging, setIsDragging] = useState(false);
+    const [isCompressing, setIsCompressing] = useState(false);
+    const [compressionError, setCompressionError] = useState<string | null>(null);
+    const [compressionSuccess, setCompressionSuccess] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const dragStartPos = useRef({ x: 0, y: 0 });
     const dragOffset = useRef({ x: 0, y: 0 });
+    const { handleSwitchSession } = useChatContext();
 
     // Load position from localStorage
     useEffect(() => {
@@ -170,6 +178,15 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
     const colorClass = getUsageColor(contextMetrics.percentage);
     const bgColorClass = getUsageBgColor(contextMetrics.percentage);
 
+    // Determine if compression button should be shown
+    // Show when: 15+ messages OR 70%+ token usage
+    const shouldShowCompressionButton = useMemo(() => {
+        const MESSAGE_THRESHOLD = 15;
+        const TOKEN_PERCENTAGE_THRESHOLD = 70;
+
+        return messageCount >= MESSAGE_THRESHOLD || contextMetrics.percentage >= TOKEN_PERCENTAGE_THRESHOLD;
+    }, [messageCount, contextMetrics.percentage]);
+
     const handleRefresh = () => {
         fetchSessionUsage();
         onRefresh?.();
@@ -177,6 +194,28 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
 
     const handleToggle = () => {
         setIsExpanded(!isExpanded);
+    };
+
+    const handleCompress = async () => {
+        setIsCompressing(true);
+        setCompressionError(null);
+        setCompressionSuccess(null);
+
+        try {
+            const result = await compressAndBranchSession(sessionId, {});
+
+            setCompressionSuccess(`Compressed ${result.compressedMessageCount} messages. Switching to new session...`);
+
+            // Switch to the new session after a brief delay
+            setTimeout(async () => {
+                await handleSwitchSession(result.newSessionId);
+            }, 1500);
+        } catch (error) {
+            console.error("Failed to compress session:", error);
+            setCompressionError(error instanceof Error ? error.message : "Failed to compress session");
+        } finally {
+            setIsCompressing(false);
+        }
     };
 
     if (!sessionId) {
@@ -267,10 +306,32 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
                                     </div>
                                 </div>
 
+                                {/* Compression Section */}
+                                {shouldShowCompressionButton && (
+                                    <div className="space-y-2 border-t pt-3">
+                                        {compressionSuccess && <MessageBanner variant="success" message={compressionSuccess} dismissible onDismiss={() => setCompressionSuccess(null)} />}
+                                        {compressionError && <MessageBanner variant="error" message={compressionError} dismissible onDismiss={() => setCompressionError(null)} />}
+                                        <Button variant="outline" size="sm" className="w-full" onClick={handleCompress} disabled={isCompressing}>
+                                            {isCompressing ? (
+                                                <>
+                                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                                    Compressing...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="mr-2 h-3 w-3" />
+                                                    Compress & Continue
+                                                </>
+                                            )}
+                                        </Button>
+                                        <p className="text-muted-foreground mt-1 text-center text-xs">Create a summary and start fresh</p>
+                                    </div>
+                                )}
+
                                 {/* Warning Messages */}
-                                {contextMetrics.percentage >= 90 && <div className="rounded bg-red-50 p-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">⚠️ Approaching context limit! Consider starting a new session.</div>}
+                                {contextMetrics.percentage >= 90 && <div className="rounded bg-red-50 p-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">⚠️ Approaching context limit! Consider compressing the conversation.</div>}
                                 {contextMetrics.percentage >= 75 && contextMetrics.percentage < 90 && (
-                                    <div className="rounded bg-orange-50 p-2 text-xs text-orange-600 dark:bg-orange-900/20 dark:text-orange-400">⚠️ Context usage is high. Monitor your token usage.</div>
+                                    <div className="rounded bg-orange-50 p-2 text-xs text-orange-600 dark:bg-orange-900/20 dark:text-orange-400">⚠️ Context usage is high. Consider compressing soon.</div>
                                 )}
                             </>
                         )}
