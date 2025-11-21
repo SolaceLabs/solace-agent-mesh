@@ -22,6 +22,8 @@ const defaultMockChatContext: DefaultMockContextType = {
     artifactsLoading: false,
     artifactsRefetch: async () => {},
     setArtifacts: () => {},
+    ragData: [],
+    ragEnabled: true,
     taskIdInSidePanel: null,
     isSidePanelCollapsed: false,
     activeSidePanelTab: "files",

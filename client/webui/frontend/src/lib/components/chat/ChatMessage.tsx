@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import type { ReactNode } from "react";
 
 import { AlertCircle, ThumbsDown, ThumbsUp } from "lucide-react";
@@ -7,8 +7,12 @@ import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MessageBanner } f
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext } from "@/lib/hooks";
-import type { ArtifactPart, FileAttachment, FilePart, MessageFE, TextPart } from "@/lib/types";
+import type { ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
+import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
+import { Sources } from "@/lib/components/web/Sources";
+import { TextWithCitations } from "./Citation";
+import { parseCitations } from "@/lib/utils/citations";
 
 import { ArtifactMessage, FileMessage } from "./file";
 import { FeedbackModal } from "./FeedbackModal";
@@ -89,7 +93,7 @@ const MessageActions: React.FC<{
 
 const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     const [renderError, setRenderError] = useState<string | null>(null);
-    const { sessionId } = useChatContext();
+    const { sessionId, ragData, openSidePanelTab, setTaskIdInSidePanel } = useChatContext();
 
     // Extract text content from message parts
     const textContent =
@@ -101,6 +105,70 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     // Trim text for user messages to prevent trailing whitespace issues
     const displayText = message.isUser ? textContent.trim() : textContent;
 
+    // Parse citations from text and match to RAG sources
+    const taskRagData = useMemo(() => {
+        if (!message.taskId || !ragData) return undefined;
+        return ragData.find(r => r.task_id === message.taskId);
+    }, [message.taskId, ragData]);
+
+    const citations = useMemo(() => {
+        if (message.isUser) return [];
+        return parseCitations(displayText, taskRagData);
+    }, [displayText, taskRagData, message.isUser]);
+
+    const handleCitationClick = () => {
+        // Open RAG panel when citation is clicked
+        if (message.taskId) {
+            setTaskIdInSidePanel(message.taskId);
+            openSidePanelTab("rag");
+        }
+    };
+
+    // Extract embedded content and compute modified text at component level
+    const embeddedContent = useMemo(() => extractEmbeddedContent(displayText), [displayText]);
+
+    const { modifiedText, contentElements } = useMemo(() => {
+        if (embeddedContent.length === 0) {
+            return { modifiedText: displayText, contentElements: [] };
+        }
+
+        let modText = displayText;
+        const elements: ReactNode[] = [];
+        embeddedContent.forEach((item: ExtractedContent, index: number) => {
+            modText = modText.replace(item.originalMatch, "");
+
+            if (item.type === "file") {
+                const fileAttachment: FileAttachment = {
+                    name: item.filename || "downloaded_file",
+                    content: item.content,
+                    mime_type: item.mimeType,
+                };
+                elements.push(
+                    <div key={`embedded-file-${index}`} className="my-2">
+                        <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment, sessionId)} isEmbedded={true} />
+                    </div>
+                );
+            } else if (!RENDER_TYPES_WITH_RAW_CONTENT.includes(item.type)) {
+                const finalContent = decodeBase64Content(item.content);
+                if (finalContent) {
+                    elements.push(
+                        <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md">
+                            <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
+                        </div>
+                    );
+                }
+            }
+        });
+
+        return { modifiedText: modText, contentElements: elements };
+    }, [embeddedContent, displayText, sessionId, setRenderError]);
+
+    // Parse citations from modified text
+    const modifiedCitations = useMemo(() => {
+        if (message.isUser) return [];
+        return parseCitations(modifiedText, taskRagData);
+    }, [modifiedText]);
+
     const renderContent = () => {
         if (message.isError) {
             return (
@@ -111,43 +179,18 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
             );
         }
 
-        const embeddedContent = extractEmbeddedContent(displayText);
         if (embeddedContent.length === 0) {
+            // Render text with citations if any exist
+            if (citations.length > 0) {
+                return <TextWithCitations text={displayText} citations={citations} onCitationClick={handleCitationClick} />;
+            }
             return <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
         }
-
-        let modifiedText = displayText;
-        const contentElements: ReactNode[] = [];
-        embeddedContent.forEach((item: ExtractedContent, index: number) => {
-            modifiedText = modifiedText.replace(item.originalMatch, "");
-
-            if (item.type === "file") {
-                const fileAttachment: FileAttachment = {
-                    name: item.filename || "downloaded_file",
-                    content: item.content,
-                    mime_type: item.mimeType,
-                };
-                contentElements.push(
-                    <div key={`embedded-file-${index}`} className="my-2">
-                        <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment, sessionId)} isEmbedded={true} />
-                    </div>
-                );
-            } else if (!RENDER_TYPES_WITH_RAW_CONTENT.includes(item.type)) {
-                const finalContent = decodeBase64Content(item.content);
-                if (finalContent) {
-                    contentElements.push(
-                        <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md">
-                            <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
-                        </div>
-                    );
-                }
-            }
-        });
 
         return (
             <div>
                 {renderError && <MessageBanner variant="error" message="Error rendering preview" />}
-                <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>
+                {modifiedCitations.length > 0 ? <TextWithCitations text={modifiedText} citations={modifiedCitations} onCitationClick={handleCitationClick} /> : <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>}
                 {contentElements}
             </div>
         );
@@ -183,7 +226,7 @@ const getUploadedFiles = (message: MessageFE) => {
 };
 
 const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
-    const { openSidePanelTab, setTaskIdInSidePanel } = chatContext;
+    const { openSidePanelTab, setTaskIdInSidePanel, ragData } = chatContext;
 
     if (message.isStatusBubble) {
         return null;
@@ -191,6 +234,41 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     if (message.authenticationLink) {
         return <AuthenticationMessage message={message} />;
+    }
+
+    // Check for deep research progress data
+    const progressPart = message.parts?.find(p => p.kind === "data") as DataPart | undefined;
+    if (progressPart && progressPart.data) {
+        const data = progressPart.data as unknown as ResearchProgressData;
+        if (data.type === "deep_research_progress") {
+            // Only render progress-only if this message has ONLY progress data
+            // If it has other content (text, artifacts, files), render normally below
+            const hasOtherContent = message.parts?.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "artifact" || p.kind === "file");
+
+            if (!hasOtherContent) {
+                // Progress-only message - render just the progress component
+                const handleProgressClick = () => {
+                    // Check if there's RAG data for this task
+                    const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+                    if (taskRagData && taskRagData.length > 0) {
+                        if (message.taskId) {
+                            setTaskIdInSidePanel(message.taskId);
+                            openSidePanelTab("rag");
+                        }
+                    }
+                };
+
+                // Get RAG data for this task to pass to timeline
+                const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+
+                return (
+                    <div className="my-2">
+                        <InlineResearchProgress progress={data} isComplete={message.isComplete} onClick={handleProgressClick} ragData={taskRagData} />
+                    </div>
+                );
+            }
+            // If there's other content, fall through to render everything normally
+        }
     }
 
     // Group contiguous parts to handle interleaving of text and files
@@ -311,14 +389,119 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean }> = ({ message, isLastWithTaskId }) => {
     const chatContext = useChatContext();
+    const { ragData, openSidePanelTab, setTaskIdInSidePanel } = chatContext;
 
     if (!message) {
         return null;
     }
+
+    // Check if this is a completed deep research message
+    // Check both for progress data part (during session) and ragData search_type (after refresh)
+    const hasProgressPart = message.parts?.some(p => {
+        if (p.kind === "data") {
+            const data = (p as DataPart).data as unknown as ResearchProgressData;
+            return data?.type === "deep_research_progress";
+        }
+        return false;
+    });
+
+    // Get RAG metadata for this task
+    const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+
+    console.log("[ChatMessage] Task RAG data:", {
+        taskId: message.taskId,
+        taskRagDataCount: taskRagData?.length,
+        taskRagData: taskRagData,
+        hasProgressPart,
+        isComplete: message.isComplete,
+    });
+
+    const hasRagSources = taskRagData && taskRagData.length > 0 && taskRagData.some(r => r.sources && r.sources.length > 0);
+
+    // Check if ragData indicates deep research (works after page refresh)
+    const hasDeepResearchRagData = taskRagData?.some(r => r.search_type === "deep_research");
+
+    const isDeepResearchComplete = message.isComplete && (hasProgressPart || hasDeepResearchRagData) && hasRagSources;
+
+    console.log("[ChatMessage] Deep research detection:", {
+        isDeepResearchComplete,
+        hasProgressPart,
+        hasDeepResearchRagData,
+        hasRagSources,
+    });
+
+    // Check if this is a completed web search message (has web_search sources but not deep research)
+    // Only show for the last message with this taskId to avoid duplicates
+    const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData.some(r => r.search_type === "web_search") && isLastWithTaskId;
+
+    // Handler for deep research sources click
+    const handleDeepResearchClick = () => {
+        if (message.taskId) {
+            setTaskIdInSidePanel(message.taskId);
+            openSidePanelTab("rag");
+        }
+    };
+
     return (
         <>
             {getChatBubble(message, chatContext, isLastWithTaskId)}
             {getUploadedFiles(message)}
+            {/* Render sources and timeline after completed deep research */}
+            {isDeepResearchComplete &&
+                hasRagSources &&
+                (() => {
+                    // Filter to only show fetched sources (not snippets)
+                    const allSources = taskRagData.flatMap(r => r.sources);
+                    const fetchedSources = allSources.filter(source => {
+                        const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
+                        return wasFetched;
+                    });
+
+                    console.log("[ChatMessage] Source filtering:", {
+                        totalSources: allSources.length,
+                        fetchedSources: fetchedSources.length,
+                        allSourcesSample: allSources.slice(0, 2).map(s => ({
+                            url: s.url,
+                            title: s.title,
+                            fetched: s.metadata?.fetched,
+                            fetch_status: s.metadata?.fetch_status,
+                            hasFullContentMarker: s.content_preview?.includes("[Full Content Fetched]"),
+                        })),
+                    });
+
+                    return (
+                        <>
+                            <Sources ragMetadata={{ sources: fetchedSources }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleDeepResearchClick} />
+                            {/* Show timeline accordion for completed deep research */}
+                            <div className="mb-4">
+                                <InlineResearchProgress
+                                    progress={{
+                                        type: "deep_research_progress",
+                                        phase: "writing",
+                                        status_text: "Research complete",
+                                        progress_percentage: 100,
+                                        current_iteration: 0,
+                                        total_iterations: 0,
+                                        sources_found: fetchedSources.length,
+                                        current_query: "",
+                                        fetching_urls: [],
+                                        elapsed_seconds: 0,
+                                        max_runtime_seconds: 0,
+                                    }}
+                                    isComplete={true}
+                                    onClick={handleDeepResearchClick}
+                                    ragData={taskRagData}
+                                />
+                            </div>
+                        </>
+                    );
+                })()}
+            {/* Render sources after completed web search */}
+            {isWebSearchComplete && hasRagSources && (
+                <div className="my-4">
+                    <Sources ragMetadata={{ sources: taskRagData.flatMap(r => r.sources) }} isDeepResearch={false} onDeepResearchClick={handleDeepResearchClick} />
+                </div>
+            )}
         </>
     );
 };

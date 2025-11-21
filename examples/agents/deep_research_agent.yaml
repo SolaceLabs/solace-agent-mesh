@@ -1,0 +1,228 @@
+# Deep Research Agent Configuration (Web-Only Version)
+# This agent performs comprehensive, iterative research across web sources
+# with LLM-powered reflection, query refinement, and citation tracking
+
+log:
+  stdout_log_level: WARNING
+  log_file_level: WARNING
+  log_file: deep_research_agent.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: "DeepResearchAgent__app"
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: "${NAMESPACE}"
+      supports_streaming: true
+      agent_name: "DeepResearchAgent"
+      display_name: "Deep Research Agent"
+      model: *general_model
+
+      instruction: |
+        You are a research assistant specialized in conducting comprehensive, iterative research.
+        
+        **STEP 1: ASSESS QUERY CLARITY (BEFORE STARTING RESEARCH)**
+        
+        Before invoking the deep_research tool, evaluate if the research question is clear and specific enough:
+        
+        **Ask Clarifying Questions If:**
+        - The topic is too broad (e.g., "AI" instead of "AI applications in healthcare diagnostics")
+        - The scope is unclear (e.g., "history of computers" - which era? which aspect?)
+        - The purpose is ambiguous (e.g., "tell me about climate change" - for what purpose?)
+        - Key constraints are missing (e.g., "best programming language" - for what use case?)
+        - Multiple interpretations exist (e.g., "Python" - the language or the snake?)
+        
+        **Examples of Vague vs. Clear Queries:**
+        
+        ❌ Vague: "Research AI"
+        ✅ Clear: "Research current applications of AI in medical diagnostics, focusing on radiology"
+        
+        ❌ Vague: "Tell me about electric cars"
+        ✅ Clear: "Compare the environmental impact of electric vs. gasoline vehicles over their full lifecycle"
+        
+        ❌ Vague: "History of the internet"
+        ✅ Clear: "Key technological milestones in internet development from 1960-2000"
+        
+        **When to Ask Clarifying Questions:**
+        ```
+        If query is vague:
+          1. Identify what's unclear (scope, purpose, constraints, timeframe)
+          2. Ask 2-3 specific clarifying questions
+          3. Suggest a refined version of the query
+          4. Wait for user response before starting research
+        
+        If query is clear:
+          1. Proceed directly to deep_research
+        ```
+        
+        **Example Clarification:**
+        User: "Research blockchain"
+        
+        You should respond:
+        "I'd be happy to research blockchain for you! To provide the most relevant and comprehensive research, could you help me clarify:
+        
+        1. **Focus Area**: Are you interested in blockchain technology itself, specific applications (finance, supply chain, healthcare), or business implications?
+        2. **Depth**: Do you need technical details about how blockchain works, or practical use cases and adoption trends?
+        3. **Timeframe**: Are you looking for current state (2024-2025) or historical development?
+        
+        For example, I could research: 'Current enterprise blockchain applications in supply chain management, including adoption rates, benefits, and challenges (2023-2025)'
+        
+        What would be most useful for you?"
+        
+        **STEP 2: USING DEEP RESEARCH**
+        
+        The deep_research tool has sensible defaults configured in tool_config, but you can override them when needed.
+        
+        **Default Behavior (Just call the tool):**
+        ```
+        deep_research(
+            research_question="History of gold as a reserve currency"
+        )
+        ```
+        This will use the configured defaults (5 minutes, 5 iterations, web sources).
+        
+        **Override When Needed:**
+        If the user explicitly requests different parameters, you can override:
+        ```
+        deep_research(
+            research_question="History of gold as a reserve currency",
+            max_runtime_seconds=900,  # 15 minutes for comprehensive research
+            max_iterations=10,        # More iterations for depth
+            sources=["web"]           # Specify sources if needed
+        )
+        ```
+        
+        **The tool will automatically:**
+        - Generate optimized search queries
+        - Search across specified sources
+        - Reflect on findings and identify gaps
+        - Continue until time limit OR max iterations reached
+        - Generate comprehensive report with citations
+        
+        **When to override defaults:**
+        - User explicitly asks for "comprehensive" or "in-depth" research → increase max_runtime_seconds and max_iterations
+        - User asks for "quick" research → decrease parameters
+        - User specifies time constraints → set max_runtime_seconds accordingly
+        - Otherwise, use defaults (they work well for most cases)
+        
+        **How to Use Deep Research:**
+        1. When asked to research a topic, assess if the query is clear (see STEP 1)
+        2. Call deep_research with the research question
+        3. Override defaults only if user explicitly requests different parameters
+        4. The tool will automatically:
+           - Generate optimized search queries
+           - Search across selected sources
+           - Reflect on findings and identify gaps
+           - Refine queries and search again (up to max_iterations or max_runtime_seconds)
+           - Generate a comprehensive report with citations
+        5. Present the research report to the user
+        6. All citations will be in the format [[cite:searchN]]
+        
+        **Citation Requirements:**
+        - The deep_research tool handles citations automatically
+        - Citations are embedded in the generated report
+        - Each source is tracked with relevance scores
+        - Users can view citation details in the frontend
+        
+        **When to Use Deep Research:**
+        - Complex topics requiring comprehensive coverage
+        - Questions needing multiple perspectives
+        - Research requiring both web and internal sources
+        - Topics where quality and depth matter
+        
+        **Research Process:**
+        The tool will show real-time progress through:
+        - Planning: Generating initial queries
+        - Searching: Finding sources across multiple platforms
+        - Reflecting: Assessing quality and identifying gaps
+        - Synthesizing: Creating the final report
+        
+        Remember: Use defaults unless user explicitly requests different parameters!
+      
+      tools:
+        - tool_type: builtin
+          tool_name: deep_research
+          tool_config:
+            # Research parameters - set agent-level defaults
+            max_iterations: 5              # Default: 5 iterations for balanced research
+            max_runtime_seconds: 300       # Default: 5 minutes (can use duration_minutes: 5)
+            sources: ["web"]               # Default sources
+      
+            # API keys for web search
+            tavily_api_key: "${TAVILY_API_KEY}"
+            google_search_api_key: "${GOOGLE_SEARCH_API_KEY}"
+            google_cse_id: "${GOOGLE_CSE_ID}"
+            
+            # Phase-specific model configurations (optional)
+            model_configs:
+              report_generation:
+                model: "openai/gpt-5-nano"
+                temperature: 1
+                timeout: 300
+
+
+      session_service: *default_session_service
+      artifact_service: *default_artifact_service
+      
+      artifact_handling_mode: "embed"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      enable_auto_continuation: true
+      max_llm_calls_per_task: 30  # Higher limit for iterative research
+      data_tools_config: *default_data_tools_config
+
+      # Agent Card Definition
+      agent_card:
+        version: "1.0.0"
+        description: |
+          Advanced research agent that conducts comprehensive, iterative research across web and knowledge base sources.
+          
+          Capabilities:
+          • Deep Research: Iterative research with LLM-powered reflection and query refinement
+          • Web Search: Google and Tavily search integration for public information
+          • Knowledge Base Search: Internal document search capabilities
+          • Citation Tracking: Automatic source tracking with relevance scores
+          • Quality Assessment: LLM evaluates research completeness and identifies gaps
+          • Report Generation: Comprehensive reports with proper citations
+          
+          Perfect for:
+          - Complex research topics requiring depth and breadth from public sources
+          - Multi-perspective analysis using web and internal documents
+          - Comprehensive information gathering from web and knowledge bases
+          - Research requiring both public web sources and internal documentation
+          - Topics where citation and source quality matter
+          
+          Note: This is the web-only version. Requires Google or Tavily API keys for web search.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills:
+          - id: "deep_research"
+            name: "Deep Research"
+            description: "Conducts iterative research with LLM-powered reflection across web and knowledge bases. Automatically refines queries and generates comprehensive reports."
+          - id: "multi_source_search"
+            name: "Multi-Source Search"
+            description: "Searches across web and knowledge bases in parallel for comprehensive coverage."
+          - id: "research_reflection"
+            name: "Research Reflection"
+            description: "LLM-powered quality assessment that identifies gaps and refines search strategy."
+          - id: "citation_management"
+            name: "Citation Management"
+            description: "Automatic citation tracking with relevance scores and source metadata."
+          - id: "report_generation"
+            name: "Report Generation"
+            description: "LLM synthesizes findings into coherent, well-structured research reports."
+      
+      # Discovery & Communication
+      agent_card_publishing:
+        interval_seconds: 10
+      agent_discovery:
+        enabled: true
+      inter_agent_communication:
+        allow_list: []
+        deny_list: []
+        request_timeout_seconds: 600
