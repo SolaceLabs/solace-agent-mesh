@@ -56,9 +56,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                 const data = await response.json();
 
                 // Use different greeting message for editing mode
-                const greetingMessage = isEditing
-                    ? "Hi! I'll help you edit this prompt template. What changes would you like to make?"
-                    : data.message;
+                const greetingMessage = isEditing ? "Hi! I'll help you edit this prompt template. What changes would you like to make?" : data.message;
 
                 setMessages([
                     {
@@ -144,10 +142,8 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
             } catch (error) {
                 console.error("Failed to initialize chat:", error);
                 // Use different fallback message for editing mode
-                const fallbackMessage = isEditing
-                    ? "Hi! I'll help you edit this prompt template. What changes would you like to make?"
-                    : "Hi! I'll help you create a prompt template. What kind of recurring task would you like to template?";
-                
+                const fallbackMessage = isEditing ? "Hi! I'll help you edit this prompt template. What changes would you like to make?" : "Hi! I'll help you create a prompt template. What kind of recurring task would you like to template?";
+
                 setMessages([
                     {
                         role: "assistant",

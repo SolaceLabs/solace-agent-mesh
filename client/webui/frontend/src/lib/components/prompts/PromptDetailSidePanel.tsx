@@ -1,5 +1,5 @@
 import React from "react";
-import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MoreHorizontal, SquarePen } from "lucide-react";
+import { X, FileText, Tag, Calendar, Pencil, History, Trash2, User, MoreHorizontal, SquarePen, Download } from "lucide-react";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -13,9 +13,10 @@ interface PromptDetailSidePanelProps {
     onViewVersions?: (prompt: PromptGroup) => void;
     onUseInChat?: (prompt: PromptGroup) => void;
     onTogglePin?: (id: string, currentStatus: boolean) => void;
+    onExport?: (prompt: PromptGroup) => void;
 }
 
-export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ prompt, onClose, onEdit, onDelete, onViewVersions, onUseInChat }) => {
+export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ prompt, onClose, onEdit, onDelete, onViewVersions, onUseInChat, onExport }) => {
     const { configFeatureEnablement } = useConfigContext();
     const versionHistoryEnabled = configFeatureEnablement?.promptVersionHistory ?? true;
     const showVersionHistory = versionHistoryEnabled && onViewVersions;
@@ -39,6 +40,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
     const handleUseInChat = () => {
         if (onUseInChat) {
             onUseInChat(prompt);
+        }
+    };
+
+    const handleExport = () => {
+        if (onExport) {
+            onExport(prompt);
         }
     };
 
@@ -66,6 +73,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                                {onExport && (
+                                    <DropdownMenuItem onClick={handleExport}>
+                                        <Download size={14} className="mr-2" />
+                                        Export Prompt
+                                    </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem onClick={handleEdit}>
                                     <Pencil size={14} className="mr-2" />
                                     Edit Prompt
