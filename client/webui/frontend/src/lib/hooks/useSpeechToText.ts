@@ -286,11 +286,15 @@ export function useSpeechToText(options: UseSpeechToTextOptions = {}): UseSpeech
                     const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
                     const fileExtension = getFileExtension(mimeType);
 
-                    // Send to backend with provider preference
+                    // Send to backend with provider preference and language
                     const formData = new FormData();
                     formData.append("audio", audioBlob, `audio.${fileExtension}`);
                     if (settings.sttProvider && settings.sttProvider !== "browser") {
                         formData.append("provider", settings.sttProvider);
+                    }
+                    // Send language setting for external STT
+                    if (settings.languageSTT) {
+                        formData.append("language", settings.languageSTT);
                     }
 
                     const response = await fetch("/api/v1/speech/stt", {
