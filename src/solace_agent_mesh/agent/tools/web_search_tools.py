@@ -3,9 +3,9 @@ Web Search Tools for Solace Agent Mesh
 Provides web search capabilities using Tavily and Google Custom Search APIs
 """
 
-import os
 import logging
 from typing import Any, Dict, Optional
+from google.adk.tools import ToolContext
 
 from ...tools.web_search import TavilySearchTool, GoogleSearchTool, SearchResult
 from .tool_definition import BuiltinTool
@@ -25,6 +25,8 @@ async def _web_search_tavily(
     include_images: bool = False,
     include_answer: bool = False,
     topic: Optional[str] = None,
+    tool_context: ToolContext = None,
+    tool_config: Optional[Dict[str, Any]] = None,
     **kwargs
 ) -> str:
     """
@@ -37,6 +39,8 @@ async def _web_search_tavily(
         include_images: Whether to include image results
         include_answer: Whether to include a direct answer
         topic: Search topic - 'general', 'news', or 'finance'
+        tool_context: ADK tool context
+        tool_config: Tool configuration containing API keys
         
     Returns:
         JSON string containing search results with sources for citation
@@ -44,9 +48,12 @@ async def _web_search_tavily(
     log_identifier = "[web_search_tavily]"
     
     try:
-        api_key = os.getenv("TAVILY_API_KEY")
+        # Get API key from tool_config
+        config = tool_config or {}
+        api_key = config.get("tavily_api_key")
+        
         if not api_key:
-            error_msg = "TAVILY_API_KEY environment variable not set"
+            error_msg = "tavily_api_key not configured in tool_config"
             log.error("%s %s", log_identifier, error_msg)
             return f"Error: {error_msg}"
         
@@ -113,6 +120,8 @@ async def _web_search_google(
     search_type: Optional[str] = None,
     date_restrict: Optional[str] = None,
     safe_search: Optional[str] = None,
+    tool_context: ToolContext = None,
+    tool_config: Optional[Dict[str, Any]] = None,
     **kwargs
 ) -> str:
     """
@@ -124,6 +133,8 @@ async def _web_search_google(
         search_type: Set to 'image' for image search
         date_restrict: Restrict results by recency (e.g., 'd7' for last 7 days)
         safe_search: Safe search level - 'off', 'medium', or 'high'
+        tool_context: ADK tool context
+        tool_config: Tool configuration containing API keys
         
     Returns:
         JSON string containing search results with sources for citation
@@ -131,11 +142,13 @@ async def _web_search_google(
     log_identifier = "[web_search_google]"
     
     try:
-        api_key = os.getenv("GOOGLE_SEARCH_API_KEY")
-        search_engine_id = os.getenv("GOOGLE_CSE_ID")
+        # Get API keys from tool_config
+        config = tool_config or {}
+        api_key = config.get("google_search_api_key")
+        search_engine_id = config.get("google_cse_id")
         
         if not api_key or not search_engine_id:
-            error_msg = "GOOGLE_SEARCH_API_KEY or GOOGLE_CSE_ID environment variable not set"
+            error_msg = "google_search_api_key or google_cse_id not configured in tool_config"
             log.error("%s %s", log_identifier, error_msg)
             return f"Error: {error_msg}"
         
