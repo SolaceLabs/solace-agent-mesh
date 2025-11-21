@@ -61,12 +61,12 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                 return stillExists;
                             } else {
                                 // If the selected version was deleted, fall back to production
-                                return data.find((v: Prompt) => v.id === group.production_prompt_id) || data[0];
+                                return data.find((v: Prompt) => v.id === group.productionPromptId) || data[0];
                             }
                         } else if (data.length > 0 && !hasInitializedRef.current) {
                             // Only set default selection on initial load
                             hasInitializedRef.current = true;
-                            return data.find((v: Prompt) => v.id === group.production_prompt_id) || data[0];
+                            return data.find((v: Prompt) => v.id === group.productionPromptId) || data[0];
                         }
                         return currentSelected;
                     });
@@ -77,7 +77,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                 setIsLoading(false);
             }
         },
-        [group.id, group.production_prompt_id, group._selectedVersionId]
+        [group.id, group.productionPromptId, group._selectedVersionId]
     );
 
     const fetchGroupData = useCallback(async () => {
@@ -109,16 +109,16 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                 ? {
                       id: selectedVersion.id,
                       promptText: selectedVersion.promptText,
-                      group_id: selectedVersion.group_id,
-                      user_id: selectedVersion.user_id,
+                      groupId: selectedVersion.groupId,
+                      userId: selectedVersion.userId,
                       version: selectedVersion.version,
-                      created_at: selectedVersion.created_at,
-                      updated_at: selectedVersion.updated_at,
+                      createdAt: selectedVersion.createdAt,
+                      updatedAt: selectedVersion.updatedAt,
                   }
                 : currentGroup.productionPrompt,
             // Store the actual production_prompt_id separately so we know if we're editing the active version
             _editingPromptId: selectedVersion?.id,
-            _isEditingActiveVersion: selectedVersion?.id === currentGroup.production_prompt_id,
+            _isEditingActiveVersion: selectedVersion?.id === currentGroup.productionPromptId,
             // Store which version should be selected when returning to version history
             _selectedVersionId: selectedVersion?.id,
         };
@@ -129,7 +129,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         if (!selectedVersion) return;
 
         // Prevent deleting the active version
-        if (selectedVersion.id === currentGroup.production_prompt_id) {
+        if (selectedVersion.id === currentGroup.productionPromptId) {
             setShowDeleteActiveError(true);
             setTimeout(() => setShowDeleteActiveError(false), 5000);
             return;
@@ -158,7 +158,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
     };
 
     const handleRestoreVersion = async () => {
-        if (selectedVersion && selectedVersion.id !== currentGroup.production_prompt_id) {
+        if (selectedVersion && selectedVersion.id !== currentGroup.productionPromptId) {
             await onRestoreVersion(selectedVersion.id);
             // Refresh group data to get updated production_prompt_id
             await fetchGroupData();
@@ -167,7 +167,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
         }
     };
 
-    const isActiveVersion = selectedVersion?.id === currentGroup.production_prompt_id;
+    const isActiveVersion = selectedVersion?.id === currentGroup.productionPromptId;
 
     return (
         <div className="flex h-full flex-col">
@@ -208,7 +208,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                         ) : (
                             <div className="space-y-2">
                                 {versions.map(version => {
-                                    const isActive = version.id === currentGroup.production_prompt_id;
+                                    const isActive = version.id === currentGroup.productionPromptId;
                                     const isSelected = selectedVersion?.id === version.id;
 
                                     return (
@@ -217,7 +217,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                                 <span className="text-sm font-medium">Version {version.version}</span>
                                                 {isActive && <span className="rounded-full bg-[var(--color-success-w20)] px-2 py-0.5 text-xs text-[var(--color-success-wMain)]">Active</span>}
                                             </div>
-                                            <span className="text-muted-foreground text-xs">{formatPromptDate(version.created_at)}</span>
+                                            <span className="text-muted-foreground text-xs">{formatPromptDate(version.createdAt)}</span>
                                         </button>
                                     );
                                 })}
@@ -312,7 +312,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
 
                                     {/* Metadata */}
                                     <div className="border-t pt-4">
-                                        <div className="text-muted-foreground text-xs">Created: {formatPromptDate(selectedVersion.created_at)}</div>
+                                        <div className="text-muted-foreground text-xs">Created: {formatPromptDate(selectedVersion.createdAt)}</div>
                                     </div>
                                 </div>
                             </div>

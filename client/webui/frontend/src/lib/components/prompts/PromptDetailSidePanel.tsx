@@ -161,12 +161,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
             <div className="bg-background space-y-2 border-t p-4">
                 <div className="text-muted-foreground flex items-center gap-2 text-xs">
                     <User size={12} />
-                    <span>Created by: {prompt.author_name || prompt.user_id}</span>
+                    <span>Created by: {prompt.authorName || prompt.userId}</span>
                 </div>
-                {prompt.updated_at && (
+                {prompt.updatedAt && (
                     <div className="text-muted-foreground flex items-center gap-2 text-xs">
                         <Calendar size={12} />
-                        <span>Last updated: {formatPromptDate(prompt.updated_at)}</span>
+                        <span>Last updated: {formatPromptDate(prompt.updatedAt)}</span>
                     </div>
                 )}
             </div>

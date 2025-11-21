@@ -186,7 +186,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
 
                 const promptTextChanged = config.promptText !== editingGroup?.productionPrompt?.promptText;
                 const isEditingActiveVersion = editingGroup?._isEditingActiveVersion ?? true;
-                const editingPromptId = editingGroup?._editingPromptId || editingGroup?.production_prompt_id;
+                const editingPromptId = editingGroup?._editingPromptId || editingGroup?.productionPromptId;
 
                 if (createNewVersion) {
                     // Create new version by updating group with initial_prompt
