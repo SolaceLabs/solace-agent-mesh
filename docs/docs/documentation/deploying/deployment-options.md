@@ -137,7 +137,7 @@ To create a queue template in the Solace Cloud Console:
 
 Use the following settings for the template:
 
-- **Queue Name Filter** = `{NAMESPACE}q/a2a/>`  
+- **Queue Name Filter** = `{NAMESPACE}/>`  
   (Replace `{NAMESPACE}` with the namespace defined in your configuration, for example, `sam/`)
 - **Respect TTL** = `true`  
   *(Under: Advanced Settings > Message Expiry)*
