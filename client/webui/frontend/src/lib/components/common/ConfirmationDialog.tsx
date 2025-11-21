@@ -18,7 +18,7 @@ export interface ConfirmationDialogProps {
 
 export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ title, content, subtitle, trigger, onConfirm, onCancel, open, onOpenChange }) => {
     return (
-        <Dialog open={open} onOpenChange={(open: boolean) => onOpenChange(open)}>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
             <DialogContent className="w-xl max-w-xl sm:max-w-xl">
                 <DialogHeader>
