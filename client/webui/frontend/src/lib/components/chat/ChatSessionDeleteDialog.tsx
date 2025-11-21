@@ -1,18 +1,20 @@
 import React from "react";
-import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
+import { ConfirmationDialog, type ConfirmationDialogProps } from "@/lib/components/common/ConfirmationDialog";
 
-interface ChatSessionDeleteDialogProps {
-    open: boolean;
-    onClose: () => void;
-    onConfirm: () => void;
+export interface ChatSessionDeleteDialogProps extends Omit<ConfirmationDialogProps, "title" | "content" | "onOpenChange"> {
     sessionName: string;
+    onCancel: () => void;
 }
 
-export const ChatSessionDeleteDialog = React.memo<ChatSessionDeleteDialogProps>(({ open, onClose, onConfirm, sessionName }) => {
+export const ChatSessionDeleteDialog = React.memo<ChatSessionDeleteDialogProps>(({ open, onCancel, onConfirm, sessionName }) => {
     return (
         <ConfirmationDialog
             open={open}
-            onOpenChange={open => !open && onClose()}
+            onOpenChange={open => {
+                if (!open) {
+                    onCancel();
+                }
+            }}
             title="Delete Chat"
             content={
                 <div>

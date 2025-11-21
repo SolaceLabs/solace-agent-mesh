@@ -2,21 +2,21 @@ import { Button } from "@/lib/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/lib/components/ui/dialog";
 
 export interface ConfirmationDialogProps {
+    open: boolean;
     title: string;
     content: string | React.ReactNode;
-    open: boolean;
     onOpenChange: (open: boolean) => void;
     onConfirm: () => void;
 
     // optional cancel for additional actions on cancel beyond closing the dialog
     onCancel?: () => void;
-    // optional subtitle below the title (note: typically unused)
+    // optional subtitle below the title - typically unused
     subtitle?: string;
     // optional trigger to open the dialog eg. button
     trigger?: React.ReactNode;
 }
 
-export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ title, content, subtitle, trigger, onConfirm, onCancel, open, onOpenChange }) => {
+export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, title, content, subtitle, trigger, onOpenChange, onConfirm, onCancel }) => {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
@@ -42,8 +42,8 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ title, c
                     <DialogClose asChild>
                         <Button
                             title="Confirm"
-                            onClick={event => {
-                                event.stopPropagation();
+                            onClick={e => {
+                                e.stopPropagation();
                                 onConfirm();
                             }}
                         >
