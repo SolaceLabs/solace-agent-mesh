@@ -1,7 +1,7 @@
-import React from "react";
-import { Download, Trash } from "lucide-react";
+import React, { useState } from "react";
+import { Download, Trash, Pencil } from "lucide-react";
 
-import { Button, Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/lib/components/ui";
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui";
 import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
 import type { ArtifactInfo } from "@/lib/types";
 import { getFileIcon } from "../chat/file/fileUtils";
@@ -10,11 +10,23 @@ interface DocumentListItemProps {
     artifact: ArtifactInfo;
     onDownload: () => void;
     onDelete?: () => void;
+    onClick?: () => void;
+    onEditDescription?: () => void;
 }
 
-export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, onDownload, onDelete }) => {
+export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, onDownload, onDelete, onClick, onEditDescription }) => {
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+    const handleClick = (e: React.MouseEvent) => {
+        // Don't trigger onClick if clicking on buttons
+        if ((e.target as HTMLElement).closest("button")) {
+            return;
+        }
+        onClick?.();
+    };
+
     return (
-        <div className="hover:bg-accent/50 group flex items-center justify-between rounded-md p-2">
+        <div className={`hover:bg-accent/50 group flex items-center justify-between rounded-md p-2 ${onClick ? "cursor-pointer" : ""}`} onClick={handleClick}>
             <div className="flex min-w-0 flex-1 items-center gap-2">
                 {getFileIcon(artifact, "h-4 w-4 flex-shrink-0 text-muted-foreground")}
                 <div className="min-w-0 flex-1">
@@ -37,33 +49,69 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, on
                 </div>
             </div>
             <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                <Button variant="ghost" size="sm" onClick={onDownload} className="h-8 w-8 p-0" tooltip="Download">
+                {onEditDescription && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={e => {
+                            e.stopPropagation();
+                            onEditDescription();
+                        }}
+                        className="h-8 w-8 p-0"
+                        tooltip="Edit Description"
+                    >
+                        <Pencil className="h-4 w-4" />
+                    </Button>
+                )}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={e => {
+                        e.stopPropagation();
+                        onDownload();
+                    }}
+                    className="h-8 w-8 p-0"
+                    tooltip="Download"
+                >
                     <Download className="h-4 w-4" />
                 </Button>
                 {onDelete && (
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" tooltip="Delete">
-                                <Trash className="h-4 w-4" />
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Delete {artifact.filename}?</DialogTitle>
-                                <DialogDescription>This action cannot be undone. This file will be permanently removed from the project.</DialogDescription>
-                            </DialogHeader>
-                            <DialogFooter>
-                                <DialogClose asChild>
-                                    <Button variant="ghost" title="Cancel">
+                    <>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={e => {
+                                e.stopPropagation();
+                                setShowDeleteDialog(true);
+                            }}
+                            className="h-8 w-8 p-0"
+                            tooltip="Delete"
+                        >
+                            <Trash className="h-4 w-4" />
+                        </Button>
+                        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Delete {artifact.filename}?</DialogTitle>
+                                    <DialogDescription>This action cannot be undone. This file will be permanently removed from the project.</DialogDescription>
+                                </DialogHeader>
+                                <DialogFooter>
+                                    <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>
                                         Cancel
                                     </Button>
-                                </DialogClose>
-                                <Button variant="outline" onClick={onDelete} title="Delete">
-                                    Delete
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => {
+                                            setShowDeleteDialog(false);
+                                            onDelete();
+                                        }}
+                                    >
+                                        Delete
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </>
                 )}
             </div>
         </div>
