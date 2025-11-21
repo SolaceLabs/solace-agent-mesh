@@ -25,7 +25,7 @@ def upgrade():
         'user_quotas',
         sa.Column('user_id', sa.String(), nullable=False),
         sa.Column('monthly_quota', sa.BigInteger(), nullable=True),
-        sa.Column('account_type', sa.String(), nullable=False, server_default='free'),
+        sa.Column('account_type', sa.String(), nullable=False, server_default='basic'),
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
         sa.Column('quota_reset_day', sa.Integer(), nullable=False, server_default='1'),
         sa.Column('created_at', sa.BigInteger(), nullable=False),
@@ -83,6 +83,15 @@ def upgrade():
     op.create_index('idx_token_tx_model', 'token_transactions', ['model'])
     op.create_index('idx_token_tx_created', 'token_transactions', ['created_at'])
     op.create_index('idx_token_tx_user_id', 'token_transactions', ['user_id'])
+    
+    # Update any existing 'free' account types to 'basic' (in case of re-running migration)
+    op.execute(
+        """
+        UPDATE user_quotas
+        SET account_type = 'basic'
+        WHERE account_type = 'free'
+        """
+    )
 
 
 def downgrade():

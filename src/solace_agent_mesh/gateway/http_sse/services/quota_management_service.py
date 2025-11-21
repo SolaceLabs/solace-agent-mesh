@@ -97,7 +97,7 @@ class QuotaManagementService:
             quota_config = UserQuotaModel(
                 user_id=user_id,
                 monthly_quota=None,
-                account_type="free",
+                account_type="basic",
                 is_active=True,
                 quota_reset_day=1,
                 created_at=current_time,

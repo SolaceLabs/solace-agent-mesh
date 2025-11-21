@@ -115,7 +115,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
 
                             {/* Account Type */}
                             <div className="mt-2">
-                                <span className="inline-flex items-center rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 capitalize dark:bg-blue-900 dark:text-blue-200">{quotaStatus.accountType || "free"}</span>
+                                <span className="inline-flex items-center rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 capitalize dark:bg-blue-900 dark:text-blue-200">{quotaStatus.accountType || "basic"}</span>
                             </div>
                         </div>
 

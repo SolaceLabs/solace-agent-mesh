@@ -219,7 +219,7 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
 
                 {/* Expanded View */}
                 {isExpanded && (
-                    <div className="space-y-3 border-t p-3">
+                    <div className="space-y-3 p-3">
                         {/* Header with refresh */}
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-semibold">Context Window</span>

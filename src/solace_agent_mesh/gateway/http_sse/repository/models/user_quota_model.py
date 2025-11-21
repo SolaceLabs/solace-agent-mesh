@@ -21,7 +21,7 @@ class UserQuotaModel(Base):
     
     # Quota configuration
     monthly_quota = Column(BigInteger, nullable=True)  # null = use system default
-    account_type = Column(String, default="free")  # free, pro, enterprise, etc.
+    account_type = Column(String, default="basic")  # basic, pro, enterprise, etc.
     
     # Status
     is_active = Column(Boolean, default=True)

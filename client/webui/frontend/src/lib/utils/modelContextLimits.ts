@@ -195,5 +195,5 @@ export function getUsageBgColor(percentage: number): string {
     if (percentage >= 90) return "bg-red-100 dark:bg-red-900/20";
     if (percentage >= 75) return "bg-orange-100 dark:bg-orange-900/20";
     if (percentage >= 50) return "bg-yellow-100 dark:bg-yellow-900/20";
-    return "bg-green-100 dark:bg-green-900/20";
+    return "bg-gray-100 dark:bg-gray-800/50";
 }
