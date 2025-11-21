@@ -67,6 +67,16 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
+    console.log("[ChatProvider] Component mounting/rendering");
+
+    // Add useEffect to track mount/unmount
+    useEffect(() => {
+        console.log("[ChatProvider] Mounted");
+        return () => {
+            console.log("[ChatProvider] Unmounting");
+        };
+    }, []);
+
     const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
     const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
     const { activeProject, setActiveProject, projects } = useProjectContext();
@@ -106,7 +116,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const sseEventSequenceRef = useRef<number>(0);
 
     // Agents State
-    const { agents, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
+    const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
 
     // Chat Side Panel State
     const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts } = useArtifacts(sessionId);
@@ -2080,6 +2090,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         agentsLoading,
         agentsError,
         agentsRefetch,
+        agentNameDisplayNameMap,
         handleNewSession,
         handleSwitchSession,
         handleSubmit,

@@ -3,7 +3,7 @@ import { Bot, Pencil } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui";
 import type { Project } from "@/lib/types/projects";
-import { useAgentCards, useChatContext } from "@/lib/hooks";
+import { useChatContext } from "@/lib/hooks";
 
 interface DefaultAgentSectionProps {
     project: Project;
@@ -12,8 +12,7 @@ interface DefaultAgentSectionProps {
 }
 
 export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ project, onSave, isSaving }) => {
-    const { agents, agentsLoading } = useChatContext();
-    const { agentNameMap } = useAgentCards();
+    const { agents, agentsLoading, agentNameDisplayNameMap } = useChatContext();
     const [isEditing, setIsEditing] = useState(false);
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(project.defaultAgentId || null);
 
@@ -48,7 +47,7 @@ export const DefaultAgentSection: React.FC<DefaultAgentSectionProps> = ({ projec
                         {project.defaultAgentId ? (
                             <div className="flex items-center gap-2">
                                 <Bot className="h-4 w-4" />
-                                <span>{agentNameMap[project.defaultAgentId ?? ""] || "N/A"}</span>
+                                <span>{agentNameDisplayNameMap[project.defaultAgentId ?? ""] || "N/A"}</span>
                             </div>
                         ) : (
                             <span className="w-full text-center">No default agent set.</span>

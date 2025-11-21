@@ -13,7 +13,7 @@ const TOOL_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools";
  * Transforms a raw A2A AgentCard into a UI-friendly AgentCardInfo object,
  * extracting the displayName and peer_agents from the extensions array.
  */
-const transformAgentCard = (card: AgentCard): AgentCardInfo => {
+export const transformAgentCard = (card: AgentCard): AgentCardInfo => {
     let displayName: string | undefined;
     let peerAgents: string[] | undefined;
     let tools: AgentSkill[] | undefined;

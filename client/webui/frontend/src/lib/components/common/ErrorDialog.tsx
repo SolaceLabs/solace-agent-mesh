@@ -1,5 +1,5 @@
 import { Button } from "@/lib/components/ui/button";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
 import { CircleX } from "lucide-react";
 
 interface ErrorDialogProps {
@@ -13,7 +13,6 @@ export const ErrorDialog: React.FC<ErrorDialogProps> = ({ title, error, errorDet
     return (
         <Dialog defaultOpen={true}>
             <DialogContent className="w-xl max-w-xl sm:max-w-xl">
-                <DialogDescription>A dialog with error details</DialogDescription>
                 <DialogHeader>
                     <DialogTitle className="flex max-w-[400px] flex-row gap-1">{title}</DialogTitle>
                 </DialogHeader>
@@ -22,7 +21,7 @@ export const ErrorDialog: React.FC<ErrorDialogProps> = ({ title, error, errorDet
                     <CircleX className="h-6 w-6 flex-shrink-0 self-start text-[var(--color-error-wMain)]" />
                     <div>{error}</div>
                 </div>
-                {errorDetails && <div className="text-[var(--color-secondary-text-wMain)]">{errorDetails}</div>}
+                {errorDetails && <div>{errorDetails}</div>}
 
                 <DialogFooter>
                     <DialogClose asChild>
