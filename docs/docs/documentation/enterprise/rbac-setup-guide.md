@@ -34,7 +34,7 @@ Agent Mesh Enterprise supports multiple authorization types, each suited for dif
 
 When this type is active, all user requests are denied and logged with WARNING messages. This ensures maximum security by default.
 
-**`default_rbac`** - Role-Based Access Control using configuration files. This is the recommended type for production deployments where you need fine-grained control over user permissions. It requires both role definitions and user assignments files.
+**`default_rbac`** - Role-Based Access Control using configuration files. This type is the recommended type for production deployments where you need fine-grained control over user permissions. It requires both role definitions and user assignments files.
 
 **`custom`** - Custom authorization service implementation. Use this when you need to integrate with external authorization systems or implement custom authorization logic.
 
@@ -212,7 +212,7 @@ namespace: "enterprise_prod"
 
 The `authorization_service` section configures the RBAC system. The `type` field specifies `default_rbac`, which tells Agent Mesh Enterprise to use the file-based RBAC system. The two path fields point to your RBAC configuration files—these paths are relative to the container's working directory, not your host system.
 
-**Important:** When using `type: default_rbac`, `role_to_scope_definitions_path` is **required**. The system will fail to start if these files are missing or invalid.
+**Important:** When using `type: default_rbac`, `role_to_scope_definitions_path` is **required**. The system fails to start if these files are missing or invalid.
 
 The `namespace` field configures the Agent Mesh Enterprise instance. The namespace isolates this instance from others.
 
@@ -229,7 +229,7 @@ namespace: "enterprise_dev"
 ```
 
 :::danger Security Warning
-Using `type: none` disables all authorization checks and grants wildcard `*` scope to every user. This configuration should **never** be used in production environments. The system will log prominent security warnings when this type is active.
+Using `type: none` disables all authorization checks and grants wildcard `*` scope to every user. This configuration should **never** be used in production environments. The system logs prominent security warnings when this type is active.
 :::
 
 #### Default Behavior (No Configuration)

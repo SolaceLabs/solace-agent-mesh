@@ -174,7 +174,7 @@ Replace the placeholder values with your actual configuration. In addition to th
 
 The `SOLACE_DEV_MODE="false"` environment variable tells the container to connect to the external broker specified by the other SOLACE_BROKER parameters instead of using the embedded broker.
 
-**Ensure you have setup proper RBAC authorization for production deployments.** See the [RBAC Setup Guide](./rbac-setup-guide.md) for instructions.
+**Ensure you have set up proper RBAC authorization for production deployments.** For more information, see [RBAC Setup Guide](./rbac-setup-guide.md).
 
 <details>
     <summary>How to find your credentials</summary>
