@@ -51,6 +51,7 @@ function AppLayoutContent() {
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/prompts")) return "prompts";
         if (path.startsWith("/agents")) return "agentMesh";
+        if (path.startsWith("/usage")) return "usage";
         return "chat";
     };
 

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Settings, Type, Volume2 } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { DropdownMenuItem } from "@/lib/components/ui/dropdown-menu";
 import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { cn } from "@/lib/utils";
@@ -84,10 +85,13 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                 </Tooltip>
             ) : (
                 <DialogTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start gap-2">
-                        <Settings className="size-5" />
+                    <DropdownMenuItem
+                        className="cursor-pointer hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)] focus:bg-[var(--color-primary-w90)] focus:text-[var(--color-primary-text-w10)]"
+                        onSelect={e => e.preventDefault()}
+                    >
+                        <Settings className="mr-2 h-4 w-4" />
                         <span>Settings</span>
-                    </Button>
+                    </DropdownMenuItem>
                 </DialogTrigger>
             )}
             <DialogContent className="max-h-[90vh] w-[90vw] !max-w-[1200px] gap-0 p-0" showCloseButton={true}>

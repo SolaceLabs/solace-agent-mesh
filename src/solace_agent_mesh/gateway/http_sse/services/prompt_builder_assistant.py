@@ -12,6 +12,9 @@ from pydantic import BaseModel, Field
 from litellm import acompletion
 from sqlalchemy.orm import Session
 
+from .usage_tracking_service import UsageTrackingService
+from .token_pricing import TokenCostCalculator
+
 logger = logging.getLogger(__name__)
 
 
@@ -239,6 +242,29 @@ REMEMBER:
                 completion_args["api_key"] = self.api_key
             
             response = await acompletion(**completion_args)
+            
+            # Track token usage
+            if self.db and user_id:
+                try:
+                    usage_info = response.usage
+                    if usage_info:
+                        usage_service = UsageTrackingService(self.db, TokenCostCalculator())
+                        usage_service.record_token_usage(
+                            user_id=user_id,
+                            task_id=None,  # Prompt builder doesn't have task IDs
+                            model=self.model,
+                            prompt_tokens=usage_info.prompt_tokens or 0,
+                            completion_tokens=usage_info.completion_tokens or 0,
+                            cached_input_tokens=getattr(usage_info, 'prompt_tokens_details', {}).get('cached_tokens', 0) if hasattr(usage_info, 'prompt_tokens_details') else 0,
+                            source="prompt_builder",
+                            context="template_generation",
+                        )
+                        logger.info(
+                            f"Recorded prompt builder usage: user={user_id}, model={self.model}, "
+                            f"prompt={usage_info.prompt_tokens}, completion={usage_info.completion_tokens}"
+                        )
+                except Exception as usage_err:
+                    logger.error(f"Failed to record prompt builder token usage: {usage_err}", exc_info=True)
             
             # Parse response
             content = response.choices[0].message.content

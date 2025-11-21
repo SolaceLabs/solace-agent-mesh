@@ -40,6 +40,7 @@ from .routers import (
     visualization,
     projects,
     prompts,
+    usage,
 )
 from .routers.sessions import router as session_router
 from .routers.tasks import router as task_router
@@ -622,6 +623,8 @@ def _setup_routers() -> None:
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
     app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
+    app.include_router(usage.router, tags=["Usage"])
+    app.include_router(usage.admin_router, tags=["Admin Usage"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers from community repo

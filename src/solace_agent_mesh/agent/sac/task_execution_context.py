@@ -3,11 +3,14 @@ Encapsulates the runtime state for a single, in-flight agent task.
 """
 
 import asyncio
+import logging
 import threading
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from solace_ai_connector.common.message import Message as SolaceMessage
+
+log = logging.getLogger(__name__)
 
 
 class TaskExecutionContext:
@@ -56,6 +59,9 @@ class TaskExecutionContext:
         self._current_invocation_id: Optional[str] = None
         self._first_text_seen_in_turn: bool = False
         self._need_spacing_before_next_text: bool = False
+
+        # Usage tracking service (injected by component)
+        self._usage_service: Optional[Any] = None
 
     def cancel(self) -> None:
         """Signals that the task should be cancelled."""
@@ -227,6 +233,16 @@ class TaskExecutionContext:
         with self.lock:
             return self.event_loop
 
+    def set_usage_service(self, usage_service: Any) -> None:
+        """
+        Set the usage tracking service for recording token usage to database.
+        
+        Args:
+            usage_service: UsageTrackingService instance
+        """
+        with self.lock:
+            self._usage_service = usage_service
+
     def record_token_usage(
         self,
         input_tokens: int,
@@ -275,6 +291,64 @@ class TaskExecutionContext:
             self.token_usage_by_source[source_key]["input_tokens"] += input_tokens
             self.token_usage_by_source[source_key]["output_tokens"] += output_tokens
             self.token_usage_by_source[source_key]["cached_input_tokens"] += cached_input_tokens
+            
+            # Record to database if usage service is available
+            usage_service = self._usage_service
+        
+        # Call usage service outside the lock to avoid blocking
+        if usage_service:
+            try:
+                # Get user_id from a2a_context
+                user_id = self.a2a_context.get("user_id")
+                if not user_id:
+                    log.debug("No user_id in a2a_context, skipping database recording")
+                    return
+                
+                # The service uses synchronous database operations
+                # We need to run it in a thread pool to avoid blocking the async context
+                loop = self.get_event_loop()
+                if loop and loop.is_running():
+                    # Schedule the sync call in the default executor (thread pool)
+                    asyncio.run_coroutine_threadsafe(
+                        asyncio.get_event_loop().run_in_executor(
+                            None,
+                            lambda: usage_service.record_token_usage(
+                                user_id=user_id,
+                                task_id=self.task_id,
+                                model=model,
+                                prompt_tokens=input_tokens,
+                                completion_tokens=output_tokens,
+                                cached_input_tokens=cached_input_tokens,
+                                source=source,
+                                tool_name=tool_name,
+                            )
+                        ),
+                        loop
+                    )
+                else:
+                    # If no event loop, call directly (synchronous context)
+                    usage_service.record_token_usage(
+                        user_id=user_id,
+                        task_id=self.task_id,
+                        model=model,
+                        prompt_tokens=input_tokens,
+                        completion_tokens=output_tokens,
+                        cached_input_tokens=cached_input_tokens,
+                        source=source,
+                        tool_name=tool_name,
+                    )
+                
+                log.debug(
+                    f"Recorded token usage to database: user={user_id}, "
+                    f"task={self.task_id}, model={model}, "
+                    f"prompt={input_tokens}, completion={output_tokens}"
+                )
+            except Exception as e:
+                # Don't fail the task if recording fails
+                log.error(
+                    f"Failed to record token usage to database: {e}",
+                    exc_info=True
+                )
 
     def get_token_usage_summary(self) -> Dict[str, Any]:
         """

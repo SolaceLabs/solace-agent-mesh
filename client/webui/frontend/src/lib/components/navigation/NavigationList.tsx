@@ -1,8 +1,8 @@
 import React from "react";
 
 import { NavigationButton } from "@/lib/components/navigation";
+import { UserMenu } from "@/lib/components/navigation/UserMenu";
 import type { NavigationItem } from "@/lib/types";
-import { SettingsDialog } from "@/lib/components/settings";
 
 interface NavigationListProps {
     items: NavigationItem[];
@@ -36,9 +36,9 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                             <NavigationButton key={item.id} item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
                         </li>
                     ))}
-                {/* Settings Dialog */}
+                {/* User Menu with Settings and Token Usage */}
                 <li className="my-4 flex justify-center">
-                    <SettingsDialog iconOnly={true} />
+                    <UserMenu userName="User" userEmail="user@example.com" onUsageClick={() => onItemClick("usage")} />
                 </li>
             </ul>
         </nav>

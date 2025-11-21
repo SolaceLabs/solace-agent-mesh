@@ -11,6 +11,9 @@ from .session_model import SessionModel, CreateSessionModel, UpdateSessionModel
 from .task_event_model import TaskEventModel
 from .task_model import TaskModel
 from .prompt_model import PromptGroupModel, PromptModel, PromptGroupUserModel
+from .user_quota_model import UserQuotaModel
+from .monthly_usage_model import MonthlyUsageModel
+from .token_transaction_model import TokenTransactionModel
 
 __all__ = [
     "Base",
@@ -31,4 +34,7 @@ __all__ = [
     "PromptGroupModel",
     "PromptModel",
     "PromptGroupUserModel",
+    "UserQuotaModel",
+    "MonthlyUsageModel",
+    "TokenTransactionModel",
 ]
