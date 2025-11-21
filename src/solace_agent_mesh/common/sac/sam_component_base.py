@@ -8,6 +8,7 @@ import asyncio
 import concurrent.futures
 import threading
 import functools
+import time
 from typing import Any, Optional
 
 from solace_ai_connector.components.component_base import ComponentBase
@@ -401,6 +402,12 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 topic,
                 list(payload.keys()) if isinstance(payload, dict) else "not_dict"
             )
+
+            # Create user_properties if it doesn't exist
+            if user_properties is None:
+                user_properties = {}
+            
+            user_properties["timestamp"] = int(time.time() * 1000)
 
             # Validate message size
             is_valid, actual_size = validate_message_size(
