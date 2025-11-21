@@ -19,6 +19,7 @@ export interface ChatState {
     agentsError: string | null;
     agentsLoading: boolean;
     agentsRefetch: () => Promise<void>;
+    agentNameDisplayNameMap: Record<string, string>;
     // Chat Side Panel State
     artifacts: ArtifactInfo[];
     artifactsLoading: boolean;
