@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { authenticatedFetch } from "@/lib/utils/api";
 
 export interface SpeechSettings {
     // STT Settings
@@ -120,7 +121,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
         const fetchServerConfig = async () => {
             try {
                 // Fetch main config
-                const response = await fetch("/api/v1/config");
+                const response = await authenticatedFetch("/api/v1/config");
                 if (response.ok) {
                     const config = await response.json();
                     const ttsSettings = config.tts_settings || {};
@@ -129,7 +130,7 @@ export const AudioSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
                     let sttExternal = false;
                     let ttsExternal = false;
                     try {
-                        const speechResponse = await fetch("/api/v1/speech/config");
+                        const speechResponse = await authenticatedFetch("/api/v1/speech/config");
                         if (speechResponse.ok) {
                             const speechConfig = await speechResponse.json();
                             sttExternal = speechConfig.sttExternal || false;

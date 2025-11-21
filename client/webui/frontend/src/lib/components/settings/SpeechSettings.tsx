@@ -3,6 +3,7 @@ import { Mic, Volume2, AlertCircle, Play, Loader2 } from "lucide-react";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
 import { Label, Switch, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Input, Button } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
+import { authenticatedFetch } from "@/lib/utils/api";
 
 export const SpeechSettingsPanel: React.FC = () => {
     const { settings, updateSetting } = useAudioSettings();
@@ -23,7 +24,7 @@ export const SpeechSettingsPanel: React.FC = () => {
     useEffect(() => {
         const checkConfig = async () => {
             try {
-                const response = await fetch("/api/v1/speech/config");
+                const response = await authenticatedFetch("/api/v1/speech/config");
                 if (response.ok) {
                     const config = await response.json();
                     const sttExt = config.sttExternal || false;
@@ -63,7 +64,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             setLoadingVoices(true);
             try {
                 const provider = settings.ttsProvider || "gemini";
-                const response = await fetch(`/api/v1/speech/voices?provider=${provider}`);
+                const response = await authenticatedFetch(`/api/v1/speech/voices?provider=${provider}`);
                 if (response.ok) {
                     const data = await response.json();
                     setAvailableVoices(data.voices || []);
@@ -113,7 +114,7 @@ export const SpeechSettingsPanel: React.FC = () => {
             }
 
             // Fetch voice sample
-            const response = await fetch("/api/v1/speech/voice-sample", {
+            const response = await authenticatedFetch("/api/v1/speech/voice-sample", {
                 method: "POST",
                 body: formData,
             });
