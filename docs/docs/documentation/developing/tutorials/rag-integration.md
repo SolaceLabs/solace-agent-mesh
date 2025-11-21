@@ -235,7 +235,7 @@ QDRANT_COLLECTION="my-rag-collection"
 QDRANT_EMBEDDING_DIMENSION=1536 # Depends on your embedding model
 
 # Scanner
-LOCAL_DOCUMENTS_PATH="./my_documents" # Relative path to your documents folder
+DOCUMENTS_PATH="./my_documents" # Relative path to your documents folder
 ```
 
 Create a directory named `my_documents` in your project root and place some text or markdown files inside it.

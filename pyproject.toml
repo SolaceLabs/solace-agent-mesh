@@ -32,6 +32,7 @@ dependencies = [
     "python-jwt==4.1.0",
     "asteval==1.0.6",
     "pystache==0.6.8",
+    "python-liquid==2.1.0",
     "pandas==2.3.2",
     "numpy==2.2.6",
     "plotly==6.3.0",
@@ -51,32 +52,34 @@ dependencies = [
     "GitPython==3.1.45",
     "Flask==3.0.3",
     "flask-cors==6.0.1",
-    "fastapi==0.117.1",
+    "fastapi==0.120.1",
+    "starlette==0.49.1",
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
-    "solace_ai_connector==1.3.1",
+    "solace_ai_connector==3.0.1",
     "holidays==0.81.0",
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
     "alembic==1.16.5",
     "openai==1.99.9",
     "rich==13.9.4",
-    "prompt_toolkit==3.0.48"
+    "prompt_toolkit==3.0.48",
+    "boto3==1.40.37",
+    "psycopg2-binary==2.9.10",
+    "azure-cognitiveservices-speech==1.41.1"
 ]
 
 [project.optional-dependencies]
 gcs = ["google-cloud-storage==2.19.0"]
-s3 = ["boto3==1.40.37"]
 vertex = ["google-cloud-aiplatform==1.120.0"]
 employee_tools = ["holidays==0.81.0"]
-postgresql = ["psycopg2-binary==2.9.10"]
 
 [tool.hatch.envs.hatch-test]
 parallel = false
 installer = "uv"
 dependencies = [
-    "solace-agent-mesh[postgresql,gcs,vertex,employee_tools,s3]",
+    "solace-agent-mesh[gcs,vertex,employee_tools]",
     "pytest-asyncio",
     "pytest>=8.0.0",
     "pytest-mock>=3.0.0",
@@ -167,6 +170,17 @@ markers = [
     "api: marks tests related to the API",
     "tasks: marks tests related to task management",
     "builtin_artifact_embeds: marks tests related to the builtin_artifact_embeds",
+    "projects: marks tests related to project management",
+    "default_agent: marks tests related to default agent functionality",
+    "crud: marks tests related to CRUD operations",
+    "templates: marks tests related to template operations",
+    "pagination: marks tests related to pagination functionality",
+    "security: marks tests related to security and authorization",
+    "error: marks tests related to error handling scenarios",
+    "validation: marks tests related to input validation",
+    "prompts: marks tests related to the prompts library feature",
+    "versioning: marks tests related to version management",
+    "search: marks tests related to search and filtering functionality",
 
     # Agent Tools
     # Markers for the built-in agent tools.
@@ -184,6 +198,10 @@ markers = [
     "oauth: OAuth specific tests",
     "error_handling: Tests related to error handling and recovery",
     "cancellation: Tests related to task cancellation",
+    "headers: marks tests related to HTTP header handling",
+    "agent_card: marks tests related to agent card fetching and discovery",
+    "url: marks tests related to URL handling and routing",
+    "task: marks tests related to task invocation",
 ]
 
 [tool.hatch.metadata]

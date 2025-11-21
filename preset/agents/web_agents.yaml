@@ -31,7 +31,7 @@ apps:
         - tool_type: builtin-group
           group_name: "artifact_management"
       session_service:
-        type: "${PERSISTENCE_TYPE, memory}"
+        type: "${PERSISTENCE_TYPE, sql}"
         database_url: "${AGENT_WEB_DATABASE_URL, sqlite:///web-agent.db}"
         default_behavior: "PERSISTENT"
       artifact_service: *default_artifact_service
@@ -45,7 +45,7 @@ apps:
         skills:
           - id: "web_request"
             name: "Web Request"
-            description: "Fetches content from a URL."
+            description: "Fetches and processes content from web URLs."
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
       inter_agent_communication:

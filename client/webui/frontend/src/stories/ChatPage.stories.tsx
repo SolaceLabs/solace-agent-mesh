@@ -53,6 +53,7 @@ export const WithLoadingMessage: Story = {
     parameters: {
         chatContext: {
             sessionId: "mock-session-id",
+            currentTaskId: "mock-task-id",
             messages: [...mockMessages, mockLoadingMessage],
             isResponding: true,
             isCancelling: false,

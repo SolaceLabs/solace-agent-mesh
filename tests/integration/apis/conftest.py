@@ -14,6 +14,7 @@ from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
     WebUIBackendFactory,
 )
 from sqlalchemy import text
+from sqlalchemy.orm import sessionmaker
 
 from .infrastructure.database_inspector import DatabaseInspector
 from .infrastructure.database_manager import (
@@ -79,18 +80,19 @@ def _patch_mock_component_config(factory):
 
     def get_config_side_effect(key, default=None):
         if key == "name":
-            # Force return a string for the app name
             return "A2A_WebUI_App"
+        elif key == "projects":
+            return {"enabled": True}
+        elif key == "gateway_max_upload_size_bytes":
+            return 100 * 1024 * 1024  # Default 100MB for tests
 
-        # Fallback to the original side_effect if it exists
         if callable(original_side_effect):
             return original_side_effect(key, default)
 
-        # Fallback to default value
         return default
 
     factory.mock_component.get_config.side_effect = get_config_side_effect
-    log.info("Patched mock_component.get_config to handle 'name' key explicitly.")
+    log.info("Patched mock_component.get_config to handle 'name' and 'projects' keys.")
 
 
 def _patch_mock_artifact_service(factory):
@@ -254,35 +256,8 @@ def db_provider(test_agents_list: list[str], db_provider_type):
     _patch_mock_artifact_service(factory)
     _patch_mock_component_config(factory)
 
-    # Set up multi-user auth overrides
-    from fastapi import Request
-    from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
-    from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
-
-    async def override_get_current_user(request: Request) -> dict:
-        user_id = request.headers.get(TEST_USER_HEADER, "sam_dev_user")
-        if user_id == "secondary_user":
-            return {
-                "id": "secondary_user",
-                "name": "Secondary User",
-                "email": "secondary@dev.local",
-                "authenticated": True,
-                "auth_method": "development",
-            }
-        else:
-            return {
-                "id": "sam_dev_user",
-                "name": "Sam Dev User",
-                "email": "sam@dev.local",
-                "authenticated": True,
-                "auth_method": "development",
-            }
-
-    def override_get_user_id(request: Request) -> str:
-        return request.headers.get(TEST_USER_HEADER, "sam_dev_user")
-
-    factory.app.dependency_overrides[get_current_user] = override_get_current_user
-    factory.app.dependency_overrides[get_user_id] = override_get_user_id
+    # Set up multi-user testing overrides (centralized in factory)
+    factory.setup_multi_user_testing(provider, TEST_USER_HEADER)
 
     # Store factory on provider so api_client_factory can access it
     provider.factory = factory
@@ -331,6 +306,24 @@ def gateway_adapter(database_manager: DatabaseManager):
 def database_inspector(database_manager):
     """Creates a new DatabaseInspector."""
     return DatabaseInspector(database_manager)
+
+
+@pytest.fixture
+def db_session_factory(api_client_factory):
+    """
+    Provides the SQLAlchemy session factory that matches the current database provider.
+    This ensures tests use the same database as the api_client (SQLite or PostgreSQL).
+    """
+    return api_client_factory.Session
+
+
+@pytest.fixture
+def db_engine(api_client_factory):
+    """
+    Provides the SQLAlchemy engine that matches the current database provider.
+    This ensures tests query the same database as the api_client.
+    """
+    return api_client_factory.engine
 
 
 # Export FastAPI testing fixtures

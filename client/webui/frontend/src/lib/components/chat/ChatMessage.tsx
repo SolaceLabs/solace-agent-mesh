@@ -18,6 +18,8 @@ import { decodeBase64Content } from "./preview/previewUtils";
 import { downloadFile } from "@/lib/utils/download";
 import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
+import { SelectableMessageContent } from "./selection";
+import { MessageHoverButtons } from "./MessageHoverButtons";
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
@@ -65,7 +67,7 @@ const MessageActions: React.FC<{
     return (
         <>
             <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-start gap-2">
+                <div className="flex items-center justify-start gap-1">
                     {showWorkflowButton && <ViewWorkflowButton onClick={handleViewWorkflowClick} />}
                     {shouldShowFeedback && (
                         <div className="flex items-center gap-1">
@@ -77,6 +79,7 @@ const MessageActions: React.FC<{
                             </Button>
                         </div>
                     )}
+                    <MessageHoverButtons message={message} />
                 </div>
             </div>
             {feedbackType && <FeedbackModal isOpen={isFeedbackModalOpen} onClose={handleModalClose} feedbackType={feedbackType} onSubmit={handleModalSubmit} />}
@@ -89,63 +92,77 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     const { sessionId } = useChatContext();
 
     // Extract text content from message parts
-    const textContent = message.parts
-        ?.filter(p => p.kind === "text")
-        .map(p => (p as TextPart).text)
-        .join("") || "";
+    const textContent =
+        message.parts
+            ?.filter(p => p.kind === "text")
+            .map(p => (p as TextPart).text)
+            .join("") || "";
 
     // Trim text for user messages to prevent trailing whitespace issues
     const displayText = message.isUser ? textContent.trim() : textContent;
 
-    if (message.isError) {
+    const renderContent = () => {
+        if (message.isError) {
+            return (
+                <div className="flex items-center">
+                    <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
+                    <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>
+                </div>
+            );
+        }
+
+        const embeddedContent = extractEmbeddedContent(displayText);
+        if (embeddedContent.length === 0) {
+            return <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
+        }
+
+        let modifiedText = displayText;
+        const contentElements: ReactNode[] = [];
+        embeddedContent.forEach((item: ExtractedContent, index: number) => {
+            modifiedText = modifiedText.replace(item.originalMatch, "");
+
+            if (item.type === "file") {
+                const fileAttachment: FileAttachment = {
+                    name: item.filename || "downloaded_file",
+                    content: item.content,
+                    mime_type: item.mimeType,
+                };
+                contentElements.push(
+                    <div key={`embedded-file-${index}`} className="my-2">
+                        <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment, sessionId)} isEmbedded={true} />
+                    </div>
+                );
+            } else if (!RENDER_TYPES_WITH_RAW_CONTENT.includes(item.type)) {
+                const finalContent = decodeBase64Content(item.content);
+                if (finalContent) {
+                    contentElements.push(
+                        <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md">
+                            <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
+                        </div>
+                    );
+                }
+            }
+        });
+
         return (
-            <div className="flex items-center">
-                <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
-                <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>
+            <div>
+                {renderError && <MessageBanner variant="error" message="Error rendering preview" />}
+                <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>
+                {contentElements}
             </div>
+        );
+    };
+
+    // Wrap AI messages with SelectableMessageContent for text selection
+    if (!message.isUser) {
+        return (
+            <SelectableMessageContent messageId={message.metadata?.messageId || ""} isAIMessage={true}>
+                {renderContent()}
+            </SelectableMessageContent>
         );
     }
 
-    const embeddedContent = extractEmbeddedContent(displayText);
-    if (embeddedContent.length === 0) {
-        return <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
-    }
-
-    let modifiedText = displayText;
-    const contentElements: ReactNode[] = [];
-    embeddedContent.forEach((item: ExtractedContent, index: number) => {
-        modifiedText = modifiedText.replace(item.originalMatch, "");
-
-        if (item.type === "file") {
-            const fileAttachment: FileAttachment = {
-                name: item.filename || "downloaded_file",
-                content: item.content,
-                mime_type: item.mimeType,
-            };
-            contentElements.push(
-                <div key={`embedded-file-${index}`} className="my-2">
-                    <FileMessage filename={fileAttachment.name} mimeType={fileAttachment.mime_type} onDownload={() => downloadFile(fileAttachment, sessionId)} isEmbedded={true} />
-                </div>
-            );
-        } else if (!RENDER_TYPES_WITH_RAW_CONTENT.includes(item.type)) {
-            const finalContent = decodeBase64Content(item.content);
-            if (finalContent) {
-                contentElements.push(
-                    <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md">
-                        <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
-                    </div>
-                );
-            }
-        }
-    });
-
-    return (
-        <div>
-            {renderError && <MessageBanner variant="error" message="Error rendering preview" />}
-            <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>
-            {contentElements}
-        </div>
-    );
+    return renderContent();
 });
 
 const MessageWrapper = React.memo<{ message: MessageFE; children: ReactNode; className?: string }>(({ message, children, className }) => {
@@ -215,10 +232,10 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     const renderArtifactOrFilePart = (part: ArtifactPart | FilePart, index: number) => {
         // Create unique key for expansion state using taskId (or messageId) + filename
         const uniqueKey = message.taskId
-            ? `${message.taskId}-${part.kind === 'file' ? (part as FilePart).file.name : (part as ArtifactPart).name}`
+            ? `${message.taskId}-${part.kind === "file" ? (part as FilePart).file.name : (part as ArtifactPart).name}`
             : message.metadata?.messageId
-                ? `${message.metadata.messageId}-${part.kind === 'file' ? (part as FilePart).file.name : (part as ArtifactPart).name}`
-                : undefined;
+              ? `${message.metadata.messageId}-${part.kind === "file" ? (part as FilePart).file.name : (part as ArtifactPart).name}`
+              : undefined;
 
         if (part.kind === "file") {
             const filePart = part as FilePart;
@@ -282,11 +299,19 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                     <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />
                 </div>
             ) : null}
+
+            {/* Show hover buttons below bubble for user messages */}
+            {message.isUser && (
+                <div className="flex justify-end">
+                    <MessageHoverButtons message={message} />
+                </div>
+            )}
         </div>
     );
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean }> = ({ message, isLastWithTaskId }) => {
     const chatContext = useChatContext();
+
     if (!message) {
         return null;
     }

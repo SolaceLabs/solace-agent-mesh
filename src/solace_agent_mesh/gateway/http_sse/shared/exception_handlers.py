@@ -128,9 +128,8 @@ async def http_exception_handler(
     request: Request, exc: HTTPException
 ) -> JSONResponse:
     """Handle FastAPI HTTPExceptions with standardized format."""
-    # Map common HTTP status codes to standard messages
+    # Map common HTTP status codes to standard messages (only used as fallback)
     message_map = {
-        400: "bad request",
         401: "An authentication error occurred. Try logging out and in again.",
         403: "You do not have permissions to perform this operation",
         404: f"Resource not found with path {request.url.path}",
@@ -142,7 +141,7 @@ async def http_exception_handler(
         503: "Service is unavailable.",
     }
 
-    message = message_map.get(exc.status_code, exc.detail)
+    message = exc.detail if exc.detail else message_map.get(exc.status_code, "bad request")
     error_dto = EventErrorDTO.create(message)
     return JSONResponse(status_code=exc.status_code, content=error_dto.model_dump())
 

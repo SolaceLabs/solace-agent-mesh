@@ -36,6 +36,7 @@ class TaskExecutionContext:
         self.artifact_signals_to_return: List[Dict[str, Any]] = []
         self.event_loop: Optional[asyncio.AbstractEventLoop] = None
         self.lock: threading.Lock = threading.Lock()
+        self.is_paused: bool = False  # Track if task is paused waiting for peer/auth
 
         # Token usage tracking
         self.total_input_tokens: int = 0
@@ -51,6 +52,11 @@ class TaskExecutionContext:
         # Stored here instead of a2a_context to avoid serialization issues
         self._original_solace_message: Optional["SolaceMessage"] = None
 
+        # Turn tracking for proper spacing between LLM turns
+        self._current_invocation_id: Optional[str] = None
+        self._first_text_seen_in_turn: bool = False
+        self._need_spacing_before_next_text: bool = False
+
     def cancel(self) -> None:
         """Signals that the task should be cancelled."""
         self.cancellation_event.set()
@@ -58,6 +64,26 @@ class TaskExecutionContext:
     def is_cancelled(self) -> bool:
         """Checks if the cancellation event has been set."""
         return self.cancellation_event.is_set()
+
+    def set_paused(self, paused: bool) -> None:
+        """
+        Marks the task as paused (waiting for peer response or user input).
+
+        Args:
+            paused: True if task is paused, False if resuming.
+        """
+        with self.lock:
+            self.is_paused = paused
+
+    def get_is_paused(self) -> bool:
+        """
+        Checks if the task is currently paused.
+
+        Returns:
+            True if task is paused (waiting for peer/auth), False otherwise.
+        """
+        with self.lock:
+            return self.is_paused
 
     def append_to_streaming_buffer(self, text: str) -> None:
         """Appends a chunk of text to the main streaming buffer."""
@@ -333,3 +359,57 @@ class TaskExecutionContext:
         """
         with self.lock:
             return self._original_solace_message
+
+    def check_and_update_invocation(self, new_invocation_id: str) -> bool:
+        """
+        Check if this is a new turn (different invocation_id) and update tracking.
+
+        Args:
+            new_invocation_id: The invocation_id from the current ADK event
+
+        Returns:
+            True if this is a new turn (invocation_id changed), False otherwise
+        """
+        with self.lock:
+            is_new_turn = (
+                self._current_invocation_id is not None
+                and self._current_invocation_id != new_invocation_id
+            )
+
+            if is_new_turn:
+                # Mark that we need spacing before the next text
+                self._need_spacing_before_next_text = True
+
+            if is_new_turn or self._current_invocation_id is None:
+                self._current_invocation_id = new_invocation_id
+                self._first_text_seen_in_turn = False
+
+            return is_new_turn
+
+    def is_first_text_in_turn(self) -> bool:
+        """
+        Check if this is the first text we're seeing in the current turn,
+        and mark it as seen.
+
+        Returns:
+            True if this is the first text in the turn, False otherwise
+        """
+        with self.lock:
+            if not self._first_text_seen_in_turn:
+                self._first_text_seen_in_turn = True
+                return True
+            return False
+
+    def should_add_turn_spacing(self) -> bool:
+        """
+        Check if we need to add spacing before the next text (because it's a new turn).
+        This flag is set when a new invocation starts and cleared after spacing is added.
+
+        Returns:
+            True if spacing should be added, False otherwise
+        """
+        with self.lock:
+            if self._need_spacing_before_next_text:
+                self._need_spacing_before_next_text = False
+                return True
+            return False

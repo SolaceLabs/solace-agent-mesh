@@ -1,0 +1,206 @@
+name: Build and Push to DockerHub
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Version tag for the image (e.g., 1.5.2)"
+        required: true
+        type: string
+      commit_hash:
+        description: "Commit hash to checkout and build"
+        required: true
+        type: string
+      push_latest:
+        description: "Whether to also tag and push as latest"
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_PASSWORD:
+        required: true
+      SAM_AWS_ACCESS_KEY_ID:
+        required: true
+      SAM_AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_DEFAULT_REGION:
+        required: true
+      SAM_AWS_ECR_REGISTRY:
+        required: true
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag for the image (e.g., 1.5.2)"
+        required: true
+        type: string
+      commit_hash:
+        description: "Commit hash to checkout and build (leave empty for current HEAD)"
+        required: false
+        type: string
+      push_latest:
+        description: "Whether to also tag and push as latest"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  # ----------------------------------------------------
+  # PHASE 1: Multiplatform Builds on Separate Runners
+  # ----------------------------------------------------
+  build-platform:
+    name: Build ${{ matrix.platform.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: linux/amd64
+            runner: ubuntu-24.04
+            tag_suffix: amd64
+          - name: linux/arm64
+            runner: ubuntu-24.04-arm
+            tag_suffix: arm64
+    runs-on: ${{ matrix.platform.runner }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ inputs.commit_hash || github.sha }}
+
+      - name: Get Commit Hash
+        id: get_commit_hash
+        run: |
+          echo "short_sha=$(git rev-parse HEAD | cut -c1-10)" >> $GITHUB_OUTPUT
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR (for cache)
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Platform-Specific Image
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: ${{ matrix.platform.name }}
+          tags: solace/solace-agent-mesh:${{ inputs.version }}-${{ steps.get_commit_hash.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
+          push: true
+          cache-from: type=registry,ref=${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh:buildcache-${{ matrix.platform.tag_suffix }}
+          cache-to: type=registry,ref=${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh:buildcache-${{ matrix.platform.tag_suffix }},mode=max
+
+  # ----------------------------------------------------
+  # PHASE 2: Merge Multi-Platform Manifest and Push
+  # ----------------------------------------------------
+  merge-and-push:
+    name: Create Multi-Platform Manifest and Push
+    needs: build-platform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ inputs.commit_hash || github.sha }}
+
+      - name: Get Commit Hash
+        id: get_commit_hash
+        run: |
+          echo "short_sha=$(git rev-parse HEAD | cut -c1-10)" >> $GITHUB_OUTPUT
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Prepare Docker Tags
+        id: docker_tags
+        run: |
+          image_name="solace/solace-agent-mesh"
+          version="${{ inputs.version }}"
+          short_sha="${{ steps.get_commit_hash.outputs.short_sha }}"
+
+          tags="${image_name}:${version}"
+          if [[ "${{ inputs.push_latest }}" == "true" ]]; then
+            tags="${tags},${image_name}:latest"
+          fi
+
+          echo "image_name=${image_name}" >> $GITHUB_OUTPUT
+          echo "tags=${tags}" >> $GITHUB_OUTPUT
+          echo "base_tag=${version}-${short_sha}" >> $GITHUB_OUTPUT
+          echo "Prepared tags: ${tags}"
+
+      - name: Create and Push Multi-Platform Manifest
+        run: |
+          # Define the platform-specific tags
+          AMD_TAG="${{ steps.docker_tags.outputs.image_name }}:${{ steps.docker_tags.outputs.base_tag }}-amd64"
+          ARM_TAG="${{ steps.docker_tags.outputs.image_name }}:${{ steps.docker_tags.outputs.base_tag }}-arm64"
+
+          echo "AMD64 Tag: ${AMD_TAG}"
+          echo "ARM64 Tag: ${ARM_TAG}"
+
+          # Convert comma-separated tags string to array and create manifest for each
+          IFS=',' read -ra TAGS <<< "${{ steps.docker_tags.outputs.tags }}"
+          for TAG in "${TAGS[@]}"; do
+            # Trim any whitespace
+            TAG=$(echo "$TAG" | xargs)
+            echo "Creating manifest for tag: $TAG"
+            docker buildx imagetools create \
+              --tag "$TAG" \
+              "$AMD_TAG" \
+              "$ARM_TAG"
+          done
+
+          echo "Multi-platform manifest created and pushed successfully"
+
+      - name: Verify Image on DockerHub
+        run: |
+          set -e
+          IMAGE="solace/solace-agent-mesh"
+          VERSION="${{ inputs.version }}"
+          DOCKERHUB_URL="https://hub.docker.com/v2/repositories/${IMAGE}/tags/${VERSION}"
+
+          echo "Checking DockerHub for ${IMAGE}:${VERSION}..."
+
+          # Retry logic with exponential backoff (DockerHub may take a moment to update)
+          max_retries=5
+          retry_delay=10
+
+          for i in $(seq 1 $max_retries); do
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" "$DOCKERHUB_URL")
+            
+            if [ "$http_code" -eq 200 ]; then
+              echo "✅ Image tag ${IMAGE}:${VERSION} exists on DockerHub."
+              exit 0
+            fi
+            
+            if [ $i -lt $max_retries ]; then
+              echo "Attempt $i/$max_retries: Tag not found yet, waiting ${retry_delay}s..."
+              sleep $retry_delay
+              retry_delay=$((retry_delay * 2))
+            fi
+          done
+
+          echo "❌ Image tag ${IMAGE}:${VERSION} NOT found on DockerHub after $max_retries attempts!"
+          exit 1

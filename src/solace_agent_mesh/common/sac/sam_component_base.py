@@ -5,13 +5,14 @@ Base Component class for SAM implementations in the Solace AI Connector.
 import logging
 import abc
 import asyncio
+import concurrent.futures
 import threading
 import functools
 from typing import Any, Optional
 
 from solace_ai_connector.components.component_base import ComponentBase
 
-from ..exceptions import MessageSizeExceededError
+from ..exceptions import ComponentInitializationError, MessageSizeExceededError
 from ..utils.message_utils import validate_message_size
 
 log = logging.getLogger(__name__)
@@ -219,6 +220,50 @@ class SamComponentBase(ComponentBase, abc.ABC):
                     self.log_identifier,
                     timer_id,
                 )
+        elif event.event_type == EventType.CACHE_EXPIRY:  
+            import asyncio
+            import inspect
+
+            cache_data = event.data
+            handler = self.handle_cache_expiry_event
+
+            # Check if the handler is async
+            if inspect.iscoroutinefunction(handler):
+                # Schedule async handler on the event loop
+                if self._async_loop and self._async_loop.is_running():
+                    async def handle_async():
+                        await handler(cache_data)
+
+                    try:
+                        future = asyncio.run_coroutine_threadsafe(
+                            handle_async(),
+                            self._async_loop
+                        )
+
+                        def on_done(f):
+                            try:
+                                f.result()
+                            except Exception as e:
+                                log.error(
+                                    "%s Error in async cache expiry handler: %s",
+                                    self.log_identifier,
+                                    e,
+                                    exc_info=True
+                                )
+                        future.add_done_callback(on_done)
+                    except RuntimeError as e:
+                        log.error(
+                            "%s Failed to schedule async CACHE_EXPIRY handler (event loop may be stopping): %s",
+                            self.log_identifier,
+                            e
+                        )
+                else:
+                    log.error(
+                        "%s Cannot handle async CACHE_EXPIRY: event loop not available",
+                        self.log_identifier
+                    )
+            else:
+                handler(cache_data)
         else:
             # Pass other event types to parent class
             super().process_event(event)
@@ -507,6 +552,26 @@ class SamComponentBase(ComponentBase, abc.ABC):
             log.warning(
                 "%s Async operations thread already running.", self.log_identifier
             )
+
+        # Monitor async initialization without blocking (critical for multi-agent processes)
+        if hasattr(self, '_async_init_future') and self._async_init_future is not None:
+            log.info("%s Setting up async initialization monitoring...", self.log_identifier)
+
+            def handle_init_completion(future):
+                """Non-blocking callback for initialization completion."""
+                try:
+                    future.result()  # Raises if init failed
+                    log.info("%s Async initialization completed successfully.", self.log_identifier)
+                except Exception as init_error:
+                    error_msg = f"{self.log_identifier} Async initialization failed: {init_error}"
+                    log.error(error_msg, exc_info=init_error)
+                    self.stop_signal.set()
+                    self._async_init_error = ComponentInitializationError(
+                        self.log_identifier, init_error, error_msg
+                    )
+
+            self._async_init_future.add_done_callback(handle_init_completion)
+            log.info("%s Async initialization monitoring active (non-blocking).", self.log_identifier)
 
         super().run()
         log.info("%s SamComponentBase run method finished.", self.log_identifier)

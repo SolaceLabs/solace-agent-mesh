@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import httpx
 import sqlalchemy as sa
-from a2a.types import InternalError, JSONRPCError
+from a2a.types import InternalError, InvalidRequestError, JSONRPCError
 from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
 from alembic import command
 from alembic.config import Config
@@ -20,6 +20,22 @@ from starlette.staticfiles import StaticFiles
 
 from ...common import a2a
 from ...gateway.http_sse import dependencies
+from .routers import (
+    agent_cards,
+    artifacts,
+    auth,
+    config,
+    feedback,
+    people,
+    sse,
+    speech,
+    visualization,
+    projects,
+    prompts,
+)
+from .routers.sessions import router as session_router
+from .routers.tasks import router as task_router
+from .routers.users import router as user_router
 
 # Import OAuth utilities from enterprise package
 try:
@@ -27,20 +43,6 @@ try:
 except ImportError:
     # Enterprise package not available - these functions will raise errors
     oauth_utils = None
-from ...gateway.http_sse.routers import (
-    agent_cards,
-    artifacts,
-    auth,
-    config,
-    people,
-    sse,
-    tasks,
-    visualization,
-    feedback,
-)
-from .routers.sessions import router as session_router
-from .routers.tasks import router as task_router
-from .routers.users import router as user_router
 
 if TYPE_CHECKING:
     from gateway.http_sse.component import WebUIBackendComponent
@@ -183,7 +185,7 @@ async def _create_user_state_without_identity_service(
             user_identifier,
         )
 
-    log.error(
+    log.debug(
         "AuthMiddleware: Internal IdentityService not configured on component. Using user ID: %s",
         final_user_id,
     )
@@ -631,7 +633,7 @@ def _setup_routers() -> None:
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
-    app.include_router(tasks.router, prefix=api_prefix, tags=["Tasks"])
+    app.include_router(task_router, prefix=api_prefix, tags=["Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
     app.include_router(
         artifacts.router, prefix=f"{api_prefix}/artifacts", tags=["Artifacts"]
@@ -643,7 +645,10 @@ def _setup_routers() -> None:
     )
     app.include_router(people.router, prefix=api_prefix, tags=["People"])
     app.include_router(auth.router, prefix=api_prefix, tags=["Auth"])
+    app.include_router(projects.router, prefix=api_prefix, tags=["Projects"])
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
+    app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
+    app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers from community repo

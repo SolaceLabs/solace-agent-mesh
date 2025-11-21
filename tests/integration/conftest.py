@@ -54,6 +54,8 @@ def test_db_engine():
     Creates a temporary SQLite database for the test session, runs migrations,
     and yields the SQLAlchemy engine.
     """
+    import os
+
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = Path(temp_dir) / "test_integration.db"
         database_url = f"sqlite:///{db_path}"
@@ -81,6 +83,12 @@ def test_db_engine():
         alembic_command.upgrade(alembic_cfg, "head")
         print("[SessionFixture] Database migrations applied.")
 
+        # Ensure the database file has write permissions
+        # This prevents "readonly database" errors when new connections are created
+        if db_path.exists():
+            os.chmod(db_path, 0o666)  # Read/write for owner, group, and others
+            print(f"[SessionFixture] Set write permissions on database file: {db_path}")
+
         yield engine
 
         engine.dispose()
@@ -104,6 +112,11 @@ def clean_db_fixture(test_db_engine):
                 "chat_messages",
                 "tasks",
                 "sessions",
+                "prompt_group_users",  
+                "prompts",             
+                "prompt_groups",      
+                "project_users",      
+                "projects",            
                 "users",
             ]
             for table_name in tables_to_clean:
@@ -288,14 +301,13 @@ def mock_oauth_server():
             # Explicitly pass through both agent card endpoint paths (old and new A2A spec)
             # This ensures the A2A SDK's fallback logic works correctly
             self.mock.route(path="/.well-known/agent-card.json").pass_through()
-            self.mock.route(path="/.well-known/agent.json").pass_through()
 
             print(f"\n[MockOAuthServer] Initializing respx mock")
             print(
                 f"[MockOAuthServer] Pass-through configured for: 127.0.0.1, localhost"
             )
             print(
-                f"[MockOAuthServer] Pass-through configured for agent card paths: /.well-known/agent-card.json, /.well-known/agent.json"
+                f"[MockOAuthServer] Pass-through configured for agent card path: /.well-known/agent-card.json"
             )
 
             self.mock.start()
@@ -603,7 +615,7 @@ def test_a2a_agent_server_harness(
 
     print(f"[TestA2AAgentServer] Server ready at {server.url}")
     print(
-        f"[TestA2AAgentServer] Agent card endpoint: {server.url}/.well-known/agent.json"
+        f"[TestA2AAgentServer] Agent card endpoint: {server.url}/.well-known/agent-card.json"
     )
     yield server
 
@@ -823,7 +835,7 @@ def shared_solace_connector(
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",
         description="The main test agent (orchestrator)",
-        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied"],
+        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied", "TestAgent_Proxied_NoConvert"],
         tools=test_agent_tools,
         model_suffix="sam",
         inject_system_purpose=True,
@@ -950,6 +962,53 @@ def shared_solace_connector(
         model_suffix="config-context",
     )
 
+    # Generic Gateway test apps
+    minimal_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "MinimalTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.MinimalAdapter",
+        "adapter_config": {
+            "default_user_id": "minimal-user@example.com",
+            "default_target_agent": "TestAgent",
+        },
+        "artifact_service": {"type": "test_in_memory"},
+        "default_user_identity": "default-user@example.com",
+    }
+
+    auth_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "AuthTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.AuthTestAdapter",
+        "adapter_config": {
+            "require_token": False,
+            "valid_token": "valid-test-token",
+        },
+        "artifact_service": {"type": "test_in_memory"},
+        "default_user_identity": "fallback-user@example.com",
+    }
+
+    file_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "FileTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.FileAdapter",
+        "adapter_config": {
+            "max_file_size": 1024 * 1024,
+        },
+        "artifact_service": {"type": "test_in_memory"},
+    }
+
+    dispatching_gateway_config = {
+        "namespace": "test_namespace",
+        "gateway_id": "DispatchingTestGateway",
+        "gateway_adapter": "tests.integration.gateway.generic.fixtures.mock_adapters.DispatchingAdapter",
+        "adapter_config": {
+            "default_user_id": "dispatch-user@example.com",
+            "default_target_agent": "TestAgent",
+        },
+        "artifact_service": {"type": "test_in_memory"},
+        "default_user_identity": "default-dispatch@example.com",
+    }
+
     app_infos = [
         {
             "name": "WebUIBackendApp",
@@ -966,6 +1025,30 @@ def shared_solace_connector(
                 "task_logging": {"enabled": True},
                 "artifact_service": {"type": "test_in_memory"},
             },
+        },
+        {
+            "name": "MinimalGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": minimal_gateway_config,
+        },
+        {
+            "name": "AuthGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": auth_gateway_config,
+        },
+        {
+            "name": "FileGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": file_gateway_config,
+        },
+        {
+            "name": "DispatchingGatewayApp",
+            "app_module": "solace_agent_mesh.gateway.generic.app",
+            "broker": {"dev_mode": True},
+            "app_config": dispatching_gateway_config,
         },
         {
             "name": "TestSamAgentApp",
@@ -1003,6 +1086,7 @@ def shared_solace_connector(
                 "namespace": "test_namespace",
                 "gateway_id": "TestHarnessGateway_01",
                 "artifact_service": {"type": "test_in_memory"},
+                "task_logging": {"enabled": False},
                 "system_purpose": "Test gateway system purpose for metadata validation",
                 "response_format": "Test gateway response format for metadata validation",
             },
@@ -1054,6 +1138,13 @@ def shared_solace_connector(
                         "name": "TestAgent_Proxied",
                         "url": test_a2a_agent_server_harness.url,
                         "request_timeout_seconds": 3,
+                        # convert_progress_updates defaults to true
+                    },
+                    {
+                        "name": "TestAgent_Proxied_NoConvert",
+                        "url": test_a2a_agent_server_harness.url,
+                        "request_timeout_seconds": 3,
+                        "convert_progress_updates": False,  # Disable text-to-data conversion
                     }
                 ],
                 "artifact_service": {"type": "test_in_memory"},
@@ -1603,7 +1694,7 @@ def mock_agent_card(mock_agent_skills: AgentSkill) -> AgentCard:
     return AgentCard(
         name="test_agent",
         description="Test Agent Description",
-        url="http://test.com/test_path/agent.json",
+        url="http://test.com/test_path/agent-card.json",
         version="1.0.0",
         protocol_version="0.3.0",
         capabilities=AgentCapabilities(

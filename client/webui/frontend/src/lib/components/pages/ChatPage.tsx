@@ -6,9 +6,12 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 import { Header } from "@/lib/components/header";
 import { ChatInputArea, ChatMessage, LoadingMessageRow } from "@/lib/components/chat";
 import type { TextPart } from "@/lib/types";
-import { Button, ChatMessageList, CHAT_STYLES } from "@/lib/components/ui";
+import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui";
+import { Spinner } from "@/lib/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { useChatContext, useTaskContext } from "@/lib/hooks";
+import { useProjectContext } from "@/lib/providers";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
 import { ChatSessionDialog } from "../chat/ChatSessionDialog";
@@ -36,7 +39,8 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
-    const { agents, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, sessionName, currentTaskId } = useChatContext();
+    const { activeProject } = useProjectContext();
+    const { agents, sessionName, messages, isSidePanelCollapsed, setIsSidePanelCollapsed, openSidePanelTab, setTaskIdInSidePanel, isResponding, latestStatusText, isLoadingSession, sessionToDelete, closeSessionDeleteModal, confirmSessionDelete, currentTaskId } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
@@ -84,6 +88,13 @@ export function ChatPage() {
     const handleSessionSidePanelToggle = useCallback(() => {
         setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
     }, [isSessionSidePanelCollapsed]);
+
+    const breadcrumbs = undefined;
+
+    // Determine the page title
+    const pageTitle = useMemo(() => {
+        return sessionName || "New Chat";
+    }, [sessionName]);
 
     useEffect(() => {
         if (chatSidePanelRef.current && isSidePanelCollapsed) {
@@ -166,7 +177,28 @@ export function ChatPage() {
             </div>
             <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                 <Header
-                    title={sessionName || "New Chat"}
+                    title={
+                        <div className="flex items-center gap-3">
+                            <Tooltip delayDuration={300}>
+                                <TooltipTrigger className="truncate max-w-[400px] cursor-default text-left border-0 bg-transparent p-0 hover:bg-transparent font-inherit text-inherit">
+                                    {pageTitle}
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                    <p>{pageTitle}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                            {activeProject && (
+                                <Badge
+                                    variant="outline"
+                                    className="text-xs bg-primary/10 border-primary/30 text-primary font-semibold px-2 py-0.5 shadow-sm max-w-[200px]"
+                                    title={activeProject.name}
+                                >
+                                    <span className="block truncate text-left">{activeProject.name}</span>
+                                </Badge>
+                            )}
+                        </div>
+                    }
+                    breadcrumbs={breadcrumbs}
                     leadingAction={
                         isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
@@ -185,17 +217,29 @@ export function ChatPage() {
                 <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
-                            <div className="flex h-full w-full flex-col py-6">
-                                <ChatMessageList className="text-base" ref={chatMessageListRef}>
-                                    {messages.map((message, index) => {
-                                        const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                        const messageKey = message.metadata?.messageId || `temp-${index}`;
-                                        return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} />;
-                                    })}
-                                </ChatMessageList>
-                                <div style={CHAT_STYLES}>
-                                    {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
-                                    <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                            <div className="flex h-full w-full flex-col">
+                                <div className="flex flex-1 flex-col py-6 min-h-0">
+                                    {isLoadingSession ? (
+                                        <div className="flex h-full items-center justify-center">
+                                            <Spinner size="medium" variant="primary">
+                                                <p className="text-sm text-muted-foreground mt-4">Loading session...</p>
+                                            </Spinner>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <ChatMessageList className="text-base" ref={chatMessageListRef}>
+                                                {messages.map((message, index) => {
+                                                    const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
+                                                    const messageKey = message.metadata?.messageId || `temp-${index}`;
+                                                    return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} />;
+                                                })}
+                                            </ChatMessageList>
+                                            <div style={CHAT_STYLES}>
+                                                {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
+                                                <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </ResizablePanel>

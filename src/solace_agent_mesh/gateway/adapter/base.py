@@ -10,6 +10,7 @@ from pydantic import BaseModel
 if TYPE_CHECKING:
     from a2a.types import AgentCard
 
+
 from .types import (
     AuthClaims,
     GatewayContext,

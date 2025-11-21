@@ -1,0 +1,49 @@
+test_case_id: "proxy_task_custom_headers_001"
+description: "Tests that the proxy includes custom headers when invoking tasks"
+tags: ["all", "proxy", "headers", "task"]
+skip_intermediate_events: true
+
+# Configure proxy with custom task headers
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  task_headers:
+    - name: "X-Request-Priority"
+      value: "high"
+    - name: "X-Tenant-ID"
+      value: "tenant-123"
+    - name: "X-Request-Source"
+      value: "agent-mesh"
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "task_header_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Test request with custom task headers"
+  external_context:
+    a2a_session_id: "session_task_headers_001"
+
+downstream_a2a_agent_responses:
+  - id: "task-task-headers"
+    contextId: "session_task_headers_001"
+    kind: "task"
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Request processed with custom task headers."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Request processed with custom task headers."
+
+# Note: To fully test custom task headers, the test infrastructure would need
+# to be extended to capture all HTTP headers (not just auth headers).
+# This test verifies the configuration is accepted and the request succeeds.

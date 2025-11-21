@@ -34,6 +34,11 @@ export const ArtifactPanel: React.FC = () => {
         return artifacts ? [...artifacts].sort(sortFunctions[sortOption]) : [];
     }, [artifacts, artifactsLoading, sortOption]);
 
+    // Check if there are any deletable artifacts (not from projects)
+    const hasDeletableArtifacts = useMemo(() => {
+        return sortedArtifacts.some(artifact => artifact.source !== "project");
+    }, [sortedArtifacts]);
+
     const header = useMemo(() => {
         if (previewArtifact) {
             return (
@@ -55,7 +60,7 @@ export const ArtifactPanel: React.FC = () => {
                             <div>Sort By</div>
                         </Button>
                     </SortPopover>
-                    <ArtifactMorePopover key="more-popover">
+                    <ArtifactMorePopover key="more-popover" hideDeleteAll={!hasDeletableArtifacts}>
                         <Button variant="ghost" tooltip="More">
                             <Ellipsis className="h-5 w-5" />
                         </Button>
@@ -63,7 +68,7 @@ export const ArtifactPanel: React.FC = () => {
                 </div>
             )
         );
-    }, [previewArtifact, sortedArtifacts.length, sortOption, setPreviewArtifact]);
+    }, [previewArtifact, sortedArtifacts.length, sortOption, setPreviewArtifact, hasDeletableArtifacts]);
 
     return (
         <div className="flex h-full flex-col">
@@ -101,7 +106,7 @@ export const ArtifactPanel: React.FC = () => {
                                 isPreview={true}
                                 isExpanded={isPreviewInfoExpanded}
                                 setIsExpanded={setIsPreviewInfoExpanded}
-                                onDelete={() => openDeleteModal(previewArtifact)}
+                                onDelete={previewArtifact.source === "project" ? undefined : () => openDeleteModal(previewArtifact)}
                                 onDownload={() => onDownload(previewArtifact)}
                             />
                         </div>

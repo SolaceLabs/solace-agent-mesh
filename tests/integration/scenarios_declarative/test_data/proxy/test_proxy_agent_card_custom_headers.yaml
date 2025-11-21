@@ -1,0 +1,47 @@
+test_case_id: "proxy_agent_card_custom_headers_001"
+description: "Tests that the proxy includes custom headers when fetching agent cards"
+tags: ["all", "proxy", "headers", "agent_card"]
+skip_intermediate_events: true
+
+# Configure proxy with custom agent card headers
+proxy_auth_config:
+  agent_name: "TestAgent_Proxied"
+  agent_card_headers:
+    - name: "X-API-Version"
+      value: "v2"
+    - name: "X-Client-Type"
+      value: "agent-mesh-test"
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied"
+  user_identity: "header_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Test request with custom agent card headers"
+  external_context:
+    a2a_session_id: "session_agent_card_headers_001"
+
+downstream_a2a_agent_responses:
+  - id: "task-agent-card-headers"
+    contextId: "session_agent_card_headers_001"
+    kind: "task"
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Request processed with custom agent card headers."
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Request processed with custom agent card headers."
+
+# Note: Testing agent card headers would require extending the test infrastructure
+# to capture headers from agent card fetch requests separately from task requests.
+# For now, this test verifies the configuration is accepted and doesn't break the flow.

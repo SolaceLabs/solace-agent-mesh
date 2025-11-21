@@ -5,9 +5,11 @@ managed by the WebUIBackendComponent.
 
 import logging
 from collections.abc import Callable, Generator
-from typing import TYPE_CHECKING, Any
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Optional
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status, Path, Query
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -17,15 +19,18 @@ from ...common.services.identity_service import BaseIdentityService
 from ...core_a2a.service import CoreA2AService
 from ...gateway.base.task_context import TaskContextManager
 from ...gateway.http_sse.services.agent_card_service import AgentCardService
-from ...gateway.http_sse.services.data_retention_service import DataRetentionService
+from ...gateway.http_sse.services.audio_service import AudioService
+from ...gateway.http_sse.services.project_service import ProjectService
 from ...gateway.http_sse.services.feedback_service import FeedbackService
 from ...gateway.http_sse.services.people_service import PeopleService
 from ...gateway.http_sse.services.task_logger_service import TaskLoggerService
 from ...gateway.http_sse.services.task_service import TaskService
+from ...gateway.http_sse.services.data_retention_service import DataRetentionService
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .repository import SessionRepository
 from .repository.interfaces import ITaskRepository
+from .repository.project_repository import ProjectRepository
 from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
 
@@ -288,7 +293,7 @@ def get_feedback_service(
 
 def get_data_retention_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> "DataRetentionService | None":
+) -> DataRetentionService | None:
     """
     FastAPI dependency to get the DataRetentionService instance.
 
@@ -587,6 +592,21 @@ def get_db_optional() -> Generator[Session | None, None, None]:
         finally:
             db.close()
 
+def get_project_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> ProjectService:
+    """Dependency factory for ProjectService."""
+    return ProjectService(component=component)
+
+
+def get_project_service_optional(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> ProjectService | None:
+    """Optional project service dependency that returns None if database is not configured."""
+    if SessionLocal is None:
+        log.debug("Database not configured, projects unavailable")
+        return None
+    return ProjectService(component=component)
 
 def get_session_business_service_optional(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
@@ -598,3 +618,32 @@ def get_session_business_service_optional(
         )
         return None
     return SessionService(component=component)
+
+
+def get_audio_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> AudioService:
+    """FastAPI dependency to get an instance of AudioService."""
+    log.debug("[get_audio_service] called")
+    # AudioService expects app_config which contains the speech configuration
+    app_config = component.component_config.get('app_config', {}) if hasattr(component, 'component_config') else {}
+    log.debug(f"[get_audio_service] app_config keys: {app_config.keys()}")
+    return AudioService(config=app_config)
+
+
+
+def get_user_display_name(
+    request: Request,
+    user_id: str = Depends(get_user_id),
+) -> str:
+    """
+    FastAPI dependency to get a user's display name.
+    Returns email if available, otherwise returns user_id.
+    """
+    # Try to get user info from request state (set by AuthMiddleware)
+    if hasattr(request.state, "user") and request.state.user:
+        user_info = request.state.user
+        # Try email first, then name, then fall back to user_id
+        return user_info.get("email") or user_info.get("name") or user_id
+    
+    return user_id

@@ -3,6 +3,8 @@ import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEven
 import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
+import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
+import type { Project } from "@/lib/types/projects";
 
 // Type for tasks loaded from the API
 interface TaskFromAPI {
@@ -57,6 +59,7 @@ import type {
     TaskStatusUpdateEvent,
     TextPart,
     ArtifactPart,
+    AgentCardInfo,
 } from "@/lib/types";
 
 interface ChatProviderProps {
@@ -65,7 +68,8 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
-    const apiPrefix = `${configServerUrl}/api/v1`;
+    const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
+    const { activeProject, setActiveProject, projects } = useProjectContext();
 
     const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
 
@@ -166,7 +170,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const combinedText = textParts?.map(p => p.text).join("") || "";
 
         return {
-            id: message.metadata?.messageId || `msg-${crypto.randomUUID()}`,
+            id: message.metadata?.messageId || `msg-${v4()}`,
             type: message.isUser ? "user" : "agent",
             text: combinedText,
             parts: message.parts,
@@ -339,36 +343,70 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const uploadArtifactFile = useCallback(
-        async (file: File, overrideSessionId?: string): Promise<{ uri: string; sessionId: string } | null> => {
+        async (file: File, overrideSessionId?: string, description?: string): Promise<{ uri: string; sessionId: string } | { error: string } | null> => {
             const effectiveSessionId = overrideSessionId || sessionId;
             const formData = new FormData();
-            formData.append("file", file);
+            formData.append("upload_file", file);
+            formData.append("filename", file.name);
+            // Send sessionId as form field (can be empty string for new sessions)
+            formData.append("sessionId", effectiveSessionId || "");
+
+            // Add description as metadata if provided
+            if (description) {
+                const metadata = { description };
+                formData.append("metadata_json", JSON.stringify(metadata));
+            }
+
             try {
-                const response = await authenticatedFetch(`${apiPrefix}/artifacts/${effectiveSessionId}/${encodeURIComponent(file.name)}`, {
+                const response = await authenticatedFetch(`${apiPrefix}/artifacts/upload`, {
                     method: "POST",
                     body: formData,
                     credentials: "include",
                 });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: `Failed to upload ${file.name}` }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+
+                    // Enhanced error handling for file size errors
+                    if (response.status === 413) {
+                        // Extract file size information if available
+                        const actualSize = errorData.actual_size_bytes;
+                        const maxSize = errorData.max_size_bytes;
+
+                        let errorMessage;
+                        if (actualSize && maxSize) {
+                            const actualSizeMB = (actualSize / (1024 * 1024)).toFixed(2);
+                            const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(2);
+                            errorMessage = `File "${file.name}" is too large: ${actualSizeMB} MB exceeds the maximum allowed size of ${maxSizeMB} MB`;
+                        } else {
+                            errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size`;
+                        }
+
+                        addNotification(errorMessage, "error");
+                        return { error: errorMessage };
+                    }
+
+                    // Default error handling for other errors
+                    const errorMessage = errorData.detail || `HTTP error ${response.status}`;
+                    throw new Error(errorMessage);
                 }
                 const result = await response.json();
                 addNotification(`Artifact "${file.name}" uploaded successfully.`);
                 await artifactsRefetch();
-                return result.uri ? { uri: result.uri, sessionId: effectiveSessionId } : null;
+                // Return both URI and sessionId (backend may have created a new session)
+                return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
             } catch (error) {
-                addNotification(`Error uploading artifact "${file.name}": ${error instanceof Error ? error.message : "Unknown error"}`);
-                return null;
+                const errorMessage = error instanceof Error ? error.message : "Unknown error";
+                addNotification(`Error uploading artifact "${file.name}": ${errorMessage}`);
+                return { error: `Failed to upload "${file.name}": ${errorMessage}` };
             }
         },
         [apiPrefix, sessionId, addNotification, artifactsRefetch]
     );
 
+    // Session State
     const [sessionName, setSessionName] = useState<string | null>(null);
-    // Note: Other state variables are already declared above (lines 36-52)
-
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
+    const [isLoadingSession, setIsLoadingSession] = useState<boolean>(false);
 
     const deleteArtifactInternal = useCallback(
         async (filename: string) => {
@@ -472,14 +510,33 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setPreviewFileContent(null);
             }
             try {
-                const versionsResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`, { credentials: "include" });
+                // Determine the correct URL based on context
+                let versionsUrl: string;
+                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+                    versionsUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions`;
+                } else if (activeProject?.id) {
+                    versionsUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(artifactFilename)}/versions?project_id=${activeProject.id}`;
+                } else {
+                    throw new Error("No valid context for artifact preview");
+                }
+
+                const versionsResponse = await authenticatedFetch(versionsUrl, { credentials: "include" });
                 if (!versionsResponse.ok) throw new Error("Error fetching version list");
                 const availableVersions: number[] = await versionsResponse.json();
                 if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
                 setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
                 const latestVersion = Math.max(...availableVersions);
                 setCurrentPreviewedVersionNumber(latestVersion);
-                const contentResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`, { credentials: "include" });
+                let contentUrl: string;
+                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+                    contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}`;
+                } else if (activeProject?.id) {
+                    contentUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${latestVersion}?project_id=${activeProject.id}`;
+                } else {
+                    throw new Error("No valid context for artifact content");
+                }
+
+                const contentResponse = await authenticatedFetch(contentUrl, { credentials: "include" });
                 if (!contentResponse.ok) throw new Error("Error fetching latest version content");
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
@@ -505,7 +562,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 artifactFetchInProgressRef.current.delete(artifactFilename);
             }
         },
-        [apiPrefix, sessionId, addNotification, artifacts, previewArtifactFilename]
+        [apiPrefix, sessionId, activeProject?.id, artifacts, addNotification, previewArtifactFilename]
     );
 
     const navigateArtifactVersion = useCallback(
@@ -524,7 +581,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
             setPreviewFileContent(null);
             try {
-                const contentResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`, { credentials: "include" });
+                // Determine the correct URL based on context
+                let contentUrl: string;
+                if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
+                    contentUrl = `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}`;
+                } else if (activeProject?.id) {
+                    contentUrl = `${apiPrefix}/artifacts/null/${encodeURIComponent(artifactFilename)}/versions/${targetVersion}?project_id=${activeProject.id}`;
+                } else {
+                    throw new Error("No valid context for artifact navigation");
+                }
+
+                const contentResponse = await authenticatedFetch(contentUrl, { credentials: "include" });
                 if (!contentResponse.ok) throw new Error(`Error fetching version ${targetVersion}`);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
@@ -548,7 +615,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return null;
             }
         },
-        [apiPrefix, sessionId, addNotification, artifacts, previewedArtifactAvailableVersions]
+        [apiPrefix, addNotification, artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id]
     );
 
     const openMessageAttachmentForPreview = useCallback(
@@ -609,10 +676,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Fetch the latest version with embeds resolved
-                const versionsResponse = await authenticatedFetch(
-                    `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`,
-                    { credentials: "include" }
-                );
+                const versionsResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`, { credentials: "include" });
                 if (!versionsResponse.ok) throw new Error("Error fetching version list");
 
                 const availableVersions: number[] = await versionsResponse.json();
@@ -621,10 +685,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 const latestVersion = Math.max(...availableVersions);
-                const contentResponse = await authenticatedFetch(
-                    `${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`,
-                    { credentials: "include" }
-                );
+                const contentResponse = await authenticatedFetch(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`, { credentials: "include" });
                 if (!contentResponse.ok) throw new Error("Error fetching artifact content");
 
                 const blob = await contentResponse.blob();
@@ -658,10 +719,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return fileData;
             } catch (error) {
                 console.error(`Error downloading artifact ${filename}:`, error);
-                addNotification(
-                    `Error downloading artifact: ${error instanceof Error ? error.message : "Unknown error"}`,
-                    "error"
-                );
+                addNotification(`Error downloading artifact: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
                 return null;
             } finally {
                 // Remove from in-progress set immediately when done
@@ -699,7 +757,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         isError: true,
                         isComplete: true,
                         metadata: {
-                            messageId: `msg-${crypto.randomUUID()}`,
+                            messageId: `msg-${v4()}`,
                             lastProcessedEventSequence: currentEventSequence,
                         },
                     });
@@ -958,11 +1016,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 url: auth_uri,
                                                 text: "Click to Authenticate",
                                                 targetAgent: target_agent,
-                                                gatewayTaskId: gateway_task_id
+                                                gatewayTaskId: gateway_task_id,
                                             },
                                             isUser: false,
                                             isComplete: true,
-                                            metadata: { messageId: `auth-${v4()}` }
+                                            metadata: { messageId: `auth-${v4()}` },
                                         };
                                         setMessages(prev => [...prev, authMessage]);
                                     }
@@ -1047,7 +1105,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             isUser: false,
                             isComplete: isFinalEvent || hasNewFiles,
                             metadata: {
-                                messageId: rpcResponse.id?.toString() || `msg-${crypto.randomUUID()}`,
+                                messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
                                 sessionId: (result as TaskStatusUpdateEvent).contextId,
                                 lastProcessedEventSequence: currentEventSequence,
                             },
@@ -1145,9 +1203,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     return currentMessages.map(msg => {
                         if (msg.isUser) return msg;
 
-                        const hasInProgressArtifacts = msg.parts.some(
-                            p => p.kind === "artifact" && (p as ArtifactPart).status === "in-progress"
-                        );
+                        const hasInProgressArtifacts = msg.parts.some(p => p.kind === "artifact" && (p as ArtifactPart).status === "in-progress");
 
                         if (!hasInProgressArtifacts) return msg;
 
@@ -1188,72 +1244,88 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble, downloadAndResolveArtifact, setArtifacts]
     );
 
-    const handleNewSession = useCallback(async () => {
-        const log_prefix = "ChatProvider.handleNewSession:";
-        console.log(`${log_prefix} Starting new session process...`);
+    const handleNewSession = useCallback(
+        async (preserveProjectContext: boolean = false) => {
+            const log_prefix = "ChatProvider.handleNewSession:";
 
-        closeCurrentEventSource();
+            closeCurrentEventSource();
 
-        if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
-            console.log(`${log_prefix} Cancelling current task ${currentTaskId}`);
-            try {
-                const cancelRequest = {
-                    jsonrpc: "2.0",
-                    id: `req-${crypto.randomUUID()}`,
-                    method: "tasks/cancel",
-                    params: {
-                        id: currentTaskId,
-                    },
-                };
-                authenticatedFetch(`${apiPrefix}/tasks/${currentTaskId}:cancel`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(cancelRequest),
-                    credentials: "include",
-                });
-            } catch (error) {
-                console.warn(`${log_prefix} Failed to cancel current task:`, error);
+            if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
+                try {
+                    const cancelRequest = {
+                        jsonrpc: "2.0",
+                        id: `req-${v4()}`,
+                        method: "tasks/cancel",
+                        params: {
+                            id: currentTaskId,
+                        },
+                    };
+                    authenticatedFetch(`${apiPrefix}/tasks/${currentTaskId}:cancel`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(cancelRequest),
+                        credentials: "include",
+                    });
+                } catch (error) {
+                    console.warn(`${log_prefix} Failed to cancel current task:`, error);
+                }
             }
-        }
 
-        if (cancelTimeoutRef.current) {
-            clearTimeout(cancelTimeoutRef.current);
-            cancelTimeoutRef.current = null;
-        }
-        setIsCancelling(false);
+            if (cancelTimeoutRef.current) {
+                clearTimeout(cancelTimeoutRef.current);
+                cancelTimeoutRef.current = null;
+            }
+            setIsCancelling(false);
 
-        // Reset frontend state - session will be created lazily when first message is sent
-        console.log(`${log_prefix} Resetting session state - new session will be created when first message is sent`);
+            // Reset frontend state - session will be created lazily when first message is sent
+            console.log(`${log_prefix} Resetting session state - new session will be created when first message is sent`);
 
-        // Clear session ID - will be set by backend when first message is sent
-        setSessionId("");
+            // Clear session ID - will be set by backend when first message is sent
+            setSessionId("");
 
-        setSelectedAgentName("");
-        setMessages([]);
-        setIsResponding(false);
-        setCurrentTaskId(null);
-        setTaskIdInSidePanel(null);
-        setPreviewArtifact(null);
-        isFinalizing.current = false;
-        latestStatusText.current = null;
-        sseEventSequenceRef.current = 0;
+            // Clear session name - will be set when first message is sent
+            setSessionName(null);
 
-        // Refresh artifacts (should be empty for new session)
-        console.log(`${log_prefix} Refreshing artifacts for new session...`);
-        await artifactsRefetch();
+            // Clear project context when starting a new chat outside of a project
+            if (activeProject && !preserveProjectContext) {
+                setActiveProject(null);
+            } else if (activeProject && preserveProjectContext) {
+                console.log(`${log_prefix} Preserving project context: ${activeProject.name}`);
+            }
 
-        // Success notification
-        addNotification("New session started successfully.");
-        console.log(`${log_prefix} New session setup complete - session will be created on first message.`);
+            setSelectedAgentName("");
+            setMessages([]);
+            setIsResponding(false);
+            setCurrentTaskId(null);
+            setTaskIdInSidePanel(null);
+            setPreviewArtifact(null);
+            isFinalizing.current = false;
+            latestStatusText.current = null;
+            sseEventSequenceRef.current = 0;
+            // Artifacts will be automatically refreshed by useArtifacts hook when sessionId changes
+            // Success notification
+            addNotification("New session started successfully.");
 
-        // Note: No session events dispatched here since no session exists yet.
-        // Session creation event will be dispatched when first message creates the actual session.
-    }, [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, artifactsRefetch, apiPrefix, setPreviewArtifact]);
+            // Dispatch event to focus chat input
+            if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("focus-chat-input"));
+            }
+
+            // Note: No session events dispatched here since no session exists yet.
+            // Session creation event will be dispatched when first message creates the actual session.
+        },
+        [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
+    );
 
     const handleSwitchSession = useCallback(
         async (newSessionId: string) => {
             const log_prefix = "ChatProvider.handleSwitchSession:";
             console.log(`${log_prefix} Switching to session ${newSessionId}...`);
+
+            setIsLoadingSession(true);
+
+            // Clear messages immediately to prevent showing old session's messages
+            setMessages([]);
 
             closeCurrentEventSource();
 
@@ -1262,7 +1334,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 try {
                     const cancelRequest = {
                         jsonrpc: "2.0",
-                        id: `req-${crypto.randomUUID()}`,
+                        id: `req-${v4()}`,
                         method: "tasks/cancel",
                         params: {
                             id: currentTaskId,
@@ -1286,20 +1358,46 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsCancelling(false);
 
             try {
-                // Load session metadata (name) first before updating state
+                // Load session metadata first to get project info
                 const sessionResponse = await authenticatedFetch(`${apiPrefix}/sessions/${newSessionId}`);
-                let newSessionName: string | null = null;
+                let session: Session | null = null;
                 if (sessionResponse.ok) {
                     const sessionData = await sessionResponse.json();
-                    // API returns {data: {name: "...", ...}}
-                    newSessionName = sessionData.data?.name || null;
-                } else {
-                    console.warn(`${log_prefix} Failed to fetch session metadata, status: ${sessionResponse.status}`);
+                    session = sessionData?.data;
+                    setSessionName(session?.name ?? "N/A");
+
+                    // Activate or deactivate project context based on session's project
+                    // Set flag to prevent handleNewSession from being triggered by this project change
+                    isSessionSwitchRef.current = true;
+
+                    if (session?.projectId) {
+                        console.log(`${log_prefix} Session belongs to project ${session.projectId}`);
+
+                        // Check if we're already in the correct project context
+                        if (activeProject?.id !== session.projectId) {
+                            // Find the full project object from the projects array
+                            const project = projects.find((p: Project) => p.id === session?.projectId);
+
+                            if (project) {
+                                console.log(`${log_prefix} Activating project context: ${project.name}`);
+                                setActiveProject(project);
+                            } else {
+                                console.warn(`${log_prefix} Project ${session.projectId} not found in projects array`);
+                            }
+                        } else {
+                            console.log(`${log_prefix} Already in correct project context`);
+                        }
+                    } else {
+                        // Session has no project - deactivate project context
+                        if (activeProject !== null) {
+                            console.log(`${log_prefix} Session has no project, deactivating project context`);
+                            setActiveProject(null);
+                        }
+                    }
                 }
 
-                // Update all session state together to avoid intermediate renders with mismatched state
+                // Update session state
                 setSessionId(newSessionId);
-                setSessionName(newSessionName);
                 setIsResponding(false);
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
@@ -1313,9 +1411,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             } catch (error) {
                 console.error(`${log_prefix} Failed to fetch session history:`, error);
                 addNotification("Error switching session. Please try again.", "error");
+            } finally {
+                setIsLoadingSession(false);
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks, setPreviewArtifact]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact]
     );
 
     const updateSessionName = useCallback(
@@ -1328,9 +1428,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 });
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: "Failed to update session name" }));
+
+                    if (response.status === 422) throw new Error("Invalid name");
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
                 addNotification("Session name updated successfully.");
+                setSessionName(newName);
                 if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
@@ -1394,11 +1497,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Artifact Display and Cache Management
     const markArtifactAsDisplayed = useCallback((filename: string, displayed: boolean) => {
         setArtifacts(prevArtifacts => {
-            return prevArtifacts.map(artifact =>
-                artifact.filename === filename
-                    ? { ...artifact, isDisplayed: displayed }
-                    : artifact
-            );
+            return prevArtifacts.map(artifact => (artifact.filename === filename ? { ...artifact, isDisplayed: displayed } : artifact));
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // setArtifacts is stable from useState
@@ -1434,7 +1533,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         try {
             const cancelRequest: CancelTaskRequest = {
                 jsonrpc: "2.0",
-                id: `req-${crypto.randomUUID()}`,
+                id: `req-${v4()}`,
                 method: "tasks/cancel",
                 params: {
                     id: currentTaskId,
@@ -1516,6 +1615,35 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
     }, [addNotification, closeCurrentEventSource, isResponding]);
 
+    const cleanupUploadedFiles = useCallback(
+        async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
+            if (uploadedFiles.length === 0) {
+                return;
+            }
+
+            for (const { filename, sessionId: fileSessionId } of uploadedFiles) {
+                try {
+                    const deleteUrl = `${apiPrefix}/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`;
+
+                    // Use the session ID that was used during upload
+                    const response = await authenticatedFetch(deleteUrl, {
+                        method: "DELETE",
+                        credentials: "include",
+                    });
+
+                    if (!response.ok && response.status !== 204) {
+                        const errorData = await response.json().catch(() => ({ detail: `Failed to delete ${filename}` }));
+                        console.error(`[cleanupUploadedFiles] Failed to cleanup file ${filename}:`, errorData.detail || `HTTP error ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
+                    // Continue cleanup even if one fails
+                }
+            }
+        },
+        [apiPrefix]
+    );
+
     const handleSubmit = useCallback(
         async (event: FormEvent, files?: File[] | null, userInputText?: string | null) => {
             event.preventDefault();
@@ -1539,7 +1667,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
                 metadata: {
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     sessionId: sessionId,
                     lastProcessedEventSequence: 0,
                 },
@@ -1548,45 +1676,74 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setMessages(prev => [...prev, userMsg]);
 
             try {
-                // 1. Process files using hybrid approach
-                const filePartsPromises = currentFiles.map(async (file): Promise<FilePart | null> => {
+                // 1. Process files using hybrid approach with fail-fast
+                const uploadedFileParts: FilePart[] = [];
+                const successfullyUploadedFiles: Array<{ filename: string; sessionId: string }> = []; // Track large files for cleanup
+
+                // Track the effective session ID for this message (may be updated if large file upload)
+                let effectiveSessionId = sessionId;
+
+                console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
+
+                for (const file of currentFiles) {
                     if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
-                        // Small file: send inline as base64
+                        // Small file: send inline as base64 (no cleanup needed)
                         const base64Content = await fileToBase64(file);
-                        return {
+                        uploadedFileParts.push({
                             kind: "file",
                             file: {
                                 bytes: base64Content,
                                 name: file.name,
                                 mimeType: file.type,
                             },
-                        };
+                        });
                     } else {
-                        // Large file: upload and get URI
-                        const result = await uploadArtifactFile(file);
-                        if (result) {
-                            return {
+                        // Large file: upload and get URI, pass effectiveSessionId to ensure all files go to the same session
+                        const result = await uploadArtifactFile(file, effectiveSessionId);
+
+                        // Check for success FIRST - must have both uri and sessionId
+                        if (result && "uri" in result && result.uri && result.sessionId) {
+                            // Update effective session ID once if backend has created a new session
+                            if (!effectiveSessionId) {
+                                effectiveSessionId = result.sessionId;
+                            }
+
+                            successfullyUploadedFiles.push({
+                                filename: file.name,
+                                sessionId: result.sessionId,
+                            });
+
+                            uploadedFileParts.push({
                                 kind: "file",
                                 file: {
                                     uri: result.uri,
                                     name: file.name,
                                     mimeType: file.type,
                                 },
-                            };
+                            });
                         } else {
-                            addNotification(`Failed to upload large file: ${file.name}`, "error");
-                            return null;
+                            // ANY failure case (error object, null, or missing fields) - Clean up and stop
+                            console.error(`[handleSubmit] File upload failed for "${file.name}". Result:`, result);
+                            await cleanupUploadedFiles(successfullyUploadedFiles);
+
+                            const cleanupMessage = successfullyUploadedFiles.length > 0 ? " Previously uploaded files have been cleaned up." : "";
+
+                            const errorDetail = result && "error" in result ? ` (${result.error})` : "";
+                            addNotification(`File upload failed for "${file.name}"${errorDetail}.${cleanupMessage} Message not sent.`, "error");
+
+                            setIsResponding(false);
+                            setMessages(prev => prev.filter(msg => msg.metadata?.messageId !== userMsg.metadata?.messageId));
+                            return;
                         }
                     }
-                });
-
-                const uploadedFileParts = (await Promise.all(filePartsPromises)).filter((p): p is FilePart => p !== null);
+                }
 
                 // 2. Construct message parts
                 const messageParts: Part[] = [];
                 if (currentInput) {
                     messageParts.push({ kind: "text", text: currentInput });
                 }
+
                 messageParts.push(...uploadedFileParts);
 
                 if (messageParts.length === 0) {
@@ -1594,22 +1751,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // 3. Construct the A2A message
-                console.log(`ChatProvider handleSubmit: Using sessionId for contextId: ${sessionId}`);
+                console.log(`ChatProvider handleSubmit: Using effectiveSessionId for contextId: ${effectiveSessionId}`);
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
-                    messageId: `msg-${crypto.randomUUID()}`,
+                    messageId: `msg-${v4()}`,
                     kind: "message",
-                    contextId: sessionId,
+                    contextId: effectiveSessionId,
                     metadata: {
-                        agent_name: selectedAgentName, // For gateway routing
+                        agent_name: selectedAgentName,
+                        project_id: activeProject?.id || null,
                     },
                 };
 
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${crypto.randomUUID()}`,
+                    id: `req-${v4()}`,
                     method: "message/stream",
                     params: {
                         message: a2aMessage,
@@ -1666,13 +1824,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                     // If it was a new session, generate and persist its name
                     if (isNewSession) {
+                        let newSessionName = "New Chat";
                         const textParts = userMsg.parts.filter(p => p.kind === "text") as TextPart[];
                         const combinedText = textParts
                             .map(p => p.text)
                             .join(" ")
                             .trim();
+
                         if (combinedText) {
-                            const newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
+                            newSessionName = combinedText.length > 100 ? `${combinedText.substring(0, 100)}...` : combinedText;
+                        } else if (currentFiles.length > 0) {
+                            // No text, but files were sent - derive name from files
+                            if (currentFiles.length === 1) {
+                                newSessionName = currentFiles[0].name;
+                            } else {
+                                newSessionName = `${currentFiles[0].name} +${currentFiles.length - 1} more`;
+                            }
+                        }
+
+                        if (newSessionName) {
                             setSessionName(newSessionName);
                             await updateSessionName(responseSessionId, newSessionName);
                         }
@@ -1700,13 +1870,128 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, INLINE_FILE_SIZE_LIMIT_BYTES]
+        [
+            sessionId,
+            isResponding,
+            isCancelling,
+            selectedAgentName,
+            closeCurrentEventSource,
+            addNotification,
+            apiPrefix,
+            uploadArtifactFile,
+            updateSessionName,
+            saveTaskToBackend,
+            serializeMessageBubble,
+            INLINE_FILE_SIZE_LIMIT_BYTES,
+            activeProject,
+            cleanupUploadedFiles,
+        ]
     );
 
-    // Auto-select agent when agents load and no agent is selected
+    const prevProjectIdRef = useRef<string | null | undefined>("");
+    const isSessionSwitchRef = useRef(false);
+    const isSessionMoveRef = useRef(false);
+
     useEffect(() => {
-        if (!selectedAgentName && agents.length > 0 && messages.length === 0) {
-            const selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+        const handleProjectDeleted = (deletedProjectId: string) => {
+            if (activeProject?.id === deletedProjectId) {
+                console.log(`Project ${deletedProjectId} was deleted, clearing session context`);
+                handleNewSession(false);
+            }
+        };
+
+        registerProjectDeletedCallback(handleProjectDeleted);
+    }, [activeProject, handleNewSession]);
+
+    useEffect(() => {
+        const handleSessionMoved = async (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { sessionId: movedSessionId, projectId: newProjectId } = customEvent.detail;
+
+            // If the moved session is the current session, update the project context
+            if (movedSessionId === sessionId) {
+                // Set flag to prevent handleNewSession from being triggered by this project change
+                isSessionMoveRef.current = true;
+
+                if (newProjectId) {
+                    // Session moved to a project - activate that project
+                    const project = projects.find((p: Project) => p.id === newProjectId);
+                    if (project) {
+                        setActiveProject(project);
+                    }
+                } else {
+                    // Session moved out of project - deactivate project context
+                    setActiveProject(null);
+                }
+            }
+        };
+
+        window.addEventListener("session-moved", handleSessionMoved);
+        return () => {
+            window.removeEventListener("session-moved", handleSessionMoved);
+        };
+    }, [sessionId, projects, setActiveProject]);
+
+    useEffect(() => {
+        // When the active project changes, reset the chat view to a clean slate
+        // UNLESS the change was triggered by switching to a session (which handles its own state)
+        // OR by moving a session (which should not start a new session)
+        // Only trigger when activating or switching projects, not when deactivating (going to null)
+        const prevId = prevProjectIdRef.current;
+        const currentId = activeProject?.id;
+        const isActivatingOrSwitching = currentId !== undefined && prevId !== currentId;
+
+        if (isActivatingOrSwitching && !isSessionSwitchRef.current && !isSessionMoveRef.current) {
+            console.log("Active project changed explicitly, resetting chat view and preserving project context.");
+            handleNewSession(true); // Preserve the project context when switching projects
+        }
+        prevProjectIdRef.current = currentId;
+        // Reset the flags after processing
+        isSessionSwitchRef.current = false;
+        isSessionMoveRef.current = false;
+    }, [activeProject, handleNewSession]);
+
+    useEffect(() => {
+        // Don't show welcome message if we're loading a session
+        if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
+            // Priority order for agent selection:
+            // 1. URL parameter agent (?agent=AgentName)
+            // 2. Project's default agent (if in project context)
+            // 3. OrchestratorAgent (fallback)
+            // 4. First available agent
+            let selectedAgent = agents[0];
+
+            // Check URL parameter first
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlAgentName = urlParams.get("agent");
+            let urlAgent: AgentCardInfo | undefined;
+
+            if (urlAgentName) {
+                urlAgent = agents.find(agent => agent.name === urlAgentName);
+                if (urlAgent) {
+                    selectedAgent = urlAgent;
+                    console.log(`Using URL parameter agent: ${selectedAgent.name}`);
+                } else {
+                    console.warn(`URL parameter agent "${urlAgentName}" not found in available agents, falling back to priority order`);
+                }
+            }
+
+            // If no URL agent found, follow existing priority order
+            if (!urlAgent) {
+                if (activeProject?.defaultAgentId) {
+                    const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
+                    if (projectDefaultAgent) {
+                        selectedAgent = projectDefaultAgent;
+                        console.log(`Using project default agent: ${selectedAgent.name}`);
+                    } else {
+                        console.warn(`Project default agent "${activeProject.defaultAgentId}" not found, falling back to OrchestratorAgent`);
+                        selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+                    }
+                } else {
+                    selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+                }
+            }
+
             setSelectedAgentName(selectedAgent.name);
 
             const displayedText = configWelcomeMessage || `Hi! I'm the ${selectedAgent?.displayName}. How can I help?`;
@@ -1723,7 +2008,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             ]);
         }
-    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId]);
+    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject]);
 
     // Store the latest handlers in refs so they can be accessed without triggering effect re-runs
     const handleSseMessageRef = useRef(handleSseMessage);
@@ -1790,6 +2075,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         currentTaskId,
         isCancelling,
         latestStatusText,
+        isLoadingSession,
         agents,
         agentsLoading,
         agentsError,

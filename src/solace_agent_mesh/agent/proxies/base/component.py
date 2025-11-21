@@ -7,8 +7,9 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import threading
+import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
 
 import httpx
 
@@ -32,6 +33,8 @@ from ....common.a2a.protocol import (
 from a2a.types import (
     A2ARequest,
     AgentCard,
+    AgentCapabilities,
+    AgentExtension,
     CancelTaskRequest,
     FilePart,
     InternalError,
@@ -77,16 +80,22 @@ class BaseProxyComponent(ComponentBase, ABC):
             "artifact_service", {"type": "memory"}
         )
         self.discovery_interval_sec = self.get_config("discovery_interval_seconds", 60)
+        self.task_state_ttl_minutes = self.get_config("task_state_ttl_minutes", 60)
+        self.task_cleanup_interval_minutes = self.get_config(
+            "task_cleanup_interval_minutes", 10
+        )
 
         self.agent_registry = AgentRegistry()
         self.artifact_service: Optional[BaseArtifactService] = None
-        self.active_tasks: Dict[str, ProxyTaskContext] = {}
+        # Store (timestamp, ProxyTaskContext) tuples for TTL-based cleanup
+        self.active_tasks: Dict[str, Tuple[float, ProxyTaskContext]] = {}
         self.active_tasks_lock = threading.Lock()
 
         self._async_loop: Optional[asyncio.AbstractEventLoop] = None
         self._async_thread: Optional[threading.Thread] = None
         self._async_init_future: Optional[concurrent.futures.Future] = None
         self._discovery_timer_id = f"proxy_discovery_{self.name}"
+        self._task_cleanup_timer_id = f"proxy_task_cleanup_{self.name}"
 
         try:
             # Initialize synchronous services first
@@ -158,8 +167,11 @@ class BaseProxyComponent(ComponentBase, ABC):
                 if not hasattr(event, "_proxy_message_handled"):
                     event._proxy_message_handled = message_handled
         elif event.event_type == EventType.TIMER:
-            if event.data.get("timer_id") == self._discovery_timer_id:
+            timer_id = event.data.get("timer_id")
+            if timer_id == self._discovery_timer_id:
                 await self._discover_and_publish_agents()
+            elif timer_id == self._task_cleanup_timer_id:
+                await self._cleanup_stale_tasks()
         else:
             log.debug(
                 "%s Ignoring unhandled event type: %s",
@@ -209,12 +221,13 @@ class BaseProxyComponent(ComponentBase, ABC):
                     "status_topic": message.get_user_properties().get("a2aStatusTopic"),
                     "reply_to_topic": message.get_user_properties().get("replyTo"),
                     "is_streaming": isinstance(a2a_request.root, SendStreamingMessageRequest),
+                    "user_properties": message.get_user_properties(),
                 }
                 task_context = ProxyTaskContext(
                     task_id=logical_task_id, a2a_context=a2a_context
                 )
                 with self.active_tasks_lock:
-                    self.active_tasks[logical_task_id] = task_context
+                    self.active_tasks[logical_task_id] = (time.time(), task_context)
 
                 log.info(
                     "%s Forwarding request for task %s to agent %s.",
@@ -228,12 +241,13 @@ class BaseProxyComponent(ComponentBase, ABC):
 
             elif isinstance(a2a_request.root, CancelTaskRequest):
                 logical_task_id = get_task_id_from_cancel_request(a2a_request)
-                
+
                 # Get the agent name from the topic (same as for send_message)
                 target_agent_name = topic.split("/")[-1]
-                
+
                 with self.active_tasks_lock:
-                    task_context = self.active_tasks.get(logical_task_id)
+                    task_entry = self.active_tasks.get(logical_task_id)
+                    task_context = task_entry[1] if task_entry else None
                 
                 if task_context:
                     log.info(
@@ -319,6 +333,73 @@ class BaseProxyComponent(ComponentBase, ABC):
 
         return update_message_parts(original_message, resolved_parts)
 
+    def _update_agent_card_for_proxy(self, agent_card: AgentCard, agent_alias: str) -> AgentCard:
+        """
+        Updates an agent card for proxying by:
+        1. Setting the name to the proxy alias
+        2. Adding/updating the display-name extension to preserve the original name
+
+        Args:
+            agent_card: The original agent card fetched from the remote agent
+            agent_alias: The alias/name to use for this agent in SAM
+
+        Returns:
+            A modified copy of the agent card with updated name and display-name extension
+        """
+        # Create a deep copy to avoid modifying the original
+        card_copy = agent_card.model_copy(deep=True)
+
+        # Store the original name as the display name (if not already set)
+        # This preserves the agent's identity while allowing it to be proxied under an alias
+        original_display_name = agent_card.name
+
+        # Check if there's already a display-name extension to preserve
+        display_name_uri = "https://solace.com/a2a/extensions/display-name"
+        if card_copy.capabilities and card_copy.capabilities.extensions:
+            for ext in card_copy.capabilities.extensions:
+                if ext.uri == display_name_uri and ext.params and ext.params.get("display_name"):
+                    # Use the existing display name from the extension
+                    original_display_name = ext.params["display_name"]
+                    break
+
+        # Update the card's name to the proxy alias
+        card_copy.name = agent_alias
+
+        # Ensure capabilities and extensions exist
+        if not card_copy.capabilities:
+            card_copy.capabilities = AgentCapabilities(extensions=[])
+        if not card_copy.capabilities.extensions:
+            card_copy.capabilities.extensions = []
+
+        # Find or create the display-name extension
+        display_name_ext = None
+        for ext in card_copy.capabilities.extensions:
+            if ext.uri == display_name_uri:
+                display_name_ext = ext
+                break
+
+        if display_name_ext:
+            # Update existing extension
+            if not display_name_ext.params:
+                display_name_ext.params = {}
+            display_name_ext.params["display_name"] = original_display_name
+        else:
+            # Create new extension
+            new_ext = AgentExtension(
+                uri=display_name_uri,
+                params={"display_name": original_display_name}
+            )
+            card_copy.capabilities.extensions.append(new_ext)
+
+        log.debug(
+            "%s Updated agent card: name='%s', display_name='%s'",
+            self.log_identifier,
+            agent_alias,
+            original_display_name
+        )
+
+        return card_copy
+
     def _initial_discovery_sync(self):
         """
         Synchronously fetches agent cards to populate the registry at startup.
@@ -340,12 +421,12 @@ class BaseProxyComponent(ComponentBase, ABC):
                     continue
                 try:
                     # Use a synchronous client for this initial blocking call
-                    response = client.get(f"{agent_url}/.well-known/agent.json")
+                    response = client.get(f"{agent_url}/.well-known/agent-card.json")
                     response.raise_for_status()
                     agent_card = AgentCard.model_validate(response.json())
 
-                    card_for_proxy = agent_card.model_copy(deep=True)
-                    card_for_proxy.name = agent_alias
+                    # Update the card for proxying (preserves display name)
+                    card_for_proxy = self._update_agent_card_for_proxy(agent_card, agent_alias)
                     self.agent_registry.add_or_update_agent(card_for_proxy)
                     log.info(
                         "%s Initial discovery successful for alias '%s' (actual name: '%s').",
@@ -376,12 +457,12 @@ class BaseProxyComponent(ComponentBase, ABC):
                     continue
 
                 agent_alias = agent_config["name"]
-                card_for_proxy = modern_card.model_copy(deep=True)
-                card_for_proxy.name = agent_alias
-                self.agent_registry.add_or_update_agent(card_for_proxy)
+                # Update the card for proxying (preserves display name)
+                card_for_registry = self._update_agent_card_for_proxy(modern_card, agent_alias)
+                self.agent_registry.add_or_update_agent(card_for_registry)
 
-                # Publish the modern card directly after updating its URL
-                card_to_publish = card_for_proxy.model_copy(deep=True)
+                # Create a separate copy for publishing
+                card_to_publish = card_for_registry.model_copy(deep=True)
                 card_to_publish.url = (
                     f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
                 )
@@ -418,10 +499,14 @@ class BaseProxyComponent(ComponentBase, ABC):
         response = create_success_response(
             result=event, request_id=a2a_context.get("jsonrpc_request_id")
         )
-        self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
+        self._publish_a2a_message(
+            response.model_dump(exclude_none=True),
+            target_topic,
+            user_properties=a2a_context.get("user_properties")
+        )
 
-    async def _publish_final_response(self, task: Task, a2a_context: Dict):
-        """Publishes the final Task object to the appropriate Solace topic."""
+    async def _publish_task_response(self, task: Task, a2a_context: Dict):
+        """Publishes a Task object to the reply topic."""
         target_topic = a2a_context.get("reply_to_topic")
         if not target_topic:
             log.warning(
@@ -434,7 +519,11 @@ class BaseProxyComponent(ComponentBase, ABC):
         response = create_success_response(
             result=task, request_id=a2a_context.get("jsonrpc_request_id")
         )
-        self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
+        self._publish_a2a_message(
+            response.model_dump(exclude_none=True),
+            target_topic,
+            user_properties=a2a_context.get("user_properties")
+        )
 
     async def _publish_artifact_update(
         self, event: TaskArtifactUpdateEvent, a2a_context: Dict
@@ -452,7 +541,11 @@ class BaseProxyComponent(ComponentBase, ABC):
         response = create_success_response(
             result=event, request_id=a2a_context.get("jsonrpc_request_id")
         )
-        self._publish_a2a_message(response.model_dump(exclude_none=True), target_topic)
+        self._publish_a2a_message(
+            response.model_dump(exclude_none=True),
+            target_topic,
+            user_properties=a2a_context.get("user_properties")
+        )
 
     async def _publish_error_response(
         self,
@@ -551,16 +644,73 @@ class BaseProxyComponent(ComponentBase, ABC):
                             nack_e,
                         )
 
+    async def _cleanup_stale_tasks(self):
+        """
+        Removes task state older than configured TTL.
+        This prevents memory leaks from tasks that complete without sending terminal events
+        (e.g., due to agent crashes or network failures).
+        """
+        ttl_seconds = self.task_state_ttl_minutes * 60
+        cutoff_time = time.time() - ttl_seconds
+
+        with self.active_tasks_lock:
+            stale_task_ids = [
+                task_id
+                for task_id, (timestamp, _) in self.active_tasks.items()
+                if timestamp < cutoff_time
+            ]
+            for task_id in stale_task_ids:
+                del self.active_tasks[task_id]
+                log.warning(
+                    "%s Cleaned up stale task %s (exceeded TTL of %d minutes)",
+                    self.log_identifier,
+                    task_id,
+                    self.task_state_ttl_minutes,
+                )
+
+        if stale_task_ids:
+            log.info(
+                "%s Stale task cleanup removed %d tasks",
+                self.log_identifier,
+                len(stale_task_ids),
+            )
+
+    def _cleanup_task_state(self, task_id: str) -> None:
+        """
+        Cleans up state for a completed task.
+        Called when a terminal event is detected (Task with terminal state,
+        or TaskStatusUpdateEvent with final=true).
+
+        Args:
+            task_id: The ID of the task to clean up
+        """
+        with self.active_tasks_lock:
+            entry = self.active_tasks.pop(task_id, None)
+            if entry:
+                log.info(
+                    "%s Removed task %s from active_tasks (terminal event detected)",
+                    self.log_identifier,
+                    task_id,
+                )
+            else:
+                log.debug(
+                    "%s Task %s not found in active_tasks during cleanup (already removed)",
+                    self.log_identifier,
+                    task_id,
+                )
+
     def _publish_discovered_cards(self):
         """Publishes all agent cards currently in the registry."""
         log.info(
             "%s Publishing initially discovered agent cards...", self.log_identifier
         )
         for agent_alias in self.agent_registry.get_agent_names():
-            card_to_publish = self.agent_registry.get_agent(agent_alias)
-            if not card_to_publish:
+            original_card = self.agent_registry.get_agent(agent_alias)
+            if not original_card:
                 continue
 
+            # Create a copy for publishing to avoid modifying the card in the registry
+            card_to_publish = original_card.model_copy(deep=True)
             card_to_publish.url = (
                 f"solace:{a2a.get_agent_request_topic(self.namespace, agent_alias)}"
             )
@@ -599,6 +749,21 @@ class BaseProxyComponent(ComponentBase, ABC):
                 self.discovery_interval_sec,
             )
 
+        # Schedule the recurring task cleanup timer
+        if self.task_cleanup_interval_minutes > 0:
+            cleanup_interval_ms = self.task_cleanup_interval_minutes * 60 * 1000
+            self.add_timer(
+                delay_ms=cleanup_interval_ms,
+                timer_id=self._task_cleanup_timer_id,
+                interval_ms=cleanup_interval_ms,
+            )
+            log.info(
+                "%s Scheduled recurring stale task cleanup every %d minutes (TTL: %d minutes).",
+                self.log_identifier,
+                self.task_cleanup_interval_minutes,
+                self.task_state_ttl_minutes,
+            )
+
         super().run()
 
     def clear_client_cache(self):
@@ -614,6 +779,7 @@ class BaseProxyComponent(ComponentBase, ABC):
         """Cleans up resources on component shutdown."""
         log.info("%s Cleaning up proxy component.", self.log_identifier)
         self.cancel_timer(self._discovery_timer_id)
+        self.cancel_timer(self._task_cleanup_timer_id)
 
         # Clear active tasks (no need to signal cancellation - downstream agents own their tasks)
         with self.active_tasks_lock:

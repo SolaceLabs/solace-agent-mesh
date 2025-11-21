@@ -289,7 +289,7 @@ export default function SuccessScreen({
               Start the Service
             </h3>
             <p className="text-gray-600 mb-4">
-              To start Solace Agent Mesh directly, run:
+              To start Solace Agent Mesh directly, return to your terminal and run:
             </p>
             <div className="bg-gray-800 text-gray-200 p-4 rounded-md font-mono text-sm mb-4 flex items-center justify-between group relative">
               <code>sam run</code>
@@ -533,21 +533,27 @@ export default function SuccessScreen({
           </span>
         </div>
         <div className="flex space-x-4">
-          <Button
-            onClick={goToPreviousTab}
-            variant="outline"
-            type="button"
-            disabled={currentTabIndex === 0}
-          >
-            Previous
-          </Button>
-          <Button
-            onClick={goToNextTab}
-            type="button"
-            disabled={currentTabIndex === tabCount - 1}
-          >
-            Next
-          </Button>
+          <div className="w-24">
+            {currentTabIndex > 0 && (
+              <Button
+                onClick={goToPreviousTab}
+                variant="outline"
+                type="button"
+              >
+                Previous
+              </Button>
+            )}
+          </div>
+          <div className="w-20">
+            {currentTabIndex < tabCount - 1 && (
+              <Button
+                onClick={goToNextTab}
+                type="button"
+              >
+                Next
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
