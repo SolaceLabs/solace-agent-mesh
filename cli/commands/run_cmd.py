@@ -95,7 +95,6 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
                 os.environ["LOGGING_CONFIG_PATH"] = absolute_logging_path
 
     try:
-        from solace_ai_connector.common.logging_config import configure_from_file
         if configure_from_file():
             log = logging.getLogger(__name__)
             log.info("Logging reconfigured from LOGGING_CONFIG_PATH")
