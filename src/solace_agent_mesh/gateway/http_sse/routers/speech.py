@@ -37,6 +37,7 @@ class StreamTTSRequest(BaseModel):
 async def speech_to_text(
     audio: UploadFile = File(...),
     provider: Optional[str] = Form(None),
+    language: Optional[str] = Form(None),
     user: dict = Depends(get_current_user),
     audio_service: AudioService = Depends(get_audio_service)
 ):
@@ -46,6 +47,7 @@ async def speech_to_text(
     Args:
         audio: Audio file (wav, mp3, webm, ogg)
         provider: Optional provider override (openai, azure)
+        language: Optional language code (e.g., "en-US", "es-ES")
         user: Current authenticated user
         audio_service: Audio service instance
     
@@ -61,10 +63,11 @@ async def speech_to_text(
         HTTPException: If transcription fails
     """
     log.info(
-        "[SpeechAPI] STT request from user=%s, filename=%s, provider=%s",
+        "[SpeechAPI] STT request from user=%s, filename=%s, provider=%s, language=%s",
         user.get("user_id"),
         audio.filename,
-        provider
+        provider,
+        language
     )
     
     try:
@@ -80,7 +83,8 @@ async def speech_to_text(
             user_id=user.get("user_id", "anonymous"),
             session_id=user.get("session_id", "default"),
             app_name=user.get("app_name", "webui"),
-            provider=provider
+            provider=provider,
+            language=language
         )
         
         return result.to_dict()

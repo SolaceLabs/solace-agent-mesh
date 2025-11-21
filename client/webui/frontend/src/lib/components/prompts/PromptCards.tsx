@@ -63,8 +63,8 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
         });
 
         return filtered.sort((a, b) => {
-            if (a.is_pinned !== b.is_pinned) {
-                return a.is_pinned ? -1 : 1;
+            if (a.isPinned !== b.isPinned) {
+                return a.isPinned ? -1 : 1;
             }
             // Within each group, sort alphabetically by name
             const nameA = (a.name || "").toLowerCase();
