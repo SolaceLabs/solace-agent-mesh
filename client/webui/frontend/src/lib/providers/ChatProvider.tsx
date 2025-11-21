@@ -67,16 +67,6 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-    console.log("[ChatProvider] Component mounting/rendering");
-
-    // Add useEffect to track mount/unmount
-    useEffect(() => {
-        console.log("[ChatProvider] Mounted");
-        return () => {
-            console.log("[ChatProvider] Unmounting");
-        };
-    }, []);
-
     const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
     const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
     const { activeProject, setActiveProject, projects } = useProjectContext();
