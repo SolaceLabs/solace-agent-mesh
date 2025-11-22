@@ -348,12 +348,12 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
   if (isDeepResearch) {
     return (
       <div
-        className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+        className="flex items-center gap-2 cursor-pointer transition-colors border border-[var(--color-secondary-w20)] rounded hover:bg-[var(--color-secondary-w10)] px-2 py-1"
         role="button"
         aria-label="View deep research sources"
         onClick={onDeepResearchClick}
       >
-        <StackedFavicons sources={sourcesByType.all} end={3} size={20} />
+        <StackedFavicons sources={sourcesByType.all} end={3} size={16} />
         <span className="text-sm text-gray-600 dark:text-gray-400">
           {sourcesByType.all.length} {sourcesByType.all.length === 1 ? 'source' : 'sources'}
         </span>

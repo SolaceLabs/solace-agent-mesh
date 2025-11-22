@@ -1,0 +1,54 @@
+
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: webui_app.log
+
+
+!include ../shared_config.yaml
+
+apps:
+  - name: a2a_webui_app
+    app_base_path: .
+    app_module: solace_agent_mesh.gateway.http_sse.app
+
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      session_secret_key: "${SESSION_SECRET_KEY}"
+
+      artifact_service: *default_artifact_service
+      session_service: 
+        type: "sql"
+        database_url: "${WEB_UI_GATEWAY_DATABASE_URL, sqlite:///webui_gateway.db}"
+        default_behavior: "PERSISTENT"
+      gateway_id: ${WEBUI_GATEWAY_ID}
+      fastapi_host: ${FASTAPI_HOST}
+      fastapi_port: ${FASTAPI_PORT}
+      cors_allowed_origins: 
+        - "http://localhost:3000" 
+        - "http://127.0.0.1:3000"
+
+      enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
+      gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
+      sse_max_queue_size: ${SSE_MAX_QUEUE_SIZE, 200} # Max size of SSE connection queues
+
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned.
+            Format responses to the user in Markdown using appropriate formatting.
+
+      # --- Frontend Config Passthrough ---
+      frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE}
+      frontend_bot_name: ${FRONTEND_BOT_NAME}
+      frontend_collect_feedback: ${FRONTEND_COLLECT_FEEDBACK}

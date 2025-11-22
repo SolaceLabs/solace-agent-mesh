@@ -8,7 +8,6 @@ from dotenv import find_dotenv, load_dotenv
 
 from cli.utils import error_exit
 from solace_agent_mesh.common.utils.initializer import initialize
-from solace_ai_connector.common.logging_config import configure_from_file
 
 
 def _execute_with_solace_ai_connector(config_file_paths: list[str]):

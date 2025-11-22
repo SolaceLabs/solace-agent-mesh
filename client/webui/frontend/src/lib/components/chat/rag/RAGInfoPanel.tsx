@@ -440,7 +440,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                 
                 <TabsContent value="sources" className="flex-1 overflow-y-auto px-4 pb-4 mt-0 min-h-0">
                     <div className="mb-3">
-                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                        <h3 className="text-sm font-semibold text-muted-foreground">
                             All Sources
                         </h3>
                         <p className="text-xs text-muted-foreground mt-1">

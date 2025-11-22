@@ -54,7 +54,7 @@ function SourceIcon({
   const domain = getCleanDomain(source.link);
   return (
     <div
-      className={`relative overflow-hidden rounded-full bg-white ${className}`}
+      className={`relative overflow-hidden rounded-full bg-white border border-[var(--color-secondary-w20)] box-content ${className}`}
       style={{ width: size, height: size }}
     >
       <img
@@ -71,7 +71,6 @@ function SourceIcon({
           }
         }}
       />
-      <div className="absolute inset-0 rounded-full border border-gray-200/10 dark:border-transparent" />
     </div>
   );
 }
@@ -101,8 +100,8 @@ export function StackedFavicons({
           key={`favicon-${i}`}
           className="relative"
           style={{
-            marginLeft: i > 0 ? -6 : 0,
-            zIndex: visibleSources.length - i,
+            marginLeft: i > 0 ? -4 : 0,
+            zIndex: i + 1,
           }}
         >
           <SourceIcon

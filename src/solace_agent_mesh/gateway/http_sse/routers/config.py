@@ -3,6 +3,7 @@ API Router for providing frontend configuration.
 """
 
 import logging
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
 
@@ -271,10 +272,11 @@ async def get_app_config(
         tool_config_status = {}
         
         # Check web search configuration (Tavily or Google)
-        tavily_key = os.getenv("TAVILY_API_KEY")
+        # tavily_key = os.getenv("TAVILY_API_KEY")
         google_key = os.getenv("GOOGLE_SEARCH_API_KEY")
         google_cse = os.getenv("GOOGLE_CSE_ID")
-        web_search_configured = bool(tavily_key or (google_key and google_cse))
+        # web_search_configured = bool(tavily_key or (google_key and google_cse))
+        web_search_configured = bool((google_key and google_cse))
         tool_config_status["web_search"] = web_search_configured
         
         # Deep research requires web search API keys (it uses web search internally)
