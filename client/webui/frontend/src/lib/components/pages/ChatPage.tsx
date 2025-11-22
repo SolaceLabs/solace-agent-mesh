@@ -247,6 +247,12 @@ export function ChatPage() {
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
                                                 {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
+                                                {/* Context Usage Indicator - above chat input, aligned right */}
+                                                {sessionId && (
+                                                    <div className="mb-2 flex justify-end">
+                                                        <ContextUsageIndicator sessionId={sessionId} messageCount={messages.length} />
+                                                    </div>
+                                                )}
                                                 <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                             </div>
                                         </>
@@ -276,9 +282,6 @@ export function ChatPage() {
                 </div>
             </div>
             <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
-
-            {/* Context Usage Indicator - floating bottom-right */}
-            {sessionId && <ContextUsageIndicator sessionId={sessionId} messageCount={messages.length} />}
         </div>
     );
 }

@@ -17,9 +17,6 @@ interface ContextUsageIndicatorProps {
     messageCount?: number;
 }
 
-const STORAGE_KEY = "context-indicator-position";
-const DEFAULT_POSITION = { x: 16, y: 80 }; // right-4 (16px), bottom-20 (80px)
-
 const CompressionIcon = ({ className }: { className?: string }) => (
     <svg width="16" height="20" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
         <path d="M8 1V6M8 6L5.5 3.5M8 6L10.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -34,81 +31,11 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
     const [sessionUsage, setSessionUsage] = useState<SessionTokenUsage | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [position, setPosition] = useState(DEFAULT_POSITION);
-    const [isDragging, setIsDragging] = useState(false);
     const [isCompressing, setIsCompressing] = useState(false);
     const [compressionError, setCompressionError] = useState<string | null>(null);
     const [compressionSuccess, setCompressionSuccess] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const dragStartPos = useRef({ x: 0, y: 0 });
-    const dragOffset = useRef({ x: 0, y: 0 });
     const { handleSwitchSession } = useChatContext();
-
-    // Load position from localStorage
-    useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                setPosition(parsed);
-            } catch {
-                // Ignore invalid JSON, use default position
-            }
-        }
-    }, []);
-
-    // Save position to localStorage
-    const savePosition = (newPosition: { x: number; y: number }) => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newPosition));
-        setPosition(newPosition);
-    };
-
-    // Drag handlers
-    const handleMouseDown = (e: React.MouseEvent) => {
-        if (isExpanded) return; // Don't drag when expanded
-
-        setIsDragging(true);
-        dragStartPos.current = { x: e.clientX, y: e.clientY };
-        dragOffset.current = { x: position.x, y: position.y };
-        e.preventDefault();
-    };
-
-    useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!isDragging) return;
-
-            const deltaX = dragStartPos.current.x - e.clientX;
-            const deltaY = dragStartPos.current.y - e.clientY;
-
-            const newX = dragOffset.current.x + deltaX;
-            const newY = dragOffset.current.y + deltaY;
-
-            // Constrain to viewport
-            const maxX = window.innerWidth - 150;
-            const maxY = window.innerHeight - 100;
-
-            setPosition({
-                x: Math.max(16, Math.min(newX, maxX)),
-                y: Math.max(16, Math.min(newY, maxY)),
-            });
-        };
-
-        const handleMouseUp = () => {
-            if (isDragging) {
-                setIsDragging(false);
-                savePosition(position);
-            }
-        };
-
-        if (isDragging) {
-            document.addEventListener("mousemove", handleMouseMove);
-            document.addEventListener("mouseup", handleMouseUp);
-            return () => {
-                document.removeEventListener("mousemove", handleMouseMove);
-                document.removeEventListener("mouseup", handleMouseUp);
-            };
-        }
-    }, [isDragging, position]);
 
     // Fetch session usage
     const fetchSessionUsage = async () => {
@@ -235,21 +162,13 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
     }
 
     return (
-        <div
-            ref={containerRef}
-            className="fixed z-50"
-            style={{
-                right: `${position.x}px`,
-                bottom: `${position.y}px`,
-                cursor: isDragging ? "grabbing" : isExpanded ? "default" : "grab",
-            }}
-        >
+        <div ref={containerRef} className="inline-block">
             <div className={`rounded-lg border shadow-lg ${bgColorClass} backdrop-blur-sm transition-all duration-200 ${isExpanded ? "w-64" : "w-auto"}`}>
                 {/* Compact View - Mini Progress Bar */}
                 {!isExpanded && (
                     <Tooltip delayDuration={300}>
                         <TooltipTrigger asChild>
-                            <div className="p-2" onClick={handleToggle} onMouseDown={handleMouseDown}>
+                            <div className="cursor-pointer p-2" onClick={handleToggle}>
                                 <div className="flex items-center gap-2">
                                     <div className="w-28 space-y-1">
                                         <Progress value={contextMetrics.percentage} className="h-1.5" />
@@ -281,7 +200,7 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
                             </div>
                         </TooltipTrigger>
                         <TooltipContent side="left">
-                            <p className="font-semibold">Context Window</p>
+                            <p className="font-semibold">Context Window Usage</p>
                             <p className="text-xs">
                                 {contextMetrics.formattedUsed} / {contextMetrics.formattedLimit} tokens ({contextMetrics.percentage}%)
                             </p>
