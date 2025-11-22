@@ -39,6 +39,8 @@ const PANEL_SIZES_OPEN = {
     sidePanelSizes: { ...PANEL_SIZES_CLOSED.sidePanelSizes, max: 50 },
 };
 
+const CONTEXT_INDICATOR_STORAGE_KEY = "show-context-indicator";
+
 export function ChatPage() {
     const { activeProject } = useProjectContext();
     const {
@@ -61,6 +63,10 @@ export function ChatPage() {
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
+    const [showContextIndicator, setShowContextIndicator] = useState(() => {
+        const saved = localStorage.getItem(CONTEXT_INDICATOR_STORAGE_KEY);
+        return saved !== null ? saved === "true" : true; // Default to true (shown)
+    });
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -187,6 +193,19 @@ export function ChatPage() {
         };
     }, [isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream]);
 
+    // Listen for context indicator visibility changes from settings
+    useEffect(() => {
+        const handleVisibilityChange = (event: Event) => {
+            const customEvent = event as CustomEvent<{ visible: boolean }>;
+            setShowContextIndicator(customEvent.detail.visible);
+        };
+
+        window.addEventListener("context-indicator-visibility-changed", handleVisibilityChange);
+        return () => {
+            window.removeEventListener("context-indicator-visibility-changed", handleVisibilityChange);
+        };
+    }, []);
+
     return (
         <div className="relative flex h-screen w-full flex-col overflow-hidden">
             <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
@@ -248,7 +267,7 @@ export function ChatPage() {
                                             <div style={CHAT_STYLES}>
                                                 {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
                                                 {/* Context Usage Indicator - above chat input, aligned right */}
-                                                {sessionId && (
+                                                {sessionId && showContextIndicator && (
                                                     <div className="mb-2 flex justify-end">
                                                         <ContextUsageIndicator sessionId={sessionId} messageCount={messages.length} />
                                                     </div>
