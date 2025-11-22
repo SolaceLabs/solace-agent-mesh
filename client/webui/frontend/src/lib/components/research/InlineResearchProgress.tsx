@@ -336,7 +336,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
                   </h3>
 
                   {/* Progress bar - full */}
-                  <div className="mt-2">
+                  <div className={`mt-2 ${isTimelineExpanded ? 'mb-4' : ''}`}>
                     <div className="h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-green-600 dark:bg-green-400 transition-all duration-300 ease-out"
@@ -369,10 +369,10 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
             {hasTimeline && (
               <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isTimelineExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                 <div className="overflow-hidden">
-                  {isTimelineExpanded && (
-                    <>
-                      <hr className="border-t" />
-                      <div className="p-3">
+                  <div className="-mx-3">
+                    <hr className="border-t" />
+                  </div>
+                  <div className="p-3">
                         <div className="relative">
                           <div
                             ref={timelineRef}
@@ -456,8 +456,6 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
                           )}
                         </div>
                       </div>
-                    </>
-                  )}
                 </div>
               </div>
             )}
@@ -491,7 +489,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
 
                       {/* Progress bar for active stage */}
                       {isCurrentStage && (
-                        <div className="mt-2">
+                        <div className={`mt-2 ${isTimelineExpanded ? 'mb-4' : ''}`}>
                           <div className="h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-primary transition-all duration-300 ease-out"
@@ -525,10 +523,10 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
                 {hasTimeline && (
                   <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isTimelineExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                     <div className="overflow-hidden">
-                      {isTimelineExpanded && (
-                        <>
-                          <hr className="border-t" />
-                          <div className="p-3">
+                      <div className="-mx-3">
+                        <hr className="border-t" />
+                      </div>
+                      <div className="p-3">
                             <div className="relative">
                               <div
                                 ref={timelineRef}
@@ -612,8 +610,6 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
                               )}
                             </div>
                           </div>
-                        </>
-                      )}
                     </div>
                   </div>
                 )}
