@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { RefreshCw, Sparkles, Loader2 } from "lucide-react";
+import { RefreshCw, Sparkles, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 
 import { Button } from "@/lib/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
@@ -19,6 +19,15 @@ interface ContextUsageIndicatorProps {
 
 const STORAGE_KEY = "context-indicator-position";
 const DEFAULT_POSITION = { x: 16, y: 80 }; // right-4 (16px), bottom-20 (80px)
+
+const CompressionIcon = ({ className }: { className?: string }) => (
+    <svg width="16" height="20" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <path d="M8 1V6M8 6L5.5 3.5M8 6L10.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M2 8H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="2 2" />
+        <path d="M2 12H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="2 2" />
+        <path d="M8 19V14M8 14L5.5 16.5M8 14L10.5 16.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
 
 export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ sessionId, onRefresh, messageCount = 0 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -209,6 +218,9 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
             // Switch to the new session after a brief delay
             setTimeout(async () => {
                 await handleSwitchSession(result.newSessionId);
+
+                // Notify SessionList to refresh
+                window.dispatchEvent(new CustomEvent("new-chat-session"));
             }, 1500);
         } catch (error) {
             console.error("Failed to compress session:", error);
@@ -238,11 +250,33 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
                     <Tooltip delayDuration={300}>
                         <TooltipTrigger asChild>
                             <div className="p-2" onClick={handleToggle} onMouseDown={handleMouseDown}>
-                                <div className="w-28 space-y-1">
-                                    <Progress value={contextMetrics.percentage} className="h-1.5" />
-                                    <div className={`text-center font-mono text-[10px] ${colorClass}`}>
-                                        {contextMetrics.formattedUsed}/{contextMetrics.formattedLimit}
+                                <div className="flex items-center gap-2">
+                                    <div className="w-28 space-y-1">
+                                        <Progress value={contextMetrics.percentage} className="h-1.5" />
+                                        <div className={`text-center font-mono text-[10px] ${colorClass}`}>
+                                            {contextMetrics.formattedUsed}/{contextMetrics.formattedLimit}
+                                        </div>
                                     </div>
+                                    {(shouldShowCompressionButton || isCompressing) && (
+                                        <Tooltip delayDuration={300}>
+                                            <TooltipTrigger asChild>
+                                                <div
+                                                    className="text-muted-foreground hover:text-foreground animate-pulse cursor-pointer p-1"
+                                                    onClick={e => {
+                                                        e.stopPropagation();
+                                                        if (!isCompressing) {
+                                                            handleCompress();
+                                                        }
+                                                    }}
+                                                >
+                                                    {isCompressing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CompressionIcon className="h-4 w-4" />}
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                                <p>{isCompressing ? "Compressing..." : "Compress & Continue"}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    )}
                                 </div>
                             </div>
                         </TooltipTrigger>
@@ -288,21 +322,23 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
                                     </div>
 
                                     {/* Token Type Breakdown */}
-                                    <div className="space-y-1 border-t pt-2">
-                                        <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Prompt:</span>
-                                            <span className="font-mono">{formatTokenCount(contextMetrics.promptTokens)}</span>
+                                    <div className="flex items-center justify-between border-t pt-2">
+                                        <span className="text-muted-foreground">Tokens</span>
+                                        <div className="flex items-center gap-3 font-mono text-xs">
+                                            <span className="flex items-center gap-1" title="Prompt Tokens">
+                                                <ArrowUp className="text-muted-foreground h-3 w-3" />
+                                                {formatTokenCount(contextMetrics.promptTokens)}
+                                            </span>
+                                            <span className="flex items-center gap-1" title="Completion Tokens">
+                                                <ArrowDown className="text-muted-foreground h-3 w-3" />
+                                                {formatTokenCount(contextMetrics.completionTokens)}
+                                            </span>
+                                            {contextMetrics.cachedTokens > 0 && (
+                                                <span className="text-muted-foreground flex items-center gap-1" title="Cached Tokens">
+                                                    (Cached: {formatTokenCount(contextMetrics.cachedTokens)})
+                                                </span>
+                                            )}
                                         </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Completion:</span>
-                                            <span className="font-mono">{formatTokenCount(contextMetrics.completionTokens)}</span>
-                                        </div>
-                                        {contextMetrics.cachedTokens > 0 && (
-                                            <div className="flex justify-between">
-                                                <span className="text-muted-foreground">Cached:</span>
-                                                <span className="font-mono">{formatTokenCount(contextMetrics.cachedTokens)}</span>
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
 

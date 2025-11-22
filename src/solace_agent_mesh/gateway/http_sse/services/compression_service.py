@@ -4,6 +4,7 @@ Handles LLM-based summarization of conversation history.
 """
 
 import os
+import json
 import uuid
 import asyncio
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
@@ -12,6 +13,8 @@ from datetime import datetime, timezone
 from solace_ai_connector.common.log import log
 
 from ..repository import ISessionRepository, Session
+from ..repository.models.chat_task_model import ChatTaskModel
+from ..shared import now_epoch_ms
 from ..shared.types import SessionId, UserId
 
 if TYPE_CHECKING:
@@ -101,21 +104,12 @@ class CompressionService:
         Raises:
             ValueError: If invalid parameters
         """
-        log.info(
-            "Starting compression for session %s (user: %s, type: %s)",
-            session.id,
-            user_id,
-            compression_type,
-        )
+   
         
         if not messages:
             raise ValueError(f"No messages provided for compression")
         
-        log.info(
-            "Compressing %d messages for session %s",
-            len(messages),
-            session.id,
-        )
+       
         
         # Generate summary using LLM
         summary = await self._generate_llm_summary(messages, session, llm_provider, llm_model, user_id, db_session)
@@ -141,13 +135,6 @@ class CompressionService:
             compression_timestamp=compression_timestamp,
         )
         
-        log.info(
-            "Compression complete for session %s: %d messages → %d tokens (saved ~%d tokens)",
-            session.id,
-            result.message_count,
-            result.compressed_token_estimate,
-            result.original_token_estimate - result.compressed_token_estimate,
-        )
         
         return result
     
@@ -184,11 +171,7 @@ class CompressionService:
             try:
                 llm_summary = await self._call_llm_for_summary(messages, session, llm_provider, llm_model, user_id, db_session)
                 if llm_summary:
-                    log.info(
-                        "Successfully generated LLM summary for session %s (%d chars)",
-                        session.id,
-                        len(llm_summary),
-                    )
+                  
                     return llm_summary
             except Exception as e:
                 log.warning(
@@ -198,7 +181,6 @@ class CompressionService:
                 )
         
         # Fall back to structured summary
-        log.info("Using structured summary for session %s", session.id)
         return self._create_structured_summary(messages, session)
     
     async def _call_llm_for_summary(
@@ -246,24 +228,21 @@ class CompressionService:
             return None
         
         try:
-            # Get API key from environment
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                log.info("No OPENAI_API_KEY found in environment, using structured summary")
-                return None
-            
-            # Get model name from parameter, config, or use default
+            # Get API key and model from config
+            api_key = None
             model_name = llm_model or "gpt-4o-mini"  # Default to gpt-4o-mini
-            if not llm_model and self.component:
+            
+            if self.component:
                 compression_config = self.component.get_config("compression", {})
                 summarization_config = compression_config.get("summarization", {})
-                model_name = summarization_config.get("model", model_name)
+                api_key = summarization_config.get("openai_api_key")
+                if not llm_model:
+                    model_name = summarization_config.get("model", model_name)
             
-            log.info(
-                "Using OpenAI model '%s' for summarization of session %s",
-                model_name,
-                session.id,
-            )
+            if not api_key:
+                log.info("No OpenAI API key found in config, using structured summary")
+                return None
+                        
             
             # Initialize OpenAI client
             client = AsyncOpenAI(api_key=api_key)
@@ -308,29 +287,44 @@ IMPORTANT INSTRUCTIONS:
                 # Track token usage
                 if response.usage and user_id and db_session:
                     try:
+                        # Create a system task for compression tracking to ensure it's linked to the session
+                        task_id = str(uuid.uuid4())
+                        compression_task = ChatTaskModel(
+                            id=task_id,
+                            session_id=session.id,
+                            user_id=user_id,
+                            user_message="System: Context Compression",
+                            message_bubbles=json.dumps([]),  # No visible bubbles
+                            task_metadata=json.dumps({"type": "compression", "provider": "openai"}),
+                            created_time=now_epoch_ms(),
+                            updated_time=now_epoch_ms()
+                        )
+                        db_session.add(compression_task)
+                        db_session.flush()
+
                         from .usage_tracking_service import UsageTrackingService
                         usage_service = UsageTrackingService(db_session)
+                        # Extract cached tokens safely
+                        cached_tokens = 0
+                        if hasattr(response.usage, 'prompt_tokens_details') and response.usage.prompt_tokens_details:
+                            cached_tokens = getattr(response.usage.prompt_tokens_details, 'cached_tokens', 0)
+                        
                         usage_service.record_token_usage(
                             user_id=user_id,
-                            task_id=None,
+                            task_id=task_id,
                             model=model_name,
                             prompt_tokens=response.usage.prompt_tokens,
                             completion_tokens=response.usage.completion_tokens,
-                            cached_input_tokens=getattr(response.usage, 'prompt_tokens_details', {}).get('cached_tokens', 0) if hasattr(response.usage, 'prompt_tokens_details') else 0,
+                            cached_input_tokens=cached_tokens,
                             source="compression",
                             context=f"Session compression: {session.id}",
                         )
-                        log.info("Tracked compression token usage: %d tokens", response.usage.total_tokens)
+                       
                     except Exception as e:
                         log.warning("Failed to track compression token usage: %s", e)
                 
                 tokens_used = response.usage.total_tokens if response.usage else 0
-                log.info(
-                    "Successfully generated OpenAI summary for session %s (%d chars, %d tokens used)",
-                    session.id,
-                    len(summary_text),
-                    tokens_used,
-                )
+                
                 return summary_text
             
             log.warning("OpenAI response did not contain text")
@@ -354,24 +348,22 @@ IMPORTANT INSTRUCTIONS:
             return None
         
         try:
-            # Get API key from environment
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-            if not api_key:
-                log.info("No ANTHROPIC_API_KEY found in environment, using structured summary")
-                return None
+            # Get API key and model from config
+            api_key = None
+            model_name = llm_model or "claude-4-5-sonnet-20250929"
             
-            # Get model name from parameter or use default
-            model_name = llm_model or "claude-3-5-sonnet-20241022"
-            if not llm_model and self.component:
+            if self.component:
                 compression_config = self.component.get_config("compression", {})
                 summarization_config = compression_config.get("summarization", {})
-                model_name = summarization_config.get("anthropic_model", model_name)
+                api_key = summarization_config.get("anthropic_api_key")
+                if not llm_model:
+                    model_name = summarization_config.get("anthropic_model", model_name)
             
-            log.info(
-                "Using Anthropic model '%s' for summarization of session %s",
-                model_name,
-                session.id,
-            )
+            if not api_key:
+                log.info("No Anthropic API key found in config, using structured summary")
+                return None
+            
+          
             
             # Initialize Anthropic client
             client = AsyncAnthropic(api_key=api_key)
@@ -416,11 +408,27 @@ IMPORTANT INSTRUCTIONS:
                 # Track token usage
                 if response.usage and user_id and db_session:
                     try:
+                        # Create a system task for compression tracking to ensure it's linked to the session
+                        task_id = str(uuid.uuid4())
+                        compression_task = ChatTaskModel(
+                            id=task_id,
+                            session_id=session.id,
+                            user_id=user_id,
+                            user_message="System: Context Compression",
+                            message_bubbles=json.dumps([]),  # No visible bubbles
+                            task_metadata=json.dumps({"type": "compression", "provider": "anthropic"}),
+                            created_time=now_epoch_ms(),
+                            updated_time=now_epoch_ms()
+                        )
+                        db_session.add(compression_task)
+                        db_session.flush()
+                        
+
                         from .usage_tracking_service import UsageTrackingService
                         usage_service = UsageTrackingService(db_session)
                         usage_service.record_token_usage(
                             user_id=user_id,
-                            task_id=None,
+                            task_id=task_id,
                             model=model_name,
                             prompt_tokens=response.usage.input_tokens,
                             completion_tokens=response.usage.output_tokens,
@@ -428,17 +436,13 @@ IMPORTANT INSTRUCTIONS:
                             source="compression",
                             context=f"Session compression: {session.id}",
                         )
-                        log.info("Tracked compression token usage: %d tokens", response.usage.input_tokens + response.usage.output_tokens)
+                        total_tokens = response.usage.input_tokens + response.usage.output_tokens
+                       
                     except Exception as e:
                         log.warning("Failed to track compression token usage: %s", e)
                 
                 tokens_used = response.usage.input_tokens + response.usage.output_tokens if response.usage else 0
-                log.info(
-                    "Successfully generated Anthropic summary for session %s (%d chars, %d tokens used)",
-                    session.id,
-                    len(summary_text),
-                    tokens_used,
-                )
+                
                 return summary_text
             
             log.warning("Anthropic response did not contain text")
@@ -462,27 +466,25 @@ IMPORTANT INSTRUCTIONS:
             return None
         
         try:
-            # Get API key from environment
-            api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            # Get API key and model from config
+            api_key = None
+            model_name = llm_model or "gemini-2.5-flash"
+            
+            if self.component:
+                compression_config = self.component.get_config("compression", {})
+                summarization_config = compression_config.get("summarization", {})
+                api_key = summarization_config.get("gemini_api_key")
+                if not llm_model:
+                    model_name = summarization_config.get("gemini_model", model_name)
+            
             if not api_key:
-                log.info("No GEMINI_API_KEY or GOOGLE_API_KEY found in environment, using structured summary")
+                log.info("No Gemini API key found in config, using structured summary")
                 return None
             
             # Configure Gemini
             genai.configure(api_key=api_key)
             
-            # Get model name from parameter or use default
-            model_name = llm_model or "gemini-1.5-flash"
-            if not llm_model and self.component:
-                compression_config = self.component.get_config("compression", {})
-                summarization_config = compression_config.get("summarization", {})
-                model_name = summarization_config.get("gemini_model", model_name)
-            
-            log.info(
-                "Using Gemini model '%s' for summarization of session %s",
-                model_name,
-                session.id,
-            )
+           
             
             # Initialize Gemini model
             model = genai.GenerativeModel(model_name)
@@ -526,11 +528,42 @@ Please summarize the following conversation. Focus on the content and context, n
             # Extract summary text
             if response and response.text:
                 summary_text = response.text.strip()
-                log.info(
-                    "Successfully generated Gemini summary for session %s (%d chars)",
-                    session.id,
-                    len(summary_text),
-                )
+                
+                # Track token usage (Gemini usage info is in response.usage_metadata)
+                if hasattr(response, 'usage_metadata') and user_id and db_session:
+                    try:
+                        # Create a system task for compression tracking to ensure it's linked to the session
+                        task_id = str(uuid.uuid4())
+                        compression_task = ChatTaskModel(
+                            id=task_id,
+                            session_id=session.id,
+                            user_id=user_id,
+                            user_message="System: Context Compression",
+                            message_bubbles=json.dumps([]),  # No visible bubbles
+                            task_metadata=json.dumps({"type": "compression", "provider": "gemini"}),
+                            created_time=now_epoch_ms(),
+                            updated_time=now_epoch_ms()
+                        )
+                        db_session.add(compression_task)
+                        db_session.flush()
+                       
+
+                        from .usage_tracking_service import UsageTrackingService
+                        usage_service = UsageTrackingService(db_session)
+                        usage_service.record_token_usage(
+                            user_id=user_id,
+                            task_id=task_id,
+                            model=model_name,
+                            prompt_tokens=response.usage_metadata.prompt_token_count,
+                            completion_tokens=response.usage_metadata.candidates_token_count,
+                            cached_input_tokens=0,  # Gemini doesn't expose cache hit details easily here yet
+                            source="compression",
+                            context=f"Session compression: {session.id}",
+                        )
+                      
+                    except Exception as e:
+                        log.warning("Failed to track compression token usage: %s", e)
+
                 return summary_text
             
             log.warning("Gemini response did not contain text")
