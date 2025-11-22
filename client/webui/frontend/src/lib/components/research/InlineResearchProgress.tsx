@@ -96,6 +96,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
   // Track scroll position for fade gradients
   const [showBottomGradient, setShowBottomGradient] = useState(false);
   const [showTopGradient, setShowTopGradient] = useState(false);
+  const [showSpacing, setShowSpacing] = useState(true); // For animation delay
   const timelineRef = React.useRef<HTMLDivElement>(null);
 
   const handleToggleTimeline = (e: React.MouseEvent) => {
@@ -103,6 +104,13 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
     const newState = !isTimelineExpanded;
     setIsTimelineExpanded(newState);
     localStorage.setItem(storageKey, String(newState));
+
+    // Delay hiding spacing until after collapse animation
+    if (!newState) {
+      setTimeout(() => setShowSpacing(false), 300); // Match animation duration
+    } else {
+      setShowSpacing(true);
+    }
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -336,7 +344,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
                   </h3>
 
                   {/* Progress bar - full */}
-                  <div className={`mt-2 ${isTimelineExpanded ? 'mb-4' : ''}`}>
+                  <div className={`mt-2 ${showSpacing ? 'mb-4' : ''}`}>
                     <div className="h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-green-600 dark:bg-green-400 transition-all duration-300 ease-out"
@@ -489,7 +497,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
 
                       {/* Progress bar for active stage */}
                       {isCurrentStage && (
-                        <div className={`mt-2 ${isTimelineExpanded ? 'mb-4' : ''}`}>
+                        <div className={`mt-2 ${showSpacing ? 'mb-4' : ''}`}>
                           <div className="h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-primary transition-all duration-300 ease-out"
