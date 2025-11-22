@@ -475,11 +475,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
 
           return (
             <div key={stage.phase}>
-              <div
-                onClick={onClick}
-                className="rounded-xl border transition-all duration-300 bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 shadow-sm cursor-pointer hover:border-primary"
-              >
-                <div className="p-4">
+              <div className="rounded-lg border border-border bg-background p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     {/* Icon */}
@@ -490,10 +486,10 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-sm">
-                        {stage.label}
+                        {stage.label}: <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">{progress.status_text}</span>
                       </h3>
 
-                      {/* Progress bar for active stage - moved up below title */}
+                      {/* Progress bar for active stage */}
                       {isCurrentStage && (
                         <div className="mt-2">
                           <div className="h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -504,26 +500,127 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({
                           </div>
                         </div>
                       )}
-
-                      {/* Status text for active stage */}
-                      {isCurrentStage && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {progress.status_text}
-                        </p>
-                      )}
                     </div>
                   </div>
 
-                  {/* Progress indicator */}
-                  <div className="flex-shrink-0">
-                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                  </div>
+                  {/* Accordion Button - on the right */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleTimeline(e);
+                    }}
+                    tooltip={isTimelineExpanded ? "Collapse" : "Expand"}
+                  >
+                    {isTimelineExpanded ? (
+                      <ChevronUp className="h-4 w-4 transition-transform duration-200" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 transition-transform duration-200" />
+                    )}
+                  </Button>
                 </div>
+
+                {/* Expanded timeline section - full width with divider */}
+                {hasTimeline && (
+                  <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isTimelineExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                    <div className="overflow-hidden">
+                      {isTimelineExpanded && (
+                        <>
+                          <hr className="border-t" />
+                          <div className="p-3">
+                            <div className="relative">
+                              <div
+                                ref={timelineRef}
+                                className="space-y-2 max-h-[300px] overflow-y-auto"
+                                onScroll={handleScroll}
+                              >
+                                {(() => {
+                                  let currentSection: 'search' | 'read' | null = null;
+                                  return timelineEvents.map((event, idx) => {
+                                    const isNewSection = currentSection !== event.type;
+                                    currentSection = event.type;
+
+                                    return (
+                                      <React.Fragment key={idx}>
+                                        {/* Section header for grouped events */}
+                                        {isNewSection && (
+                                          <div className="text-xs font-medium text-[var(--color-secondary-text-wMain)] mt-4 first:mt-0">
+                                            {event.type === 'search' ? 'Searching' : 'Reviewing'}
+                                          </div>
+                                        )}
+
+                                        <div className="flex items-start gap-2">
+                                          <div className="flex-shrink-0 mt-1">
+                                            {event.type === 'search' && (
+                                              <Search className="h-3 w-3 text-muted-foreground" />
+                                            )}
+                                            {event.type === 'read' && (() => {
+                                              if (event.favicon && event.favicon.trim() !== '') {
+                                                return (
+                                                  <img
+                                                    src={event.favicon}
+                                                    alt=""
+                                                    className="h-3 w-3 rounded"
+                                                    onError={(e) => {
+                                                      (e.target as HTMLImageElement).style.display = 'none';
+                                                    }}
+                                                  />
+                                                );
+                                              }
+                                              return <Globe className="h-3 w-3 text-muted-foreground" />;
+                                            })()}
+                                          </div>
+
+                                          <div className="flex-1 min-w-0 text-sm">
+                                            {event.type === 'search' && (
+                                              <div>
+                                                <span className="font-medium text-gray-900 dark:text-gray-100">{event.content}</span>
+                                              </div>
+                                            )}
+                                            {event.type === 'read' && (
+                                              <div>
+                                                {event.url ? (
+                                                  <a
+                                                    href={event.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-primary hover:underline font-medium"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  >
+                                                    {event.title || event.url}
+                                                  </a>
+                                                ) : (
+                                                  <span className="font-medium text-gray-900 dark:text-gray-100">{event.content}</span>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </React.Fragment>
+                                    );
+                                  });
+                                })()}
+                              </div>
+                              {/* Fade gradient at top when scrolled down */}
+                              {showTopGradient && (
+                                <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-white dark:from-gray-900 to-transparent pointer-events-none" />
+                              )}
+                              {/* Fade gradient at bottom to indicate more content */}
+                              {showBottomGradient && (
+                                <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-white dark:from-gray-900 to-transparent pointer-events-none" />
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        );
-      })
+          );
+        })
       )}
     </div>
   );
