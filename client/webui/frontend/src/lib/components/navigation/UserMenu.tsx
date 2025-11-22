@@ -8,7 +8,9 @@ import { BarChart3 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/lib/components/ui/dropdown-menu";
 import { SettingsDialog } from "@/lib/components/settings";
 import { getQuotaStatus } from "../../api/token-usage-api";
+import { getUserProfile } from "../../api/user-profile-api";
 import type { QuotaStatus } from "../../types/token-usage";
+import type { UserProfile } from "../../api/user-profile-api";
 
 interface UserMenuProps {
     userName?: string;
@@ -18,6 +20,7 @@ interface UserMenuProps {
 
 export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail = "user@example.com", onUsageClick }) => {
     const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [isOpen, setIsOpen] = useState(false);
 
     // Get user initials
@@ -29,6 +32,18 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
             .toUpperCase()
             .slice(0, 2);
     };
+
+    // Load user profile on mount and when avatar updates
+    useEffect(() => {
+        loadUserProfile();
+
+        const handleAvatarUpdate = () => {
+            loadUserProfile();
+        };
+
+        window.addEventListener("avatar-updated", handleAvatarUpdate);
+        return () => window.removeEventListener("avatar-updated", handleAvatarUpdate);
+    }, []);
 
     // Load quota status when menu opens
     useEffect(() => {
@@ -46,6 +61,17 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
             console.error("Failed to load quota status:", error);
             // Set null to hide usage section on error
             setQuotaStatus(null);
+        }
+    };
+
+    const loadUserProfile = async () => {
+        try {
+            const profile = await getUserProfile();
+            console.log("Loaded user profile:", profile);
+            setUserProfile(profile);
+        } catch (error) {
+            console.error("Failed to load user profile:", error);
+            setUserProfile(null);
         }
     };
 
@@ -69,6 +95,36 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
         return num.toString();
     };
 
+    // Render avatar (either custom image or initials)
+    const renderAvatar = (size: "small" | "large") => {
+        const sizeClasses = size === "small" ? "h-10 w-10 text-base" : "h-12 w-12 text-lg";
+        const avatarUrl = userProfile?.avatarUrl;
+
+        if (avatarUrl) {
+            return (
+                <>
+                    <img
+                        src={avatarUrl}
+                        alt={userName}
+                        className={`${sizeClasses} flex-shrink-0 rounded-full object-cover`}
+                        onError={e => {
+                            // Hide image on error, show fallback
+                            console.error("Failed to load avatar image:", avatarUrl);
+                            e.currentTarget.style.display = "none";
+                            const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = "flex";
+                        }}
+                    />
+                    <div className={`${sizeClasses} flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white`} style={{ display: "none" }}>
+                        {getInitials(userName)}
+                    </div>
+                </>
+            );
+        }
+
+        return <div className={`${sizeClasses} flex flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white`}>{getInitials(userName)}</div>;
+    };
+
     return (
         <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
             <DropdownMenuTrigger asChild>
@@ -76,15 +132,15 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
                     className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]"
                     aria-label="User menu"
                 >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 font-semibold text-white">{getInitials(userName)}</div>
+                    {renderAvatar("small")}
                 </button>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent className="w-80" align="end" side="top" sideOffset={16}>
+            <DropdownMenuContent className="w-72" align="end" side="top" sideOffset={16}>
                 {/* User Info */}
                 <DropdownMenuLabel className="font-normal">
                     <div className="flex items-center space-x-3 py-2">
-                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-lg font-semibold text-white">{getInitials(userName)}</div>
+                        {renderAvatar("large")}
                         <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{userName}</p>
                             <p className="truncate text-xs text-gray-500 dark:text-gray-400">{userEmail}</p>
@@ -92,36 +148,29 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
                     </div>
                 </DropdownMenuLabel>
 
-                <DropdownMenuSeparator />
-
-                {/* Token Usage Section */}
+                {/* Token Usage Section - Compact version below profile */}
                 {quotaStatus && quotaStatus.usagePercentage !== undefined && (
                     <>
-                        <div className="bg-gray-50 px-2 py-3 dark:bg-gray-900/50">
-                            <div className="mb-2 flex items-center justify-between">
+                        <div className="bg-gray-50 px-3 py-2 dark:bg-gray-900/50">
+                            <div className="mb-1.5 flex items-center justify-between">
                                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Token Usage</span>
                                 <span className={`text-xs font-semibold ${getUsageColor(quotaStatus.usagePercentage || 0)}`}>{(quotaStatus.usagePercentage || 0).toFixed(1)}%</span>
                             </div>
 
-                            {/* Progress Bar */}
-                            <div className="mb-2 h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-                                <div className={`h-2 rounded-full ${getUsageBarColor(quotaStatus.usagePercentage || 0)} transition-all duration-300`} style={{ width: `${Math.min(quotaStatus.usagePercentage || 0, 100)}%` }}></div>
+                            {/* Narrower Progress Bar */}
+                            <div className="mb-1.5 h-1.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+                                <div className={`h-1.5 rounded-full ${getUsageBarColor(quotaStatus.usagePercentage || 0)} transition-all duration-300`} style={{ width: `${Math.min(quotaStatus.usagePercentage || 0, 100)}%` }}></div>
                             </div>
 
                             <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
                                 <span>{formatNumber(quotaStatus.currentUsage || 0)} used</span>
                                 <span>{formatNumber(quotaStatus.remaining || 0)} left</span>
                             </div>
-
-                            {/* Account Type */}
-                            <div className="mt-2">
-                                <span className="inline-flex items-center rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 capitalize dark:bg-blue-900 dark:text-blue-200">{quotaStatus.accountType || "basic"}</span>
-                            </div>
                         </div>
-
-                        <DropdownMenuSeparator />
                     </>
                 )}
+
+                <DropdownMenuSeparator />
 
                 {/* Menu Items */}
                 <DropdownMenuItem
