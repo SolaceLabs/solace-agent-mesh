@@ -5,6 +5,7 @@ import { v4 } from "uuid";
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import type { Project } from "@/lib/types/projects";
+import type { RAGSearchResult } from "@/lib/types/fe";
 
 // Type for tasks loaded from the API
 interface TaskFromAPI {
@@ -85,6 +86,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
+
+    // RAG State
+    const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
+    const ragDataRef = useRef<RAGSearchResult[]>([]);
+    const [ragEnabled] = useState<boolean>(true);
+
+    // Wrapper to keep ref in sync with state
+    const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
+        _setRagData(prev => {
+            const newData = typeof data === "function" ? data(prev) : data;
+            ragDataRef.current = newData;
+            return newData;
+        });
+    }, []);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const currentEventSource = useRef<EventSource | null>(null);
@@ -113,7 +128,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Side Panel Control State
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
-    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow">("files");
+    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "workflow" | "rag">("files");
 
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -306,12 +321,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // Extract feedback state from task metadata
                 const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
+                // Extract RAG data from task metadata
+                const allRagData: RAGSearchResult[] = [];
+
                 for (const task of migratedTasks) {
                     if (task.taskMetadata?.feedback) {
                         feedbackMap[task.taskId] = {
                             type: task.taskMetadata.feedback.type,
                             text: task.taskMetadata.feedback.text || "",
                         };
+                    }
+
+                    // Restore RAG data if present
+                    if (task.taskMetadata?.rag_data && Array.isArray(task.taskMetadata.rag_data)) {
+                        allRagData.push(...task.taskMetadata.rag_data);
                     }
                 }
 
@@ -329,6 +352,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setMessages(allMessages);
                 setSubmittedFeedback(feedbackMap);
 
+                // Restore RAG data
+                if (allRagData.length > 0) {
+                    setRagData(allRagData);
+                }
+
                 // Set the agent name if found
                 if (agentName) {
                     setSelectedAgentName(agentName);
@@ -339,7 +367,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 throw error;
             }
         },
-        [apiPrefix, deserializeTaskToMessages, addNotification, migrateTask]
+        [apiPrefix, deserializeTaskToMessages, addNotification, migrateTask, setRagData]
     );
 
     const uploadArtifactFile = useCallback(
@@ -628,7 +656,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [addNotification]
     );
 
-    const openSidePanelTab = useCallback((tab: "files" | "workflow") => {
+    const openSidePanelTab = useCallback((tab: "files" | "workflow" | "rag") => {
         setIsSidePanelCollapsed(false);
         setActiveSidePanelTab(tab);
 
@@ -660,7 +688,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         async (filename: string): Promise<FileAttachment | null> => {
             // Prevent duplicate downloads for the same file
             if (artifactDownloadInProgressRef.current.has(filename)) {
-                console.log(`[ChatProvider] Skipping duplicate download for ${filename} - already in progress`);
                 return null;
             }
 
@@ -1026,6 +1053,119 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     }
                                     break;
                                 }
+                                case "deep_research_progress": {
+                                    // Deep research progress tracking - keep the data part for ChatMessage to render
+                                    // Clear latestStatusText so LoadingMessageRow doesn't show duplicate status
+                                    latestStatusText.current = null;
+
+                                    // Also track queries and sources for RAG display
+                                    const progressData = data;
+                                    const currentQuery = progressData.current_query;
+                                    const fetchingUrls = progressData.fetching_urls || [];
+                                    const phase = progressData.phase;
+
+                                    // Convert deep research progress to RAG data for source display
+                                    if (phase === "searching" && currentQuery && currentQuery.trim()) {
+                                        // Track new query
+                                        setRagData(prev => {
+                                            const existingQuery = prev.find(r => r.search_type === "deep_research" && r.query === currentQuery && r.task_id === currentTaskIdFromResult);
+
+                                            if (!existingQuery) {
+                                                const newEntry = {
+                                                    query: currentQuery,
+                                                    search_type: "deep_research" as const,
+                                                    timestamp: new Date().toISOString(),
+                                                    sources: [],
+                                                    task_id: currentTaskIdFromResult,
+                                                };
+                                                return [...prev, newEntry];
+                                            }
+                                            return prev;
+                                        });
+                                    } else if (phase === "analyzing" && fetchingUrls.length > 0) {
+                                        // Add sources to most recent query
+                                        setRagData(prev => {
+                                            const deepResearchEntries = prev.filter(r => r.search_type === "deep_research" && r.task_id === currentTaskIdFromResult);
+
+                                            if (deepResearchEntries.length > 0) {
+                                                const updated = [...prev];
+                                                const lastQueryIndex = updated.lastIndexOf(deepResearchEntries[deepResearchEntries.length - 1]);
+
+                                                if (lastQueryIndex !== -1) {
+                                                    const existingUrls = new Set(updated[lastQueryIndex].sources.map(s => s.source_url || s.url));
+
+                                                    fetchingUrls.forEach((urlInfo: any) => {
+                                                        const url = urlInfo.url;
+                                                        const sourceType = urlInfo.source_type || "web";
+                                                        if (url && !existingUrls.has(url)) {
+                                                            updated[lastQueryIndex].sources.push({
+                                                                citation_id: `search${updated[lastQueryIndex].sources.length}`,
+                                                                title: urlInfo.title || url,
+                                                                source_url: url,
+                                                                url: url, // RAGInfoPanel checks for this field
+                                                                content_preview: urlInfo.title ? `Analyzed: ${urlInfo.title}` : `Analyzed: ${url}`,
+                                                                relevance_score: 1.0,
+                                                                retrieved_at: new Date().toISOString(),
+                                                                metadata: {
+                                                                    favicon: urlInfo.favicon || (sourceType === "web" ? `https://www.google.com/s2/favicons?domain=${url}&sz=32` : ""),
+                                                                    type: "web_search",
+                                                                    source_type: sourceType,
+                                                                },
+                                                            });
+                                                            existingUrls.add(url);
+                                                        }
+                                                    });
+                                                }
+
+                                                return updated;
+                                            }
+                                            return prev;
+                                        });
+                                    }
+
+                                    // Don't return early - let the data part flow through to the message
+                                    break;
+                                }
+                                case "tool_result": {
+                                    // Handle tool results that may contain RAG metadata
+                                    console.log("ChatProvider: Received tool_result data part:", data);
+
+                                    const resultData = (data as any).result_data;
+
+                                    // Check if result_data contains rag_metadata
+                                    if (resultData && typeof resultData === "object" && resultData.rag_metadata) {
+                                        const ragMetadata = resultData.rag_metadata;
+                                        console.log("ChatProvider: Found RAG metadata in tool_result.result_data:", ragMetadata);
+                                        if (ragMetadata && ragEnabled) {
+                                            const ragSearchResult: RAGSearchResult = {
+                                                query: ragMetadata.query,
+                                                search_type: ragMetadata.search_type,
+                                                timestamp: ragMetadata.timestamp,
+                                                sources: ragMetadata.sources,
+                                                task_id: currentTaskIdFromResult,
+                                                metadata: ragMetadata.metadata, // Preserve metadata with query breakdown
+                                            };
+
+                                            // For deep research: REPLACE all previous entries for this task with the final metadata
+                                            // This ensures we have the complete, properly structured data with metadata.queries
+                                            if (ragMetadata.search_type === "deep_research") {
+                                                console.log("ChatProvider: Replacing deep research entries with final metadata");
+                                                setRagData(prev => {
+                                                    // Remove all previous deep research entries for this task
+                                                    const filtered = prev.filter(r => !(r.search_type === "deep_research" && r.task_id === currentTaskIdFromResult));
+                                                    // Add the final complete entry
+                                                    return [...filtered, ragSearchResult];
+                                                });
+                                            } else {
+                                                // For regular web search: append as before
+                                                setRagData(prev => [...prev, ragSearchResult]);
+                                            }
+                                            console.log("ChatProvider: RAG search result added to state from tool_result");
+                                        }
+                                    }
+                                    // Don't add tool_result to content parts - it's metadata only
+                                    break;
+                                }
                                 default:
                                     console.warn("Received unknown data part type:", data.type);
                             }
@@ -1067,7 +1207,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
             }
 
-            const newContentParts = messageToProcess?.parts?.filter(p => p.kind !== "data") || [];
+            // Filter out data parts EXCEPT deep_research_progress which needs to be rendered
+            // Also filter out text parts when we have deep_research_progress to show progress-only
+            const hasDeepResearchProgress = messageToProcess?.parts?.some(p => {
+                if (p.kind === "data") {
+                    const dataPart = p as DataPart;
+                    return dataPart.data && (dataPart.data as any).type === "deep_research_progress";
+                }
+                return false;
+            });
+
+            const newContentParts =
+                messageToProcess?.parts?.filter(p => {
+                    // Keep deep_research_progress data parts
+                    if (p.kind === "data") {
+                        const dataPart = p as DataPart;
+                        return dataPart.data && (dataPart.data as any).type === "deep_research_progress";
+                    }
+                    // Filter out text parts if we have deep research progress (to show progress-only)
+                    if (p.kind === "text" && hasDeepResearchProgress) {
+                        return false;
+                    }
+                    // Keep files and artifacts
+                    return true;
+                }) || [];
             const hasNewFiles = newContentParts.some(p => p.kind === "file");
 
             // Update UI state based on processed parts
@@ -1082,8 +1245,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     lastMessage = newMessages[newMessages.length - 1];
                 }
 
-                // Check if we can append to the last message
-                if (lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
+                // Check if this is a deep research progress update
+                const isProgressUpdate = newContentParts.length === 1 && newContentParts[0].kind === "data" && (newContentParts[0] as DataPart).data && ((newContentParts[0] as DataPart).data as any).type === "deep_research_progress";
+
+                // For progress updates, always update the same message (don't replace, just update the data)
+                // The InlineResearchProgress component will handle showing all stages
+                if (isProgressUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
+                    const updatedMessage: MessageFE = {
+                        ...lastMessage,
+                        parts: newContentParts,
+                        isComplete: isFinalEvent || hasNewFiles,
+                        metadata: {
+                            ...lastMessage.metadata,
+                            lastProcessedEventSequence: currentEventSequence,
+                        },
+                    };
+                    newMessages[newMessages.length - 1] = updatedMessage;
+                } else if (lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
+                    // Regular append for non-progress updates
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
                         parts: [...lastMessage.parts, ...newContentParts],
@@ -1096,7 +1275,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     newMessages[newMessages.length - 1] = updatedMessage;
                 } else {
                     // Only create a new bubble if there is visible content to render.
-                    const hasVisibleContent = newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file");
+                    // Include deep_research_progress data parts as visible content
+                    const hasVisibleContent = newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || (p.kind === "data" && (p as DataPart).data && (p as DataPart).data.type === "deep_research_progress"));
                     if (hasVisibleContent) {
                         const newBubble: MessageFE = {
                             role: "agent",
@@ -1181,6 +1361,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             const hasError = taskMessages.some(m => m.isError);
                             const taskStatus = hasError ? "error" : "completed";
 
+                            const taskRagData = ragDataRef.current.filter(r => r.task_id === currentTaskIdFromResult);
+
                             // Save complete task (don't wait for completion)
                             saveTaskToBackend({
                                 task_id: currentTaskIdFromResult,
@@ -1190,6 +1372,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     schema_version: CURRENT_SCHEMA_VERSION,
                                     status: taskStatus,
                                     agent_name: selectedAgentName,
+                                    rag_data: taskRagData.length > 0 ? taskRagData : undefined, // Persist RAG data
                                 },
                             });
                         }
@@ -1241,7 +1424,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 100);
             }
         },
-        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble, downloadAndResolveArtifact, setArtifacts]
+        [addNotification, closeCurrentEventSource, artifactsRefetch, sessionId, selectedAgentName, saveTaskToBackend, serializeMessageBubble, downloadAndResolveArtifact, setArtifacts, setRagData, ragEnabled]
     );
 
     const handleNewSession = useCallback(
@@ -1302,6 +1485,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isFinalizing.current = false;
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
+            // Clear RAG data on new session
+            setRagData([]);
             // Artifacts will be automatically refreshed by useArtifacts hook when sessionId changes
             // Success notification
             addNotification("New session started successfully.");
@@ -1314,7 +1499,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
+        [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact, setRagData]
     );
 
     const handleSwitchSession = useCallback(
@@ -1764,6 +1949,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     },
                 };
 
+                console.log(`ChatProvider handleSubmit: Full A2A message:`, JSON.stringify(a2aMessage, null, 2));
+
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
@@ -2062,6 +2249,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, [currentTaskId, apiPrefix, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
+        ragData,
+        ragEnabled,
         configCollectFeedback,
         submittedFeedback,
         handleFeedbackSubmit,

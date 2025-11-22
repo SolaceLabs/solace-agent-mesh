@@ -1,6 +1,7 @@
 import React, { createContext, type FormEvent } from "react";
 
 import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+import type { RAGSearchResult } from "@/lib/types/fe";
 
 export interface ChatState {
     configCollectFeedback: boolean;
@@ -26,9 +27,12 @@ export interface ChatState {
     artifactsRefetch: () => Promise<void>;
     setArtifacts: React.Dispatch<React.SetStateAction<ArtifactInfo[]>>;
     taskIdInSidePanel: string | null;
+    // RAG State
+    ragData: RAGSearchResult[];
+    ragEnabled: boolean;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
-    activeSidePanelTab: "files" | "workflow";
+    activeSidePanelTab: "files" | "workflow" | "rag";
     // Delete Modal State
     isDeleteModalOpen: boolean;
     artifactToDelete: ArtifactInfo | null;
@@ -61,8 +65,8 @@ export interface ChatActions {
     uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
-    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;
-    openSidePanelTab: (tab: "files" | "workflow") => void;
+    setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow" | "rag">>;
+    openSidePanelTab: (tab: "files" | "workflow" | "rag") => void;
 
     openDeleteModal: (artifact: ArtifactInfo) => void;
     closeDeleteModal: () => void;

@@ -223,3 +223,47 @@ export interface Session {
     projectId?: string | null;
     projectName?: string | null;
 }
+
+// RAG (Retrieval-Augmented Generation) Types
+export interface RAGSource {
+    citation_id: string; // Unique citation ID (e.g., "turn1file0", "research0")
+    file_id?: string; // Optional for deep_research
+    filename?: string; // Optional for deep_research
+    title?: string; // For deep_research sources
+    source_type?: string; // For deep_research (web, kb)
+    source_url?: string; // Source URL for kb_search and deep_research results
+    url?: string; // Alternative URL field for deep_research
+    content_preview: string;
+    relevance_score: number;
+    retrieved_at?: string; // For deep_research timestamp
+    metadata: Record<string, any>;
+}
+
+export interface RAGSearchResult {
+    query: string;
+    search_type: "file_search" | "kb_search" | "deep_research" | "web_search";
+    turn_number?: number; // Turn number for citation tracking
+    timestamp: string;
+    sources: RAGSource[];
+    task_id?: string;
+    metadata?: {
+        queries?: Array<{
+            query: string;
+            timestamp: string;
+            source_citation_ids: string[];
+        }>;
+        [key: string]: any;
+    };
+}
+
+export interface RAGSearchResultEvent {
+    type: "rag_search_result";
+    data: {
+        rag_metadata: {
+            query: string;
+            search_type: string;
+            timestamp: string;
+            sources: RAGSource[];
+        };
+    };
+}

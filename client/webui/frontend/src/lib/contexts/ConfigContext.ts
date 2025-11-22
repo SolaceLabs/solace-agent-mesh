@@ -23,19 +23,28 @@ export interface ConfigContextValue {
     frontend_use_authorization: boolean;
 
     persistenceEnabled?: boolean;
-    
+
     /**
      * Whether projects feature is enabled.
      * Computed from feature flags and persistence status.
      */
     projectsEnabled?: boolean;
-    
+
     /**
      * Validation limits from backend.
      * These are dynamically fetched from the backend to ensure
      * frontend and backend validation stay in sync.
      */
     validationLimits?: ValidationLimits;
+
+    /**
+     * Tool configuration status from backend.
+     * Indicates which tools are properly configured with required API keys.
+     */
+    toolConfigStatus?: {
+        web_search?: boolean;
+        deep_research?: boolean;
+    };
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null);
