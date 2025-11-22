@@ -214,7 +214,7 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
                     <div className="space-y-3 p-3">
                         {/* Header with refresh */}
                         <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold">Context Window</span>
+                            <span className="text-sm font-semibold">Context Window Usage</span>
                             <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={handleRefresh} disabled={isLoading}>
                                 <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
                             </Button>
