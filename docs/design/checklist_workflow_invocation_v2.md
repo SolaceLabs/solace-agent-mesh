@@ -31,10 +31,10 @@
         - [x] Update `_create_workflow_agent_card` to use shared `EXTENSION_URI_SCHEMAS`.
         - [x] Update `_create_workflow_agent_card` to add `agent_type` extension.
 
-- [ ] **6. Workflow Input Handling**
-    - [ ] Update `src/solace_agent_mesh/workflow/protocol/event_handlers.py`:
-        - [ ] Modify `handle_task_request` to extract input payload (artifact/data/text).
-        - [ ] Store input in `workflow_state.node_outputs["workflow_input"]`.
+- [x] **6. Workflow Input Handling**
+    - [x] Update `src/solace_agent_mesh/workflow/protocol/event_handlers.py`:
+        - [x] Modify `handle_task_request` to extract input payload (artifact/data/text).
+        - [x] Store input in `workflow_state.node_outputs["workflow_input"]`.
 
 - [ ] **7. Testing**
     - [ ] Create `tests/agent/tools/test_workflow_tool.py`.

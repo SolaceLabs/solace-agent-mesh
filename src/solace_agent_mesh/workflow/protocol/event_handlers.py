@@ -14,6 +14,7 @@ from a2a.types import (
     AgentCard,
     JSONRPCResponse,
     Task,
+    Message as A2AMessage,
 )
 from ...common import a2a
 from ..workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
@@ -22,6 +23,65 @@ if TYPE_CHECKING:
     from ..component import WorkflowExecutorComponent
 
 log = logging.getLogger(__name__)
+
+
+async def _extract_workflow_input(
+    component: "WorkflowExecutorComponent",
+    message: A2AMessage,
+    a2a_context: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Extract workflow input from A2A message."""
+
+    # 1. Check for artifact reference in metadata (Artifact Mode)
+    if message.metadata and "invoked_with_artifacts" in message.metadata:
+        artifacts = message.metadata["invoked_with_artifacts"]
+        if artifacts:
+            # Use first artifact
+            artifact_ref = artifacts[0]
+            filename = artifact_ref.get("filename")
+            version = artifact_ref.get("version")
+
+            if filename:
+                # Load artifact content
+                try:
+                    # Resolve version if 'latest' or None
+                    if version == "latest" or version is None:
+                        versions = await component.artifact_service.list_versions(
+                            app_name=component.workflow_name,
+                            user_id=a2a_context["user_id"],
+                            session_id=a2a_context["session_id"],
+                            filename=filename,
+                        )
+                        version = max(versions) if versions else None
+
+                    if version is not None:
+                        artifact = await component.artifact_service.load_artifact(
+                            app_name=component.workflow_name,
+                            user_id=a2a_context["user_id"],
+                            session_id=a2a_context["session_id"],
+                            filename=filename,
+                            version=version,
+                        )
+
+                        if artifact and artifact.inline_data:
+                            return json.loads(artifact.inline_data.data.decode("utf-8"))
+
+                except Exception as e:
+                    log.warning(
+                        f"{component.log_identifier} Failed to load input artifact {filename}: {e}"
+                    )
+
+    # 2. Check for DataPart (Parameter Mode via direct data)
+    data_parts = a2a.get_data_parts_from_message(message)
+    if data_parts:
+        return data_parts[0].data
+
+    # 3. Check for TextPart (Chat Mode)
+    text = a2a.get_text_from_message(message)
+    if text:
+        return {"text": text}
+
+    return {}
 
 
 async def handle_task_request(
@@ -34,7 +94,7 @@ async def handle_task_request(
     try:
         payload = message.get_payload()
         a2a_request = A2ARequest.model_validate(payload)
-        
+
         # Extract message and context
         a2a_message = a2a.get_message_from_send_request(a2a_request)
         request_id = a2a.get_request_id(a2a_request)
@@ -78,6 +138,15 @@ async def handle_task_request(
         # Initialize workflow state
         workflow_state = await _initialize_workflow_state(
             component, a2a_context
+        )
+
+        # Extract and store workflow input
+        workflow_input = await _extract_workflow_input(
+            component, a2a_message, a2a_context
+        )
+        workflow_state.node_outputs["workflow_input"] = {"output": workflow_input}
+        log.info(
+            f"{component.log_identifier} Workflow input extracted: {list(workflow_input.keys())}"
         )
 
         # Create execution context
