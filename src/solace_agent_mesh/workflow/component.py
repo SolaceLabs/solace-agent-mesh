@@ -16,6 +16,10 @@ from solace_ai_connector.common.event import Event, EventType
 from ..common import a2a
 from ..common.sac.sam_component_base import SamComponentBase
 from ..common.agent_registry import AgentRegistry
+from ..common.constants import (
+    EXTENSION_URI_AGENT_TYPE,
+    EXTENSION_URI_SCHEMAS,
+)
 from ..agent.adk.services import (
     initialize_session_service,
     initialize_artifact_service,
