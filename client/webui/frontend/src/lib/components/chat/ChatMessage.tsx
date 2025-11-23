@@ -32,7 +32,8 @@ const MessageActions: React.FC<{
     showWorkflowButton: boolean;
     showFeedbackActions: boolean;
     handleViewWorkflowClick: () => void;
-}> = ({ message, showWorkflowButton, showFeedbackActions, handleViewWorkflowClick }) => {
+    sourcesElement?: React.ReactNode;
+}> = ({ message, showWorkflowButton, showFeedbackActions, handleViewWorkflowClick, sourcesElement }) => {
     const { configCollectFeedback, submittedFeedback, handleFeedbackSubmit, addNotification } = useChatContext();
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
     const [feedbackType, setFeedbackType] = useState<"up" | "down" | null>(null);
@@ -64,7 +65,7 @@ const MessageActions: React.FC<{
 
     const shouldShowFeedback = showFeedbackActions && configCollectFeedback;
 
-    if (!showWorkflowButton && !shouldShowFeedback) {
+    if (!showWorkflowButton && !shouldShowFeedback && !sourcesElement) {
         return null;
     }
 
@@ -84,6 +85,7 @@ const MessageActions: React.FC<{
                         </div>
                     )}
                     <MessageHoverButtons message={message} />
+                    {sourcesElement && <div className="ml-2">{sourcesElement}</div>}
                 </div>
             </div>
             {feedbackType && <FeedbackModal isOpen={isFeedbackModalOpen} onClose={handleModalClose} feedbackType={feedbackType} onSubmit={handleModalSubmit} />}
@@ -167,7 +169,7 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     const modifiedCitations = useMemo(() => {
         if (message.isUser) return [];
         return parseCitations(modifiedText, taskRagData);
-    }, [modifiedText]);
+    }, [modifiedText, taskRagData, message.isUser]);
 
     const renderContent = () => {
         if (message.isError) {
@@ -225,7 +227,7 @@ const getUploadedFiles = (message: MessageFE) => {
     return null;
 };
 
-const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean) => {
+const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLastWithTaskId?: boolean, sourcesElement?: React.ReactNode): React.ReactNode => {
     const { openSidePanelTab, setTaskIdInSidePanel, ragData } = chatContext;
 
     if (message.isStatusBubble) {
@@ -238,37 +240,39 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     // Check for deep research progress data
     const progressPart = message.parts?.find(p => p.kind === "data") as DataPart | undefined;
-    if (progressPart && progressPart.data) {
-        const data = progressPart.data as unknown as ResearchProgressData;
-        if (data.type === "deep_research_progress") {
-            // Only render progress-only if this message has ONLY progress data
-            // If it has other content (text, artifacts, files), render normally below
-            const hasOtherContent = message.parts?.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "artifact" || p.kind === "file");
+    const hasDeepResearchProgress = progressPart?.data && (progressPart.data as { type?: string }).type === "deep_research_progress";
 
-            if (!hasOtherContent) {
-                // Progress-only message - render just the progress component
-                const handleProgressClick = () => {
-                    // Check if there's RAG data for this task
-                    const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
-                    if (taskRagData && taskRagData.length > 0) {
-                        if (message.taskId) {
-                            setTaskIdInSidePanel(message.taskId);
-                            openSidePanelTab("rag");
-                        }
-                    }
-                };
+    // Show progress block at the top if we have progress data and research is not complete
+    if (hasDeepResearchProgress && !message.isComplete) {
+        const data = progressPart!.data as unknown as ResearchProgressData;
+        const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+        const hasOtherContent = message.parts?.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "artifact" || p.kind === "file");
 
-                // Get RAG data for this task to pass to timeline
-                const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+        // Always show progress block for active research (before completion)
+        const progressBlock = (
+            <div className="my-2">
+                <InlineResearchProgress progress={data} isComplete={false} ragData={taskRagData} />
+            </div>
+        );
 
-                return (
-                    <div className="my-2">
-                        <InlineResearchProgress progress={data} isComplete={message.isComplete} onClick={handleProgressClick} ragData={taskRagData} />
-                    </div>
-                );
-            }
-            // If there's other content, fall through to render everything normally
+        // If this is progress-only (no other content), just return the progress block
+        if (!hasOtherContent) {
+            return progressBlock;
         }
+
+        // If there's other content, show progress block first, then the rest
+        // Create a new message without the progress data part to avoid infinite recursion
+        const messageWithoutProgress = {
+            ...message,
+            parts: message.parts?.filter(p => p.kind !== "data"),
+        };
+
+        return (
+            <>
+                {progressBlock}
+                {getChatBubble(messageWithoutProgress, chatContext, isLastWithTaskId)}
+            </>
+        );
     }
 
     // Group contiguous parts to handle interleaving of text and files
@@ -361,7 +365,9 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                             <ChatBubbleMessage variant={variant}>
                                 <MessageContent message={{ ...message, parts: [{ kind: "text", text: (part as TextPart).text }] }} />
                                 {/* Show actions on the last part if it's text */}
-                                {isLastPart && <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />}
+                                {isLastPart && (
+                                    <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} sourcesElement={sourcesElement} />
+                                )}
                             </ChatBubbleMessage>
                         </ChatBubble>
                     );
@@ -374,7 +380,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
             {/* Show actions after artifacts if the last part is an artifact */}
             {lastPartKind === "artifact" || lastPartKind === "file" ? (
                 <div className={`flex ${message.isUser ? "justify-end pr-4" : "justify-start pl-4"}`}>
-                    <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} />
+                    <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} sourcesElement={sourcesElement} />
                 </div>
             ) : null}
 
@@ -444,9 +450,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
 
     return (
         <>
-            {getChatBubble(message, chatContext, isLastWithTaskId)}
-            {getUploadedFiles(message)}
-            {/* Render sources and timeline after completed deep research */}
+            {/* Show progress block at the top for completed deep research */}
             {isDeepResearchComplete &&
                 hasRagSources &&
                 (() => {
@@ -457,45 +461,46 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                         return wasFetched;
                     });
 
-                    console.log("[ChatMessage] Source filtering:", {
-                        totalSources: allSources.length,
-                        fetchedSources: fetchedSources.length,
-                        allSourcesSample: allSources.slice(0, 2).map(s => ({
-                            url: s.url,
-                            title: s.title,
-                            fetched: s.metadata?.fetched,
-                            fetch_status: s.metadata?.fetch_status,
-                            hasFullContentMarker: s.content_preview?.includes("[Full Content Fetched]"),
-                        })),
-                    });
-
                     return (
-                        <>
-                            <Sources ragMetadata={{ sources: fetchedSources }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleDeepResearchClick} />
-                            {/* Show timeline accordion for completed deep research */}
-                            <div className="mb-4">
-                                <InlineResearchProgress
-                                    progress={{
-                                        type: "deep_research_progress",
-                                        phase: "writing",
-                                        status_text: "Research complete",
-                                        progress_percentage: 100,
-                                        current_iteration: 0,
-                                        total_iterations: 0,
-                                        sources_found: fetchedSources.length,
-                                        current_query: "",
-                                        fetching_urls: [],
-                                        elapsed_seconds: 0,
-                                        max_runtime_seconds: 0,
-                                    }}
-                                    isComplete={true}
-                                    onClick={handleDeepResearchClick}
-                                    ragData={taskRagData}
-                                />
-                            </div>
-                        </>
+                        <div className="mb-4">
+                            <InlineResearchProgress
+                                progress={{
+                                    type: "deep_research_progress",
+                                    phase: "writing",
+                                    status_text: "Research complete",
+                                    progress_percentage: 100,
+                                    current_iteration: 0,
+                                    total_iterations: 0,
+                                    sources_found: fetchedSources.length,
+                                    current_query: "",
+                                    fetching_urls: [],
+                                    elapsed_seconds: 0,
+                                    max_runtime_seconds: 0,
+                                }}
+                                isComplete={true}
+                                ragData={taskRagData}
+                            />
+                        </div>
                     );
                 })()}
+            {getChatBubble(
+                message,
+                chatContext,
+                isLastWithTaskId,
+                isDeepResearchComplete && hasRagSources
+                    ? (() => {
+                          // Filter to only show fetched sources (not snippets)
+                          const allSources = taskRagData.flatMap(r => r.sources);
+                          const fetchedSources = allSources.filter(source => {
+                              const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
+                              return wasFetched;
+                          });
+
+                          return <Sources ragMetadata={{ sources: fetchedSources }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleDeepResearchClick} />;
+                      })()
+                    : undefined
+            )}
+            {getUploadedFiles(message)}
             {/* Render sources after completed web search */}
             {isWebSearchComplete && hasRagSources && (
                 <div className="my-4">

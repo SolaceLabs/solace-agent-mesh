@@ -1414,7 +1414,7 @@ async def deep_research(
                 
                 # Send progress for each query with structured data
                 await _send_research_progress(
-                    f"Query {query_idx}/{len(queries)}: {query[:60]}...",
+                    f"{query[:60]}...",
                     tool_context,
                     phase="searching",
                     progress_percentage=int(query_progress),

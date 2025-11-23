@@ -3,6 +3,7 @@ API Router for providing frontend configuration.
 """
 
 import logging
+import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any
 
