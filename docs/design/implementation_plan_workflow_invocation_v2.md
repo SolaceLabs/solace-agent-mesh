@@ -10,14 +10,13 @@ This v2 plan incorporates the existing workflow implementation details found in 
 ### Phase 1: Core Types & Constants
 
 1.  **Update `src/solace_agent_mesh/common/a2a/types.py`**
-    *   Define `WorkflowConfigExtensionParams` Pydantic model to represent the `workflow_config` extension in Agent Cards.
+    *   Define `SchemasExtensionParams` Pydantic model to represent the `schemas` extension in Agent Cards.
     *   This model will hold `input_schema` and `output_schema`.
 
 2.  **Update `src/solace_agent_mesh/common/constants.py`**
     *   Define constants for the extension URIs:
-        *   `EXTENSION_URI_WORKFLOW_CONFIG = "https://solace.com/a2a/extensions/workflow-config"`
+        *   `EXTENSION_URI_SCHEMAS = "https://solace.com/a2a/extensions/sam/schemas"`
         *   `EXTENSION_URI_AGENT_TYPE = "https://solace.com/a2a/extensions/agent-type"`
-        *   `EXTENSION_URI_SCHEMAS = "https://solace.com/a2a/extensions/sam/schemas"` (Standardize on this existing URI for schemas)
 
 ### Phase 2: Tool Implementation (`WorkflowAgentTool`)
 
@@ -55,6 +54,7 @@ This v2 plan incorporates the existing workflow implementation details found in 
         *   Add to `llm_request`.
     *   **If Standard Agent:**
         *   Keep existing logic (instantiate `PeerAgentTool`).
+        *   (Future enhancement: Standard agents could also use `WorkflowAgentTool` if they publish a schema, but for now we stick to `agent_type` check).
 
 ### Phase 4: Prompt Engineering
 
@@ -71,11 +71,11 @@ This v2 plan incorporates the existing workflow implementation details found in 
 
 7.  **Update `src/solace_agent_mesh/agent/protocol/event_handlers.py`**
     *   Update `publish_agent_card` to include the `agent_type` extension if configured.
-    *   Ensure `input_schema` and `output_schema` are published using `EXTENSION_URI_SCHEMAS`.
+    *   Update `publish_agent_card` to include the `schemas` extension (using `EXTENSION_URI_SCHEMAS`) if `input_schema` or `output_schema` are configured.
 
 8.  **Update `src/solace_agent_mesh/workflow/component.py`**
     *   Update `_create_workflow_agent_card` to include the `agent_type` extension (set to "workflow").
-    *   Ensure it uses `EXTENSION_URI_SCHEMAS` for publishing schemas (it currently hardcodes the URI string, switch to constant).
+    *   Update `_create_workflow_agent_card` to use the shared `EXTENSION_URI_SCHEMAS` constant for publishing schemas.
 
 ### Phase 6: Workflow Input Handling (Server-Side)
 
