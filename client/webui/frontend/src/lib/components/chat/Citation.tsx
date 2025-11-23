@@ -60,9 +60,9 @@ function getCitationDisplayText(citation: CitationType, maxLength: number = 30):
     // For web search citations, try to extract domain name even without full source data
     const isWebSearch = citation.source?.metadata?.type === "web_search" || citation.type === "search";
 
-    if (isWebSearch && citation.source?.source_url) {
+    if (isWebSearch && citation.source?.sourceUrl) {
         try {
-            const url = new URL(citation.source.source_url);
+            const url = new URL(citation.source.sourceUrl);
             const domain = url.hostname.replace(/^www\./, "");
             return truncateText(domain, maxLength);
         } catch {
@@ -104,15 +104,15 @@ function getCitationDisplayText(citation: CitationType, maxLength: number = 30):
     }
 
     // Fallback to source URL if no filename
-    if (citation.source.source_url) {
+    if (citation.source.sourceUrl) {
         // Try to extract domain name or filename from URL
         try {
-            const url = new URL(citation.source.source_url);
+            const url = new URL(citation.source.sourceUrl);
             const domain = url.hostname.replace(/^www\./, "");
             return truncateText(domain, maxLength);
         } catch {
             // If URL parsing fails, try to extract filename
-            const filename = citation.source.source_url.split("/").pop() || citation.source.source_url;
+            const filename = citation.source.sourceUrl.split("/").pop() || citation.source.sourceUrl;
             return truncateText(filename, maxLength);
         }
     }
@@ -126,7 +126,7 @@ export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
 
     // Check if this is a web search citation
     const isWebSearch = citation.source?.metadata?.type === "web_search";
-    const webSearchUrl = isWebSearch ? citation.source?.source_url : null;
+    const webSearchUrl = isWebSearch ? citation.source?.sourceUrl : null;
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();

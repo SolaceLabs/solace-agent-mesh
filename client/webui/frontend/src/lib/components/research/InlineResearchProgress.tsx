@@ -167,7 +167,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
             fullMetadata: metadata,
             firstSearchStructure: {
                 query: firstSearch.query,
-                search_type: firstSearch.search_type,
+                searchType: firstSearch.searchType,
                 sourcesCount: firstSearch.sources?.length,
                 hasMetadata: !!metadata,
             },
@@ -183,11 +183,11 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
             }>;
             const allSources = firstSearch.sources;
 
-            // Create a map of citation_id to source for quick lookup
+            // Create a map of citationId to source for quick lookup
             const sourceMap = new Map();
             allSources.forEach(source => {
-                if (source.citation_id) {
-                    sourceMap.set(source.citation_id, source);
+                if (source.citationId) {
+                    sourceMap.set(source.citationId, source);
                 }
             });
 
@@ -249,7 +249,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
 
                 // Filter to only show fetched sources (not snippets)
                 const fetchedSources = search.sources.filter(source => {
-                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
+                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
                     return wasFetched;
                 });
 
@@ -265,7 +265,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                     if (source.url || title) {
                         events.push({
                             type: "read",
-                            timestamp: source.retrieved_at || search.timestamp,
+                            timestamp: source.retrievedAt || search.timestamp,
                             content: title || source.url || "Unknown",
                             url: source.url,
                             favicon: source.metadata?.favicon || (source.url ? `https://www.google.com/s2/favicons?domain=${source.url}&sz=32` : ""),
@@ -292,7 +292,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                     if (source.url || title) {
                         events.push({
                             type: "read",
-                            timestamp: source.retrieved_at || search.timestamp,
+                            timestamp: source.retrievedAt || search.timestamp,
                             content: title || source.url || "Unknown",
                             url: source.url,
                             favicon: source.metadata?.favicon || (source.url ? `https://www.google.com/s2/favicons?domain=${source.url}&sz=32` : ""),

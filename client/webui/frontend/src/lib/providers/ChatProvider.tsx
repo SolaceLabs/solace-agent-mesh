@@ -1068,15 +1068,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     if (phase === "searching" && currentQuery && currentQuery.trim()) {
                                         // Track new query
                                         setRagData(prev => {
-                                            const existingQuery = prev.find(r => r.search_type === "deep_research" && r.query === currentQuery && r.task_id === currentTaskIdFromResult);
+                                            const existingQuery = prev.find(r => r.searchType === "deep_research" && r.query === currentQuery && r.taskId === currentTaskIdFromResult);
 
                                             if (!existingQuery) {
                                                 const newEntry = {
                                                     query: currentQuery,
-                                                    search_type: "deep_research" as const,
+                                                    searchType: "deep_research" as const,
                                                     timestamp: new Date().toISOString(),
                                                     sources: [],
-                                                    task_id: currentTaskIdFromResult,
+                                                    taskId: currentTaskIdFromResult,
                                                 };
                                                 return [...prev, newEntry];
                                             }
@@ -1085,27 +1085,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     } else if (phase === "analyzing" && fetchingUrls.length > 0) {
                                         // Add sources to most recent query
                                         setRagData(prev => {
-                                            const deepResearchEntries = prev.filter(r => r.search_type === "deep_research" && r.task_id === currentTaskIdFromResult);
+                                            const deepResearchEntries = prev.filter(r => r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult);
 
                                             if (deepResearchEntries.length > 0) {
                                                 const updated = [...prev];
                                                 const lastQueryIndex = updated.lastIndexOf(deepResearchEntries[deepResearchEntries.length - 1]);
 
                                                 if (lastQueryIndex !== -1) {
-                                                    const existingUrls = new Set(updated[lastQueryIndex].sources.map(s => s.source_url || s.url));
+                                                    const existingUrls = new Set(updated[lastQueryIndex].sources.map(s => s.sourceUrl || s.url));
 
                                                     fetchingUrls.forEach((urlInfo: any) => {
                                                         const url = urlInfo.url;
                                                         const sourceType = urlInfo.source_type || "web";
                                                         if (url && !existingUrls.has(url)) {
                                                             updated[lastQueryIndex].sources.push({
-                                                                citation_id: `search${updated[lastQueryIndex].sources.length}`,
+                                                                citationId: `search${updated[lastQueryIndex].sources.length}`,
                                                                 title: urlInfo.title || url,
-                                                                source_url: url,
+                                                                sourceUrl: url,
                                                                 url: url, // RAGInfoPanel checks for this field
-                                                                content_preview: urlInfo.title ? `Analyzed: ${urlInfo.title}` : `Analyzed: ${url}`,
-                                                                relevance_score: 1.0,
-                                                                retrieved_at: new Date().toISOString(),
+                                                                contentPreview: urlInfo.title ? `Analyzed: ${urlInfo.title}` : `Analyzed: ${url}`,
+                                                                relevanceScore: 1.0,
+                                                                retrievedAt: new Date().toISOString(),
                                                                 metadata: {
                                                                     favicon: urlInfo.favicon || (sourceType === "web" ? `https://www.google.com/s2/favicons?domain=${url}&sz=32` : ""),
                                                                     type: "web_search",
@@ -1139,20 +1139,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         if (ragMetadata && ragEnabled) {
                                             const ragSearchResult: RAGSearchResult = {
                                                 query: ragMetadata.query,
-                                                search_type: ragMetadata.search_type,
+                                                searchType: ragMetadata.searchType,
                                                 timestamp: ragMetadata.timestamp,
                                                 sources: ragMetadata.sources,
-                                                task_id: currentTaskIdFromResult,
+                                                taskId: currentTaskIdFromResult,
                                                 metadata: ragMetadata.metadata, // Preserve metadata with query breakdown
                                             };
 
                                             // For deep research: REPLACE all previous entries for this task with the final metadata
                                             // This ensures we have the complete, properly structured data with metadata.queries
-                                            if (ragMetadata.search_type === "deep_research") {
+                                            if (ragMetadata.searchType === "deep_research") {
                                                 console.log("ChatProvider: Replacing deep research entries with final metadata");
                                                 setRagData(prev => {
                                                     // Remove all previous deep research entries for this task
-                                                    const filtered = prev.filter(r => !(r.search_type === "deep_research" && r.task_id === currentTaskIdFromResult));
+                                                    const filtered = prev.filter(r => !(r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult));
                                                     // Add the final complete entry
                                                     return [...filtered, ragSearchResult];
                                                 });
@@ -1361,7 +1361,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             const hasError = taskMessages.some(m => m.isError);
                             const taskStatus = hasError ? "error" : "completed";
 
-                            const taskRagData = ragDataRef.current.filter(r => r.task_id === currentTaskIdFromResult);
+                            const taskRagData = ragDataRef.current.filter(r => r.taskId === currentTaskIdFromResult);
 
                             // Save complete task (don't wait for completion)
                             saveTaskToBackend({

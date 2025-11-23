@@ -48,7 +48,7 @@ const SourceCard: React.FC<{
     source: RAGSearchResult["sources"][0];
 }> = ({ source }) => {
     const [isExpanded, setIsExpanded] = React.useState(false);
-    const contentPreview = source.content_preview;
+    const contentPreview = source.contentPreview;
 
     // Don't show content preview if it's just "Reading..." placeholder
     const hasRealContent = contentPreview && contentPreview !== "Reading...";
@@ -56,7 +56,7 @@ const SourceCard: React.FC<{
     const displayContent = shouldTruncate && !isExpanded ? contentPreview.substring(0, 200) + "..." : contentPreview;
 
     // Only show score if it's a real relevance score (not the default 1.0 from deep research)
-    const showScore = source.relevance_score !== 1.0;
+    const showScore = source.relevanceScore !== 1.0;
 
     return (
         <div className="bg-muted/50 border-border/50 flex flex-col rounded border p-3">
@@ -64,14 +64,14 @@ const SourceCard: React.FC<{
             <div className="mb-2 flex flex-shrink-0 items-center justify-between">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                     <FileText className="text-muted-foreground h-3 w-3 flex-shrink-0" />
-                    <span className="truncate text-xs font-medium" title={source.title || source.filename || extractFilename(source.file_id)}>
-                        {source.title || source.filename || extractFilename(source.file_id)}
+                    <span className="truncate text-xs font-medium" title={source.title || source.filename || extractFilename(source.fileId)}>
+                        {source.title || source.filename || extractFilename(source.fileId)}
                     </span>
                 </div>
                 {showScore && (
                     <div className="ml-2 flex flex-shrink-0 items-center gap-1 text-xs font-medium">
                         <TrendingUp className="h-3 w-3" />
-                        <span>Score: {source.relevance_score.toFixed(2)}</span>
+                        <span>Score: {source.relevanceScore.toFixed(2)}</span>
                     </div>
                 )}
             </div>
@@ -142,14 +142,14 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         );
     }
 
-    const isAllDeepResearch = ragData.every(search => search.search_type === "deep_research" || search.search_type === "web_search");
+    const isAllDeepResearch = ragData.every(search => search.searchType === "deep_research" || search.searchType === "web_search");
 
     // Calculate total sources across all searches
     const totalSources = ragData.reduce((sum, search) => sum + search.sources.length, 0);
 
     // Simple source item component for deep research
     const SimpleSourceItem: React.FC<{ source: RAGSearchResult["sources"][0] }> = ({ source }) => {
-        const url = source.url || source.source_url;
+        const url = source.url || source.sourceUrl;
         const title = source.title || source.filename || "Unknown";
         const favicon = source.metadata?.favicon || (url ? `https://www.google.com/s2/favicons?domain=${url}&sz=32` : "");
 
@@ -184,20 +184,20 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         const sourceMap = new Map<string, RAGSearchResult["sources"][0]>();
 
         // Check if this is web_search (no fetched metadata) or deep_research (has fetched metadata)
-        const isWebSearch = ragData.some(search => search.search_type === "web_search");
+        const isWebSearch = ragData.some(search => search.searchType === "web_search");
 
         ragData.forEach(search => {
             search.sources.forEach(source => {
                 // For web_search: include all sources
                 // For deep_research: only include fetched sources (not snippets)
                 if (!isWebSearch) {
-                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
+                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
                     if (!wasFetched) {
                         return; // Skip snippet-only sources for deep research
                     }
                 }
 
-                const key = source.url || source.source_url || source.title || "";
+                const key = source.url || source.sourceUrl || source.title || "";
                 if (key && !sourceMap.has(key)) {
                     sourceMap.set(key, source);
                 }
@@ -273,7 +273,7 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                                         const sourceType = source.metadata?.source_type || "web";
                                         events.push({
                                             type: "read",
-                                            timestamp: source.retrieved_at || search.timestamp,
+                                            timestamp: source.retrievedAt || search.timestamp,
                                             content: source.title || source.url || "Unknown",
                                             url: source.url,
                                             favicon: source.metadata?.favicon || (source.url ? `https://www.google.com/s2/favicons?domain=${source.url}&sz=32` : ""),

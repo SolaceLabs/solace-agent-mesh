@@ -5,11 +5,13 @@ Provides web search capabilities using Tavily and Google Custom Search APIs
 
 import logging
 from typing import Any, Dict, Optional
+from datetime import datetime, timezone
 from google.adk.tools import ToolContext
 
 from ...tools.web_search import TavilySearchTool, GoogleSearchTool, SearchResult
 from .tool_definition import BuiltinTool
 from .registry import tool_registry
+from ...gateway.http_sse.routers.dto.rag_dto import create_rag_source, create_rag_search_result
 
 log = logging.getLogger(__name__)
 
@@ -81,32 +83,40 @@ async def _web_search_tavily(
             len(result.images)
         )
         
-        # Format results as RAG-compatible metadata for citation rendering
+        # Format results as RAG-compatible metadata using DTOs for camelCase conversion
         rag_sources = []
         for i, source in enumerate(result.organic):
-            rag_sources.append({
-                "citation_id": f"search{i}",
-                "file_id": f"web_search_{i}",
-                "filename": source.attribution or source.title,
-                "content_preview": source.snippet,
-                "relevance_score": 1.0,
-                "source_url": source.link,
-                "metadata": {
+            rag_source = create_rag_source(
+                citation_id=f"search{i}",
+                file_id=f"web_search_{i}",
+                filename=source.attribution or source.title,
+                title=source.title,
+                source_url=source.link,
+                url=source.link,
+                content_preview=source.snippet,
+                relevance_score=1.0,
+                source_type="web",
+                retrieved_at=datetime.now(timezone.utc).isoformat(),
+                metadata={
                     "title": source.title,
                     "link": source.link,
-                    "type": "web_search"
+                    "type": "web_search",
+                    "favicon": f"https://www.google.com/s2/favicons?domain={source.link}&sz=32" if source.link else ""
                 }
-            })
+            )
+            rag_sources.append(rag_source)
         
-        # Return both JSON result and RAG metadata
+        # Return both JSON result and RAG metadata (with camelCase keys)
+        rag_metadata = create_rag_search_result(
+            query=query,
+            search_type="web_search",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            sources=rag_sources
+        )
+        
         return {
             "result": result.model_dump_json(),
-            "rag_metadata": {
-                "query": query,
-                "search_type": "web_search",
-                "timestamp": "now",
-                "sources": rag_sources
-            }
+            "rag_metadata": rag_metadata
         }
         
     except Exception as e:
@@ -177,32 +187,40 @@ async def _web_search_google(
             len(result.images)
         )
         
-        # Format results as RAG-compatible metadata for citation rendering
+        # Format results as RAG-compatible metadata using DTOs for camelCase conversion
         rag_sources = []
         for i, source in enumerate(result.organic):
-            rag_sources.append({
-                "citation_id": f"search{i}",
-                "file_id": f"web_search_{i}",
-                "filename": source.attribution or source.title,
-                "content_preview": source.snippet,
-                "relevance_score": 1.0,
-                "source_url": source.link,
-                "metadata": {
+            rag_source = create_rag_source(
+                citation_id=f"search{i}",
+                file_id=f"web_search_{i}",
+                filename=source.attribution or source.title,
+                title=source.title,
+                source_url=source.link,
+                url=source.link,
+                content_preview=source.snippet,
+                relevance_score=1.0,
+                source_type="web",
+                retrieved_at=datetime.now(timezone.utc).isoformat(),
+                metadata={
                     "title": source.title,
                     "link": source.link,
-                    "type": "web_search"
+                    "type": "web_search",
+                    "favicon": f"https://www.google.com/s2/favicons?domain={source.link}&sz=32" if source.link else ""
                 }
-            })
+            )
+            rag_sources.append(rag_source)
         
-        # Return both JSON result and RAG metadata
+        # Return both JSON result and RAG metadata (with camelCase keys)
+        rag_metadata = create_rag_search_result(
+            query=query,
+            search_type="web_search",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            sources=rag_sources
+        )
+        
         return {
             "result": result.model_dump_json(),
-            "rag_metadata": {
-                "query": query,
-                "search_type": "web_search",
-                "timestamp": "now",
-                "sources": rag_sources
-            }
+            "rag_metadata": rag_metadata
         }
         
     except Exception as e:
@@ -307,8 +325,29 @@ web_search_google_tool_def = BuiltinTool(
     },
 )
 
-# Register tools with the registry
-tool_registry.register(web_search_tavily_tool_def)
-tool_registry.register(web_search_google_tool_def)
+# Register tools with the registry only if API keys are available
+import os
 
-log.info("Web search tools registered: web_search_tavily, web_search_google")
+registered_tools = []
+
+# Check if Tavily API key is configured
+tavily_key = os.environ.get("TAVILY_API_KEY", "")
+if tavily_key and tavily_key.strip():
+    tool_registry.register(web_search_tavily_tool_def)
+    registered_tools.append("web_search_tavily")
+else:
+    log.info("Tavily API key not configured, web_search_tavily tool will not be available")
+
+# Check if Google Search API keys are configured
+google_key = os.environ.get("GOOGLE_SEARCH_API_KEY", "")
+google_cse = os.environ.get("GOOGLE_CSE_ID", "")
+if google_key and google_key.strip() and google_cse and google_cse.strip():
+    tool_registry.register(web_search_google_tool_def)
+    registered_tools.append("web_search_google")
+else:
+    log.info("Google Search API keys not fully configured, web_search_google tool will not be available")
+
+if registered_tools:
+    log.info(f"Web search tools registered: {', '.join(registered_tools)}")
+else:
+    log.warning("No web search tools registered - neither Tavily nor Google Search API keys are configured")

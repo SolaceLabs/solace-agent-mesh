@@ -29,6 +29,7 @@ from .registry import tool_registry
 from .web_search_tools import _web_search_tavily, _web_search_google
 from .web_tools import web_request
 from ...common import a2a
+from ...gateway.http_sse.routers.dto.rag_dto import create_rag_source, create_rag_search_result
 
 
 # Category information
@@ -201,25 +202,29 @@ class ResearchCitationTracker:
                  citation_id, self.citation_counter, result.title[:50])
         self.citation_counter += 1
         
-        # Format like web_search tool for proper citation rendering
-        self.citations[citation_id] = {
-            "citation_id": citation_id,
-            "file_id": f"deep_research_{self.citation_counter}",  # Add file_id for web citations
-            "filename": result.title,  # Use title as filename
-            "content_preview": result.content[:200] + "..." if len(result.content) > 200 else result.content,
-            "relevance_score": result.relevance_score,
-            "source_url": result.url or "N/A",  # Use source_url key (not just url)
-            "url": result.url,  # Also add url field for frontend
-            "metadata": {
+        # Create citation using DTO helper for camelCase conversion
+        citation_dict = create_rag_source(
+            citation_id=citation_id,
+            file_id=f"deep_research_{self.citation_counter}",
+            filename=result.title,
+            title=result.title,
+            source_url=result.url or "N/A",
+            url=result.url,
+            content_preview=result.content[:200] + "..." if len(result.content) > 200 else result.content,
+            relevance_score=result.relevance_score,
+            source_type=result.source_type,
+            retrieved_at=datetime.now(timezone.utc).isoformat(),
+            metadata={
                 "title": result.title,
                 "link": result.url,
-                "type": "web_search",  # Mark as web_search type for proper rendering
+                "type": "web_search",
                 "source_type": result.source_type,
-                "retrieved_at": datetime.now(timezone.utc).isoformat(),
+                "favicon": f"https://www.google.com/s2/favicons?domain={result.url}&sz=32" if result.url else "",
                 **result.metadata
             }
-        }
+        )
         
+        self.citations[citation_id] = citation_dict
         result.citation_id = citation_id
         
         # Track URL to citation_id mapping for later updates
@@ -247,7 +252,7 @@ class ResearchCitationTracker:
             log.info("[DeepResearch:Citation] Updated citation %s with fetched content", citation_id)
     
     def get_rag_metadata(self) -> Dict[str, Any]:
-        """Format citations for RAG system"""
+        """Format citations for RAG system with camelCase conversion"""
         # Save the last query if it exists
         if self.current_query:
             self.queries.append({
@@ -258,17 +263,16 @@ class ResearchCitationTracker:
             self.current_query = None
             self.current_query_sources = []
         
-        # Return single search result with all sources
-        # Store query information in metadata for frontend to reconstruct timeline
-        return {
-            "query": self.research_question,
-            "search_type": "deep_research",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "sources": list(self.citations.values()),
-            "metadata": {
+        # Return single search result with all sources using DTO for camelCase conversion
+        return create_rag_search_result(
+            query=self.research_question,
+            search_type="deep_research",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            sources=list(self.citations.values()),
+            metadata={
                 "queries": self.queries  # Include query breakdown for timeline
             }
-        }
+        )
 
 
 async def _send_research_progress(

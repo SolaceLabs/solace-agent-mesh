@@ -47,13 +47,13 @@ export function parseCitations(text: string, ragMetadata?: RAGSearchResult): Cit
         // Match to source metadata if available
         if (ragMetadata?.sources) {
             const citationId = `${citationType}${sourceId}`;
-            citation.source = ragMetadata.sources.find((s: RAGSource) => s.citation_id === citationId);
+            citation.source = ragMetadata.sources.find((s: RAGSource) => s.citationId === citationId);
 
             // Debug logging to help troubleshoot citation matching
             if (!citation.source && ragMetadata.sources.length > 0) {
                 console.log(
                     `Citation ${citationId} not found in sources:`,
-                    ragMetadata.sources.map(s => s.citation_id)
+                    ragMetadata.sources.map(s => s.citationId)
                 );
             }
         }
@@ -127,19 +127,19 @@ export function getCitationTooltip(citation: Citation): string {
     // For web search citations, show the URL and title
     const isWebSearch = citation.source?.metadata?.type === "web_search" || citation.type === "search";
 
-    if (isWebSearch && citation.source?.source_url) {
+    if (isWebSearch && citation.source?.sourceUrl) {
         const title = citation.source.metadata?.title || citation.source.filename;
-        if (title && title !== citation.source.source_url) {
-            return `${title}\n${citation.source.source_url}`;
+        if (title && title !== citation.source.sourceUrl) {
+            return `${title}\n${citation.source.sourceUrl}`;
         }
-        return citation.source.source_url;
+        return citation.source.sourceUrl;
     }
 
     if (!citation.source) {
         return `Source ${getCitationNumber(citation)}`;
     }
 
-    const score = (citation.source.relevance_score * 100).toFixed(1);
+    const score = (citation.source.relevanceScore * 100).toFixed(1);
     return `${citation.source.filename} (${score}% relevance)`;
 }
 
@@ -147,5 +147,5 @@ export function getCitationTooltip(citation: Citation): string {
  * Get citation link URL (for kb_search with source URLs)
  */
 export function getCitationLink(citation: Citation): string | undefined {
-    return citation.source?.source_url;
+    return citation.source?.sourceUrl;
 }

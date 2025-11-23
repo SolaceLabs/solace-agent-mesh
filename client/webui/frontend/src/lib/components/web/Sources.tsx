@@ -279,11 +279,11 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
         const seenSources = new Set<string>();
 
         ragMetadata.sources.forEach((s: RAGSource) => {
-            const sourceType = s.metadata?.source_type || s.source_type || "web";
+            const sourceType = s.metadata?.source_type || s.sourceType || "web";
             const source: SearchSource = {
-                link: s.source_url || s.metadata?.link || "",
+                link: s.sourceUrl || s.metadata?.link || "",
                 title: s.metadata?.title || s.filename || "",
-                snippet: s.content_preview || "",
+                snippet: s.contentPreview || "",
                 attribution: s.filename || "",
                 processed: false,
                 source_type: sourceType,

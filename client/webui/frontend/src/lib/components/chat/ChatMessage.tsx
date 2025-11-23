@@ -110,7 +110,7 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     // Parse citations from text and match to RAG sources
     const taskRagData = useMemo(() => {
         if (!message.taskId || !ragData) return undefined;
-        return ragData.find(r => r.task_id === message.taskId);
+        return ragData.find(r => r.taskId === message.taskId);
     }, [message.taskId, ragData]);
 
     const citations = useMemo(() => {
@@ -245,7 +245,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
     // Show progress block at the top if we have progress data and research is not complete
     if (hasDeepResearchProgress && !message.isComplete) {
         const data = progressPart!.data as unknown as ResearchProgressData;
-        const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+        const taskRagData = ragData?.filter(r => r.taskId === message.taskId);
         const hasOtherContent = message.parts?.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "artifact" || p.kind === "file");
 
         // Always show progress block for active research (before completion)
@@ -412,7 +412,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     });
 
     // Get RAG metadata for this task
-    const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+    const taskRagData = ragData?.filter(r => r.taskId === message.taskId);
 
     console.log("[ChatMessage] Task RAG data:", {
         taskId: message.taskId,
@@ -425,7 +425,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     const hasRagSources = taskRagData && taskRagData.length > 0 && taskRagData.some(r => r.sources && r.sources.length > 0);
 
     // Check if ragData indicates deep research (works after page refresh)
-    const hasDeepResearchRagData = taskRagData?.some(r => r.search_type === "deep_research");
+    const hasDeepResearchRagData = taskRagData?.some(r => r.searchType === "deep_research");
 
     const isDeepResearchComplete = message.isComplete && (hasProgressPart || hasDeepResearchRagData) && hasRagSources;
 
@@ -437,13 +437,13 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     });
 
     // Check if this is a completed web search message (has web_search sources but not deep research)
-    const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData?.some(r => r.search_type === "web_search");
+    const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData?.some(r => r.searchType === "web_search");
 
     console.log("[ChatMessage] Web search detection:", {
         isWebSearchComplete,
         isLastWithTaskId,
         hasRagSources,
-        searchTypes: taskRagData?.map(r => r.search_type),
+        searchTypes: taskRagData?.map(r => r.searchType),
     });
 
     // Handler for sources click (works for both deep research and web search)
@@ -464,7 +464,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                     // Filter to only show fetched sources (not snippets)
                     const allSources = taskRagData.flatMap(r => r.sources);
                     const fetchedSources = allSources.filter(source => {
-                        const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
+                        const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
                         return wasFetched;
                     });
 
@@ -503,7 +503,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                           // For web search: show all sources
                           const sourcesToShow = isDeepResearchComplete
                               ? allSources.filter(source => {
-                                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
+                                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
                                     return wasFetched;
                                 })
                               : allSources;
