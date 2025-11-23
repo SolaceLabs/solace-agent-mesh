@@ -161,8 +161,8 @@ apps:
             # Phase-specific model configurations (optional)
             model_configs:
               report_generation:
-                model: "openai/gpt-5-nano"
-                temperature: 1
+                model: "openai/gpt-5-mini"
+                temperature: 1.0
                 timeout: 300
 
 
