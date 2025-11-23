@@ -143,7 +143,8 @@ class AudioService:
         temp_path: str,
         user_id: str,
         session_id: str,
-        app_name: str = "webui"
+        app_name: str = "webui",
+        language: Optional[str] = None
     ) -> TranscriptionResult:
         """
         Transcribe audio using OpenAI Whisper API.
@@ -153,6 +154,7 @@ class AudioService:
             user_id: User identifier
             session_id: Session identifier
             app_name: Application name
+            language: Optional language code (e.g., "en", "es", "fr")
             
         Returns:
             TranscriptionResult with transcribed text
@@ -185,6 +187,13 @@ class AudioService:
             data = {
                 "model": model,
             }
+            
+            # Add language parameter if provided (OpenAI expects ISO-639-1 code like "en", "es")
+            if language:
+                # Convert language code from "en-US" format to "en" format for OpenAI
+                lang_code = language.split("-")[0] if "-" in language else language
+                data["language"] = lang_code
+            
             headers = {
                 "Authorization": f"Bearer {api_key}"
             }
@@ -217,7 +226,8 @@ class AudioService:
         temp_path: str,
         user_id: str,
         session_id: str,
-        app_name: str = "webui"
+        app_name: str = "webui",
+        language: Optional[str] = None
     ) -> TranscriptionResult:
         """
         Transcribe audio using Azure Speech SDK.
@@ -227,6 +237,7 @@ class AudioService:
             user_id: User identifier
             session_id: Session identifier
             app_name: Application name
+            language: Optional language code (e.g., "en-US", "es-ES")
             
         Returns:
             TranscriptionResult with transcribed text
@@ -251,7 +262,8 @@ class AudioService:
             
             api_key = azure_config.get("api_key", "")
             region = azure_config.get("region", "")
-            language = azure_config.get("language", "en-US")
+            # Use provided language or fall back to config
+            final_language = language or azure_config.get("language", "en-US")
             
             if not api_key or not region:
                 raise HTTPException(
@@ -298,7 +310,7 @@ class AudioService:
                 subscription=api_key,
                 region=region
             )
-            speech_config.speech_recognition_language = language
+            speech_config.speech_recognition_language = final_language
             
             # Create audio config from file
             audio_config = speechsdk.AudioConfig(filename=audio_path)
@@ -349,7 +361,7 @@ class AudioService:
             
             return TranscriptionResult(
                 text=full_transcription,
-                language=language,
+                language=final_language,
                 duration=0.0  # Duration not available in continuous mode
             )
                 
@@ -373,7 +385,8 @@ class AudioService:
         user_id: str,
         session_id: str,
         app_name: str = "webui",
-        provider: Optional[str] = None
+        provider: Optional[str] = None,
+        language: Optional[str] = None
     ) -> TranscriptionResult:
         """
         Transcribe audio file to text using configured STT service.
@@ -385,6 +398,7 @@ class AudioService:
             session_id: Session identifier
             app_name: Application name
             provider: Optional provider override (openai, azure)
+            language: Optional language code (e.g., "en-US", "es-ES")
             
         Returns:
             TranscriptionResult with transcribed text
@@ -430,18 +444,18 @@ class AudioService:
                 final_provider = provider or stt_config.get("provider", "openai")
                 
                 log.info(
-                    "[AudioService] Transcribing audio for user=%s, session=%s, provider=%s",
-                    user_id, session_id, final_provider
+                    "[AudioService] Transcribing audio for user=%s, session=%s, provider=%s, language=%s",
+                    user_id, session_id, final_provider, language
                 )
                 
                 # Route to appropriate provider
                 if final_provider == "azure":
                     return await self.transcribe_audio_azure(
-                        temp_path, user_id, session_id, app_name
+                        temp_path, user_id, session_id, app_name, language
                     )
                 elif final_provider == "openai":
                     return await self.transcribe_audio_openai(
-                        temp_path, user_id, session_id, app_name
+                        temp_path, user_id, session_id, app_name, language
                     )
                 else:
                     raise HTTPException(500, f"Unknown STT provider: {final_provider}")

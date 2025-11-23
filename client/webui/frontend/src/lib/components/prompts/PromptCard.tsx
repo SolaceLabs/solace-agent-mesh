@@ -57,7 +57,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
     const handleTogglePin = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (onTogglePin) {
-            onTogglePin(prompt.id, prompt.is_pinned);
+            onTogglePin(prompt.id, prompt.isPinned);
         }
     };
 
@@ -83,8 +83,8 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                     </div>
                     <div className="flex items-center gap-1">
                         {onTogglePin && (
-                            <Button variant="ghost" size="icon" onClick={handleTogglePin} className={prompt.is_pinned ? "text-primary" : "text-muted-foreground"} tooltip={prompt.is_pinned ? "Remove from favorites" : "Add to favorites"}>
-                                <Star size={16} fill={prompt.is_pinned ? "currentColor" : "none"} />
+                            <Button variant="ghost" size="icon" onClick={handleTogglePin} className={prompt.isPinned ? "text-primary" : "text-muted-foreground"} tooltip={prompt.isPinned ? "Remove from favorites" : "Add to favorites"}>
+                                <Star size={16} fill={prompt.isPinned ? "currentColor" : "none"} />
                             </Button>
                         )}
                         <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
@@ -134,7 +134,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                     </div>
                 </div>
                 <div className="flex flex-grow flex-col overflow-hidden px-4">
-                    <div className="text-muted-foreground mb-2 text-xs">By {prompt.author_name || prompt.user_id}</div>
+                    <div className="text-muted-foreground mb-2 text-xs">By {prompt.authorName || prompt.userId}</div>
                     <div className="mb-3 line-clamp-2 text-sm leading-5">{prompt.description || "No description provided."}</div>
                     <div className="mt-auto">
                         <div className="flex flex-wrap items-center gap-2">
