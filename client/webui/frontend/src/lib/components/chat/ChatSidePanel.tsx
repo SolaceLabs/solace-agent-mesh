@@ -226,7 +226,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
 
                         <TabsContent value="rag" className="m-0 h-full">
                             <div className="h-full">
-                                <RAGInfoPanel ragData={ragData} enabled={ragEnabled} />
+                                <RAGInfoPanel ragData={taskIdInSidePanel ? ragData.filter(r => r.task_id === taskIdInSidePanel) : ragData} enabled={ragEnabled} />
                             </div>
                         </TabsContent>
                     </div>

@@ -323,6 +323,17 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
         }
     }, [isTimelineExpanded, timelineEvents]);
 
+    // Auto-scroll to bottom when new timeline events are added (during active research)
+    React.useEffect(() => {
+        if (!isComplete && isTimelineExpanded && timelineRef.current && timelineEvents.length > 0) {
+            // Scroll to bottom smoothly when new events are added
+            timelineRef.current.scrollTo({
+                top: timelineRef.current.scrollHeight,
+                behavior: "smooth",
+            });
+        }
+    }, [timelineEvents.length, isComplete, isTimelineExpanded]);
+
     return (
         <div className="my-4 space-y-3">
             {/* Show completed state when research is done */}
