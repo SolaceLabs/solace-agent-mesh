@@ -4,11 +4,11 @@
     - [x] Update `src/solace_agent_mesh/common/a2a/types.py`: Add `SchemasExtensionParams` model.
     - [x] Update `src/solace_agent_mesh/common/constants.py`: Add extension URIs (`schemas`, `agent-type`).
 
-- [ ] **2. Tool Implementation**
-    - [ ] Create `src/solace_agent_mesh/agent/tools/workflow_tool.py`:
-        - [ ] Implement `WorkflowAgentTool` class.
-        - [ ] Implement `_get_declaration` (Dual-mode schema generation).
-        - [ ] Implement `run_async` (Artifact creation vs. pass-through logic).
+- [x] **2. Tool Implementation**
+    - [x] Create `src/solace_agent_mesh/agent/tools/workflow_tool.py`:
+        - [x] Implement `WorkflowAgentTool` class.
+        - [x] Implement `_get_declaration` (Dual-mode schema generation).
+        - [x] Implement `run_async` (Artifact creation vs. pass-through logic).
 
 - [ ] **3. Agent Discovery & Tool Factory**
     - [ ] Update `src/solace_agent_mesh/agent/sac/component.py`:
