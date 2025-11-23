@@ -450,9 +450,10 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
 
     return (
         <>
-            {/* Show progress block at the top for completed deep research */}
+            {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
             {isDeepResearchComplete &&
                 hasRagSources &&
+                isLastWithTaskId &&
                 (() => {
                     // Filter to only show fetched sources (not snippets)
                     const allSources = taskRagData.flatMap(r => r.sources);
@@ -487,7 +488,8 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                 message,
                 chatContext,
                 isLastWithTaskId,
-                isDeepResearchComplete && hasRagSources
+                // Only show sources element for AI messages, not user messages
+                !message.isUser && isDeepResearchComplete && hasRagSources
                     ? (() => {
                           // Filter to only show fetched sources (not snippets)
                           const allSources = taskRagData.flatMap(r => r.sources);
