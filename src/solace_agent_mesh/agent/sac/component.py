@@ -64,6 +64,7 @@ from ...agent.tools.peer_agent_tool import (
     PEER_TOOL_PREFIX,
     PeerAgentTool,
 )
+from ...agent.tools.workflow_tool import WorkflowAgentTool
 from ...agent.tools.registry import tool_registry
 from ...agent.utils.config_parser import resolve_instruction_provider
 from ...common import a2a
@@ -73,6 +74,8 @@ from ...common.constants import (
     DEFAULT_COMMUNICATION_TIMEOUT,
     HEALTH_CHECK_INTERVAL_SECONDS,
     HEALTH_CHECK_TTL_SECONDS,
+    EXTENSION_URI_AGENT_TYPE,
+    EXTENSION_URI_SCHEMAS,
 )
 from ...common.data_parts import AgentProgressUpdateData
 from ...common.middleware.registry import MiddlewareRegistry
@@ -992,21 +995,58 @@ class SamAgentComponent(SamComponentBase):
                 continue
 
             try:
-                peer_tool_instance = PeerAgentTool(
-                    target_agent_name=peer_name, host_component=self
-                )
-                if peer_tool_instance.name not in llm_request.tools_dict:
-                    peer_tools_to_add.append(peer_tool_instance)
-                    description = (
+                # Determine agent type and schemas
+                agent_type = "standard"
+                input_schema = None
+
+                if agent_card.capabilities and agent_card.capabilities.extensions:
+                    for ext in agent_card.capabilities.extensions:
+                        if ext.uri == EXTENSION_URI_AGENT_TYPE:
+                            agent_type = ext.params.get("type", "standard")
+                        elif ext.uri == EXTENSION_URI_SCHEMAS:
+                            input_schema = ext.params.get("input_schema")
+
+                tool_instance = None
+                tool_description_line = ""
+
+                if agent_type == "workflow":
+                    # Default schema if none provided
+                    if not input_schema:
+                        input_schema = {
+                            "type": "object",
+                            "properties": {"text": {"type": "string"}},
+                            "required": ["text"],
+                        }
+
+                    tool_instance = WorkflowAgentTool(
+                        target_agent_name=peer_name,
+                        input_schema=input_schema,
+                        host_component=self,
+                    )
+                    desc = (
                         getattr(agent_card, "description", "No description")
                         or "No description"
                     )
-                    allowed_peer_descriptions.append(
-                        f"- `peer_{peer_name}`: {description}"
+                    tool_description_line = f"- `{tool_instance.name}`: {desc}"
+
+                else:
+                    # Standard Peer Agent
+                    tool_instance = PeerAgentTool(
+                        target_agent_name=peer_name, host_component=self
                     )
+                    desc = (
+                        getattr(agent_card, "description", "No description")
+                        or "No description"
+                    )
+                    tool_description_line = f"- `peer_{peer_name}`: {desc}"
+
+                if tool_instance.name not in llm_request.tools_dict:
+                    peer_tools_to_add.append(tool_instance)
+                    allowed_peer_descriptions.append(tool_description_line)
+
             except Exception as e:
                 log.error(
-                    "%s Failed to create PeerAgentTool for '%s': %s",
+                    "%s Failed to create tool for '%s': %s",
                     self.log_identifier,
                     peer_name,
                     e,
@@ -1015,12 +1055,12 @@ class SamAgentComponent(SamComponentBase):
         if allowed_peer_descriptions:
             peer_list_str = "\n".join(allowed_peer_descriptions)
             instruction_text = (
-                "You can delegate tasks to other specialized agents if they are better suited.\n"
-                "Use the `peer_<agent_name>(task_description: str, user_query: str)` tool for delegation. "
-                "Replace `<agent_name>` with the actual name of the target agent.\n"
-                "Provide a clear `task_description` for the peer and include the original `user_query` for context.\n"
-                "Be aware that the peer agent may not have access to your session history, so you must provide all required context necessary to fulfill the request.\n\n"
-                "Available peer agents you can delegate to (use the `peer_...` tool name):\n"
+                "You can delegate tasks to other specialized agents or workflows if they are better suited.\n"
+                "Use the appropriate tool for delegation based on the list below.\n"
+                "For `peer_<agent_name>` tools, provide a clear `task_description` and include the original `user_query`.\n"
+                "For `workflow_<agent_name>` tools, follow the specific parameter requirements or use `input_artifact`.\n"
+                "Be aware that the peer agent/workflow may not have access to your session history, so you must provide all required context.\n\n"
+                "Available peers/workflows:\n"
                 f"{peer_list_str}"
             )
             callback_context.state["peer_tool_instructions"] = instruction_text

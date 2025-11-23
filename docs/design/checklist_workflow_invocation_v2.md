@@ -10,11 +10,11 @@
         - [x] Implement `_get_declaration` (Dual-mode schema generation).
         - [x] Implement `run_async` (Artifact creation vs. pass-through logic).
 
-- [ ] **3. Agent Discovery & Tool Factory**
-    - [ ] Update `src/solace_agent_mesh/agent/sac/component.py`:
-        - [ ] Modify `_inject_peer_tools_callback` to detect `agent_type: workflow`.
-        - [ ] Instantiate `WorkflowAgentTool` instead of `PeerAgentTool` for workflows.
-        - [ ] Handle default schema fallback.
+- [x] **3. Agent Discovery & Tool Factory**
+    - [x] Update `src/solace_agent_mesh/agent/sac/component.py`:
+        - [x] Modify `_inject_peer_tools_callback` to detect `agent_type: workflow`.
+        - [x] Instantiate `WorkflowAgentTool` instead of `PeerAgentTool` for workflows.
+        - [x] Handle default schema fallback.
 
 - [ ] **4. Prompt Engineering**
     - [ ] Update `src/solace_agent_mesh/agent/adk/callbacks.py`:
