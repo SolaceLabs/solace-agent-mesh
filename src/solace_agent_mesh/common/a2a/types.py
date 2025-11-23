@@ -20,6 +20,15 @@ class ToolsExtensionParams(BaseModel):
     tools: list[AgentSkill]
 
 
+class SchemasExtensionParams(BaseModel):
+    """
+    The parameters for the custom 'schemas' AgentCard extension.
+    """
+
+    input_schema: Optional[Dict[str, Any]] = None
+    output_schema: Optional[Dict[str, Any]] = None
+
+
 class ArtifactInfo(BaseModel):
     """
     Represents information about an artifact, typically for listing or display.

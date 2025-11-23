@@ -1,8 +1,8 @@
 # Implementation Checklist: Workflow Invocation via A2A (v2)
 
-- [ ] **1. Core Types & Constants**
-    - [ ] Update `src/solace_agent_mesh/common/a2a/types.py`: Add `SchemasExtensionParams` model.
-    - [ ] Update `src/solace_agent_mesh/common/constants.py`: Add extension URIs (`schemas`, `agent-type`).
+- [x] **1. Core Types & Constants**
+    - [x] Update `src/solace_agent_mesh/common/a2a/types.py`: Add `SchemasExtensionParams` model.
+    - [x] Update `src/solace_agent_mesh/common/constants.py`: Add extension URIs (`schemas`, `agent-type`).
 
 - [ ] **2. Tool Implementation**
     - [ ] Create `src/solace_agent_mesh/agent/tools/workflow_tool.py`:
