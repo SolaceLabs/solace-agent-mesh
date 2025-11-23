@@ -59,7 +59,9 @@ def run_migrations(db_service, component):
         alembic_cfg.set_main_option("script_location", str(alembic_dir))
 
         # Set the database URL from the service
-        db_url = str(db_service.db_engine.url)
+        # IMPORTANT: Use render_as_string(hide_password=False) to preserve credentials
+        # for Alembic. By default, str(url) obscures the password for security.
+        db_url = db_service.db_engine.url.render_as_string(hide_password=False)
         alembic_cfg.set_main_option("sqlalchemy.url", db_url)
 
         log.info(
