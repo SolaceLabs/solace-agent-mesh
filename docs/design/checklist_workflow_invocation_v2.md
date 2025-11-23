@@ -16,10 +16,10 @@
         - [x] Instantiate `WorkflowAgentTool` instead of `PeerAgentTool` for workflows.
         - [x] Handle default schema fallback.
 
-- [ ] **4. Prompt Engineering**
-    - [ ] Update `src/solace_agent_mesh/agent/adk/callbacks.py`:
-        - [ ] Modify `inject_dynamic_instructions_callback`.
-        - [ ] Inject "Workflow Execution" instructions if workflow tools are present.
+- [x] **4. Prompt Engineering**
+    - [x] Update `src/solace_agent_mesh/agent/adk/callbacks.py`:
+        - [x] Modify `inject_dynamic_instructions_callback`.
+        - [x] Inject "Workflow Execution" instructions if workflow tools are present.
 
 - [ ] **5. Workflow Agent Configuration**
     - [ ] Update `src/solace_agent_mesh/agent/sac/app.py`:

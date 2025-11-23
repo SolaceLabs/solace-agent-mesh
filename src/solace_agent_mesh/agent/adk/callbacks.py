@@ -33,6 +33,7 @@ from ...agent.utils.context_helpers import (
     get_session_from_callback_context,
 )
 from ..tools.tool_definition import BuiltinTool
+from ..tools.workflow_tool import WorkflowAgentTool
 
 from ...common.utils.embeds import (
     EMBED_DELIMITER_OPEN,
@@ -1369,6 +1370,27 @@ If a plan is created:
             "%s Injected peer discovery instructions from callback state.",
             log_identifier,
         )
+
+    # Check for WorkflowAgentTool instances and inject specific instructions
+    has_workflow_tools = False
+    if llm_request.tools_dict:
+        for tool in llm_request.tools_dict.values():
+            if isinstance(tool, WorkflowAgentTool):
+                has_workflow_tools = True
+                break
+
+    if has_workflow_tools:
+        workflow_instruction = (
+            "**Workflow Execution:**\n"
+            "You have access to workflow tools (prefixed with `workflow_`). These tools represent structured business processes.\n"
+            "They support two modes of invocation:\n"
+            "1. **Parameter Mode:** Provide arguments directly matching the tool's schema. Use this for new data or simple inputs.\n"
+            "2. **Artifact Mode:** Provide a single `input_artifact` argument with the filename of an existing JSON artifact. "
+            "Use this when passing large datasets or outputs from previous steps to avoid re-tokenizing.\n"
+            "Do NOT provide both parameters and `input_artifact` simultaneously."
+        )
+        injected_instructions.append(workflow_instruction)
+        log.debug("%s Injected workflow execution instructions.", log_identifier)
 
     last_call_notification_message_added = False
     try:
