@@ -36,12 +36,11 @@ apps:
         2. Use the `web_search` tool to search for relevant information
         3. Analyze the search results
         4. Provide a clear, concise answer with citations
-        5. Include links to sources when relevant
         
         **Best Practices:**
         - Use specific, targeted search queries
         - Prioritize recent and authoritative sources
-        - Cite your sources using [[cite:N]] format
+        - Cite your sources using [[cite:searchN]] format (e.g., [[cite:search0]], [[cite:search1]])
         - If results are insufficient, try alternative search queries
         - Be transparent about information limitations
         
@@ -53,15 +52,25 @@ apps:
         - General knowledge questions
         
         **Citation Format:**
-        - Always cite sources using [[cite:N]] where N is the source number
-        - Include the source URL when available
-        - Mention the source name/domain for credibility
+        - ALWAYS cite sources using [[cite:searchN]] format where N is the source number (0-indexed)
+        - DO NOT manually list sources at the end of your response
+        - DO NOT include a "Sources:" section with links
+        - The system will automatically display source links to the user
+        - Just use the [[cite:searchN]] markers inline with your text
         
-        Remember: Your goal is to provide quick, accurate answers with proper attribution.
+        **Example Response:**
+        "The latest research shows significant progress in renewable energy[[cite:search0]]. Solar panel efficiency has improved by 15% in the past year[[cite:search1]], while costs have decreased by 20%[[cite:search2]]."
+        
+        Remember: Your goal is to provide quick, accurate answers with inline citations. The UI will handle displaying the source links.
       
       tools:
         - tool_type: builtin-group
           group_name: web_search
+          tool_config:    
+            # API keys for web search
+            tavily_api_key: "${TAVILY_API_KEY}"
+            google_search_api_key: "${GOOGLE_SEARCH_API_KEY}"
+            google_cse_id: "${GOOGLE_CSE_ID}"
 
       session_service: *default_session_service
       artifact_service: *default_artifact_service
