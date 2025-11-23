@@ -437,11 +437,17 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     });
 
     // Check if this is a completed web search message (has web_search sources but not deep research)
-    // Only show for the last message with this taskId to avoid duplicates
-    const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData.some(r => r.search_type === "web_search") && isLastWithTaskId;
+    const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData?.some(r => r.search_type === "web_search");
 
-    // Handler for deep research sources click
-    const handleDeepResearchClick = () => {
+    console.log("[ChatMessage] Web search detection:", {
+        isWebSearchComplete,
+        isLastWithTaskId,
+        hasRagSources,
+        searchTypes: taskRagData?.map(r => r.search_type),
+    });
+
+    // Handler for sources click (works for both deep research and web search)
+    const handleSourcesClick = () => {
         if (message.taskId) {
             setTaskIdInSidePanel(message.taskId);
             openSidePanelTab("rag");
@@ -488,27 +494,32 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                 message,
                 chatContext,
                 isLastWithTaskId,
-                // Only show sources element for AI messages, not user messages
-                !message.isUser && isDeepResearchComplete && hasRagSources
+                // Show sources element for both deep research and web search (in message actions area)
+                !message.isUser && (isDeepResearchComplete || isWebSearchComplete) && hasRagSources
                     ? (() => {
-                          // Filter to only show fetched sources (not snippets)
                           const allSources = taskRagData.flatMap(r => r.sources);
-                          const fetchedSources = allSources.filter(source => {
-                              const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
-                              return wasFetched;
+
+                          // For deep research: filter to only show fetched sources (not snippets)
+                          // For web search: show all sources
+                          const sourcesToShow = isDeepResearchComplete
+                              ? allSources.filter(source => {
+                                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
+                                    return wasFetched;
+                                })
+                              : allSources;
+
+                          console.log("[ChatMessage] Rendering Sources component:", {
+                              isDeepResearchComplete,
+                              isWebSearchComplete,
+                              sourcesToShowCount: sourcesToShow.length,
+                              sampleSource: sourcesToShow[0],
                           });
 
-                          return <Sources ragMetadata={{ sources: fetchedSources }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleDeepResearchClick} />;
+                          return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleSourcesClick} />;
                       })()
                     : undefined
             )}
             {getUploadedFiles(message)}
-            {/* Render sources after completed web search */}
-            {isWebSearchComplete && hasRagSources && (
-                <div className="my-4">
-                    <Sources ragMetadata={{ sources: taskRagData.flatMap(r => r.sources) }} isDeepResearch={false} onDeepResearchClick={handleDeepResearchClick} />
-                </div>
-            )}
         </>
     );
 };

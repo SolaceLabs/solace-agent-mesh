@@ -142,64 +142,10 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         );
     }
 
-    // Check if all data is deep_research
-    const isAllDeepResearch = ragData.every(search => search.search_type === "deep_research");
+    const isAllDeepResearch = ragData.every(search => search.search_type === "deep_research" || search.search_type === "web_search");
 
     // Calculate total sources across all searches
     const totalSources = ragData.reduce((sum, search) => sum + search.sources.length, 0);
-
-    // // For deep research, categorize sources by whether they have full content or just snippets
-    // const categorizedSources = React.useMemo(() => {
-    //     if (!isAllDeepResearch) return { readInFull: [], snippets: [] };
-
-    //     const readInFull: RAGSearchResult['sources'] = [];
-    //     const snippets: RAGSearchResult['sources'] = [];
-
-    //     // Track which sources we've already added - use URL as key and keep the best version
-    //     const seenUrls = new Map<string, { source: RAGSearchResult['sources'][0], wasFetched: boolean }>();
-
-    //     ragData.forEach(search => {
-    //         search.sources.forEach(source => {
-    //             const url = source.url || source.source_url || '';
-    //             if (!url) return;
-
-    //             // Check if this source was fetched (has full content)
-    //             const wasFetched = Boolean(
-    //                 source.metadata?.fetched === true ||
-    //                 source.metadata?.fetch_status === 'success' ||
-    //                 (source.content_preview && source.content_preview.includes('[Full Content Fetched]'))
-    //             );
-
-    //             // Check if we've seen this URL before
-    //             const existing = seenUrls.get(url);
-
-    //             if (existing) {
-    //                 // If we already have a fetched version, skip this one
-    //                 if (existing.wasFetched) {
-    //                     return;
-    //                 }
-    //                 // If this one is fetched but the existing isn't, replace it
-    //                 if (wasFetched && !existing.wasFetched) {
-    //                     seenUrls.set(url, { source, wasFetched });
-    //                 }
-    //             } else {
-    //                 // First time seeing this URL
-    //                 seenUrls.set(url, { source, wasFetched });
-    //             }
-    //         });
-    //     });
-
-    //     // Now categorize all unique sources
-    //     seenUrls.forEach(({ source, wasFetched }) => {
-    //         if (wasFetched) {
-    //             readInFull.push(source);
-    //         } else {
-    //             snippets.push(source);
-    //         }
-    //     });
-
-    //     return { readInFull, snippets };
-    // }, [ragData, isAllDeepResearch]);
 
     // Simple source item component for deep research
     const SimpleSourceItem: React.FC<{ source: RAGSearchResult["sources"][0] }> = ({ source }) => {
@@ -232,18 +178,23 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         );
     };
 
-    // Get all unique FETCHED sources for deep research (filter out snippets)
+    // Get all unique sources (for deep research: filter out snippets, for web_search: show all)
     const allUniqueSources = (() => {
         if (!isAllDeepResearch) return [];
         const sourceMap = new Map<string, RAGSearchResult["sources"][0]>();
 
+        // Check if this is web_search (no fetched metadata) or deep_research (has fetched metadata)
+        const isWebSearch = ragData.some(search => search.search_type === "web_search");
+
         ragData.forEach(search => {
             search.sources.forEach(source => {
-                // Only include fetched sources (not snippets)
-                const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
-
-                if (!wasFetched) {
-                    return; // Skip snippet-only sources
+                // For web_search: include all sources
+                // For deep_research: only include fetched sources (not snippets)
+                if (!isWebSearch) {
+                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
+                    if (!wasFetched) {
+                        return; // Skip snippet-only sources for deep research
+                    }
                 }
 
                 const key = source.url || source.source_url || source.title || "";
@@ -255,9 +206,10 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
 
         const uniqueSources = Array.from(sourceMap.values());
 
-        console.log("[RAGInfoPanel] Deep research source filtering:", {
+        console.log("[RAGInfoPanel] Source filtering:", {
+            isWebSearch,
             totalSourcesBeforeFilter: ragData.reduce((sum, s) => sum + s.sources.length, 0),
-            uniqueFetchedSources: uniqueSources.length,
+            uniqueSources: uniqueSources.length,
             sampleSources: uniqueSources.slice(0, 3).map(s => ({
                 url: s.url,
                 title: s.title,

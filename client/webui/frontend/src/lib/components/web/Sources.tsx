@@ -311,13 +311,12 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
         return null;
     }
 
-    // For deep research, show only stacked favicons (up to 3) with count
-    if (isDeepResearch) {
+    if (isDeepResearch || onDeepResearchClick) {
         return (
             <div
                 className="flex cursor-pointer items-center gap-2 rounded border border-[var(--color-secondary-w20)] px-2 py-1 transition-colors hover:bg-[var(--color-secondary-w10)]"
                 role="button"
-                aria-label="View deep research sources"
+                aria-label={isDeepResearch ? "View deep research sources" : "View web search sources"}
                 onClick={onDeepResearchClick}
             >
                 <StackedFavicons sources={sourcesByType.all} end={3} size={16} />
