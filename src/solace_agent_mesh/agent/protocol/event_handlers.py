@@ -41,6 +41,10 @@ from ...common.a2a import (
     topic_matches_subscription,
     translate_a2a_to_adk_content,
 )
+from ...common.constants import (
+    EXTENSION_URI_AGENT_TYPE,
+    EXTENSION_URI_SCHEMAS,
+)
 from ...common.a2a.types import ToolsExtensionParams
 from ...common.data_parts import ToolResultData
 from ..sac.task_execution_context import TaskExecutionContext
@@ -1799,9 +1803,23 @@ def publish_agent_card(component):
         )
         DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name"
         TOOLS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools"
-        SCHEMAS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/schemas"
 
         extensions_list = []
+
+        # Create the extension object for agent type.
+        agent_type = component.get_config("agent_type", "standard")
+        if agent_type != "standard":
+            agent_type_extension = AgentExtension(
+                uri=EXTENSION_URI_AGENT_TYPE,
+                description="Specifies the type of agent (e.g., 'workflow').",
+                params={"type": agent_type},
+            )
+            extensions_list.append(agent_type_extension)
+            log.debug(
+                "%s Added agent_type extension: %s",
+                component.log_identifier,
+                agent_type,
+            )
 
         # Create the extension object for deployment tracking.
         deployment_config = component.get_config("deployment", {})
@@ -1874,7 +1892,7 @@ def publish_agent_card(component):
                 schema_params["output_schema"] = output_schema
 
             schemas_extension = AgentExtension(
-                uri=SCHEMAS_EXTENSION_URI,
+                uri=EXTENSION_URI_SCHEMAS,
                 description="Input and output JSON schemas for the agent.",
                 params=schema_params,
             )

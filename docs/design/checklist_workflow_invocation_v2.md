@@ -21,15 +21,15 @@
         - [x] Modify `inject_dynamic_instructions_callback`.
         - [x] Inject "Workflow Execution" instructions if workflow tools are present.
 
-- [ ] **5. Workflow Agent Configuration**
-    - [ ] Update `src/solace_agent_mesh/agent/sac/app.py`:
-        - [ ] Add `agent_type` to `SamAgentAppConfig`.
-    - [ ] Update `src/solace_agent_mesh/agent/protocol/event_handlers.py`:
-        - [ ] Update `publish_agent_card` to include `agent_type` extension.
-        - [ ] Update `publish_agent_card` to include `schemas` extension.
-    - [ ] Update `src/solace_agent_mesh/workflow/component.py`:
-        - [ ] Update `_create_workflow_agent_card` to use shared `EXTENSION_URI_SCHEMAS`.
-        - [ ] Update `_create_workflow_agent_card` to add `agent_type` extension.
+- [x] **5. Workflow Agent Configuration**
+    - [x] Update `src/solace_agent_mesh/agent/sac/app.py`:
+        - [x] Add `agent_type` to `SamAgentAppConfig`.
+    - [x] Update `src/solace_agent_mesh/agent/protocol/event_handlers.py`:
+        - [x] Update `publish_agent_card` to include `agent_type` extension.
+        - [x] Update `publish_agent_card` to include `schemas` extension.
+    - [x] Update `src/solace_agent_mesh/workflow/component.py`:
+        - [x] Update `_create_workflow_agent_card` to use shared `EXTENSION_URI_SCHEMAS`.
+        - [x] Update `_create_workflow_agent_card` to add `agent_type` extension.
 
 - [ ] **6. Workflow Input Handling**
     - [ ] Update `src/solace_agent_mesh/workflow/protocol/event_handlers.py`:

@@ -205,8 +205,17 @@ class WorkflowExecutorComponent(SamComponentBase):
         # Build extensions list
         extensions_list = []
 
+        from a2a.types import AgentExtension
+
+        # Add agent type extension
+        agent_type_extension = AgentExtension(
+            uri=EXTENSION_URI_AGENT_TYPE,
+            description="Specifies the type of agent (e.g., 'workflow').",
+            params={"type": "workflow"},
+        )
+        extensions_list.append(agent_type_extension)
+
         # Add schema extension if schemas are defined
-        SCHEMAS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/schemas"
         input_schema = self.workflow_definition.input_schema
         output_schema = self.workflow_definition.output_schema
 
@@ -217,9 +226,8 @@ class WorkflowExecutorComponent(SamComponentBase):
             if output_schema:
                 schema_params["output_schema"] = output_schema
 
-            from a2a.types import AgentExtension
             schemas_extension = AgentExtension(
-                uri=SCHEMAS_EXTENSION_URI,
+                uri=EXTENSION_URI_SCHEMAS,
                 description="Input and output JSON schemas for the workflow.",
                 params=schema_params,
             )
