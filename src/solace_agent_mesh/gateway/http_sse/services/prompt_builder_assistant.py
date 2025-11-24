@@ -51,7 +51,7 @@ RESPONSE FORMAT (REQUIRED):
     "name": "Name",
     "category": "Category",
     "command": "command-name",
-    "prompt_text": "Template with {{placeholders}} for variable data only",
+    "promptText": "Template with {{placeholders}} for variable data only",
     "description": "Brief description"
   }},
   "confidence": 0.0-1.0,
@@ -85,7 +85,7 @@ User: "The file path, module name, and specific security concerns"
     "name": "Code Review Template",
     "category": "Development",
     "command": "code-review",
-    "prompt_text": "Review the {{Module Name}} module located at {{File Path}}.\\n\\nPlease perform a comprehensive code review focusing on:\\n1. Security vulnerabilities\\n2. Error handling\\n3. Code quality and best practices\\n4. Specific attention to: {{Security Concerns}}\\n\\nProvide a detailed report with:\\n- List of issues with severity levels\\n- Specific code snippets that need attention\\n- Recommendations for improvements",
+    "promptText": "Review the {{Module Name}} module located at {{File Path}}.\\n\\nPlease perform a comprehensive code review focusing on:\\n1. Security vulnerabilities\\n2. Error handling\\n3. Code quality and best practices\\n4. Specific attention to: {{Security Concerns}}\\n\\nProvide a detailed report with:\\n- List of issues with severity levels\\n- Specific code snippets that need attention\\n- Recommendations for improvements",
     "description": "Template for code review with security focus"
   }},
   "confidence": 0.9,
@@ -111,7 +111,7 @@ User: "Bug description, steps to reproduce, and environment details"
     "name": "Bug Report Template",
     "category": "Testing",
     "command": "bug-report",
-    "prompt_text": "# Bug Report\\n\\n## Description\\n{{Bug Description}}\\n\\n## Steps to Reproduce\\n{{Steps To Reproduce}}\\n\\n## Environment\\n{{Environment Details}}\\n\\n## Expected Behavior\\nDescribe what should happen\\n\\n## Actual Behavior\\nDescribe what actually happens\\n\\n## Additional Context\\nAny other relevant information",
+    "promptText": "# Bug Report\\n\\n## Description\\n{{Bug Description}}\\n\\n## Steps to Reproduce\\n{{Steps To Reproduce}}\\n\\n## Environment\\n{{Environment Details}}\\n\\n## Expected Behavior\\nDescribe what should happen\\n\\n## Actual Behavior\\nDescribe what actually happens\\n\\n## Additional Context\\nAny other relevant information",
     "description": "Template for reporting bugs with structured format"
   }},
   "confidence": 0.9,

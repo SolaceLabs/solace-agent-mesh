@@ -141,7 +141,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
     // Handle prompt selection
     const handlePromptSelect = useCallback(
         (group: PromptGroup) => {
-            const promptText = group.production_prompt?.prompt_text || "";
+            const promptText = group.productionPrompt?.promptText || "";
 
             // Check for variables
             const variables = detectVariables(promptText);
