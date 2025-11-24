@@ -151,7 +151,6 @@ class SessionService:
         session.update_name(name)
         updated_session = session_repository.save(db, session)
 
-        log.info("Updated session %s name to '%s'", session_id, name)
         return updated_session
 
     def delete_session_with_notifications(
@@ -181,8 +180,6 @@ class SessionService:
         deleted = session_repository.delete(db, session_id, user_id)
         if not deleted:
             return False
-
-        log.info("Session %s deleted successfully by user %s", session_id, user_id)
 
         if agent_id and self.component:
             self._notify_agent_of_session_deletion(session_id, user_id, agent_id)
@@ -226,7 +223,6 @@ class SessionService:
         if not deleted:
             return False
 
-        log.info("Session %s soft deleted successfully by user %s", session_id, user_id)
         return True
 
     def move_session_to_project(
@@ -274,12 +270,6 @@ class SessionService:
             )
             return None
 
-        log.info(
-            "Session %s moved to project %s by user %s",
-            session_id,
-            new_project_id or "None",
-            user_id,
-        )
         return updated_session
 
     def search_sessions(
@@ -328,13 +318,6 @@ class SessionService:
                 if session.project_id:
                     session.project_name = project_map.get(session.project_id)
 
-        log.info(
-            "Search for '%s' by user %s returned %d results (total: %d)",
-            query,
-            user_id,
-            len(sessions),
-            total_count,
-        )
 
         return PaginatedResponse.create(sessions, total_count, pagination)
 
@@ -392,7 +375,6 @@ class SessionService:
         session.mark_activity()
         session_repository.save(db, session)
         
-        log.info(f"Saved task {task_id} for session {session_id}")
         return saved_task
 
     def get_session_tasks(
@@ -495,12 +477,6 @@ class SessionService:
         self, session_id: SessionId, user_id: UserId, agent_id: str
     ) -> None:
         try:
-            log.info(
-                "Publishing session deletion event for session %s (agent %s, user %s)",
-                session_id,
-                agent_id,
-                user_id,
-            )
 
             if hasattr(self.component, "sam_events"):
                 success = self.component.sam_events.publish_session_deleted(
@@ -590,7 +566,33 @@ class SessionService:
             source_session_id,
         )
         
-        # 3. Get compression service and generate summary
+        # 3. Create new session ID first (needed for compression token tracking)
+        new_session_id = str(uuid.uuid4())
+        
+        # 4. Use source session name if not provided
+        if not branch_name:
+            branch_name = f"Continued: {source_session.name or 'Chat'}"
+        
+        now_ms = now_epoch_ms()
+        
+        new_session = Session(
+            id=new_session_id,
+            user_id=user_id,
+            name=branch_name,
+            agent_id=agent_id or source_session.agent_id,
+            project_id=source_session.project_id,
+            created_time=now_ms,
+            updated_time=now_ms,
+            is_compression_branch=True,
+            compression_metadata={},  # Will be updated after compression
+        )
+        
+        # Save the session to database so it exists for compression tracking
+        created_session = session_repository.save(db, new_session)
+        db.flush()  # Ensure session is committed before compression
+        
+        # 6. Get compression service and generate summary
+        # Pass new_session_id so compression tokens are tracked in the NEW session
         from .compression_service import CompressionService
         
         compression_service = CompressionService(
@@ -606,21 +608,24 @@ class SessionService:
             llm_provider=llm_provider,
             llm_model=llm_model,
             db_session=db,
+            target_session_id=new_session_id,  # Track compression tokens in NEW session
         )
         
-        log.info(
-            "Generated compression summary for session %s: %d messages compressed",
-            source_session_id,
-            compression_result.message_count,
-        )
+
         
-        # 4. Use source session name if not provided
-        if not branch_name:
-            branch_name = f"Continued: {source_session.name or 'Chat'}"
-        
-        # 5. Create new session with compression metadata
-        new_session_id = str(uuid.uuid4())
-        now_ms = now_epoch_ms()
+        # 7. Update session with compression metadata
+        # Get the model from the source session's agent_id to preserve context window info
+        # This ensures the compressed session shows the correct context limit
+        source_model = None
+        if source_session.agent_id and self.component:
+            try:
+                model_config = self.component.get_config("model", {})
+                if isinstance(model_config, dict):
+                    source_model = model_config.get("model")
+                elif isinstance(model_config, str):
+                    source_model = model_config
+            except Exception as e:
+                log.warning(f"Could not extract model from source session: {e}")
         
         compression_metadata = {
             "compression_id": compression_result.compression_id,
@@ -630,28 +635,17 @@ class SessionService:
             "compressed_token_estimate": compression_result.compressed_token_estimate,
             "compression_timestamp": compression_result.compression_timestamp,
             "artifacts": compression_result.artifacts_metadata,
+            "source_model": source_model,  # Store model for context window calculation
         }
         
-        new_session = Session(
-            id=new_session_id,
-            user_id=user_id,
-            name=branch_name,
-            agent_id=agent_id or source_session.agent_id,
-            project_id=source_session.project_id,
-            created_time=now_ms,
-            updated_time=now_ms,
-            is_compression_branch=True,
-            compression_metadata=compression_metadata,
-        )
+        # Update the session with compression metadata
+        created_session.compression_metadata = compression_metadata
+        created_session.updated_time = now_ms
+        session_repository.save(db, created_session)
         
-        created_session = session_repository.save(db, new_session)
-        log.info(
-            "Created compression branch session %s from %s",
-            new_session_id,
-            source_session_id,
-        )
+
         
-        # 6. Format and create summary task
+        # 8. Format and create summary task
         summary_text = self._format_compression_summary(
             compression_result,
             source_session,
@@ -683,11 +677,6 @@ class SessionService:
             task_metadata=json.dumps(task_metadata),
         )
         
-        log.info(
-            "Added compression summary task to session %s (task_id: %s)",
-            new_session_id,
-            summary_task_id,
-        )
         
         # Return summary as dict for API response
         summary_dict = {

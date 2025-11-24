@@ -9,6 +9,7 @@ import { Button } from "@/lib/components/ui/button";
 import { UsageOverviewCard } from "../usage/UsageOverviewCard";
 import { getCurrentUsage, getUsageHistory, getTransactions } from "../../api/token-usage-api";
 import type { CurrentUsage, MonthlyUsageHistory, TransactionsResponse } from "../../types/token-usage";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
 
 interface UsageDetailsPageProps {
     onBack?: () => void;
@@ -99,20 +100,56 @@ export const UsageDetailsPage: React.FC<UsageDetailsPageProps> = ({ onBack }) =>
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Usage History</h2>
                                 {history.length > 3 && (
                                     <button onClick={() => setShowAllHistory(!showAllHistory)} className="text-sm text-blue-600 hover:underline dark:text-blue-400">
-                                        {showAllHistory ? "Show Less" : `Show All (${history.length})`}
+                                        {showAllHistory ? "Show All (${history.length})" : "Show Less"}
                                     </button>
                                 )}
                             </div>
-                            <div className="space-y-4">
-                                {(showAllHistory ? history : history.slice(0, 3)).map(month => (
-                                    <div key={month.month} className="flex items-center justify-between border-b border-gray-100 py-3 last:border-0 dark:border-gray-700">
-                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">{month.month}</span>
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-sm font-bold text-gray-900 dark:text-white">{month.costUsd || "$0.0000"}</span>
-                                            <span className="min-w-[80px] text-right text-xs text-gray-500 dark:text-gray-400">${((month.totalUsage || 0) / 1_000_000).toFixed(2)}</span>
-                                        </div>
-                                    </div>
-                                ))}
+                            <div className="h-80">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={(showAllHistory ? history : history.slice(0, 3)).map(month => ({
+                                            month: month.month,
+                                            tokens: (month.totalUsage || 0) / 1_000_000,
+                                            cost: parseFloat(month.costUsd?.replace("$", "") || "0"),
+                                        }))}
+                                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+                                        <XAxis dataKey="month" angle={-45} textAnchor="end" height={80} className="text-xs text-gray-600 dark:text-gray-400" tick={{ fill: "currentColor" }} />
+                                        <YAxis
+                                            yAxisId="left"
+                                            orientation="left"
+                                            className="text-xs text-gray-600 dark:text-gray-400"
+                                            tick={{ fill: "currentColor" }}
+                                            label={{ value: "Tokens (M)", angle: -90, position: "insideLeft", className: "text-gray-600 dark:text-gray-400" }}
+                                        />
+                                        <YAxis
+                                            yAxisId="right"
+                                            orientation="right"
+                                            className="text-xs text-gray-600 dark:text-gray-400"
+                                            tick={{ fill: "currentColor" }}
+                                            label={{ value: "Cost ($)", angle: 90, position: "insideRight", className: "text-gray-600 dark:text-gray-400" }}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: "rgb(31 41 55)",
+                                                border: "1px solid rgb(75 85 99)",
+                                                borderRadius: "0.5rem",
+                                                color: "rgb(243 244 246)",
+                                            }}
+                                            formatter={(value: number, name: string) => {
+                                                if (name === "tokens") {
+                                                    return [`${value.toFixed(2)}M tokens`, "Tokens"];
+                                                }
+                                                return [`$${value.toFixed(4)}`, "Cost"];
+                                            }}
+                                            labelStyle={{ color: "rgb(243 244 246)", fontWeight: "bold" }}
+                                        />
+                                        <Legend wrapperStyle={{ paddingTop: "20px" }} iconType="rect" formatter={(value: string) => (value === "tokens" ? "Tokens (M)" : "Cost ($)")} />
+                                        <Bar yAxisId="left" dataKey="tokens" fill="#3b82f6" radius={[8, 8, 0, 0]} name="tokens" />
+                                        <Bar yAxisId="right" dataKey="cost" fill="#10b981" radius={[8, 8, 0, 0]} name="cost" />
+                                    </BarChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
                     )}
@@ -121,27 +158,77 @@ export const UsageDetailsPage: React.FC<UsageDetailsPageProps> = ({ onBack }) =>
                     {currentUsage && currentUsage.usageByModel && Object.keys(currentUsage.usageByModel).length > 0 && (
                         <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
                             <h2 className="mb-6 text-lg font-semibold text-gray-900 dark:text-white">Usage by Model</h2>
-                            <div className="space-y-5">
-                                {Object.entries(currentUsage.usageByModel || {})
-                                    .sort(([, a], [, b]) => (b as number) - (a as number))
-                                    .map(([model, usage]) => {
-                                        const usageNum = (usage as number) || 0;
-                                        const totalUsage = currentUsage?.totalUsage || 1;
-                                        const percentage = (usageNum / totalUsage) * 100;
-                                        return (
-                                            <div key={model} className="space-y-2">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{model}</span>
-                                                    <span className="text-sm font-bold text-gray-900 dark:text-white">
-                                                        {(usageNum / 1000).toFixed(0)}K <span className="text-xs font-normal text-gray-500">({percentage.toFixed(1)}%)</span>
-                                                    </span>
-                                                </div>
-                                                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                                                    <div className="h-2 rounded-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.min(percentage, 100)}%` }}></div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                            <div className="h-80">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={Object.entries(currentUsage.usageByModel || {})
+                                                .sort(([, a], [, b]) => (b as number) - (a as number))
+                                                .map(([model, usage]) => {
+                                                    const usageNum = (usage as number) || 0;
+                                                    const totalUsage = currentUsage?.totalUsage || 1;
+                                                    const percentage = (usageNum / totalUsage) * 100;
+                                                    return {
+                                                        name: model,
+                                                        value: usageNum,
+                                                        percentage: percentage,
+                                                        displayValue: `${(usageNum / 1000).toFixed(0)}K`,
+                                                    };
+                                                })}
+                                            cx="50%"
+                                            cy="50%"
+                                            labelLine={true}
+                                            label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
+                                            outerRadius={100}
+                                            innerRadius={50}
+                                            fill="#8884d8"
+                                            dataKey="value"
+                                            animationBegin={0}
+                                            animationDuration={800}
+                                        >
+                                            {Object.entries(currentUsage.usageByModel || {})
+                                                .sort(([, a], [, b]) => (b as number) - (a as number))
+                                                .map((_, index) => {
+                                                    const colors = [
+                                                        "#3b82f6", // blue-500
+                                                        "#10b981", // green-500
+                                                        "#f59e0b", // amber-500
+                                                        "#ef4444", // red-500
+                                                        "#8b5cf6", // violet-500
+                                                        "#ec4899", // pink-500
+                                                        "#06b6d4", // cyan-500
+                                                        "#84cc16", // lime-500
+                                                    ];
+                                                    return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                                                })}
+                                        </Pie>
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: "rgb(31 41 55)",
+                                                border: "1px solid rgb(75 85 99)",
+                                                borderRadius: "0.5rem",
+                                                color: "rgb(243 244 246)",
+                                            }}
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            formatter={(value: number, name: string, props: any) => {
+                                                const percentage = props.payload.percentage;
+                                                return [`${(value / 1000).toFixed(0)}K tokens (${percentage.toFixed(1)}%)`, name];
+                                            }}
+                                            labelStyle={{ color: "rgb(243 244 246)", fontWeight: "bold" }}
+                                        />
+                                        <Legend
+                                            verticalAlign="bottom"
+                                            height={36}
+                                            iconType="circle"
+                                            wrapperStyle={{ paddingTop: "20px" }}
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            formatter={(value: string, entry: any) => {
+                                                const percentage = entry.payload.percentage;
+                                                return `${value} (${percentage.toFixed(1)}%)`;
+                                            }}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
                     )}

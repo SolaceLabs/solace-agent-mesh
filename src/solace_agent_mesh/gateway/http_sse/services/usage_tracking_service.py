@@ -522,10 +522,30 @@ class UsageTrackingService:
             session_id: Session identifier
             
         Returns:
-            Dictionary with session usage metrics
+            Dictionary with session usage metrics including the session's configured model
         """
         from sqlalchemy import text
         from ..shared import now_epoch_ms
+        from ..repository.models import SessionModel
+        
+        # First, get the session to determine its configured model
+        session = self.db.query(SessionModel).filter(
+            SessionModel.id == session_id,
+            SessionModel.user_id == user_id
+        ).first()
+        
+        # Determine the session's model for context window calculation
+        session_model = None
+        if session:
+            # For compressed sessions, use model from compression_metadata
+            if session.is_compression_branch and session.compression_metadata:
+                session_model = session.compression_metadata.get("source_model")
+                log.info(f"get_session_usage: Compressed session {session_id}, source_model from metadata: {session_model}")
+            
+            # For regular sessions, try to get model from agent_id
+            # This requires access to the component to look up agent config
+            # We'll handle this in a moment
+            log.info(f"get_session_usage: Session {session_id}, is_compression_branch={session.is_compression_branch}, session_model={session_model}")
         
         # Aggregate from token_transactions table joined with chat_tasks
         # Note: chat_tasks.id IS the task_id
@@ -576,8 +596,21 @@ class UsageTrackingService:
             model_breakdown[model]["tokens"] += tokens
             model_breakdown[model]["cost"] = f"${(cost / 1_000_000):.4f}"
         
+        # ALWAYS include the session's configured model in the breakdown
+        # This ensures the frontend can determine the correct context window limit
+        # For compressed sessions, this is critical as the source_model determines the limit
+        if session_model:
+            if session_model not in model_breakdown:
+                # Add with zero usage if not present
+                model_breakdown[session_model] = {"tokens": 0, "cost": "$0.0000"}
+                log.info(f"get_session_usage: Added session_model {session_model} to breakdown with zero usage")
+            else:
+                log.info(f"get_session_usage: Session_model {session_model} already in breakdown with {model_breakdown[session_model]['tokens']} tokens")
+        
         # Convert total cost from credits to USD
         cost_usd = f"${(total_cost_credits / 1_000_000):.4f}"
+        
+        log.info(f"get_session_usage: Final model_breakdown keys: {list(model_breakdown.keys())}, session_model: {session_model}")
         
         return {
             "session_id": session_id,

@@ -35,10 +35,10 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
     const [compressionError, setCompressionError] = useState<string | null>(null);
     const [compressionSuccess, setCompressionSuccess] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const { handleSwitchSession } = useChatContext();
+    const { handleSwitchSession, selectedAgentName, agents } = useChatContext();
 
     // Fetch session usage
-    const fetchSessionUsage = async () => {
+    const fetchSessionUsage = React.useCallback(async () => {
         if (!sessionId) return;
 
         setIsLoading(true);
@@ -52,12 +52,12 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [sessionId]);
 
     // Initial fetch and refresh on sessionId change
     useEffect(() => {
         fetchSessionUsage();
-    }, [sessionId]);
+    }, [sessionId, fetchSessionUsage]);
 
     // Auto-refresh every 3 seconds to catch new token usage
     useEffect(() => {
@@ -68,7 +68,7 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
         }, 3000);
 
         return () => clearInterval(interval);
-    }, [sessionId]);
+    }, [sessionId, fetchSessionUsage]);
 
     // Click outside to collapse
     useEffect(() => {
@@ -86,9 +86,36 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
 
     // Calculate context usage metrics
     const contextMetrics = useMemo(() => {
-        // Extract model from session usage data (first model in breakdown)
+        // Get the currently selected agent
+        const selectedAgent = agents.find(agent => agent.name === selectedAgentName);
+
+        // Try to extract model from agent's capabilities/extensions
+        let agentModel: string | null = null;
+        if (selectedAgent?.capabilities?.extensions) {
+            // Look for LLM model extension (this is a placeholder - actual extension URI may vary)
+            const llmExtension = selectedAgent.capabilities.extensions.find((ext: { uri?: string; params?: { model?: string } }) => ext.uri?.includes("llm") || ext.uri?.includes("model"));
+            if (llmExtension?.params?.model) {
+                agentModel = llmExtension.params.model as string;
+            }
+        }
+
+        // Extract model from session usage data as fallback
         const models = sessionUsage?.modelBreakdown ? Object.keys(sessionUsage.modelBreakdown) : [];
-        const primaryModel = models.length > 0 ? models[0] : "gpt-4";
+
+        // Filter out compression models and prioritize known LLM models
+        const llmModels = models.filter(m => !m.toLowerCase().includes("compression") && !m.toLowerCase().includes("summary"));
+
+        // Priority: 1) Agent's configured model, 2) Most recent LLM model from usage, 3) Default
+        const primaryModel = agentModel || (llmModels.length > 0 ? llmModels[0] : models.length > 0 ? models[0] : "claude-sonnet-4-5");
+
+        console.log("[ContextUsageIndicator] Model selection:", {
+            selectedAgentName,
+            agentModel,
+            allModels: models,
+            llmModels,
+            selectedModel: primaryModel,
+            modelBreakdown: sessionUsage?.modelBreakdown,
+        });
 
         const contextLimit = getModelContextLimit(primaryModel);
         const usedTokens = sessionUsage?.totalTokens || 0;
@@ -109,7 +136,7 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
             formattedUsed: formatTokenCount(usedTokens),
             formattedLimit: formatTokenCount(contextLimit),
         };
-    }, [sessionUsage]);
+    }, [sessionUsage, selectedAgentName, agents]);
 
     const colorClass = getUsageColor(contextMetrics.percentage);
     const bgColorClass = getUsageBgColor(contextMetrics.percentage);
