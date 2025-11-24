@@ -11,6 +11,7 @@ import type { ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, TextP
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
 import { Sources } from "@/lib/components/web/Sources";
+import { ImageSearchGrid } from "@/lib/components/research";
 import { TextWithCitations } from "./Citation";
 import { parseCitations } from "@/lib/utils/citations";
 
@@ -500,13 +501,16 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                           const allSources = taskRagData.flatMap(r => r.sources);
 
                           // For deep research: filter to only show fetched sources (not snippets)
-                          // For web search: show all sources
+                          // For web search: show only web sources (exclude images)
                           const sourcesToShow = isDeepResearchComplete
                               ? allSources.filter(source => {
                                     const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
                                     return wasFetched;
                                 })
-                              : allSources;
+                              : allSources.filter(source => {
+                                    const sourceType = source.sourceType || "web";
+                                    return sourceType !== "image";
+                                });
 
                           console.log("[ChatMessage] Rendering Sources component:", {
                               isDeepResearchComplete,
@@ -515,10 +519,38 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                               sampleSource: sourcesToShow[0],
                           });
 
-                          return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleSourcesClick} />;
+                          return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={isDeepResearchComplete ? handleSourcesClick : undefined} />;
                       })()
                     : undefined
             )}
+
+            {/* Render images separately at the end for web search */}
+            {!message.isUser &&
+                isWebSearchComplete &&
+                hasRagSources &&
+                (() => {
+                    const allSources = taskRagData.flatMap(r => r.sources);
+                    const imageResults = allSources
+                        .filter(source => {
+                            const sourceType = source.sourceType || "web";
+                            return sourceType === "image" && source.metadata?.imageUrl;
+                        })
+                        .map(source => ({
+                            imageUrl: source.metadata!.imageUrl,
+                            title: source.metadata?.title || source.filename,
+                            link: source.sourceUrl || source.metadata?.link || source.metadata!.imageUrl,
+                        }));
+
+                    if (imageResults.length > 0) {
+                        return (
+                            <div className="mt-4">
+                                <ImageSearchGrid images={imageResults} />
+                            </div>
+                        );
+                    }
+                    return null;
+                })()}
+
             {getUploadedFiles(message)}
         </>
     );

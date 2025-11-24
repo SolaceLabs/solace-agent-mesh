@@ -1,5 +1,5 @@
 /**
- * Sources Display Component (Web-Only Version)
+ * Sources Display Component
  * Shows web search results in a tabbed interface
  */
 
@@ -12,7 +12,6 @@ import { StackedFavicons } from "./StackedFavicons";
 import { FaviconImage, getCleanDomain } from "./Citation";
 import type { RAGSource } from "@/lib/types/fe";
 
-// Define types locally since we don't have the search types
 interface SearchSource {
     link: string;
     title?: string;
@@ -198,16 +197,24 @@ interface ImageCardProps {
 }
 
 function ImageCard({ image }: ImageCardProps) {
-    return (
-        <a href={image.imageUrl} target="_blank" rel="noopener noreferrer" className="group overflow-hidden rounded-lg bg-gray-100 transition-all duration-300 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700">
-            <div className="relative aspect-square w-full overflow-hidden">
-                <img src={image.imageUrl} alt={image.title || "Search result image"} className="h-full w-full object-cover" />
-                {image.title && (
-                    <div className="absolute right-0 bottom-0 left-0 w-full bg-gray-900/80 p-1 text-xs font-medium text-white backdrop-blur-sm">
-                        <span className="truncate">{image.title}</span>
-                    </div>
-                )}
+    const [imageError, setImageError] = useState(false);
+
+    if (imageError) {
+        return (
+            <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800">
+                <span className="text-xs text-gray-400">Failed to load</span>
             </div>
+        );
+    }
+
+    return (
+        <a href={image.imageUrl} target="_blank" rel="noopener noreferrer" className="group relative block aspect-square w-full overflow-hidden rounded-lg bg-gray-100 transition-all duration-300 hover:shadow-lg dark:bg-gray-800">
+            <img src={image.imageUrl} alt={image.title || "Search result image"} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" onError={() => setImageError(true)} loading="lazy" />
+            {image.title && (
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                    <span className="line-clamp-2 text-xs font-medium text-white">{image.title}</span>
+                </div>
+            )}
         </a>
     );
 }
@@ -277,9 +284,31 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
 
         // Track seen sources to avoid duplicates
         const seenSources = new Set<string>();
+        const seenImages = new Set<string>();
 
         ragMetadata.sources.forEach((s: RAGSource) => {
-            const sourceType = s.metadata?.source_type || s.sourceType || "web";
+            const sourceType = s.sourceType || "web";
+
+            // Handle image sources separately
+            if (sourceType === "image" && s.metadata?.imageUrl) {
+                const imageUrl = s.metadata.imageUrl;
+
+                // Skip duplicate images
+                if (seenImages.has(imageUrl)) {
+                    return;
+                }
+                seenImages.add(imageUrl);
+
+                const imageResult: ImageResult = {
+                    imageUrl: imageUrl,
+                    title: s.metadata?.title || s.filename || undefined,
+                };
+
+                categorized.images.push(imageResult);
+                return;
+            }
+
+            // Handle regular web sources
             const source: SearchSource = {
                 link: s.sourceUrl || s.metadata?.link || "",
                 title: s.metadata?.title || s.filename || "",
@@ -307,21 +336,23 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
     }, [ragMetadata]);
 
     // Don't render if no sources
-    if (sourcesByType.all.length === 0) {
+    if (sourcesByType.all.length === 0 && sourcesByType.images.length === 0) {
         return null;
     }
 
-    if (isDeepResearch || onDeepResearchClick) {
+    if (isDeepResearch || onDeepResearchClick || sourcesByType.web.length > 0) {
+        const totalSources = sourcesByType.all.length;
+
         return (
             <div
-                className="flex cursor-pointer items-center gap-2 rounded border border-[var(--color-secondary-w20)] px-2 py-1 transition-colors hover:bg-[var(--color-secondary-w10)]"
-                role="button"
+                className={`flex items-center gap-2 rounded border border-[var(--color-secondary-w20)] px-2 py-1 ${onDeepResearchClick ? "cursor-pointer transition-colors hover:bg-[var(--color-secondary-w10)]" : ""}`}
+                role={onDeepResearchClick ? "button" : undefined}
                 aria-label={isDeepResearch ? "View deep research sources" : "View web search sources"}
                 onClick={onDeepResearchClick}
             >
                 <StackedFavicons sources={sourcesByType.all} end={3} size={16} />
                 <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {sourcesByType.all.length} {sourcesByType.all.length === 1 ? "source" : "sources"}
+                    {totalSources} {totalSources === 1 ? "source" : "sources"}
                 </span>
             </div>
         );
@@ -329,29 +360,42 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
 
     // Determine which tabs to show based on available sources
     const tabs = [];
-    if (sourcesByType.all.length > 0) {
-        tabs.push({ value: "all", label: "All", icon: <Globe />, count: sourcesByType.all.length });
-    }
-    if (sourcesByType.web.length > 0) {
+    const hasWebSources = sourcesByType.web.length > 0;
+    const hasImages = sourcesByType.images.length > 0;
+
+    console.log("[Sources] Render decision:", { hasWebSources, hasImages, webCount: sourcesByType.web.length, imageCount: sourcesByType.images.length });
+
+    // Only show tabs if we have both web sources and images
+    if (hasWebSources && hasImages) {
         tabs.push({ value: "web", label: "Web", icon: <Globe />, count: sourcesByType.web.length });
-    }
-    if (sourcesByType.images.length > 0) {
         tabs.push({ value: "images", label: "Images", icon: <ImageIcon />, count: sourcesByType.images.length });
     }
 
-    // Default to first available tab
-    const defaultTab = tabs[0]?.value || "all";
+    // Default to images tab if we have images, otherwise web
+    const defaultTab = hasImages ? "images" : "web";
 
     // If only web sources (no images), show sources directly without tabs
-    const onlyWebSources = sourcesByType.web.length > 0 && sourcesByType.images.length === 0;
-
-    if (onlyWebSources) {
+    if (hasWebSources && !hasImages) {
+        console.log("[Sources] Rendering web sources only");
         return (
             <div className="my-4" role="region" aria-label="Search sources">
                 <SourcesGrid sources={sourcesByType.web} />
             </div>
         );
     }
+
+    // If only images (no web sources), show images directly without tabs
+    if (hasImages && !hasWebSources) {
+        console.log("[Sources] Rendering images only:", sourcesByType.images);
+        return (
+            <div className="my-4" role="region" aria-label="Search images">
+                <ImagesGrid images={sourcesByType.images} />
+            </div>
+        );
+    }
+
+    // If we have both, show tabs
+    console.log("[Sources] Rendering tabs with both web and images");
 
     return (
         <div className="my-4" role="region" aria-label="Search sources">

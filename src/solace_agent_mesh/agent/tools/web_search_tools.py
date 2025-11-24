@@ -106,6 +106,28 @@ async def _web_search_tavily(
             )
             rag_sources.append(rag_source)
         
+        # Add image results as RAG sources with special metadata
+        for i, image in enumerate(result.images):
+            image_source = create_rag_source(
+                citation_id=f"image{i}",
+                file_id=f"web_search_image_{i}",
+                filename=image.title or f"Image {i+1}",
+                title=image.title,
+                source_url=image.link,
+                url=image.link,
+                content_preview=image.title or "",
+                relevance_score=1.0,
+                source_type="image",
+                retrieved_at=datetime.now(timezone.utc).isoformat(),
+                metadata={
+                    "title": image.title,
+                    "link": image.link,
+                    "imageUrl": image.imageUrl,
+                    "type": "image",
+                }
+            )
+            rag_sources.append(image_source)
+        
         # Return both JSON result and RAG metadata (with camelCase keys)
         rag_metadata = create_rag_search_result(
             query=query,
@@ -210,6 +232,28 @@ async def _web_search_google(
             )
             rag_sources.append(rag_source)
         
+        # Add image results as RAG sources with special metadata
+        for i, image in enumerate(result.images):
+            image_source = create_rag_source(
+                citation_id=f"image{i}",
+                file_id=f"web_search_image_{i}",
+                filename=image.title or f"Image {i+1}",
+                title=image.title,
+                source_url=image.link,
+                url=image.link,
+                content_preview=image.title or "",
+                relevance_score=1.0,
+                source_type="image",
+                retrieved_at=datetime.now(timezone.utc).isoformat(),
+                metadata={
+                    "title": image.title,
+                    "link": image.link,
+                    "imageUrl": image.imageUrl,
+                    "type": "image",
+                }
+            )
+            rag_sources.append(image_source)
+        
         # Return both JSON result and RAG metadata (with camelCase keys)
         rag_metadata = create_rag_search_result(
             query=query,
@@ -235,7 +279,8 @@ web_search_tavily_tool_def = BuiltinTool(
     description=(
         "Search the web using Tavily API for current information. "
         "Use this when you need up-to-date facts, news, or data. "
-        "Always cite sources using the citation format provided in your instructions."
+        "Always cite sources using the citation format provided in your instructions. "
+        "Note: Image results will be displayed automatically in the UI - do not list image URLs in your response."
     ),
     category=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
@@ -287,7 +332,8 @@ web_search_google_tool_def = BuiltinTool(
     description=(
         "Search the web using Google Custom Search API. "
         "Use this when you need up-to-date information from Google. "
-        "Always cite sources using the citation format provided in your instructions."
+        "Always cite sources using the citation format provided in your instructions. "
+        "Note: Image results will be displayed automatically in the UI - do not list image URLs in your response."
     ),
     category=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
