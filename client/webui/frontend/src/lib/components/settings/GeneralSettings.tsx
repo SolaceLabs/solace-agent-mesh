@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { SunMoon, Activity, User, Upload, Trash2 } from "lucide-react";
-import { useThemeContext } from "@/lib/hooks";
+import { useThemeContext, useConfigContext } from "@/lib/hooks";
 import { Label, Switch, Button } from "@/lib/components/ui";
 import { getUserProfile, uploadAvatar, deleteAvatar } from "@/lib/api/user-profile-api";
 import type { UserProfile } from "@/lib/api/user-profile-api";
@@ -9,6 +9,7 @@ const CONTEXT_INDICATOR_STORAGE_KEY = "show-context-indicator";
 
 export const GeneralSettings: React.FC = () => {
     const { currentTheme, toggleTheme } = useThemeContext();
+    const { user } = useConfigContext();
     const [showContextIndicator, setShowContextIndicator] = useState(() => {
         const saved = localStorage.getItem(CONTEXT_INDICATOR_STORAGE_KEY);
         return saved !== null ? saved === "true" : true; // Default to true (shown)
@@ -18,6 +19,16 @@ export const GeneralSettings: React.FC = () => {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Get user initials (same logic as UserMenu)
+    const getInitials = (name: string): string => {
+        return name
+            .split(" ")
+            .map(part => part[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
+    };
 
     // Load user profile on mount
     useEffect(() => {
@@ -125,7 +136,7 @@ export const GeneralSettings: React.FC = () => {
                                 <img src={userProfile.avatarUrl} alt="Avatar" className="h-16 w-16 rounded-full border-2 border-gray-200 object-cover dark:border-gray-700" />
                             ) : (
                                 <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-gray-200 bg-blue-600 text-xl font-semibold text-white dark:border-gray-700">
-                                    {userProfile?.displayName?.[0]?.toUpperCase() || "U"}
+                                    {getInitials(userProfile?.displayName || user?.name || "User")}
                                 </div>
                             )}
                         </div>

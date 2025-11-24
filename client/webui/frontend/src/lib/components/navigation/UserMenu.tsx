@@ -99,13 +99,15 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
     const renderAvatar = (size: "small" | "large") => {
         const sizeClasses = size === "small" ? "h-10 w-10 text-base" : "h-12 w-12 text-lg";
         const avatarUrl = userProfile?.avatarUrl;
+        // Use displayName from profile if available, otherwise fall back to userName prop
+        const displayName = userProfile?.displayName || userName;
 
         if (avatarUrl) {
             return (
                 <>
                     <img
                         src={avatarUrl}
-                        alt={userName}
+                        alt={displayName}
                         className={`${sizeClasses} flex-shrink-0 rounded-full object-cover`}
                         onError={e => {
                             // Hide image on error, show fallback
@@ -116,13 +118,13 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
                         }}
                     />
                     <div className={`${sizeClasses} flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white`} style={{ display: "none" }}>
-                        {getInitials(userName)}
+                        {getInitials(displayName)}
                     </div>
                 </>
             );
         }
 
-        return <div className={`${sizeClasses} flex flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white`}>{getInitials(userName)}</div>;
+        return <div className={`${sizeClasses} flex flex-shrink-0 items-center justify-center rounded-full bg-blue-600 font-semibold text-white`}>{getInitials(displayName)}</div>;
     };
 
     return (
@@ -142,8 +144,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
                     <div className="flex items-center space-x-3 py-2">
                         {renderAvatar("large")}
                         <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{userName}</p>
-                            <p className="truncate text-xs text-gray-500 dark:text-gray-400">{userEmail}</p>
+                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{userProfile?.displayName || userName}</p>
+                            <p className="truncate text-xs text-gray-500 dark:text-gray-400">{userProfile?.email || userEmail}</p>
                         </div>
                     </div>
                 </DropdownMenuLabel>

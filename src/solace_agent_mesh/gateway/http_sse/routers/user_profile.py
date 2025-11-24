@@ -14,6 +14,7 @@ from fastapi import (
     Depends,
     File,
     HTTPException,
+    Request,
     UploadFile,
     status,
 )
@@ -69,7 +70,7 @@ class AvatarUploadResponse(BaseModel):
     message: str
 
 
-def _get_or_create_profile(db: Session, user_id: str) -> UserProfileModel:
+def _get_or_create_profile(db: Session, user_id: str, user_name: str | None = None, user_email: str | None = None) -> UserProfileModel:
     """Get existing profile or create a new one."""
     stmt = select(UserProfileModel).where(UserProfileModel.user_id == user_id)
     profile = db.execute(stmt).scalar_one_or_none()
@@ -78,6 +79,8 @@ def _get_or_create_profile(db: Session, user_id: str) -> UserProfileModel:
         now = now_epoch_ms()
         profile = UserProfileModel(
             user_id=user_id,
+            display_name=user_name,
+            email=user_email,
             created_at=now,
             updated_at=now
         )
@@ -165,6 +168,7 @@ def _save_avatar_to_s3(user_id: str, file_content: bytes, file_extension: str, m
     description="Retrieves the current user's profile information including avatar URL."
 )
 async def get_user_profile(
+    request: Request,
     user_id: str = Depends(get_user_id),
     db: Session | None = Depends(get_db_optional),
 ):
@@ -178,7 +182,15 @@ async def get_user_profile(
     log.info(f"[GET /user/profile] Fetching profile for user: {user_id}")
     
     try:
-        profile = _get_or_create_profile(db, user_id)
+        # Get user info from request state (set by AuthMiddleware)
+        user_name = None
+        user_email = None
+        if hasattr(request.state, "user") and request.state.user:
+            user_info = request.state.user
+            user_name = user_info.get("name")
+            user_email = user_info.get("email")
+        
+        profile = _get_or_create_profile(db, user_id, user_name, user_email)
         db.commit()
         
         return UserProfileResponse.from_orm(profile)
@@ -199,6 +211,7 @@ async def get_user_profile(
     description="Uploads a new avatar image for the current user. Supports local and S3 storage."
 )
 async def upload_avatar(
+    request: Request,
     file: UploadFile = File(..., description="Avatar image file (JPEG, PNG, GIF, or WebP)"),
     storage_type: str = "local",  # 'local' or 's3'
     user_id: str = Depends(get_user_id),
@@ -253,8 +266,16 @@ async def upload_avatar(
         else:
             avatar_url = _save_avatar_locally(user_id, file_content, file_extension)
         
+        # Get user info from request state (set by AuthMiddleware)
+        user_name = None
+        user_email = None
+        if hasattr(request.state, "user") and request.state.user:
+            user_info = request.state.user
+            user_name = user_info.get("name")
+            user_email = user_info.get("email")
+        
         # Update user profile
-        profile = _get_or_create_profile(db, user_id)
+        profile = _get_or_create_profile(db, user_id, user_name, user_email)
         
         # Delete old avatar if it exists and is local
         if profile.avatar_url and profile.avatar_storage_type == "local":
