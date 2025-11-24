@@ -1916,11 +1916,13 @@ def publish_agent_card(component):
         # The 'tools' field is not part of the official AgentCard spec.
         # The tools are now included as an extension.
 
-        # Ensure all skills have a 'tags' field to prevent validation errors.
+        # Ensure all skills have 'tags' and 'description' fields to prevent validation errors.
         processed_skills = []
         for skill in skills_from_config:
             if "tags" not in skill:
                 skill["tags"] = []
+            if "description" not in skill:
+                skill["description"] = "No description provided."
             processed_skills.append(skill)
 
         agent_card = AgentCard(

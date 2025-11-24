@@ -78,7 +78,7 @@ apps:
       
       agent_card:
         description: "Evaluates order risk based on amount"
-        skills: [{id: "eval_risk", name: "Evaluate Risk", tags: ["risk"]}]
+        skills: [{id: "eval_risk", name: "Evaluate Risk", description: "Evaluates risk", tags: ["risk"]}]
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
 
@@ -124,7 +124,7 @@ apps:
       
       agent_card:
         description: "Approves low risk orders"
-        skills: [{id: "approve", name: "Approve", tags: ["approval"]}]
+        skills: [{id: "approve", name: "Approve", description: "Approves order", tags: ["approval"]}]
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
 
@@ -170,7 +170,7 @@ apps:
       
       agent_card:
         description: "Flags high risk orders"
-        skills: [{id: "review", name: "Review", tags: ["review"]}]
+        skills: [{id: "review", name: "Review", description: "Reviews order", tags: ["review"]}]
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
 
