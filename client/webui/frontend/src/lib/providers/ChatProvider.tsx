@@ -4,32 +4,7 @@ import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-
-import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
-import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type {
-    ArtifactInfo,
-    ArtifactRenderingState,
-    CancelTaskRequest,
-    DataPart,
-    FileAttachment,
-    FilePart,
-    JSONRPCErrorResponse,
-    Message,
-    MessageFE,
-    Notification,
-    Part,
-    PartFE,
-    SendStreamingMessageRequest,
-    SendStreamingMessageSuccessResponse,
-    Session,
-    Task,
-    TaskStatusUpdateEvent,
-    TextPart,
-    ArtifactPart,
-    AgentCardInfo,
-    Project,
-} from "@/lib/types";
+import type { Project } from "@/lib/types/projects";
 
 // Type for tasks loaded from the API
 interface TaskFromAPI {
@@ -55,20 +30,37 @@ const migrateV0ToV1 = (task: any): any => {
 };
 
 // Migration registry: maps version numbers to migration functions
+
 const MIGRATIONS: Record<number, (task: any) => any> = {
     0: migrateV0ToV1,
     // Uncomment when future branch merges:
     // 1: migrateV1ToV2,
 };
 
-const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
-const fileToBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve((reader.result as string).split(",")[1]);
-        reader.onerror = error => reject(error);
-    });
+import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
+import { ChatContext, type ChatContextValue } from "@/lib/contexts";
+import type {
+    ArtifactInfo,
+    ArtifactRenderingState,
+    CancelTaskRequest,
+    DataPart,
+    FileAttachment,
+    FilePart,
+    JSONRPCErrorResponse,
+    Message,
+    MessageFE,
+    Notification,
+    Part,
+    PartFE,
+    SendStreamingMessageRequest,
+    SendStreamingMessageSuccessResponse,
+    Session,
+    Task,
+    TaskStatusUpdateEvent,
+    TextPart,
+    ArtifactPart,
+    AgentCardInfo,
+} from "@/lib/types";
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -76,25 +68,35 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
+    const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { ErrorDialog, setError } = useErrorDialog();
 
-    const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
+    const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
+
+    const fileToBase64 = (file: File): Promise<string> =>
+        new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve((reader.result as string).split(",")[1]);
+            reader.onerror = error => reject(error);
+        });
+
+    // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
-    const [selectedAgentName, setSelectedAgentName] = useState<string>("");
-    const [isCancelling, setIsCancelling] = useState<boolean>(false);
     const currentEventSource = useRef<EventSource | null>(null);
+    const [selectedAgentName, setSelectedAgentName] = useState<string>("");
+    const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
+    const isCancellingRef = useRef(isCancelling);
     const savingTasksRef = useRef<Set<string>>(new Set());
-
     // Track in-flight artifact preview fetches to prevent duplicates
     const artifactFetchInProgressRef = useRef<Set<string>>(new Set());
     const artifactDownloadInProgressRef = useRef<Set<string>>(new Set());
 
-    const isCancellingRef = useRef(isCancelling);
     useEffect(() => {
         isCancellingRef.current = isCancelling;
     }, [isCancelling]);
@@ -144,6 +146,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
 
     // Notification Helper
+    // Note: "error" type is deprecated in favor of useErrorDialog
     const addNotification = useCallback((message: string, type?: "success" | "info" | "error") => {
         setNotifications(prev => {
             const existingNotification = prev.find(n => n.message === message);
@@ -225,24 +228,28 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     // Helper function to deserialize task data to MessageFE objects
-    const deserializeTaskToMessages = useCallback((task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, targetSessionId: string): MessageFE[] => {
-        return task.messageBubbles.map(bubble => ({
-            taskId: task.taskId,
-            role: bubble.type === "user" ? "user" : "agent",
-            parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
-            isUser: bubble.type === "user",
-            isComplete: true,
-            files: bubble.files,
-            uploadedFiles: bubble.uploadedFiles,
-            artifactNotification: bubble.artifactNotification,
-            isError: bubble.isError,
-            metadata: {
-                messageId: bubble.id,
-                sessionId: targetSessionId,
-                lastProcessedEventSequence: 0,
-            },
-        }));
-    }, []);
+
+    const deserializeTaskToMessages = useCallback(
+        (task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }): MessageFE[] => {
+            return task.messageBubbles.map(bubble => ({
+                taskId: task.taskId,
+                role: bubble.type === "user" ? "user" : "agent",
+                parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
+                isUser: bubble.type === "user",
+                isComplete: true,
+                files: bubble.files,
+                uploadedFiles: bubble.uploadedFiles,
+                artifactNotification: bubble.artifactNotification,
+                isError: bubble.isError,
+                metadata: {
+                    messageId: bubble.id,
+                    sessionId: sessionId,
+                    lastProcessedEventSequence: 0,
+                },
+            }));
+        },
+        [sessionId]
+    );
 
     // Helper function to apply migrations to a task
     const migrateTask = useCallback((task: any): any => {
@@ -294,7 +301,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Deserialize all tasks to messages
             const allMessages: MessageFE[] = [];
             for (const task of migratedTasks) {
-                const taskMessages = deserializeTaskToMessages(task, sessionId);
+                const taskMessages = deserializeTaskToMessages(task);
                 allMessages.push(...taskMessages);
             }
 
@@ -370,7 +377,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size`;
                         }
 
-                        addNotification(errorMessage, "error");
+                        setError({ title: "Error Uploading Artifact", error: errorMessage });
                         return { error: errorMessage };
                     }
 
@@ -379,17 +386,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error(errorMessage);
                 }
                 const result = await response.json();
-                addNotification(`Artifact "${file.name}" uploaded successfully.`);
+                addNotification(`File "${file.name}" uploaded.`, "success");
                 await artifactsRefetch();
                 // Return both URI and sessionId (backend may have created a new session)
                 return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
             } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : "Unknown error";
-                addNotification(`Error uploading artifact "${file.name}": ${errorMessage}`);
+                const errorMessage = error instanceof Error ? error.message : "";
+                setError({ title: "Error Uploading File", error: errorMessage });
                 return { error: `Failed to upload "${file.name}": ${errorMessage}` };
             }
         },
-        [apiPrefix, sessionId, addNotification, artifactsRefetch]
+        [apiPrefix, sessionId, addNotification, artifactsRefetch, setError]
     );
 
     // Session State
@@ -408,13 +415,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const errorData = await response.json().catch(() => ({ detail: `Failed to delete ${filename}` }));
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
-                addNotification(`File "${filename}" deleted successfully.`);
+                addNotification(`File "${filename}" deleted.`, "success");
                 artifactsRefetch();
             } catch (error) {
-                addNotification(`Error deleting file "${filename}": ${error instanceof Error ? error.message : "Unknown error"}`);
+                setError({ title: "File Deletion Failed", error: error instanceof Error ? error.message : "Unknown error" });
             }
         },
-        [apiPrefix, sessionId, addNotification, artifactsRefetch]
+        [apiPrefix, sessionId, addNotification, artifactsRefetch, setError]
     );
 
     const openDeleteModal = useCallback((artifact: ArtifactInfo) => {
@@ -450,11 +457,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleDeleteSelectedArtifacts = useCallback(() => {
         if (selectedArtifactFilenames.size === 0) {
-            addNotification("No files selected for deletion.");
             return;
         }
         setIsBatchDeleteModalOpen(true);
-    }, [selectedArtifactFilenames, addNotification]);
+    }, [selectedArtifactFilenames]);
 
     const confirmBatchDeleteArtifacts = useCallback(async () => {
         setIsBatchDeleteModalOpen(false);
@@ -474,12 +480,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 errorCount++;
             }
         }
-        if (successCount > 0) addNotification(`${successCount} files(s) deleted successfully.`);
-        if (errorCount > 0) addNotification(`Failed to delete ${errorCount} files(s).`);
+        if (successCount > 0) addNotification(`${successCount} files(s) deleted.`, "success");
+        if (errorCount > 0) {
+            setError({ title: "File Deletion Failed", error: `${errorCount} file(s) failed to delete.` });
+        }
         artifactsRefetch();
         setSelectedArtifactFilenames(new Set());
         setIsArtifactEditMode(false);
-    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, apiPrefix, sessionId]);
+    }, [selectedArtifactFilenames, addNotification, artifactsRefetch, apiPrefix, sessionId, setError]);
 
     const openArtifactForPreview = useCallback(
         async (artifactFilename: string): Promise<FileAttachment | null> => {
@@ -544,14 +552,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setPreviewFileContent(fileData);
                 return fileData;
             } catch (error) {
-                addNotification(`Error loading preview for ${artifactFilename}: ${error instanceof Error ? error.message : "Unknown error"}`);
+                console.error("Error loading artifact preview:", error);
                 return null;
             } finally {
                 // Remove from in-progress set immediately when done
                 artifactFetchInProgressRef.current.delete(artifactFilename);
             }
         },
-        [apiPrefix, sessionId, activeProject?.id, artifacts, addNotification, previewArtifactFilename]
+        [apiPrefix, sessionId, activeProject?.id, artifacts, previewArtifactFilename]
     );
 
     const navigateArtifactVersion = useCallback(
@@ -565,7 +573,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Now check if the specific version exists
             if (!previewedArtifactAvailableVersions.includes(targetVersion)) {
-                addNotification(`Version ${targetVersion} is not available for ${artifactFilename}.`);
+                console.warn(`Requested version ${targetVersion} not available for ${artifactFilename}`);
                 return null;
             }
             setPreviewFileContent(null);
@@ -600,21 +608,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setPreviewFileContent(fileData);
                 return fileData;
             } catch (error) {
-                addNotification(`Error loading version ${targetVersion}: ${error instanceof Error ? error.message : "Unknown error"}`);
+                setError({ title: "Error Loading Artifact Version", error: error instanceof Error ? error.message : "Unknown error" });
                 return null;
             }
         },
-        [apiPrefix, addNotification, artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id]
-    );
-
-    const openMessageAttachmentForPreview = useCallback(
-        (file: FileAttachment) => {
-            addNotification(`Loading preview for attached file: ${file.name}`);
-            setPreviewFileContent(file);
-            setPreviewedArtifactAvailableVersions(null);
-            setCurrentPreviewedVersionNumber(null);
-        },
-        [addNotification]
+        [apiPrefix, artifacts, previewedArtifactAvailableVersions, sessionId, activeProject?.id, setError]
     );
 
     const openSidePanelTab = useCallback((tab: "files" | "workflow") => {
@@ -708,14 +706,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return fileData;
             } catch (error) {
                 console.error(`Error downloading artifact ${filename}:`, error);
-                addNotification(`Error downloading artifact: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+                setError({ title: "Error Downloading Artifact", error: error instanceof Error ? error.message : "Unknown error" });
                 return null;
             } finally {
                 // Remove from in-progress set immediately when done
                 artifactDownloadInProgressRef.current.delete(filename);
             }
         },
-        [apiPrefix, sessionId, artifacts, addNotification, setArtifacts]
+        [apiPrefix, sessionId, artifacts, setArtifacts, setError]
     );
 
     const handleSseMessage = useCallback(
@@ -728,7 +726,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 rpcResponse = JSON.parse(event.data) as SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
             } catch (error: unknown) {
                 console.error("Failed to parse SSE message:", error);
-                addNotification("Received unparseable agent update.", "error");
                 return;
             }
 
@@ -1143,7 +1140,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Finalization logic
             if (isFinalEvent) {
                 if (isCancellingRef.current) {
-                    addNotification("Task successfully cancelled.");
+                    addNotification("Task cancelled.", "success");
                     if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
                     setIsCancelling(false);
                 }
@@ -1292,8 +1289,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
             sseEventSequenceRef.current = 0;
             // Artifacts will be automatically refreshed by useArtifacts hook when sessionId changes
-            // Success notification
-            addNotification("New session started successfully.");
 
             // Dispatch event to focus chat input
             if (typeof window !== "undefined") {
@@ -1303,7 +1298,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, addNotification, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
+        [apiPrefix, isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, setPreviewArtifact]
     );
 
     const handleSwitchSession = useCallback(
@@ -1312,7 +1307,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             console.log(`${log_prefix} Switching to session ${newSessionId}...`);
 
             setIsLoadingSession(true);
+
+            // Clear messages immediately to prevent showing old session's messages
             setMessages([]);
+
             closeCurrentEventSource();
 
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
@@ -1382,10 +1380,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     }
                 }
 
-                // Update session ID state
+                // Update session state
                 setSessionId(newSessionId);
-
-                // Reset other session-related state
                 setIsResponding(false);
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
@@ -1394,13 +1390,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
 
-                await loadSessionTasks(newSessionId + "23");
-            } catch (e) {
-                console.error(`${log_prefix} Error switching sessions:`, e);
-                setError({
-                    title: "Error Switching Sessions",
-                    error: "Refresh your browser and please try again.",
-                });
+                // Load session tasks
+                await loadSessionTasks(newSessionId);
+            } catch (error) {
+                console.error(`${log_prefix} Failed to fetch session history:`, error);
+                setError({ title: "Error switching session", error: error instanceof Error ? error.message : "Unknown error" });
             } finally {
                 setIsLoadingSession(false);
             }
@@ -1422,16 +1416,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     if (response.status === 422) throw new Error("Invalid name");
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
+
                 setSessionName(newName);
                 if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                console.error("Error updating session name:", error);
-                setError({
-                    title: "Error Updating Session Name",
-                    error: "Please try again.",
-                });
+                setError({ title: "Error updating session name", error: error instanceof Error ? error.message : "Unknown error" });
             }
         },
         [apiPrefix, setError]
@@ -1447,7 +1438,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const errorData = await response.json().catch(() => ({ detail: "Failed to delete session" }));
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
-                addNotification("Session deleted successfully.");
+                addNotification("Session deleted.", "success");
                 if (sessionIdToDelete === sessionId) {
                     handleNewSession();
                 }
@@ -1456,10 +1447,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                addNotification(`Error deleting session: ${error instanceof Error ? error.message : "Unknown error"}`);
+                setError({ title: "Error Deleting Session", error: error instanceof Error ? error.message : "Unknown error" });
             }
         },
-        [apiPrefix, addNotification, handleNewSession, sessionId]
+        [apiPrefix, addNotification, handleNewSession, sessionId, setError]
     );
 
     // Artifact Rendering Actions
@@ -1512,15 +1503,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleCancel = useCallback(async () => {
         if ((!isResponding && !isCancelling) || !currentTaskId) {
-            addNotification("No active task to cancel.");
             return;
         }
         if (isCancelling) {
-            addNotification("Cancellation already in progress.");
             return;
         }
 
-        addNotification(`Requesting cancellation for task ${currentTaskId}...`);
         setIsCancelling(true);
 
         try {
@@ -1542,7 +1530,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             if (response.status === 202) {
                 if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
                 cancelTimeoutRef.current = setTimeout(() => {
-                    addNotification(`Cancellation for task ${currentTaskId} timed out. Allowing new input.`);
+                    addNotification("Cancellation timed out. Allowing new input.");
                     setIsCancelling(false);
                     setIsResponding(false);
                     closeCurrentEventSource();
@@ -1553,14 +1541,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 15000);
             } else {
                 const errorData = await response.json().catch(() => ({ detail: "Unknown cancellation error" }));
-                addNotification(`Failed to request cancellation: ${errorData.detail || response.statusText}`);
+                setError({ title: "Cancellation Failed", error: errorData.detail || response.statusText });
                 setIsCancelling(false);
             }
         } catch (error) {
-            addNotification(`Error sending cancellation request: ${error instanceof Error ? error.message : "Network error"}`);
+            setError({ title: "Cancellation Failed", error: error instanceof Error ? error.message : "Network error" });
             setIsCancelling(false);
         }
-    }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, closeCurrentEventSource]);
+    }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, setError, closeCurrentEventSource]);
 
     const handleFeedbackSubmit = useCallback(
         async (taskId: string, feedbackType: "up" | "down", feedbackText: string) => {
@@ -1581,12 +1569,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }));
             } catch (error) {
                 console.error("Failed to submit feedback:", error);
-                addNotification("Failed to submit feedback. Please try again.", "error");
-                // Re-throw to allow UI to handle the error if needed
                 throw error;
             }
         },
-        [sessionId, addNotification]
+        [sessionId]
     );
 
     const handleSseOpen = useCallback(() => {
@@ -1595,7 +1581,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleSseError = useCallback(() => {
         if (isResponding && !isFinalizing.current && !isCancellingRef.current) {
-            addNotification("Connection error with agent updates.");
+            setError({ title: "Connection Failed", error: "Connection lost. Please try again." });
         }
         if (!isFinalizing.current) {
             setIsResponding(false);
@@ -1606,7 +1592,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
         }
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
-    }, [addNotification, closeCurrentEventSource, isResponding]);
+    }, [closeCurrentEventSource, isResponding, setError]);
 
     const cleanupUploadedFiles = useCallback(
         async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
@@ -1643,8 +1629,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
             if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
-                if (!selectedAgentName) addNotification("Please select an agent first.");
-                if (isCancelling) addNotification("Cannot send new message while a task is being cancelled.");
                 return;
             }
             closeCurrentEventSource();
@@ -1722,8 +1706,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             const cleanupMessage = successfullyUploadedFiles.length > 0 ? " Previously uploaded files have been cleaned up." : "";
 
                             const errorDetail = result && "error" in result ? ` (${result.error})` : "";
-                            addNotification(`File upload failed for "${file.name}"${errorDetail}.${cleanupMessage} Message not sent.`, "error");
-
+                            setError({ title: "Error Uploading File", error: `Message not sent. File upload failed for "${file.name}"${errorDetail}.${cleanupMessage}` });
                             setIsResponding(false);
                             setMessages(prev => prev.filter(msg => msg.metadata?.messageId !== userMsg.metadata?.messageId));
                             return;
@@ -1740,7 +1723,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 messageParts.push(...uploadedFileParts);
 
                 if (messageParts.length === 0) {
-                    throw new Error("Cannot send an empty message.");
+                    return;
                 }
 
                 // 3. Construct the A2A message
@@ -1855,7 +1838,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, taskId: taskId } : msg)));
             } catch (error) {
                 console.error("ChatProvider handleSubmit: Catch block error", error);
-                addNotification(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+                setError({ title: "Message Submission Failed", error: error instanceof Error ? error.message : "Unknown error. Please try again." });
                 setIsResponding(false);
                 setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
                 setCurrentTaskId(null);
@@ -1863,7 +1846,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, activeProject, cleanupUploadedFiles]
+        [
+            sessionId,
+            isResponding,
+            isCancelling,
+            selectedAgentName,
+            closeCurrentEventSource,
+            apiPrefix,
+            uploadArtifactFile,
+            updateSessionName,
+            saveTaskToBackend,
+            serializeMessageBubble,
+            INLINE_FILE_SIZE_LIMIT_BYTES,
+            activeProject,
+            cleanupUploadedFiles,
+            setError,
+        ]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
@@ -2101,7 +2099,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         previewFileContent,
         openArtifactForPreview,
         navigateArtifactVersion,
-        openMessageAttachmentForPreview,
         previewArtifact,
         setPreviewArtifact, // Now uses the wrapper function that sets filename
         updateSessionName,
