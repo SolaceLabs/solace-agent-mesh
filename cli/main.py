@@ -1,4 +1,5 @@
 import click
+import logging
 import os
 import sys
 
@@ -12,6 +13,17 @@ from cli.commands.add_cmd import add
 from cli.commands.plugin_cmd import plugin
 from cli.commands.eval_cmd import eval_cmd
 from cli.commands.docs_cmd import docs
+
+# Import and setup colored logging
+try:
+    from solace_agent_mesh.common.logging_config import setup_colored_logging
+    setup_colored_logging(level=logging.INFO)
+except ImportError:
+    # Fallback if the module is not available
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))

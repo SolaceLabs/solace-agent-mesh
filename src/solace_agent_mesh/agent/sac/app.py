@@ -6,6 +6,14 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 )
 
+# Setup colored logging BEFORE any other imports that might configure logging
+try:
+    from common.logging_config import setup_colored_logging
+    setup_colored_logging(level=logging.INFO)
+except ImportError:
+    # Fallback if colored logging is not available
+    pass
+
 from common.utils.asyncio_macos_fix import ensure_asyncio_compatibility
 from .patch_adk import patch_adk
 
