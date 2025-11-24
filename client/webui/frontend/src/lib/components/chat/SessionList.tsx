@@ -285,33 +285,25 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [], selecte
     const filteredSessions = useMemo(() => {
         let filtered = sessions;
 
-        // Debug logging
-        console.log("[SessionList] Filtering - selectedTags:", selectedTags);
-        console.log("[SessionList] Total sessions:", sessions.length);
-        console.log("[SessionList] Sessions with tags:", sessions.filter(s => s.tags && s.tags.length > 0).length);
+        // Apply project filter first
+        if (selectedProject !== "all") {
+            if (selectedProject === "(No Project)") {
+                filtered = filtered.filter(session => !session.projectName);
+            } else {
+                filtered = filtered.filter(session => session.projectName === selectedProject);
+            }
+        }
 
-        // If tags are selected, filter by tags first (tags take priority)
+        // Then apply tag filter (AND logic with project filter)
         if (selectedTags.length > 0) {
             filtered = filtered.filter(session => {
                 if (!session.tags || session.tags.length === 0) {
-                    console.log("[SessionList] Session has no tags:", session.id);
                     return false;
                 }
-                // Check if session has any of the selected tags (OR logic)
+                // Check if session has any of the selected tags (OR logic for multiple tags)
                 const hasTag = selectedTags.some(selectedTag => session.tags!.includes(selectedTag));
-                console.log("[SessionList] Session", session.id, "tags:", session.tags, "matches:", hasTag);
                 return hasTag;
             });
-            console.log("[SessionList] Filtered by tags, result count:", filtered.length);
-        } else {
-            // Only apply project filter when no tags are selected
-            if (selectedProject !== "all") {
-                if (selectedProject === "(No Project)") {
-                    filtered = filtered.filter(session => !session.projectName);
-                } else {
-                    filtered = filtered.filter(session => session.projectName === selectedProject);
-                }
-            }
         }
 
         return filtered;
