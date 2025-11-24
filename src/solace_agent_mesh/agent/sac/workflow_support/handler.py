@@ -37,6 +37,7 @@ from ....common.data_parts import (
 )
 from ....agent.adk.runner import run_adk_async_task_thread_wrapper
 from ....common.utils.embeds.constants import EMBED_REGEX
+from ....agent.utils.artifact_helpers import parse_artifact_uri
 
 if TYPE_CHECKING:
     from ..component import SamAgentComponent
@@ -313,32 +314,35 @@ class WorkflowNodeHandler:
         log_id = f"{self.host.log_identifier}[ProcessURI]"
 
         # Parse URI to extract artifact name and version
-        # Expected format: artifact://<filename>?version=<version>
         uri = a2a.get_uri_from_file_part(file_part)
         if not uri:
              raise ValueError("FilePart has no URI")
-             
-        artifact_name, version = self._parse_artifact_uri(uri)
 
-        log.debug(f"{log_id} Loading artifact: {artifact_name} v{version}")
+        try:
+            uri_parts = parse_artifact_uri(uri)
+        except ValueError as e:
+            raise ValueError(f"Invalid artifact URI: {e}")
 
-        # Load artifact
+        log.debug(f"{log_id} Loading artifact from URI: {uri}")
+
+        # Load artifact using the context from the URI (app_name, user_id, session_id)
+        # This ensures we can read artifacts created by the workflow orchestrator
         artifact = await self.host.artifact_service.load_artifact(
-            app_name=self.host.agent_name,
-            user_id=a2a_context["user_id"],
-            session_id=a2a_context["effective_session_id"],
-            filename=artifact_name,
-            version=version,
+            app_name=uri_parts["app_name"],
+            user_id=uri_parts["user_id"],
+            session_id=uri_parts["session_id"],
+            filename=uri_parts["filename"],
+            version=uri_parts["version"],
         )
 
         if not artifact or not artifact.inline_data:
-            raise ValueError(f"Artifact not found or has no data: {artifact_name}")
+            raise ValueError(f"Artifact not found or has no data: {uri_parts['filename']}")
 
         # Decode artifact data
         mime_type = artifact.inline_data.mime_type
         data = self._decode_file_bytes(artifact.inline_data.data, mime_type)
 
-        log.info(f"{log_id} Loaded and decoded artifact: {artifact_name}")
+        log.info(f"{log_id} Loaded and decoded artifact: {uri_parts['filename']}")
 
         return data
 
@@ -381,28 +385,6 @@ class WorkflowNodeHandler:
 
         extension = ext_map.get(mime_type, "dat")
         return f"{self.host.agent_name}_input_data.{extension}"
-
-    def _parse_artifact_uri(self, uri: str) -> tuple[str, Optional[int]]:
-        """
-        Parse artifact URI to extract filename and version.
-        Format: artifact://<filename>?version=<version>
-        Returns: (filename, version)
-        """
-        # Remove artifact:// prefix
-        if uri.startswith("artifact://"):
-            uri = uri[11:]
-
-        # Split on query params
-        if "?" in uri:
-            filename, query = uri.split("?", 1)
-            # Parse version from query
-            for param in query.split("&"):
-                if param.startswith("version="):
-                    version_str = param.split("=", 1)[1]
-                    return filename, int(version_str)
-            return filename, None
-
-        return uri, None
 
     async def _execute_with_output_validation(
         self,
