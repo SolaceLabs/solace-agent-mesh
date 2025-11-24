@@ -49,7 +49,7 @@
             "args": "--envfile .env examples/gateways/mcp_gateway_example.yaml examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml",
             "justMyCode": false,
             "env": {
-                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.ini"
+                "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
             }
         },
         {

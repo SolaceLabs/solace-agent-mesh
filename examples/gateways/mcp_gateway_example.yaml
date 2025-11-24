@@ -18,7 +18,7 @@
 # - SOLACE_BROKER_VPN: VPN name for the Solace broker
 #
 # Usage:
-#   sam run --config examples/gateways/mcp_gateway_example.yaml
+#   sam run examples/gateways/mcp_gateway_example.yaml
 #
 # Then connect an MCP client to: http://localhost:8000/mcp
 
@@ -127,15 +127,16 @@ apps:
 # 4. Responses are streamed back in real-time
 # 5. Connect MCP clients to: http://localhost:8000/mcp (for HTTP transport)
 #
-# Example MCP client usage (with FastMCP CLI):
-#   fastmcp dev http://localhost:8000/mcp
+# Example MCP client usage (with MCP inspector CLI):
+#   npx @modelcontextprotocol/inspector
+# Select Streamable HTTP for the transport type and enter the following for the url: http://localhost:8090/mcp
 #
 # Example connecting from Claude Desktop:
 # Add to Claude Desktop config (~/.config/claude/config.json):
 # {
 #   "mcpServers": {
 #     "sam": {
-#       "url": "http://localhost:8000/mcp",
+#       "url": "http://localhost:8090/mcp",
 #       "transport": "http"
 #     }
 #   }
