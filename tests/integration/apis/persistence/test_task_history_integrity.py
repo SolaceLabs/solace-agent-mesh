@@ -16,7 +16,7 @@ from tests.integration.apis.persistence.test_task_history_api import (
 )
 
 
-def test_task_deletion_cascades_to_events(api_client: TestClient, test_db_engine):
+def test_task_deletion_cascades_to_events(api_client: TestClient, api_client_factory, db_session_factory):
     """
     Tests that deleting a Task record correctly cascades the deletion to all
     associated TaskEvent records, verifying the `ondelete='CASCADE'` constraint.
@@ -28,7 +28,7 @@ def test_task_deletion_cascades_to_events(api_client: TestClient, test_db_engine
 
     # Manually log events to simulate the logger behavior, as the API test
     # harness does not have a live message broker.
-    task_logger_service = dependencies.sac_component_instance.get_task_logger_service()
+    task_logger_service = api_client_factory.mock_component.get_task_logger_service()
     message_text = "Test message for cascade delete"
 
     # Log request event

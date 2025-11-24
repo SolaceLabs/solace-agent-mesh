@@ -45,8 +45,7 @@ llm_interactions:
   - step_id: "llm_final_response_after_apply_embed_modifier_error"
     expected_request: # After apply_embed_and_create_artifact tool call
       expected_tool_responses_in_llm_messages:
-        - tool_call_id_matches_prior_request_index: 0
-          response_json_matches:
+        - response_json_matches:
             status: "error"
           response_contains: "Embed resolution failed: Failed to convert data for modifier 'jsonpath': Failed to parse string as JSON"
     static_response:

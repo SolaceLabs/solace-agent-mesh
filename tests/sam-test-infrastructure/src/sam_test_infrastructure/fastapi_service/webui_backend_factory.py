@@ -44,7 +44,7 @@ class WebUIBackendFactory:
                 Path(self._temp_dir.name) / f"test_webui_gateway_{uuid.uuid4().hex}.db"
             )
             db_url = f"sqlite:///{db_path}"
-        
+
         # Ensure parent directory exists for SQLite databases
         if db_url.startswith("sqlite"):
             # Extract file path from SQLite URL
@@ -308,6 +308,138 @@ class WebUIBackendFactory:
             RequestValidationError, validation_exception_handler
         )
         self.app.add_exception_handler(Exception, generic_exception_handler)
+
+    def setup_multi_user_testing(self, provider, test_user_header: str = "X-Test-User-Id"):
+        """
+        Set up additional dependency overrides for multi-user testing.
+
+        This method should be called after factory creation to enable:
+        - Header-based user identification for multi-user tests
+        - Test database overrides for optional dependencies
+        - Session validation using test database
+
+        Args:
+            provider: Database provider instance (needed for session validation)
+            test_user_header: Header name used to identify test user
+        """
+        from fastapi import Request
+        from sqlalchemy.orm import sessionmaker
+        from solace_agent_mesh.gateway.http_sse.dependencies import (
+            get_user_id,
+            get_db_optional,
+            get_feedback_service,
+            get_task_repository,
+            get_sac_component,
+            get_task_logger_service,
+            get_session_validator,
+        )
+        from solace_agent_mesh.gateway.http_sse.shared.auth_utils import get_current_user
+        from solace_agent_mesh.gateway.http_sse.services.feedback_service import FeedbackService
+        from solace_agent_mesh.gateway.http_sse.services.task_logger_service import TaskLoggerService
+        from solace_agent_mesh.gateway.http_sse.repository import SessionRepository
+
+        # Multi-user auth overrides that read from test header
+        async def override_get_current_user(request: Request) -> dict:
+            user_id = request.headers.get(test_user_header, "sam_dev_user")
+            if user_id == "secondary_user":
+                return {
+                    "id": "secondary_user",
+                    "name": "Secondary User",
+                    "email": "secondary@dev.local",
+                    "authenticated": True,
+                    "auth_method": "development",
+                }
+            else:
+                return {
+                    "id": "sam_dev_user",
+                    "name": "Sam Dev User",
+                    "email": "sam@dev.local",
+                    "authenticated": True,
+                    "auth_method": "development",
+                }
+
+        def override_get_user_id(request: Request) -> str:
+            return request.headers.get(test_user_header, "sam_dev_user")
+
+        self.app.dependency_overrides[get_current_user] = override_get_current_user
+        self.app.dependency_overrides[get_user_id] = override_get_user_id
+
+        # Override for get_db_optional to use the test database
+        def override_get_db_optional():
+            """Override to use factory's Session for optional DB dependency."""
+            db = self.Session()
+            try:
+                yield db
+                db.commit()
+            except Exception:
+                db.rollback()
+                raise
+            finally:
+                db.close()
+
+        self.app.dependency_overrides[get_db_optional] = override_get_db_optional
+
+        # Override for get_feedback_service to use the test database
+        def override_get_feedback_service():
+            """Override to use factory's Session for FeedbackService."""
+            # Call get_sac_component() directly so test patches are picked up
+            component = get_sac_component()
+            task_repo = get_task_repository()
+
+            return FeedbackService(
+                session_factory=self.Session,  # Use test database
+                component=component,  # Will have test patches applied
+                task_repo=task_repo
+            )
+
+        self.app.dependency_overrides[get_feedback_service] = override_get_feedback_service
+
+        # Override for get_task_logger_service to use the test database
+        def override_get_task_logger_service():
+            """Override to use factory's Session for TaskLoggerService."""
+            # Get component via dependency to pick up test patches
+            component = get_sac_component()
+
+            # Get task logging config from component
+            task_logging_config = component.get_config("task_logging", {})
+
+            return TaskLoggerService(
+                session_factory=self.Session,  # Use test database
+                config=task_logging_config
+            )
+
+        self.app.dependency_overrides[get_task_logger_service] = override_get_task_logger_service
+
+        # Override for session validator to use the test database
+        def override_get_session_validator():
+            """Override to use test database's Session factory for validation."""
+            def validate_with_test_database(session_id: str, user_id: str) -> bool:
+                try:
+                    # Use the provider's engine to get a session from the same database
+                    db = provider.get_sync_gateway_engine().connect()
+                    try:
+                        from sqlalchemy.orm import Session as SQLASession
+                        # Create an ORM session from the connection
+                        session_maker = sessionmaker(bind=db)
+                        orm_session = session_maker()
+                        try:
+                            session_repository = SessionRepository()
+                            session_domain = session_repository.find_user_session(
+                                orm_session, session_id, user_id
+                            )
+                            return session_domain is not None
+                        finally:
+                            orm_session.close()
+                    finally:
+                        db.close()
+                except Exception as e:
+                    log.error(f"Session validation error: {e}")
+                    return False
+            return validate_with_test_database
+
+        self.app.dependency_overrides[get_session_validator] = override_get_session_validator
+
+        log.info("[WebUIBackendFactory] Multi-user testing overrides configured")
 
     def teardown(self):
         # Clean up dependency overrides from our independent app

@@ -1,0 +1,84 @@
+test_case_id: "proxy_convert_progress_updates_001"
+description: "Tests that the proxy can be configured to disable convert_progress_updates, preserving text parts in status updates."
+tags: ["all", "proxy", "streaming"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied_NoConvert"
+  user_identity: "proxy_noconvert_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Send me updates."
+  external_context:
+    a2a_session_id: "session_proxy_noconvert_001"
+
+# This test verifies that convert_progress_updates=false preserves text parts
+# The TestAgent_Proxied_NoConvert is configured with convert_progress_updates: false
+downstream_a2a_agent_responses:
+  # 1. Initial Task(submitted) - ignored by gateway in streaming mode
+  - id: "downstream-task-id"
+    contextId: "session_proxy_noconvert_001"
+    kind: "task"
+    status:
+      state: "submitted"
+  # 2. Status update with text parts
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_noconvert_001"
+    final: false
+    status:
+      state: "working"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Processing your request..."
+  # 3. Another status update
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_noconvert_001"
+    final: false
+    status:
+      state: "working"
+      message:
+        role: "agent"
+        messageId: "msg-2"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Almost done..."
+  # 4. Final status update
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_noconvert_001"
+    final: true
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-final"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Request completed successfully."
+
+# This section asserts what the TestGatewayComponent receives
+# With convert_progress_updates=false, text parts are preserved
+expected_gateway_output:
+  - type: "status_update"
+    final_flag: false
+    content_parts:
+      - type: "text"
+        text_exact: "Processing your request..."
+  - type: "status_update"
+    final_flag: false
+    content_parts:
+      - type: "text"
+        text_exact: "Almost done..."
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Request completed successfully."

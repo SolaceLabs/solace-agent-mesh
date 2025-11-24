@@ -388,7 +388,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             broker_input_cfg = {
                 "component_module": "broker_input",
                 "component_name": f"{self.gateway_id}_viz_broker_input",
-                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/viz/{self.gateway_id}/{uuid.uuid4().hex}",
+                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/viz/{self.gateway_id}",
                 "create_queue_on_start": True,
                 "component_config": {
                     "broker_url": main_broker_config.get("broker_url"),
@@ -522,7 +522,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             broker_input_cfg = {
                 "component_module": "broker_input",
                 "component_name": f"{self.gateway_id}_task_log_broker_input",
-                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/task_log/{self.gateway_id}/{uuid.uuid4().hex}",
+                "broker_queue_name": f"{self.namespace.strip('/')}/q/gdk/task_log/{self.gateway_id}",
                 "create_queue_on_start": True,
                 "component_config": {
                     "broker_url": main_broker_config.get("broker_url"),
@@ -1258,6 +1258,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 ssl_keyfile=self.ssl_keyfile,
                 ssl_certfile=self.ssl_certfile,
                 ssl_keyfile_password=self.ssl_keyfile_password,
+                log_config=None
             )
             self.uvicorn_server = uvicorn.Server(config)
 

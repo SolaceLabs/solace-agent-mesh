@@ -19,22 +19,58 @@ interface ChatSidePanelProps {
 
 export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning }) => {
     const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel } = useChatContext();
-    const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream } = useTaskContext();
+    const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream, loadTaskFromBackend } = useTaskContext();
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
+    const [isLoadingTask, setIsLoadingTask] = useState<boolean>(false);
 
     // Process task data for visualization when the selected workflow task ID changes
     useEffect(() => {
-        if (taskIdInSidePanel && monitoredTasks[taskIdInSidePanel]) {
-            const taskDetails = monitoredTasks[taskIdInSidePanel];
-            const vizTask = processTaskForVisualization(taskDetails.events || [], monitoredTasks, taskDetails);
-            setVisualizedTask(vizTask);
-        } else {
-            setVisualizedTask(null);
-        }
-    }, [taskIdInSidePanel, monitoredTasks]);
+        const loadTask = async () => {
+            if (!taskIdInSidePanel) {
+                setVisualizedTask(null);
+                return;
+            }
+
+            // Check if task is already in monitoredTasks
+            if (monitoredTasks[taskIdInSidePanel]) {
+                const taskDetails = monitoredTasks[taskIdInSidePanel];
+                const vizTask = processTaskForVisualization(taskDetails.events || [], monitoredTasks, taskDetails);
+                setVisualizedTask(vizTask);
+            } else {
+                // Task not in monitoredTasks, load from backend
+                setIsLoadingTask(true);
+                try {
+                    const loadedTask = await loadTaskFromBackend(taskIdInSidePanel);
+                    if (loadedTask) {
+                        // Process the loaded task for visualization
+                        // Note: loadTaskFromBackend already added all child tasks to monitoredTasks
+                        // so we can now pass the full monitoredTasks object
+                        const vizTask = processTaskForVisualization(loadedTask.events || [], monitoredTasks, loadedTask);
+                        setVisualizedTask(vizTask);
+                    } else {
+                        console.error(`ChatSidePanel: Failed to load task ${taskIdInSidePanel} from backend`);
+                        setVisualizedTask(null);
+                    }
+                } catch (error) {
+                    console.error(`ChatSidePanel: Error loading task ${taskIdInSidePanel}:`, error);
+                    setVisualizedTask(null);
+                } finally {
+                    setIsLoadingTask(false);
+                }
+            }
+        };
+
+        loadTask();
+    }, [taskIdInSidePanel, monitoredTasks, loadTaskFromBackend]);
 
     // Helper function to determine what to display in the workflow panel
     const getWorkflowPanelContent = () => {
+        if (isLoadingTask) {
+            return {
+                message: "Loading workflow data...",
+                showButton: false,
+            };
+        }
         if (isReconnecting || isTaskMonitorConnecting) {
             return {
                 message: "Connecting to task monitor ...",

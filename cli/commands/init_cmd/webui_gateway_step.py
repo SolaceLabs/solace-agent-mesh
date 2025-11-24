@@ -7,6 +7,7 @@ from ...utils import ask_if_not_provided, ask_yes_no_question, load_template
 WEBUI_GATEWAY_DEFAULTS = {
     "webui_frontend_welcome_message": "",
     "webui_frontend_bot_name": "Solace Agent Mesh",
+    "webui_frontend_logo_url": "",
     "webui_frontend_collect_feedback": False,
     "webui_session_secret_key": "please_change_me_in",
     "webui_fastapi_host": "127.0.0.1",
@@ -130,6 +131,15 @@ def create_webui_gateway_config(
         ),
         none_interactive=skip_interactive,
     )
+    options["webui_frontend_logo_url"] = ask_if_not_provided(
+        options,
+        "webui_frontend_logo_url",
+        "Enter Frontend Logo URL (PNG, SVG, JPG or data URI)",
+        default=default_values.get(
+            "webui_frontend_logo_url", WEBUI_GATEWAY_DEFAULTS["webui_frontend_logo_url"]
+        ),
+        none_interactive=skip_interactive,
+    )
     options["webui_frontend_collect_feedback"] = ask_if_not_provided(
         options,
         "webui_frontend_collect_feedback",
@@ -159,13 +169,16 @@ def create_webui_gateway_config(
         
         replacements = {
             "__FRONTEND_WELCOME_MESSAGE__": str(
-                options.get("webui_frontend_welcome_message", "")
+                options.get("webui_frontend_welcome_message", '${FRONTEND_WELCOME_MESSAGE, "Hello, how can I assist you?"}')
             ),
             "__FRONTEND_BOT_NAME__": str(
-                options.get("webui_frontend_bot_name", "Solace Agent Mesh")
+                options.get("webui_frontend_bot_name", "${FRONTEND_BOT_NAME, Solace Agent Mesh}")
+            ),
+            "__FRONTEND_LOGO_URL__": str(
+                options.get("webui_frontend_logo_url", "${WEBUI_FRONTEND_LOGO_URL}")
             ),
             "__FRONTEND_COLLECT_FEEDBACK__": str(
-                options.get("webui_frontend_collect_feedback", False)
+                options.get("webui_frontend_collect_feedback", "${FRONTEND_COLLECT_FEEDBACK, false}")
             ).lower(),
             "__SESSION_SERVICE__": session_service_block,
         }

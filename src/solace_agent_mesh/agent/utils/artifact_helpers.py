@@ -988,6 +988,7 @@ async def load_artifact_content_or_metadata(
     load_metadata_only: bool = False,
     return_raw_bytes: bool = False,
     max_content_length: Optional[int] = None,
+    include_line_numbers: bool = False,
     component: Optional[Any] = None,
     log_identifier_prefix: str = "[ArtifactHelper:load]",
     encoding: str = "utf-8",
@@ -1174,28 +1175,49 @@ async def load_artifact_content_or_metadata(
                 if is_text:
                     try:
                         content_str = data_bytes.decode(encoding, errors=error_handling)
+                        original_content_str = content_str  # Save for line count calculation
+
+                        # Add line numbers if requested (before truncation)
+                        if include_line_numbers:
+                            lines = content_str.split('\n')
+                            numbered_lines = [f"{i+1}\t{line}" for i, line in enumerate(lines)]
+                            content_str = '\n'.join(numbered_lines)
+                            log.debug(
+                                "%s Added line numbers to %d lines.",
+                                log_identifier,
+                                len(lines)
+                            )
+
                         message_to_llm = ""
                         if len(content_str) > max_content_length:
                             truncated_content = content_str[:max_content_length] + "..."
+
+                            # Calculate line range if line numbers are included
+                            line_range_msg = ""
+                            if include_line_numbers:
+                                visible_line_count = truncated_content.count('\n') + 1
+                                total_line_count = original_content_str.count('\n') + 1
+                                line_range_msg = f" Lines 1-{visible_line_count} of {total_line_count} total."
 
                             if (
                                 max_content_length
                                 < TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY
                             ):
-                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
+                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters.{line_range_msg}
                                                 The artifact is larger ({len(content_str)} characters).
                                                 Please request again with larger max size up to {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} for the full artifact."""
                             else:
-                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters. 
+                                message_to_llm = f"""This artifact content has been truncated to {max_content_length} characters.{line_range_msg}
                                                 The artifact content met the maximum allowed size of {TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY} characters.
                                                 Please continue with this truncated content as the full artifact cannot be provided."""
                             log.info(
-                                "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).",
+                                "%s Loaded and decoded text artifact '%s' v%d. Returning truncated content (%d chars, limit: %d).%s",
                                 log_identifier,
                                 filename,
                                 version_to_load,
                                 len(truncated_content),
                                 max_content_length,
+                                line_range_msg,
                             )
                         else:
                             truncated_content = content_str

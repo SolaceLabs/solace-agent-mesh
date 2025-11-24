@@ -10,6 +10,7 @@ const defaultMockConfigContext: ConfigContextValue = {
     configRedirectUrl: "http://localhost:3000",
     configCollectFeedback: false,
     configBotName: "Mock Bot",
+    configLogoUrl: "",
     frontend_use_authorization: false,
 };
 

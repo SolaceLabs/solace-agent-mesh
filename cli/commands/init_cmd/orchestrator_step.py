@@ -382,8 +382,7 @@ def create_orchestrator_config(
            c. Direct Execution: If the task is not suitable for delegation (neither to a single agent nor a multi-agent sequence) and falls within your own capabilities, execute the task yourself.
 
         Artifact Management Guidelines:
-        - If an artifact was created during the task (either by yourself or a delegated agent), you must use the `list_artifacts` tool to get the details of the created artifacts.
-        - You must then review the list of artifacts and return the ones that are important for the user by using artifact_return embed.
+        - You must review your artifacts and return the ones that are important for the user by using artifact_return embed. You can use list_artifacts to see all available artifacts.
         - Provide regular progress updates using `status_update` embed directives, especially before initiating any tool call."""
 
         session_service_lines = [

@@ -5,13 +5,15 @@ Base Component class for SAM implementations in the Solace AI Connector.
 import logging
 import abc
 import asyncio
+import concurrent.futures
 import threading
 import functools
+import time
 from typing import Any, Optional
 
 from solace_ai_connector.components.component_base import ComponentBase
 
-from ..exceptions import MessageSizeExceededError
+from ..exceptions import ComponentInitializationError, MessageSizeExceededError
 from ..utils.message_utils import validate_message_size
 
 log = logging.getLogger(__name__)
@@ -401,6 +403,12 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 list(payload.keys()) if isinstance(payload, dict) else "not_dict"
             )
 
+            # Create user_properties if it doesn't exist
+            if user_properties is None:
+                user_properties = {}
+            
+            user_properties["timestamp"] = int(time.time() * 1000)
+
             # Validate message size
             is_valid, actual_size = validate_message_size(
                 payload, self.max_message_size_bytes, self.log_identifier
@@ -551,6 +559,26 @@ class SamComponentBase(ComponentBase, abc.ABC):
             log.warning(
                 "%s Async operations thread already running.", self.log_identifier
             )
+
+        # Monitor async initialization without blocking (critical for multi-agent processes)
+        if hasattr(self, '_async_init_future') and self._async_init_future is not None:
+            log.info("%s Setting up async initialization monitoring...", self.log_identifier)
+
+            def handle_init_completion(future):
+                """Non-blocking callback for initialization completion."""
+                try:
+                    future.result()  # Raises if init failed
+                    log.info("%s Async initialization completed successfully.", self.log_identifier)
+                except Exception as init_error:
+                    error_msg = f"{self.log_identifier} Async initialization failed: {init_error}"
+                    log.error(error_msg, exc_info=init_error)
+                    self.stop_signal.set()
+                    self._async_init_error = ComponentInitializationError(
+                        self.log_identifier, init_error, error_msg
+                    )
+
+            self._async_init_future.add_done_callback(handle_init_completion)
+            log.info("%s Async initialization monitoring active (non-blocking).", self.log_identifier)
 
         super().run()
         log.info("%s SamComponentBase run method finished.", self.log_identifier)

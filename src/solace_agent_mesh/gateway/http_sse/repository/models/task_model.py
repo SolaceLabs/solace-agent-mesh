@@ -15,6 +15,7 @@ class TaskModel(Base):
 
     id = Column(String, primary_key=True)
     user_id = Column(String, nullable=False, index=True)
+    parent_task_id = Column(String, nullable=True, index=True)
     start_time = Column(BigInteger, nullable=False)
     end_time = Column(BigInteger, nullable=True)
     status = Column(String, nullable=True)

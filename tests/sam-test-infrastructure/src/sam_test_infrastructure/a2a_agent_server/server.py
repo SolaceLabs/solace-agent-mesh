@@ -40,7 +40,7 @@ class TestA2AAgentServer:
         self._stateful_cache_lock = threading.Lock()
         self._primed_responses: List[Dict[str, Any]] = []
         self._primed_responses_lock = threading.Lock()
-        
+
         # Auth testing state
         self._auth_validation_enabled = False
         self._expected_auth_type: Optional[str] = None  # "bearer", "apikey", None
@@ -48,7 +48,7 @@ class TestA2AAgentServer:
         self._auth_should_fail_once = False  # For testing retry logic
         self._auth_failure_count = 0
         self._captured_auth_headers: List[Dict[str, str]] = []
-        
+
         # HTTP error simulation state
         self._http_error_config: Optional[Dict[str, Any]] = None
 
@@ -89,7 +89,7 @@ class TestA2AAgentServer:
                     )
             response = await call_next(request)
             return response
-        
+
         # 2.3.7b: Add HTTP error simulation middleware (runs before other middleware)
         @self.app.middleware("http")
         async def http_error_simulation_middleware(request: Request, call_next):
@@ -99,82 +99,102 @@ class TestA2AAgentServer:
                 self._http_error_config = None  # One-time use
                 log.info(
                     "[TestA2AAgentServer] Simulating HTTP error: status=%d",
-                    config["status_code"]
+                    config["status_code"],
                 )
                 return JSONResponse(
                     status_code=config["status_code"],
-                    content=config.get("error_body", {"error": f"HTTP {config['status_code']}"}),
+                    content=config.get(
+                        "error_body", {"error": f"HTTP {config['status_code']}"}
+                    ),
                 )
             return await call_next(request)
-        
+
         # 2.3.8: Add auth validation middleware
         @self.app.middleware("http")
         async def auth_validation_middleware(request: Request, call_next):
             # Skip validation for non-A2A endpoints
             if request.url.path != "/a2a":
                 return await call_next(request)
-            
+
             # Capture auth headers for test assertions
             auth_header = request.headers.get("Authorization", "")
             apikey_header = request.headers.get("X-API-Key", "")
-            
-            self._captured_auth_headers.append({
-                "authorization": auth_header,
-                "x_api_key": apikey_header,
-                "path": request.url.path,
-                "timestamp": time.time(),
-            })
-            
+
+            self._captured_auth_headers.append(
+                {
+                    "authorization": auth_header,
+                    "x_api_key": apikey_header,
+                    "path": request.url.path,
+                    "timestamp": time.time(),
+                }
+            )
+
             # If auth validation is disabled, just pass through
             if not self._auth_validation_enabled:
                 return await call_next(request)
-            
+
             # Test retry logic: fail once, then succeed
             if self._auth_should_fail_once and self._auth_failure_count == 0:
                 self._auth_failure_count += 1
-                log.info("[TestA2AAgentServer] Simulating 401 for retry test (first attempt)")
+                log.info(
+                    "[TestA2AAgentServer] Simulating 401 for retry test (first attempt)"
+                )
                 return JSONResponse(
                     status_code=401,
-                    content={"error": "unauthorized", "message": "Invalid or expired token"}
+                    content={
+                        "error": "unauthorized",
+                        "message": "Invalid or expired token",
+                    },
                 )
-            
+
             # Validate bearer token
             if self._expected_auth_type == "bearer":
                 if not auth_header.startswith("Bearer "):
-                    log.warning("[TestA2AAgentServer] Missing or malformed Bearer token")
+                    log.warning(
+                        "[TestA2AAgentServer] Missing or malformed Bearer token"
+                    )
                     return JSONResponse(
                         status_code=401,
-                        content={"error": "unauthorized", "message": "Bearer token required"}
+                        content={
+                            "error": "unauthorized",
+                            "message": "Bearer token required",
+                        },
                     )
-                
+
                 token = auth_header.replace("Bearer ", "")
                 if self._expected_auth_value and token != self._expected_auth_value:
                     log.warning(
                         "[TestA2AAgentServer] Invalid token. Expected '%s', got '%s'",
                         self._expected_auth_value,
-                        token
+                        token,
                     )
                     return JSONResponse(
                         status_code=401,
-                        content={"error": "unauthorized", "message": "Invalid token"}
+                        content={"error": "unauthorized", "message": "Invalid token"},
                     )
-            
+
             # Validate API key
             elif self._expected_auth_type == "apikey":
                 if not apikey_header:
                     log.warning("[TestA2AAgentServer] Missing API key")
                     return JSONResponse(
                         status_code=401,
-                        content={"error": "unauthorized", "message": "API key required"}
+                        content={
+                            "error": "unauthorized",
+                            "message": "API key required",
+                        },
                     )
-                
-                if self._expected_auth_value and apikey_header != self._expected_auth_value:
+
+                if (
+                    self._expected_auth_value
+                    and apikey_header != self._expected_auth_value
+                ):
                     log.warning("[TestA2AAgentServer] Invalid API key")
                     return JSONResponse(
                         status_code=401,
-                        content={"error": "unauthorized", "message": "Invalid API key"}
+                        content={"error": "unauthorized", "message": "Invalid API key"},
                     )
-            
+
             # Auth validation passed
             return await call_next(request)
 
@@ -238,9 +258,7 @@ class TestA2AAgentServer:
                     )
                 finally:
                     loop.close()
-                    log.info(
-                        "[TestA2AAgentServer] Event loop in server thread closed."
-                    )
+                    log.info("[TestA2AAgentServer] Event loop in server thread closed.")
 
         self._server_thread = threading.Thread(
             target=run_server_in_new_loop, daemon=True
@@ -300,17 +318,17 @@ class TestA2AAgentServer:
         with self._primed_responses_lock:
             self._primed_responses.clear()
             log.debug("[TestA2AAgentServer] Cleared primed responses.")
-    
+
     def configure_auth_validation(
         self,
         enabled: bool = True,
         auth_type: Optional[str] = None,
         expected_value: Optional[str] = None,
-        should_fail_once: bool = False
+        should_fail_once: bool = False,
     ):
         """
         Configures authentication validation for testing.
-        
+
         Args:
             enabled: Whether to validate auth headers
             auth_type: "bearer" or "apikey"
@@ -327,13 +345,13 @@ class TestA2AAgentServer:
             "enabled=%s, type=%s, fail_once=%s",
             enabled,
             auth_type,
-            should_fail_once
+            should_fail_once,
         )
-    
+
     def get_captured_auth_headers(self) -> List[Dict[str, str]]:
         """Returns all captured authentication headers for test assertions."""
         return self._captured_auth_headers.copy()
-    
+
     def clear_auth_state(self):
         """Clears all auth-related test state."""
         self._auth_validation_enabled = False
@@ -348,48 +366,40 @@ class TestA2AAgentServer:
         """Clears the stateful response cache."""
         with self._stateful_cache_lock:
             self._stateful_responses_cache.clear()
-    
+
     def configure_http_error_response(
-        self, 
-        status_code: int, 
-        error_body: Optional[Dict[str, Any]] = None
+        self, status_code: int, error_body: Optional[Dict[str, Any]] = None
     ):
         """
         Configures the server to return an HTTP error for the next request.
-        
+
         This is a one-time configuration - after returning the error once,
         the server returns to normal operation.
-        
+
         Args:
             status_code: HTTP status code to return (e.g., 500, 503)
             error_body: Optional JSON body to return with the error
         """
         self._http_error_config = {
             "status_code": status_code,
-            "error_body": error_body or {"error": f"HTTP {status_code}"}
+            "error_body": error_body or {"error": f"HTTP {status_code}"},
         }
         log.info(
             "[TestA2AAgentServer] Configured to return HTTP %d on next request",
-            status_code
+            status_code,
         )
-    
+
     def clear_captured_auth_headers(self):
         """Clears the captured authentication headers list."""
         self._captured_auth_headers.clear()
         log.debug("[TestA2AAgentServer] Cleared captured auth headers.")
-    
-    def clear_captured_requests(self):
-        """Clears the captured A2A requests list."""
-        self.captured_requests.clear()
-        log.debug("[TestA2AAgentServer] Cleared captured requests.")
-    
+
     def get_cancel_requests(self) -> List[Dict[str, Any]]:
         """Returns all captured cancel requests."""
         return [
-            req for req in self.captured_requests
-            if req.get("method") == "tasks/cancel"
+            req for req in self.captured_requests if req.get("method") == "tasks/cancel"
         ]
-    
+
     def was_cancel_requested_for_task(self, task_id: str) -> bool:
         """Checks if a cancel request was received for a specific task ID."""
         cancel_requests = self.get_cancel_requests()

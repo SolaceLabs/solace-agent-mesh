@@ -14,6 +14,7 @@ export interface ConfigContextValue {
     configRedirectUrl: string;
     configCollectFeedback: boolean;
     configBotName: string;
+    configLogoUrl: string;
     configFeatureEnablement?: Record<string, boolean>;
     /**
      * Authorization flag from frontend config

@@ -57,7 +57,8 @@ formatters:
   # JSON format for structured logging
   jsonFormatter:
     "()": pythonjsonlogger.json.JsonFormatter # The python-json-logger package is used for JSON formatting
-    format: "%(asctime)s %(levelname)s %(threadName)s %(name)s %(message)s"
+    format: "%(timestamp)s %(levelname)s %(threadName)s %(name)s %(message)s"
+    timestamp: "timestamp" # Generates ISO 8601-formatted timestamps for %(timestamp)s placeholder
 
 # Handlers determine where log messages go
 handlers:

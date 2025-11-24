@@ -93,8 +93,29 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Restore Playwright Browser From Cache
+        id: restore-playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('client/webui/frontend/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.restore-playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+
+      - name: Save Playwright cache
+        if: steps.restore-playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('client/webui/frontend/package-lock.json') }}
+
       - name: Run lint
         run: npm run lint
+
+      - name: Run Storybook Tests
+        run: npm run ci:storybook 
 
       - name: Build UI package
         run: npm run build-package

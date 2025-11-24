@@ -13,5 +13,6 @@ class ProxyTaskContext:
     This object is created when a task is initiated and destroyed when it completes.
     """
 
-    task_id: str
+    task_id: str  # SAM's task ID (used for upstream communication)
     a2a_context: Dict[str, Any]
+    downstream_task_id: str | None = None  # Downstream agent's task ID (used for cancellation)

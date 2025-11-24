@@ -4,7 +4,7 @@ export { AddProjectFilesDialog } from "./AddProjectFilesDialog";
 export { ProjectCard } from "./ProjectCard";
 export { ProjectList } from "./ProjectList";
 export { ProjectsPage } from "./ProjectsPage";
-export { ProjectsListView } from "./ProjectsListView";
+export { ProjectCards } from "./ProjectCards";
 export { ProjectDetailView } from "./ProjectDetailView";
 export { ProjectFilesManager } from "./ProjectFilesManager";
 export { ProjectHeader } from "./ProjectHeader";

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
+import { useNavigate } from "react-router-dom";
 
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft } from "lucide-react";
 
@@ -35,6 +36,7 @@ interface SessionListProps {
 }
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
+    const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification } = useChatContext();
     const { configServerUrl, persistenceEnabled } = useConfigContext();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -158,16 +160,8 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const handleGoToProject = (session: Session) => {
         if (!session.projectId) return;
 
-        // Dispatch event to navigate to projects page and select this project
-        if (typeof window !== "undefined") {
-            window.dispatchEvent(
-                new CustomEvent("navigate-to-project", {
-                    detail: {
-                        projectId: session.projectId,
-                    },
-                })
-            );
-        }
+        // Navigate to projects page with the project ID
+        navigate(`/projects/${session.projectId}`);
     };
 
     const handleMoveConfirm = async (targetProjectId: string | null) => {
@@ -281,20 +275,18 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
     return (
         <div className="flex h-full flex-col gap-4 py-6 pl-6">
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
                 {/* Session Search */}
                 <div className="pr-4">
                     <SessionSearch onSessionSelect={handleSwitchSession} projectId={selectedProjectId} />
                 </div>
-
-                <div className="text-lg">Chat Session History</div>
 
                 {/* Project Filter - Only show when persistence is enabled */}
                 {persistenceEnabled && projectNames.length > 0 && (
                     <div className="flex items-center gap-2 pr-4">
                         <label className="text-sm font-medium">Project:</label>
                         <Select value={selectedProject} onValueChange={setSelectedProject}>
-                            <SelectTrigger className="w-[200px] rounded-md">
+                            <SelectTrigger className="flex-1 rounded-md">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -315,7 +307,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     <ul>
                         {filteredSessions.map(session => (
                             <li key={session.id} className="group my-2 pr-4">
-                                <div className={`flex items-center gap-2 rounded px-4 py-2 ${session.id === sessionId ? "bg-muted" : ""}`}>
+                                <div className={`flex items-center gap-2 rounded px-2 py-2 ${session.id === sessionId ? "bg-muted" : ""}`}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}

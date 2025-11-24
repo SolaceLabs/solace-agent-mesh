@@ -19,6 +19,7 @@ export interface ChatState {
     agentsError: string | null;
     agentsLoading: boolean;
     agentsRefetch: () => Promise<void>;
+    agentNameDisplayNameMap: Record<string, string>;
     // Chat Side Panel State
     artifacts: ArtifactInfo[];
     artifactsLoading: boolean;
@@ -57,7 +58,7 @@ export interface ChatActions {
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "error") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
-    uploadArtifactFile: (file: File, overrideSessionId?: string) => Promise<{ uri: string; sessionId: string } | null>;
+    uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
     setActiveSidePanelTab: React.Dispatch<React.SetStateAction<"files" | "workflow">>;

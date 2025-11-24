@@ -552,6 +552,26 @@ class SamAgentApp(App):
         super().__init__(app_info, **kwargs)
         log.debug("%s Agent initialization complete.", agent_name)
 
+    def run(self):
+        """
+        Override run to ensure component initialization failures cause application failure.
+
+        This is critical for containerized deployments where the process must exit with
+        a non-zero code if initialization fails. By re-raising the exception, we allow
+        the SAC framework's main() to handle cleanup (component.cleanup(), broker
+        disconnection, etc.) before exiting with code 1.
+        """
+        try:
+            super().run()
+        except Exception as e:
+            log.critical(
+                "Failed to start agent application '%s': %s",
+                self.name,
+                e,
+                exc_info=e
+            )
+            raise
+
     def get_component(self, component_name: str = None) -> "SamAgentComponent":
         """
         Retrieves the running SamAgentComponent instance from the app's flow.

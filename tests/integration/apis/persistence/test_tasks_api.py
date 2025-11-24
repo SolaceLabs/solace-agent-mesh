@@ -9,6 +9,8 @@ import io
 import pytest
 from fastapi.testclient import TestClient
 
+from ..infrastructure.gateway_adapter import GatewayAdapter
+
 
 def test_send_non_streaming_task(api_client: TestClient):
     """Test POST /message:send for non-streaming task submission"""
@@ -126,30 +128,16 @@ def test_send_task_with_small_file_inline(api_client: TestClient):
     print("✓ Small file sent inline successfully")
 
 
-def test_send_task_with_large_file_via_artifacts(api_client: TestClient):
+def test_send_task_with_large_file_via_artifacts(
+    api_client: TestClient, gateway_adapter: GatewayAdapter
+):
     """Test POST /message:stream with large file uploaded via artifacts endpoint first (≥ 1MB)"""
 
-    # Step 1: Create a session first (frontend creates session on-demand)
-    initial_task_payload = {
-        "jsonrpc": "2.0",
-        "id": "test-req-create-session",
-        "method": "message/stream",
-        "params": {
-            "message": {
-                "role": "user",
-                "messageId": "test-msg-create-session",
-                "kind": "message",
-                "parts": [{"kind": "text", "text": "Creating session for file upload"}],
-                "metadata": {"agent_name": "TestAgent"},
-            }
-        },
-    }
-
-    session_response = api_client.post(
-        "/api/v1/message:stream", json=initial_task_payload
+    # Step 1: Create a session using gateway_adapter (properly persists to database)
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
     )
-    assert session_response.status_code == 200
-    session_id = session_response.json()["result"]["contextId"]
+    session_id = session.id
 
     # Step 2: Upload large file to artifacts endpoint (matches frontend for files ≥ 1MB)
     large_content = b"x" * (2 * 1024 * 1024)  # 2MB file
@@ -216,7 +204,9 @@ def test_send_task_with_large_file_via_artifacts(api_client: TestClient):
     print("✓ Large file uploaded via artifacts and referenced in task successfully")
 
 
-def test_upload_artifact_with_session_management(api_client: TestClient):
+def test_upload_artifact_with_session_management(
+    api_client: TestClient, gateway_adapter: GatewayAdapter
+):
     """Test POST /artifacts/upload with automatic session creation and management"""
 
     # Test 1: Upload with null sessionId (should create new session)
@@ -265,7 +255,12 @@ def test_upload_artifact_with_session_management(api_client: TestClient):
 
     print(f"✓ Artifact uploaded with auto-created session: {created_session_id}")
 
-    # Test 2: Upload to existing session
+    # Test 2: Upload to existing session (use gateway_adapter to create a properly persisted session)
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+    existing_session_id = session.id
+
     second_content = b"y" * (512 * 1024)  # 512KB file
     files2 = {
         "upload_file": (
@@ -275,7 +270,7 @@ def test_upload_artifact_with_session_management(api_client: TestClient):
         )
     }
     data2 = {
-        "sessionId": created_session_id,  # Use existing session
+        "sessionId": existing_session_id,  # Use properly persisted session
         "filename": "second_file.txt",
     }
 
@@ -288,13 +283,13 @@ def test_upload_artifact_with_session_management(api_client: TestClient):
     assert upload_response2.status_code == 201
     upload_result2 = upload_response2.json()
 
-    # Verify it used the same session
-    assert upload_result2["sessionId"] == created_session_id
+    # Verify it used the correct session
+    assert upload_result2["sessionId"] == existing_session_id
     assert upload_result2["filename"] == "second_file.txt"
     assert upload_result2["size"] == len(second_content)
     assert upload_result2["mimeType"] == "text/plain"
 
-    print(f"✓ Second artifact uploaded to existing session: {created_session_id}")
+    print(f"✓ Second artifact uploaded to existing session: {existing_session_id}")
 
     # Test 3: Upload with invalid filename (should fail)
     files3 = {
@@ -305,7 +300,7 @@ def test_upload_artifact_with_session_management(api_client: TestClient):
         )
     }
     data3 = {
-        "sessionId": created_session_id,
+        "sessionId": existing_session_id,
         "filename": "../invalid.txt",  # Path traversal attempt
     }
 
@@ -330,7 +325,7 @@ def test_upload_artifact_with_session_management(api_client: TestClient):
         )
     }
     data4 = {
-        "sessionId": created_session_id,
+        "sessionId": existing_session_id,
         "filename": "empty.txt",
     }
 

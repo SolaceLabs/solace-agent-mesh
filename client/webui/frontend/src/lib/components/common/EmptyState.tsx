@@ -1,14 +1,12 @@
-import type { VariantProps } from "class-variance-authority";
 import { Button } from "@/lib/components/ui/button";
-import type { buttonVariants } from "@/lib/components/ui/button";
 import type { ReactElement } from "react";
 import { ErrorIllustration, NotFoundIllustration } from "@/lib/assets";
 import { cn } from "@/lib/utils";
 import { Spinner } from "../ui/spinner";
-
-type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
+import type { ButtonVariant } from "@/lib/types/ui";
 
 export interface ButtonWithCallback {
+    icon?: ReactElement;
     text: string;
     variant: ButtonVariant;
     onClick: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
@@ -38,10 +36,11 @@ function EmptyState({ title, subtitle, image, variant = "error", buttons, classN
             <p className="mt-4 text-lg">{title}</p>
             {subtitle ? <p className="text-sm">{subtitle}</p> : null}
 
-            <div className="flex gap-2">
+            <div className="flex min-w-50 flex-col gap-2">
                 {buttons &&
-                    buttons.map(({ text, variant, onClick }, index) => (
+                    buttons.map(({ icon, text, variant, onClick }, index) => (
                         <Button key={`button-${text}-${index}`} testid={text} title={text} variant={variant} onClick={onClick}>
+                            {icon ? icon : null}
                             {text}
                         </Button>
                     ))}

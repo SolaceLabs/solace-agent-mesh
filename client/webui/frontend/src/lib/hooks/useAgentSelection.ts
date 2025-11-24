@@ -2,13 +2,17 @@ import { useCallback } from "react";
 import { useChatContext } from "./useChatContext";
 
 export const useAgentSelection = () => {
-    const { agents, sessionId, setMessages, setSelectedAgentName } = useChatContext();
+    const { agents, sessionId, setMessages, setSelectedAgentName, handleNewSession } = useChatContext();
 
     const handleAgentSelection = useCallback(
-        (agentName: string) => {
+        (agentName: string, startNewChat = false) => {
             if (agentName) {
                 const selectedAgent = agents.find(agent => agent.name === agentName);
                 if (selectedAgent) {
+                    if (startNewChat) {
+                        handleNewSession();
+                    }
+
                     setSelectedAgentName(agentName);
 
                     const displayedText = `Hi! I'm the ${selectedAgent.displayName}. How can I help?`;
@@ -30,7 +34,7 @@ export const useAgentSelection = () => {
                 }
             }
         },
-        [agents, sessionId, setMessages, setSelectedAgentName]
+        [agents, sessionId, setMessages, setSelectedAgentName, handleNewSession]
     );
 
     return { handleAgentSelection };

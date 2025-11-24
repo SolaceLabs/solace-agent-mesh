@@ -2,7 +2,7 @@
 Pydantic models for agent tool configurations defined in YAML.
 """
 from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import Field
+from pydantic import Field, model_validator
 from ...common.utils.pydantic_utils import SamConfigBase
 
 
@@ -53,9 +53,41 @@ class McpToolConfig(BaseToolConfig):
     manifest: list[dict[str, Any]] | None = None
 
 
+class OpenApiToolConfig(BaseToolConfig):
+    """Configuration for OpenAPI-based tools."""
+    tool_type: Literal["openapi"]
+
+    # Specification input (mutually exclusive - only one should be provided)
+    specification_file: Optional[str] = None  # Path to OpenAPI spec file
+    specification: Optional[str] = None       # Inline OpenAPI spec (JSON/YAML)
+    specification_url: Optional[str] = None   # URL to fetch OpenAPI spec from
+    specification_format: Optional[Literal["json", "yaml"]] = None  # Optional format hint
+
+    # Server URL override
+    base_url: Optional[str] = None  # Base URL to override/complete the server URL in the spec
+
+    # Tool filtering (mutually exclusive - only one should be provided)
+    allow_list: Optional[List[str]] = None  # Include only these specific operations/endpoints
+    deny_list: Optional[List[str]] = None   # Exclude these specific operations/endpoints
+
+    # Authentication
+    auth: Optional[Dict[str, Any]] = None
+
+    @model_validator(mode='after')
+    def validate_tool_filtering(self):
+        """Ensure allow_list and deny_list are mutually exclusive."""
+        if self.allow_list is not None and self.deny_list is not None:
+            raise ValueError(
+                "OpenAPI tool configuration error: Cannot specify both 'allow_list' and 'deny_list'. "
+                "Please use only one."
+            )
+        return self
+
+
 AnyToolConfig = Union[
     BuiltinToolConfig,
     BuiltinGroupToolConfig,
     PythonToolConfig,
     McpToolConfig,
+    OpenApiToolConfig,
 ]
