@@ -29,7 +29,7 @@ from cli.commands.docs_cmd import docs
     is_flag=True,
     expose_value=False,
     is_eager=True,
-    help='Suppress deprecation warnings from dependencies.'
+    help="Suppress warnings emitted by Python's warnings module."
 )
 def cli():
     """Solace CLI Application"""
