@@ -2,9 +2,34 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, type FormEvent, type ReactNode } from "react";
 import { v4 } from "uuid";
 
-import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-import type { Project } from "@/lib/types/projects";
+
+import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
+import { ChatContext, type ChatContextValue } from "@/lib/contexts";
+import type {
+    ArtifactInfo,
+    ArtifactRenderingState,
+    CancelTaskRequest,
+    DataPart,
+    FileAttachment,
+    FilePart,
+    JSONRPCErrorResponse,
+    Message,
+    MessageFE,
+    Notification,
+    Part,
+    PartFE,
+    SendStreamingMessageRequest,
+    SendStreamingMessageSuccessResponse,
+    Session,
+    Task,
+    TaskStatusUpdateEvent,
+    TextPart,
+    ArtifactPart,
+    AgentCardInfo,
+    Project,
+} from "@/lib/types";
 
 // Type for tasks loaded from the API
 interface TaskFromAPI {
@@ -30,37 +55,20 @@ const migrateV0ToV1 = (task: any): any => {
 };
 
 // Migration registry: maps version numbers to migration functions
-
 const MIGRATIONS: Record<number, (task: any) => any> = {
     0: migrateV0ToV1,
     // Uncomment when future branch merges:
     // 1: migrateV1ToV2,
 };
 
-import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
-import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type {
-    ArtifactInfo,
-    ArtifactRenderingState,
-    CancelTaskRequest,
-    DataPart,
-    FileAttachment,
-    FilePart,
-    JSONRPCErrorResponse,
-    Message,
-    MessageFE,
-    Notification,
-    Part,
-    PartFE,
-    SendStreamingMessageRequest,
-    SendStreamingMessageSuccessResponse,
-    Session,
-    Task,
-    TaskStatusUpdateEvent,
-    TextPart,
-    ArtifactPart,
-    AgentCardInfo,
-} from "@/lib/types";
+const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
+const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = error => reject(error);
+    });
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -68,34 +76,25 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, configServerUrl, persistenceEnabled, configCollectFeedback } = useConfigContext();
-    const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
     const { activeProject, setActiveProject, projects } = useProjectContext();
+    const { ErrorDialog, setError } = useErrorDialog();
 
-    const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
-
-    const fileToBase64 = (file: File): Promise<string> =>
-        new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve((reader.result as string).split(",")[1]);
-            reader.onerror = error => reject(error);
-        });
-
-    // State Variables from useChat
+    const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
-    const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
-    const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
-    const isCancellingRef = useRef(isCancelling);
+    const [isCancelling, setIsCancelling] = useState<boolean>(false);
+    const currentEventSource = useRef<EventSource | null>(null);
     const savingTasksRef = useRef<Set<string>>(new Set());
+
     // Track in-flight artifact preview fetches to prevent duplicates
     const artifactFetchInProgressRef = useRef<Set<string>>(new Set());
     const artifactDownloadInProgressRef = useRef<Set<string>>(new Set());
 
+    const isCancellingRef = useRef(isCancelling);
     useEffect(() => {
         isCancellingRef.current = isCancelling;
     }, [isCancelling]);
@@ -226,7 +225,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     // Helper function to deserialize task data to MessageFE objects
-
     const deserializeTaskToMessages = useCallback((task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, targetSessionId: string): MessageFE[] => {
         return task.messageBubbles.map(bubble => ({
             taskId: task.taskId,
@@ -273,70 +271,64 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Helper function to load session tasks and reconstruct messages
     const loadSessionTasks = useCallback(
         async (sessionId: string) => {
-            try {
-                const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/chat-tasks`);
+            const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/chat-tasks`);
 
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: "Failed to load session tasks" }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ detail: "Failed to load session tasks" }));
+                throw new Error(errorData.detail || `HTTP error ${response.status}`);
+            }
+
+            const data = await response.json();
+            const tasks = data.tasks || [];
+
+            // Parse JSON strings from backend
+            const parsedTasks = tasks.map((task: TaskFromAPI) => ({
+                ...task,
+                messageBubbles: JSON.parse(task.messageBubbles),
+                taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null,
+            }));
+
+            // Apply migrations to each task
+            const migratedTasks = parsedTasks.map(migrateTask);
+
+            // Deserialize all tasks to messages
+            const allMessages: MessageFE[] = [];
+            for (const task of migratedTasks) {
+                const taskMessages = deserializeTaskToMessages(task, sessionId);
+                allMessages.push(...taskMessages);
+            }
+
+            // Extract feedback state from task metadata
+            const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
+            for (const task of migratedTasks) {
+                if (task.taskMetadata?.feedback) {
+                    feedbackMap[task.taskId] = {
+                        type: task.taskMetadata.feedback.type,
+                        text: task.taskMetadata.feedback.text || "",
+                    };
                 }
+            }
 
-                const data = await response.json();
-                const tasks = data.tasks || [];
-
-                // Parse JSON strings from backend
-                const parsedTasks = tasks.map((task: TaskFromAPI) => ({
-                    ...task,
-                    messageBubbles: JSON.parse(task.messageBubbles),
-                    taskMetadata: task.taskMetadata ? JSON.parse(task.taskMetadata) : null,
-                }));
-
-                // Apply migrations to each task
-                const migratedTasks = parsedTasks.map(migrateTask);
-
-                // Deserialize all tasks to messages
-                const allMessages: MessageFE[] = [];
-                for (const task of migratedTasks) {
-                    const taskMessages = deserializeTaskToMessages(task, sessionId);
-                    allMessages.push(...taskMessages);
+            // Extract agent name from the most recent task
+            // (Use the last task's agent since that's the most recent interaction)
+            let agentName: string | null = null;
+            for (let i = migratedTasks.length - 1; i >= 0; i--) {
+                if (migratedTasks[i].taskMetadata?.agent_name) {
+                    agentName = migratedTasks[i].taskMetadata.agent_name;
+                    break;
                 }
+            }
 
-                // Extract feedback state from task metadata
-                const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
-                for (const task of migratedTasks) {
-                    if (task.taskMetadata?.feedback) {
-                        feedbackMap[task.taskId] = {
-                            type: task.taskMetadata.feedback.type,
-                            text: task.taskMetadata.feedback.text || "",
-                        };
-                    }
-                }
+            // Update state
+            setMessages(allMessages);
+            setSubmittedFeedback(feedbackMap);
 
-                // Extract agent name from the most recent task
-                // (Use the last task's agent since that's the most recent interaction)
-                let agentName: string | null = null;
-                for (let i = migratedTasks.length - 1; i >= 0; i--) {
-                    if (migratedTasks[i].taskMetadata?.agent_name) {
-                        agentName = migratedTasks[i].taskMetadata.agent_name;
-                        break;
-                    }
-                }
-
-                // Update state
-                setMessages(allMessages);
-                setSubmittedFeedback(feedbackMap);
-
-                // Set the agent name if found
-                if (agentName) {
-                    setSelectedAgentName(agentName);
-                }
-            } catch (error) {
-                console.error("Error loading session tasks:", error);
-                addNotification("Error loading session history. Please try again.", "error");
-                throw error;
+            // Set the agent name if found
+            if (agentName) {
+                setSelectedAgentName(agentName);
             }
         },
-        [apiPrefix, deserializeTaskToMessages, addNotification, migrateTask]
+        [apiPrefix, deserializeTaskToMessages, migrateTask]
     );
 
     const uploadArtifactFile = useCallback(
@@ -1402,15 +1394,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
 
-                await loadSessionTasks(newSessionId);
-            } catch (error) {
-                console.error(`${log_prefix} Failed to fetch session history:`, error);
-                addNotification("Error switching session. Please try again.", "error");
+                await loadSessionTasks(newSessionId + "23");
+            } catch (e) {
+                console.error(`${log_prefix} Error switching sessions:`, e);
+                setError({
+                    title: "Error Switching Sessions",
+                    error: "Refresh your browser and please try again.",
+                });
             } finally {
                 setIsLoadingSession(false);
             }
         },
-        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, addNotification, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError]
     );
 
     const updateSessionName = useCallback(
@@ -1427,16 +1422,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     if (response.status === 422) throw new Error("Invalid name");
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
-                addNotification("Session name updated successfully.");
                 setSessionName(newName);
                 if (typeof window !== "undefined") {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                addNotification(`Error updating session name: ${error instanceof Error ? error.message : "Unknown error"}`);
+                console.error("Error updating session name:", error);
+                setError({
+                    title: "Error Updating Session Name",
+                    error: "Please try again.",
+                });
             }
         },
-        [apiPrefix, addNotification]
+        [apiPrefix, setError]
     );
 
     const deleteSession = useCallback(
@@ -1865,22 +1863,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [
-            sessionId,
-            isResponding,
-            isCancelling,
-            selectedAgentName,
-            closeCurrentEventSource,
-            addNotification,
-            apiPrefix,
-            uploadArtifactFile,
-            updateSessionName,
-            saveTaskToBackend,
-            serializeMessageBubble,
-            INLINE_FILE_SIZE_LIMIT_BYTES,
-            activeProject,
-            cleanupUploadedFiles,
-        ]
+        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, activeProject, cleanupUploadedFiles]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
@@ -2135,5 +2118,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         downloadAndResolveArtifact,
     };
 
-    return <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>;
+    return (
+        <ChatContext.Provider value={contextValue}>
+            {children}
+            <ErrorDialog />
+        </ChatContext.Provider>
+    );
 };
