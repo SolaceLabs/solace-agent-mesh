@@ -32,8 +32,9 @@ def run_migrations(db_service, component):
     Raises:
         RuntimeError: If migration fails
     """
+
     try:
-        # Get paths to alembic directory and config (relative to this file)
+        # Get paths to alembic directory and config
         module_dir = Path(__file__).parent
         alembic_ini = module_dir / "alembic.ini"
         alembic_dir = module_dir / "alembic"
@@ -58,43 +59,10 @@ def run_migrations(db_service, component):
         # Create Alembic config
         alembic_cfg = Config(str(alembic_ini))
         alembic_cfg.set_main_option("script_location", str(alembic_dir))
-
-        # Set the database URL from the service
-        # IMPORTANT: Use render_as_string(hide_password=False) to preserve credentials
-        # for Alembic. By default, str(url) obscures the password for security.
-
-        log.info(
-            "%s BEFORE render - URL with masked password: %s",
-            component.log_identifier,
-            str(db_service.db_engine.url)  # This masks the password
-        )
-
-        db_url = db_service.db_engine.url.render_as_string(hide_password=False)
-        alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-
-        # TEMPORARY DEBUG LOGGING - Remove after debugging credential issues
-        url_obj = db_service.db_engine.url
-        password = url_obj.password if hasattr(url_obj, 'password') else None
-        if password:
-            pwd_preview = f"{password[:4]}...{password[-4:]}" if len(password) > 8 else f"{password[:2]}...{password[-2:]}"
-            has_special = bool(re.search(r'[@#:/?&=%\s]', password))
-        else:
-            pwd_preview = "None"
-            has_special = False
-
-        log.info(
-            "%s Database URL components - dialect: %s, user: %s, password: %s (len:%d, has_special_chars:%s), "
-            "host: %s, port: %s, database: %s",
-            component.log_identifier,
-            url_obj.drivername,
-            url_obj.username,
-            pwd_preview,
-            len(password) if password else 0,
-            has_special,
-            url_obj.host,
-            url_obj.port,
-            url_obj.database,
-        )
+        
+        # IMPORTANT: Store the engine in config attributes so env.py can access it
+        # This avoids URL encoding issues entirely
+        alembic_cfg.attributes['connection'] = db_service.db_engine
 
         log.info(
             "%s Running Alembic migrations for ADK schema compatibility...",
@@ -102,6 +70,7 @@ def run_migrations(db_service, component):
         )
 
         # Run migrations (equivalent to: alembic upgrade head)
+        # Run migrations (env.py will use the engine from attributes)
         command.upgrade(alembic_cfg, "head")
 
         log.info(
@@ -116,3 +85,4 @@ def run_migrations(db_service, component):
             e
         )
         raise RuntimeError(f"ADK database migration failed: {e}") from e
+    
