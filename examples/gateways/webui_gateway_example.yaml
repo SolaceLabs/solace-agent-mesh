@@ -50,6 +50,7 @@ apps:
       enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution
       gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
       sse_max_queue_size: ${SSE_MAX_QUEUE_SIZE, 200} # Max size of SSE connection queues
+      gateway_max_upload_size_bytes: ${GATEWAY_MAX_UPLOAD_SIZE_BYTES, 52428800}  # 50MB
 
       system_purpose: >
             The system is an AI Chatbot with agentic capabilities.
