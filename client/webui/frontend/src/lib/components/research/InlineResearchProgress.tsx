@@ -148,7 +148,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                 queries?: Array<{
                     query: string;
                     timestamp: string;
-                    source_citation_ids: string[];
+                    sourceCitationIds: string[];
                 }>;
             };
         };
@@ -158,28 +158,13 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
         // Check if we have multiple ragData entries (old format after refresh)
         const hasMultipleEntries = ragData.length > 1;
 
-        console.log("[InlineResearchProgress] Query breakdown check:", {
-            hasQueryBreakdown,
-            hasMultipleEntries,
-            ragDataLength: ragData.length,
-            metadataKeys: metadata ? Object.keys(metadata) : [],
-            queriesCount: hasQueryBreakdown ? (metadata.queries?.length ?? 0) : 0,
-            fullMetadata: metadata,
-            firstSearchStructure: {
-                query: firstSearch.query,
-                searchType: firstSearch.searchType,
-                sourcesCount: firstSearch.sources?.length,
-                hasMetadata: !!metadata,
-            },
-        });
-
         if (hasQueryBreakdown && isComplete) {
             // NEW FORMAT: Single ragData entry with metadata.queries
             // New format: use query breakdown from backend to maintain order
             const queries = metadata.queries as Array<{
                 query: string;
                 timestamp: string;
-                source_citation_ids: string[];
+                sourceCitationIds: string[];
             }>;
             const allSources = firstSearch.sources;
 
@@ -191,7 +176,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                 }
             });
 
-            queries.forEach((queryInfo: { query: string; timestamp: string; source_citation_ids: string[] }) => {
+            queries.forEach((queryInfo: { query: string; timestamp: string; sourceCitationIds: string[] }) => {
                 // Add search event
                 events.push({
                     type: "search",
@@ -200,7 +185,7 @@ export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ 
                 });
 
                 // Add read events for this query's fetched sources
-                queryInfo.source_citation_ids.forEach((citId: string) => {
+                queryInfo.sourceCitationIds.forEach((citId: string) => {
                     const source = sourceMap.get(citId);
                     if (source) {
                         const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
