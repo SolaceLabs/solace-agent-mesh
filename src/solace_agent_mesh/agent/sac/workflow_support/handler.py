@@ -245,8 +245,7 @@ class WorkflowNodeHandler:
         log_id = f"{self.host.log_identifier}[ExtractFile]"
 
         # Find first FilePart
-        unwrapped_parts = [p.root for p in message.parts]
-        file_parts = [p for p in unwrapped_parts if isinstance(p, FilePart)]
+        file_parts = a2a.get_file_parts_from_message(message)
 
         if not file_parts:
             raise ValueError("No FilePart found in message for structured schema")
@@ -254,17 +253,17 @@ class WorkflowNodeHandler:
         file_part = file_parts[0]
 
         # Determine if this is bytes or URI
-        if isinstance(file_part, FileWithBytes):
+        if a2a.is_file_part_bytes(file_part):
             log.debug(f"{log_id} Processing FileWithBytes")
             return await self._process_file_with_bytes(file_part, input_schema, a2a_context)
-        elif isinstance(file_part, FileWithUri):
+        elif a2a.is_file_part_uri(file_part):
             log.debug(f"{log_id} Processing FileWithUri")
             return await self._process_file_with_uri(file_part, a2a_context)
         else:
             raise ValueError(f"Unknown FilePart type: {type(file_part)}")
 
     async def _process_file_with_bytes(
-        self, file_part: FileWithBytes, input_schema: Dict[str, Any], a2a_context: Dict[str, Any]
+        self, file_part: FilePart, input_schema: Dict[str, Any], a2a_context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Process inline file bytes: decode, validate, and save to artifact store.
@@ -272,21 +271,32 @@ class WorkflowNodeHandler:
         log_id = f"{self.host.log_identifier}[ProcessBytes]"
 
         # Decode bytes according to MIME type
-        mime_type = file_part.mime_type
-        data = self._decode_file_bytes(file_part.data, mime_type)
+        mime_type = a2a.get_mimetype_from_file_part(file_part)
+        content_bytes = a2a.get_bytes_from_file_part(file_part)
+        
+        if content_bytes is None:
+             raise ValueError("FilePart has no content bytes")
+
+        data = self._decode_file_bytes(content_bytes, mime_type)
 
         log.debug(f"{log_id} Decoded {mime_type} file data")
 
         # Save to artifact store with appropriate name
         artifact_name = self._generate_input_artifact_name(mime_type)
 
-        await self.host.artifact_service.save_artifact(
+        # Use helper to save artifact
+        from ....agent.utils.artifact_helpers import save_artifact_with_metadata
+        
+        await save_artifact_with_metadata(
+            artifact_service=self.host.artifact_service,
             app_name=self.host.agent_name,
             user_id=a2a_context["user_id"],
             session_id=a2a_context["effective_session_id"],
             filename=artifact_name,
-            data=file_part.data,
+            content_bytes=content_bytes,
             mime_type=mime_type,
+            metadata_dict={"source": "workflow_input"},
+            timestamp=datetime.now(timezone.utc),
         )
 
         log.info(f"{log_id} Saved input data to artifact: {artifact_name}")
@@ -294,7 +304,7 @@ class WorkflowNodeHandler:
         return data
 
     async def _process_file_with_uri(
-        self, file_part: FileWithUri, a2a_context: Dict[str, Any]
+        self, file_part: FilePart, a2a_context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Process file URI: load artifact and decode.
@@ -303,7 +313,11 @@ class WorkflowNodeHandler:
 
         # Parse URI to extract artifact name and version
         # Expected format: artifact://<filename>?version=<version>
-        artifact_name, version = self._parse_artifact_uri(file_part.uri)
+        uri = a2a.get_uri_from_file_part(file_part)
+        if not uri:
+             raise ValueError("FilePart has no URI")
+             
+        artifact_name, version = self._parse_artifact_uri(uri)
 
         log.debug(f"{log_id} Loading artifact: {artifact_name} v{version}")
 
