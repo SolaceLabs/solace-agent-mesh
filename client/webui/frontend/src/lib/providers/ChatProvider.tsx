@@ -4,7 +4,32 @@ import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-import type { Project } from "@/lib/types/projects";
+
+import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
+import { ChatContext, type ChatContextValue } from "@/lib/contexts";
+import type {
+    ArtifactInfo,
+    ArtifactRenderingState,
+    CancelTaskRequest,
+    DataPart,
+    FileAttachment,
+    FilePart,
+    JSONRPCErrorResponse,
+    Message,
+    MessageFE,
+    Notification,
+    Part,
+    PartFE,
+    SendStreamingMessageRequest,
+    SendStreamingMessageSuccessResponse,
+    Session,
+    Task,
+    TaskStatusUpdateEvent,
+    TextPart,
+    ArtifactPart,
+    AgentCardInfo,
+    Project,
+} from "@/lib/types";
 
 // Type for tasks loaded from the API
 interface TaskFromAPI {
@@ -37,30 +62,15 @@ const MIGRATIONS: Record<number, (task: any) => any> = {
     // 1: migrateV1ToV2,
 };
 
-import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
-import { ChatContext, type ChatContextValue } from "@/lib/contexts";
-import type {
-    ArtifactInfo,
-    ArtifactRenderingState,
-    CancelTaskRequest,
-    DataPart,
-    FileAttachment,
-    FilePart,
-    JSONRPCErrorResponse,
-    Message,
-    MessageFE,
-    Notification,
-    Part,
-    PartFE,
-    SendStreamingMessageRequest,
-    SendStreamingMessageSuccessResponse,
-    Session,
-    Task,
-    TaskStatusUpdateEvent,
-    TextPart,
-    ArtifactPart,
-    AgentCardInfo,
-} from "@/lib/types";
+const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
+
+const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = error => reject(error);
+    });
 
 interface ChatProviderProps {
     children: ReactNode;
@@ -71,16 +81,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
     const { activeProject, setActiveProject, projects } = useProjectContext();
 
-    const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
-
-    const fileToBase64 = (file: File): Promise<string> =>
-        new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve((reader.result as string).split(",")[1]);
-            reader.onerror = error => reject(error);
-        });
-
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
@@ -90,17 +90,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
     const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
-    const isCancellingRef = useRef(isCancelling);
+
     const savingTasksRef = useRef<Set<string>>(new Set());
+
     // Track in-flight artifact preview fetches to prevent duplicates
     const artifactFetchInProgressRef = useRef<Set<string>>(new Set());
     const artifactDownloadInProgressRef = useRef<Set<string>>(new Set());
 
+    // Track isCancelling in ref to access in async callbacks
+    const isCancellingRef = useRef(isCancelling);
     useEffect(() => {
         isCancellingRef.current = isCancelling;
     }, [isCancelling]);
+
+    // Track current session id to prevent race conditions
+    const currentSessionIdRef = useRef(sessionId);
+    useEffect(() => {
+        currentSessionIdRef.current = sessionId;
+    }, [sessionId]);
+
     const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
-    const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Ref for cancel timeout
+    const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isFinalizing = useRef(false);
     const latestStatusText = useRef<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
@@ -226,8 +236,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     // Helper function to deserialize task data to MessageFE objects
-
-    const deserializeTaskToMessages = useCallback((task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, targetSessionId: string): MessageFE[] => {
+    const deserializeTaskToMessages = useCallback((task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
         return task.messageBubbles.map(bubble => ({
             taskId: task.taskId,
             role: bubble.type === "user" ? "user" : "agent",
@@ -240,7 +249,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isError: bubble.isError,
             metadata: {
                 messageId: bubble.id,
-                sessionId: targetSessionId,
+                sessionId: sessionId,
                 lastProcessedEventSequence: 0,
             },
         }));
@@ -282,9 +291,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 const data = await response.json();
-                const tasks = data.tasks || [];
+
+                // Check if this session is still active before processing
+                if (currentSessionIdRef.current !== sessionId) {
+                    console.log(`Session ${sessionId} is no longer the active session: ${currentSessionIdRef.current}`);
+                    return;
+                }
 
                 // Parse JSON strings from backend
+                const tasks = data.tasks || [];
                 const parsedTasks = tasks.map((task: TaskFromAPI) => ({
                     ...task,
                     messageBubbles: JSON.parse(task.messageBubbles),
@@ -1865,22 +1880,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 latestStatusText.current = null;
             }
         },
-        [
-            sessionId,
-            isResponding,
-            isCancelling,
-            selectedAgentName,
-            closeCurrentEventSource,
-            addNotification,
-            apiPrefix,
-            uploadArtifactFile,
-            updateSessionName,
-            saveTaskToBackend,
-            serializeMessageBubble,
-            INLINE_FILE_SIZE_LIMIT_BYTES,
-            activeProject,
-            cleanupUploadedFiles,
-        ]
+        [sessionId, isResponding, isCancelling, selectedAgentName, closeCurrentEventSource, addNotification, apiPrefix, uploadArtifactFile, updateSessionName, saveTaskToBackend, serializeMessageBubble, activeProject, cleanupUploadedFiles]
     );
 
     const prevProjectIdRef = useRef<string | null | undefined>("");
