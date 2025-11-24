@@ -9,6 +9,7 @@ autogenerate feature to detect and apply schema changes.
 """
 
 import logging
+import re
 from pathlib import Path
 from alembic.config import Config
 from alembic import command
@@ -61,8 +62,39 @@ def run_migrations(db_service, component):
         # Set the database URL from the service
         # IMPORTANT: Use render_as_string(hide_password=False) to preserve credentials
         # for Alembic. By default, str(url) obscures the password for security.
+
+        log.info(
+            "%s BEFORE render - URL with masked password: %s",
+            component.log_identifier,
+            str(db_service.db_engine.url)  # This masks the password
+        )
+
         db_url = db_service.db_engine.url.render_as_string(hide_password=False)
         alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+
+        # TEMPORARY DEBUG LOGGING - Remove after debugging credential issues
+        url_obj = db_service.db_engine.url
+        password = url_obj.password if hasattr(url_obj, 'password') else None
+        if password:
+            pwd_preview = f"{password[:4]}...{password[-4:]}" if len(password) > 8 else f"{password[:2]}...{password[-2:]}"
+            has_special = bool(re.search(r'[@#:/?&=%\s]', password))
+        else:
+            pwd_preview = "None"
+            has_special = False
+
+        log.info(
+            "%s Database URL components - dialect: %s, user: %s, password: %s (len:%d, has_special_chars:%s), "
+            "host: %s, port: %s, database: %s",
+            component.log_identifier,
+            url_obj.drivername,
+            url_obj.username,
+            pwd_preview,
+            len(password) if password else 0,
+            has_special,
+            url_obj.host,
+            url_obj.port,
+            url_obj.database,
+        )
 
         log.info(
             "%s Running Alembic migrations for ADK schema compatibility...",
