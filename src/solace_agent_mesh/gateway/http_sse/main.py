@@ -35,6 +35,7 @@ from .routers import (
     config,
     feedback,
     people,
+    session_tags,
     sse,
     speech,
     visualization,
@@ -621,6 +622,7 @@ def _setup_routers() -> None:
     app.include_router(projects.router, prefix=api_prefix, tags=["Projects"])
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
+    app.include_router(session_tags.router, prefix=api_prefix, tags=["Session Tags"])
     app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 

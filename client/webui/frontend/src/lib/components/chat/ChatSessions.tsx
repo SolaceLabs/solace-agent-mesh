@@ -2,12 +2,16 @@ import { SessionList } from "./SessionList";
 import { useConfigContext, useChatContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 
-export const ChatSessions = () => {
+interface ChatSessionsProps {
+    selectedTags?: string[];
+}
+
+export const ChatSessions: React.FC<ChatSessionsProps> = ({ selectedTags = [] }) => {
     const { persistenceEnabled } = useConfigContext();
     const { sessionName } = useChatContext();
     const { projects } = useProjectContext();
 
-    if (persistenceEnabled) return <SessionList projects={projects} />;
+    if (persistenceEnabled) return <SessionList projects={projects} selectedTags={selectedTags} />;
 
     // When persistence is disabled, show simple single-session view like in main
     return (

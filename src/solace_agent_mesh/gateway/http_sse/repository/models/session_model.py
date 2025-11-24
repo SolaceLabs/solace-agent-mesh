@@ -2,7 +2,7 @@
 Session SQLAlchemy model and Pydantic models for strongly-typed operations.
 """
 
-from sqlalchemy import BigInteger, Column, String, ForeignKey
+from sqlalchemy import BigInteger, Column, String, ForeignKey, JSON
 from pydantic import BaseModel
 from sqlalchemy.orm import relationship
 
@@ -26,6 +26,7 @@ class SessionModel(Base):
     )
     deleted_at = Column(BigInteger, nullable=True)
     deleted_by = Column(String, nullable=True)
+    tags = Column(JSON, nullable=True)
 
     # Relationship to chat tasks
     chat_tasks = relationship(
@@ -50,4 +51,5 @@ class UpdateSessionModel(BaseModel):
     name: str | None = None
     agent_id: str | None = None
     project_id: str | None = None
+    tags: list[str] | None = None
     updated_time: int

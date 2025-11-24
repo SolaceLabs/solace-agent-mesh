@@ -53,6 +53,7 @@ async def get_all_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                tags=session_domain.tags,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
             )
@@ -105,6 +106,7 @@ async def search_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                tags=session_domain.tags,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
             )
@@ -163,6 +165,7 @@ async def get_session(
             name=session_domain.name,
             agent_id=session_domain.agent_id,
             project_id=session_domain.project_id,
+            tags=session_domain.tags,
             created_time=session_domain.created_time,
             updated_time=session_domain.updated_time,
         )
@@ -468,6 +471,7 @@ async def update_session_name(
             name=updated_domain.name,
             agent_id=updated_domain.agent_id,
             project_id=updated_domain.project_id,
+            tags=updated_domain.tags,
             created_time=updated_domain.created_time,
             updated_time=updated_domain.updated_time,
         )
@@ -599,6 +603,7 @@ async def move_session_to_project(
             name=updated_session.name,
             agent_id=updated_session.agent_id,
             project_id=updated_session.project_id,
+            tags=updated_session.tags,
             created_time=updated_session.created_time,
             updated_time=updated_session.updated_time,
         )

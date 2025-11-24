@@ -87,6 +87,7 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
                 name=session.name,
                 agent_id=session.agent_id,
                 project_id=session.project_id,
+                tags=session.tags,
                 updated_time=session.updated_time,
             )
             return self.update(

@@ -2,9 +2,10 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Bookmark } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
+import { useSessionTagContext } from "@/lib/providers/SessionTagProvider";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
@@ -14,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { SessionSearch } from "@/lib/components/chat/SessionSearch";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/lib/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/lib/components/ui/dropdown-menu";
 import type { Session } from "@/lib/types";
 import type { Project } from "@/lib/types/projects";
 
@@ -33,11 +34,13 @@ interface PaginatedSessionsResponse {
 
 interface SessionListProps {
     projects?: Project[];
+    selectedTags?: string[];
 }
 
-export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
+export const SessionList: React.FC<SessionListProps> = ({ projects = [], selectedTags = [] }) => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification } = useChatContext();
+    const { tags, updateSessionTags } = useSessionTagContext();
     const { configServerUrl, persistenceEnabled } = useConfigContext();
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -255,16 +258,64 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         return sortedNames;
     }, [sessions]);
 
-    // Filter sessions by selected project
+    const handleBookmarkToggle = async (session: Session, tag: string) => {
+        const currentTags = session.tags || [];
+        const isRemoving = currentTags.includes(tag);
+        const newTags = isRemoving ? currentTags.filter(t => t !== tag) : [...currentTags, tag];
+
+        await updateSessionTags(session.id, newTags);
+
+        // Show notification
+        const sessionDisplayName = getSessionDisplayName(session);
+        if (isRemoving) {
+            addNotification(`Removed "${sessionDisplayName}" from "${tag}" bookmark`, "info");
+        } else {
+            addNotification(`Added "${sessionDisplayName}" to "${tag}" bookmark`, "success");
+        }
+
+        // Refresh sessions to get updated tags
+        fetchSessions(1, false);
+    };
+
+    const getSessionTags = (session: Session): string[] => {
+        return session.tags || [];
+    };
+
+    // Filter sessions by selected project and tags
     const filteredSessions = useMemo(() => {
-        if (selectedProject === "all") {
-            return sessions;
+        let filtered = sessions;
+
+        // Debug logging
+        console.log("[SessionList] Filtering - selectedTags:", selectedTags);
+        console.log("[SessionList] Total sessions:", sessions.length);
+        console.log("[SessionList] Sessions with tags:", sessions.filter(s => s.tags && s.tags.length > 0).length);
+
+        // If tags are selected, filter by tags first (tags take priority)
+        if (selectedTags.length > 0) {
+            filtered = filtered.filter(session => {
+                if (!session.tags || session.tags.length === 0) {
+                    console.log("[SessionList] Session has no tags:", session.id);
+                    return false;
+                }
+                // Check if session has any of the selected tags (OR logic)
+                const hasTag = selectedTags.some(selectedTag => session.tags!.includes(selectedTag));
+                console.log("[SessionList] Session", session.id, "tags:", session.tags, "matches:", hasTag);
+                return hasTag;
+            });
+            console.log("[SessionList] Filtered by tags, result count:", filtered.length);
+        } else {
+            // Only apply project filter when no tags are selected
+            if (selectedProject !== "all") {
+                if (selectedProject === "(No Project)") {
+                    filtered = filtered.filter(session => !session.projectName);
+                } else {
+                    filtered = filtered.filter(session => session.projectName === selectedProject);
+                }
+            }
         }
-        if (selectedProject === "(No Project)") {
-            return sessions.filter(session => !session.projectName);
-        }
-        return sessions.filter(session => session.projectName === selectedProject);
-    }, [sessions, selectedProject]);
+
+        return filtered;
+    }, [sessions, selectedProject, selectedTags]);
 
     // Get the project ID for the selected project name (for search filtering)
     const selectedProjectId = useMemo(() => {
@@ -360,27 +411,54 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end" className="w-48">
+                                                    {/* Bookmark submenu */}
+                                                    <DropdownMenuSub>
+                                                        <DropdownMenuSubTrigger className="gap-2">
+                                                            <Bookmark size={16} />
+                                                            Bookmark
+                                                        </DropdownMenuSubTrigger>
+                                                        <DropdownMenuSubContent className="w-48">
+                                                            {tags
+                                                                .filter(tag => tag.count >= 0)
+                                                                .map(tag => {
+                                                                    const sessionTags = getSessionTags(session);
+                                                                    const isSelected = sessionTags.includes(tag.tag);
+                                                                    return (
+                                                                        <DropdownMenuItem key={tag.id} onClick={() => handleBookmarkToggle(session, tag.tag)} className="gap-2">
+                                                                            {isSelected ? <Bookmark className="h-3 w-3 fill-current" /> : <Bookmark className="h-3 w-3" />}
+                                                                            {tag.tag}
+                                                                        </DropdownMenuItem>
+                                                                    );
+                                                                })}
+                                                            {tags.length === 0 && <div className="text-muted-foreground px-2 py-1.5 text-center text-xs">No bookmarks available</div>}
+                                                        </DropdownMenuSubContent>
+                                                    </DropdownMenuSub>
+
                                                     {session.projectId && (
                                                         <>
+                                                            <DropdownMenuSeparator />
                                                             <DropdownMenuItem
                                                                 onClick={e => {
                                                                     e.stopPropagation();
                                                                     handleGoToProject(session);
                                                                 }}
+                                                                className="gap-2"
                                                             >
-                                                                <PanelsTopLeft size={16} className="mr-2" />
+                                                                <PanelsTopLeft size={16} />
                                                                 Go to Project
                                                             </DropdownMenuItem>
-                                                            <DropdownMenuSeparator />
                                                         </>
                                                     )}
+
+                                                    <DropdownMenuSeparator />
                                                     <DropdownMenuItem
                                                         onClick={e => {
                                                             e.stopPropagation();
                                                             handleEditClick(session);
                                                         }}
+                                                        className="gap-2"
                                                     >
-                                                        <Pencil size={16} className="mr-2" />
+                                                        <Pencil size={16} />
                                                         Rename
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
@@ -388,8 +466,9 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                             e.stopPropagation();
                                                             handleMoveClick(session);
                                                         }}
+                                                        className="gap-2"
                                                     >
-                                                        <FolderInput size={16} className="mr-2" />
+                                                        <FolderInput size={16} />
                                                         Move to Project
                                                     </DropdownMenuItem>
                                                     <DropdownMenuSeparator />
@@ -398,8 +477,9 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                             e.stopPropagation();
                                                             handleDeleteClick(session);
                                                         }}
+                                                        className="gap-2"
                                                     >
-                                                        <Trash2 size={16} className="mr-2" />
+                                                        <Trash2 size={16} />
                                                         Delete
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>

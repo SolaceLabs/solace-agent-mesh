@@ -18,6 +18,7 @@ class SessionResponse(BaseTimestampResponse):
     agent_id: str | None = Field(default=None, alias="agentId")
     project_id: str | None = Field(default=None, alias="projectId")
     project_name: str | None = Field(default=None, alias="projectName")
+    tags: list[str] | None = None
     created_time: int = Field(alias="createdTime")
     updated_time: int | None = Field(default=None, alias="updatedTime")
 

@@ -10,6 +10,7 @@ from ..shared.pagination import PaginationParams
 from ..shared.types import SessionId, UserId
 from .entities import Feedback, Session, Task, TaskEvent
 from .entities.project import Project
+from .entities.session_tag import SessionTag
 from ..routers.dto.requests.project_requests import ProjectFilter
 
 if TYPE_CHECKING:
@@ -236,4 +237,43 @@ class IProjectRepository(ABC):
     @abstractmethod
     def soft_delete(self, project_id: str, user_id: str) -> bool:
         """Soft delete a project by its ID, ensuring user access."""
+        pass
+
+
+class ISessionTagRepository(ABC):
+    """Interface for session tag data access operations."""
+
+    @abstractmethod
+    def find_by_user(self, session: DBSession, user_id: UserId) -> list[SessionTag]:
+        """Find all session tags for a specific user."""
+        pass
+
+    @abstractmethod
+    def find_by_user_and_tag(self, session: DBSession, user_id: UserId, tag: str) -> Optional[SessionTag]:
+        """Find a specific session tag for a user."""
+        pass
+
+    @abstractmethod
+    def save(self, session: DBSession, session_tag: SessionTag) -> SessionTag:
+        """Save or update a session tag."""
+        pass
+
+    @abstractmethod
+    def delete(self, session: DBSession, user_id: UserId, tag: str) -> bool:
+        """Delete a session tag for a user."""
+        pass
+
+    @abstractmethod
+    def get_max_position(self, session: DBSession, user_id: UserId) -> int:
+        """Get the maximum position value for a user's tags."""
+        pass
+
+    @abstractmethod
+    def update_positions_after_delete(self, session: DBSession, user_id: UserId, deleted_position: int) -> None:
+        """Update positions of tags after a tag is deleted."""
+        pass
+
+    @abstractmethod
+    def adjust_positions(self, session: DBSession, user_id: UserId, old_position: int, new_position: int) -> None:
+        """Adjust positions when a tag's position is changed."""
         pass

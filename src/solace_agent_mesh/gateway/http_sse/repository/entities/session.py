@@ -23,6 +23,7 @@ class Session(BaseModel):
     updated_time: int | None = None
     deleted_at: int | None = None
     deleted_by: str | None = None
+    tags: list[str] | None = None
 
     def update_name(self, new_name: str) -> None:
         """Update session name with validation."""
@@ -63,3 +64,8 @@ class Session(BaseModel):
     def can_be_accessed_by_user(self, user_id: UserId) -> bool:
         """Check if user can access this session."""
         return self.user_id == user_id and not self.is_deleted()
+
+    def update_tags(self, tags: list[str]) -> None:
+        """Update session tags."""
+        self.tags = tags
+        self.updated_time = now_epoch_ms()

@@ -32,7 +32,9 @@ from .repository import SessionRepository
 from .repository.interfaces import ITaskRepository
 from .repository.project_repository import ProjectRepository
 from .repository.task_repository import TaskRepository
+from .repository.session_tag_repository import SessionTagRepository
 from .services.session_service import SessionService
+from .services.session_tag_service import SessionTagService
 
 log = logging.getLogger(__name__)
 
@@ -647,3 +649,30 @@ def get_user_display_name(
         return user_info.get("email") or user_info.get("name") or user_id
     
     return user_id
+
+
+def get_db_session() -> Generator[Session, None, None]:
+    """FastAPI dependency to get a database session without auto-commit."""
+    if SessionLocal is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Session management requires database configuration.",
+        )
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def get_session_tag_service(
+    db_session: Session = Depends(get_db_session),
+) -> SessionTagService:
+    """FastAPI dependency to get an instance of SessionTagService."""
+    log.debug("get_session_tag_service called")
+    session_tag_repository = SessionTagRepository()
+    session_repository = SessionRepository()
+    return SessionTagService(
+        session_tag_repository=session_tag_repository,
+        session_repository=session_repository,
+    )
