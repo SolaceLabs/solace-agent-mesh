@@ -41,12 +41,12 @@ class TestPromptsCRUD:
         prompt_data = response.json()
         assert prompt_data["id"] == group_id
         assert prompt_data["name"] == "Specific Test Prompt"
-        assert prompt_data["user_id"] == "sam_dev_user"
+        assert prompt_data["userId"] == "sam_dev_user"
         assert prompt_data["description"] == "A specific prompt for testing"
         assert prompt_data["category"] == "testing"
         assert prompt_data["command"] == "test-cmd"
-        assert prompt_data["production_prompt"] is not None
-        assert prompt_data["production_prompt"]["prompt_text"] == "You are a test assistant"
+        assert prompt_data["productionPrompt"] is not None
+        assert prompt_data["productionPrompt"]["promptText"] == "You are a test assistant"
 
     def test_get_all_prompts_with_data(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
@@ -117,10 +117,10 @@ class TestPromptsCRUD:
         assert prompt_data["description"] == "A newly created prompt"
         assert prompt_data["category"] == "testing"
         assert prompt_data["command"] == "new-cmd"
-        assert prompt_data["user_id"] == "sam_dev_user"
-        assert prompt_data["production_prompt"] is not None
-        assert prompt_data["production_prompt"]["version"] == 1
-        assert prompt_data["production_prompt"]["prompt_text"] == "You are a new assistant"
+        assert prompt_data["userId"] == "sam_dev_user"
+        assert prompt_data["productionPrompt"] is not None
+        assert prompt_data["productionPrompt"]["version"] == 1
+        assert prompt_data["productionPrompt"]["promptText"] == "You are a new assistant"
 
     def test_update_prompt_metadata(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
@@ -154,7 +154,7 @@ class TestPromptsCRUD:
         assert prompt_data["description"] == "Updated description"
         assert prompt_data["category"] == "development"
         assert prompt_data["command"] == "original-cmd"  # Command unchanged
-        assert prompt_data["user_id"] == "sam_dev_user"
+        assert prompt_data["userId"] == "sam_dev_user"
 
         # Verify update persisted
         get_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")

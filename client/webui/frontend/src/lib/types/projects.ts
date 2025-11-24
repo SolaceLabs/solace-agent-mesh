@@ -14,7 +14,6 @@ export interface Project {
     updatedAt: string; // ISO string
 }
 
-
 export interface CreateProjectRequest {
     name: string;
     description?: string;
@@ -39,7 +38,6 @@ export interface ProjectListResponse {
     total: number;
 }
 
-
 // Frontend-only types
 export interface ProjectFormData {
     name: string;
@@ -58,7 +56,6 @@ export interface UseProjectsReturn {
     refetch: () => Promise<void>;
 }
 
-
 export interface ProjectContextValue extends UseProjectsReturn {
     currentProject: Project | null;
     setCurrentProject: (project: Project | null) => void;
@@ -68,6 +65,7 @@ export interface ProjectContextValue extends UseProjectsReturn {
     setActiveProject: (project: Project | null) => void;
     addFilesToProject: (projectId: string, formData: FormData) => Promise<void>;
     removeFileFromProject: (projectId: string, filename: string) => Promise<void>;
+    updateFileMetadata: (projectId: string, filename: string, description: string) => Promise<void>;
     updateProject: (projectId: string, data: UpdateProjectData) => Promise<Project>;
     deleteProject: (projectId: string) => Promise<void>;
     searchQuery: string;

@@ -272,8 +272,8 @@ class TestPromptsVersioning:
         assert response.status_code == 201
         version_data = response.json()
         assert version_data["version"] == 2
-        assert version_data["prompt_text"] == "Version 2 text"
-        assert version_data["user_id"] == "sam_dev_user"
+        assert version_data["promptText"] == "Version 2 text"
+        assert version_data["userId"] == "sam_dev_user"
 
     def test_list_all_versions(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
@@ -325,8 +325,8 @@ class TestPromptsVersioning:
         group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
         assert group_response.status_code == 200
         group_data = group_response.json()
-        prompt_id = group_data["production_prompt"]["id"]
-        original_version = group_data["production_prompt"]["version"]
+        prompt_id = group_data["productionPrompt"]["id"]
+        original_version = group_data["productionPrompt"]["version"]
 
         # Update the prompt text directly
         response = api_client.patch(
@@ -338,15 +338,15 @@ class TestPromptsVersioning:
         assert response.status_code == 200
         updated_prompt = response.json()
         assert updated_prompt["id"] == prompt_id
-        assert updated_prompt["prompt_text"] == "Updated prompt text"
+        assert updated_prompt["promptText"] == "Updated prompt text"
         assert updated_prompt["version"] == original_version  # Version number unchanged
-        assert updated_prompt["user_id"] == "sam_dev_user"
+        assert updated_prompt["userId"] == "sam_dev_user"
 
         # Verify the update persisted
         group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
         assert group_response.status_code == 200
         group_data = group_response.json()
-        assert group_data["production_prompt"]["prompt_text"] == "Updated prompt text"
+        assert group_data["productionPrompt"]["promptText"] == "Updated prompt text"
 
     def test_update_prompt_text_unauthorized(
         self,
@@ -367,7 +367,7 @@ class TestPromptsVersioning:
         # Get the prompt ID
         group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
         assert group_response.status_code == 200
-        prompt_id = group_response.json()["production_prompt"]["id"]
+        prompt_id = group_response.json()["productionPrompt"]["id"]
 
         # Try to update as secondary user
         response = secondary_api_client.patch(
@@ -379,4 +379,4 @@ class TestPromptsVersioning:
         # Verify text was not changed
         group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
         assert group_response.status_code == 200
-        assert group_response.json()["production_prompt"]["prompt_text"] == "Original text"
+        assert group_response.json()["productionPrompt"]["promptText"] == "Original text"

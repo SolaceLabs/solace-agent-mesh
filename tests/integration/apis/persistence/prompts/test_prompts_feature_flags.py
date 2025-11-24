@@ -140,7 +140,7 @@ class TestPromptsEnabledBehavior:
         assert "id" in prompt_data
         assert prompt_data["name"] == "Test Prompt"
         assert prompt_data["description"] == "Test Description"
-        assert prompt_data["production_prompt"] is not None
+        assert prompt_data["productionPrompt"] is not None
 
     def test_list_prompts_succeeds_when_enabled(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
