@@ -334,6 +334,55 @@ async def save_artifact_with_metadata(
                 data_version,
             )
 
+            # Also publish artifact creation signal for workflow visualization
+            try:
+                from ...common.data_parts import ArtifactCreationProgressData
+                from ...agent.adk.callbacks import _publish_data_part_status_update
+
+                inv_context = tool_context._invocation_context
+                agent = getattr(inv_context, "agent", None)
+                host_component = getattr(agent, "host_component", None)
+                a2a_context = tool_context.state.get("a2a_context")
+
+                if host_component and a2a_context:
+                    # Create artifact creation completion signal
+                    artifact_signal = ArtifactCreationProgressData(
+                        type="artifact_creation_progress",
+                        filename=filename,
+                        status="completed",
+                        bytes_transferred=len(content_bytes),
+                        mime_type=mime_type,
+                        version=data_version,
+                    )
+
+                    # Publish as status update with signal
+                    await _publish_data_part_status_update(
+                        host_component,
+                        a2a_context,
+                        artifact_signal,
+                    )
+
+                    log.info(
+                        "%s Published artifact creation signal for workflow visualization: %s v%d",
+                        log_identifier,
+                        filename,
+                        data_version,
+                    )
+                else:
+                    log.debug(
+                        "%s Cannot publish artifact signal: host_component=%s, a2a_context=%s",
+                        log_identifier,
+                        host_component is not None,
+                        a2a_context is not None,
+                    )
+            except Exception as signal_err:
+                # Don't fail artifact save if signal publishing fails
+                log.warning(
+                    "%s Failed to publish artifact creation signal (non-critical): %s",
+                    log_identifier,
+                    signal_err,
+                )
+
         final_metadata = {
             "filename": filename,
             "mime_type": mime_type,

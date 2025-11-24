@@ -49,6 +49,7 @@ class SubscriptionTarget(BaseModel):
             "current_namespace_a2a_messages",
             "namespace_a2a_messages",
             "agent_a2a_messages",
+            "sam_artifact_events",
         ],
     )
     identifier: Optional[str] = Field(
@@ -544,6 +545,53 @@ async def subscribe_to_visualization_stream(
             else:
                 log.warning(
                     "%s User %s denied subscription to 'my_a2a_messages' due to missing scope.",
+                    log_id_prefix,
+                    resolved_user_identity,
+                )
+            processed_targets_for_response.append(
+                ActualSubscribedTarget(
+                    **target_request.model_dump(), status=target_status
+                )
+            )
+            continue
+        elif target_request.type == "sam_artifact_events":
+            # Subscribe to SAM artifact events for testing/debugging
+            operation_spec = {
+                "operation_type": "visualization_subscription",
+                "target_type": "sam_artifact_events",
+            }
+            validation_result = config_resolver.validate_operation_config(
+                user_config, operation_spec, gateway_context
+            )
+            has_permission = validation_result.get("valid", False)
+
+            if has_permission:
+                target_status = "subscribed"
+                response_target_data = target_request.model_dump()
+                current_abstract_targets_for_stream.append(
+                    ActualSubscribedTarget(**response_target_data, status=target_status)
+                )
+
+                # Subscribe to artifact category of SAM events
+                sam_artifact_topic = f"{component.namespace.strip('/')}/sam/events/artifact/>"
+                log.debug(
+                    "%s Adding SAM artifact events subscription '%s' for stream.",
+                    log_id_prefix,
+                    sam_artifact_topic,
+                )
+                if not await component._add_visualization_subscription(
+                    sam_artifact_topic, stream_id
+                ):
+                    log.error(
+                        "%s Failed to add SAM artifact events subscription.",
+                        log_id_prefix,
+                    )
+                    target_status = "error_adding_subscription"
+                    current_abstract_targets_for_stream.pop()
+
+            else:
+                log.warning(
+                    "%s User %s denied subscription to 'sam_artifact_events' due to missing scope.",
                     log_id_prefix,
                     resolved_user_identity,
                 )
