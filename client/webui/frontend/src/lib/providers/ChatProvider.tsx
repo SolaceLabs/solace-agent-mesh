@@ -1320,6 +1320,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             console.log(`${log_prefix} Switching to session ${newSessionId}...`);
 
             setIsLoadingSession(true);
+            setMessages([]);
             closeCurrentEventSource();
 
             if (isResponding && currentTaskId && selectedAgentName && !isCancelling) {
@@ -1389,11 +1390,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     }
                 }
 
-                // Update session ID BEFORE clearing messages
-                // This ensures that any components/hooks depending on sessionId
-                // will have the correct value when messages are cleared
+                // Update session ID state
                 setSessionId(newSessionId);
-                setMessages([]);
 
                 // Reset other session-related state
                 setIsResponding(false);
