@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from solace_ai_connector.flow.app import App
 from ..common import a2a
-from ..agent.sac.app import SamAgentAppConfig
+from ..agent.sac.app import SamAgentAppConfig, AgentCardConfig, AgentCardPublishingConfig
 
 log = logging.getLogger(__name__)
 
@@ -149,6 +149,18 @@ class WorkflowAppConfig(SamAgentAppConfig):
     # Override optional fields from SamAgentAppConfig that might not be needed or have different defaults
     model: Optional[Union[str, Dict[str, Any]]] = None
     instruction: Optional[Any] = None
+
+    # Make agent_card optional as it is auto-generated from workflow definition
+    agent_card: Optional[AgentCardConfig] = Field(
+        default_factory=lambda: AgentCardConfig(),
+        description="Static definition of this agent's capabilities for discovery."
+    )
+    
+    # Make agent_card_publishing optional with defaults
+    agent_card_publishing: Optional[AgentCardPublishingConfig] = Field(
+        default_factory=lambda: AgentCardPublishingConfig(interval_seconds=10),
+        description="Settings for publishing the agent card."
+    )
 
 
 class WorkflowApp(App):
