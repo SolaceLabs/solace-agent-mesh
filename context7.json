@@ -1,0 +1,18 @@
+{
+    "$schema": "https://context7.com/schema/context7.json",
+    "projectTitle": "Solace Agent Mesh",
+    "description": "An open-source framework for building event-driven multi-agent AI systems that leverage the Solace Platform for scalable and reliable communication between specialized AI agents.",
+    "branch": "main",
+    "excludeFolders": [
+        ".vscode",
+        ".github",
+        ".hatch",
+        ".hooks"
+    ],
+    "excludeFiles": [
+        "LICENSE.md",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        ".gitignore"
+    ]
+}
