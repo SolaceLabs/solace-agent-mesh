@@ -2,8 +2,6 @@ import logging
 import os
 from pathlib import Path
 
-from ...common.logging_config import setup_colored_logging
-
 import httpx
 import sqlalchemy as sa
 from fastapi import FastAPI, HTTPException
@@ -556,9 +554,6 @@ def setup_dependencies(
     if _dependencies_initialized:
         log.debug("[setup_dependencies] Dependencies already initialized, skipping")
         return
-
-    # Setup colored logging early
-    setup_colored_logging(level=logging.INFO)
 
     dependencies.set_component_instance(component)
 
