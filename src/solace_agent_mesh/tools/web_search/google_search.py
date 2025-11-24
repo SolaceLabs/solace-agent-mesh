@@ -105,35 +105,10 @@ class GoogleSearchTool(WebSearchTool):
                 
                 # Transform results to our format
                 organic = []
+                images = []
                 items = data.get("items", [])
                 
-                for item in items:
-                    try:
-                        # Extract snippet (description)
-                        snippet = item.get("snippet", "")
-                        
-                        # For HTML-formatted snippets, try to get plain text
-                        if "htmlSnippet" in item:
-                            import html
-                            snippet = html.unescape(item["htmlSnippet"])
-                            # Remove HTML tags
-                            import re
-                            snippet = re.sub(r'<[^>]+>', '', snippet)
-                        
-                        source = SearchSource(
-                            link=item["link"],
-                            title=item["title"],
-                            snippet=snippet,
-                            attribution=self._extract_domain(item["link"]),
-                            imageUrl=item.get("pagemap", {}).get("cse_thumbnail", [{}])[0].get("src")
-                        )
-                        organic.append(source)
-                    except Exception as e:
-                        logger.warning(f"Failed to parse search result: {e}")
-                        continue
-                
-                # Handle image search results
-                images = []
+                # Handle image search results separately
                 if search_type == "image":
                     from .models import ImageResult
                     for item in items:
@@ -146,6 +121,32 @@ class GoogleSearchTool(WebSearchTool):
                             images.append(image)
                         except Exception as e:
                             logger.warning(f"Failed to parse image result: {e}")
+                            continue
+                else:
+                    # Regular web search - add to organic results
+                    for item in items:
+                        try:
+                            # Extract snippet (description)
+                            snippet = item.get("snippet", "")
+                            
+                            # For HTML-formatted snippets, try to get plain text
+                            if "htmlSnippet" in item:
+                                import html
+                                snippet = html.unescape(item["htmlSnippet"])
+                                # Remove HTML tags
+                                import re
+                                snippet = re.sub(r'<[^>]+>', '', snippet)
+                            
+                            source = SearchSource(
+                                link=item["link"],
+                                title=item["title"],
+                                snippet=snippet,
+                                attribution=self._extract_domain(item["link"]),
+                                imageUrl=item.get("pagemap", {}).get("cse_thumbnail", [{}])[0].get("src")
+                            )
+                            organic.append(source)
+                        except Exception as e:
+                            logger.warning(f"Failed to parse search result: {e}")
                             continue
                 
                 logger.info(f"Google search successful: {len(organic)} results")

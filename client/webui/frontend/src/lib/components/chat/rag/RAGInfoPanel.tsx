@@ -144,8 +144,14 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
 
     const isAllDeepResearch = ragData.every(search => search.searchType === "deep_research" || search.searchType === "web_search");
 
-    // Calculate total sources across all searches
-    const totalSources = ragData.reduce((sum, search) => sum + search.sources.length, 0);
+    // Calculate total sources across all searches (excluding images)
+    const totalSources = ragData.reduce((sum, search) => {
+        const nonImageSources = search.sources.filter(s => {
+            const sourceType = s.sourceType || "web";
+            return sourceType !== "image";
+        });
+        return sum + nonImageSources.length;
+    }, 0);
 
     // Simple source item component for deep research
     const SimpleSourceItem: React.FC<{ source: RAGSearchResult["sources"][0] }> = ({ source }) => {
@@ -188,7 +194,13 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
 
         ragData.forEach(search => {
             search.sources.forEach(source => {
-                // For web_search: include all sources
+                // Always exclude image sources from the panel
+                const sourceType = source.sourceType || "web";
+                if (sourceType === "image") {
+                    return;
+                }
+
+                // For web_search: include all non-image sources
                 // For deep_research: only include fetched sources (not snippets)
                 if (!isWebSearch) {
                     const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
@@ -351,7 +363,16 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
                             </p>
                         </div>
 
-                        <div className="space-y-2">{ragData.map((search, searchIdx) => search.sources.map((source, sourceIdx) => <SourceCard key={`${searchIdx}-${sourceIdx}`} source={source} />))}</div>
+                        <div className="space-y-2">
+                            {ragData.map((search, searchIdx) =>
+                                search.sources
+                                    .filter(source => {
+                                        const sourceType = source.sourceType || "web";
+                                        return sourceType !== "image";
+                                    })
+                                    .map((source, sourceIdx) => <SourceCard key={`${searchIdx}-${sourceIdx}`} source={source} />)
+                            )}
+                        </div>
                     </TabsContent>
                 </Tabs>
             )}

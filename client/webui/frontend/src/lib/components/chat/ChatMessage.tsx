@@ -500,10 +500,12 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                     ? (() => {
                           const allSources = taskRagData.flatMap(r => r.sources);
 
-                          // For deep research: filter to only show fetched sources (not snippets)
+                          // For deep research: filter to only show fetched sources (not snippets or images)
                           // For web search: show only web sources (exclude images)
                           const sourcesToShow = isDeepResearchComplete
                               ? allSources.filter(source => {
+                                    const sourceType = source.sourceType || "web";
+                                    if (sourceType === "image") return false;
                                     const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
                                     return wasFetched;
                                 })
@@ -519,7 +521,10 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                               sampleSource: sourcesToShow[0],
                           });
 
-                          return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={isDeepResearchComplete ? handleSourcesClick : undefined} />;
+                          // Only render if we have non-image sources
+                          if (sourcesToShow.length === 0) return null;
+
+                          return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleSourcesClick} />;
                       })()
                     : undefined
             )}

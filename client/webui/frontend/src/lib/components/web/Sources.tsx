@@ -341,7 +341,20 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
     }
 
     if (isDeepResearch || onDeepResearchClick || sourcesByType.web.length > 0) {
-        const totalSources = sourcesByType.all.length;
+        const webSources = sourcesByType.web;
+        const totalSources = webSources.length;
+
+        console.log("[Sources] Stacked favicons:", {
+            webSourcesCount: webSources.length,
+            allSourcesCount: sourcesByType.all.length,
+            imagesCount: sourcesByType.images.length,
+            sampleWebSource: webSources[0],
+        });
+
+        // Don't render if no web sources (only images)
+        if (totalSources === 0) {
+            return null;
+        }
 
         return (
             <div
@@ -350,7 +363,7 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
                 aria-label={isDeepResearch ? "View deep research sources" : "View web search sources"}
                 onClick={onDeepResearchClick}
             >
-                <StackedFavicons sources={sourcesByType.all} end={3} size={16} />
+                <StackedFavicons sources={webSources} end={3} size={16} />
                 <span className="text-sm text-gray-600 dark:text-gray-400">
                     {totalSources} {totalSources === 1 ? "source" : "sources"}
                 </span>
