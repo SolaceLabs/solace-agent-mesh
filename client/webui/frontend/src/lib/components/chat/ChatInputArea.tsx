@@ -303,7 +303,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0), [isResponding, inputValue, selectedFiles]);
+    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pastedArtifactItems.length !== 0), [isResponding, inputValue, selectedFiles, pastedArtifactItems]);
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
@@ -313,7 +313,27 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 fullMessage = `${fullMessage}\n\nContext: "${contextText}"`;
             }
 
-            await handleSubmit(event, selectedFiles, fullMessage);
+            const artifactFiles: File[] = pastedArtifactItems.map(item => {
+                // Find the artifact in the artifacts list to get its mimeType
+                const artifact = artifacts.find(a => a.uri === item.artifactId);
+
+                // Create a special File object that contains the artifact URI
+                const artifactData = JSON.stringify({
+                    isArtifactReference: true,
+                    uri: item.artifactId,
+                    filename: item.filename,
+                    mimeType: artifact?.mime_type || "application/octet-stream",
+                });
+                const blob = new Blob([artifactData], { type: "application/x-artifact-reference" });
+                return new File([blob], item.filename, {
+                    type: "application/x-artifact-reference",
+                });
+            });
+
+            // Combine regular files with artifact references
+            const allFiles = [...selectedFiles, ...artifactFiles];
+
+            await handleSubmit(event, allFiles, fullMessage);
             setSelectedFiles([]);
             setPastedArtifactItems([]);
             setInputValue("");
