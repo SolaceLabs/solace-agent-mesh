@@ -1,11 +1,11 @@
 import React, { useMemo } from "react";
-import DOMPurify from 'dompurify';
-import { marked } from 'marked';
-import parse, { type HTMLReactParserOptions, type DOMNode, Text } from 'html-react-parser';
+import DOMPurify from "dompurify";
+import { marked } from "marked";
+import parse, { type HTMLReactParserOptions, type DOMNode, Text } from "html-react-parser";
 
 import type { BaseRendererProps } from ".";
 import { useCopy } from "../../../../hooks/useCopy";
-import { getThemeHtmlStyles } from '@/lib/utils/themeHtmlStyles';
+import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
 
 export const MarkdownRenderer: React.FC<BaseRendererProps> = ({ content }) => {
     const { ref, handleKeyDown } = useCopy<HTMLDivElement>();
@@ -16,7 +16,7 @@ export const MarkdownRenderer: React.FC<BaseRendererProps> = ({ content }) => {
         () => ({
             replace: (domNode: DOMNode) => {
                 // Handle text nodes - check for citation markers
-                if (domNode.type === 'text') {
+                if (domNode.type === "text") {
                     const textNode = domNode as Text;
                     const textContent = textNode.data;
 
@@ -43,40 +43,39 @@ export const MarkdownRenderer: React.FC<BaseRendererProps> = ({ content }) => {
                         // Extract citation number and convert to 1-based
                         const citationNum = match[2]; // From [[cite:fileX]]
                         const displayNum = parseInt(citationNum) + 1; // Convert 0-based to 1-based
-                        
+
                         // Add citation as clickable superscript that scrolls to reference
                         segments.push(
                             <sup
                                 key={`cite-${match.index}`}
-                                className="text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
-                                onClick={(e) => {
+                                className="cursor-pointer text-blue-600 hover:underline dark:text-blue-400"
+                                onClick={e => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    
+
                                     // Scope search to the preview container only
                                     const container = containerRef.current;
                                     if (!container) return;
-                                    
+
                                     // Try multiple strategies to find the citation in the References section
-                                    
+
                                     // Strategy 1: Look for the exact citation number in bold (e.g., **[1]**)
-                                    const allStrong = Array.from(container.querySelectorAll('strong, b'));
+                                    const allStrong = Array.from(container.querySelectorAll("strong, b"));
                                     const citationElement = allStrong.find(el => {
                                         const text = el.textContent?.trim();
                                         return text === `[${displayNum}]`;
                                     });
-                                    
+
                                     if (citationElement) {
-                                        citationElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        citationElement.scrollIntoView({ behavior: "smooth", block: "center" });
                                         return;
                                     }
-                                    
+
                                     // Strategy 2: Look for References heading and scroll there within container
-                                    const referencesHeading = Array.from(container.querySelectorAll('h2, h3, h4, h5, h6'))
-                                        .find(el => el.textContent?.toLowerCase().includes('reference'));
-                                    
+                                    const referencesHeading = Array.from(container.querySelectorAll("h2, h3, h4, h5, h6")).find(el => el.textContent?.toLowerCase().includes("reference"));
+
                                     if (referencesHeading) {
-                                        referencesHeading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                        referencesHeading.scrollIntoView({ behavior: "smooth", block: "start" });
                                     }
                                 }}
                             >
@@ -116,22 +115,15 @@ export const MarkdownRenderer: React.FC<BaseRendererProps> = ({ content }) => {
             // 3. Parse the sanitized HTML string into React elements with citation handling
             return parse(cleanHtml, parserOptions);
         } catch (error) {
-            console.error('MarkdownRenderer: Error rendering markdown:', error);
+            console.error("MarkdownRenderer: Error rendering markdown:", error);
             return content;
         }
     }, [content, parserOptions]);
 
     return (
         <div className="w-full p-4" ref={containerRef}>
-            <div
-                ref={ref}
-                className="max-w-full overflow-hidden select-text focus-visible:outline-none"
-                tabIndex={0}
-                onKeyDown={handleKeyDown}
-            >
-                <div className={getThemeHtmlStyles("max-w-full break-words")}>
-                    {renderedContent}
-                </div>
+            <div ref={ref} className="max-w-full overflow-hidden select-text focus-visible:outline-none" tabIndex={0} onKeyDown={handleKeyDown}>
+                <div className={getThemeHtmlStyles("max-w-full break-words")}>{renderedContent}</div>
             </div>
         </div>
     );

@@ -3,6 +3,7 @@ import React from "react";
 import { CheckCircle, FileText, HardDrive, Link, MessageSquare, Share2, Terminal, User, XCircle, Zap } from "lucide-react";
 
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
+import { ImageSearchGrid } from "@/lib/components/research";
 import type { ArtifactNotificationData, LLMCallData, LLMResponseToAgentData, ToolDecisionData, ToolInvocationStartData, ToolResultData, VisualizerStep } from "@/lib/types";
 
 interface VisualizerStepCardProps {
@@ -143,19 +144,63 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         </div>
     );
 
-    const renderToolResultData = (data: ToolResultData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-            <p>
-                <strong>Tool:</strong> {data.toolName}
-            </p>
-            <p className="mt-1">
-                <strong>Result:</strong>
-            </p>
-            <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
-                {typeof data.resultData === "object" ? <JSONViewer data={data.resultData} /> : <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(data.resultData)}</pre>}
+    const renderToolResultData = (data: ToolResultData) => {
+        // Check if this is a web search result with images
+        let parsedResult = null;
+        let hasImages = false;
+
+        try {
+            // Try to parse the result if it's a string
+            if (typeof data.resultData === "string") {
+                parsedResult = JSON.parse(data.resultData);
+            } else if (typeof data.resultData === "object") {
+                parsedResult = data.resultData;
+            }
+
+            // Check if the result has an images array (from web search tools)
+            if (parsedResult?.result) {
+                const innerResult = typeof parsedResult.result === "string" ? JSON.parse(parsedResult.result) : parsedResult.result;
+
+                if (innerResult?.images && Array.isArray(innerResult.images) && innerResult.images.length > 0) {
+                    hasImages = true;
+                }
+            }
+        } catch {
+            // Not JSON or parsing failed, will display as normal
+        }
+
+        return (
+            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                <p>
+                    <strong>Tool:</strong> {data.toolName}
+                </p>
+
+                {hasImages && parsedResult?.result ? (
+                    <>
+                        <p className="mt-1">
+                            <strong>Image Results:</strong>
+                        </p>
+                        <ImageSearchGrid images={typeof parsedResult.result === "string" ? JSON.parse(parsedResult.result).images : parsedResult.result.images} />
+                        <details className="mt-2">
+                            <summary className="cursor-pointer text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">Show full result data</summary>
+                            <div className="mt-2 max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
+                                {typeof data.resultData === "object" ? <JSONViewer data={data.resultData} /> : <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(data.resultData)}</pre>}
+                            </div>
+                        </details>
+                    </>
+                ) : (
+                    <>
+                        <p className="mt-1">
+                            <strong>Result:</strong>
+                        </p>
+                        <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
+                            {typeof data.resultData === "object" ? <JSONViewer data={data.resultData} /> : <pre className="font-mono text-xs break-all whitespace-pre-wrap">{String(data.resultData)}</pre>}
+                        </div>
+                    </>
+                )}
             </div>
-        </div>
-    );
+        );
+    };
     const renderArtifactNotificationData = (data: ArtifactNotificationData) => (
         <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
             <p>

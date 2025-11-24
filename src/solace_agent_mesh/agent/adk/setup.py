@@ -484,7 +484,16 @@ async def _load_builtin_group_tool(component: "SamAgentComponent", tool_config: 
     loaded_tools: List[Union[BaseTool, Callable]] = []
     enabled_builtin_tools: List[BuiltinTool] = []
     for tool_def in tools_in_group:
+        # Try to get tool-specific config, but fall back to the entire tool_config
+        # This allows both patterns:
+        # 1. tool_config with keys at top level (e.g., api_key: "xxx")
+        # 2. tool_config with nested configs per tool (e.g., tool_name: {api_key: "xxx"})
         specific_tool_config = tool_config_model.tool_config.get(tool_def.name)
+        if specific_tool_config is None:
+            # No tool-specific config found, use the entire tool_config
+            # This is the common case for groups where all tools share the same config
+            specific_tool_config = tool_config_model.tool_config
+        
         tool_callable = ADKToolWrapper(
             tool_def.implementation,
             specific_tool_config,

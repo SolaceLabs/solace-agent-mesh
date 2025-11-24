@@ -11,6 +11,7 @@ import type { ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, TextP
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
 import { Sources } from "@/lib/components/web/Sources";
+import { ImageSearchGrid } from "@/lib/components/research";
 import { TextWithCitations } from "./Citation";
 import { parseCitations } from "@/lib/utils/citations";
 
@@ -110,7 +111,7 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     // Parse citations from text and match to RAG sources
     const taskRagData = useMemo(() => {
         if (!message.taskId || !ragData) return undefined;
-        return ragData.find(r => r.task_id === message.taskId);
+        return ragData.find(r => r.taskId === message.taskId);
     }, [message.taskId, ragData]);
 
     const citations = useMemo(() => {
@@ -169,7 +170,7 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     const modifiedCitations = useMemo(() => {
         if (message.isUser) return [];
         return parseCitations(modifiedText, taskRagData);
-    }, [modifiedText]);
+    }, [modifiedText, taskRagData, message.isUser]);
 
     const renderContent = () => {
         if (message.isError) {
@@ -240,23 +241,18 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
 
     // Check for deep research progress data
     const progressPart = message.parts?.find(p => p.kind === "data") as DataPart | undefined;
-    const hasDeepResearchProgress = progressPart?.data && (progressPart.data as any).type === "deep_research_progress";
+    const hasDeepResearchProgress = progressPart?.data && (progressPart.data as { type?: string }).type === "deep_research_progress";
 
     // Show progress block at the top if we have progress data and research is not complete
     if (hasDeepResearchProgress && !message.isComplete) {
         const data = progressPart!.data as unknown as ResearchProgressData;
-        const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+        const taskRagData = ragData?.filter(r => r.taskId === message.taskId);
         const hasOtherContent = message.parts?.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "artifact" || p.kind === "file");
 
         // Always show progress block for active research (before completion)
         const progressBlock = (
             <div className="my-2">
-                <InlineResearchProgress
-                    progress={data}
-                    isComplete={false}
-                    onClick={() => {}}
-                    ragData={taskRagData}
-                />
+                <InlineResearchProgress progress={data} isComplete={false} ragData={taskRagData} />
             </div>
         );
 
@@ -269,7 +265,7 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
         // Create a new message without the progress data part to avoid infinite recursion
         const messageWithoutProgress = {
             ...message,
-            parts: message.parts?.filter(p => p.kind !== "data")
+            parts: message.parts?.filter(p => p.kind !== "data"),
         };
 
         return (
@@ -370,7 +366,9 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
                             <ChatBubbleMessage variant={variant}>
                                 <MessageContent message={{ ...message, parts: [{ kind: "text", text: (part as TextPart).text }] }} />
                                 {/* Show actions on the last part if it's text */}
-                                {isLastPart && <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} sourcesElement={sourcesElement} />}
+                                {isLastPart && (
+                                    <MessageActions message={message} showWorkflowButton={!!showWorkflowButton} showFeedbackActions={!!showFeedbackActions} handleViewWorkflowClick={handleViewWorkflowClick} sourcesElement={sourcesElement} />
+                                )}
                             </ChatBubbleMessage>
                         </ChatBubble>
                     );
@@ -415,7 +413,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     });
 
     // Get RAG metadata for this task
-    const taskRagData = ragData?.filter(r => r.task_id === message.taskId);
+    const taskRagData = ragData?.filter(r => r.taskId === message.taskId);
 
     console.log("[ChatMessage] Task RAG data:", {
         taskId: message.taskId,
@@ -428,7 +426,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     const hasRagSources = taskRagData && taskRagData.length > 0 && taskRagData.some(r => r.sources && r.sources.length > 0);
 
     // Check if ragData indicates deep research (works after page refresh)
-    const hasDeepResearchRagData = taskRagData?.some(r => r.search_type === "deep_research");
+    const hasDeepResearchRagData = taskRagData?.some(r => r.searchType === "deep_research");
 
     const isDeepResearchComplete = message.isComplete && (hasProgressPart || hasDeepResearchRagData) && hasRagSources;
 
@@ -440,11 +438,17 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     });
 
     // Check if this is a completed web search message (has web_search sources but not deep research)
-    // Only show for the last message with this taskId to avoid duplicates
-    const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData.some(r => r.search_type === "web_search") && isLastWithTaskId;
+    const isWebSearchComplete = message.isComplete && !isDeepResearchComplete && hasRagSources && taskRagData?.some(r => r.searchType === "web_search");
 
-    // Handler for deep research sources click
-    const handleDeepResearchClick = () => {
+    console.log("[ChatMessage] Web search detection:", {
+        isWebSearchComplete,
+        isLastWithTaskId,
+        hasRagSources,
+        searchTypes: taskRagData?.map(r => r.searchType),
+    });
+
+    // Handler for sources click (works for both deep research and web search)
+    const handleSourcesClick = () => {
         if (message.taskId) {
             setTaskIdInSidePanel(message.taskId);
             openSidePanelTab("rag");
@@ -453,14 +457,15 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
 
     return (
         <>
-            {/* Show progress block at the top for completed deep research */}
+            {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
             {isDeepResearchComplete &&
                 hasRagSources &&
+                isLastWithTaskId &&
                 (() => {
                     // Filter to only show fetched sources (not snippets)
                     const allSources = taskRagData.flatMap(r => r.sources);
                     const fetchedSources = allSources.filter(source => {
-                        const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
+                        const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
                         return wasFetched;
                     });
 
@@ -481,31 +486,77 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                                     max_runtime_seconds: 0,
                                 }}
                                 isComplete={true}
-                                onClick={handleDeepResearchClick}
                                 ragData={taskRagData}
                             />
                         </div>
                     );
                 })()}
-            {getChatBubble(message, chatContext, isLastWithTaskId, isDeepResearchComplete && hasRagSources ? (() => {
-                // Filter to only show fetched sources (not snippets)
-                const allSources = taskRagData.flatMap(r => r.sources);
-                const fetchedSources = allSources.filter(source => {
-                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.content_preview && source.content_preview.includes("[Full Content Fetched]"));
-                    return wasFetched;
-                });
+            {getChatBubble(
+                message,
+                chatContext,
+                isLastWithTaskId,
+                // Show sources element for both deep research and web search (in message actions area)
+                !message.isUser && (isDeepResearchComplete || isWebSearchComplete) && hasRagSources
+                    ? (() => {
+                          const allSources = taskRagData.flatMap(r => r.sources);
 
-                return (
-                    <Sources ragMetadata={{ sources: fetchedSources }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleDeepResearchClick} />
-                );
-            })() : undefined)}
-            {getUploadedFiles(message)}
-            {/* Render sources after completed web search */}
-            {isWebSearchComplete && hasRagSources && (
-                <div className="my-4">
-                    <Sources ragMetadata={{ sources: taskRagData.flatMap(r => r.sources) }} isDeepResearch={false} onDeepResearchClick={handleDeepResearchClick} />
-                </div>
+                          // For deep research: filter to only show fetched sources (not snippets or images)
+                          // For web search: show only web sources (exclude images)
+                          const sourcesToShow = isDeepResearchComplete
+                              ? allSources.filter(source => {
+                                    const sourceType = source.sourceType || "web";
+                                    if (sourceType === "image") return false;
+                                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
+                                    return wasFetched;
+                                })
+                              : allSources.filter(source => {
+                                    const sourceType = source.sourceType || "web";
+                                    return sourceType !== "image";
+                                });
+
+                          console.log("[ChatMessage] Rendering Sources component:", {
+                              isDeepResearchComplete,
+                              isWebSearchComplete,
+                              sourcesToShowCount: sourcesToShow.length,
+                              sampleSource: sourcesToShow[0],
+                          });
+
+                          // Only render if we have non-image sources
+                          if (sourcesToShow.length === 0) return null;
+
+                          return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleSourcesClick} />;
+                      })()
+                    : undefined
             )}
+
+            {/* Render images separately at the end for web search */}
+            {!message.isUser &&
+                isWebSearchComplete &&
+                hasRagSources &&
+                (() => {
+                    const allSources = taskRagData.flatMap(r => r.sources);
+                    const imageResults = allSources
+                        .filter(source => {
+                            const sourceType = source.sourceType || "web";
+                            return sourceType === "image" && source.metadata?.imageUrl;
+                        })
+                        .map(source => ({
+                            imageUrl: source.metadata!.imageUrl,
+                            title: source.metadata?.title || source.filename,
+                            link: source.sourceUrl || source.metadata?.link || source.metadata!.imageUrl,
+                        }));
+
+                    if (imageResults.length > 0) {
+                        return (
+                            <div className="mt-4">
+                                <ImageSearchGrid images={imageResults} />
+                            </div>
+                        );
+                    }
+                    return null;
+                })()}
+
+            {getUploadedFiles(message)}
         </>
     );
 };

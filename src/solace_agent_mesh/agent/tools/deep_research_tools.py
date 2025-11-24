@@ -29,6 +29,7 @@ from .registry import tool_registry
 from .web_search_tools import _web_search_tavily, _web_search_google
 from .web_tools import web_request
 from ...common import a2a
+from ...gateway.http_sse.routers.dto.rag_dto import create_rag_source, create_rag_search_result
 
 
 # Category information
@@ -39,7 +40,7 @@ CATEGORY_DESCRIPTION = "Advanced research tools for comprehensive information ga
 @dataclass
 class SearchResult:
     """Represents a single search result from any source (web-only version)"""
-    source_type: str  # "web", "kb" only
+    source_type: str  # "web" only, for now
     title: str
     content: str
     url: Optional[str] = None
@@ -201,25 +202,29 @@ class ResearchCitationTracker:
                  citation_id, self.citation_counter, result.title[:50])
         self.citation_counter += 1
         
-        # Format like web_search tool for proper citation rendering
-        self.citations[citation_id] = {
-            "citation_id": citation_id,
-            "file_id": f"deep_research_{self.citation_counter}",  # Add file_id for web citations
-            "filename": result.title,  # Use title as filename
-            "content_preview": result.content[:200] + "..." if len(result.content) > 200 else result.content,
-            "relevance_score": result.relevance_score,
-            "source_url": result.url or "N/A",  # Use source_url key (not just url)
-            "url": result.url,  # Also add url field for frontend
-            "metadata": {
+        # Create citation using DTO helper for camelCase conversion
+        citation_dict = create_rag_source(
+            citation_id=citation_id,
+            file_id=f"deep_research_{self.citation_counter}",
+            filename=result.title,
+            title=result.title,
+            source_url=result.url or "N/A",
+            url=result.url,
+            content_preview=result.content[:200] + "..." if len(result.content) > 200 else result.content,
+            relevance_score=result.relevance_score,
+            source_type=result.source_type,
+            retrieved_at=datetime.now(timezone.utc).isoformat(),
+            metadata={
                 "title": result.title,
                 "link": result.url,
-                "type": "web_search",  # Mark as web_search type for proper rendering
+                "type": "web_search",
                 "source_type": result.source_type,
-                "retrieved_at": datetime.now(timezone.utc).isoformat(),
+                "favicon": f"https://www.google.com/s2/favicons?domain={result.url}&sz=32" if result.url else "",
                 **result.metadata
             }
-        }
+        )
         
+        self.citations[citation_id] = citation_dict
         result.citation_id = citation_id
         
         # Track URL to citation_id mapping for later updates
@@ -247,7 +252,7 @@ class ResearchCitationTracker:
             log.info("[DeepResearch:Citation] Updated citation %s with fetched content", citation_id)
     
     def get_rag_metadata(self) -> Dict[str, Any]:
-        """Format citations for RAG system"""
+        """Format citations for RAG system with camelCase conversion"""
         # Save the last query if it exists
         if self.current_query:
             self.queries.append({
@@ -258,17 +263,16 @@ class ResearchCitationTracker:
             self.current_query = None
             self.current_query_sources = []
         
-        # Return single search result with all sources
-        # Store query information in metadata for frontend to reconstruct timeline
-        return {
-            "query": self.research_question,
-            "search_type": "deep_research",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "sources": list(self.citations.values()),
-            "metadata": {
+        # Return single search result with all sources using DTO for camelCase conversion
+        return create_rag_search_result(
+            query=self.research_question,
+            search_type="deep_research",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            sources=list(self.citations.values()),
+            metadata={
                 "queries": self.queries  # Include query breakdown for timeline
             }
-        }
+        )
 
 
 async def _send_research_progress(
@@ -378,115 +382,70 @@ async def _search_web(
             tool_context
         )
     
-    # Check which providers are configured
-    import os
-    tavily_key = os.getenv("TAVILY_API_KEY")
-    google_key = os.getenv("GOOGLE_SEARCH_API_KEY")
-    
-    # Use Google by default (preferred for deep research)
-    if google_key:
-        log.info("%s Using Google search (default provider)", log_identifier)
-        try:
-            result = await _web_search_google(
+    # Try Google first (preferred for deep research)
+    # The web search functions will handle API key checking via tool_config or os.getenv
+    try:
+        log.info("%s Attempting Google search", log_identifier)
+        result = await _web_search_google(
                 query=query,
                 max_results=max_results,
-                tool_context=tool_context,
-                tool_config=tool_config
-            )
+            tool_context=tool_context,
+            tool_config=tool_config
+        )
+        
+        if isinstance(result, dict) and result.get("result"):
+            result_data = json.loads(result["result"])
+            search_results = []
             
-            if isinstance(result, dict) and result.get("result"):
-                result_data = json.loads(result["result"])
-                search_results = []
-                
-                for item in result_data.get("organic", []):
-                    search_results.append(SearchResult(
-                        source_type="web",
-                        title=item.get("title", ""),
-                        content=item.get("snippet", ""),
-                        url=item.get("link", ""),
-                        relevance_score=0.85,
-                        metadata={"provider": "google"}
-                    ))
-                
-                log.info("%s Found %d Google results", log_identifier, len(search_results))
-                return search_results
-        except Exception as e:
-            log.warning("%s Google search failed: %s, trying Tavily fallback", log_identifier, str(e))
-            # Fall through to Tavily if Google fails
+            for item in result_data.get("organic", []):
+                search_results.append(SearchResult(
+                    source_type="web",
+                    title=item.get("title", ""),
+                    content=item.get("snippet", ""),
+                    url=item.get("link", ""),
+                    relevance_score=0.85,
+                    metadata={"provider": "google"}
+                ))
+            
+            log.info("%s Found %d Google results", log_identifier, len(search_results))
+            return search_results
+    except Exception as e:
+        log.warning("%s Google search failed: %s, trying Tavily fallback", log_identifier, str(e))
     
-    # Try Tavily as fallback or if Google not configured
-    if tavily_key:
-        log.info("%s Using Tavily search %s", log_identifier, "(fallback)" if google_key else "(primary)")
-        try:
-            result = await _web_search_tavily(
-                query=query,
-                max_results=max_results,
-                search_depth="advanced",
-                tool_context=tool_context,
-                tool_config=tool_config
-            )
+    # Try Tavily as fallback
+    try:
+        log.info("%s Attempting Tavily search", log_identifier)
+        result = await _web_search_tavily(
+            query=query,
+            max_results=max_results,
+            search_depth="advanced",
+            tool_context=tool_context,
+            tool_config=tool_config
+        )
+        
+        if isinstance(result, dict) and result.get("result"):
+            result_data = json.loads(result["result"])
+            search_results = []
             
-            if isinstance(result, dict) and result.get("result"):
-                result_data = json.loads(result["result"])
-                search_results = []
-                
-                for item in result_data.get("organic", []):
-                    search_results.append(SearchResult(
-                        source_type="web",
-                        title=item.get("title", ""),
-                        content=item.get("snippet", ""),
-                        url=item.get("link", ""),
-                        relevance_score=0.9,
-                        metadata={"provider": "tavily"}
-                    ))
-                
-                log.info("%s Found %d Tavily results", log_identifier, len(search_results))
-                return search_results
-                
-        except Exception as e:
-            log.warning("%s Tavily search failed: %s, trying Google fallback", log_identifier, str(e))
+            for item in result_data.get("organic", []):
+                search_results.append(SearchResult(
+                    source_type="web",
+                    title=item.get("title", ""),
+                    content=item.get("snippet", ""),
+                    url=item.get("link", ""),
+                    relevance_score=0.9,
+                    metadata={"provider": "tavily"}
+                ))
             
-            # Fallback to Google
-            if google_key:
-                try:
-                    result = await _web_search_google(
-                        query=query,
-                        max_results=max_results,
-                        tool_context=tool_context,
-                        tool_config=tool_config
-                    )
-                    
-                    if isinstance(result, dict) and result.get("result"):
-                        result_data = json.loads(result["result"])
-                        search_results = []
-                        
-                        for item in result_data.get("organic", []):
-                            search_results.append(SearchResult(
-                                source_type="web",
-                                title=item.get("title", ""),
-                                content=item.get("snippet", ""),
-                                url=item.get("link", ""),
-                                relevance_score=0.85,
-                                metadata={"provider": "google"}
-                            ))
-                        
-                        log.info("%s Found %d Google results (fallback)", log_identifier, len(search_results))
-                        return search_results
-                        
-                except Exception as e2:
-                    log.error("%s Google fallback also failed: %s", log_identifier, str(e2))
+            log.info("%s Found %d Tavily results", log_identifier, len(search_results))
+            return search_results
+    except Exception as e:
+        log.error("%s Tavily search also failed: %s", log_identifier, str(e))
     
-    log.warning("%s No web search API configured (need TAVILY_API_KEY or GOOGLE_SEARCH_API_KEY)", log_identifier)
+    log.warning("%s No web search results available - both Google and Tavily failed or not configured", log_identifier)
     return []
 
-
-# KB search removed for web-only version
-
-# Enterprise search functions removed for web-only version
-# This version only supports web search and knowledge base search
-
-
-
+# TODO: will add other sources such as knowledgebases
 async def _multi_source_search(
     query: str,
     sources: List[str],
@@ -495,7 +454,7 @@ async def _multi_source_search(
     tool_context: ToolContext,
     tool_config: Optional[Dict[str, Any]]
 ) -> List[SearchResult]:
-    """Execute search across web and KB sources in parallel (web-only version)"""
+    """Execute search across various sources in parallel (web-only version)"""
     log_identifier = "[DeepResearch:MultiSearch]"
     log.info("%s Searching across sources: %s", log_identifier, sources)
     
@@ -1180,54 +1139,36 @@ CRITICAL INSTRUCTIONS:
 
 ⚠️ ORIGINAL WRITING: Write in your own words, combining insights from different sources.
 
-REPORT STRUCTURE (3000-5000 words total):
+⚠️ DO NOT INCLUDE WORD COUNTS: Do NOT include word count targets (like "300-500 words") in your section headings or anywhere in the output. These are internal guidelines for you only.
 
-## Executive Summary (300-500 words)
-- Synthesize the MOST IMPORTANT insights from ALL sources
-- Highlight key findings that answer the research question
-- Provide context for why this topic matters
-- DO NOT copy from any single source 
+REPORT STRUCTURE GUIDELINES (aim for 3000-5000 words total, but DO NOT mention word counts in output):
 
-## Introduction (200-300 words)
-- Explain the research question and its significance
-- Provide historical or contextual background
-- Outline what the report will cover
-- Draw context from multiple sources [[cite:searchX]]
+Write the following sections WITHOUT including word count targets in headings:
 
-## Main Analysis (2000-3000 words)
-Organize into 5-8 thematic sections. For EACH section:
-- Create a descriptive heading (###)
-- Write 300-500 words drawing information from multiple sources
+## Executive Summary
+Synthesize the MOST IMPORTANT insights from ALL sources. Highlight key findings that answer the research question. Provide context for why this topic matters. DO NOT copy from any single source.
+
+## Introduction
+Explain the research question and its significance. Provide historical or contextual background. Outline what the report will cover. Draw context from multiple sources [[cite:searchX]].
+
+## Main Analysis
+Organize into 5-8 thematic sections with descriptive headings (###). For EACH section:
+- Create a descriptive heading like "### Historical Development" or "### Economic Impact" (NO word counts)
+- Draw information from multiple sources
 - Start each paragraph with a topic sentence
 - Support claims with citations from different sources [[cite:searchX]][[cite:searchY]]
 - Explain implications and connections
 - Compare and contrast different perspectives
 - NEVER copy paragraphs from a single source
 
-Example structure:
-### [Theme 1 - e.g., "Historical Development"]
-[Synthesize information from sources 0, 2, 5, 8...]
+## Comparative Analysis
+Compare different perspectives across sources. Identify agreements and contradictions. Analyze why sources might differ. Synthesize a balanced view. Cite multiple sources for each point.
 
-### [Theme 2 - e.g., "Economic Impact"]
-[Synthesize information from sources 1, 3, 7, 9...]
+## Implications
+Discuss practical implications. Identify applications or consequences. Suggest areas needing further research. Draw from multiple sources.
 
-## Comparative Analysis (400-600 words)
-- Compare different perspectives across sources
-- Identify agreements and contradictions
-- Analyze why sources might differ
-- Synthesize a balanced view
-- Cite multiple sources for each point
-
-## Implications (300-400 words)
-- Discuss practical implications
-- Identify applications or consequences
-- Suggest areas needing further research
-- Draw from multiple sources
-
-## Conclusion (200-300 words)
-- Synthesize the key takeaways from ALL sources
-- Provide final analytical insights
-- Suggest future directions
+## Conclusion
+Synthesize the key takeaways from ALL sources. Provide final analytical insights. Suggest future directions.
 
 ⚠️ DO NOT CREATE A REFERENCES SECTION: The system will automatically append a properly formatted References section with all cited sources. Your report should end with the Conclusion section.
 
@@ -1241,10 +1182,10 @@ QUALITY CHECKS:
 ✓ Have I synthesized from MULTIPLE sources (not just one)?
 ✓ Have I written in my OWN words (not copied)?
 ✓ Have I cited ALL factual claims?
-✓ Have I reached 3000+ words?
 ✓ Have I organized information thematically (not source-by-source)?
+✓ Have I avoided including word count targets in my output?
 
-Write your research report now. Format in Markdown.
+Write your research report now. Format in Markdown. Remember: NO word counts in section headings or anywhere in the output.
 """
 
         log.info("%s Calling LLM for report generation", log_identifier)
@@ -1309,8 +1250,9 @@ Write your research report now. Format in Markdown.
 
 async def deep_research(
     research_question: str,
+    research_type: str = "quick",
     sources: Optional[List[str]] = None,
-    max_iterations: int = 2,
+    max_iterations: Optional[int] = None,
     max_sources_per_iteration: int = 5,
     kb_ids: Optional[List[str]] = None,
     max_runtime_seconds: Optional[int] = None,
@@ -1320,15 +1262,21 @@ async def deep_research(
     """
     Performs comprehensive, iterative research across multiple sources.
     
+    Configuration Priority (highest to lowest):
+    1. Explicit parameters (max_iterations, max_runtime_seconds)
+    2. Tool config (tool_config.max_iterations, tool_config.max_runtime_seconds)
+    3. Research type translation ("quick" or "in-depth")
+    
     Args:
         research_question: The research question or topic to investigate
-        sources: Sources to search (default: ["web", "kb"])
-        max_iterations: Maximum research iterations (default: 2, max: 10)
+        research_type: Type of research - "quick" (5min, 3 iter) or "in-depth" (10min, 10 iter)
+        sources: Sources to search (default from tool_config or ["web"])
+        max_iterations: Maximum research iterations (overrides tool_config and research_type)
         max_sources_per_iteration: Max results per source per iteration (default: 5)
         kb_ids: Specific knowledge base IDs to search
-        max_runtime_seconds: Maximum runtime in seconds (default: None = no limit)
+        max_runtime_seconds: Maximum runtime in seconds (overrides tool_config and research_type)
         tool_context: ADK tool context
-        tool_config: Tool configuration
+        tool_config: Tool configuration with optional max_iterations, max_runtime_seconds, sources
     
     Returns:
         Dictionary with research report and metadata
@@ -1336,29 +1284,62 @@ async def deep_research(
     log_identifier = "[DeepResearch]"
     log.info("%s Starting deep research: %s", log_identifier, research_question)
     
+    # Resolve configuration with priority: explicit params > tool_config > research_type
+    config = tool_config or {}
+    
+    # Resolve max_iterations
+    if max_iterations is None:
+        max_iterations = config.get("max_iterations")
+        if max_iterations is not None:
+            log.info("%s Using max_iterations from tool_config: %d", log_identifier, max_iterations)
+        else:
+            # Fallback to research_type translation
+            if research_type.lower() in ["in-depth", "indepth", "in_depth", "deep", "comprehensive"]:
+                max_iterations = 10
+                log.info("%s Using max_iterations from research_type 'in-depth': %d", log_identifier, max_iterations)
+            else:
+                max_iterations = 3
+                log.info("%s Using max_iterations from research_type 'quick': %d", log_identifier, max_iterations)
+    else:
+        log.info("%s Using explicit max_iterations parameter: %d", log_identifier, max_iterations)
+    
+    # Resolve max_runtime_seconds
+    if max_runtime_seconds is None:
+        # Check tool_config (support both seconds and minutes)
+        config_duration = config.get("max_runtime_seconds") or config.get("duration_seconds")
+        config_duration_minutes = config.get("duration_minutes")
+        
+        if config_duration is not None:
+            max_runtime_seconds = config_duration
+            log.info("%s Using max_runtime_seconds from tool_config: %d", log_identifier, max_runtime_seconds)
+        elif config_duration_minutes is not None:
+            max_runtime_seconds = config_duration_minutes * 60
+            log.info("%s Using duration_minutes from tool_config: %d minutes (%d seconds)",
+                    log_identifier, config_duration_minutes, max_runtime_seconds)
+        else:
+            # Fallback to research_type translation
+            if research_type.lower() in ["in-depth", "indepth", "in_depth", "deep", "comprehensive"]:
+                max_runtime_seconds = 600  # 10 minutes
+                log.info("%s Using max_runtime_seconds from research_type 'in-depth': %d seconds",
+                        log_identifier, max_runtime_seconds)
+            else:
+                max_runtime_seconds = 300  # 5 minutes
+                log.info("%s Using max_runtime_seconds from research_type 'quick': %d seconds",
+                        log_identifier, max_runtime_seconds)
+    else:
+        log.info("%s Using explicit max_runtime_seconds parameter: %d", log_identifier, max_runtime_seconds)
+    
+    # Resolve sources
+    if sources is None:
+        sources = config.get("sources", ["web"])
+        log.info("%s Using sources from config: %s", log_identifier, sources)
+    
     if not tool_context:
         return {"status": "error", "message": "ToolContext is missing"}
-    
-    # Check if web search API keys are configured when web source is requested
-    import os
-    tavily_key = os.getenv("TAVILY_API_KEY")
-    google_key = os.getenv("GOOGLE_SEARCH_API_KEY")
     
     # Default sources - web only
     if sources is None:
         sources = ["web"]
-    
-    # Check if web search is requested but no API keys are available
-    if "web" in sources and not tavily_key and not google_key:
-        error_msg = (
-            "Deep research with web sources requires either TAVILY_API_KEY or GOOGLE_SEARCH_API_KEY "
-            "to be configured. Please set one of these environment variables or remove 'web' from sources."
-        )
-        log.error("%s %s", log_identifier, error_msg)
-        return {
-            "status": "error",
-            "message": error_msg
-        }
     
     # Track start time for runtime limit
     import time
@@ -1661,13 +1642,10 @@ async def deep_research(
         }
 
 
-# Import the wrapper
-from .deep_research_wrapper import deep_research_with_auto_params
-
 # Tool Definition
 deep_research_tool_def = BuiltinTool(
     name="deep_research",
-    implementation=deep_research_with_auto_params,
+    implementation=deep_research,
     description="""
 Performs comprehensive, iterative research across multiple sources.
 
@@ -1687,10 +1665,10 @@ Use this tool when you need to:
 The tool provides real-time progress updates and generates a detailed
 research report with proper citations for all sources.
 
-IMPORTANT: Before calling this tool, you MUST ask the user:
-"Would you like a quick search (5 minutes) or in-depth research (10 minutes)?"
-
-Then use their response to set the research_type parameter.
+Configuration:
+- Can be configured via tool_config in agent YAML (max_iterations, max_runtime_seconds, sources)
+- Can be overridden via explicit parameters
+- Supports research_type for backward compatibility ("quick" or "in-depth")
 """,
     category="research",
     category_name=CATEGORY_NAME,
@@ -1705,8 +1683,18 @@ Then use their response to set the research_type parameter.
             ),
             "research_type": adk_types.Schema(
                 type=adk_types.Type.STRING,
-                description="Type of research: 'quick' for 5-minute search (3 iterations) or 'in-depth' for 10-minute comprehensive research (10 iterations). Default: 'quick'",
+                description="Type of research: 'quick' (5min, 3 iterations) or 'in-depth' (10min, 10 iterations). Can be overridden by tool_config or explicit parameters. Default: 'quick'",
                 enum=["quick", "in-depth"],
+                nullable=True
+            ),
+            "max_iterations": adk_types.Schema(
+                type=adk_types.Type.INTEGER,
+                description="Maximum number of research iterations (1-10). Overrides tool_config and research_type if provided.",
+                nullable=True
+            ),
+            "max_runtime_seconds": adk_types.Schema(
+                type=adk_types.Type.INTEGER,
+                description="Maximum runtime in seconds (60-600). Overrides tool_config and research_type if provided.",
                 nullable=True
             ),
             "sources": adk_types.Schema(
@@ -1715,7 +1703,7 @@ Then use their response to set the research_type parameter.
                     type=adk_types.Type.STRING,
                     enum=["web", "kb"]
                 ),
-                description="Sources to search (default: ['web']). Web search requires Google or Tavily API keys. KB search requires configured knowledge bases.",
+                description="Sources to search. Default from tool_config or ['web']. Web search requires Google or Tavily API keys.",
                 nullable=True
             ),
             "kb_ids": adk_types.Schema(

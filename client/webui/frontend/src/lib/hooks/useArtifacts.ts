@@ -32,10 +32,10 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
     const fetchArtifacts = useCallback(async () => {
         setIsLoading(true);
         setError(null);
-        
+
         try {
             let url: string;
-            
+
             // Priority 1: Session context (active chat)
             if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
                 url = `${apiPrefix}/artifacts/${sessionId}`;
@@ -52,22 +52,20 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
             }
 
             const response = await authenticatedFetch(url, { credentials: "include" });
-            
+
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ 
-                    message: `Failed to fetch artifacts. ${response.statusText}` 
+                const errorData = await response.json().catch(() => ({
+                    message: `Failed to fetch artifacts. ${response.statusText}`,
                 }));
                 throw new Error(errorData.message || `Failed to fetch artifacts. ${response.statusText}`);
             }
-            
+
             const data: ArtifactInfo[] = await response.json();
-            
+
             // Filter out temporary web_content artifacts from deep research
             // These are intermediate files used during research and should not be shown to users
-            const filteredData = data.filter(artifact =>
-                !artifact.filename.startsWith('web_content_')
-            );
-            
+            const filteredData = data.filter(artifact => !artifact.filename.startsWith("web_content_"));
+
             // Ensure all artifacts have URIs
             const artifactsWithUris = filteredData.map(artifact => ({
                 ...artifact,

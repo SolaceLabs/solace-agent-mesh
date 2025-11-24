@@ -74,63 +74,46 @@ apps:
         
         What would be most useful for you?"
         
-        **STEP 2: EXTRACT RESEARCH SETTINGS**
+        **STEP 2: USING DEEP RESEARCH**
         
-        When you receive a research request, the user's message will start with research settings in this format:
-        [RESEARCH SETTINGS: Duration=X minutes, Max Iterations=Y, Sources=source1, source2]
+        The deep_research tool has sensible defaults configured in tool_config, but you can override them when needed.
         
-        **YOU MUST EXTRACT THESE SETTINGS AND USE THEM EXACTLY AS SPECIFIED.**
-        
-        **How to Process Research Requests:**
-        
-        1. **Extract the settings** from the message header:
-           - Duration in minutes → Convert to seconds for max_runtime_seconds
-           - Max Iterations → Use as max_iterations parameter
-           - Sources → Use as sources array
-        
-        2. **Call deep_research with extracted settings:**
-           ```
-           deep_research(
-               research_question="<actual research question without the settings header>",
-               max_runtime_seconds=<duration in minutes * 60>,
-               max_iterations=<max iterations from settings>,
-               sources=<sources list from settings>
-           )
-           ```
-        
-        **Example:**
-        If user message is:
+        **Default Behavior (Just call the tool):**
         ```
-        [RESEARCH SETTINGS: Duration=10 minutes, Max Iterations=10, Sources=web, kb]
-        
-        History of gold as a reserve currency
+        deep_research(
+            research_question="History of gold as a reserve currency"
+        )
         ```
+        This will use the configured defaults (5 minutes, 5 iterations, web sources).
         
-        You MUST call:
+        **Override When Needed:**
+        If the user explicitly requests different parameters, you can override:
         ```
         deep_research(
             research_question="History of gold as a reserve currency",
-            max_runtime_seconds=600,  # 10 * 60
-            max_iterations=10,
-            sources=["web", "kb"]
+            max_runtime_seconds=900,  # 15 minutes for comprehensive research
+            max_iterations=10,        # More iterations for depth
+            sources=["web"]           # Specify sources if needed
         )
         ```
         
-        **DO NOT use default parameters. ALWAYS extract and use the settings from the message header.**
-        
-        The deep_research tool will:
+        **The tool will automatically:**
         - Generate optimized search queries
         - Search across specified sources
         - Reflect on findings and identify gaps
         - Continue until time limit OR max iterations reached
         - Generate comprehensive report with citations
         
-        **Remember: The duration (max_runtime_seconds) is the PRIMARY constraint.**
+        **When to override defaults:**
+        - User explicitly asks for "comprehensive" or "in-depth" research → increase max_runtime_seconds and max_iterations
+        - User asks for "quick" research → decrease parameters
+        - User specifies time constraints → set max_runtime_seconds accordingly
+        - Otherwise, use defaults (they work well for most cases)
         
         **How to Use Deep Research:**
-        1. When asked to research a topic, check message metadata for `deep_research_settings`
-        2. Extract the user's preferences (duration, iterations, sources)
-        3. Call deep_research tool with these parameters
+        1. When asked to research a topic, assess if the query is clear (see STEP 1)
+        2. Call deep_research with the research question
+        3. Override defaults only if user explicitly requests different parameters
         4. The tool will automatically:
            - Generate optimized search queries
            - Search across selected sources
@@ -138,7 +121,7 @@ apps:
            - Refine queries and search again (up to max_iterations or max_runtime_seconds)
            - Generate a comprehensive report with citations
         5. Present the research report to the user
-        6. All citations will be in the format [[cite:researchN]]
+        6. All citations will be in the format [[cite:searchN]]
         
         **Citation Requirements:**
         - The deep_research tool handles citations automatically
@@ -159,12 +142,23 @@ apps:
         - Reflecting: Assessing quality and identifying gaps
         - Synthesizing: Creating the final report
         
-        Remember: Always check for and use the user's deep_research_settings from metadata!
+        Remember: Use defaults unless user explicitly requests different parameters!
       
       tools:
         - tool_type: builtin
           tool_name: deep_research
           tool_config:
+            # Research parameters - set agent-level defaults
+            max_iterations: 5              # Default: 5 iterations for balanced research
+            max_runtime_seconds: 300       # Default: 5 minutes (can use duration_minutes: 5)
+            sources: ["web"]               # Default sources
+      
+            # API keys for web search
+            tavily_api_key: "${TAVILY_API_KEY}"
+            google_search_api_key: "${GOOGLE_SEARCH_API_KEY}"
+            google_cse_id: "${GOOGLE_CSE_ID}"
+            
+            # Phase-specific model configurations (optional)
             model_configs:
               report_generation:
                 model: "openai/vertex-claude-4-5-sonnet"

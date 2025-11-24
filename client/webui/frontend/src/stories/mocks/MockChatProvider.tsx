@@ -1,49 +1,78 @@
 import { ChatContext, type ChatContextValue } from "@/lib/contexts/ChatContext";
 import React, { useState } from "react";
 import { mockAgentCards } from "./data";
+import { transformAgentCard } from "@/lib/hooks/useAgentCards";
 
 type DefaultMockContextType = Omit<ChatContextValue, "setIsSidePanelCollapsed">;
 
-// Default mock values for ChatContext
+// Transform AgentCard to AgentCardInfo using the exported utility
+const transformedMockAgents = mockAgentCards.map(transformAgentCard);
+
+// Generate agentNameDisplayNameMap from transformed agents
+const agentNameDisplayNameMap = transformedMockAgents.reduce(
+    (acc, agent) => {
+        if (agent.name) {
+            acc[agent.name] = agent.displayName || agent.name;
+        }
+        return acc;
+    },
+    {} as Record<string, string>
+);
+
+// Minimal default mock values - stories can override as needed
 const defaultMockChatContext: DefaultMockContextType = {
-    // State
-    sessionId: "mock-session-id",
+    // Core state
+    sessionId: "",
     messages: [],
+    agents: transformedMockAgents,
+    agentNameDisplayNameMap,
+    selectedAgentName: transformedMockAgents[0]?.name || "",
+
+    // Loading states
     isResponding: false,
-    currentTaskId: null,
-    selectedAgentName: "MockAgent",
-    notifications: [],
-    agents: mockAgentCards,
     agentsLoading: false,
-    agentsError: null,
-    agentsRefetch: async () => {},
-    isCancelling: false,
-    artifacts: [],
     artifactsLoading: false,
-    artifactsRefetch: async () => {},
-    setArtifacts: () => {},
+    isLoadingSession: false,
+    isCancelling: false,
+
+    // Collections
+    notifications: [],
+    artifacts: [],
+    submittedFeedback: {},
+    selectedArtifactFilenames: new Set(),
+
+    // Nullable state
+    currentTaskId: null,
+    agentsError: null,
     ragData: [],
     ragEnabled: true,
     taskIdInSidePanel: null,
-    isSidePanelCollapsed: false,
-    activeSidePanelTab: "files",
-    isDeleteModalOpen: false,
     artifactToDelete: null,
-    isArtifactEditMode: false,
-    selectedArtifactFilenames: new Set(),
-    isBatchDeleteModalOpen: false,
     previewArtifact: null,
     previewedArtifactAvailableVersions: null,
     currentPreviewedVersionNumber: null,
     previewFileContent: null,
-    isLoadingSession: false,
+    sessionName: null,
+    sessionToDelete: null,
+    latestStatusText: React.createRef<string | null>(),
 
-    // Actions
+    // UI state
+    isSidePanelCollapsed: false,
+    activeSidePanelTab: "files",
+    isDeleteModalOpen: false,
+    isArtifactEditMode: false,
+    isBatchDeleteModalOpen: false,
+    configCollectFeedback: false,
+
+    // Artifact rendering
+    artifactRenderingState: { expandedArtifacts: new Set<string>() },
+
+    // No-op functions
     setMessages: () => {},
     setTaskIdInSidePanel: () => {},
-    handleNewSession: () => {},
+    handleNewSession: async () => {},
     handleSubmit: async () => {},
-    handleCancel: () => {},
+    handleCancel: async () => {},
     addNotification: () => {},
     setSelectedAgentName: () => {},
     uploadArtifactFile: async () => null,
@@ -61,48 +90,23 @@ const defaultMockChatContext: DefaultMockContextType = {
     openArtifactForPreview: async () => null,
     navigateArtifactVersion: async () => null,
     openMessageAttachmentForPreview: () => {},
-    latestStatusText: React.createRef<string | null>(),
-    sessionName: null,
-    sessionToDelete: null,
-    setSessionId: function (): void {},
-    setSessionName: function (): void {},
-    handleSwitchSession: function (): Promise<void> {
-        return Promise.resolve();
-    },
-    openSessionDeleteModal: function (): void {},
-    closeSessionDeleteModal: function (): void {},
-    confirmSessionDelete: function (): Promise<void> {
-        return Promise.resolve();
-    },
-    updateSessionName: function (): Promise<void> {
-        return Promise.resolve();
-    },
-    deleteSession: function (): Promise<void> {
-        return Promise.resolve();
-    },
-    configCollectFeedback: false,
-    submittedFeedback: {},
-    handleFeedbackSubmit: function (): Promise<void> {
-        return Promise.resolve();
-    },
-
-    // Artifact Rendering State
-    artifactRenderingState: {
-        expandedArtifacts: new Set<string>(),
-    },
-
-    // Artifact Rendering Actions
-    toggleArtifactExpanded: function (): void {},
-    isArtifactExpanded: function (): boolean {
-        return false;
-    },
-    setArtifactRenderingState: function (): void {},
-
-    // Artifact Display and Cache Management
-    markArtifactAsDisplayed: function (): void {},
-    downloadAndResolveArtifact: function (): Promise<null> {
-        return Promise.resolve(null);
-    },
+    setSessionId: () => {},
+    setSessionName: () => {},
+    handleSwitchSession: async () => {},
+    openSessionDeleteModal: () => {},
+    closeSessionDeleteModal: () => {},
+    confirmSessionDelete: async () => {},
+    updateSessionName: async () => {},
+    deleteSession: async () => {},
+    handleFeedbackSubmit: async () => {},
+    toggleArtifactExpanded: () => {},
+    isArtifactExpanded: () => false,
+    setArtifactRenderingState: () => {},
+    markArtifactAsDisplayed: () => {},
+    downloadAndResolveArtifact: async () => null,
+    agentsRefetch: async () => {},
+    artifactsRefetch: async () => {},
+    setArtifacts: () => {},
 };
 
 interface MockChatProviderProps {
