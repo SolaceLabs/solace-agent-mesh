@@ -94,9 +94,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
     """
 
     def __init__(self, **kwargs: Any):
-<<<<<<< HEAD
-        super().__init__(**kwargs)
-=======
         component_config = kwargs.get("component_config", {})
         app_config = component_config.get("app_config", {})
         resolve_uris = app_config.get("resolve_artifact_uris_in_gateway", True)
@@ -111,7 +108,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             filter_tool_data_parts=False,
             **kwargs,
         )
->>>>>>> origin/main
         log.info("%s Initializing Generic Gateway Component...", self.log_identifier)
 
         # --- Adapter Loading ---
@@ -145,7 +141,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         self.artifact_service = self.shared_artifact_service
         # `gateway_id`, `namespace`, `config` are available from base classes.
 
-<<<<<<< HEAD
         # --- Setup Authentication ---
         # Base class already called _setup_auth() during super().__init__(),
         # but adapter_config wasn't available yet. Call again now that it's set.
@@ -259,8 +254,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 self.adapter.handle_agent_deregistered(agent_name), self.get_async_loop()
             )
 
-=======
->>>>>>> origin/main
     # --- GatewayContext Implementation ---
 
     async def handle_external_input(
@@ -274,7 +267,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         user_identity = None
         try:
             # 1. Authentication & Enrichment
-<<<<<<< HEAD
             # Try enterprise authentication first, fallback to adapter-based auth
             try:
                 from solace_agent_mesh_enterprise.gateway.auth import authenticate_request
@@ -291,11 +283,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 auth_claims = await self.adapter.extract_auth_claims(
                     external_input, endpoint_context
                 )
-=======
-            auth_claims = await self.adapter.extract_auth_claims(
-                external_input, endpoint_context
-            )
->>>>>>> origin/main
 
             # The final user_identity is a dictionary, not the Pydantic model.
             # It's built from claims and potentially enriched by an identity service.
@@ -349,13 +336,10 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 **sam_task.platform_context,
             }
 
-<<<<<<< HEAD
             # Pass session_behavior if provided by adapter
             if sam_task.session_behavior:
                 external_request_context["session_behavior"] = sam_task.session_behavior
 
-=======
->>>>>>> origin/main
             task_id = await self.submit_a2a_task(
                 target_agent_name=sam_task.target_agent,
                 a2a_parts=a2a_parts,
@@ -379,11 +363,8 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                     # Create a dummy context to report the error
                     error_context = ResponseContext(
                         task_id="pre-task-error",
-<<<<<<< HEAD
                         session_id=None,
-=======
                         conversation_id=None,
->>>>>>> origin/main
                         user_id=user_identity.get("id"),
                         platform_context={},
                     )
@@ -460,9 +441,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             )
             if artifact_data.get("status") == "success":
                 content_bytes = artifact_data.get("raw_bytes")
-<<<<<<< HEAD
-                if content_bytes:
-=======
                 mime_type = artifact_data.get("mime_type")
 
                 if content_bytes:
@@ -536,7 +514,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                             )
                             # Fall through to return original content_bytes
 
->>>>>>> origin/main
                     log.info(
                         "%s Successfully loaded %d bytes for artifact '%s'.",
                         log_id_prefix,
@@ -567,13 +544,9 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             )
             return None
 
-<<<<<<< HEAD
     async def list_artifacts(
         self, context: "ResponseContext"
     ) -> List[ArtifactInfo]:
-=======
-    async def list_artifacts(self, context: "ResponseContext") -> List[ArtifactInfo]:
->>>>>>> origin/main
         """Lists all artifacts available in the user's context."""
         log_id_prefix = f"{self.log_identifier}[ListArtifacts]"
         if not self.artifact_service:
@@ -603,7 +576,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             )
             return []
 
-<<<<<<< HEAD
     def list_agents(self) -> List[Any]:
         """Lists all agents currently registered in the agent registry."""
         log_id_prefix = f"{self.log_identifier}[ListAgents]"
@@ -620,8 +592,6 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
             log.exception("%s Failed to list agents: %s", log_id_prefix, e)
             return []
 
-=======
->>>>>>> origin/main
     async def submit_feedback(self, feedback: "SamFeedback") -> None:
         """Handles feedback submission from an adapter."""
         log_id_prefix = f"{self.log_identifier}[SubmitFeedback]"

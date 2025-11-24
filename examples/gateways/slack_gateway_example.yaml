@@ -39,7 +39,7 @@ apps:
       namespace: ${NAMESPACE}
 
       # --- Generic Adapter Framework Config ---
-      gateway_adapter: solace_agent_mesh.gateway.slack.adapter.SlackAdapter
+      gateway_adapter: sam_slack_gateway_adapter.adapter.SlackAdapter
 
       # --- Slack Adapter-Specific Config ---
       adapter_config:
