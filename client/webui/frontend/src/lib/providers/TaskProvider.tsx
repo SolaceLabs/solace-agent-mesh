@@ -97,6 +97,26 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         (event: MessageEvent) => {
             try {
                 const parsedData: A2AEventSSEPayload = JSON.parse(event.data);
+
+                // Log artifact_update events for testing (from signal-based artifact creation)
+                if (parsedData?.direction === "artifact_update") {
+                    const payload = parsedData.full_payload;
+                    const artifact = payload?.result?.artifact;
+
+                    console.log("🎨 Artifact Update Event Received (Signal-Based):", {
+                        timestamp: parsedData.timestamp,
+                        taskId: parsedData.task_id,
+                        sourceEntity: parsedData.source_entity,
+                        artifactName: artifact?.name,
+                        artifactDescription: artifact?.description,
+                        version: artifact?.metadata?.version,
+                        agentName: artifact?.metadata?.agent_name,
+                        mimeType: artifact?.parts?.[0]?.kind === "file" ? artifact.parts[0].file?.mimeType : artifact?.parts?.[0]?.metadata?.mime_type,
+                        fullArtifact: artifact,
+                        fullPayload: payload,
+                    });
+                }
+
                 addOrUpdateMonitoredTask(parsedData);
             } catch (parseError) {
                 console.error("TaskMonitorContext: Failed to parse SSE 'a2a_message' event data:", parseError, "Raw data:", event.data);
@@ -134,7 +154,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         console.log("TaskMonitorContext: Attempting to connect stream...");
         setIsTaskMonitorConnecting(true);
         try {
-            const subscribePayload = { subscription_targets: [{ type: "my_a2a_messages" }] };
+            const subscribePayload = {
+                subscription_targets: [{ type: "my_a2a_messages" }],
+            };
             const subscribeResponse = await authenticatedFetch(`${apiPrefix}/visualization/subscribe`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -300,58 +322,61 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         setHighlightedStepIdState(stepId);
     }, []);
 
-    const loadTaskFromBackend = useCallback(async (taskId: string): Promise<TaskFE | null> => {
-        try {
-            const response = await authenticatedFetch(`${apiPrefix}/tasks/${taskId}/events`, {
-                method: "GET",
-                credentials: "include",
-            });
+    const loadTaskFromBackend = useCallback(
+        async (taskId: string): Promise<TaskFE | null> => {
+            try {
+                const response = await authenticatedFetch(`${apiPrefix}/tasks/${taskId}/events`, {
+                    method: "GET",
+                    credentials: "include",
+                });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ detail: "Failed to load task" }));
-                console.error(`TaskProvider: Failed to load task ${taskId}:`, errorData);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ detail: "Failed to load task" }));
+                    console.error(`TaskProvider: Failed to load task ${taskId}:`, errorData);
+                    return null;
+                }
+
+                const data = await response.json();
+
+                // Backend now returns all tasks (parent + children) in a tasks object
+                const allTasks = data.tasks as Record<string, { events: A2AEventSSEPayload[]; initial_request_text: string }>;
+                const loadedTasks: Record<string, TaskFE> = {};
+
+                // Transform each task to TaskFE format
+                for (const [tid, taskData] of Object.entries(allTasks)) {
+                    const events = taskData.events;
+                    const taskFE: TaskFE = {
+                        taskId: tid,
+                        initialRequestText: taskData.initial_request_text || "Task loaded from history",
+                        events: events,
+                        firstSeen: new Date(events[0]?.timestamp || Date.now()),
+                        lastUpdated: new Date(events[events.length - 1]?.timestamp || Date.now()),
+                    };
+                    loadedTasks[tid] = taskFE;
+                }
+
+                // Add all tasks to monitored tasks for caching
+                setMonitoredTasks(prevTasks => ({
+                    ...prevTasks,
+                    ...loadedTasks,
+                }));
+
+                // Add main task to task order if not already present
+                setMonitoredTaskOrder(prevOrder => {
+                    if (prevOrder.includes(taskId)) {
+                        return prevOrder;
+                    }
+                    return [taskId, ...prevOrder];
+                });
+
+                return loadedTasks[taskId] || null;
+            } catch (error) {
+                console.error(`TaskProvider: Error loading task ${taskId} from backend:`, error);
                 return null;
             }
-
-            const data = await response.json();
-
-            // Backend now returns all tasks (parent + children) in a tasks object
-            const allTasks = data.tasks as Record<string, { events: A2AEventSSEPayload[]; initial_request_text: string }>;
-            const loadedTasks: Record<string, TaskFE> = {};
-
-            // Transform each task to TaskFE format
-            for (const [tid, taskData] of Object.entries(allTasks)) {
-                const events = taskData.events;
-                const taskFE: TaskFE = {
-                    taskId: tid,
-                    initialRequestText: taskData.initial_request_text || "Task loaded from history",
-                    events: events,
-                    firstSeen: new Date(events[0]?.timestamp || Date.now()),
-                    lastUpdated: new Date(events[events.length - 1]?.timestamp || Date.now()),
-                };
-                loadedTasks[tid] = taskFE;
-            }
-
-            // Add all tasks to monitored tasks for caching
-            setMonitoredTasks(prevTasks => ({
-                ...prevTasks,
-                ...loadedTasks,
-            }));
-
-            // Add main task to task order if not already present
-            setMonitoredTaskOrder(prevOrder => {
-                if (prevOrder.includes(taskId)) {
-                    return prevOrder;
-                }
-                return [taskId, ...prevOrder];
-            });
-
-            return loadedTasks[taskId] || null;
-        } catch (error) {
-            console.error(`TaskProvider: Error loading task ${taskId} from backend:`, error);
-            return null;
-        }
-    }, [apiPrefix]);
+        },
+        [apiPrefix]
+    );
 
     const contextValue: TaskContextValue = {
         isTaskMonitorConnecting,

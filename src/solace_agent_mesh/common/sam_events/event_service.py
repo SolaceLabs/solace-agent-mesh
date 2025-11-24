@@ -45,9 +45,9 @@ class SamEvent:
 @dataclass
 class SessionDeletedEvent(SamEvent):
     """System event for session deletion."""
-    
+
     @classmethod
-    def create(cls, namespace: str, source_component: str, session_id: str, 
+    def create(cls, namespace: str, source_component: str, session_id: str,
                user_id: str, agent_id: str, gateway_id: str) -> "SessionDeletedEvent":
         """Create a session deleted event."""
         data = {
@@ -57,6 +57,27 @@ class SessionDeletedEvent(SamEvent):
             "gateway_id": gateway_id
         }
         return super().create("session.deleted", source_component, namespace, data)
+
+
+@dataclass
+class ArtifactCreatedEvent(SamEvent):
+    """System event for artifact creation."""
+
+    @classmethod
+    def create(cls, namespace: str, source_component: str, session_id: str,
+               user_id: str, filename: str, size: int, mime_type: str,
+               artifact_uri: str, version: int) -> "ArtifactCreatedEvent":
+        """Create an artifact created event."""
+        data = {
+            "session_id": session_id,
+            "user_id": user_id,
+            "filename": filename,
+            "size": size,
+            "mime_type": mime_type,
+            "artifact_uri": artifact_uri,
+            "version": version
+        }
+        return super().create("artifact.created", source_component, namespace, data)
 
 
 class SamEventService:
@@ -130,6 +151,36 @@ class SamEventService:
             user_id=user_id,
             agent_id=agent_id,
             gateway_id=gateway_id
+        )
+        return self.publish_event(event)
+
+    def publish_artifact_created(self, session_id: str, user_id: str, filename: str,
+                                 size: int, mime_type: str, artifact_uri: str, version: int) -> bool:
+        """
+        Convenience method to publish artifact created event.
+
+        Args:
+            session_id: The session ID where the artifact was created
+            user_id: The user who created the artifact
+            filename: The name of the artifact
+            size: The size of the artifact in bytes
+            mime_type: The MIME type of the artifact
+            artifact_uri: The URI of the artifact
+            version: The version number of the artifact
+
+        Returns:
+            bool: True if published successfully
+        """
+        event = ArtifactCreatedEvent.create(
+            namespace=self.namespace,
+            source_component=self.component_name,
+            session_id=session_id,
+            user_id=user_id,
+            filename=filename,
+            size=size,
+            mime_type=mime_type,
+            artifact_uri=artifact_uri,
+            version=version
         )
         return self.publish_event(event)
 
