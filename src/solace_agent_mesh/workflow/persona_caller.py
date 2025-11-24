@@ -5,6 +5,8 @@ PersonaCaller component for invoking persona agents via A2A.
 import logging
 import uuid
 import re
+import json
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from a2a.types import MessageSendParams, SendMessageRequest, Message as A2AMessage
@@ -12,6 +14,10 @@ from a2a.types import MessageSendParams, SendMessageRequest, Message as A2AMessa
 from ..common import a2a
 from ..common.data_parts import WorkflowNodeRequestData
 from ..common.agent_card_utils import get_schemas_from_agent_card
+from ..agent.utils.artifact_helpers import (
+    save_artifact_with_metadata,
+    format_artifact_uri,
+)
 from .app import WorkflowNode
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 
@@ -56,13 +62,14 @@ class PersonaCaller:
         output_schema = node.output_schema_override or card_output_schema
 
         # Construct A2A message
-        message = self._construct_persona_message(
+        message = await self._construct_persona_message(
             node,
             input_data,
             input_schema,
             output_schema,
             workflow_state,
             sub_task_id,
+            workflow_context,
         )
 
         # Publish request
@@ -129,7 +136,7 @@ class PersonaCaller:
 
             return data
 
-    def _construct_persona_message(
+    async def _construct_persona_message(
         self,
         node: WorkflowNode,
         input_data: Dict[str, Any],
@@ -137,6 +144,7 @@ class PersonaCaller:
         output_schema: Optional[Dict[str, Any]],
         workflow_state: WorkflowExecutionState,
         sub_task_id: str,
+        workflow_context: WorkflowExecutionContext,
     ) -> A2AMessage:
         """Construct A2A message for persona agent."""
 
@@ -153,14 +161,82 @@ class PersonaCaller:
         )
         parts.append(a2a.create_data_part(data=workflow_data.model_dump()))
 
-        # 2. User query/text content
-        if "query" in input_data:
-            parts.append(a2a.create_text_part(text=input_data["query"]))
+        # Determine if we should send as structured artifact or text
+        should_send_artifact = False
+        if input_schema:
+            # Check if it's NOT a single text schema
+            is_single_text = (
+                input_schema.get("type") == "object"
+                and len(input_schema.get("properties", {})) == 1
+                and "text" in input_schema.get("properties", {})
+                and input_schema["properties"]["text"].get("type") == "string"
+            )
+            should_send_artifact = not is_single_text
 
-        # 3. Additional input data
-        for key, value in input_data.items():
-            if key != "query":
-                parts.append(a2a.create_data_part(data={key: value}))
+        if should_send_artifact:
+            # Create and save input artifact
+            filename = f"input_{node.id}_{sub_task_id}.json"
+            content_bytes = json.dumps(input_data).encode("utf-8")
+            user_id = workflow_context.a2a_context["user_id"]
+            session_id = workflow_context.a2a_context["session_id"]
+
+            try:
+                save_result = await save_artifact_with_metadata(
+                    artifact_service=self.host.artifact_service,
+                    app_name=self.host.workflow_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                    content_bytes=content_bytes,
+                    mime_type="application/json",
+                    metadata_dict={
+                        "description": f"Input for node {node.id}",
+                        "source": "workflow_execution",
+                    },
+                    timestamp=datetime.now(timezone.utc),
+                )
+
+                if save_result["status"] == "success":
+                    version = save_result["data_version"]
+                    uri = format_artifact_uri(
+                        app_name=self.host.workflow_name,
+                        user_id=user_id,
+                        session_id=session_id,
+                        filename=filename,
+                        version=version,
+                    )
+                    parts.append(
+                        a2a.create_file_part_from_uri(
+                            uri=uri, name=filename, mime_type="application/json"
+                        )
+                    )
+                    log.info(
+                        f"{self.host.log_identifier} Created input artifact for node {node.id}: {filename}"
+                    )
+                else:
+                    raise RuntimeError(
+                        f"Failed to save input artifact: {save_result.get('message')}"
+                    )
+
+            except Exception as e:
+                log.error(
+                    f"{self.host.log_identifier} Error saving input artifact for node {node.id}: {e}"
+                )
+                raise e
+
+        else:
+            # Send as text/data parts (Chat Mode)
+            if "query" in input_data:
+                parts.append(a2a.create_text_part(text=input_data["query"]))
+            elif "text" in input_data:
+                parts.append(a2a.create_text_part(text=input_data["text"]))
+            else:
+                # Fallback for unstructured data without 'query'/'text' keys
+                text_parts = []
+                for key, value in input_data.items():
+                    text_parts.append(f"{key}: {value}")
+                if text_parts:
+                    parts.append(a2a.create_text_part(text="\n".join(text_parts)))
 
         # Construct message using helper function
         message = a2a.create_user_message(
