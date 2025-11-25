@@ -26,7 +26,7 @@ export const ChatSessionDialog: React.FC<ChatSessionDialogProps> = ({ buttonText
     const { persistenceEnabled } = useConfigContext();
     const [isOpen, setIsOpen] = useState(false);
 
-    return !persistenceEnabled ? (
+    return persistenceEnabled ? (
         <NewChatButton text={buttonText} onClick={() => handleNewSession()} />
     ) : (
         <ConfirmationDialog
