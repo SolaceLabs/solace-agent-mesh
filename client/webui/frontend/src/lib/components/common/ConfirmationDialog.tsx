@@ -39,7 +39,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, ti
                     <DialogTitle className="flex max-w-[400px] flex-row gap-1">{title}</DialogTitle>
                     <DialogDescription className={description ? "mt-6" : ""}>{description}</DialogDescription>
                 </DialogHeader>
-                {content}
+                <div className="min-w-0 break-words">{content}</div>
                 <DialogFooter>
                     <DialogClose asChild>
                         <Button
@@ -55,6 +55,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, ti
                         </Button>
                     </DialogClose>
                     <Button
+                        variant="outline"
                         title={confirmTitle}
                         onClick={async e => {
                             e.stopPropagation();
