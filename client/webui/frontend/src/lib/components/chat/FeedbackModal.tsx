@@ -60,6 +60,7 @@ export const FeedbackModal = React.memo<FeedbackModalProps>(({ isOpen, onClose, 
                     <p className="text-muted-foreground text-xs">Along with your feedback, details of the task will be recorded.</p>
                 </div>
             }
+            actionLabels={{ confirm: "Submit" }}
         />
     );
 });
