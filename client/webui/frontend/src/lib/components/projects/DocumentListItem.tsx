@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { Download, Trash, Pencil } from "lucide-react";
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui";
+import { Button } from "@/lib/components/ui";
 import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
 import type { ArtifactInfo } from "@/lib/types";
 import { getFileIcon } from "../chat/file/fileUtils";
+import { ConfirmationDialog } from "../common";
 
 interface DocumentListItemProps {
     artifact: ArtifactInfo;
@@ -77,40 +78,19 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, on
                 </Button>
                 {onDelete && (
                     <>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={e => {
-                                e.stopPropagation();
-                                setShowDeleteDialog(true);
-                            }}
-                            className="h-8 w-8 p-0"
-                            tooltip="Delete"
-                        >
-                            <Trash className="h-4 w-4" />
-                        </Button>
-                        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                            <DialogContent>
-                                <DialogHeader>
-                                    <DialogTitle>Delete {artifact.filename}?</DialogTitle>
-                                    <DialogDescription>This action cannot be undone. This file will be permanently removed from the project.</DialogDescription>
-                                </DialogHeader>
-                                <DialogFooter>
-                                    <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => {
-                                            setShowDeleteDialog(false);
-                                            onDelete();
-                                        }}
-                                    >
-                                        Delete
-                                    </Button>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
+                        <ConfirmationDialog
+                            title={`Delete ${artifact.filename}?`}
+                            description="This action cannot be undone. This file will be permanently removed from the project."
+                            actionLabels={{ confirm: "Delete" }}
+                            open={showDeleteDialog}
+                            onConfirm={onDelete}
+                            onOpenChange={setShowDeleteDialog}
+                            trigger={
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" tooltip="Delete">
+                                    <Trash className="h-4 w-4" />
+                                </Button>
+                            }
+                        />
                     </>
                 )}
             </div>
