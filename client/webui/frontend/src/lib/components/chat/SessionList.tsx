@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, RefreshCw } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles } from "lucide-react";
 
-import { useChatContext, useConfigContext, useTypewriterEffect } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useTitleAnimation } from "@/lib/hooks";
 import { useTitleGeneration } from "@/lib/hooks/useTitleGeneration";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { formatTimestamp } from "@/lib/utils/format";
@@ -28,9 +28,9 @@ const SessionName: React.FC<{ session: Session }> = ({ session }) => {
         return "New Chat";
     }, [session.name, session.id]);
 
-    const animatedName = useTypewriterEffect(displayName, 30);
+    const { text: animatedName, isAnimating } = useTitleAnimation(displayName);
 
-    return <span className="truncate font-semibold">{animatedName}</span>;
+    return <span className={`truncate font-semibold transition-opacity duration-300 ${isAnimating ? "animate-pulse opacity-50" : "opacity-100"}`}>{animatedName}</span>;
 };
 
 interface PaginatedSessionsResponse {
@@ -204,15 +204,15 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         navigate(`/projects/${session.projectId}`);
     };
 
-    const handleRegenerateTitle = useCallback(
+    const handleRenameWithAI = useCallback(
         async (session: Session) => {
             if (regeneratingTitleForSession) {
-                addNotification?.("Title regeneration already in progress", "info");
+                addNotification?.("AI rename already in progress", "info");
                 return;
             }
 
             setRegeneratingTitleForSession(session.id);
-            addNotification?.("Regenerating title...", "info");
+            addNotification?.("Generating AI name...", "info");
 
             try {
                 // Fetch all tasks/messages for this session
@@ -479,12 +479,12 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     <DropdownMenuItem
                                                         onClick={e => {
                                                             e.stopPropagation();
-                                                            handleRegenerateTitle(session);
+                                                            handleRenameWithAI(session);
                                                         }}
                                                         disabled={regeneratingTitleForSession === session.id}
                                                     >
-                                                        <RefreshCw size={16} className={`mr-2 ${regeneratingTitleForSession === session.id ? "animate-spin" : ""}`} />
-                                                        Regenerate Title
+                                                        <Sparkles size={16} className={`mr-2 ${regeneratingTitleForSession === session.id ? "animate-pulse" : ""}`} />
+                                                        Rename with AI
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
                                                         onClick={e => {

@@ -10,7 +10,7 @@ import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useChatContext, useTaskContext, useTypewriterEffect } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useTitleAnimation } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
@@ -106,12 +106,12 @@ export function ChatPage() {
 
     const breadcrumbs = undefined;
 
-    // Determine the page title with typewriter effect
+    // Determine the page title with pulse/fade effect
     const rawPageTitle = useMemo(() => {
         return sessionName || "New Chat";
     }, [sessionName]);
 
-    const pageTitle = useTypewriterEffect(rawPageTitle, 30);
+    const { text: pageTitle, isAnimating: isTitleAnimating } = useTitleAnimation(rawPageTitle);
 
     useEffect(() => {
         if (chatSidePanelRef.current && isSidePanelCollapsed) {
@@ -197,7 +197,11 @@ export function ChatPage() {
                     title={
                         <div className="flex items-center gap-3">
                             <Tooltip delayDuration={300}>
-                                <TooltipTrigger className="font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit hover:bg-transparent">{pageTitle}</TooltipTrigger>
+                                <TooltipTrigger
+                                    className={`font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit transition-opacity duration-300 hover:bg-transparent ${isTitleAnimating ? "animate-pulse opacity-50" : "opacity-100"}`}
+                                >
+                                    {pageTitle}
+                                </TooltipTrigger>
                                 <TooltipContent side="bottom">
                                     <p>{pageTitle}</p>
                                 </TooltipContent>

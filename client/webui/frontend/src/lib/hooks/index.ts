@@ -18,5 +18,5 @@ export * from "./useTextToSpeech";
 export * from "./useThemeContext";
 export * from "./useProjectSessions";
 export * from "./useAgentSelection";
-export * from "./useTypewriterEffect";
+export * from "./useTitleAnimation";
 export * from "./useNavigationBlocker";
