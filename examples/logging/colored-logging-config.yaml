@@ -11,7 +11,7 @@ formatters:
 
   # Colored formatter for terminal output (automatically detects TTY support)
   coloredFormatter:
-    class: solace_agent_mesh.common.utils.log_formatters.ColoredFormatter
+    class: solace_ai_connector.logging.ColoredFormatter
     format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
 
   # JSON formatter for production/cloud deployments
