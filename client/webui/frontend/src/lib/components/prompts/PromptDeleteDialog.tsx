@@ -13,7 +13,11 @@ export const PromptDeleteDialog = React.memo<PromptDeleteDialogProps>(({ isOpen,
     return (
         <ConfirmationDialog
             title="Delete Prompt?"
-            description={`This action cannot be undone. This will permanently delete the prompt and all its versions: ${promptName}`}
+            content={
+                <>
+                    This action cannot be undone. This will permanently delete the prompt and all its versions: <strong>{promptName}</strong>
+                </>
+            }
             actionLabels={{ confirm: "Delete" }}
             open={isOpen}
             onOpenChange={() => !isOpen && onClose()}
