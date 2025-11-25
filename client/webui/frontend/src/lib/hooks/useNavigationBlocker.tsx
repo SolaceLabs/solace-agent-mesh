@@ -46,7 +46,7 @@ export function useNavigationBlocker(): UseNavigationBlockerReturn {
         return (
             <ConfirmationDialog
                 title="Unsaved Changes Will Be Discarded"
-                content="Leaving the form will discard any unsaved changes. Are you sure you want to leave?"
+                description="Leaving the form will discard any unsaved changes. Are you sure you want to leave?"
                 open={showConfirmationDialog}
                 onConfirm={confirmNavigation}
                 onCancel={cancelNavigation}
