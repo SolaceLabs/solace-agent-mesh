@@ -279,6 +279,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     id: `paste-artifact-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
                     artifactId: result.uri,
                     filename: title,
+                    mimeType: mimeType,
                     timestamp: Date.now(),
                 };
                 setPastedArtifactItems(prev => {
@@ -319,22 +320,21 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 fullMessage = `${fullMessage}\n\nContext: "${contextText}"`;
             }
 
-            const artifactFiles: File[] = pastedArtifactItems.map(item => {
-                // Find the artifact in the artifacts list to get its mimeType
-                const artifact = artifacts.find(a => a.uri === item.artifactId);
-
-                // Create a special File object that contains the artifact URI
-                const artifactData = JSON.stringify({
-                    isArtifactReference: true,
-                    uri: item.artifactId,
-                    filename: item.filename,
-                    mimeType: artifact?.mime_type || "application/octet-stream",
+            const artifactFiles: File[] = pastedArtifactItems
+                .filter(item => item.artifactId && item.mimeType) // Skip invalid items early
+                .map(item => {
+                    // Create a special File object that contains the artifact URI
+                    const artifactData = JSON.stringify({
+                        isArtifactReference: true,
+                        uri: item.artifactId,
+                        filename: item.filename,
+                        mimeType: item.mimeType,
+                    });
+                    const blob = new Blob([artifactData], { type: "application/x-artifact-reference" });
+                    return new File([blob], item.filename, {
+                        type: "application/x-artifact-reference",
+                    });
                 });
-                const blob = new Blob([artifactData], { type: "application/x-artifact-reference" });
-                return new File([blob], item.filename, {
-                    type: "application/x-artifact-reference",
-                });
-            });
 
             // Combine regular files with artifact references
             const allFiles = [...selectedFiles, ...artifactFiles];
