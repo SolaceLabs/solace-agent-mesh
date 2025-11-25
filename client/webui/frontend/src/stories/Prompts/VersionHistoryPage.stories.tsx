@@ -1,10 +1,10 @@
 import { VersionHistoryPage } from "@/lib/components/prompts";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
-import { defaultPromptGroup, defaultVersions } from "./data";
+import { weatherPromptGroup, defaultVersions } from "./data";
 
 const handlers = [
-    http.get(`*/api/v1/prompts/groups/${defaultPromptGroup.id}/prompts`, () => {
+    http.get(`*/api/v1/prompts/groups/${weatherPromptGroup.id}/prompts`, () => {
         return HttpResponse.json(defaultVersions);
     }),
 ];
@@ -34,7 +34,7 @@ type Story = StoryObj<typeof VersionHistoryPage>;
 
 export const Default: Story = {
     args: {
-        group: defaultPromptGroup,
+        group: weatherPromptGroup,
     },
     parameters: {
         msw: { handlers },
