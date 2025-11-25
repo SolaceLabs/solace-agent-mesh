@@ -1,5 +1,13 @@
 import { PromptsPage } from "@/lib";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
+import { http, HttpResponse } from "msw";
+import { defaultPromptGroups } from "./data";
+
+const handlers = [
+    http.get("*/api/v1/prompts/groups/all", () => {
+        return HttpResponse.json(defaultPromptGroups);
+    }),
+];
 
 const meta = {
     title: "Pages/Prompts/PromptsPage",
@@ -26,8 +34,8 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
     parameters: {
-        chatContext: {
-            useLoaderData: () => ({}),
-        },
+        msw: { handlers },
     },
 };
+
+export const NoPrompts: Story = {};
