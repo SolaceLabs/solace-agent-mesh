@@ -10,7 +10,7 @@ import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useChatContext, useTaskContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useTypewriterEffect } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
@@ -106,10 +106,12 @@ export function ChatPage() {
 
     const breadcrumbs = undefined;
 
-    // Determine the page title
-    const pageTitle = useMemo(() => {
+    // Determine the page title with typewriter effect
+    const rawPageTitle = useMemo(() => {
         return sessionName || "New Chat";
     }, [sessionName]);
+
+    const pageTitle = useTypewriterEffect(rawPageTitle, 30);
 
     useEffect(() => {
         if (chatSidePanelRef.current && isSidePanelCollapsed) {
