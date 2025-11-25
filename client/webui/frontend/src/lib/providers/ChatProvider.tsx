@@ -1404,7 +1404,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 await loadSessionTasks(newSessionId);
             } catch (error) {
                 console.error(`${log_prefix} Failed to fetch session history:`, error);
-                setError({ title: "Switching Sessions Failed", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Switching Chats Failed", error: error instanceof Error ? error.message : "Unknown error" });
             } finally {
                 setIsLoadingSession(false);
             }
@@ -1457,7 +1457,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                setError({ title: "Session Deletion Failed", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Chat Deletion Failed", error: error instanceof Error ? error.message : "Unknown error" });
             }
         },
         [apiPrefix, addNotification, handleNewSession, sessionId, setError]
