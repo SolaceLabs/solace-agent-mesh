@@ -1696,6 +1696,32 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
 
                 for (const file of currentFiles) {
+                    // Check if this is an artifact reference (pasted artifact)
+                    if (file.type === "application/x-artifact-reference") {
+                        try {
+                            // Read the artifact reference data
+                            const text = await file.text();
+                            const artifactRef = JSON.parse(text);
+
+                            if (artifactRef.isArtifactReference && artifactRef.uri) {
+                                // This is a pasted artifact - send it as a file part with URI
+                                console.log(`[handleSubmit] Adding artifact reference: ${artifactRef.filename} (${artifactRef.uri})`);
+                                uploadedFileParts.push({
+                                    kind: "file",
+                                    file: {
+                                        uri: artifactRef.uri,
+                                        name: artifactRef.filename,
+                                        mimeType: artifactRef.mimeType || "application/octet-stream",
+                                    },
+                                });
+                                continue; // Skip to next file
+                            }
+                        } catch (error) {
+                            console.error(`[handleSubmit] Error processing artifact reference:`, error);
+                            // Fall through to normal file handling
+                        }
+                    }
+
                     if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
                         // Small file: send inline as base64 (no cleanup needed)
                         const base64Content = await fileToBase64(file);
