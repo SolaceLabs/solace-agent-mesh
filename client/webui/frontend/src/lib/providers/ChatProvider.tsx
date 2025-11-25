@@ -347,7 +347,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setSelectedAgentName(agentName);
             }
         },
-        [apiPrefix, deserializeTaskToMessages, addNotification, migrateTask]
+        [apiPrefix, deserializeTaskToMessages, migrateTask]
     );
 
     const uploadArtifactFile = useCallback(
