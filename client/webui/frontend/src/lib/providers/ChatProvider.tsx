@@ -222,7 +222,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ detail: "Failed saving task" }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                    throw new Error(errorData.message || `HTTP error ${response.status}`);
                 }
             } catch (error) {
                 console.error(`Failed saving task ${taskData.task_id}:`, error);
@@ -287,8 +287,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/chat-tasks`);
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ detail: "Failed to load session tasks" }));
-                throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                const errorData = await response.json().catch(() => ({ message: "Failed to load session tasks" }));
+                throw new Error(errorData.message || `HTTP error ${response.status}`);
             }
 
             const data = await response.json();
@@ -394,7 +394,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     }
 
                     // Default error handling for other errors
-                    const errorMessage = errorData.detail || `HTTP error ${response.status}`;
+                    const errorMessage = errorData.message || `HTTP error ${response.status}`;
                     throw new Error(errorMessage);
                 }
                 const result = await response.json();
@@ -424,8 +424,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     credentials: "include",
                 });
                 if (!response.ok && response.status !== 204) {
-                    const errorData = await response.json().catch(() => ({ detail: `Failed to delete ${filename}` }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                    const errorData = await response.json().catch(() => ({ message: `Failed to delete ${filename}` }));
+                    throw new Error(errorData.message || `HTTP error ${response.status}`);
                 }
                 addNotification(`File "${filename}" deleted.`, "success");
                 artifactsRefetch();
@@ -1404,7 +1404,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 await loadSessionTasks(newSessionId);
             } catch (error) {
                 console.error(`${log_prefix} Failed to fetch session history:`, error);
-                setError({ title: "Failed to Switch Sessions", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Switching Sessions Failed", error: error instanceof Error ? error.message : "Unknown error" });
             } finally {
                 setIsLoadingSession(false);
             }
@@ -1421,10 +1421,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     body: JSON.stringify({ name: newName }),
                 });
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: "Failed to update session name" }));
+                    const errorData = await response.json().catch(() => ({ message: "Failed to update session name" }));
 
                     if (response.status === 422) throw new Error("Invalid name");
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                    throw new Error(errorData.message || `HTTP error ${response.status}`);
                 }
 
                 setSessionName(newName);
@@ -1432,7 +1432,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                setError({ title: "Failed Session Name Update", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Session Name Update Failed", error: error instanceof Error ? error.message : "Unknown error" });
             }
         },
         [apiPrefix, setError]
@@ -1445,8 +1445,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     method: "DELETE",
                 });
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: "Failed to delete session" }));
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                    const errorData = await response.json().catch(() => ({ message: "Failed to delete session" }));
+                    throw new Error(errorData.message || `HTTP error ${response.status}`);
                 }
                 addNotification("Session deleted.", "success");
                 if (sessionIdToDelete === sessionId) {
@@ -1457,7 +1457,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                setError({ title: "Failed Session Deletion", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Session Deletion Failed", error: error instanceof Error ? error.message : "Unknown error" });
             }
         },
         [apiPrefix, addNotification, handleNewSession, sessionId, setError]
@@ -1550,11 +1550,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
                 }, 15000);
             } else {
-                const errorData = await response.json().catch(() => ({ detail: "Unknown cancellation error" }));
-                throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                const errorData = await response.json().catch(() => ({ message: "Unknown cancellation error" }));
+                throw new Error(errorData.message || `HTTP error ${response.status}`);
             }
         } catch (error) {
-            setError({ title: "Failed Task Cancellation", error: error instanceof Error ? error.message : "Network error" });
+            setError({ title: "Task Cancellation Failed", error: error instanceof Error ? error.message : "Network error" });
             setIsCancelling(false);
         }
     }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, setError, closeCurrentEventSource]);
@@ -1590,7 +1590,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleSseError = useCallback(() => {
         if (isResponding && !isFinalizing.current && !isCancellingRef.current) {
-            setError({ title: "Failed to Connect", error: "Connection lost. Please try again." });
+            setError({ title: "Connection Failed", error: "Connection lost. Please try again." });
         }
         if (!isFinalizing.current) {
             setIsResponding(false);
@@ -1620,8 +1620,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     });
 
                     if (!response.ok && response.status !== 204) {
-                        const errorData = await response.json().catch(() => ({ detail: `Failed to delete ${filename}` }));
-                        throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                        const errorData = await response.json().catch(() => ({ message: `Failed to delete ${filename}` }));
+                        throw new Error(errorData.message || `HTTP error ${response.status}`);
                     }
                 } catch (error) {
                     console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
@@ -1768,9 +1768,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: "Unknown error" }));
-                    console.error("ChatProvider handleSubmit: Error from /message:stream", response.status, errorData);
-                    throw new Error(errorData.detail || `HTTP error ${response.status}`);
+                    const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+                    throw new Error(errorData.message || `HTTP error ${response.status}`);
                 }
                 const result = await response.json();
 
