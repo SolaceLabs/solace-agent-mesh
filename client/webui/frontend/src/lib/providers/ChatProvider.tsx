@@ -221,11 +221,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: "Failed to save task" }));
+                    const errorData = await response.json().catch(() => ({ detail: "Failed saving task" }));
                     throw new Error(errorData.detail || `HTTP error ${response.status}`);
                 }
             } catch (error) {
-                console.error(`Error saving task ${taskData.task_id}:`, error);
+                console.error(`Failed saving task ${taskData.task_id}:`, error);
                 // Don't throw - saving is best-effort and silent per NFR-1
             } finally {
                 // Always remove from saving set after a delay to handle rapid re-renders
@@ -389,7 +389,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             errorMessage = errorData.message || `File "${file.name}" exceeds the maximum allowed size`;
                         }
 
-                        setError({ title: "Error Uploading Artifact", error: errorMessage });
+                        setError({ title: "File Upload Failed", error: errorMessage });
                         return { error: errorMessage };
                     }
 
@@ -404,7 +404,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return result.uri && result.sessionId ? { uri: result.uri, sessionId: result.sessionId } : null;
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : "";
-                setError({ title: "Error Uploading File", error: errorMessage });
+                setError({ title: "File Upload Failed", error: errorMessage });
                 return { error: `Failed to upload "${file.name}": ${errorMessage}` };
             }
         },
@@ -620,7 +620,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setPreviewFileContent(fileData);
                 return fileData;
             } catch (error) {
-                setError({ title: "Error Loading Artifact Version", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Artifact Version Preview Failed", error: error instanceof Error ? error.message : "Unknown error" });
                 return null;
             }
         },
@@ -718,7 +718,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return fileData;
             } catch (error) {
                 console.error(`Error downloading artifact ${filename}:`, error);
-                setError({ title: "Error Downloading Artifact", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "File Download Failed", error: error instanceof Error ? error.message : "Unknown error" });
                 return null;
             } finally {
                 // Remove from in-progress set immediately when done
@@ -1404,7 +1404,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 await loadSessionTasks(newSessionId);
             } catch (error) {
                 console.error(`${log_prefix} Failed to fetch session history:`, error);
-                setError({ title: "Error switching session", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Failed to Switch Sessions", error: error instanceof Error ? error.message : "Unknown error" });
             } finally {
                 setIsLoadingSession(false);
             }
@@ -1432,7 +1432,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                setError({ title: "Error updating session name", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Failed Session Name Update", error: error instanceof Error ? error.message : "Unknown error" });
             }
         },
         [apiPrefix, setError]
@@ -1457,7 +1457,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     window.dispatchEvent(new CustomEvent("new-chat-session"));
                 }
             } catch (error) {
-                setError({ title: "Error Deleting Session", error: error instanceof Error ? error.message : "Unknown error" });
+                setError({ title: "Failed Session Deletion", error: error instanceof Error ? error.message : "Unknown error" });
             }
         },
         [apiPrefix, addNotification, handleNewSession, sessionId, setError]
@@ -1551,11 +1551,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }, 15000);
             } else {
                 const errorData = await response.json().catch(() => ({ detail: "Unknown cancellation error" }));
-                setError({ title: "Cancellation Failed", error: errorData.detail || response.statusText });
-                setIsCancelling(false);
+                throw new Error(errorData.detail || `HTTP error ${response.status}`);
             }
         } catch (error) {
-            setError({ title: "Cancellation Failed", error: error instanceof Error ? error.message : "Network error" });
+            setError({ title: "Failed Task Cancellation", error: error instanceof Error ? error.message : "Network error" });
             setIsCancelling(false);
         }
     }, [isResponding, isCancelling, currentTaskId, apiPrefix, addNotification, setError, closeCurrentEventSource]);
@@ -1591,7 +1590,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleSseError = useCallback(() => {
         if (isResponding && !isFinalizing.current && !isCancellingRef.current) {
-            setError({ title: "Connection Failed", error: "Connection lost. Please try again." });
+            setError({ title: "Failed to Connect", error: "Connection lost. Please try again." });
         }
         if (!isFinalizing.current) {
             setIsResponding(false);
@@ -1622,7 +1621,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                     if (!response.ok && response.status !== 204) {
                         const errorData = await response.json().catch(() => ({ detail: `Failed to delete ${filename}` }));
-                        console.error(`[cleanupUploadedFiles] Failed to cleanup file ${filename}:`, errorData.detail || `HTTP error ${response.status}`);
+                        throw new Error(errorData.detail || `HTTP error ${response.status}`);
                     }
                 } catch (error) {
                     console.error(`[cleanupUploadedFiles] Exception while cleaning up file ${filename}:`, error);
@@ -1716,7 +1715,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             const cleanupMessage = successfullyUploadedFiles.length > 0 ? " Previously uploaded files have been cleaned up." : "";
 
                             const errorDetail = result && "error" in result ? ` (${result.error})` : "";
-                            setError({ title: "Error Uploading File", error: `Message not sent. File upload failed for "${file.name}"${errorDetail}.${cleanupMessage}` });
+                            setError({ title: "File Upload Failed", error: `Message not sent. File upload failed for "${file.name}"${errorDetail}.${cleanupMessage}` });
                             setIsResponding(false);
                             setMessages(prev => prev.filter(msg => msg.metadata?.messageId !== userMsg.metadata?.messageId));
                             return;
@@ -1848,7 +1847,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setMessages(prev => prev.map(msg => (msg.metadata?.messageId === userMsg.metadata?.messageId ? { ...msg, taskId: taskId } : msg)));
             } catch (error) {
                 console.error("ChatProvider handleSubmit: Catch block error", error);
-                setError({ title: "Message Submission Failed", error: error instanceof Error ? error.message : "Unknown error. Please try again." });
+                setError({ title: "Message Failed", error: error instanceof Error ? error.message : "Unknown error. Please try again." });
                 setIsResponding(false);
                 setMessages(prev => prev.filter(msg => !msg.isStatusBubble));
                 setCurrentTaskId(null);
