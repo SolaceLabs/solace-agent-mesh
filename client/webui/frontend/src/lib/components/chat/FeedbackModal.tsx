@@ -53,7 +53,7 @@ export const FeedbackModal = React.memo<FeedbackModalProps>(({ isOpen, onClose, 
             onConfirm={handleSubmit}
             onCancel={handleClose}
             title="Provide Feedback"
-            subtitle={`${feedbackPrompt} Providing more details will help improve AI responses over time.`}
+            description={`${feedbackPrompt} Providing more details will help improve AI responses over time.`}
             content={
                 <div className="flex flex-col gap-2">
                     <Textarea ref={textareaRef} value={feedbackText} onChange={e => setFeedbackText(e.target.value)} className="min-h-[120px] text-sm" disabled={isSubmitting} />

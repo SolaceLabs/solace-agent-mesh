@@ -80,7 +80,7 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, on
                     <>
                         <ConfirmationDialog
                             title={`Delete ${artifact.filename}?`}
-                            subtitle="This action cannot be undone. This file will be permanently removed from the project."
+                            description="This action cannot be undone. This file will be permanently removed from the project."
                             open={showDeleteDialog}
                             onConfirm={onDelete}
                             onOpenChange={setShowDeleteDialog}

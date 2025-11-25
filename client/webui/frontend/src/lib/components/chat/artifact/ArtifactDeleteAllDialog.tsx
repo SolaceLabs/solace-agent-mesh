@@ -35,7 +35,5 @@ export const ArtifactDeleteAllDialog: React.FC = () => {
         }
     };
 
-    return (
-        <ConfirmationDialog title="Delete All?" subtitle={getDescription()} content="" onCancel={() => setIsBatchDeleteModalOpen(false)} onConfirm={confirmBatchDeleteArtifacts} open={isBatchDeleteModalOpen} onOpenChange={setIsBatchDeleteModalOpen} />
-    );
+    return <ConfirmationDialog title="Delete All?" description={getDescription()} onCancel={() => setIsBatchDeleteModalOpen(false)} onConfirm={confirmBatchDeleteArtifacts} open={isBatchDeleteModalOpen} onOpenChange={setIsBatchDeleteModalOpen} />;
 };
