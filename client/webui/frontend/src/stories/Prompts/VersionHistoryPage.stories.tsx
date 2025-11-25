@@ -1,0 +1,42 @@
+import { VersionHistoryPage } from "@/lib/components/prompts";
+import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
+import { http, HttpResponse } from "msw";
+import { defaultPromptGroup, defaultVersions } from "./data";
+
+const handlers = [
+    http.get(`*/api/v1/prompts/groups/${defaultPromptGroup.id}/prompts`, () => {
+        return HttpResponse.json(defaultVersions);
+    }),
+];
+
+const meta = {
+    title: "Pages/Prompts/VersionHistoryPage",
+    component: VersionHistoryPage,
+    parameters: {
+        layout: "fullscreen",
+        docs: {
+            description: {
+                component: "The component for templating and building custom prompts",
+            },
+        },
+    },
+    decorators: [
+        (Story: StoryFn, context: StoryContext) => {
+            const storyResult = Story(context.args, context);
+
+            return <div style={{ height: "100vh", width: "100vw" }}>{storyResult}</div>;
+        },
+    ],
+} satisfies Meta<typeof VersionHistoryPage>;
+
+export default meta;
+type Story = StoryObj<typeof VersionHistoryPage>;
+
+export const Default: Story = {
+    args: {
+        group: defaultPromptGroup,
+    },
+    parameters: {
+        msw: { handlers },
+    },
+};
