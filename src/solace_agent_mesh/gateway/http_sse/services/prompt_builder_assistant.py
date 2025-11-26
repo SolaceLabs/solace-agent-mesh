@@ -13,7 +13,7 @@ from litellm import acompletion
 from sqlalchemy.orm import Session
 
 from .usage_tracking_service import UsageTrackingService
-from .token_pricing import TokenCostCalculator
+from .litellm_cost_calculator import LiteLLMCostCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +248,7 @@ REMEMBER:
                 try:
                     usage_info = response.usage
                     if usage_info:
-                        usage_service = UsageTrackingService(self.db, TokenCostCalculator())
+                        usage_service = UsageTrackingService(self.db, LiteLLMCostCalculator())
                         usage_service.record_token_usage(
                             user_id=user_id,
                             task_id=None,  # Prompt builder doesn't have task IDs

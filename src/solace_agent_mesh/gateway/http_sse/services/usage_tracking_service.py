@@ -13,7 +13,7 @@ from ..repository.models import (
     MonthlyUsageModel,
     TokenTransactionModel,
 )
-from .token_pricing import TokenCostCalculator
+from .litellm_cost_calculator import LiteLLMCostCalculator
 
 log = logging.getLogger(__name__)
 
@@ -24,17 +24,17 @@ class UsageTrackingService:
     def __init__(
         self,
         db_session: Session,
-        cost_calculator: Optional[TokenCostCalculator] = None
+        cost_calculator: Optional[LiteLLMCostCalculator] = None
     ):
         """
         Initialize the usage tracking service.
         
         Args:
             db_session: SQLAlchemy database session
-            cost_calculator: Token cost calculator (creates default if None)
+            cost_calculator: LiteLLM-based cost calculator (creates default if None)
         """
         self.db = db_session
-        self.calculator = cost_calculator or TokenCostCalculator()
+        self.calculator = cost_calculator or LiteLLMCostCalculator()
     
     def record_token_usage(
         self,

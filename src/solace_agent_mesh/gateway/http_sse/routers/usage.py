@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..dependencies import get_db, get_user_id
 from ..services.usage_tracking_service import UsageTrackingService
 from ..services.quota_management_service import QuotaManagementService
-from ..services.token_pricing import TokenCostCalculator
+from ..services.litellm_cost_calculator import LiteLLMCostCalculator
 from .dto.usage_dto import (
     CurrentUsageDTO,
     MonthlyUsageHistoryDTO,
@@ -34,8 +34,8 @@ admin_router = APIRouter(prefix="/api/v1/admin/usage", tags=["admin-usage"])
 def get_usage_service(
     db: Session = Depends(get_db)
 ) -> UsageTrackingService:
-    """Get usage tracking service instance."""
-    calculator = TokenCostCalculator()
+    """Get usage tracking service instance with LiteLLM-based cost calculation."""
+    calculator = LiteLLMCostCalculator()
     return UsageTrackingService(db, calculator)
 
 

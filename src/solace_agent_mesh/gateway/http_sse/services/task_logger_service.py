@@ -22,7 +22,7 @@ from ..repository.entities import Task, TaskEvent
 from ..repository.task_repository import TaskRepository
 from ..shared import now_epoch_ms
 from ..services.usage_tracking_service import UsageTrackingService
-from ..services.token_pricing import TokenCostCalculator
+from ..services.litellm_cost_calculator import LiteLLMCostCalculator
 
 log = logging.getLogger(__name__)
 
@@ -35,8 +35,8 @@ class TaskLoggerService:
         self.session_factory = session_factory
         self.config = config
         self.log_identifier = "[TaskLoggerService]"
-        # Initialize token cost calculator for usage tracking
-        self.token_calculator = TokenCostCalculator()
+        # Initialize LiteLLM-based cost calculator for usage tracking
+        self.token_calculator = LiteLLMCostCalculator()
         log.info(f"{self.log_identifier} Initialized.")
 
     def log_event(self, event_data: Dict[str, Any]):
