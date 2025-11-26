@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useChatContext, useArtifactRendering } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
-import type { FileAttachment } from "@/lib/types";
+import type { FileAttachment, MessageFE } from "@/lib/types";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { downloadFile, parseArtifactUri } from "@/lib/utils/download";
 import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
@@ -16,27 +16,28 @@ import { Spinner } from "../../ui";
 
 type ArtifactMessageProps = (
     | {
-        status: "in-progress";
-        name: string;
-        bytesTransferred: number;
-    }
+          status: "in-progress";
+          name: string;
+          bytesTransferred: number;
+      }
     | {
-        status: "completed";
-        name: string;
-        fileAttachment: FileAttachment;
-    }
+          status: "completed";
+          name: string;
+          fileAttachment: FileAttachment;
+      }
     | {
-        status: "failed";
-        name: string;
-        error?: string;
-    }
+          status: "failed";
+          name: string;
+          error?: string;
+      }
 ) & {
     context?: "chat" | "list";
     uniqueKey?: string; // Optional unique key for expansion state (e.g., taskId-filename)
+    message?: MessageFE; // Optional message to get taskId for ragData lookup
 };
 
 export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
-    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion } = useChatContext();
+    const { artifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion, ragData } = useChatContext();
     const { activeProject } = useProjectContext();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -290,6 +291,12 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
         fetchContentFromUri();
     }, [props.status, shouldRender, fileAttachment, sessionId, activeProject?.id, isLoading, fetchedContent, artifact?.accumulatedContent, fileName, isExpanded, artifact]);
 
+    // Get ragData for this task if message is provided
+    const taskRagData = useMemo(() => {
+        if (!props.message?.taskId || !ragData) return undefined;
+        return ragData.find(r => r.taskId === props.message?.taskId);
+    }, [props.message?.taskId, ragData]);
+
     // Prepare actions for the artifact bar
     const actions = useMemo(() => {
         if (props.status === "failed") return undefined;
@@ -345,8 +352,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                 content: contentToRender,
                 // @ts-expect-error - Add flag to indicate if content is plain text from streaming
                 // Content is plain text if: (1) it's from accumulated content during streaming, OR (2) we're in progress state
-                isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) ||
-                             (props.status === "in-progress" && !!fetchedContent)
+                isPlainText: (artifact?.isAccumulatedContentPlainText && fetchedContent === artifact?.accumulatedContent) || (props.status === "in-progress" && !!fetchedContent),
             });
 
             if (finalContent) {
@@ -360,7 +366,7 @@ export const ArtifactMessage: React.FC<ArtifactMessageProps> = props => {
                             }}
                             className={isImage ? "drop-shadow-md" : ""}
                         >
-                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} />
+                            <ContentRenderer content={finalContent} rendererType={renderType} mime_type={fileAttachment?.mime_type} setRenderError={setRenderError} ragData={taskRagData} />
                         </div>
                         <ArtifactTransitionOverlay isVisible={isDownloading} message="Resolving embeds..." />
                     </div>

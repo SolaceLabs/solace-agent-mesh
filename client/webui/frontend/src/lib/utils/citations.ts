@@ -114,6 +114,47 @@ export function splitTextWithCitations(text: string, citations: Citation[]): Arr
 }
 
 /**
+ * Group citations by paragraph
+ * Returns array of paragraphs with their associated citations
+ */
+export function groupCitationsByParagraph(text: string, citations: Citation[]): Array<{ text: string; citations: Citation[] }> {
+    if (citations.length === 0) {
+        return [{ text, citations: [] }];
+    }
+
+    // Split text into paragraphs (by double newlines or single newlines)
+    const paragraphs = text.split(/\n\n|\n/);
+    const result: Array<{ text: string; citations: Citation[] }> = [];
+
+    let currentPosition = 0;
+
+    for (const paragraph of paragraphs) {
+        const paragraphStart = currentPosition;
+        const paragraphEnd = paragraphStart + paragraph.length;
+
+        // Find citations that fall within this paragraph
+        const paragraphCitations = citations.filter(citation => citation.position >= paragraphStart && citation.position < paragraphEnd);
+
+        // Remove citation markers from paragraph text
+        let cleanText = paragraph;
+        for (const citation of paragraphCitations.sort((a, b) => b.position - a.position)) {
+            const relativePos = citation.position - paragraphStart;
+            cleanText = cleanText.substring(0, relativePos) + cleanText.substring(relativePos + citation.marker.length);
+        }
+
+        result.push({
+            text: cleanText,
+            citations: paragraphCitations,
+        });
+
+        // Account for the newline character(s)
+        currentPosition = paragraphEnd + (text[paragraphEnd] === "\n" && text[paragraphEnd + 1] === "\n" ? 2 : 1);
+    }
+
+    return result;
+}
+
+/**
  * Get citation display number (1-indexed)
  */
 export function getCitationNumber(citation: Citation): number {

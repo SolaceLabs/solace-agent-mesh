@@ -156,7 +156,7 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
                 if (finalContent) {
                     elements.push(
                         <div key={`embedded-${index}`} className="my-2 h-auto w-md max-w-md">
-                            <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} />
+                            <ContentRenderer content={finalContent} rendererType={item.type} mime_type={item.mimeType} setRenderError={setRenderError} ragData={taskRagData} />
                         </div>
                     );
                 }
@@ -332,17 +332,17 @@ const getChatBubble = (message: MessageFE, chatContext: ChatContextValue, isLast
             } else if ("uri" in fileInfo && fileInfo.uri) {
                 attachment.uri = fileInfo.uri;
             }
-            return <ArtifactMessage key={`part-file-${index}`} status="completed" name={attachment.name} fileAttachment={attachment} uniqueKey={uniqueKey} />;
+            return <ArtifactMessage key={`part-file-${index}`} status="completed" name={attachment.name} fileAttachment={attachment} uniqueKey={uniqueKey} message={message} />;
         }
         if (part.kind === "artifact") {
             const artifactPart = part as ArtifactPart;
             switch (artifactPart.status) {
                 case "completed":
-                    return <ArtifactMessage key={`part-artifact-${index}`} status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} uniqueKey={uniqueKey} />;
+                    return <ArtifactMessage key={`part-artifact-${index}`} status="completed" name={artifactPart.name} fileAttachment={artifactPart.file!} uniqueKey={uniqueKey} message={message} />;
                 case "in-progress":
-                    return <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} uniqueKey={uniqueKey} />;
+                    return <ArtifactMessage key={`part-artifact-${index}`} status="in-progress" name={artifactPart.name} bytesTransferred={artifactPart.bytesTransferred!} uniqueKey={uniqueKey} message={message} />;
                 case "failed":
-                    return <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} uniqueKey={uniqueKey} />;
+                    return <ArtifactMessage key={`part-artifact-${index}`} status="failed" name={artifactPart.name} error={artifactPart.error} uniqueKey={uniqueKey} message={message} />;
                 default:
                     return null;
             }

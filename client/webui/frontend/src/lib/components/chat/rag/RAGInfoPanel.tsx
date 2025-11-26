@@ -233,12 +233,21 @@ export const RAGInfoPanel: React.FC<RAGInfoPanelProps> = ({ ragData, enabled }) 
         return uniqueSources;
     })();
 
+    // Get the title from the first ragData entry (research question or user query)
+    const panelTitle = ragData && ragData.length > 0 ? ragData[0].query : "";
+
     return (
         <div className="flex h-full flex-col overflow-hidden">
             {isAllDeepResearch ? (
                 // Deep research: Show all sources in a simple list
                 <div className="flex flex-1 flex-col overflow-hidden">
                     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                        {/* Title section showing research question or query */}
+                        {panelTitle && (
+                            <div className="border-border/50 mb-4 border-b pb-3">
+                                <h2 className="text-foreground text-base leading-tight font-semibold">{panelTitle}</h2>
+                            </div>
+                        )}
                         <div className="mb-3">
                             <h3 className="text-muted-foreground text-sm font-semibold tracking-wide uppercase">{allUniqueSources.length} Sources</h3>
                         </div>

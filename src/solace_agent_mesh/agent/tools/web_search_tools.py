@@ -279,8 +279,8 @@ web_search_tavily_tool_def = BuiltinTool(
     description=(
         "Search the web using Tavily API for current information. "
         "Use this when you need up-to-date facts, news, or data. "
-        "Always cite sources using the citation format provided in your instructions. "
-        "Note: Image results will be displayed automatically in the UI - do not list image URLs in your response."
+        "Always cite text sources using the citation format provided in your instructions. "
+        "IMPORTANT: Image results will be displayed automatically in the UI - do NOT cite images, do NOT mention image URLs, and do NOT use citation markers like [[cite:imageX]] for images in your response text."
     ),
     category=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
@@ -332,8 +332,8 @@ web_search_google_tool_def = BuiltinTool(
     description=(
         "Search the web using Google Custom Search API. "
         "Use this when you need up-to-date information from Google. "
-        "Always cite sources using the citation format provided in your instructions. "
-        "Note: Image results will be displayed automatically in the UI - do not list image URLs in your response."
+        "Always cite text sources using the citation format provided in your instructions. "
+        "IMPORTANT: Image results will be displayed automatically in the UI - do NOT cite images, do NOT mention image URLs, and do NOT use citation markers like [[cite:imageX]] for images in your response text."
     ),
     category=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,

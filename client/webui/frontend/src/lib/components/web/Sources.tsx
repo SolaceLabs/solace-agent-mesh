@@ -76,7 +76,7 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
 
     return (
         <div
-            className={`flex items-center gap-2 rounded border border-[var(--color-secondary-w20)] px-2 py-1 ${onDeepResearchClick ? "cursor-pointer transition-colors hover:bg-[var(--color-secondary-w10)]" : ""}`}
+            className={`flex items-center gap-2 rounded border border-gray-200 px-2 py-1 dark:border-gray-700 ${onDeepResearchClick ? "cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800/50" : ""}`}
             role={onDeepResearchClick ? "button" : undefined}
             aria-label={isDeepResearch ? "View deep research sources" : "View web search sources"}
             onClick={onDeepResearchClick}

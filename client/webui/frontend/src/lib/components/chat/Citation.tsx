@@ -1,10 +1,15 @@
 /**
  * Citation component for displaying clickable source citations
  */
-import React, { Fragment } from "react";
+import React, { useState, useMemo, type ReactNode } from "react";
+import DOMPurify from "dompurify";
+import { marked } from "marked";
+import parse, { type HTMLReactParserOptions, type DOMNode, Element, Text as DomText } from "html-react-parser";
 import type { Citation as CitationType } from "@/lib/utils/citations";
-import { getCitationTooltip, splitTextWithCitations } from "@/lib/utils/citations";
+import { getCitationTooltip, CITATION_PATTERN } from "@/lib/utils/citations";
 import { MarkdownHTMLConverter } from "@/lib/components";
+import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
+import * as Ariakit from "@ariakit/react";
 
 interface CitationProps {
     citation: CitationType;
@@ -147,13 +152,160 @@ export function Citation({ citation, onClick, maxLength = 30 }: CitationProps) {
     return (
         <button
             onClick={handleClick}
-            className="citation-badge mx-0.5 inline-flex cursor-pointer items-center rounded-sm bg-gray-200 px-1.5 py-0.5 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+            className="citation-badge mx-0.5 inline-flex cursor-pointer items-center rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
             title={tooltip}
             aria-label={`Citation: ${tooltip}`}
             type="button"
         >
             <span className="max-w-[200px] truncate">{displayText}</span>
         </button>
+    );
+}
+
+/**
+ * Bundled Citations Component
+ * Displays multiple citations grouped together at the end of a paragraph
+ * If only one citation, shows it as a regular citation badge
+ * If multiple, shows first citation name with "+X" in the same bubble
+ */
+interface BundledCitationsProps {
+    citations: CitationType[];
+    onCitationClick?: (citation: CitationType) => void;
+}
+
+export function BundledCitations({ citations, onCitationClick }: BundledCitationsProps) {
+    const [isDark, setIsDark] = useState(false);
+
+    // Detect dark mode
+    React.useEffect(() => {
+        const checkDarkMode = () => {
+            setIsDark(document.documentElement.classList.contains("dark"));
+        };
+
+        checkDarkMode();
+
+        const observer = new MutationObserver(checkDarkMode);
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"],
+        });
+
+        return () => observer.disconnect();
+    }, []);
+
+    if (citations.length === 0) return null;
+
+    // Get unique citations (deduplicate by sourceId)
+    const uniqueCitations = citations.filter((citation, index, self) => index === self.findIndex(c => c.sourceId === citation.sourceId && c.type === citation.type));
+
+    // If only one citation, render it as a regular citation badge
+    if (uniqueCitations.length === 1) {
+        return <Citation citation={uniqueCitations[0]} onClick={onCitationClick} />;
+    }
+
+    // Multiple citations - show first citation name + "+X" in same bubble
+    const firstCitation = uniqueCitations[0];
+    const remainingCount = uniqueCitations.length - 1;
+    const firstDisplayText = getCitationDisplayText(firstCitation, 20);
+    const tooltip = getCitationTooltip(firstCitation);
+
+    // Check if this is a web search citation
+    const isWebSearch = firstCitation.source?.metadata?.type === "web_search";
+    const webSearchUrl = isWebSearch ? firstCitation.source?.sourceUrl : null;
+
+    const handleFirstCitationClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // For web search citations, open the URL directly
+        if (isWebSearch && webSearchUrl) {
+            window.open(webSearchUrl, "_blank", "noopener,noreferrer");
+            return;
+        }
+
+        // For RAG citations, use onClick handler (to open RAG panel)
+        if (onCitationClick) {
+            onCitationClick(firstCitation);
+        }
+    };
+
+    return (
+        <Ariakit.HovercardProvider showTimeout={150} hideTimeout={150}>
+            <Ariakit.HovercardAnchor
+                render={
+                    <button
+                        onClick={handleFirstCitationClick}
+                        className="citation-badge mx-0.5 inline-flex cursor-pointer items-center gap-1 rounded-sm bg-gray-200 px-1.5 py-0 align-baseline text-[11px] font-normal whitespace-nowrap text-gray-800 transition-colors duration-150 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600"
+                        title={tooltip}
+                        aria-label={`Citation: ${tooltip}`}
+                        type="button"
+                    >
+                        <span className="max-w-[200px] truncate">{firstDisplayText}</span>
+                        <span className="text-[10px] opacity-70">+{remainingCount}</span>
+                    </button>
+                }
+            />
+            <Ariakit.Hovercard
+                gutter={8}
+                className="z-[999] max-h-[400px] w-[320px] max-w-[calc(100vw-2rem)] cursor-default overflow-y-auto rounded-lg border p-3 shadow-xl"
+                style={{
+                    backgroundColor: isDark ? "#1f2937" : "#ffffff",
+                    borderColor: isDark ? "#4b5563" : "#d1d5db",
+                    color: isDark ? "#f3f4f6" : "#111827",
+                }}
+                portal={true}
+                unmountOnHide={true}
+            >
+                <div className="cursor-default space-y-2">
+                    <div className="mb-3 border-b pb-2" style={{ borderColor: isDark ? "#4b5563" : "#e5e7eb" }}>
+                        <h3 className="text-sm font-semibold">All Sources · {uniqueCitations.length}</h3>
+                    </div>
+                    {uniqueCitations.map((citation, index) => {
+                        const displayText = getCitationDisplayText(citation, 50);
+                        const isWebSearch = citation.source?.metadata?.type === "web_search";
+                        const webSearchUrl = isWebSearch ? citation.source?.sourceUrl : null;
+
+                        // Get favicon for web sources
+                        let favicon = null;
+                        if (isWebSearch && citation.source?.sourceUrl) {
+                            try {
+                                const url = new URL(citation.source.sourceUrl);
+                                const domain = url.hostname;
+                                favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+                            } catch {
+                                // Ignore favicon errors
+                            }
+                        }
+
+                        const handleClick = (e: React.MouseEvent) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+
+                            if (isWebSearch && webSearchUrl) {
+                                window.open(webSearchUrl, "_blank", "noopener,noreferrer");
+                            } else if (onCitationClick) {
+                                onCitationClick(citation);
+                            }
+                        };
+
+                        return (
+                            <button key={`bundled-citation-${index}`} onClick={handleClick} className="flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left transition-colors hover:bg-gray-100 dark:hover:bg-gray-800" type="button">
+                                {favicon && (
+                                    <div className="relative mt-0.5 h-4 w-4 flex-shrink-0 overflow-hidden rounded-full bg-white">
+                                        <img src={favicon} alt="" className="h-full w-full" />
+                                        <div className="absolute inset-0 rounded-full border border-gray-200/10 dark:border-transparent" />
+                                    </div>
+                                )}
+                                <div className="flex-1 overflow-hidden">
+                                    <div className="truncate text-sm font-medium text-blue-600 dark:text-blue-400">{displayText}</div>
+                                    {citation.source?.metadata?.title && <div className="mt-0.5 truncate text-xs text-gray-600 dark:text-gray-400">{citation.source.metadata.title}</div>}
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            </Ariakit.Hovercard>
+        </Ariakit.HovercardProvider>
     );
 }
 
@@ -166,22 +318,104 @@ interface TextWithCitationsProps {
     onCitationClick?: (citation: CitationType) => void;
 }
 
+/**
+ * Process text node content to replace citation markers with React components
+ */
+function processTextWithCitations(textContent: string, citations: CitationType[], onCitationClick?: (citation: CitationType) => void): ReactNode[] {
+    const result: ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+    let pendingCitations: CitationType[] = [];
+
+    // Reset regex
+    CITATION_PATTERN.lastIndex = 0;
+
+    while ((match = CITATION_PATTERN.exec(textContent)) !== null) {
+        // Add text before citation
+        if (match.index > lastIndex) {
+            // Flush pending citations before text
+            if (pendingCitations.length > 0) {
+                result.push(<BundledCitations key={`cit-${lastIndex}`} citations={pendingCitations} onCitationClick={onCitationClick} />);
+                pendingCitations = [];
+            }
+            result.push(textContent.substring(lastIndex, match.index));
+        }
+
+        // Find the matching citation
+        const [, type, sourceId] = match;
+        const citationType = (type || "search") as "file" | "ref" | "search" | "research";
+        const citationId = `${citationType}${sourceId}`;
+        const citation = citations.find(c => `${c.type}${c.sourceId}` === citationId);
+
+        if (citation) {
+            pendingCitations.push(citation);
+        }
+
+        lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    if (lastIndex < textContent.length) {
+        // Flush pending citations before remaining text
+        if (pendingCitations.length > 0) {
+            result.push(<BundledCitations key={`cit-${lastIndex}`} citations={pendingCitations} onCitationClick={onCitationClick} />);
+            pendingCitations = [];
+        }
+        result.push(textContent.substring(lastIndex));
+    } else if (pendingCitations.length > 0) {
+        // Flush any remaining citations at the end
+        result.push(<BundledCitations key={`cit-end`} citations={pendingCitations} onCitationClick={onCitationClick} />);
+    }
+
+    return result;
+}
+
 export function TextWithCitations({ text, citations, onCitationClick }: TextWithCitationsProps) {
+    // Create parser options to process text nodes and replace citation markers
+    const parserOptions: HTMLReactParserOptions = useMemo(
+        () => ({
+            replace: (domNode: DOMNode) => {
+                // Process text nodes to find and replace citation markers
+                if (domNode.type === "text" && domNode instanceof DomText) {
+                    const textContent = domNode.data;
+
+                    // Check if this text contains citation markers
+                    CITATION_PATTERN.lastIndex = 0;
+                    if (CITATION_PATTERN.test(textContent)) {
+                        CITATION_PATTERN.lastIndex = 0;
+                        const processed = processTextWithCitations(textContent, citations, onCitationClick);
+                        if (processed.length > 0) {
+                            return <>{processed}</>;
+                        }
+                    }
+                }
+
+                // Handle links - add target blank
+                if (domNode instanceof Element && domNode.name === "a") {
+                    domNode.attribs.target = "_blank";
+                    domNode.attribs.rel = "noopener noreferrer";
+                }
+
+                return undefined;
+            },
+        }),
+        [citations, onCitationClick]
+    );
+
     if (citations.length === 0) {
         return <MarkdownHTMLConverter>{text}</MarkdownHTMLConverter>;
     }
 
-    const segments = splitTextWithCitations(text, citations);
+    try {
+        // Convert markdown to HTML
+        const rawHtml = marked.parse(text, { gfm: true }) as string;
+        const cleanHtml = DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true } });
 
-    return (
-        <span style={{ display: "inline" }}>
-            {segments.map((segment: { text: string; citation?: CitationType }, index: number) => {
-                if (segment.citation) {
-                    return <Citation key={`citation-${index}`} citation={segment.citation} onClick={onCitationClick} />;
-                }
-                // Render text segments as plain text to avoid block-level elements from MarkdownHTMLConverter
-                return <Fragment key={`text-${index}`}>{segment.text}</Fragment>;
-            })}
-        </span>
-    );
+        // Parse HTML and inject citations
+        const reactElements = parse(cleanHtml, parserOptions);
+
+        return <div className={getThemeHtmlStyles()}>{reactElements}</div>;
+    } catch {
+        return <MarkdownHTMLConverter>{text}</MarkdownHTMLConverter>;
+    }
 }

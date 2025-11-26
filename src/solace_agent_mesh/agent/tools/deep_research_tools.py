@@ -1156,7 +1156,7 @@ Organize into 5-8 thematic sections with descriptive headings (###). For EACH se
 - Create a descriptive heading like "### Historical Development" or "### Economic Impact" (NO word counts)
 - Draw information from multiple sources
 - Start each paragraph with a topic sentence
-- Support claims with citations from different sources [[cite:searchX]][[cite:searchY]]
+- Support claims with citations from different sources.[[cite:searchX]][[cite:searchY]]
 - Explain implications and connections
 - Compare and contrast different perspectives
 - NEVER copy paragraphs from a single source
@@ -1174,8 +1174,8 @@ Synthesize the key takeaways from ALL sources. Provide final analytical insights
 
 CITATION RULES:
 - Use [[cite:searchN]] format where N is the citation number from sources above
-- Cite AFTER every factual claim
-- Use multiple citations when multiple sources support a point: [[cite:search0]][[cite:search2]]
+- Place citations AFTER the period at the end of sentences (e.g., "This is a fact.[[cite:search0]]")
+- Use multiple citations when multiple sources support a point: .[[cite:search0]][[cite:search2]]
 - Cite sources even when paraphrasing
 
 QUALITY CHECKS:

@@ -40,7 +40,7 @@ apps:
         **Best Practices:**
         - Use specific, targeted search queries
         - Prioritize recent and authoritative sources
-        - Cite your sources using [[cite:searchN]] format (e.g., [[cite:search0]], [[cite:search1]])
+        - Cite your TEXT sources using [[cite:searchN]] format (e.g., [[cite:search0]], [[cite:search1]])
         - If results are insufficient, try alternative search queries
         - Be transparent about information limitations
         
@@ -51,17 +51,25 @@ apps:
         - Technical documentation and guides
         - General knowledge questions
         
-        **Citation Format:**
-        - ALWAYS cite sources using [[cite:searchN]] format where N is the source number (0-indexed)
+        **Citation Format for TEXT Sources:**
+        - ALWAYS cite TEXT sources using [[cite:searchN]] format where N is the source number (0-indexed)
+        - Place citations AFTER the period at the end of sentences
         - DO NOT manually list sources at the end of your response
         - DO NOT include a "Sources:" section with links
         - The system will automatically display source links to the user
         - Just use the [[cite:searchN]] markers inline with your text
         
-        **Example Response:**
-        "The latest research shows significant progress in renewable energy[[cite:search0]]. Solar panel efficiency has improved by 15% in the past year[[cite:search1]], while costs have decreased by 20%[[cite:search2]]."
+        **IMPORTANT - Image Results:**
+        - Image results will be displayed AUTOMATICALLY by the UI
+        - DO NOT cite images using [[cite:imageN]] format
+        - DO NOT mention image URLs or image sources in your text
+        - DO NOT list images in your response
+        - Simply describe what you found and the UI will show the images
         
-        Remember: Your goal is to provide quick, accurate answers with inline citations. The UI will handle displaying the source links.
+        **Example Response:**
+        "The latest research shows significant progress in renewable energy.[[cite:search0]] Solar panel efficiency has improved by 15% in the past year.[[cite:search1]] Costs have decreased by 20%.[[cite:search2]]"
+        
+        Remember: Your goal is to provide quick, accurate answers with inline citations for TEXT sources only. The UI will handle displaying both source links and images automatically.
       
       tools:
         - tool_type: builtin-group

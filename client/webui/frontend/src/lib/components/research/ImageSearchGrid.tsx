@@ -68,7 +68,7 @@ const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 
                         return (
                             <div
                                 key={index}
-                                className="group relative aspect-video cursor-pointer overflow-hidden rounded-lg border border-gray-200 bg-gray-100 transition-all hover:border-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-400"
+                                className="group hover:border-primary dark:hover:border-primary relative aspect-video cursor-pointer overflow-hidden rounded-lg border border-gray-200 bg-gray-100 transition-all dark:border-gray-700 dark:bg-gray-800"
                                 onClick={() => !hasError && handleImageClick(index)}
                             >
                                 {!hasError ? (
@@ -124,11 +124,17 @@ const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 
                         <div className="border-t border-gray-200 p-4 dark:border-gray-700">
                             <div className="flex items-center justify-between">
                                 <div className="flex-1">
-                                    {selectedImage.title && <p className="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">{selectedImage.title}</p>}
-                                    <a href={selectedImage.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
-                                        <ExternalLink className="h-3 w-3" />
-                                        View source
-                                    </a>
+                                    {selectedImage.title && (
+                                        <a
+                                            href={selectedImage.link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+                                        >
+                                            {selectedImage.title}
+                                            <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                    )}
                                 </div>
                                 <span className="text-xs text-gray-500 dark:text-gray-400">
                                     {selectedImageIndex + 1} / {images.length}
