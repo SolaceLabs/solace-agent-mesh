@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { Settings, Type, Volume2 } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+
+import { cn } from "@/lib/utils";
+import { useConfigContext } from "@/lib/hooks";
+
+import { Button, Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
 import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
-import { cn } from "@/lib/utils";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import { useConfigContext } from "@/lib/hooks";
 
 type SettingsSection = "general" | "speech";
 
