@@ -19,10 +19,7 @@ interface SidebarItemProps {
 
 const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick }) => {
     return (
-        <button
-            onClick={onClick}
-            className={cn("flex w-full cursor-pointer items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors", active ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground")}
-        >
+        <button onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors", active ? "dark:bg-accent bg-[var(--color-brand-w10)]" : "text-muted-foreground hover:bg-accent/50")}>
             {icon}
             <span>{label}</span>
         </button>
@@ -97,12 +94,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                 </VisuallyHidden>
                 <div className="flex h-[80vh] overflow-hidden">
                     {/* Sidebar */}
-                    <div className="bg-muted/30 flex w-64 flex-col border-r p-4">
-                        <div className="mb-6 flex items-center justify-between px-2">
-                            <h2 className="text-lg font-semibold">Settings</h2>
-                        </div>
-
-                        <nav className="flex-1 space-y-1">
+                    <div className="bg-muted/30 flex w-64 flex-col border-r">
+                        <div className="flex h-15 items-center px-4 text-lg font-semibold">Settings</div>
+                        <nav className="flex-1">
                             <SidebarItem icon={<Type className="size-4" />} label="General" value="general" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
                             {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" value="speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
                         </nav>
