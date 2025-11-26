@@ -44,7 +44,7 @@ export const FileDetailsDialog: React.FC<FileDetailsDialogProps> = ({ isOpen, ar
                 </DialogHeader>
                 <div className="my-6">
                     <div className="text-secondary-foreground">Description</div>
-                    <div className="py-4">
+                    <div className="py-2">
                         <div className="text-sm whitespace-pre-wrap">{artifact.description || "No description provided"}</div>
                     </div>
                 </div>
