@@ -77,25 +77,23 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, on
                     <Download className="h-4 w-4" />
                 </Button>
                 {onDelete && (
-                    <>
-                        <ConfirmationDialog
-                            title="Delete File"
-                            content={
-                                <>
-                                    This action cannot be undone. This file will be permanently removed from the project: <strong>{artifact.filename}</strong>
-                                </>
-                            }
-                            actionLabels={{ confirm: "Delete" }}
-                            open={showDeleteDialog}
-                            onConfirm={onDelete}
-                            onOpenChange={setShowDeleteDialog}
-                            trigger={
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" tooltip="Delete">
-                                    <Trash className="h-4 w-4" />
-                                </Button>
-                            }
-                        />
-                    </>
+                    <ConfirmationDialog
+                        title="Delete Project File"
+                        content={
+                            <>
+                                This action cannot be undone. This file will be permanently removed from the project: <strong>{artifact.filename}</strong>
+                            </>
+                        }
+                        actionLabels={{ confirm: "Delete" }}
+                        open={showDeleteDialog}
+                        onConfirm={onDelete}
+                        onOpenChange={setShowDeleteDialog}
+                        trigger={
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" tooltip="Delete">
+                                <Trash className="h-4 w-4" />
+                            </Button>
+                        }
+                    />
                 )}
             </div>
         </div>

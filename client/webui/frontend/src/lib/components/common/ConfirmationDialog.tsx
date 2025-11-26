@@ -34,7 +34,8 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, ti
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-            <DialogContent className="w-xl max-w-xl sm:max-w-xl">
+            {/* Prevent clicks inside the dialog from propagating through it */}
+            <DialogContent className="w-xl max-w-xl sm:max-w-xl" onClick={e => e.stopPropagation()}>
                 <DialogHeader>
                     <DialogTitle className="flex max-w-[400px] flex-row gap-1">{title}</DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
