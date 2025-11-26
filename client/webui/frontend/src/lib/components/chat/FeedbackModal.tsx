@@ -51,7 +51,7 @@ export const FeedbackModal = React.memo<FeedbackModalProps>(({ isOpen, onClose, 
             <DialogContent className="sm:max-w-[750px]" showCloseButton={false}>
                 <DialogHeader>
                     <DialogTitle>Provide Feedback</DialogTitle>
-                    <DialogDescription className="mt-6 flex flex-col gap-2">
+                    <DialogDescription className="flex flex-col gap-2">
                         <span>{feedbackPrompt}</span>
                         <span>Providing more details will help improve AI responses over time.</span>
                     </DialogDescription>

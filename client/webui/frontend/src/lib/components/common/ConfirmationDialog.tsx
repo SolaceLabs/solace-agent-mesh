@@ -37,7 +37,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, ti
             <DialogContent className="w-xl max-w-xl sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle className="flex max-w-[400px] flex-row gap-1">{title}</DialogTitle>
-                    <DialogDescription className={description ? "mt-6" : ""}>{description}</DialogDescription>
+                    <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
                 <div className="min-w-0 break-words">{content}</div>
                 <DialogFooter>

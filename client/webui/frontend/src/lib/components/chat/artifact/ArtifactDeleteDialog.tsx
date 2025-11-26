@@ -13,15 +13,15 @@ export const ArtifactDeleteDialog: React.FC = () => {
     return (
         <ConfirmationDialog
             open={isDeleteModalOpen}
-            onOpenChange={closeDeleteModal}
+            onOpenChange={open => !open && closeDeleteModal()}
             title="Delete File"
             content={
                 artifactToDelete.source === "project" ? (
                     `This action will remove the file, "${artifactToDelete.filename}", from this chat session. This file will remain in the project.`
                 ) : (
-                    <div>
+                    <>
                         This action cannot be undone. This file will be permanently deleted: <strong>{artifactToDelete.filename}</strong>.
-                    </div>
+                    </>
                 )
             }
             actionLabels={{

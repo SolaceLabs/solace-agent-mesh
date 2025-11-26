@@ -17,12 +17,12 @@ export const DeleteProjectDialog = ({ isOpen, onClose, onConfirm, project, isDel
     return (
         <ConfirmationDialog
             open={isOpen}
-            onOpenChange={onClose}
+            onOpenChange={open => !open && onClose()}
             title="Delete Project"
             content={
-                <div>
+                <>
                     This action cannot be undone. This project and all its associated chat sessions and artifacts will be permanently deleted: <strong>{project.name}</strong>.
-                </div>
+                </>
             }
             actionLabels={{ confirm: "Delete" }}
             onConfirm={onConfirm}
