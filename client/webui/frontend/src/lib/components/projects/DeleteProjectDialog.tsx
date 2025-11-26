@@ -1,5 +1,4 @@
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
-import { Button } from "@/lib/components/ui/button";
+import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 import type { Project } from "@/lib/types/projects";
 
 interface DeleteProjectDialogProps {
@@ -10,41 +9,25 @@ interface DeleteProjectDialogProps {
     isDeleting?: boolean;
 }
 
-export const DeleteProjectDialog = ({ 
-    isOpen, 
-    onClose, 
-    onConfirm, 
-    project,
-    isDeleting = false 
-}: DeleteProjectDialogProps) => {
-    if (!isOpen || !project) {
+export const DeleteProjectDialog = ({ isOpen, onClose, onConfirm, project, isDeleting = false }: DeleteProjectDialogProps) => {
+    if (!project) {
         return null;
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Delete Project?</DialogTitle>
-                    <DialogDescription>
-                        Are you sure you want to delete the project <strong>"{project.name}"</strong>?
-                        <br /><br />
-                        This will remove the project and all its associated chat sessions and artifacts. This action cannot be undone.
-                    </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                    <Button variant="ghost" onClick={onClose} disabled={isDeleting}>
-                        Cancel
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={onConfirm}
-                        disabled={isDeleting}
-                    >
-                        {isDeleting ? "Deleting..." : "Delete Project"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <ConfirmationDialog
+            open={isOpen}
+            onOpenChange={open => !open && onClose()}
+            title="Delete Project"
+            content={
+                <>
+                    This action cannot be undone. This project and all its associated chat sessions and artifacts will be permanently deleted: <strong>{project.name}</strong>.
+                </>
+            }
+            actionLabels={{ confirm: "Delete" }}
+            onConfirm={onConfirm}
+            onCancel={onClose}
+            isLoading={isDeleting}
+        />
     );
 };

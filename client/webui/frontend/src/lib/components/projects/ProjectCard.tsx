@@ -50,7 +50,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                 <div className="flex items-start justify-between gap-2">
                     <CardTitle className="flex min-w-0 flex-1 items-center gap-2" title={project.name}>
                         <FolderOpen className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
-                        <div className="text-foreground text-lg font-semibold">{project.name}</div>
+                        <div className="text-foreground max-w-[250px] min-w-0 truncate text-lg font-semibold">{project.name}</div>
                     </CardTitle>
                     <div className="flex shrink-0 items-center gap-1">
                         {onDelete && (
