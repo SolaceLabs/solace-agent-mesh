@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useState, useEffect, useCallback } from "react";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
 import { RefreshCcw, Upload } from "lucide-react";
 
 import { useChatContext } from "@/lib/hooks";
+import { useProjectContext } from "@/lib/providers";
+import { ConfirmationDialog } from "@/lib/components/common";
 import type { PromptGroup } from "@/lib/types/prompts";
+import type { Project } from "@/lib/types";
 import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
 import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
 import { authenticatedFetch, detectVariables, downloadBlob } from "@/lib/utils";
@@ -16,8 +20,12 @@ export const PromptsPage: React.FC = () => {
     const location = useLocation();
     const loaderData = useLoaderData<{ promptId?: string; view?: string; mode?: string }>();
 
-    const { addNotification } = useChatContext();
+    const { addNotification, isResponding, messages } = useChatContext();
+    const { activeProject, setActiveProject } = useProjectContext();
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
+    const [showDeepResearchWarning, setShowDeepResearchWarning] = useState(false);
+    const [pendingPromptNavigation, setPendingPromptNavigation] = useState<{ promptText: string; groupId: string; groupName: string } | null>(null);
+    const [projectContextBeforeWarning, setProjectContextBeforeWarning] = useState<Project | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [showBuilder, setShowBuilder] = useState(false);
     const [showGenerateDialog, setShowGenerateDialog] = useState(false);
@@ -169,6 +177,14 @@ export const PromptsPage: React.FC = () => {
         });
     };
 
+    // Check if deep research is in progress
+    const isDeepResearchInProgress = useCallback(() => {
+        // Check if there's an active task and if any message contains deep research progress
+        if (!isResponding) return false;
+
+        return messages.some(msg => msg.parts?.some(part => part.kind === "data" && (part as any).data?.type === "deep_research_progress"));
+    }, [isResponding, messages]);
+
     // Handle use in chat
     const handleUseInChat = (prompt: PromptGroup) => {
         const promptText = prompt.productionPrompt?.promptText || "";
@@ -176,6 +192,20 @@ export const PromptsPage: React.FC = () => {
         // Check if prompt has variables
         const variables = detectVariables(promptText);
         const hasVariables = variables.length > 0;
+
+        // Check if deep research is in progress
+        if (isDeepResearchInProgress()) {
+            // Store current project context to restore if user cancels
+            setProjectContextBeforeWarning(activeProject);
+            // Store the navigation data and show warning
+            setPendingPromptNavigation({
+                promptText,
+                groupId: prompt.id,
+                groupName: prompt.name,
+            });
+            setShowDeepResearchWarning(true);
+            return;
+        }
 
         if (hasVariables) {
             // Show variable dialog on prompts page
@@ -197,6 +227,21 @@ export const PromptsPage: React.FC = () => {
     const handleVariableSubmit = (processedPrompt: string) => {
         if (!pendingPromptGroup) return;
 
+        // Check if deep research is in progress before navigating
+        if (isDeepResearchInProgress()) {
+            // Store current project context to restore if user cancels
+            setProjectContextBeforeWarning(activeProject);
+            setPendingPromptNavigation({
+                promptText: processedPrompt,
+                groupId: pendingPromptGroup.id,
+                groupName: pendingPromptGroup.name,
+            });
+            setShowDeepResearchWarning(true);
+            setShowVariableDialog(false);
+            setPendingPromptGroup(null);
+            return;
+        }
+
         // Navigate to chat with prompt data
         navigate("/chat", {
             state: {
@@ -210,6 +255,28 @@ export const PromptsPage: React.FC = () => {
         setShowVariableDialog(false);
         setPendingPromptGroup(null);
     };
+
+    // Handle confirmation to proceed with navigation despite deep research
+    const handleConfirmPromptNavigation = useCallback(() => {
+        setShowDeepResearchWarning(false);
+        if (pendingPromptNavigation) {
+            navigate("/chat", {
+                state: pendingPromptNavigation,
+            });
+            setPendingPromptNavigation(null);
+        }
+    }, [pendingPromptNavigation, navigate]);
+
+    // Handle cancellation of navigation
+    const handleCancelPromptNavigation = useCallback(() => {
+        setShowDeepResearchWarning(false);
+        setPendingPromptNavigation(null);
+        // Restore the original project context if user cancels
+        if (projectContextBeforeWarning !== activeProject) {
+            setActiveProject(projectContextBeforeWarning);
+        }
+        setProjectContextBeforeWarning(null);
+    }, [projectContextBeforeWarning, activeProject, setActiveProject]);
 
     const handleTogglePin = async (id: string, currentStatus: boolean) => {
         try {
@@ -446,6 +513,20 @@ export const PromptsPage: React.FC = () => {
 
             {/* Import Dialog */}
             <PromptImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
+
+            {/* Deep Research Warning Dialog */}
+            <ConfirmationDialog
+                open={showDeepResearchWarning}
+                title="Deep Research in Progress"
+                description="Deep research is currently running in your chat. If you proceed, the research will be cancelled and you'll lose all progress."
+                actionLabels={{
+                    cancel: "Stay Here",
+                    confirm: "Use Prompt Anyway",
+                }}
+                onOpenChange={setShowDeepResearchWarning}
+                onConfirm={handleConfirmPromptNavigation}
+                onCancel={handleCancelPromptNavigation}
+            />
         </div>
     );
 };

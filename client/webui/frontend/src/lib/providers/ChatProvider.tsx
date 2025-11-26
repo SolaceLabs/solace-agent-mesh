@@ -4,6 +4,7 @@ import { v4 } from "uuid";
 
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
+import { ConfirmationDialog } from "@/lib/components/common";
 
 import { authenticatedFetch, getAccessToken, submitFeedback } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
@@ -106,6 +107,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
     const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
+    const [isDeepResearchInProgress, setIsDeepResearchInProgress] = useState<boolean>(false); // Track deep research progress
+    const [showDeepResearchWarning, setShowDeepResearchWarning] = useState<boolean>(false); // Show confirmation dialog
+    const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null); // Store pending action
+
+    // Track the project context of the current session (not the UI's activeProject which can change)
+    const currentSessionProjectRef = useRef<Project | null>(null);
 
     const savingTasksRef = useRef<Set<string>>(new Set());
 
@@ -1056,6 +1063,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     // Clear latestStatusText so LoadingMessageRow doesn't show duplicate status
                                     latestStatusText.current = null;
 
+                                    // Track that deep research is in progress
+                                    setIsDeepResearchInProgress(true);
+
                                     // Also track queries and sources for RAG display
                                     const progressData = data;
                                     const currentQuery = progressData.current_query;
@@ -1331,6 +1341,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Finalization logic
             if (isFinalEvent) {
+                // Clear deep research in progress flag when task completes
+                setIsDeepResearchInProgress(false);
+
                 if (isCancellingRef.current) {
                     addNotification("Task cancelled.", "success");
                     if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
@@ -1427,7 +1440,31 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const handleNewSession = useCallback(
         async (preserveProjectContext: boolean = false) => {
-            const log_prefix = "ChatProvider.handleNewSession:";
+            // Check if deep research is in progress and confirm with user
+            if (isDeepResearchInProgress) {
+                // Immediately restore the session's original project context
+                // This removes the incorrect project badge while the dialog is shown
+                if (currentSessionProjectRef.current !== activeProject) {
+                    isSessionSwitchRef.current = true; // Prevent handleNewSession from triggering
+                    setActiveProject(currentSessionProjectRef.current);
+                }
+                // Store the action to execute after confirmation
+                setPendingNavigationAction(() => () => {
+                    executeNewSession(preserveProjectContext);
+                });
+                setShowDeepResearchWarning(true);
+                return; // Wait for user confirmation
+            }
+
+            executeNewSession(preserveProjectContext);
+        },
+        [isDeepResearchInProgress]
+    );
+
+    // Extracted logic for executing new session (to be called after confirmation)
+    const executeNewSession = useCallback(
+        async (preserveProjectContext: boolean = false) => {
+            const log_prefix = "ChatProvider.executeNewSession:";
 
             closeCurrentEventSource();
 
@@ -1463,6 +1500,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Clear session ID - will be set by backend when first message is sent
             setSessionId("");
+
+            // Clear session's project context tracking
+            currentSessionProjectRef.current = null;
 
             // Clear session name - will be set when first message is sent
             setSessionName(null);
@@ -1502,6 +1542,36 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         async (newSessionId: string) => {
             const log_prefix = "ChatProvider.handleSwitchSession:";
             console.log(`${log_prefix} Switching to session ${newSessionId}...`);
+
+            // Check if deep research is in progress and confirm with user
+            if (isDeepResearchInProgress) {
+                // Immediately restore the session's original project context
+                // This removes the incorrect project badge while the dialog is shown
+                if (currentSessionProjectRef.current !== activeProject) {
+                    isSessionSwitchRef.current = true; // Prevent handleNewSession from triggering
+                    setActiveProject(currentSessionProjectRef.current);
+                }
+                // Store the action to execute after confirmation
+                setPendingNavigationAction(() => () => {
+                    executeSwitchSession(newSessionId);
+                });
+                setShowDeepResearchWarning(true);
+                return; // Wait for user confirmation
+            }
+
+            executeSwitchSession(newSessionId);
+        },
+        [isDeepResearchInProgress]
+    );
+
+    // Extracted logic for executing session switch (to be called after confirmation)
+    const executeSwitchSession = useCallback(
+        async (newSessionId: string) => {
+            const log_prefix = "ChatProvider.executeSwitchSession:";
+            console.log(`${log_prefix} Switching to session ${newSessionId}...`);
+
+            // Clear deep research flag when switching sessions
+            setIsDeepResearchInProgress(false);
 
             setIsLoadingSession(true);
             setMessages([]);
@@ -1577,6 +1647,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Update session ID state
                 setSessionId(newSessionId);
 
+                // Track the project context for this session
+                currentSessionProjectRef.current = session?.projectId ? projects.find((p: Project) => p.id === session.projectId) || null : null;
+
                 // Reset other session-related state
                 setIsResponding(false);
                 setCurrentTaskId(null);
@@ -1596,6 +1669,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, apiPrefix, loadSessionTasks, activeProject, projects, setActiveProject, setPreviewArtifact, setError]
     );
+
+    // Handle confirmation dialog actions
+    const handleConfirmNavigation = useCallback(() => {
+        setShowDeepResearchWarning(false);
+        // Clear the deep research flag since user is proceeding with navigation
+        setIsDeepResearchInProgress(false);
+        if (pendingNavigationAction) {
+            pendingNavigationAction();
+            setPendingNavigationAction(null);
+        }
+    }, [pendingNavigationAction]);
+
+    const handleCancelNavigation = useCallback(() => {
+        setShowDeepResearchWarning(false);
+        setPendingNavigationAction(null);
+        // Restore the project context of the current session
+        if (currentSessionProjectRef.current !== activeProject) {
+            isSessionSwitchRef.current = true; // Prevent handleNewSession from triggering
+            setActiveProject(currentSessionProjectRef.current);
+        }
+    }, [activeProject, setActiveProject]);
 
     const updateSessionName = useCallback(
         async (sessionId: string, newName: string) => {
@@ -2192,6 +2286,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         }
     }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject]);
 
+    // Add beforeunload listener to warn user if deep research is in progress
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (isDeepResearchInProgress) {
+                e.preventDefault();
+                // Modern browsers require returnValue to be set
+                e.returnValue = "Deep research is in progress. Leaving this page will cancel the research and you'll lose progress. Are you sure?";
+                return e.returnValue;
+            }
+        };
+
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => {
+            window.removeEventListener("beforeunload", handleBeforeUnload);
+        };
+    }, [isDeepResearchInProgress]);
+
     // Store the latest handlers in refs so they can be accessed without triggering effect re-runs
     const handleSseMessageRef = useRef(handleSseMessage);
     const handleSseOpenRef = useRef(handleSseOpen);
@@ -2327,6 +2438,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         <ChatContext.Provider value={contextValue}>
             {children}
             <ErrorDialog />
+            <ConfirmationDialog
+                open={showDeepResearchWarning}
+                title="Deep Research in Progress"
+                description="Deep research is currently running. If you proceed, the research will be cancelled and you'll lose all progress."
+                actionLabels={{
+                    cancel: "Stay Here",
+                    confirm: "Leave Anyway",
+                }}
+                onOpenChange={setShowDeepResearchWarning}
+                onConfirm={handleConfirmNavigation}
+                onCancel={handleCancelNavigation}
+            />
         </ChatContext.Provider>
     );
 };
