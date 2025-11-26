@@ -4,6 +4,9 @@ import { XIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
+// re-exporting for convenience
+export { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
     return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
