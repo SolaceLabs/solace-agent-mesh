@@ -104,7 +104,7 @@ class PersonaCaller:
     ) -> Any:
         """
         Resolve template variable.
-        Format: {{node_id.output.field_path}}
+        Format: {{node_id.output.field_path}} or {{workflow.input.field_path}}
         """
         # Extract variable path
         match = re.match(r"\{\{(.+?)\}\}", template)
@@ -117,8 +117,20 @@ class PersonaCaller:
         # Navigate path in workflow state
         if parts[0] == "workflow" and parts[1] == "input":
             # Reference to workflow input
-            # TODO: implement workflow input storage
-            pass
+            # Workflow input is stored in node_outputs["workflow_input"]
+            if "workflow_input" not in workflow_state.node_outputs:
+                raise ValueError("Workflow input has not been initialized")
+
+            # Navigate from workflow_input.output.field_path
+            data = workflow_state.node_outputs["workflow_input"]["output"]
+            for part in parts[2:]:  # Skip "workflow" and "input"
+                if isinstance(data, dict) and part in data:
+                    data = data[part]
+                else:
+                    raise ValueError(
+                        f"Workflow input field '{part}' not found in path: {path}"
+                    )
+            return data
         else:
             # Reference to node output
             node_id = parts[0]
@@ -131,10 +143,32 @@ class PersonaCaller:
                 if isinstance(data, dict) and part in data:
                     data = data[part]
                 else:
-                    # Path not found
-                    return None
+                    raise ValueError(
+                        f"Output field '{part}' not found in node '{node_id}' for path: {path}"
+                    )
 
             return data
+
+    def _generate_result_embed_reminder(
+        self, output_schema: Optional[Dict[str, Any]]
+    ) -> str:
+        """Generate user-facing reminder about result embed requirement."""
+        if output_schema:
+            return """
+REMINDER: When you complete this task, you MUST end your response with:
+«result:artifact=<your_artifact_name>:v<version> status=success»
+
+For example: «result:artifact=analysis_results.json:v0 status=success»
+
+This is required for the workflow to continue. Without this result embed, the workflow will fail.
+"""
+        else:
+            return """
+REMINDER: When you complete this task, you MUST end your response with:
+«result:artifact=<your_artifact_name>:v<version> status=success»
+
+This is MANDATORY for the workflow to continue.
+"""
 
     async def _construct_persona_message(
         self,
@@ -238,11 +272,18 @@ class PersonaCaller:
                 if text_parts:
                     parts.append(a2a.create_text_part(text="\n".join(text_parts)))
 
+        # Add reminder about result embed requirement
+        reminder_text = self._generate_result_embed_reminder(output_schema)
+        parts.append(a2a.create_text_part(text=reminder_text))
+
         # Construct message using helper function
+        # Use the original workflow session ID as context_id so that RUN_BASED sessions
+        # will be created as {workflow_session_id}:{sub_task_id}:run, allowing the workflow
+        # to find artifacts saved by the node using get_original_session_id()
         message = a2a.create_user_message(
             parts=parts,
             task_id=sub_task_id,
-            context_id=workflow_state.execution_id,
+            context_id=workflow_context.a2a_context["session_id"],
             metadata={
                 "workflow_name": workflow_state.workflow_name,
                 "node_id": node.id,

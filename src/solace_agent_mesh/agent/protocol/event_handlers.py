@@ -447,11 +447,15 @@ async def handle_a2a_request(component, message: SolaceMessage):
                     "effective_session_id": original_session_id,
                     "user_id": user_id,
                     "jsonrpc_request_id": jsonrpc_request_id,
-                    "original_solace_message": message,
+                    "contextId": original_session_id,
+                    "messageId": a2a_message.message_id,
                     "replyToTopic": reply_topic_from_peer,
                     "a2a_user_config": a2a_user_config,
                     "statusTopic": status_topic_from_peer,
                 }
+                # Note: original_solace_message is NOT stored in a2a_context to avoid
+                # serialization issues when a2a_context is stored in ADK session state.
+                # It is stored in TaskExecutionContext by the workflow node handler.
 
                 # Execute as workflow node
                 # Note: execute_workflow_node is async
@@ -459,7 +463,7 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 if loop and loop.is_running():
                     asyncio.run_coroutine_threadsafe(
                         component.workflow_handler.execute_workflow_node(
-                            a2a_message, workflow_data, a2a_context
+                            a2a_message, workflow_data, a2a_context, message
                         ),
                         loop,
                     )

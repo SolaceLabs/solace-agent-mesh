@@ -3,33 +3,8 @@ log:
   log_file_level: DEBUG
   log_file: workflow_test.log
 
-shared_config:
-  - broker_connection: &broker_connection
-      dev_mode: ${SOLACE_DEV_MODE, false}
-      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8008}
-      broker_username: ${SOLACE_BROKER_USERNAME, default}
-      broker_password: ${SOLACE_BROKER_PASSWORD, default}
-      broker_vpn: ${SOLACE_BROKER_VPN, default}
-      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+!include ../shared_config.yaml
 
-  - models:
-    # Use a fast, cheap model for logic tests
-    logic_model: &logic_model
-      model: "gemini-2.0-flash"
-      api_base: ${LLM_SERVICE_ENDPOINT}
-      api_key: ${LLM_SERVICE_API_KEY}
-      temperature: 0.0
-
-  - services:
-    session_service: &default_session_service
-      type: "sql"
-      default_behavior: "PERSISTENT"
-      database_url: ${SESSION_DATABASE_URL, sqlite:///session.db}
-
-    artifact_service: &default_artifact_service
-      type: "filesystem"
-      base_path: "/tmp/samv2"
-      artifact_scope: namespace
 
 apps:
   # ============================================================================
@@ -45,7 +20,7 @@ apps:
     app_config:
       namespace: ${NAMESPACE}
       agent_name: "RiskEvaluator"
-      model: *logic_model
+      model: *planning_model
       
       # Strict instruction to ensure it behaves like a function
       instruction: |
@@ -95,7 +70,7 @@ apps:
     app_config:
       namespace: ${NAMESPACE}
       agent_name: "AutoApprover"
-      model: *logic_model
+      model: *planning_model
       
       instruction: |
         You are an auto-approval bot.
@@ -141,7 +116,7 @@ apps:
     app_config:
       namespace: ${NAMESPACE}
       agent_name: "ManualReviewer"
-      model: *logic_model
+      model: *planning_model
       
       instruction: |
         You are a manual review bot.

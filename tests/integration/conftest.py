@@ -1130,6 +1130,169 @@ def shared_solace_connector(
             "app_module": "solace_agent_mesh.agent.sac.app",
         },
         {
+            "name": "TestSimpleWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "agent_name": "SimpleTestWorkflow",
+                "display_name": "Simple Test Workflow",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A simple 2-node workflow for testing",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "input_text": {"type": "string"}
+                        },
+                        "required": ["input_text"]
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "final_result": {"type": "string"}
+                        },
+                        "required": ["final_result"]
+                    },
+                    "nodes": [
+                        {
+                            "id": "step_1",
+                            "type": "agent",
+                            "agent_persona": "TestPeerAgentA",
+                            "input": {
+                                "task_description": "{{workflow.input.input_text}}"
+                            }
+                        },
+                        {
+                            "id": "step_2",
+                            "type": "agent",
+                            "agent_persona": "TestPeerAgentB",
+                            "depends_on": ["step_1"],
+                            "input": {
+                                "task_description": "Process the output from step 1"
+                            }
+                        }
+                    ],
+                    "output_mapping": {
+                        "final_result": "{{step_2.output}}"
+                    }
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestStructuredWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "agent_name": "StructuredTestWorkflow",
+                "display_name": "Structured Test Workflow with Validation",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "A workflow with structured input/output schemas for validation testing",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "customer_name": {"type": "string"},
+                            "order_id": {"type": "string"},
+                            "amount": {"type": "integer"}
+                        },
+                        "required": ["customer_name", "order_id", "amount"]
+                    },
+                    "output_schema": {
+                        "type": "object",
+                        "properties": {
+                            "customer_name": {"type": "string"},
+                            "order_id": {"type": "string"},
+                            "amount": {"type": "integer"},
+                            "status": {"type": "string"},
+                            "processed": {"type": "boolean"}
+                        },
+                        "required": ["customer_name", "order_id", "amount", "status", "processed"]
+                    },
+                    "nodes": [
+                        {
+                            "id": "validate_order",
+                            "type": "agent",
+                            "agent_persona": "TestPeerAgentA",
+                            "input": {
+                                "customer_name": "{{workflow.input.customer_name}}",
+                                "order_id": "{{workflow.input.order_id}}",
+                                "amount": "{{workflow.input.amount}}"
+                            },
+                            "input_schema_override": {
+                                "type": "object",
+                                "properties": {
+                                    "customer_name": {"type": "string"},
+                                    "order_id": {"type": "string"},
+                                    "amount": {"type": "integer"}
+                                },
+                                "required": ["customer_name", "order_id", "amount"]
+                            },
+                            "output_schema_override": {
+                                "type": "object",
+                                "properties": {
+                                    "customer_name": {"type": "string"},
+                                    "order_id": {"type": "string"},
+                                    "amount": {"type": "integer"},
+                                    "status": {"type": "string"}
+                                },
+                                "required": ["customer_name", "order_id", "amount", "status"]
+                            }
+                        },
+                        {
+                            "id": "process_order",
+                            "type": "agent",
+                            "agent_persona": "TestPeerAgentB",
+                            "depends_on": ["validate_order"],
+                            "input": {
+                                "customer_name": "{{validate_order.output.customer_name}}",
+                                "order_id": "{{validate_order.output.order_id}}",
+                                "amount": "{{validate_order.output.amount}}",
+                                "status": "{{validate_order.output.status}}"
+                            },
+                            "input_schema_override": {
+                                "type": "object",
+                                "properties": {
+                                    "customer_name": {"type": "string"},
+                                    "order_id": {"type": "string"},
+                                    "amount": {"type": "integer"},
+                                    "status": {"type": "string"}
+                                },
+                                "required": ["customer_name", "order_id", "amount", "status"]
+                            },
+                            "output_schema_override": {
+                                "type": "object",
+                                "properties": {
+                                    "customer_name": {"type": "string"},
+                                    "order_id": {"type": "string"},
+                                    "amount": {"type": "integer"},
+                                    "status": {"type": "string"},
+                                    "processed": {"type": "boolean"}
+                                },
+                                "required": ["customer_name", "order_id", "amount", "status", "processed"]
+                            }
+                        }
+                    ],
+                    "output_mapping": {
+                        "customer_name": "{{process_order.output.customer_name}}",
+                        "order_id": "{{process_order.output.order_id}}",
+                        "amount": "{{process_order.output.amount}}",
+                        "status": "{{process_order.output.status}}",
+                        "processed": "{{process_order.output.processed}}"
+                    }
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
             "name": "TestA2AProxyApp",
             "app_config": {
                 "namespace": "test_namespace",
@@ -1161,6 +1324,13 @@ def shared_solace_connector(
     )
     session_monkeypatch.setattr(
         "solace_agent_mesh.agent.proxies.base.component.initialize_artifact_service",
+        lambda component: ScopedArtifactServiceWrapper(
+            wrapped_service=test_artifact_service_instance, component=component
+        ),
+    )
+    # Also patch for workflow and gateway components that import from agent.adk.services
+    session_monkeypatch.setattr(
+        "solace_agent_mesh.agent.adk.services.initialize_artifact_service",
         lambda component: ScopedArtifactServiceWrapper(
             wrapped_service=test_artifact_service_instance, component=component
         ),
@@ -1376,6 +1546,30 @@ def peer_c_component(peer_agent_c_app_under_test: SamAgentApp) -> SamAgentCompon
 def peer_d_component(peer_agent_d_app_under_test: SamAgentApp) -> SamAgentComponent:
     """Retrieves the TestPeerAgentD component instance."""
     return get_component_from_app(peer_agent_d_app_under_test)
+
+
+@pytest.fixture(scope="session")
+def test_simple_workflow_app(
+    shared_solace_connector: SolaceAiConnector,
+):
+    """Retrieves the TestSimpleWorkflowApp instance."""
+    from solace_agent_mesh.workflow.app import WorkflowApp
+    app_instance = shared_solace_connector.get_app("TestSimpleWorkflowApp")
+    assert isinstance(
+        app_instance, WorkflowApp
+    ), "Failed to retrieve TestSimpleWorkflowApp."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def test_simple_workflow_component(test_simple_workflow_app):
+    """Retrieves the SimpleTestWorkflow component instance."""
+    from solace_agent_mesh.workflow.component import WorkflowComponent
+    component = get_component_from_app(test_simple_workflow_app)
+    assert isinstance(
+        component, WorkflowComponent
+    ), "Failed to retrieve WorkflowComponent from TestSimpleWorkflowApp."
+    return component
 
 
 @pytest.fixture(scope="session")

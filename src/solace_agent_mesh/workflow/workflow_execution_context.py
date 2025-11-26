@@ -59,6 +59,10 @@ class WorkflowExecutionContext:
         self.lock = threading.Lock()
         self.cancellation_event = threading.Event()
 
+        # Original Solace message for ACK/NACK operations
+        # Stored here instead of a2a_context to avoid serialization issues
+        self._original_solace_message: Optional[Any] = None
+
     def track_persona_call(self, node_id: str, sub_task_id: str):
         """Track correlation between node and sub-task."""
         with self.lock:
@@ -82,3 +86,11 @@ class WorkflowExecutionContext:
     def is_cancelled(self) -> bool:
         """Check if cancelled."""
         return self.cancellation_event.is_set()
+
+    def set_original_solace_message(self, message: Any):
+        """Store the original Solace message for ACK operations."""
+        self._original_solace_message = message
+
+    def get_original_solace_message(self) -> Optional[Any]:
+        """Retrieve the original Solace message."""
+        return self._original_solace_message

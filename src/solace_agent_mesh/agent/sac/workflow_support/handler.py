@@ -109,6 +109,7 @@ class WorkflowNodeHandler:
         message: A2AMessage,
         workflow_data: WorkflowNodeRequestData,
         a2a_context: Dict[str, Any],
+        original_solace_message: Any = None,
     ):
         """Execute agent as a workflow node with validation."""
         log_id = f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}]"
@@ -122,16 +123,18 @@ class WorkflowNodeHandler:
             if not input_schema:
                 input_schema = {
                     "type": "object",
-                    "properties": {
-                        "text": {"type": "string"}
-                    },
-                    "required": ["text"]
+                    "properties": {"text": {"type": "string"}},
+                    "required": ["text"],
                 }
-                log.debug(f"{log_id} No input schema provided, using default text schema")
+                log.debug(
+                    f"{log_id} No input schema provided, using default text schema"
+                )
 
             # Validate input if schema exists
             if input_schema:
-                validation_errors = await self._validate_input(message, input_schema, a2a_context)
+                validation_errors = await self._validate_input(
+                    message, input_schema, a2a_context
+                )
 
                 if validation_errors:
                     log.error(f"{log_id} Input validation failed: {validation_errors}")
@@ -148,7 +151,11 @@ class WorkflowNodeHandler:
 
             # Input valid, proceed with execution
             return await self._execute_with_output_validation(
-                message, workflow_data, output_schema, a2a_context
+                message,
+                workflow_data,
+                output_schema,
+                a2a_context,
+                original_solace_message,
             )
 
         except Exception as e:
@@ -165,7 +172,10 @@ class WorkflowNodeHandler:
             )
 
     async def _validate_input(
-        self, message: A2AMessage, input_schema: Dict[str, Any], a2a_context: Dict[str, Any]
+        self,
+        message: A2AMessage,
+        input_schema: Dict[str, Any],
+        a2a_context: Dict[str, Any],
     ) -> Optional[List[str]]:
         """
         Validate message content against input schema.
@@ -182,7 +192,10 @@ class WorkflowNodeHandler:
         return errors if errors else None
 
     async def _extract_input_data(
-        self, message: A2AMessage, input_schema: Dict[str, Any], a2a_context: Dict[str, Any]
+        self,
+        message: A2AMessage,
+        input_schema: Dict[str, Any],
+        a2a_context: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Extract structured input data from message parts.
@@ -238,7 +251,10 @@ class WorkflowNodeHandler:
         return {"text": aggregated_text}
 
     async def _extract_file_input(
-        self, message: A2AMessage, input_schema: Dict[str, Any], a2a_context: Dict[str, Any]
+        self,
+        message: A2AMessage,
+        input_schema: Dict[str, Any],
+        a2a_context: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Extract input data from first FilePart in message.
@@ -257,7 +273,9 @@ class WorkflowNodeHandler:
         # Determine if this is bytes or URI
         if a2a.is_file_part_bytes(file_part):
             log.debug(f"{log_id} Processing FileWithBytes")
-            return await self._process_file_with_bytes(file_part, input_schema, a2a_context)
+            return await self._process_file_with_bytes(
+                file_part, input_schema, a2a_context
+            )
         elif a2a.is_file_part_uri(file_part):
             log.debug(f"{log_id} Processing FileWithUri")
             return await self._process_file_with_uri(file_part, a2a_context)
@@ -265,7 +283,10 @@ class WorkflowNodeHandler:
             raise ValueError(f"Unknown FilePart type: {type(file_part)}")
 
     async def _process_file_with_bytes(
-        self, file_part: FilePart, input_schema: Dict[str, Any], a2a_context: Dict[str, Any]
+        self,
+        file_part: FilePart,
+        input_schema: Dict[str, Any],
+        a2a_context: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Process inline file bytes: decode, validate, and save to artifact store.
@@ -275,9 +296,9 @@ class WorkflowNodeHandler:
         # Decode bytes according to MIME type
         mime_type = a2a.get_mimetype_from_file_part(file_part)
         content_bytes = a2a.get_bytes_from_file_part(file_part)
-        
+
         if content_bytes is None:
-             raise ValueError("FilePart has no content bytes")
+            raise ValueError("FilePart has no content bytes")
 
         data = self._decode_file_bytes(content_bytes, mime_type)
 
@@ -288,7 +309,7 @@ class WorkflowNodeHandler:
 
         # Use helper to save artifact
         from ....agent.utils.artifact_helpers import save_artifact_with_metadata
-        
+
         await save_artifact_with_metadata(
             artifact_service=self.host.artifact_service,
             app_name=self.host.agent_name,
@@ -316,7 +337,7 @@ class WorkflowNodeHandler:
         # Parse URI to extract artifact name and version
         uri = a2a.get_uri_from_file_part(file_part)
         if not uri:
-             raise ValueError("FilePart has no URI")
+            raise ValueError("FilePart has no URI")
 
         try:
             uri_parts = parse_artifact_uri(uri)
@@ -336,7 +357,9 @@ class WorkflowNodeHandler:
         )
 
         if not artifact or not artifact.inline_data:
-            raise ValueError(f"Artifact not found or has no data: {uri_parts['filename']}")
+            raise ValueError(
+                f"Artifact not found or has no data: {uri_parts['filename']}"
+            )
 
         # Decode artifact data
         mime_type = artifact.inline_data.mime_type
@@ -392,6 +415,7 @@ class WorkflowNodeHandler:
         workflow_data: WorkflowNodeRequestData,
         output_schema: Optional[Dict[str, Any]],
         a2a_context: Dict[str, Any],
+        original_solace_message: Any = None,
     ):
         """Execute agent with output validation and retry logic."""
 
@@ -422,6 +446,30 @@ class WorkflowNodeHandler:
 
         self.host.set_agent_system_instruction_callback(chained_callback)
 
+        # Import TaskExecutionContext
+        from ..task_execution_context import TaskExecutionContext
+
+        logical_task_id = a2a_context.get("logical_task_id")
+
+        # Create and register TaskExecutionContext for this workflow node execution
+        task_context = TaskExecutionContext(
+            task_id=logical_task_id, a2a_context=a2a_context
+        )
+
+        # Store the original Solace message if provided
+        # Note: original_solace_message is passed as a parameter, not stored in a2a_context,
+        # to avoid serialization issues when a2a_context is stored in ADK session state
+        if original_solace_message:
+            task_context.set_original_solace_message(original_solace_message)
+
+        # Register the task context
+        with self.host.active_tasks_lock:
+            self.host.active_tasks[logical_task_id] = task_context
+
+        log.debug(
+            f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] Created TaskExecutionContext for task {logical_task_id}"
+        )
+
         try:
             # Execute agent (existing ADK execution path)
             # We need to trigger the standard handle_a2a_request logic but intercept the result.
@@ -431,7 +479,14 @@ class WorkflowNodeHandler:
 
             # Prepare ADK content
             user_id = a2a_context.get("user_id")
-            session_id = a2a_context.get("effective_session_id")
+            # For workflow nodes, create a run-based session ID following the same pattern
+            # as RUN_BASED A2A requests: {original_session_id}:{logical_task_id}:run
+            # This ensures:
+            # 1. Each node invocation starts with a fresh session (RUN_BASED behavior)
+            # 2. get_original_session_id() can extract the parent session for artifact sharing
+            original_session_id = a2a_context.get("session_id")
+            logical_task_id = a2a_context.get("logical_task_id")
+            session_id = f"{original_session_id}:{logical_task_id}:run"
 
             adk_content = await a2a.translate_a2a_to_adk_content(
                 a2a_message=message,
@@ -440,18 +495,12 @@ class WorkflowNodeHandler:
                 session_id=session_id,
             )
 
-            adk_session = await self.host.session_service.get_session(
+            # Always create a new session for workflow nodes (RUN_BASED behavior)
+            adk_session = await self.host.session_service.create_session(
                 app_name=self.host.agent_name,
                 user_id=user_id,
                 session_id=session_id,
             )
-
-            if not adk_session:
-                adk_session = await self.host.session_service.create_session(
-                    app_name=self.host.agent_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                )
 
             run_config = RunConfig(
                 streaming_mode=StreamingMode.SSE,
@@ -465,6 +514,7 @@ class WorkflowNodeHandler:
                 adk_content,
                 run_config,
                 a2a_context,
+                skip_finalization=True,  # Workflow nodes do custom finalization
             )
 
             # After execution, we need to validate the result.
@@ -476,6 +526,7 @@ class WorkflowNodeHandler:
                 session_id=session_id,
             )
 
+            # Get last event - it should be a model response if agent completed successfully
             last_event = adk_session.events[-1] if adk_session.events else None
 
             result_data = await self._finalize_workflow_node_execution(
@@ -486,6 +537,14 @@ class WorkflowNodeHandler:
             await self._return_workflow_result(workflow_data, result_data, a2a_context)
 
         finally:
+            # Clean up task context
+            with self.host.active_tasks_lock:
+                if logical_task_id in self.host.active_tasks:
+                    del self.host.active_tasks[logical_task_id]
+                    log.debug(
+                        f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] Removed TaskExecutionContext for task {logical_task_id}"
+                    )
+
             # Restore original callback
             self.host.set_agent_system_instruction_callback(original_callback)
 
@@ -512,7 +571,7 @@ class WorkflowNodeHandler:
 
         workflow_instructions = f"""
 
-WORKFLOW EXECUTION CONTEXT:
+=== WORKFLOW EXECUTION CONTEXT ===
 You are executing as node '{workflow_data.node_id}' in workflow '{workflow_data.workflow_name}'.
 """
 
@@ -520,35 +579,46 @@ You are executing as node '{workflow_data.node_id}' in workflow '{workflow_data.
         if output_schema:
             workflow_instructions += f"""
 
-REQUIRED OUTPUT FORMAT:
+=== CRITICAL: REQUIRED OUTPUT FORMAT ===
+You MUST follow these steps to complete this workflow node:
+
 1. Create an artifact containing your result data conforming to this JSON Schema:
 
 {json.dumps(output_schema, indent=2)}
 
-2. End your response with the result embed marking your output artifact:
-   «result:artifact=<artifact_name>:v<version> status=success»
+2. MANDATORY: End your response with the result embed marking your output artifact:
+   «result:artifact=<artifact_name> status=success»
 
-   Example: «result:artifact=customer_data.json:v1 status=success»
+   Example: «result:artifact=customer_data.json status=success»
+
+   IMPORTANT: Do NOT include a version number if returning the latest version - the system will automatically provide the most recent version.
 
 3. The artifact MUST strictly conform to the provided schema. Your output will be validated.
    If validation fails, you will be asked to retry with error feedback.
 
-IMPORTANT:
-- Use tools like save_artifact to create the output artifact
-- Or ensure tool responses are saved as artifacts (automatic if size exceeds threshold)
+IMPORTANT NOTES:
+- Use the save_artifact tool OR inline fenced blocks to create the output artifact
+- The result embed («result:artifact=...») is MANDATORY - the workflow will fail without it
 - The artifact format (JSON, YAML, etc.) must be parseable
-- Additional fields beyond the schema are allowed, but required fields must be present
+- Additional fields beyond the schema are allowed, but all required fields must be present
+
+FAILURE TO INCLUDE THE RESULT EMBED WILL CAUSE THE WORKFLOW TO FAIL.
 """
         else:
             # No output schema, just mark result
             workflow_instructions += """
 
-REQUIRED OUTPUT FORMAT:
-End your response with the result embed to mark your completion:
-«result:artifact=<artifact_name>:v<version> status=success»
+=== CRITICAL: REQUIRED OUTPUT FORMAT ===
+You MUST end your response with the result embed to mark your completion:
+
+«result:artifact=<artifact_name> status=success»
+
+This result embed is MANDATORY. The workflow cannot proceed without it.
+
+   IMPORTANT: Do NOT include a version number if returning the latest version - the system will automatically provide the most recent version.
 
 If you cannot complete the task, use:
-«result:artifact=<artifact_name>:v<version> status=failure message="<reason>"»
+«result:artifact=<artifact_name> status=failure message="<reason>"»
 """
         return workflow_instructions.strip()
 
@@ -589,13 +659,47 @@ If you cannot complete the task, use:
 
         # 2. Load artifact from artifact service
         try:
-            # If version is missing, assume latest (None)
+            # If version is missing, query for latest version
             version = int(result_embed.version) if result_embed.version else None
+
+            if version is None:
+                # Use original session ID to query for versions (same as when artifacts were saved)
+                from ....agent.utils.context_helpers import get_original_session_id
+                original_session_id_for_versions = get_original_session_id(session.id)
+
+                # Query for the latest version
+                versions = await self.host.artifact_service.list_versions(
+                    app_name=self.host.agent_name,
+                    user_id=session.user_id,
+                    session_id=original_session_id_for_versions,
+                    filename=result_embed.artifact_name,
+                )
+                if versions:
+                    version = max(versions)
+                    log.debug(
+                        f"{log_id} Resolved latest version for {result_embed.artifact_name}: v{version}"
+                    )
+                else:
+                    log.error(
+                        f"{log_id} No versions found for artifact {result_embed.artifact_name}"
+                    )
+                    return WorkflowNodeResultData(
+                        type="workflow_node_result",
+                        status="failure",
+                        error_message=f"Artifact {result_embed.artifact_name} not found (no versions available)",
+                        retry_count=retry_count,
+                    )
+
+            # Use original session ID (without :run suffix) to load artifacts
+            # This ensures we can access artifacts saved by the agent, which uses
+            # get_original_session_id() to store them in the parent session scope
+            from ....agent.utils.context_helpers import get_original_session_id
+            original_session_id = get_original_session_id(session.id)
 
             artifact = await self.host.artifact_service.load_artifact(
                 app_name=self.host.agent_name,
                 user_id=session.user_id,
-                session_id=session.id,
+                session_id=original_session_id,
                 filename=result_embed.artifact_name,
                 version=version,
             )
@@ -640,7 +744,7 @@ If you cannot complete the task, use:
             type="workflow_node_result",
             status="success",
             artifact_name=result_embed.artifact_name,
-            artifact_version=version or 0,  # TODO: get actual version if None
+            artifact_version=version,
             retry_count=retry_count,
         )
 
@@ -649,7 +753,12 @@ If you cannot complete the task, use:
         Parse result embed from agent's final output.
         Format: «result:artifact=<name>:v<version> status=<success|failure> message="<text>"»
         """
-        if not adk_event.content or not adk_event.content.parts:
+        if not adk_event or not adk_event.content or not adk_event.content.parts:
+            return None
+
+        # Only parse result embeds from agent responses (role="model"), not instructions (role="user")
+        # This prevents parsing example embeds from the workflow instructions
+        if adk_event.content.role != "model":
             return None
 
         # Extract text from last event
@@ -693,13 +802,29 @@ If you cannot complete the task, use:
         artifact_name = artifact_spec
         version = None
 
-        # Check if version is in artifact spec (e.g., "filename:v1")
-        if ":v" in artifact_spec:
-            parts = artifact_spec.split(":v")
+        # Check if version is in artifact spec (e.g., "filename:v1" or "filename:1")
+        if ":" in artifact_spec:
+            parts = artifact_spec.split(":", 1)
             artifact_name = parts[0]
+            version_str = parts[1]
+
+            # Handle both "v1" and "1" formats
+            if version_str.startswith("v"):
+                version_str = version_str[1:]
+
             try:
-                version = int(parts[1])
+                version = int(version_str)
             except (ValueError, IndexError):
+                pass
+
+        # Also check for standalone version parameter (less common)
+        if version is None and "version" in params:
+            try:
+                version_str = params["version"]
+                if version_str.startswith("v"):
+                    version_str = version_str[1:]
+                version = int(version_str)
+            except (ValueError, TypeError):
                 pass
 
         return ResultEmbed(
@@ -714,6 +839,9 @@ If you cannot complete the task, use:
     ) -> Optional[List[str]]:
         """Validate artifact content against schema."""
         from .validator import validate_against_schema
+
+        if not artifact_part:
+            return ["Artifact is None"]
 
         if not artifact_part.inline_data:
             return ["Artifact has no inline data"]
@@ -810,9 +938,13 @@ Remember to end your response with the result embed:
 
             # Create task status
             task_state = (
-                TaskState.completed if result_data.status == "success" else TaskState.failed
+                TaskState.completed
+                if result_data.status == "success"
+                else TaskState.failed
             )
-            task_status = a2a.create_task_status(state=task_state, message=result_message)
+            task_status = a2a.create_task_status(
+                state=task_state, message=result_message
+            )
 
             # Create final task
             final_task = a2a.create_final_task(
@@ -853,9 +985,14 @@ Remember to end your response with the result embed:
                     f"a2a_context keys: {list(a2a_context.keys())}"
                 )
                 # Still ACK the message to avoid redelivery
-                original_message = a2a_context.get("original_solace_message")
-                if original_message:
-                    original_message.call_acknowledgements()
+                # Retrieve from TaskExecutionContext
+                logical_task_id = a2a_context.get("logical_task_id")
+                with self.host.active_tasks_lock:
+                    task_context = self.host.active_tasks.get(logical_task_id)
+                    if task_context:
+                        original_message = task_context.get_original_solace_message()
+                        if original_message:
+                            original_message.call_acknowledgements()
                 return
 
             log.info(
@@ -870,21 +1007,31 @@ Remember to end your response with the result embed:
             )
 
             # ACK original message
-            original_message = a2a_context.get("original_solace_message")
-            if original_message:
-                original_message.call_acknowledgements()
+            # Retrieve from TaskExecutionContext
+            logical_task_id = a2a_context.get("logical_task_id")
+            with self.host.active_tasks_lock:
+                task_context = self.host.active_tasks.get(logical_task_id)
+                if task_context:
+                    original_message = task_context.get_original_solace_message()
+                    if original_message:
+                        original_message.call_acknowledgements()
 
         except Exception as e:
             log.error(
                 f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "
                 f"CRITICAL: Failed to return workflow node result to workflow executor: {e}",
-                exc_info=True
+                exc_info=True,
             )
             # Try to ACK message even on error to avoid redelivery loop
             try:
-                original_message = a2a_context.get("original_solace_message")
-                if original_message:
-                    original_message.call_acknowledgements()
+                # Retrieve from TaskExecutionContext
+                logical_task_id = a2a_context.get("logical_task_id")
+                with self.host.active_tasks_lock:
+                    task_context = self.host.active_tasks.get(logical_task_id)
+                    if task_context:
+                        original_message = task_context.get_original_solace_message()
+                        if original_message:
+                            original_message.call_acknowledgements()
             except Exception as ack_e:
                 log.error(
                     f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}] "

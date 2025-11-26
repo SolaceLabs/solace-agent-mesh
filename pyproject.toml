@@ -165,6 +165,7 @@ markers = [
     "proxy: marks tests related to the A2A proxy functionality",
     "streaming: marks tests related to streaming messages",
     "artifacts: marks tests related to artifact handling and services",
+    "workflows: marks tests related to workflow execution",
     "api: marks tests related to the API",
     "tasks: marks tests related to task management",
     "builtin_artifact_embeds: marks tests related to the builtin_artifact_embeds",

@@ -112,9 +112,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         Async handler for incoming messages.
         """
         # Determine message type based on topic
-        request_topic = a2a.get_agent_request_topic(
-            self.namespace, self.workflow_name
-        )
+        request_topic = a2a.get_agent_request_topic(self.namespace, self.workflow_name)
         discovery_topic = a2a.get_discovery_topic(self.namespace)
         response_sub = a2a.get_agent_response_subscription_topic(
             self.namespace, self.workflow_name
@@ -254,7 +252,6 @@ class WorkflowExecutorComponent(SamComponentBase):
             url=f"solace:{a2a.get_agent_request_topic(self.namespace, self.workflow_name)}",
         )
 
-
     async def handle_cache_expiry_event(self, cache_data: Dict[str, Any]):
         """Handle persona call timeout via cache expiry."""
         sub_task_id = cache_data.get("key")
@@ -299,7 +296,9 @@ class WorkflowExecutorComponent(SamComponentBase):
             workflow_context, sub_task_id, result_data
         )
 
-    async def finalize_workflow_success(self, workflow_context: WorkflowExecutionContext):
+    async def finalize_workflow_success(
+        self, workflow_context: WorkflowExecutionContext
+    ):
         """Finalize successful workflow execution and publish result."""
         log_id = f"{self.log_identifier}[Workflow:{workflow_context.workflow_task_id}]"
         log.info(f"{log_id} Finalizing workflow success")
@@ -323,12 +322,14 @@ class WorkflowExecutorComponent(SamComponentBase):
             ),
             metadata={
                 "workflow_name": self.workflow_name,
-                "output": final_output # Pass output in metadata for now
+                "output": final_output,  # Pass output in metadata for now
             },
         )
 
         # Publish response
-        response_topic = workflow_context.a2a_context.get("replyToTopic") or a2a.get_client_response_topic(
+        response_topic = workflow_context.a2a_context.get(
+            "replyToTopic"
+        ) or a2a.get_client_response_topic(
             self.namespace, workflow_context.a2a_context["client_id"]
         )
 
@@ -350,11 +351,13 @@ class WorkflowExecutorComponent(SamComponentBase):
         self.publish_a2a_message(
             payload=response.model_dump(exclude_none=True),
             topic=response_topic,
-            user_properties={"a2aUserConfig": workflow_context.a2a_context.get("a2a_user_config", {})},
+            user_properties={
+                "a2aUserConfig": workflow_context.a2a_context.get("a2a_user_config", {})
+            },
         )
 
         # ACK original message
-        original_message = workflow_context.a2a_context.get("original_solace_message")
+        original_message = workflow_context.get_original_solace_message()
         if original_message:
             original_message.call_acknowledgements()
 
@@ -381,7 +384,9 @@ class WorkflowExecutorComponent(SamComponentBase):
         )
 
         # Publish response
-        response_topic = workflow_context.a2a_context.get("replyToTopic") or a2a.get_client_response_topic(
+        response_topic = workflow_context.a2a_context.get(
+            "replyToTopic"
+        ) or a2a.get_client_response_topic(
             self.namespace, workflow_context.a2a_context["client_id"]
         )
 
@@ -404,21 +409,25 @@ class WorkflowExecutorComponent(SamComponentBase):
         self.publish_a2a_message(
             payload=response.model_dump(exclude_none=True),
             topic=response_topic,
-            user_properties={"a2aUserConfig": workflow_context.a2a_context.get("a2a_user_config", {})},
+            user_properties={
+                "a2aUserConfig": workflow_context.a2a_context.get("a2a_user_config", {})
+            },
         )
 
         # ACK original message (we handled the error gracefully)
-        original_message = workflow_context.a2a_context.get("original_solace_message")
+        original_message = workflow_context.get_original_solace_message()
         if original_message:
             original_message.call_acknowledgements()
-            
+
         await self._cleanup_workflow_state(workflow_context)
 
-    async def _construct_final_output(self, workflow_context: WorkflowExecutionContext) -> Dict[str, Any]:
+    async def _construct_final_output(
+        self, workflow_context: WorkflowExecutionContext
+    ) -> Dict[str, Any]:
         """Construct final output from workflow state using output mapping."""
         mapping = self.workflow_definition.output_mapping
         state = workflow_context.workflow_state
-        
+
         final_output = {}
         for key, template in mapping.items():
             if isinstance(template, str) and template.startswith("{{"):
@@ -426,7 +435,7 @@ class WorkflowExecutorComponent(SamComponentBase):
                 final_output[key] = value
             else:
                 final_output[key] = template
-                
+
         return final_output
 
     async def _update_workflow_state(
@@ -464,29 +473,49 @@ class WorkflowExecutorComponent(SamComponentBase):
             user_id=workflow_context.a2a_context["user_id"],
             session_id=workflow_context.a2a_context["session_id"],
         )
-        
+
     async def _load_node_output(
-        self, artifact_name: str, artifact_version: int, workflow_context: WorkflowExecutionContext
+        self,
+        node_id: str,
+        artifact_name: str,
+        artifact_version: int,
+        workflow_context: WorkflowExecutionContext,
     ) -> Any:
         """Load a node's output artifact.
 
-        Artifacts are namespace-scoped, so all agents and workflows in the same
-        namespace can access the same artifact store regardless of which component
-        created them.
+        Artifacts are namespace-scoped by the ScopedArtifactServiceWrapper,
+        so the app_name parameter is automatically transformed to the namespace
+        when artifact_scope is "namespace". This allows all agents and workflows
+        in the same namespace to access the same artifact store.
+
+        For session_id, we construct the RUN_BASED session ID that was used by
+        the workflow node using the pattern: {workflow_session}:{sub_task_id}:run
         """
         import json
 
+        user_id = workflow_context.a2a_context["user_id"]
+        workflow_session_id = workflow_context.a2a_context["session_id"]
+
+        # Get the sub-task ID for this node
+        sub_task_id = workflow_context.get_sub_task_for_node(node_id)
+        if not sub_task_id:
+            raise ValueError(f"No sub-task ID found for node {node_id}")
+
+        # The app_name doesn't matter in namespace mode - the ScopedArtifactServiceWrapper
+        # will replace it with self.namespace. But we pass workflow_name for consistency.
         artifact = await self.artifact_service.load_artifact(
             app_name=self.workflow_name,
-            user_id=workflow_context.a2a_context["user_id"],
-            session_id=workflow_context.a2a_context["session_id"],
+            user_id=user_id,
+            session_id=workflow_session_id,
             filename=artifact_name,
-            version=artifact_version
+            version=artifact_version,
         )
 
         if not artifact or not artifact.inline_data:
-            raise ValueError(f"Artifact {artifact_name} v{artifact_version} not found")
-            
+            raise ValueError(
+                f"Artifact {artifact_name} v{artifact_version} not found in session {workflow_session_id}"
+            )
+
         return json.loads(artifact.inline_data.data.decode("utf-8"))
 
     def cleanup(self):

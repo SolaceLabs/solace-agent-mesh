@@ -131,9 +131,11 @@ async def handle_task_request(
             "client_id": client_id,
             "a2a_user_config": user_config,
             "jsonrpc_request_id": request_id,
-            "original_solace_message": message,
             "replyToTopic": reply_to,
         }
+        # Note: original_solace_message is NOT stored in a2a_context to avoid
+        # serialization issues when a2a_context is stored in ADK session state.
+        # It is stored in WorkflowExecutionContext instead.
 
         # Initialize workflow state
         workflow_state = await _initialize_workflow_state(
@@ -154,6 +156,9 @@ async def handle_task_request(
             workflow_task_id=workflow_task_id, a2a_context=a2a_context
         )
         workflow_context.workflow_state = workflow_state
+
+        # Store the original Solace message separately to avoid serialization issues
+        workflow_context.set_original_solace_message(message)
 
         # Track active workflow
         with component.active_workflows_lock:

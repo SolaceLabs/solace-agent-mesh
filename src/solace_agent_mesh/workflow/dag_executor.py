@@ -574,7 +574,7 @@ class DAGExecutor:
     ) -> Any:
         """
         Resolve template variable.
-        Format: {{node_id.output.field_path}}
+        Format: {{node_id.output.field_path}} or {{workflow.input.field_path}}
         """
         # Extract variable path
         match = re.match(r"\{\{(.+?)\}\}", template)
@@ -587,8 +587,20 @@ class DAGExecutor:
         # Navigate path in workflow state
         if parts[0] == "workflow" and parts[1] == "input":
             # Reference to workflow input
-            # TODO: implement workflow input storage
-            pass
+            # Workflow input is stored in node_outputs["workflow_input"]
+            if "workflow_input" not in workflow_state.node_outputs:
+                raise ValueError("Workflow input has not been initialized")
+
+            # Navigate from workflow_input.output.field_path
+            data = workflow_state.node_outputs["workflow_input"]["output"]
+            for part in parts[2:]:  # Skip "workflow" and "input"
+                if isinstance(data, dict) and part in data:
+                    data = data[part]
+                else:
+                    raise ValueError(
+                        f"Workflow input field '{part}' not found in path: {path}"
+                    )
+            return data
         else:
             # Reference to node output
             node_id = parts[0]
@@ -605,8 +617,9 @@ class DAGExecutor:
                 if isinstance(data, dict) and part in data:
                     data = data[part]
                 else:
-                    # Path not found
-                    return None
+                    raise ValueError(
+                        f"Output field '{part}' not found in node '{node_id}' for path: {path}"
+                    )
 
             return data
 
@@ -683,7 +696,10 @@ class DAGExecutor:
             # Cache node output for value references
             if result.artifact_name:
                 artifact_data = await self.host._load_node_output(
-                    result.artifact_name, result.artifact_version, workflow_context
+                    node_id,
+                    result.artifact_name,
+                    result.artifact_version,
+                    workflow_context,
                 )
                 workflow_state.node_outputs[node_id] = {"output": artifact_data}
 

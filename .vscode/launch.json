@@ -46,7 +46,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/workflow_example.yaml examples/gateways/webui_gateway_example.yaml",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/simple_workflow_test.yaml examples/gateways/webui_gateway_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
