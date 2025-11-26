@@ -1576,13 +1576,6 @@ async def deep_research(
         artifact_filename = f"{safe_filename}_report.md"
         
         # Create the artifact - IMPORTANT: Use original tool_context to preserve state
-        a2a_ctx_check = tool_context.state.get("a2a_context")
-        log.info("%s DEBUG: a2a_context present in tool_context.state: %s",
-                log_identifier, a2a_ctx_check is not None)
-        if a2a_ctx_check:
-            log.info("%s DEBUG: a2a_context.logical_task_id: %s",
-                    log_identifier, a2a_ctx_check.get("logical_task_id"))
-        
         wrapped_creator = ADKToolWrapper(
             original_func=_internal_create_artifact,
             tool_config=None,
@@ -1597,7 +1590,7 @@ async def deep_research(
             content=report,
             mime_type="text/markdown",
             description=f"Deep research report on: {research_question}",
-            tool_context=tool_context,  # Changed from tool_context_for_artifact
+            tool_context=tool_context,
         )
         
         if artifact_result.get("status") not in ["success", "partial_success"]:
@@ -1620,10 +1613,46 @@ async def deep_research(
                 elapsed_seconds=int(time.time() - start_time),
                 max_runtime_seconds=max_runtime_seconds or 0
             )
+            
+            # Explicitly register the artifact in task context AND signal it for return
+            try:
+                a2a_context = tool_context.state.get("a2a_context")
+                if a2a_context:
+                    logical_task_id = a2a_context.get("logical_task_id")
+                    if logical_task_id:
+                        inv_context = tool_context._invocation_context
+                        agent = getattr(inv_context, 'agent', None)
+                        if agent:
+                            host_component = getattr(agent, 'host_component', None)
+                            if host_component:
+                                with host_component.active_tasks_lock:
+                                    task_context = host_component.active_tasks.get(logical_task_id)
+                                if task_context:
+                                    task_context.register_produced_artifact(artifact_filename, artifact_version)
+                                    log.info("%s Explicitly registered artifact '%s' v%d in task context",
+                                            log_identifier, artifact_filename, artifact_version)
+                                    
+                                    # CRITICAL: Signal the artifact for return to chat
+                                    # This triggers the artifact to be sent as a message part via _handle_artifact_return_signals
+                                    task_context.add_artifact_signal({
+                                        "filename": artifact_filename,
+                                        "version": artifact_version
+                                    })
+                                    log.info("%s Signaled artifact '%s' v%d for return to chat",
+                                            log_identifier, artifact_filename, artifact_version)
+                                    
+                                    # Also add to state_delta to trigger the signal handler
+                                    if hasattr(tool_context, 'actions') and hasattr(tool_context.actions, 'state_delta'):
+                                        tool_context.actions.state_delta[f"temp:a2a_return_artifact:{artifact_filename}"] = artifact_version
+                                        log.info("%s Added artifact signal to state_delta for '%s' v%d",
+                                                log_identifier, artifact_filename, artifact_version)
+            except Exception as e_track:
+                log.warning("%s Failed to explicitly register/signal artifact: %s",
+                           log_identifier, e_track)
         
         result_dict = {
             "status": "success",
-            "message": f"Research complete: analyzed {len(all_findings)} sources. Report saved as artifact '{artifact_filename}'.\n\nHere is the research report:\n\n{report}\n\n[[artifact:{artifact_filename}]]",
+            "message": f"Research complete: analyzed {len(all_findings)} sources. Report saved as artifact '{artifact_filename}'.",
             "report": report,
             "artifact_filename": artifact_filename,
             "artifact_version": artifact_result.get("data_version", 1) if artifact_result.get("status") in ["success", "partial_success"] else None,

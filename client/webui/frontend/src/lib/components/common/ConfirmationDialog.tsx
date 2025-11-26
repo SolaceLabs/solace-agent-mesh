@@ -4,26 +4,28 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 export interface ConfirmationDialogProps {
     open: boolean;
     title: string;
-    content: string | React.ReactNode;
+    content?: React.ReactNode;
+    description?: string;
+    actionLabels?: {
+        cancel?: string;
+        confirm?: string;
+    };
     onOpenChange: (open: boolean) => void;
     onConfirm: () => void;
-
-    // optional cancel for additional actions on cancel beyond closing the dialog
     onCancel?: () => void;
-    // optional subtitle below the title - typically unused
-    subtitle?: string;
+
     // optional trigger to open the dialog eg. button
     trigger?: React.ReactNode;
 }
 
-export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, title, content, subtitle, trigger, onOpenChange, onConfirm, onCancel }) => {
+export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, title, content, description, actionLabels, trigger, onOpenChange, onConfirm, onCancel }) => {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
             <DialogContent className="w-xl max-w-xl sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle className="flex max-w-[400px] flex-row gap-1">{title}</DialogTitle>
-                    <DialogDescription>{subtitle}</DialogDescription>
+                    <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
                 {content}
                 <DialogFooter>
@@ -36,7 +38,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, ti
                                 onCancel?.();
                             }}
                         >
-                            Cancel
+                            {actionLabels?.cancel ?? "Cancel"}
                         </Button>
                     </DialogClose>
                     <DialogClose asChild>
@@ -47,7 +49,7 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, ti
                                 onConfirm();
                             }}
                         >
-                            Confirm
+                            {actionLabels?.confirm ?? "Confirm"}
                         </Button>
                     </DialogClose>
                 </DialogFooter>

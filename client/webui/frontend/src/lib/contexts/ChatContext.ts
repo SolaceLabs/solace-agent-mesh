@@ -85,8 +85,6 @@ export interface ChatActions {
     openArtifactForPreview: (artifactFilename: string, autoRun?: boolean) => Promise<FileAttachment | null>;
     navigateArtifactVersion: (artifactFilename: string, targetVersion: number) => Promise<FileAttachment | null>;
 
-    openMessageAttachmentForPreview: (file: FileAttachment, autoRun?: boolean) => void;
-
     /** Artifact Display and Cache Management */
     markArtifactAsDisplayed: (filename: string, displayed: boolean) => void;
     downloadAndResolveArtifact: (filename: string) => Promise<FileAttachment | null>;
