@@ -39,12 +39,12 @@ export const FileDetailsDialog: React.FC<FileDetailsDialogProps> = ({ isOpen, ar
                         </Button>
                     </div>
                     <VisuallyHidden>
-                        <DialogDescription>Project File Description</DialogDescription>
+                        <DialogDescription>Project File Information</DialogDescription>
                     </VisuallyHidden>
                 </DialogHeader>
                 <div className="my-6">
                     <div className="text-secondary-foreground">Description</div>
-                    <div className="bg-muted/50 mt-2 rounded-sm p-4">
+                    <div className="py-4">
                         <div className="text-sm whitespace-pre-wrap">{artifact.description || "No description provided"}</div>
                     </div>
                 </div>
