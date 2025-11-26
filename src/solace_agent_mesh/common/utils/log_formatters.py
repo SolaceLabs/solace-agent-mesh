@@ -10,13 +10,14 @@ class DatadogJsonFormatter(logging.Formatter):
     """
     Custom formatter to output logs in Datadog-compatible JSON format.
     
-    .. deprecated::
-        This formatter is deprecated. Please use pythonjsonlogger.jsonlogger.JsonFormatter instead.
-        
+    . deprecated::
+        This formatter is deprecated. Please use pythonjsonlogger.json.JsonFormatter instead.
+        For details, consult https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deploying/logging#structured-logging
+
         Example:
             formatters:
               jsonFormatter:
-                "()": pythonjsonlogger.jsonlogger.JsonFormatter
+                "()": pythonjsonlogger.json.JsonFormatter
                 format: "%(timestamp)s %(levelname)s %(threadName)s %(name)s %(message)s"
     """
 
@@ -25,7 +26,7 @@ class DatadogJsonFormatter(logging.Formatter):
         if not hasattr(self.__class__, '_deprecation_warned'):
             warnings.warn(
                 "DatadogJsonFormatter is deprecated and will be removed in a future version. "
-                "Please use pythonjsonlogger.jsonlogger.JsonFormatter instead.",
+                "Please use pythonjsonlogger.json.JsonFormatter instead. For details, consult https://solacelabs.github.io/solace-agent-mesh/docs/documentation/deploying/logging#structured-logging",
                 DeprecationWarning,
                 stacklevel=2
             )
