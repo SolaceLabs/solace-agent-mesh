@@ -174,7 +174,26 @@ apps:
       display_name: "Advanced Processing Workflow"
 
       workflow:
-        description: "Demonstrates advanced workflow features: Map, Implicit Input, Coalesce/Concat."
+        description: |
+          A comprehensive demonstration of advanced workflow capabilities including parallel processing (Map), conditional branching, and complex output aggregation.
+
+          This workflow operates in two modes:
+          1. **Generate Mode**: Automatically generates test data items and processes them.
+          2. **Direct Mode**: Processes items provided directly in the input.
+
+          **Workflow Steps:**
+          1. **Mode Check**: Determines whether to generate data or use provided data.
+          2. **Data Acquisition**: Either generates a list of items or passes through the input items.
+          3. **Parallel Processing (Map)**: Processes each item in the list concurrently (up to 2 at a time).
+          4. **Summarization**: Aggregates the results from all processed items into a final report.
+
+          **Expected Input:**
+          - `mode` (string, required): Either "generate" or "direct".
+          - `direct_items` (array, optional): A list of items to process (required if mode is "direct"). Each item should be an object with `id` and `name`.
+
+          **Output:**
+          - `final_report` (string): A text summary of the processing results.
+          - `item_count` (integer): The total number of items successfully processed.
 
         input_schema:
           type: object
