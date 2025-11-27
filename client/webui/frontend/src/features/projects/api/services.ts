@@ -1,4 +1,4 @@
-import type { Project } from "@/lib";
+import type { Project, UpdateProjectData } from "@/lib";
 import { authenticatedFetch } from "@/lib/utils";
 
 export const getProjects = async () => {
@@ -40,6 +40,16 @@ export const updateFileMetadata = async (projectId: string, filename: string, de
     const response = await authenticatedFetch(`/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
         method: "PATCH",
         body: formData,
+        credentials: "include",
+    });
+    return await response.json();
+};
+
+export const updateProject = async (projectId: string, data: UpdateProjectData) => {
+    const response = await authenticatedFetch(`/api/v1/projects/${projectId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
         credentials: "include",
     });
     return await response.json();
