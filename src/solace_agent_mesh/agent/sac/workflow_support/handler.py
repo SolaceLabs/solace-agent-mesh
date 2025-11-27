@@ -114,6 +114,10 @@ class WorkflowNodeHandler:
         """Execute agent as a workflow node with validation."""
         log_id = f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}]"
 
+        log.error(
+            f"{log_id} [DEBUG] Received workflow node request. Workflow: {workflow_data.workflow_name}"
+        )
+
         try:
             # Determine effective schemas
             input_schema = workflow_data.input_schema or self.input_schema
@@ -130,24 +134,31 @@ class WorkflowNodeHandler:
                     f"{log_id} No input schema provided, using default text schema"
                 )
 
-            # Validate input if schema exists
-            if input_schema:
-                validation_errors = await self._validate_input(
-                    message, input_schema, a2a_context
+            # Extract and log input data
+            input_data = await self._extract_input_data(
+                message, input_schema, a2a_context
+            )
+            log.error(
+                f"{log_id} [DEBUG] Resolved input data: {json.dumps(input_data, default=str)}"
+            )
+
+            # Validate input
+            from .validator import validate_against_schema
+
+            validation_errors = validate_against_schema(input_data, input_schema)
+
+            if validation_errors:
+                log.error(f"{log_id} Input validation failed: {validation_errors}")
+
+                # Return validation error immediately
+                result_data = WorkflowNodeResultData(
+                    type="workflow_node_result",
+                    status="failure",
+                    error_message=f"Input validation failed: {validation_errors}",
                 )
-
-                if validation_errors:
-                    log.error(f"{log_id} Input validation failed: {validation_errors}")
-
-                    # Return validation error immediately
-                    result_data = WorkflowNodeResultData(
-                        type="workflow_node_result",
-                        status="failure",
-                        error_message=f"Input validation failed: {validation_errors}",
-                    )
-                    return await self._return_workflow_result(
-                        workflow_data, result_data, a2a_context
-                    )
+                return await self._return_workflow_result(
+                    workflow_data, result_data, a2a_context
+                )
 
             # Input valid, proceed with execution
             return await self._execute_with_output_validation(
@@ -543,6 +554,10 @@ class WorkflowNodeHandler:
 
             result_data = await self._finalize_workflow_node_execution(
                 adk_session, last_model_event, workflow_data, output_schema, retry_count=0
+            )
+
+            log.error(
+                f"{log_id} [DEBUG] Final result data: {result_data.model_dump_json()}"
             )
 
             # Send result back to workflow
