@@ -28,7 +28,6 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
             try {
                 const parsed = JSON.parse(stored) as BackgroundTaskState[];
                 setBackgroundTasks(parsed);
-                console.log(`[BackgroundTaskMonitor] Loaded ${parsed.length} background tasks from storage`);
             } catch (error) {
                 console.error("[BackgroundTaskMonitor] Failed to parse stored tasks:", error);
                 localStorage.removeItem(STORAGE_KEY);
@@ -61,7 +60,6 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
             if (prev.some(t => t.taskId === taskId)) {
                 return prev;
             }
-            console.log(`[BackgroundTaskMonitor] Registered background task: ${taskId}`);
             return [...prev, newTask];
         });
     }, []);
@@ -70,9 +68,6 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
     const unregisterBackgroundTask = useCallback((taskId: string) => {
         setBackgroundTasks(prev => {
             const filtered = prev.filter(t => t.taskId !== taskId);
-            if (filtered.length !== prev.length) {
-                console.log(`[BackgroundTaskMonitor] Unregistered background task: ${taskId}`);
-            }
             return filtered;
         });
     }, []);
@@ -89,7 +84,6 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
                 const response = await authenticatedFetch(`${apiPrefix}/tasks/${taskId}/status`);
                 if (!response.ok) {
                     if (response.status === 404) {
-                        console.log(`[BackgroundTaskMonitor] Task ${taskId} not found, removing from tracking`);
                         unregisterBackgroundTask(taskId);
                         return null;
                     }
@@ -110,8 +104,6 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
             return;
         }
 
-        console.log(`[BackgroundTaskMonitor] Checking ${backgroundTasks.length} background tasks`);
-
         for (const task of backgroundTasks) {
             const status = await checkTaskStatus(task.taskId);
 
@@ -122,7 +114,6 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
             // If task is no longer running, handle completion
             if (!status.is_running) {
                 const taskStatus = status.task.status;
-                console.log(`[BackgroundTaskMonitor] Task ${task.taskId} completed with status: ${taskStatus}`);
 
                 // Create notification
                 let notificationType: "completed" | "failed" | "timeout" = "completed";
@@ -172,7 +163,6 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
             }
 
             const data: ActiveBackgroundTasksResponse = await response.json();
-            console.log(`[BackgroundTaskMonitor] Found ${data.count} active background tasks on server`);
 
             // Convert server tasks to BackgroundTaskState
             return data.tasks.map(task => ({
@@ -203,7 +193,6 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
 
                 for (const serverTask of serverTasks) {
                     if (!merged.some(t => t.taskId === serverTask.taskId)) {
-                        console.log(`[BackgroundTaskMonitor] Found running task on server: ${serverTask.taskId}`);
                         merged.push(serverTask);
                     }
                 }
