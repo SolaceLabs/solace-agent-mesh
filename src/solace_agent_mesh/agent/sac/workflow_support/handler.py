@@ -526,11 +526,18 @@ class WorkflowNodeHandler:
                 session_id=session_id,
             )
 
-            # Get last event - it should be a model response if agent completed successfully
-            last_event = adk_session.events[-1] if adk_session.events else None
+            # Find the last model response event
+            # The session might end with a tool response (e.g. _notify_artifact_save) if the model
+            # outputs nothing in the final turn. We scan backwards for the text output.
+            last_model_event = None
+            if adk_session.events:
+                for event in reversed(adk_session.events):
+                    if event.content and event.content.role == "model":
+                        last_model_event = event
+                        break
 
             result_data = await self._finalize_workflow_node_execution(
-                adk_session, last_event, workflow_data, output_schema, retry_count=0
+                adk_session, last_model_event, workflow_data, output_schema, retry_count=0
             )
 
             # Send result back to workflow
