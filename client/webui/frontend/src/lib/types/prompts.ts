@@ -75,3 +75,12 @@ export interface PromptBuilderChatResponse {
     confidence: number;
     ready_to_save: boolean;
 }
+
+export interface TemplateConfig {
+    name?: string;
+    category?: string;
+    command?: string;
+    promptText?: string;
+    description?: string;
+    detected_variables?: string[];
+}

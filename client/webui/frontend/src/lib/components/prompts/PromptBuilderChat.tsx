@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Loader2, Sparkles } from "lucide-react";
-import { Button, Textarea } from "@/lib/components/ui";
-import { MessageBanner } from "@/lib/components/common";
+
+import { AudioRecorder, Button, MessageBanner, Textarea } from "@/lib/components";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
-import { AudioRecorder } from "@/lib/components/chat/AudioRecorder";
-import type { TemplateConfig } from "./hooks/usePromptTemplateBuilder";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { authenticatedFetch } from "@/lib/utils";
+import type { TemplateConfig } from "@/lib/types";
 
 interface Message {
     role: "user" | "assistant";
