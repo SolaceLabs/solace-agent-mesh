@@ -72,4 +72,17 @@ export const WithSearchTermNoResults: Story = {
     },
 };
 
+export const WithTagSelected: Story = {
+    parameters: {
+        msw: { handlers },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const tags = await canvas.findByTestId("promptTags");
+        tags.click();
+        const communicationFilter = await canvas.findByTestId(`category-checkbox-${languagePromptGroup.category}`);
+        communicationFilter.click();
+    },
+};
+
 export const NoPrompts: Story = {};
