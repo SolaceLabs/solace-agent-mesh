@@ -21,7 +21,13 @@ from .app import (
     MapNode,
 )
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
-from ..common.data_parts import WorkflowNodeResultData
+from ..common.data_parts import (
+    WorkflowNodeResultData,
+    WorkflowNodeExecutionStartData,
+    WorkflowNodeExecutionResultData,
+    WorkflowMapProgressData,
+    ArtifactRef,
+)
 from ..agent.utils.artifact_helpers import save_artifact_with_metadata
 
 if TYPE_CHECKING:
@@ -267,6 +273,15 @@ class DAGExecutor:
         try:
             node = self.nodes[node_id]
 
+            # Publish start event
+            start_data = WorkflowNodeExecutionStartData(
+                type="workflow_node_execution_start",
+                node_id=node_id,
+                node_type=node.type,
+                agent_persona=getattr(node, "agent_persona", None),
+            )
+            await self.host.publish_workflow_event(workflow_context, start_data)
+
             # Handle different node types
             if node.type == "agent":
                 await self._execute_agent_node(node, workflow_state, workflow_context)
@@ -327,6 +342,18 @@ class DAGExecutor:
 
         # Mark conditional as complete immediately since it's internal logic
         workflow_state.completed_nodes[node.id] = "conditional_evaluated"
+
+        # Publish result event
+        result_data = WorkflowNodeExecutionResultData(
+            type="workflow_node_execution_result",
+            node_id=node.id,
+            status="success",
+            metadata={
+                "condition_result": result,
+                "selected_branch": next_node_id,
+            },
+        )
+        await self.host.publish_workflow_event(workflow_context, result_data)
 
         if next_node_id:
             # Add selected branch to dependencies dynamically?
@@ -411,6 +438,12 @@ class DAGExecutor:
 
         # Mark as skipped (using a special value in completed_nodes)
         workflow_state.completed_nodes[node_id] = "SKIPPED"
+
+        # Publish skipped event (optional, but good for visualization)
+        # We need context to publish, but _skip_branch doesn't have it passed down.
+        # For now, we skip publishing "skipped" events to avoid signature changes,
+        # or we can rely on the UI inferring it from the conditional result.
+        # Actually, let's leave it implicit for now.
 
         # Find children
         children = self.reverse_dependencies.get(node_id, [])
@@ -721,6 +754,21 @@ class DAGExecutor:
         # Node succeeded
         log.debug(f"{log_id} Node '{node_id}' completed successfully")
 
+        # Publish success event
+        result_data = WorkflowNodeExecutionResultData(
+            type="workflow_node_execution_result",
+            node_id=node_id,
+            status="success",
+            output_artifact_ref=(
+                ArtifactRef(
+                    name=result.artifact_name, version=result.artifact_version
+                )
+                if result.artifact_name
+                else None
+            ),
+        )
+        await self.host.publish_workflow_event(workflow_context, result_data)
+
         # Check if this was part of a Fork or Map
         # We need to find if this node_id is being tracked in active_branches
         # But wait, node_id is the ID of the node definition.
@@ -816,6 +864,16 @@ class DAGExecutor:
                 map_state["completed_count"] += 1
                 # Store result in map_state for final aggregation
                 map_state["results"][index] = completed_branch
+
+                # Publish map progress
+                progress_data = WorkflowMapProgressData(
+                    type="workflow_map_progress",
+                    node_id=control_node_id,
+                    total_items=len(map_state["items"]),
+                    completed_items=map_state["completed_count"],
+                    status="in-progress",
+                )
+                await self.host.publish_workflow_event(workflow_context, progress_data)
 
                 # Launch next pending items
                 await self._launch_map_iterations(

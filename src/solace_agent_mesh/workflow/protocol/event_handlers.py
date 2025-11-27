@@ -17,6 +17,7 @@ from a2a.types import (
     Message as A2AMessage,
 )
 from ...common import a2a
+from ...common.data_parts import WorkflowExecutionStartData
 from ..workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 
 if TYPE_CHECKING:
@@ -166,6 +167,17 @@ async def handle_task_request(
 
         # Start execution
         log.info(f"{component.log_identifier} Starting workflow {workflow_task_id}")
+
+        # Publish start event
+        await component.publish_workflow_event(
+            workflow_context,
+            WorkflowExecutionStartData(
+                type="workflow_execution_start",
+                workflow_name=component.workflow_name,
+                execution_id=workflow_task_id,
+            ),
+        )
+
         await component.dag_executor.execute_workflow(
             workflow_state, workflow_context
         )

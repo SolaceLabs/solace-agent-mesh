@@ -20,6 +20,14 @@ from ..common.constants import (
     EXTENSION_URI_AGENT_TYPE,
     EXTENSION_URI_SCHEMAS,
 )
+from ..common.data_parts import (
+    WorkflowExecutionStartData,
+    WorkflowExecutionResultData,
+    WorkflowNodeExecutionStartData,
+    WorkflowNodeExecutionResultData,
+    WorkflowMapProgressData,
+    ArtifactRef,
+)
 from ..agent.adk.services import (
     initialize_session_service,
     initialize_artifact_service,
@@ -296,6 +304,45 @@ class WorkflowExecutorComponent(SamComponentBase):
             workflow_context, sub_task_id, result_data
         )
 
+    async def publish_workflow_event(
+        self,
+        workflow_context: WorkflowExecutionContext,
+        event_data: Any,
+    ):
+        """Publish a workflow status event."""
+        try:
+            status_update_event = a2a.create_data_signal_event(
+                task_id=workflow_context.a2a_context["logical_task_id"],
+                context_id=workflow_context.a2a_context["session_id"],
+                signal_data=event_data,
+                agent_name=self.workflow_name,
+            )
+
+            rpc_response = a2a.create_success_response(
+                result=status_update_event,
+                request_id=workflow_context.a2a_context["jsonrpc_request_id"],
+            )
+
+            target_topic = workflow_context.a2a_context.get(
+                "statusTopic"
+            ) or a2a.get_gateway_status_topic(
+                self.namespace,
+                "gateway",  # Placeholder, usually gateway_id
+                workflow_context.a2a_context["logical_task_id"],
+            )
+
+            self.publish_a2a_message(
+                payload=rpc_response.model_dump(exclude_none=True),
+                topic=target_topic,
+                user_properties={
+                    "a2aUserConfig": workflow_context.a2a_context.get(
+                        "a2a_user_config", {}
+                    )
+                },
+            )
+        except Exception as e:
+            log.error(f"{self.log_identifier} Failed to publish workflow event: {e}")
+
     async def finalize_workflow_success(
         self, workflow_context: WorkflowExecutionContext
     ):
@@ -306,9 +353,17 @@ class WorkflowExecutorComponent(SamComponentBase):
         # Construct final output based on output mapping
         final_output = await self._construct_final_output(workflow_context)
 
-        # Create final result artifact if needed, or just pass data
-        # For MVP, we'll assume the output is small enough to pass in metadata or as text
-        # But A2A protocol expects artifacts or text.
+        # Publish completion event
+        # Note: We don't have a single artifact for the final output yet in this flow,
+        # as _construct_final_output returns a dict.
+        # For observability, we can just signal success.
+        await self.publish_workflow_event(
+            workflow_context,
+            WorkflowExecutionResultData(
+                type="workflow_execution_result",
+                status="success",
+            ),
+        )
 
         # Create final task response
         final_task = a2a.create_final_task(
@@ -369,6 +424,16 @@ class WorkflowExecutorComponent(SamComponentBase):
         """Finalize failed workflow execution and publish error."""
         log_id = f"{self.log_identifier}[Workflow:{workflow_context.workflow_task_id}]"
         log.warning(f"{log_id} Finalizing workflow failure: {error}")
+
+        # Publish failure event
+        await self.publish_workflow_event(
+            workflow_context,
+            WorkflowExecutionResultData(
+                type="workflow_execution_result",
+                status="failure",
+                error_message=str(error),
+            ),
+        )
 
         # Create final task response
         final_task = a2a.create_final_task(

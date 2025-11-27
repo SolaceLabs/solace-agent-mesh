@@ -182,6 +182,108 @@ class WorkflowNodeResultData(BaseModel):
     retry_count: int = Field(0, description="Number of retries attempted")
 
 
+class ArtifactRef(BaseModel):
+    """Reference to an artifact."""
+
+    name: str
+    version: Optional[int] = None
+
+
+class WorkflowExecutionStartData(BaseModel):
+    """
+    Data part signaling the start of a workflow execution.
+    Corresponds to workflow_execution_start.json schema.
+    """
+
+    type: Literal["workflow_execution_start"] = Field(
+        "workflow_execution_start", description="The constant type for this data part."
+    )
+    workflow_name: str = Field(..., description="Name of the workflow")
+    execution_id: str = Field(..., description="Unique execution ID")
+    input_artifact_ref: Optional[ArtifactRef] = Field(
+        None, description="Reference to the input artifact"
+    )
+
+
+class WorkflowNodeExecutionStartData(BaseModel):
+    """
+    Data part signaling the start of a workflow node execution.
+    Corresponds to workflow_node_execution_start.json schema.
+    """
+
+    type: Literal["workflow_node_execution_start"] = Field(
+        "workflow_node_execution_start",
+        description="The constant type for this data part.",
+    )
+    node_id: str = Field(..., description="ID of the node")
+    node_type: str = Field(..., description="Type of the node (agent, conditional, etc.)")
+    agent_persona: Optional[str] = Field(
+        None, description="Name of the agent persona if applicable"
+    )
+    input_artifact_ref: Optional[ArtifactRef] = Field(
+        None, description="Reference to the input artifact for this node"
+    )
+    iteration_index: Optional[int] = Field(
+        None, description="Index if inside a map/loop"
+    )
+
+
+class WorkflowNodeExecutionResultData(BaseModel):
+    """
+    Data part signaling the completion of a workflow node execution.
+    Corresponds to workflow_node_execution_result.json schema.
+    """
+
+    type: Literal["workflow_node_execution_result"] = Field(
+        "workflow_node_execution_result",
+        description="The constant type for this data part.",
+    )
+    node_id: str = Field(..., description="ID of the node")
+    status: Literal["success", "failure", "skipped"] = Field(
+        ..., description="Execution status"
+    )
+    output_artifact_ref: Optional[ArtifactRef] = Field(
+        None, description="Reference to the output artifact"
+    )
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Additional metadata (e.g., condition result)"
+    )
+
+
+class WorkflowMapProgressData(BaseModel):
+    """
+    Data part signaling progress of a map node.
+    Corresponds to workflow_map_progress.json schema.
+    """
+
+    type: Literal["workflow_map_progress"] = Field(
+        "workflow_map_progress", description="The constant type for this data part."
+    )
+    node_id: str = Field(..., description="ID of the map node")
+    total_items: int = Field(..., description="Total items to process")
+    completed_items: int = Field(..., description="Items processed so far")
+    status: Literal["in-progress", "completed", "failed"] = Field(
+        ..., description="Status of the map operation"
+    )
+
+
+class WorkflowExecutionResultData(BaseModel):
+    """
+    Data part signaling the completion of a workflow execution.
+    Corresponds to workflow_execution_result.json schema.
+    """
+
+    type: Literal["workflow_execution_result"] = Field(
+        "workflow_execution_result", description="The constant type for this data part."
+    )
+    status: Literal["success", "failure"] = Field(..., description="Final status")
+    output_artifact_ref: Optional[ArtifactRef] = Field(
+        None, description="Reference to the final output artifact"
+    )
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+
+
 SignalData = Union[
     ToolInvocationStartData,
     LlmInvocationData,
@@ -191,4 +293,9 @@ SignalData = Union[
     TemplateBlockData,
     WorkflowNodeRequestData,
     WorkflowNodeResultData,
+    WorkflowExecutionStartData,
+    WorkflowNodeExecutionStartData,
+    WorkflowNodeExecutionResultData,
+    WorkflowMapProgressData,
+    WorkflowExecutionResultData,
 ]
