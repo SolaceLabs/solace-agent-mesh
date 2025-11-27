@@ -786,6 +786,13 @@ class DAGExecutor:
             log.error(f"{log_id} Could not find branch for sub-task {sub_task_id}")
             return
 
+        # Check for duplicate completion
+        if "result" in completed_branch:
+            log.warning(
+                f"{log_id} Sub-task {sub_task_id} already completed. Ignoring duplicate response."
+            )
+            return
+
         # Update result
         completed_branch["result"] = {
             "artifact_name": result.artifact_name,
@@ -799,7 +806,12 @@ class DAGExecutor:
             map_state = workflow_state.metadata.get(f"map_state_{control_node_id}")
             if map_state:
                 index = completed_branch["index"]
-                map_state["active_indices"].remove(index)
+                # Safely remove index (idempotency check above should prevent this, but being safe)
+                if index in map_state["active_indices"]:
+                    map_state["active_indices"].remove(index)
+                else:
+                    log.warning(f"{log_id} Index {index} not found in active_indices during completion.")
+
                 map_state["completed_count"] += 1
                 # Store result in map_state for final aggregation
                 map_state["results"][index] = completed_branch
@@ -857,7 +869,7 @@ class DAGExecutor:
         # Create merged artifact
         merged_artifact_name = f"fork_{fork_node_id}_merged.json"
         await self.host.artifact_service.save_artifact(
-            app_name=self.host.agent_name,
+            app_name=self.host.workflow_name,
             user_id=workflow_context.a2a_context["user_id"],
             session_id=workflow_context.a2a_context["session_id"],
             filename=merged_artifact_name,
@@ -915,7 +927,7 @@ class DAGExecutor:
         # Create aggregated artifact
         merged_artifact_name = f"map_{map_node_id}_results.json"
         await self.host.artifact_service.save_artifact(
-            app_name=self.host.agent_name,
+            app_name=self.host.workflow_name,
             user_id=workflow_context.a2a_context["user_id"],
             session_id=workflow_context.a2a_context["session_id"],
             filename=merged_artifact_name,
