@@ -483,6 +483,7 @@ async def get_session_usage(
             cached_tokens=session_usage["cached_tokens"],
             cost_usd=session_usage["cost_usd"],
             model_breakdown=session_usage["model_breakdown"],
+            current_context_tokens=session_usage["current_context_tokens"],
             last_updated=session_usage["last_updated"],
         )
         

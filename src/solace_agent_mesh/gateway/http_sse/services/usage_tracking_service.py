@@ -522,7 +522,10 @@ class UsageTrackingService:
             session_id: Session identifier
             
         Returns:
-            Dictionary with session usage metrics including the session's configured model
+            Dictionary with session usage metrics including:
+            - Accumulated tokens (for cost tracking)
+            - Current context tokens (for context window indicator - most recent prompt)
+            - The session's configured model
         """
         from sqlalchemy import text
         from ..shared import now_epoch_ms
@@ -565,7 +568,7 @@ class UsageTrackingService:
         result = self.db.execute(query, {"session_id": session_id, "user_id": user_id})
         rows = result.fetchall()
         
-        # Aggregate results
+        # Aggregate results (accumulated totals for cost tracking)
         total_tokens = 0
         prompt_tokens = 0
         completion_tokens = 0
@@ -596,6 +599,32 @@ class UsageTrackingService:
             model_breakdown[model]["tokens"] += tokens
             model_breakdown[model]["cost"] = f"${(cost / 1_000_000):.4f}"
         
+        # Get the most recent prompt tokens for current context window usage
+        # This represents the actual current context size being sent to the LLM
+        current_context_query = text("""
+            SELECT tt.raw_tokens, tt.model
+            FROM token_transactions tt
+            INNER JOIN chat_tasks ct ON tt.task_id = ct.id
+            WHERE ct.session_id = :session_id
+            AND tt.user_id = :user_id
+            AND tt.transaction_type = 'prompt'
+            ORDER BY tt.created_at DESC
+            LIMIT 1
+        """)
+        
+        current_context_result = self.db.execute(
+            current_context_query,
+            {"session_id": session_id, "user_id": user_id}
+        )
+        current_context_row = current_context_result.fetchone()
+        
+        # Current context tokens = most recent prompt tokens (represents current context window usage)
+        # If no prompt transactions exist yet, default to 0
+        current_context_tokens = current_context_row[0] if current_context_row else 0
+        current_context_model = current_context_row[1] if current_context_row else None
+        
+        log.info(f"get_session_usage: Current context tokens: {current_context_tokens}, model: {current_context_model}")
+        
         # ALWAYS include the session's configured model in the breakdown
         # This ensures the frontend can determine the correct context window limit
         # For compressed sessions, this is critical as the source_model determines the limit
@@ -614,11 +643,14 @@ class UsageTrackingService:
         
         return {
             "session_id": session_id,
+            # Accumulated totals (for cost tracking)
             "total_tokens": total_tokens,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "cached_tokens": cached_tokens,
             "cost_usd": cost_usd,
             "model_breakdown": model_breakdown,
+            # Current context window usage (most recent prompt tokens)
+            "current_context_tokens": current_context_tokens,
             "last_updated": now_epoch_ms(),
         }

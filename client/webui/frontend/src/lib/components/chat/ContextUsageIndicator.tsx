@@ -118,22 +118,27 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
         });
 
         const contextLimit = getModelContextLimit(primaryModel);
-        const usedTokens = sessionUsage?.totalTokens || 0;
-        const percentage = calculateContextPercentage(usedTokens, contextLimit);
+        const currentContextTokens = sessionUsage?.currentContextTokens || 0;
+        const percentage = calculateContextPercentage(currentContextTokens, contextLimit);
         const cost = sessionUsage?.costUsd || "$0.0000";
+        // Accumulated totals for detailed breakdown display
+        const totalTokens = sessionUsage?.totalTokens || 0;
         const promptTokens = sessionUsage?.promptTokens || 0;
         const completionTokens = sessionUsage?.completionTokens || 0;
         const cachedTokens = sessionUsage?.cachedTokens || 0;
 
         return {
-            usedTokens,
+            // Current context window usage (for progress bar and percentage)
+            currentContextTokens,
             contextLimit,
             percentage,
             cost,
+            // Accumulated totals (for detailed breakdown)
+            totalTokens,
             promptTokens,
             completionTokens,
             cachedTokens,
-            formattedUsed: formatTokenCount(usedTokens),
+            formattedCurrentContext: formatTokenCount(currentContextTokens),
             formattedLimit: formatTokenCount(contextLimit),
         };
     }, [sessionUsage, selectedAgentName, agents]);
@@ -200,7 +205,7 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
                                     <div className="w-28 space-y-1">
                                         <Progress value={contextMetrics.percentage} className="h-1.5" />
                                         <div className={`text-center font-mono text-[10px] ${colorClass}`}>
-                                            {contextMetrics.formattedUsed}/{contextMetrics.formattedLimit}
+                                            {contextMetrics.formattedCurrentContext}/{contextMetrics.formattedLimit}
                                         </div>
                                     </div>
                                     {(shouldShowCompressionButton || isCompressing) && (
@@ -229,7 +234,7 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
                         <TooltipContent side="left">
                             <p className="font-semibold">Context Window Usage</p>
                             <p className="text-xs">
-                                {contextMetrics.formattedUsed} / {contextMetrics.formattedLimit} tokens ({contextMetrics.percentage}%)
+                                {contextMetrics.formattedCurrentContext} / {contextMetrics.formattedLimit} tokens ({contextMetrics.percentage}%)
                             </p>
                             <p className="text-xs">Cost: {contextMetrics.cost}</p>
                         </TooltipContent>
@@ -255,7 +260,7 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
                                 <div className="space-y-1">
                                     <Progress value={contextMetrics.percentage} className="h-2" />
                                     <div className="text-muted-foreground flex justify-between text-xs">
-                                        <span>{contextMetrics.formattedUsed} used</span>
+                                        <span>{contextMetrics.formattedCurrentContext} used</span>
                                         <span>{contextMetrics.formattedLimit} limit</span>
                                     </div>
                                 </div>

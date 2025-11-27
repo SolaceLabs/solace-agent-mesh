@@ -150,6 +150,7 @@ export interface SourceDistributionData {
  */
 export interface SessionTokenUsage {
     sessionId: string;
+    // Accumulated totals (for cost tracking)
     totalTokens: number;
     promptTokens: number;
     completionTokens: number;
@@ -161,5 +162,7 @@ export interface SessionTokenUsage {
             cost: string;
         };
     };
+    // Current context window usage (most recent prompt tokens)
+    currentContextTokens: number;
     lastUpdated: number;
 }
