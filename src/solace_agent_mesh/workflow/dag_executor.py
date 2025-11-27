@@ -465,6 +465,10 @@ class DAGExecutor:
         # Resolve items array
         items = self.resolve_value(node.items, workflow_state)
 
+        if items is None:
+            log.warning(f"{log_id} Map target resolved to None. Treating as empty list.")
+            items = []
+
         if not isinstance(items, list):
             raise ValueError(f"Map target must be array, got: {type(items)}")
 
