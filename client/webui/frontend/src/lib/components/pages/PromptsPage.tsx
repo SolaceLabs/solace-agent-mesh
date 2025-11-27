@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
 import { RefreshCcw, Upload } from "lucide-react";
 
-import { useChatContext, useErrorDialog } from "@/lib/hooks";
+import { useChatContext } from "@/lib/hooks";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
 import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
@@ -16,8 +16,7 @@ export const PromptsPage: React.FC = () => {
     const location = useLocation();
     const loaderData = useLoaderData<{ promptId?: string; view?: string; mode?: string }>();
 
-    const { addNotification } = useChatContext();
-    const { ErrorDialog, setError } = useErrorDialog();
+    const { addNotification, displayError } = useChatContext();
     const [promptGroups, setPromptGroups] = useState<PromptGroup[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showBuilder, setShowBuilder] = useState(false);
@@ -39,11 +38,11 @@ export const PromptsPage: React.FC = () => {
             const data = await response.json();
             setPromptGroups(data);
         } catch (error) {
-            setError({ title: "Failed to Load Prompts", error: getErrorMessage(error, "An error occurred while fetching prompt groups.") });
+            displayError({ title: "Failed to Load Prompts", error: getErrorMessage(error, "An error occurred while fetching prompt groups.") });
         } finally {
             setIsLoading(false);
         }
-    }, [setError]);
+    }, [displayError]);
 
     useEffect(() => {
         fetchPromptGroups();
@@ -63,7 +62,7 @@ export const PromptsPage: React.FC = () => {
                         setBuilderInitialMode("manual");
                         setShowBuilder(true);
                     } catch (error) {
-                        setError({ title: "Failed to Edit Prompt", error: getErrorMessage(error, "An error occurred while fetching prompt.") });
+                        displayError({ title: "Failed to Edit Prompt", error: getErrorMessage(error, "An error occurred while fetching prompt.") });
                     }
                 };
                 loadPromptForEdit();
@@ -88,7 +87,7 @@ export const PromptsPage: React.FC = () => {
                     const group = await response.json();
                     setVersionHistoryGroup(group);
                 } catch (error) {
-                    setError({ title: "Failed to View Versions", error: getErrorMessage(error, "An error occurred while fetching versions.") });
+                    displayError({ title: "Failed to View Versions", error: getErrorMessage(error, "An error occurred while fetching versions.") });
                 }
             };
             loadPromptGroup();
@@ -98,7 +97,7 @@ export const PromptsPage: React.FC = () => {
             setVersionHistoryGroup(null);
             setEditingGroup(null);
         }
-    }, [loaderData, location.state?.taskDescription, setError]);
+    }, [loaderData, location.state?.taskDescription, displayError]);
 
     const handleDeleteClick = (id: string, name: string) => {
         setDeletingPrompt({ id, name });
@@ -119,7 +118,7 @@ export const PromptsPage: React.FC = () => {
             addNotification("Prompt deleted", "success");
         } catch (error) {
             setDeletingPrompt(null);
-            setError({ title: "Failed to Delete Prompt", error: getErrorMessage(error, "An error occurred while deleting the prompt.") });
+            displayError({ title: "Failed to Delete Prompt", error: getErrorMessage(error, "An error occurred while deleting the prompt.") });
         }
     };
 
@@ -135,7 +134,7 @@ export const PromptsPage: React.FC = () => {
             fetchPromptGroups();
             addNotification("Version made active", "success");
         } catch (error) {
-            setError({ title: "Failed to Update Version", error: getErrorMessage(error, "An error occurred while making the version active.") });
+            displayError({ title: "Failed to Update Version", error: getErrorMessage(error, "An error occurred while making the version active.") });
         }
     };
 
@@ -202,11 +201,10 @@ export const PromptsPage: React.FC = () => {
         } catch (error) {
             // Revert on error
             setPromptGroups(prev => prev.map(p => (p.id === id ? { ...p, isPinned: currentStatus } : p)));
-            setError({ title: "Failed to Update Pin Status", error: getErrorMessage(error, "An error occurred while updating the pin status.") });
+            displayError({ title: "Failed to Update Pin Status", error: getErrorMessage(error, "An error occurred while updating the pin status.") });
         }
     };
 
-    // Handle export
     const handleExport = async (prompt: PromptGroup) => {
         try {
             const response = await authenticatedFetchWithError(`/api/v1/prompts/groups/${prompt.id}/export`);
@@ -219,7 +217,7 @@ export const PromptsPage: React.FC = () => {
 
             addNotification("Prompt exported successfully", "success");
         } catch (error) {
-            setError({ title: "Failed to Export Prompt", error: getErrorMessage(error, "An error occurred while exporting the prompt.") });
+            displayError({ title: "Failed to Export Prompt", error: getErrorMessage(error, "An error occurred while exporting the prompt.") });
         }
     };
 
@@ -394,7 +392,6 @@ export const PromptsPage: React.FC = () => {
             )}
 
             <PromptImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
-            <ErrorDialog />
         </div>
     );
 };
