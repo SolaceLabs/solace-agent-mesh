@@ -659,7 +659,7 @@ If you cannot complete the task, use:
     ) -> WorkflowNodeResultData:
         """
         Finalize workflow node execution with output validation.
-        Handles retry on validation failure.
+        Handles retry on validation failure or missing result embed.
         """
         log_id = f"{self.host.log_identifier}[Node:{workflow_data.node_id}]"
 
@@ -667,12 +667,32 @@ If you cannot complete the task, use:
         result_embed = self._parse_result_embed(last_event)
 
         if not result_embed:
-            return WorkflowNodeResultData(
-                type="workflow_node_result",
-                status="failure",
-                error_message="Agent did not output result embed",
-                retry_count=retry_count,
-            )
+            error_msg = "Agent did not output the mandatory result embed: «result:artifact=... status=success»"
+            log.warning(f"{log_id} {error_msg}")
+
+            if retry_count < self.max_validation_retries:
+                log.info(f"{log_id} Retrying due to missing result embed (Attempt {retry_count + 1})")
+                feedback_text = f"""
+ERROR: You failed to provide the mandatory result embed in your response.
+You MUST end your response with:
+«result:artifact=<your_artifact_name>:v<version> status=success»
+
+Please retry and ensure you include this embed.
+"""
+                return await self._execute_retry_loop(
+                    session,
+                    workflow_data,
+                    output_schema,
+                    feedback_text,
+                    retry_count + 1,
+                )
+            else:
+                return WorkflowNodeResultData(
+                    type="workflow_node_result",
+                    status="failure",
+                    error_message=error_msg,
+                    retry_count=retry_count,
+                )
 
         # Handle explicit failure status
         if result_embed.status == "failure":
@@ -748,12 +768,26 @@ If you cannot complete the task, use:
 
                 # Check if we can retry
                 if retry_count < self.max_validation_retries:
-                    log.info(f"{log_id} Retrying with validation feedback")
-                    return await self._retry_with_validation_error(
+                    log.info(f"{log_id} Retrying with validation feedback (Attempt {retry_count + 1})")
+                    
+                    error_text = "\n".join([f"- {err}" for err in validation_errors])
+                    feedback_text = f"""
+Your previous output artifact failed schema validation with the following errors:
+
+{error_text}
+
+Please review the required schema and create a corrected artifact that addresses these errors:
+
+{json.dumps(output_schema, indent=2)}
+
+Remember to end your response with the result embed:
+«result:artifact=<corrected_artifact_name>:v<version> status=success»
+"""
+                    return await self._execute_retry_loop(
                         session,
                         workflow_data,
                         output_schema,
-                        validation_errors,
+                        feedback_text,
                         retry_count + 1,
                     )
                 else:
@@ -885,72 +919,128 @@ If you cannot complete the task, use:
         except Exception as e:
             return [f"Error validating artifact: {e}"]
 
-    async def _retry_with_validation_error(
+    async def _execute_retry_loop(
         self,
         session,
         workflow_data: WorkflowNodeRequestData,
-        output_schema: Dict[str, Any],
-        validation_errors: List[str],
+        output_schema: Optional[Dict[str, Any]],
+        feedback_text: str,
         retry_count: int,
     ) -> WorkflowNodeResultData:
         """
-        Retry agent execution with validation error feedback.
-        Appends validation errors to session history.
+        Execute a retry loop: append feedback, run agent, and validate result.
         """
         log_id = f"{self.host.log_identifier}[Node:{workflow_data.node_id}]"
-        log.info(f"{log_id} Retry {retry_count}/{self.max_validation_retries}")
+        log.info(f"{log_id} Executing retry loop {retry_count}/{self.max_validation_retries}")
 
-        # Create feedback message
-        error_text = "\n".join([f"- {err}" for err in validation_errors])
+        # 1. Append feedback to session
         feedback_content = adk_types.Content(
             role="user",
-            parts=[
-                adk_types.Part(
-                    text=f"""
-Your previous output artifact failed schema validation with the following errors:
-
-{error_text}
-
-Please review the required schema and create a corrected artifact that addresses these errors:
-
-{json.dumps(output_schema, indent=2)}
-
-Remember to end your response with the result embed:
-«result:artifact=<corrected_artifact_name>:v<version> status=success»
-"""
-                )
-            ],
+            parts=[adk_types.Part(text=feedback_text)],
         )
-
-        # Append feedback to session
+        
+        # Use a new invocation ID for the retry turn
+        import uuid
+        retry_invocation_id = f"retry_{retry_count}_{uuid.uuid4().hex[:8]}"
+        
         feedback_event = ADKEvent(
-            invocation_id=session.events[-1].invocation_id if session.events else None,
+            invocation_id=retry_invocation_id,
             author="system",
             content=feedback_content,
         )
         await self.host.session_service.append_event(session, feedback_event)
 
-        # TODO: Implement actual retry execution logic
-        # The retry logic requires:
-        # 1. Re-running the agent with the updated session containing validation feedback
-        # 2. Passing the original a2a_context through the call chain
-        # 3. Recursively calling _finalize_workflow_node_execution to validate the new output
-        #
-        # For MVP, validation errors are logged and the workflow node returns failure
-        # after max retries. Future enhancement should implement full retry with execution.
+        # 2. Re-run the agent
+        # We need to reconstruct the context needed for execution.
+        # The session object is already updated.
+        # We need the original a2a_context to pass through.
+        # Since we don't have it passed in here, we need to retrieve it from the active task context.
+        # But wait, execute_workflow_node creates a TaskExecutionContext.
+        # We can look it up if we know the logical_task_id.
+        # The session ID contains the logical_task_id: {original}:{logical}:run
+        
+        try:
+            parts = session.id.split(":")
+            if len(parts) >= 3 and parts[-1] == "run":
+                logical_task_id = parts[-2]
+            else:
+                # Fallback or error
+                log.error(f"{log_id} Could not extract logical_task_id from session ID {session.id}. Cannot retry.")
+                return WorkflowNodeResultData(
+                    type="workflow_node_result",
+                    status="failure",
+                    error_message="Internal error: Lost task context during retry",
+                    retry_count=retry_count
+                )
 
-        log.warning(
-            f"{log_id} Retry with validation error feedback is not fully implemented. "
-            f"Returning failure after {retry_count} retries."
-        )
+            with self.host.active_tasks_lock:
+                task_context = self.host.active_tasks.get(logical_task_id)
+            
+            if not task_context:
+                log.error(f"{log_id} TaskExecutionContext not found for {logical_task_id}. Cannot retry.")
+                return WorkflowNodeResultData(
+                    type="workflow_node_result",
+                    status="failure",
+                    error_message="Internal error: Task context lost during retry",
+                    retry_count=retry_count
+                )
+                
+            a2a_context = task_context.a2a_context
 
-        return WorkflowNodeResultData(
-            type="workflow_node_result",
-            status="failure",
-            error_message=f"Output validation failed after {retry_count} attempts. Retry execution not yet implemented.",
-            validation_errors=validation_errors,
-            retry_count=retry_count,
-        )
+            # Prepare run config
+            run_config = RunConfig(
+                streaming_mode=StreamingMode.SSE,
+                max_llm_calls=self.host.get_config("max_llm_calls_per_task", 20),
+            )
+
+            # Run the agent again with the updated session
+            # We pass None for adk_content because the input is already in the session history (the feedback event)
+            await run_adk_async_task_thread_wrapper(
+                self.host,
+                session,
+                None, # No new content, just run from history
+                run_config,
+                a2a_context,
+                skip_finalization=True,
+                append_context_event=False # Context already set
+            )
+
+            # 3. Fetch updated session and validate new result
+            updated_session = await self.host.session_service.get_session(
+                app_name=self.host.agent_name,
+                user_id=session.user_id,
+                session_id=session.id,
+            )
+
+            # Find the new last model event
+            last_model_event = None
+            if updated_session.events:
+                for i, event in enumerate(reversed(updated_session.events)):
+                    if event.content and event.content.role == "model":
+                        last_model_event = event
+                        break
+            
+            if not last_model_event:
+                log.warning(f"{log_id} No model response in retry turn.")
+                # This will trigger another retry if count allows, via _finalize...
+
+            # Recursively call finalize to validate the new output
+            return await self._finalize_workflow_node_execution(
+                updated_session, 
+                last_model_event, 
+                workflow_data, 
+                output_schema, 
+                retry_count
+            )
+
+        except Exception as e:
+            log.exception(f"{log_id} Error during retry execution: {e}")
+            return WorkflowNodeResultData(
+                type="workflow_node_result",
+                status="failure",
+                error_message=f"Retry execution failed: {e}",
+                retry_count=retry_count
+            )
 
     async def _return_workflow_result(
         self,
