@@ -1,7 +1,44 @@
 import path from "path";
+import fs from "fs";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
+
+/**
+ * Local Vite plugin to generate ui-version.json during build.
+ * This metadata file contains version information that can be read at runtime
+ * without exposing the full package.json.
+ */
+function generateVersionMetadata() {
+    return {
+        name: "generate-version-metadata",
+        closeBundle() {
+            const packageJsonPath = path.resolve(__dirname, "package.json");
+            const outputPath = path.resolve(__dirname, "static", "ui-version.json");
+
+            try {
+                const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+                const versionMetadata = {
+                    id: packageJson.name,
+                    name: "Solace Agent Mesh UI",
+                    description: packageJson.description || "",
+                    version: packageJson.version,
+                };
+
+                // Ensure output directory exists before writing
+                const outputDir = path.dirname(outputPath);
+                if (!fs.existsSync(outputDir)) {
+                    fs.mkdirSync(outputDir, { recursive: true });
+                }
+
+                fs.writeFileSync(outputPath, JSON.stringify(versionMetadata, null, 2) + "\n");
+                console.log(`Generated ui-version.json: ${versionMetadata.version}`);
+            } catch (error) {
+                console.error("Failed to generate ui-version.json:", error);
+            }
+        },
+    };
+}
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), "");
@@ -10,7 +47,7 @@ export default defineConfig(({ mode }) => {
     const backendTarget = `http://localhost:${backendPort}`;
 
     return {
-        plugins: [react(), tailwindcss()],
+        plugins: [react(), tailwindcss(), generateVersionMetadata()],
         resolve: {
             alias: {
                 "@": path.resolve(__dirname, "./src"),

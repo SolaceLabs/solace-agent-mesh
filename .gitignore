@@ -162,6 +162,9 @@ node_modules/
 my-dev-project
 .roo
 
+# Build-generated UI metadata
+client/webui/frontend/static/ui-version.json
+
 # workaround requirements.txt not working in ci
 requirements.txt
 data/artifacts/
