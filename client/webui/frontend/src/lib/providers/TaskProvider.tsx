@@ -99,26 +99,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         (event: MessageEvent) => {
             try {
                 const parsedData: A2AEventSSEPayload = JSON.parse(event.data);
-
-                // Log artifact_update events for testing (from signal-based artifact creation)
-                if (parsedData?.direction === "artifact_update") {
-                    const payload = parsedData.full_payload;
-                    const artifact = payload?.result?.artifact;
-
-                    console.log("🎨 Artifact Update Event Received (Signal-Based):", {
-                        timestamp: parsedData.timestamp,
-                        taskId: parsedData.task_id,
-                        sourceEntity: parsedData.source_entity,
-                        artifactName: artifact?.name,
-                        artifactDescription: artifact?.description,
-                        version: artifact?.metadata?.version,
-                        agentName: artifact?.metadata?.agent_name,
-                        mimeType: artifact?.parts?.[0]?.kind === "file" ? artifact.parts[0].file?.mimeType : artifact?.parts?.[0]?.metadata?.mime_type,
-                        fullArtifact: artifact,
-                        fullPayload: payload,
-                    });
-                }
-
                 addOrUpdateMonitoredTask(parsedData);
             } catch (parseError) {
                 console.error("TaskMonitorContext: Failed to parse SSE 'a2a_message' event data:", parseError, "Raw data:", event.data);

@@ -624,6 +624,33 @@ export const processTaskForVisualization = (
                                 });
                                 break;
                             }
+                            case "artifact_creation_progress": {
+                                // Only show completed artifacts in the workflow
+                                if (signalData.status === "completed") {
+                                    flushAggregatedTextStep(currentEventOwningTaskId);
+                                    const artifactNotification: ArtifactNotificationData = {
+                                        artifactName: signalData.filename || "Unnamed Artifact",
+                                        version: signalData.version,
+                                        description: signalData.description,
+                                        mimeType: signalData.mime_type,
+                                    };
+                                    visualizerSteps.push({
+                                        id: `vstep-artifactcreated-${visualizerSteps.length}-${eventId}`,
+                                        type: "AGENT_ARTIFACT_NOTIFICATION",
+                                        timestamp: eventTimestamp,
+                                        title: `${statusUpdateAgentName}: Created Artifact - ${artifactNotification.artifactName}`,
+                                        source: statusUpdateAgentName,
+                                        target: "User/System",
+                                        data: { artifactNotification },
+                                        rawEventIds: [eventId],
+                                        isSubTaskStep: currentEventNestingLevel > 0,
+                                        nestingLevel: currentEventNestingLevel,
+                                        owningTaskId: currentEventOwningTaskId,
+                                        functionCallId: functionCallIdForStep,
+                                    });
+                                }
+                                break;
+                            }
                         }
                     } else if (part.kind === "text" && part.text) {
                         if (aggregatedTextSourceAgent && aggregatedTextSourceAgent !== statusUpdateAgentName) {
