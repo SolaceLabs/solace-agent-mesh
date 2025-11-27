@@ -1,5 +1,6 @@
 import { PromptDeleteDialog } from "@/lib/components/prompts";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
+import { expect, screen, within } from "storybook/test";
 
 const meta = {
     title: "Pages/Prompts/PromptDeleteDialog",
@@ -29,5 +30,11 @@ export const Default: Story = {
         isOpen: true,
         onClose: () => alert("Deletion will be cancelled"),
         onConfirm: () => alert("Prompt will be deleted"),
+    },
+    play: async () => {
+        const dialog = await screen.findByRole("dialog");
+        const dialogContent = within(dialog);
+        const deleteButton = await dialogContent.findByTestId("dialogConfirmButton");
+        expect(deleteButton).toBeInTheDocument();
     },
 };
