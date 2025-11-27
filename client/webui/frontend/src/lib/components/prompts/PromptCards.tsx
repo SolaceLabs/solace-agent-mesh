@@ -158,6 +158,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                                                     {selectedCategories.length > 0 && (
                                                         <div className="border-b">
                                                             <button
+                                                                data-testid="clearFiltersButton"
                                                                 onClick={clearCategories}
                                                                 className="text-muted-foreground hover:text-foreground hover:bg-muted flex min-h-[24px] w-full cursor-pointer items-center gap-1 px-3 py-2 text-left text-xs transition-colors"
                                                             >
