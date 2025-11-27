@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from "react"
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import { Ban, Paperclip, Send } from "lucide-react";
+import { Ban, Paperclip, Send, MessageSquarePlus } from "lucide-react";
 
 import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
@@ -66,6 +66,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [showArtifactForm, setShowArtifactForm] = useState(false);
 
     const [contextText, setContextText] = useState<string | null>(null);
+    const [showContextBadge, setShowContextBadge] = useState(false);
 
     const chatInputRef = useRef<HTMLTextAreaElement>(null);
     const prevIsRespondingRef = useRef<boolean>(isResponding);
@@ -152,10 +153,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         const handleFollowUp = async (event: Event) => {
             const customEvent = event as CustomEvent;
             const { text, prompt, autoSubmit } = customEvent.detail;
-            setContextText(text);
 
-            // If a prompt is provided, pre-fill the input
+            // If a prompt is provided, use the old behavior
             if (prompt) {
+                setContextText(text);
                 setInputValue(prompt + " ");
 
                 if (autoSubmit) {
@@ -165,14 +166,19 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         const fakeEvent = new Event("submit") as unknown as FormEvent;
                         await handleSubmit(fakeEvent, [], fullMessage);
                         setContextText(null);
+                        setShowContextBadge(false);
                         setInputValue("");
                         scrollToBottom?.();
                     }, 50);
                     return;
                 }
+            } else {
+                // No prompt provided - show the selected text as a badge above the input
+                setContextText(text);
+                setShowContextBadge(true);
             }
 
-            // Focus the input for custom questions
+            // Focus the input
             setTimeout(() => {
                 chatInputRef.current?.focus();
             }, 100);
@@ -273,6 +279,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     id: `paste-artifact-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
                     artifactId: result.uri,
                     filename: title,
+                    mimeType: mimeType,
                     timestamp: Date.now(),
                 };
                 setPastedArtifactItems(prev => {
@@ -303,21 +310,41 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0), [isResponding, inputValue, selectedFiles]);
+    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pastedArtifactItems.length !== 0), [isResponding, inputValue, selectedFiles, pastedArtifactItems]);
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
         if (isSubmittingEnabled) {
             let fullMessage = inputValue.trim();
-            if (contextText) {
+            if (contextText && showContextBadge) {
                 fullMessage = `${fullMessage}\n\nContext: "${contextText}"`;
             }
 
-            await handleSubmit(event, selectedFiles, fullMessage);
+            const artifactFiles: File[] = pastedArtifactItems
+                .filter(item => item.artifactId && item.mimeType) // Skip invalid items early
+                .map(item => {
+                    // Create a special File object that contains the artifact URI
+                    const artifactData = JSON.stringify({
+                        isArtifactReference: true,
+                        uri: item.artifactId,
+                        filename: item.filename,
+                        mimeType: item.mimeType,
+                    });
+                    const blob = new Blob([artifactData], { type: "application/x-artifact-reference" });
+                    return new File([blob], item.filename, {
+                        type: "application/x-artifact-reference",
+                    });
+                });
+
+            // Combine regular files with artifact references
+            const allFiles = [...selectedFiles, ...artifactFiles];
+
+            await handleSubmit(event, allFiles, fullMessage);
             setSelectedFiles([]);
             setPastedArtifactItems([]);
             setInputValue("");
             setContextText(null);
+            setShowContextBadge(false);
             scrollToBottom?.();
         }
     };
@@ -464,6 +491,32 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     {selectedFiles.map((file, index) => (
                         <FileBadge key={`${file.name}-${file.lastModified}-${index}`} fileName={file.name} onRemove={() => handleRemoveFile(index)} />
                     ))}
+                </div>
+            )}
+
+            {/* Context Text Badge (from text selection) */}
+            {showContextBadge && contextText && (
+                <div className="mb-2">
+                    <div className="bg-muted/50 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                        <div className="flex flex-1 items-center gap-2">
+                            <MessageSquarePlus className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+                            <span className="text-muted-foreground max-w-[600px] truncate italic">"{contextText.length > 100 ? contextText.substring(0, 100) + "..." : contextText}"</span>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="hover:bg-background h-5 w-5 rounded-sm"
+                            onClick={() => {
+                                setContextText(null);
+                                setShowContextBadge(false);
+                            }}
+                        >
+                            <span className="sr-only">Remove context</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                            </svg>
+                        </Button>
+                    </div>
                 </div>
             )}
 
