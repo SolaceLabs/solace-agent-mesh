@@ -18,7 +18,7 @@ from .app import (
     AgentNode,
     ConditionalNode,
     ForkNode,
-    LoopNode,
+    MapNode,
 )
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 from ..common.data_parts import WorkflowNodeResultData
@@ -262,8 +262,8 @@ class DAGExecutor:
                 )
             elif node.type == "fork":
                 await self._execute_fork_node(node, workflow_state, workflow_context)
-            elif node.type == "loop":
-                await self._execute_loop_node(node, workflow_state, workflow_context)
+            elif node.type == "map":
+                await self._execute_map_node(node, workflow_state, workflow_context)
             else:
                 raise ValueError(f"Unknown node type: {node.type}")
 
@@ -453,122 +453,111 @@ class DAGExecutor:
         # Note: It was already added to pending_nodes by execute_workflow loop
         # but we need to ensure it stays there until branches are done.
 
-    async def _execute_loop_node(
+    async def _execute_map_node(
         self,
-        node: LoopNode,
+        node: MapNode,
         workflow_state: WorkflowExecutionState,
         workflow_context: WorkflowExecutionContext,
     ):
-        """Execute loop node."""
-        log_id = f"{self.host.log_identifier}[Loop:{node.id}]"
+        """Execute map node with concurrency control."""
+        log_id = f"{self.host.log_identifier}[Map:{node.id}]"
 
-        # Resolve loop array
-        items = self._resolve_template(node.loop_over, workflow_state)
+        # Resolve items array
+        items = self._resolve_template(node.items, workflow_state)
 
         if not isinstance(items, list):
-            raise ValueError(f"Loop target must be array, got: {type(items)}")
+            raise ValueError(f"Map target must be array, got: {type(items)}")
 
-        # Check iteration limit
-        max_iterations = (
-            node.max_iterations
-            or self.host.get_config("default_max_loop_iterations", 100)
+        # Check item limit
+        max_items = (
+            node.max_items or self.host.get_config("default_max_map_items", 100)
         )
 
-        if len(items) > max_iterations:
+        if len(items) > max_items:
             raise WorkflowExecutionError(
-                f"Loop '{node.id}' exceeds max iterations: "
-                f"{len(items)} > {max_iterations}"
+                f"Map '{node.id}' exceeds max items: " f"{len(items)} > {max_items}"
             )
 
-        log.info(f"{log_id} Starting loop with {len(items)} iterations")
+        log.info(f"{log_id} Starting map with {len(items)} items")
 
-        # Execute loop iterations sequentially
-        loop_results = []
+        # Initialize tracking state
+        # We store the full list of items and their status
+        map_state = {
+            "items": items,
+            "results": [None] * len(items),  # Placeholders for results
+            "pending_indices": list(range(len(items))),  # Indices waiting to run
+            "active_indices": set(),  # Indices currently running
+            "completed_count": 0,
+            "concurrency_limit": node.concurrency_limit,
+            "target_node_id": node.node,
+        }
 
-        for i, item in enumerate(items):
-            log.debug(f"{log_id} Iteration {i+1}/{len(items)}")
+        # Store in active_branches (using a dict instead of list for map state)
+        # Note: active_branches type hint is Dict[str, List[Dict]], but we are storing a Dict.
+        # We should probably update the type hint or wrap this in a list.
+        # For compatibility with existing structure, let's wrap it or adapt.
+        # The existing structure expects a list of branches.
+        # Let's adapt: active_branches[node.id] will hold the list of *active* sub-tasks.
+        # But we need to store the *pending* state somewhere.
+        # We can store the map_state in a special metadata field or abuse active_branches.
+        # Let's use a list of dicts where the first element is the metadata/state.
+        # This is a bit hacky but avoids schema changes.
+        # Better: Use `metadata` field in WorkflowExecutionState for map state.
+        workflow_state.metadata[f"map_state_{node.id}"] = map_state
+        workflow_state.active_branches[node.id] = []  # Will hold active sub-tasks
 
-            # Create a lightweight, temporary state for the iteration.
-            # This avoids deep-copying the entire workflow state for each loop.
-            # We just need to inject the loop variables.
-            iteration_state = workflow_state.model_copy(deep=False)
-            iteration_state.node_outputs = {
-                **workflow_state.node_outputs,
-                "_loop_item": {"output": item},
-                "_loop_index": {"output": i},
-            }
+        # Launch initial batch
+        await self._launch_map_iterations(node.id, workflow_state, workflow_context)
 
-            # Execute loop body node
-            # Note: loop_node is an ID referencing a node definition.
-            # We need to find that node definition.
-            # But wait, the loop body node is likely defined in the main nodes list?
-            # Or is it a sub-node?
-            # The design doc says: "loop_node: str # Node ID to execute for each item"
-            # This implies the node exists in self.nodes.
-            loop_body_node = self.nodes[node.loop_node]
+    async def _launch_map_iterations(
+        self,
+        map_node_id: str,
+        workflow_state: WorkflowExecutionState,
+        workflow_context: WorkflowExecutionContext,
+    ):
+        """Launch pending map iterations up to concurrency limit."""
+        map_state = workflow_state.metadata.get(f"map_state_{map_node_id}")
+        if not map_state:
+            return
 
-            if loop_body_node.type != "agent":
-                raise ValueError("Loop body must be an agent node for MVP")
+        concurrency_limit = map_state["concurrency_limit"]
+        active_indices = map_state["active_indices"]
+        pending_indices = map_state["pending_indices"]
+        items = map_state["items"]
+        target_node_id = map_state["target_node_id"]
 
-            # We need to execute this node and WAIT for it.
-            # But `call_persona` is async and returns sub_task_id.
-            # We can't easily "wait" here without blocking the event loop if we use `await`.
-            # But we ARE in an async method.
-            # The problem is `call_persona` sends a message and returns.
-            # The response comes later via `handle_persona_response`.
-            #
-            # If we want sequential execution of loop items, we need to:
-            # 1. Send request for item 0.
-            # 2. Return/Exit.
-            # 3. When item 0 completes, trigger item 1.
-            #
-            # This requires state management for the loop index.
-            # `WorkflowExecutionState` doesn't currently have `loop_state`.
-            #
-            # For MVP, let's assume we can't easily do sequential loops without
-            # adding significant state management complexity (re-entry).
-            #
-            # Alternative: Parallel Loop (Launch all at once like Fork).
-            # This is much easier with the current architecture.
-            # Let's implement Parallel Loop for MVP.
+        # Determine how many to launch
+        while pending_indices:
+            if concurrency_limit and len(active_indices) >= concurrency_limit:
+                break
 
-            # ... Switching to Parallel Loop Implementation ...
-            pass
+            index = pending_indices.pop(0)
+            item = items[index]
+            active_indices.add(index)
 
-        # Parallel Loop Implementation
-        loop_sub_tasks = []
-        for i, item in enumerate(items):
             # Create iteration state
             iteration_state = workflow_state.model_copy(deep=False)
             iteration_state.node_outputs = {
                 **workflow_state.node_outputs,
-                "_loop_item": {"output": item},
-                "_loop_index": {"output": i},
+                "_map_item": {"output": item},
+                "_map_index": {"output": index},
             }
 
-            loop_body_node = self.nodes[node.loop_node]
-            # We need to clone the node to give it a unique ID for this iteration?
-            # Or just track it by sub_task_id.
-            # `call_persona` uses node.id for logging/metadata.
-            # Let's create a temporary node wrapper.
-            iter_node = loop_body_node.model_copy()
-            # We don't change ID, but we rely on sub_task_id uniqueness.
+            target_node = self.nodes[target_node_id]
+            iter_node = target_node.model_copy()
 
+            # Execute
             sub_task_id = await self.host.persona_caller.call_persona(
                 iter_node, iteration_state, workflow_context
             )
 
-            loop_sub_tasks.append(
+            # Track active sub-task
+            workflow_state.active_branches[map_node_id].append(
                 {
-                    "index": i,
+                    "index": index,
                     "sub_task_id": sub_task_id,
                 }
             )
-
-        # Store loop tracking
-        workflow_state.active_branches[node.id] = loop_sub_tasks
-        # Mark loop as pending
-        # (It stays in pending_nodes until all iterations are done)
 
     def _resolve_template(
         self, template: str, workflow_state: WorkflowExecutionState
@@ -608,8 +597,8 @@ class DAGExecutor:
             # Reference to node output
             node_id = parts[0]
             if node_id not in workflow_state.node_outputs:
-                # Check if it's a loop variable
-                if node_id in ["_loop_item", "_loop_index"]:
+                # Check if it's a map variable
+                if node_id in ["_map_item", "_map_index"]:
                     pass  # Allow it
                 else:
                     # Return None for skipped/incomplete nodes to allow for safe navigation/coalescing
@@ -667,13 +656,13 @@ class DAGExecutor:
         # Node succeeded
         log.debug(f"{log_id} Node '{node_id}' completed successfully")
 
-        # Check if this was part of a Fork or Loop
+        # Check if this was part of a Fork or Map
         # We need to find if this node_id is being tracked in active_branches
         # But wait, node_id is the ID of the node definition.
         # For Fork, the node_id IS the branch ID.
-        # For Loop, the node_id IS the loop body node ID.
+        # For Map, the node_id IS the map body node ID.
 
-        # Check if this node is part of an active fork/loop
+        # Check if this node is part of an active fork/map
         parent_control_node_id = None
         for control_node_id, branches in workflow_state.active_branches.items():
             for branch in branches:
@@ -718,34 +707,56 @@ class DAGExecutor:
         workflow_state: WorkflowExecutionState,
         workflow_context: WorkflowExecutionContext,
     ):
-        """Handle completion of a child task within a Fork or Loop."""
+        """Handle completion of a child task within a Fork or Map."""
         log_id = f"{self.host.log_identifier}[ControlNode:{control_node_id}]"
         branches = workflow_state.active_branches.get(control_node_id, [])
 
-        # Find and update the specific branch/iteration
+        # Find the specific branch/iteration
+        completed_branch = None
         for branch in branches:
             if branch["sub_task_id"] == sub_task_id:
-                branch["result"] = {
-                    "artifact_name": result.artifact_name,
-                    "artifact_version": result.artifact_version,
-                }
+                completed_branch = branch
                 break
 
-        # Check if all branches/iterations are complete
-        all_complete = all("result" in b for b in branches)
+        if not completed_branch:
+            log.error(f"{log_id} Could not find branch for sub-task {sub_task_id}")
+            return
 
-        if all_complete:
-            log.info(f"{log_id} All branches/iterations completed")
-            
-            # Determine if it's a Fork or Loop based on node definition
-            control_node = self.nodes[control_node_id]
-            
-            if control_node.type == "fork":
-                await self._finalize_fork_node(
-                    control_node_id, branches, workflow_state, workflow_context
+        # Update result
+        completed_branch["result"] = {
+            "artifact_name": result.artifact_name,
+            "artifact_version": result.artifact_version,
+        }
+
+        control_node = self.nodes[control_node_id]
+
+        if control_node.type == "map":
+            # Handle Map logic (concurrency, state update)
+            map_state = workflow_state.metadata.get(f"map_state_{control_node_id}")
+            if map_state:
+                index = completed_branch["index"]
+                map_state["active_indices"].remove(index)
+                map_state["completed_count"] += 1
+                # Store result in map_state for final aggregation
+                map_state["results"][index] = completed_branch
+
+                # Launch next pending items
+                await self._launch_map_iterations(
+                    control_node_id, workflow_state, workflow_context
                 )
-            elif control_node.type == "loop":
-                await self._finalize_loop_node(
+
+                # Check if ALL items are complete
+                if map_state["completed_count"] == len(map_state["items"]):
+                    log.info(f"{log_id} All map items completed")
+                    await self._finalize_map_node(
+                        control_node_id, map_state, workflow_state, workflow_context
+                    )
+        else:
+            # Fork logic (wait for all)
+            all_complete = all("result" in b for b in branches)
+            if all_complete:
+                log.info(f"{log_id} All fork branches completed")
+                await self._finalize_fork_node(
                     control_node_id, branches, workflow_state, workflow_context
                 )
 
@@ -806,42 +817,54 @@ class DAGExecutor:
         # Continue workflow
         await self.execute_workflow(workflow_state, workflow_context)
 
-    async def _finalize_loop_node(
+    async def _finalize_map_node(
         self,
-        loop_node_id: str,
-        iterations: List[Dict],
+        map_node_id: str,
+        map_state: Dict,
         workflow_state: WorkflowExecutionState,
         workflow_context: WorkflowExecutionContext,
     ):
-        """Aggregate loop iteration results."""
-        log_id = f"{self.host.log_identifier}[Loop:{loop_node_id}]"
-        
-        # Sort by index to ensure order
-        iterations.sort(key=lambda x: x["index"])
-        
+        """Aggregate map results."""
+        log_id = f"{self.host.log_identifier}[Map:{map_node_id}]"
+
         results_list = []
-        for iter_info in iterations:
+        # map_state["results"] is already ordered by index
+        for iter_info in map_state["results"]:
+            if not iter_info or "result" not in iter_info:
+                # Should not happen if completed_count check is correct
+                log.error(f"{log_id} Missing result for item")
+                results_list.append(None)
+                continue
+
             artifact_name = iter_info["result"]["artifact_name"]
             artifact_version = iter_info["result"]["artifact_version"]
 
             artifact_data = await self.host._load_node_output(
-                node_id=loop_node_id,
+                node_id=map_node_id,
                 artifact_name=artifact_name,
                 artifact_version=artifact_version,
                 workflow_context=workflow_context,
                 sub_task_id=iter_info["sub_task_id"],
             )
             results_list.append(artifact_data)
-            
+
         # Create aggregated artifact
-        merged_artifact_name = f"loop_{loop_node_id}_results.json"
-        # Save artifact logic...
-        
-        workflow_state.completed_nodes[loop_node_id] = merged_artifact_name
-        if loop_node_id in workflow_state.pending_nodes:
-            workflow_state.pending_nodes.remove(loop_node_id)
-        workflow_state.node_outputs[loop_node_id] = {"output": {"results": results_list}}
-        
-        del workflow_state.active_branches[loop_node_id]
-        
+        merged_artifact_name = f"map_{map_node_id}_results.json"
+        await self.host.artifact_service.save_artifact(
+            app_name=self.host.agent_name,
+            user_id=workflow_context.a2a_context["user_id"],
+            session_id=workflow_context.a2a_context["session_id"],
+            filename=merged_artifact_name,
+            artifact=adk_types.Part.from_text(json.dumps({"results": results_list})),
+        )
+
+        workflow_state.completed_nodes[map_node_id] = merged_artifact_name
+        if map_node_id in workflow_state.pending_nodes:
+            workflow_state.pending_nodes.remove(map_node_id)
+        workflow_state.node_outputs[map_node_id] = {"output": {"results": results_list}}
+
+        # Cleanup state
+        del workflow_state.active_branches[map_node_id]
+        del workflow_state.metadata[f"map_state_{map_node_id}"]
+
         await self.execute_workflow(workflow_state, workflow_context)

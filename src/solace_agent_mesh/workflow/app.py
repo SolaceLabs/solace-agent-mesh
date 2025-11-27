@@ -64,17 +64,20 @@ class ForkNode(WorkflowNode):
     branches: List[ForkBranch] = Field(..., description="Parallel branches")
 
 
-class LoopNode(WorkflowNode):
-    """Loop iteration node."""
+class MapNode(WorkflowNode):
+    """Map (parallel iteration) node."""
 
-    type: Literal["loop"] = "loop"
-    loop_over: str = Field(..., description="Array template reference")
-    loop_node: str = Field(..., description="Node ID to execute per iteration")
-    max_iterations: Optional[int] = Field(100, description="Max iterations")
+    type: Literal["map"] = "map"
+    items: str = Field(..., description="Array template reference to iterate over")
+    node: str = Field(..., description="Node ID to execute for each item")
+    max_items: Optional[int] = Field(100, description="Max items to process")
+    concurrency_limit: Optional[int] = Field(
+        None, description="Max concurrent executions. None means unlimited."
+    )
 
 
 # Union type for polymorphic node list
-WorkflowNodeUnion = Union[AgentNode, ConditionalNode, ForkNode, LoopNode]
+WorkflowNodeUnion = Union[AgentNode, ConditionalNode, ForkNode, MapNode]
 
 
 class WorkflowDefinition(BaseModel):
@@ -144,8 +147,8 @@ class WorkflowAppConfig(SamAgentAppConfig):
         default=30,
         description="Time to wait for a node to confirm cancellation before force-failing.",
     )
-    default_max_loop_iterations: int = Field(
-        default=100, description="Default max iterations for loop nodes"
+    default_max_map_items: int = Field(
+        default=100, description="Default max items for map nodes"
     )
 
     # Override optional fields from SamAgentAppConfig that might not be needed or have different defaults
