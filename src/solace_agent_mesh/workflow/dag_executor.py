@@ -234,7 +234,9 @@ class DAGExecutor:
                 await self.execute_node(node_id, workflow_state, workflow_context)
 
                 # Update pending nodes
-                workflow_state.pending_nodes.append(node_id)
+                # Only add if NOT completed (i.e. it was an async node that started)
+                if node_id not in workflow_state.completed_nodes:
+                    workflow_state.pending_nodes.append(node_id)
 
             # Persist state
             await self.host._update_workflow_state(workflow_context, workflow_state)
@@ -311,7 +313,6 @@ class DAGExecutor:
 
         # Mark conditional as complete immediately since it's internal logic
         workflow_state.completed_nodes[node.id] = "conditional_evaluated"
-        workflow_state.pending_nodes.remove(node.id)
 
         if next_node_id:
             # Add selected branch to dependencies dynamically?

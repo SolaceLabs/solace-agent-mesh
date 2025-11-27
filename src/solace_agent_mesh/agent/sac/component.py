@@ -3399,13 +3399,15 @@ class SamAgentComponent(SamComponentBase):
 
     def set_agent_system_instruction_callback(
         self,
-        callback_function: Callable[[CallbackContext, LlmRequest], Optional[str]],
+        callback_function: Optional[
+            Callable[[CallbackContext, LlmRequest], Optional[str]]
+        ],
     ) -> None:
         """
         Sets a callback function to dynamically generate system prompt injections.
         Called by the agent's init_function.
         """
-        if not callable(callback_function):
+        if callback_function is not None and not callable(callback_function):
             log.error(
                 "%s Invalid type for callback_function: %s. Must be callable.",
                 self.log_identifier,
