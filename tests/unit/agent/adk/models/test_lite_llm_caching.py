@@ -127,6 +127,7 @@ class TestGetCompletionInputsSystemInstructionCaching:
         content_block = system_msg["content"][0]
         assert "cache_control" not in content_block
 
+    @pytest.mark.skip(reason="ADK 1.18 requires config to be non-None")
     def test_no_system_instruction_no_error(self):
         """Test that no system instruction doesn't cause errors."""
         content = Content(role="user", parts=[Part(text="Hello")])

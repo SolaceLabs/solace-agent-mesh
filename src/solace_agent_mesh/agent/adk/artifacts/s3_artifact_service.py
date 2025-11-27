@@ -10,6 +10,7 @@ import boto3
 from botocore.client import BaseClient
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 from google.adk.artifacts import BaseArtifactService
+from google.adk.artifacts.base_artifact_service import ArtifactVersion
 from google.genai import types as adk_types
 from typing_extensions import override
 
@@ -444,3 +445,165 @@ class S3ArtifactService(BaseArtifactService):
         sorted_versions = sorted(versions)
         logger.debug("%sFound versions: %s", log_prefix, sorted_versions)
         return sorted_versions
+
+    @override
+    async def list_artifact_versions(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        filename: str,
+        session_id: str,
+    ) -> list[ArtifactVersion]:
+        """Lists all versions and their metadata for a specific artifact."""
+        log_prefix = f"[S3Artifact:ListArtifactVersions:{filename}] "
+        filename = self._normalize_filename_unicode(filename)
+        app_name = app_name.strip('/')
+
+        # Get the prefix for this specific artifact (without version)
+        prefix = self._get_object_key(app_name, user_id, session_id, filename, "")
+        artifact_versions = []
+
+        try:
+
+            def _list_objects():
+                paginator = self.s3.get_paginator("list_objects_v2")
+                return paginator.paginate(Bucket=self.bucket_name, Prefix=prefix)
+
+            pages = await asyncio.to_thread(_list_objects)
+            for page in pages:
+                for obj in page.get("Contents", []):
+                    parts = obj["Key"].split("/")
+                    if len(parts) >= 5:  # scope/user/session_or_user/filename/version
+                        try:
+                            version_num = int(parts[4])
+
+                            # Get object metadata
+                            def _head_object():
+                                return self.s3.head_object(
+                                    Bucket=self.bucket_name, Key=obj["Key"]
+                                )
+
+                            metadata_response = await asyncio.to_thread(_head_object)
+
+                            # Extract information
+                            mime_type = metadata_response.get(
+                                "ContentType", "application/octet-stream"
+                            )
+                            # S3 LastModified is a datetime object, convert to timestamp
+                            create_time = obj.get("LastModified").timestamp()
+
+                            # Create ArtifactVersion object
+                            artifact_version = ArtifactVersion(
+                                version=version_num,
+                                canonical_uri=f"s3://{self.bucket_name}/{obj['Key']}",
+                                mime_type=mime_type,
+                                create_time=create_time,
+                                custom_metadata={},
+                            )
+                            artifact_versions.append(artifact_version)
+
+                        except (ValueError, ClientError) as e:
+                            logger.warning(
+                                "%sFailed to process version from key '%s': %s",
+                                log_prefix,
+                                obj["Key"],
+                                e,
+                            )
+                            continue
+
+        except ClientError as e:
+            logger.error(
+                "%sError listing versions with prefix '%s': %s",
+                log_prefix,
+                prefix,
+                e,
+            )
+            return []
+
+        # Sort by version number
+        artifact_versions.sort(key=lambda av: av.version)
+        logger.debug("%sFound %d artifact versions", log_prefix, len(artifact_versions))
+        return artifact_versions
+
+    @override
+    async def get_artifact_version(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        filename: str,
+        session_id: str,
+        version: int | None = None,
+    ) -> ArtifactVersion | None:
+        """Gets the metadata for a specific version of an artifact."""
+        log_prefix = f"[S3Artifact:GetArtifactVersion:{filename}] "
+        filename = self._normalize_filename_unicode(filename)
+        app_name = app_name.strip('/')
+
+        # Determine which version to get
+        load_version = version
+        if load_version is None:
+            versions = await self.list_versions(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+            )
+            if not versions:
+                logger.debug("%sNo versions found for artifact.", log_prefix)
+                return None
+            load_version = max(versions)
+            logger.debug("%sGetting latest version: %d", log_prefix, load_version)
+        else:
+            logger.debug("%sGetting specified version: %d", log_prefix, load_version)
+
+        object_key = self._get_object_key(
+            app_name, user_id, session_id, filename, load_version
+        )
+
+        try:
+
+            def _head_object():
+                return self.s3.head_object(Bucket=self.bucket_name, Key=object_key)
+
+            response = await asyncio.to_thread(_head_object)
+
+            # Extract information
+            mime_type = response.get("ContentType", "application/octet-stream")
+            # S3 LastModified is a datetime object, convert to timestamp
+            create_time = response.get("LastModified").timestamp()
+
+            # Create and return ArtifactVersion object
+            artifact_version = ArtifactVersion(
+                version=load_version,
+                canonical_uri=f"s3://{self.bucket_name}/{object_key}",
+                mime_type=mime_type,
+                create_time=create_time,
+                custom_metadata={},
+            )
+
+            logger.info(
+                "%sRetrieved metadata for artifact '%s' version %d",
+                log_prefix,
+                filename,
+                load_version,
+            )
+            return artifact_version
+
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")
+            if error_code == "NoSuchKey" or error_code == "404":
+                logger.debug(
+                    "%sArtifact version not found: %s", log_prefix, object_key
+                )
+                return None
+            else:
+                logger.error(
+                    "%sFailed to get metadata for artifact '%s' version %d: %s",
+                    log_prefix,
+                    filename,
+                    load_version,
+                    e,
+                )
+                return None
