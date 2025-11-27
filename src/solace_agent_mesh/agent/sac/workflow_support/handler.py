@@ -531,10 +531,14 @@ class WorkflowNodeHandler:
             # outputs nothing in the final turn. We scan backwards for the text output.
             last_model_event = None
             if adk_session.events:
-                for event in reversed(adk_session.events):
+                for i, event in enumerate(reversed(adk_session.events)):
                     if event.content and event.content.role == "model":
                         last_model_event = event
+                        log.debug(f"{log_id} Found last model event at index -{i+1}: {event.id}")
                         break
+
+            if not last_model_event:
+                log.warning(f"{log_id} No model event found in session history.")
 
             result_data = await self._finalize_workflow_node_execution(
                 adk_session, last_model_event, workflow_data, output_schema, retry_count=0
@@ -761,11 +765,13 @@ If you cannot complete the task, use:
         Format: «result:artifact=<name>:v<version> status=<success|failure> message="<text>"»
         """
         if not adk_event or not adk_event.content or not adk_event.content.parts:
+            log.debug("Result embed parse: Event is empty or has no content.")
             return None
 
         # Only parse result embeds from agent responses (role="model"), not instructions (role="user")
         # This prevents parsing example embeds from the workflow instructions
         if adk_event.content.role != "model":
+            log.debug(f"Result embed parse: Event role is {adk_event.content.role}, skipping.")
             return None
 
         # Extract text from last event
@@ -773,6 +779,8 @@ If you cannot complete the task, use:
         for part in adk_event.content.parts:
             if part.text:
                 text_content += part.text
+
+        log.debug(f"Result embed parse: Scanning text content (len={len(text_content)}): {text_content[:100]}...")
 
         # Parse embeds using EMBED_REGEX
         result_embeds = []
