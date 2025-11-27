@@ -933,30 +933,16 @@ Remember to end your response with the result embed:
         log_id = f"{self.host.log_identifier}[Node:{workflow_data.node_id}]"
         log.info(f"{log_id} Executing retry loop {retry_count}/{self.max_validation_retries}")
 
-        # 1. Append feedback to session
+        # 1. Prepare feedback content
         feedback_content = adk_types.Content(
             role="user",
             parts=[adk_types.Part(text=feedback_text)],
         )
-        
-        # Use a new invocation ID for the retry turn
-        import uuid
-        retry_invocation_id = f"retry_{retry_count}_{uuid.uuid4().hex[:8]}"
-        
-        feedback_event = ADKEvent(
-            invocation_id=retry_invocation_id,
-            author="system",
-            content=feedback_content,
-        )
-        await self.host.session_service.append_event(session, feedback_event)
 
         # 2. Re-run the agent
         # We need to reconstruct the context needed for execution.
-        # The session object is already updated.
         # We need the original a2a_context to pass through.
         # Since we don't have it passed in here, we need to retrieve it from the active task context.
-        # But wait, execute_workflow_node creates a TaskExecutionContext.
-        # We can look it up if we know the logical_task_id.
         # The session ID contains the logical_task_id: {original}:{logical}:run
         
         try:
@@ -993,12 +979,12 @@ Remember to end your response with the result embed:
                 max_llm_calls=self.host.get_config("max_llm_calls_per_task", 20),
             )
 
-            # Run the agent again with the updated session
-            # We pass None for adk_content because the input is already in the session history (the feedback event)
+            # Run the agent again with the feedback content
+            # The runner will handle appending the event to the session
             await run_adk_async_task_thread_wrapper(
                 self.host,
                 session,
-                None, # No new content, just run from history
+                feedback_content,
                 run_config,
                 a2a_context,
                 skip_finalization=True,
