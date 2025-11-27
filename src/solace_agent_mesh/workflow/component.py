@@ -480,6 +480,7 @@ class WorkflowExecutorComponent(SamComponentBase):
         artifact_name: str,
         artifact_version: int,
         workflow_context: WorkflowExecutionContext,
+        sub_task_id: Optional[str] = None,
     ) -> Any:
         """Load a node's output artifact.
 
@@ -488,18 +489,20 @@ class WorkflowExecutorComponent(SamComponentBase):
         when artifact_scope is "namespace". This allows all agents and workflows
         in the same namespace to access the same artifact store.
 
-        For session_id, we construct the RUN_BASED session ID that was used by
-        the workflow node using the pattern: {workflow_session}:{sub_task_id}:run
+        We use the parent workflow session ID to load artifacts, as agents are expected
+        to save their outputs to the shared parent session scope.
         """
         import json
 
         user_id = workflow_context.a2a_context["user_id"]
+        # Use the parent session ID (caller's session) to ensure artifacts are shared/persisted
         workflow_session_id = workflow_context.a2a_context["session_id"]
 
-        # Get the sub-task ID for this node
-        sub_task_id = workflow_context.get_sub_task_for_node(node_id)
+        # If sub_task_id is not provided, look it up from the node_id
         if not sub_task_id:
-            raise ValueError(f"No sub-task ID found for node {node_id}")
+            sub_task_id = workflow_context.get_sub_task_for_node(node_id)
+            if not sub_task_id:
+                raise ValueError(f"No sub-task ID found for node {node_id}")
 
         # The app_name doesn't matter in namespace mode - the ScopedArtifactServiceWrapper
         # will replace it with self.namespace. But we pass workflow_name for consistency.

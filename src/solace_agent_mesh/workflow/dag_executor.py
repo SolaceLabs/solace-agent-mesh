@@ -765,7 +765,11 @@ class DAGExecutor:
 
             # Load artifact
             artifact_data = await self.host._load_node_output(
-                artifact_name, artifact_version, workflow_context
+                node_id=fork_node_id,
+                artifact_name=artifact_name,
+                artifact_version=artifact_version,
+                workflow_context=workflow_context,
+                sub_task_id=branch["sub_task_id"],
             )
 
             # Add to merged output
@@ -815,9 +819,13 @@ class DAGExecutor:
         for iter_info in iterations:
             artifact_name = iter_info["result"]["artifact_name"]
             artifact_version = iter_info["result"]["artifact_version"]
-            
+
             artifact_data = await self.host._load_node_output(
-                artifact_name, artifact_version, workflow_context
+                node_id=loop_node_id,
+                artifact_name=artifact_name,
+                artifact_version=artifact_version,
+                workflow_context=workflow_context,
+                sub_task_id=iter_info["sub_task_id"],
             )
             results_list.append(artifact_data)
             
