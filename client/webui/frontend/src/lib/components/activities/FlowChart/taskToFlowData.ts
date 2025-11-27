@@ -32,7 +32,18 @@ import {
 import { EdgeAnimationService } from "./edgeAnimationService";
 
 // Relevant step types that should be processed in the flow chart
-const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED"];
+const RELEVANT_STEP_TYPES = [
+    "USER_REQUEST",
+    "AGENT_LLM_CALL",
+    "AGENT_LLM_RESPONSE_TO_AGENT",
+    "AGENT_LLM_RESPONSE_TOOL_DECISION",
+    "AGENT_TOOL_INVOCATION_START",
+    "AGENT_TOOL_EXECUTION_RESULT",
+    "AGENT_RESPONSE_TEXT",
+    "AGENT_ARTIFACT_NOTIFICATION",
+    "TASK_COMPLETED",
+    "TASK_FAILED",
+];
 
 interface FlowData {
     nodes: Node[];
@@ -434,6 +445,139 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
     }
 }
 
+function handleArtifactNotification(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    const currentPhase = getCurrentPhase(manager);
+    if (!currentPhase) return;
+
+    const artifactData = step.data.artifactNotification;
+    const artifactName = artifactData?.artifactName || "Unnamed Artifact";
+
+    // Resolve the subflow context (if we're in a peer agent subflow)
+    const subflow = resolveSubflowContext(manager, step);
+
+    // Find the tool node that created this artifact
+    // We look for a tool that was invoked with the same functionCallId or recently executed
+    const context = subflow || currentPhase;
+    let sourceToolNode: NodeInstance | undefined;
+
+    // Try to find the tool by functionCallId first
+    if (step.functionCallId) {
+        sourceToolNode = findToolInstanceByNameEnhanced(context.toolInstances, "", nodes, step.functionCallId) ?? undefined;
+    }
+
+    // If not found by functionCallId, find the most recent tool in this context
+    if (!sourceToolNode && context.toolInstances.length > 0) {
+        sourceToolNode = context.toolInstances[context.toolInstances.length - 1];
+    }
+
+    let sourceNodeId: string;
+    let sourceHandle: string;
+
+    if (sourceToolNode) {
+        // Connect from the tool node's right handle
+        sourceNodeId = sourceToolNode.id;
+        sourceHandle = `${sourceToolNode.id}-tool-right-output-artifact`;
+    } else {
+        // Fallback: connect directly from agent if no tool found
+        const sourceName = step.source || "UnknownSource";
+        if (subflow) {
+            sourceNodeId = subflow.peerAgent.id;
+            sourceHandle = "peer-right-output-tools";
+        } else {
+            const sourceAgent = manager.agentRegistry.findAgentByName(sourceName);
+            if (sourceAgent) {
+                sourceNodeId = sourceAgent.nodeInstance.id;
+                sourceHandle = getAgentHandle(sourceAgent.type, "output", "right");
+            } else {
+                sourceNodeId = currentPhase.orchestratorAgent.id;
+                sourceHandle = "orch-right-output-tools";
+            }
+        }
+    }
+
+    // Create artifact node positioned to the RIGHT of the tool node
+    const artifactNodeId = generateNodeId(manager, `Artifact_${artifactName}_${step.id}`);
+    const parentGroupId = subflow ? subflow.groupNode.id : undefined;
+
+    let artifactX: number;
+    let artifactY: number;
+
+    if (sourceToolNode) {
+        // Position artifact to the right of the tool node
+        const ARTIFACT_X_OFFSET = 300; // Horizontal distance from tool to artifact
+
+        if (subflow) {
+            // In a subflow, positions are relative to the group
+            const toolNode = nodes.find(n => n.id === sourceToolNode.id);
+            if (toolNode) {
+                artifactX = toolNode.position.x + ARTIFACT_X_OFFSET;
+                artifactY = toolNode.position.y; // Same Y level as the tool
+            } else {
+                artifactX = (sourceToolNode.xPosition ?? LANE_X_POSITIONS.TOOLS) + ARTIFACT_X_OFFSET;
+                artifactY = sourceToolNode.yPosition ?? manager.nextAvailableGlobalY;
+            }
+        } else {
+            // In main flow, use absolute positioning
+            artifactX = (sourceToolNode.xPosition ?? LANE_X_POSITIONS.TOOLS) + ARTIFACT_X_OFFSET;
+            artifactY = sourceToolNode.yPosition ?? manager.nextAvailableGlobalY;
+        }
+    } else {
+        // Fallback positioning if no tool found (shouldn't happen often)
+        artifactX = LANE_X_POSITIONS.TOOLS + 250;
+        artifactY = manager.nextAvailableGlobalY;
+    }
+
+    const artifactNode: Node = {
+        id: artifactNodeId,
+        type: "artifactNode",
+        position: { x: artifactX, y: artifactY },
+        data: {
+            label: "Artifact",
+            visualizerStepId: step.id,
+        },
+        parentId: parentGroupId,
+    };
+
+    addNode(nodes, manager.allCreatedNodeIds, artifactNode);
+    manager.nodePositions.set(artifactNodeId, { x: artifactX, y: artifactY });
+
+    const artifactInstance: NodeInstance = {
+        id: artifactNodeId,
+        xPosition: artifactX,
+        yPosition: artifactY,
+        height: NODE_HEIGHT,
+        width: NODE_WIDTH,
+    };
+
+    // Track artifact instance (add to context for potential future references)
+    context.toolInstances.push(artifactInstance);
+
+    // Create edge from source (tool or agent) to artifact node
+    createTimelineEdge(sourceNodeId, artifactInstance.id, step, edges, manager, edgeAnimationService, processedSteps, sourceHandle, `${artifactInstance.id}-artifact-left-input`);
+
+    // Update maxY and maxContentXRelative to ensure group accommodates the artifact
+    const artifactBottom = artifactY + NODE_HEIGHT;
+    const artifactRight = artifactX + NODE_WIDTH / 2;
+
+    if (subflow) {
+        subflow.maxY = Math.max(subflow.maxY, artifactBottom);
+
+        // Update maxContentXRelative to include artifact node
+        subflow.maxContentXRelative = Math.max(subflow.maxContentXRelative, artifactRight);
+
+        // Update group dimensions
+        const requiredGroupWidth = subflow.maxContentXRelative + GROUP_PADDING_X;
+        subflow.groupNode.width = Math.max(subflow.groupNode.width || 0, requiredGroupWidth);
+
+        // Update the actual group node in the nodes array
+        const groupNodeData = nodes.find(n => n.id === subflow.groupNode.id);
+        if (groupNodeData && groupNodeData.style) {
+            groupNodeData.style.width = `${subflow.groupNode.width}px`;
+        }
+    }
+    currentPhase.maxY = Math.max(currentPhase.maxY, artifactBottom);
+}
+
 function handleAgentResponseText(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
     const currentPhase = getCurrentPhase(manager);
     // When step.isSubTaskStep is true, it indicates this is a response from Agent to Orchestrator (as a user)
@@ -701,6 +845,9 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
                 break;
             case "AGENT_RESPONSE_TEXT":
                 handleAgentResponseText(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
+                break;
+            case "AGENT_ARTIFACT_NOTIFICATION":
+                handleArtifactNotification(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
                 break;
             case "TASK_COMPLETED":
                 handleTaskCompleted(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
