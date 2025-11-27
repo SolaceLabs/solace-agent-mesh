@@ -418,6 +418,7 @@ class WorkflowNodeHandler:
         original_solace_message: Any = None,
     ):
         """Execute agent with output validation and retry logic."""
+        log_id = f"{self.host.log_identifier}[WorkflowNode:{workflow_data.node_id}]"
 
         # Create callback for instruction injection
         workflow_callback = self._create_workflow_callback(workflow_data, output_schema)
