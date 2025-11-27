@@ -10,6 +10,7 @@ export const projects = createQueryKeys("projects", {
         contextQueries: {
             artifact: (filename: string) => [filename],
             new: null,
+            delete: null,
         },
     }),
 });

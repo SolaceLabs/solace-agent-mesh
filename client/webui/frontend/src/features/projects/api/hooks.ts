@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { projects } from "./key";
-import { addFilesToProject, createProject, getProjects } from "./services";
+import { addFilesToProject, createProject, getProjects, removeFileFromProject } from "./services";
 import type { Project } from "@/lib";
 
 export const useProjects = (enabled: boolean) => {
@@ -24,5 +24,12 @@ export const useAddFilesToProject = (projectId: string) => {
     return useMutation({
         mutationKey: projects.artifacts(projectId)._ctx.new.queryKey,
         mutationFn: (data: FormData) => addFilesToProject(projectId, data),
+    });
+};
+
+export const useRemoveFileFromProject = (projectId: string) => {
+    return useMutation({
+        mutationKey: projects.artifacts(projectId)._ctx.delete.queryKey,
+        mutationFn: (filename: string) => removeFileFromProject(projectId, filename),
     });
 };

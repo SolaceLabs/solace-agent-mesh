@@ -24,3 +24,11 @@ export const addFilesToProject = async (projectId: string, data: FormData) => {
     });
     return await response.json();
 };
+
+export const removeFileFromProject = async (projectId: string, filename: string) => {
+    const response = await authenticatedFetch(`/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
+        method: "DELETE",
+        credentials: "include",
+    });
+    return await response.json();
+};
