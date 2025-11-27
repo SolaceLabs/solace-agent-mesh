@@ -109,9 +109,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                                 {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
                             </div>
                             {/* Bottom items, static */}
-                            <div className="space-y-1">
+                            <div className="space-y-1 pb-2">
                                 {/* Divider */}
-                                <div className="my-4 border-t" />
+                                <div className="mt-4 border-t pb-2" />
                                 {/* About entry */}
                                 <SidebarItem icon={<Info className="size-4" />} label="About" active={activeSection === "about"} onClick={() => setActiveSection("about")} />
                             </div>
