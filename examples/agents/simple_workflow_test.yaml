@@ -165,10 +165,24 @@ apps:
 
       workflow:
         description: |
-          Processes orders based on risk.
-          EXPECTED INPUT: A JSON object representing an order.
-          Format: {"order_id": "string", "amount": integer}
-          Example: {"order_id": "ORD-123", "amount": 150}
+          A comprehensive order processing workflow that evaluates risk and routes orders accordingly.
+          
+          This workflow performs the following steps:
+          1. Evaluates the risk level of the order based on the amount.
+          2. Automatically approves low-risk orders (amount <= 100).
+          3. Routes high-risk orders (amount > 100) for manual review.
+          
+          EXPECTED INPUT:
+          You must provide a JSON object representing the order with the following fields:
+          - order_id (string): The unique identifier for the order (e.g., "ORD-123").
+          - amount (integer): The total amount of the order.
+          
+          Example Input: {"order_id": "ORD-123", "amount": 150}
+          
+          OUTPUT:
+          The workflow returns a JSON object containing:
+          - processed_order_id: The ID of the processed order.
+          - final_status: The final status of the order ("approved" or "pending_review").
 
         input_schema:
           type: object
