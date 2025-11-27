@@ -93,3 +93,96 @@ An agent becomes a node when it receives an A2A message containing a `WorkflowNo
 6.  **Worker Agent** returns result signal to **Workflow Engine**.
 7.  **Workflow Engine** updates state -> Triggers next node or finalizes.
 8.  **Workflow Engine** returns final response to **Caller**.
+
+## 6. Appendix A: Sequence Diagrams
+
+### 6.1. Workflow Invocation & Execution
+
+```mermaid
+sequenceDiagram
+    participant Caller as Caller Agent
+    participant Tool as WorkflowAgentTool
+    participant WF as WorkflowExecutor
+    participant DAG as DAGExecutor
+    participant Worker as Worker Agent (Node)
+
+    Caller->>Tool: Invoke(params)
+    Tool->>Tool: Validate & Create Artifact
+    Tool->>WF: A2A SendMessageRequest (with artifact)
+    WF->>WF: Initialize Context & State
+    WF->>DAG: Execute Workflow
+    DAG->>DAG: Identify Runnable Nodes
+    DAG->>WF: Call Persona (Node 1)
+    WF->>Worker: A2A Request (WorkflowNodeRequestData)
+    
+    Note over Worker: WorkflowNodeHandler
+    Worker->>Worker: Validate Input Schema
+    Worker->>Worker: Execute LLM (with instructions)
+    Worker->>Worker: Validate Output Artifact
+    Worker->>WF: A2A Response (WorkflowNodeResultData)
+    
+    WF->>DAG: Handle Node Completion
+    DAG->>DAG: Update State & Check Dependencies
+    
+    alt Workflow Complete
+        DAG->>WF: Finalize Success
+        WF->>Caller: A2A Response (Final Result)
+    else Next Node Ready
+        DAG->>WF: Call Persona (Node 2)
+        WF->>Worker: A2A Request...
+    end
+```
+
+### 6.2. Worker Agent Execution (Node)
+
+```mermaid
+sequenceDiagram
+    participant WF as WorkflowExecutor
+    participant Handler as WorkflowNodeHandler
+    participant LLM as LLM Agent
+    participant AS as ArtifactService
+
+    WF->>Handler: A2A Request (WorkflowNodeRequestData)
+    Handler->>Handler: Extract Input Data
+    Handler->>Handler: Validate Input Schema
+    
+    alt Validation Fails
+        Handler-->>WF: Result (Status=Failure)
+    else Validation Succeeds
+        Handler->>LLM: Inject System Instructions
+        Handler->>LLM: Run Agent Logic
+        LLM->>AS: Save Output Artifact
+        LLM-->>Handler: Response with Result Embed
+        
+        Handler->>AS: Load Artifact
+        Handler->>Handler: Validate Output Schema
+        
+        alt Output Valid
+            Handler-->>WF: Result (Status=Success, ArtifactRef)
+        else Output Invalid
+            Handler->>LLM: Retry with Feedback (Loop)
+        end
+    end
+```
+
+## 7. Appendix B: Implementation Files
+
+The following files contain the core implementation of the Workflow feature:
+
+### Workflow Engine (`src/solace_agent_mesh/workflow/`)
+*   `component.py`: Main `WorkflowExecutorComponent` class.
+*   `app.py`: `WorkflowApp` definition and configuration models.
+*   `dag_executor.py`: Logic for DAG traversal and node execution.
+*   `persona_caller.py`: Handles A2A communication with worker agents.
+*   `workflow_execution_context.py`: State management (`WorkflowExecutionContext`, `WorkflowExecutionState`).
+*   `protocol/event_handlers.py`: Handlers for incoming A2A messages.
+*   `flow_control/conditional.py`: Logic for evaluating conditional nodes.
+
+### Agent-Side Support (`src/solace_agent_mesh/agent/`)
+*   `sac/workflow_support/handler.py`: `WorkflowNodeHandler` for executing agents as nodes.
+*   `sac/workflow_support/validator.py`: JSON schema validation utilities.
+*   `tools/workflow_tool.py`: `WorkflowAgentTool` for invoking workflows from other agents.
+
+### Common & Shared (`src/solace_agent_mesh/common/`)
+*   `data_parts.py`: Data models for `WorkflowNodeRequestData` and `WorkflowNodeResultData`.
+*   `agent_card_utils.py`: Utilities for extracting schemas from Agent Cards.
