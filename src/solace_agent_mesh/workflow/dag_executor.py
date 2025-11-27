@@ -610,7 +610,12 @@ class DAGExecutor:
                 if node_id in ["_loop_item", "_loop_index"]:
                     pass  # Allow it
                 else:
-                    raise ValueError(f"Referenced node '{node_id}' has not completed")
+                    # Provide a more helpful error message for skipped/incomplete nodes
+                    raise ValueError(
+                        f"Cannot resolve template '{template}': Referenced node '{node_id}' has not completed. "
+                        "This usually happens when a node is skipped due to conditional branching but is still referenced in the output mapping. "
+                        "Please ensure your output mapping handles conditional paths or that the referenced node is guaranteed to run."
+                    )
 
             # Navigate remaining path
             data = workflow_state.node_outputs[node_id]
