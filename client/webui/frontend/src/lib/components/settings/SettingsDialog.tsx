@@ -29,12 +29,19 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, onClick 
 
 interface SettingsDialogProps {
     iconOnly?: boolean;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 }
 
-export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false }) => {
+export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, open: controlledOpen, onOpenChange }) => {
     const { configFeatureEnablement } = useConfigContext();
-    const [open, setOpen] = useState(false);
+    const [internalOpen, setInternalOpen] = useState(false);
     const [activeSection, setActiveSection] = useState<SettingsSection>("general");
+
+    // Use controlled state if provided, otherwise use internal state
+    const isControlled = controlledOpen !== undefined;
+    const open = isControlled ? controlledOpen : internalOpen;
+    const setOpen = onOpenChange || setInternalOpen;
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
@@ -63,31 +70,34 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
         }
     };
 
+    // When controlled externally (open prop is provided), don't render trigger
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            {iconOnly ? (
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <DialogTrigger asChild>
-                            <button
-                                type="button"
-                                className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]"
-                                aria-label="Open Settings"
-                            >
-                                <Settings className="h-6 w-6" />
-                            </button>
-                        </DialogTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">Settings</TooltipContent>
-                </Tooltip>
-            ) : (
-                <DialogTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start gap-2">
-                        <Settings className="size-5" />
-                        <span>Settings</span>
-                    </Button>
-                </DialogTrigger>
-            )}
+            {!isControlled &&
+                (iconOnly ? (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <DialogTrigger asChild>
+                                <button
+                                    type="button"
+                                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]"
+                                    aria-label="Open Settings"
+                                >
+                                    <Settings className="h-6 w-6" />
+                                </button>
+                            </DialogTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">Settings</TooltipContent>
+                    </Tooltip>
+                ) : (
+                    <DialogTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start gap-2">
+                            <Settings className="size-5" />
+                            <span>Settings</span>
+                        </Button>
+                    </DialogTrigger>
+                ))}
             <DialogContent className="max-h-[90vh] w-[90vw] !max-w-[1200px] gap-0 p-0" showCloseButton={true}>
                 <VisuallyHidden>
                     <DialogTitle>Settings</DialogTitle>
