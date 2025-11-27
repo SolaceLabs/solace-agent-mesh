@@ -125,6 +125,7 @@ class WorkflowAgentTool(BaseTool):
             # 1. Determine Input Mode
             input_artifact_name = args.get("input_artifact")
             payload_artifact_name = None
+            payload_artifact_version = None
 
             if input_artifact_name:
                 # Artifact Mode
@@ -155,7 +156,7 @@ class WorkflowAgentTool(BaseTool):
                 sanitized_wf_name = "".join(
                     c for c in self.target_agent_name if c.isalnum() or c in "_-"
                 )
-                payload_artifact_name = f"workflow_input_{sanitized_wf_name}_{uuid.uuid4().hex[:8]}.json"
+                payload_artifact_name = f"wi_{sanitized_wf_name}.json"
 
                 # Save artifact
                 user_id = tool_context._invocation_context.user_id
@@ -181,10 +182,13 @@ class WorkflowAgentTool(BaseTool):
                         f"Failed to save implicit input artifact: {save_result.get('message')}"
                     )
 
+                payload_artifact_version = save_result.get("data_version")
+
                 log.info(
-                    "%s Created implicit input artifact: %s",
+                    "%s Created implicit input artifact: %s v%s",
                     log_identifier,
                     payload_artifact_name,
+                    payload_artifact_version,
                 )
 
             # 2. Prepare A2A Message
@@ -217,12 +221,19 @@ class WorkflowAgentTool(BaseTool):
                 )
             ]
 
+            invoked_artifacts = []
+            if payload_artifact_name:
+                artifact_ref = {"filename": payload_artifact_name}
+                if payload_artifact_version is not None:
+                    artifact_ref["version"] = payload_artifact_version
+                invoked_artifacts.append(artifact_ref)
+
             a2a_metadata = {
                 "sessionBehavior": "RUN_BASED",
                 "parentTaskId": main_logical_task_id,
                 "function_call_id": tool_context.function_call_id,
                 "agent_name": self.target_agent_name,
-                "invoked_with_artifacts": [{"filename": payload_artifact_name}],
+                "invoked_with_artifacts": invoked_artifacts,
             }
 
             a2a_message = a2a.create_user_message(
