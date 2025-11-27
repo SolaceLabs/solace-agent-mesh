@@ -22,6 +22,7 @@ from .app import (
 )
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 from ..common.data_parts import WorkflowNodeResultData
+from ..agent.utils.artifact_helpers import save_artifact_with_metadata
 
 if TYPE_CHECKING:
     from .component import WorkflowExecutorComponent
@@ -869,23 +870,23 @@ class DAGExecutor:
         # Create merged artifact
         merged_artifact_name = f"fork_{fork_node_id}_merged.json"
         merged_bytes = json.dumps(merged_output).encode("utf-8")
-        await self.host.artifact_service.save_artifact(
+
+        await save_artifact_with_metadata(
+            artifact_service=self.host.artifact_service,
             app_name=self.host.workflow_name,
             user_id=workflow_context.a2a_context["user_id"],
             session_id=workflow_context.a2a_context["session_id"],
             filename=merged_artifact_name,
-            artifact=adk_types.Part(
-                inline_data=adk_types.Blob(
-                    mime_type="application/json", data=merged_bytes
-                )
-            ),
+            content_bytes=merged_bytes,
+            mime_type="application/json",
+            metadata_dict={
+                "description": f"Merged output from fork node '{fork_node_id}'",
+                "source": "workflow_fork_merge",
+                "node_id": fork_node_id,
+            },
+            timestamp=datetime.now(timezone.utc),
         )
-        # Note: The above save_artifact call is simplified. 
-        # Real implementation needs to construct a proper Part or use a helper.
-        # We will rely on the host component to provide a helper or use the service directly correctly.
-        # For now, let's assume we can pass data directly if we use a helper, 
-        # or we need to construct a Part.
-        
+
         # Mark fork complete
         workflow_state.completed_nodes[fork_node_id] = merged_artifact_name
         if fork_node_id in workflow_state.pending_nodes:
@@ -932,16 +933,21 @@ class DAGExecutor:
         # Create aggregated artifact
         merged_artifact_name = f"map_{map_node_id}_results.json"
         merged_bytes = json.dumps({"results": results_list}).encode("utf-8")
-        await self.host.artifact_service.save_artifact(
+
+        await save_artifact_with_metadata(
+            artifact_service=self.host.artifact_service,
             app_name=self.host.workflow_name,
             user_id=workflow_context.a2a_context["user_id"],
             session_id=workflow_context.a2a_context["session_id"],
             filename=merged_artifact_name,
-            artifact=adk_types.Part(
-                inline_data=adk_types.Blob(
-                    mime_type="application/json", data=merged_bytes
-                )
-            ),
+            content_bytes=merged_bytes,
+            mime_type="application/json",
+            metadata_dict={
+                "description": f"Aggregated results from map node '{map_node_id}'",
+                "source": "workflow_map_aggregate",
+                "node_id": map_node_id,
+            },
+            timestamp=datetime.now(timezone.utc),
         )
 
         workflow_state.completed_nodes[map_node_id] = merged_artifact_name
