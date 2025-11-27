@@ -39,7 +39,9 @@ class AgentNode(WorkflowNode):
 
     type: Literal["agent"] = "agent"
     agent_persona: str = Field(..., description="Name of agent to invoke")
-    input: Dict[str, Any] = Field(..., description="Input mapping")
+    input: Optional[Dict[str, Any]] = Field(
+        None, description="Input mapping. If omitted, inferred from dependencies."
+    )
 
     # Optional schema overrides
     input_schema_override: Optional[Dict[str, Any]] = None

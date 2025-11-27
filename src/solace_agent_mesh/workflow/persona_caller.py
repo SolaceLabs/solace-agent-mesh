@@ -85,19 +85,47 @@ class PersonaCaller:
     async def _resolve_node_input(
         self, node: WorkflowNode, workflow_state: WorkflowExecutionState
     ) -> Dict[str, Any]:
-        """Resolve input mapping for a node."""
-        resolved_input = {}
+        """
+        Resolve input mapping for a node.
+        If input is not provided, infer it from dependencies.
+        """
+        # Case 1: Explicit Input Mapping
+        if node.input is not None:
+            resolved_input = {}
+            for key, value in node.input.items():
+                if isinstance(value, str) and value.startswith("{{"):
+                    # Template reference
+                    resolved_value = self._resolve_template(value, workflow_state)
+                    resolved_input[key] = resolved_value
+                else:
+                    # Literal value
+                    resolved_input[key] = value
+            return resolved_input
 
-        for key, value in node.input.items():
-            if isinstance(value, str) and value.startswith("{{"):
-                # Template reference
-                resolved_value = self._resolve_template(value, workflow_state)
-                resolved_input[key] = resolved_value
-            else:
-                # Literal value
-                resolved_input[key] = value
+        # Case 2: Implicit Input Inference
+        log.debug(
+            f"{self.host.log_identifier} Node '{node.id}' has no explicit input. Inferring from dependencies."
+        )
 
-        return resolved_input
+        # Case 2a: No dependencies (Initial Node) -> Use Workflow Input
+        if not node.depends_on:
+            if "workflow_input" not in workflow_state.node_outputs:
+                raise ValueError("Workflow input has not been initialized")
+            return workflow_state.node_outputs["workflow_input"]["output"]
+
+        # Case 2b: Single Dependency -> Use Dependency Output
+        if len(node.depends_on) == 1:
+            dep_id = node.depends_on[0]
+            if dep_id not in workflow_state.node_outputs:
+                raise ValueError(f"Dependency '{dep_id}' has not completed")
+            return workflow_state.node_outputs[dep_id]["output"]
+
+        # Case 2c: Multiple Dependencies -> Ambiguous
+        raise ValueError(
+            f"Node '{node.id}' has multiple dependencies {node.depends_on} but no explicit 'input' mapping. "
+            "Implicit input inference is only supported for nodes with 0 or 1 dependency. "
+            "Please provide an explicit 'input' mapping."
+        )
 
     def _resolve_template(
         self, template: str, workflow_state: WorkflowExecutionState
