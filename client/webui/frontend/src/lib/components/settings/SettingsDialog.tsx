@@ -1,18 +1,18 @@
 import React, { useState } from "react";
-import { Settings, Type, Volume2 } from "lucide-react";
-import { Button, Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Info, Settings, Type, Volume2 } from "lucide-react";
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { cn } from "@/lib/utils";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { useConfigContext } from "@/lib/hooks";
+import { AboutProduct } from "@/lib/components/settings/AboutProduct";
 
-type SettingsSection = "general" | "speech";
+type SettingsSection = "general" | "speech" | "about";
 
 interface SidebarItemProps {
     icon: React.ReactNode;
     label: string;
-    value: SettingsSection;
     active: boolean;
     onClick: () => void;
 }
@@ -45,6 +45,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
 
     const renderContent = () => {
         switch (activeSection) {
+            case "about":
+                return <AboutProduct />;
             case "general":
                 return <GeneralSettings />;
             case "speech":
@@ -56,6 +58,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
 
     const getSectionTitle = () => {
         switch (activeSection) {
+            case "about":
+                return "About";
             case "general":
                 return "General";
             case "speech":
@@ -102,9 +106,19 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                             <h2 className="text-lg font-semibold">Settings</h2>
                         </div>
 
-                        <nav className="flex-1 space-y-1">
-                            <SidebarItem icon={<Type className="size-4" />} label="General" value="general" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
-                            {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" value="speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
+                        <nav className="flex flex-1 flex-col">
+                            {/* Top items, scrollable */}
+                            <div className="flex-1 space-y-1 overflow-y-auto">
+                                <SidebarItem icon={<Type className="size-4" />} label="General" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
+                                {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
+                            </div>
+                            {/* Bottom items, static */}
+                            <div className="space-y-1">
+                                {/* Divider */}
+                                <div className="my-4 border-t" />
+                                {/* About entry */}
+                                <SidebarItem icon={<Info className="size-4" />} label="About" active={activeSection === "about"} onClick={() => setActiveSection("about")} />
+                            </div>
                         </nav>
                     </div>
 
