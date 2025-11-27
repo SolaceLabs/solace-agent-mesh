@@ -1,7 +1,7 @@
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { mockMessages, mockLoadingMessage } from "./mocks/data";
 import { ChatPage } from "@/lib/components/pages/ChatPage";
-import { screen, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { defaultPromptGroups } from "./Prompts/data";
 
@@ -172,5 +172,7 @@ export const WithPromptDialogOpen: Story = {
         const canvas = within(canvasElement);
         const chatInput = await canvas.findByTestId("chat-input");
         await userEvent.type(chatInput, "/");
+        const promptCommand = await canvas.findByTestId("promptCommand");
+        expect(promptCommand).toBeVisible();
     },
 };
