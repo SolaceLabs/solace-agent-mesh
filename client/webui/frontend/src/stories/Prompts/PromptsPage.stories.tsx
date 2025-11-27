@@ -50,7 +50,7 @@ export const WithPromptOpen: Story = {
     },
 };
 
-export const WithFilterSelected: Story = {
+export const WithSearchTerm: Story = {
     parameters: {
         msw: { handlers },
     },
@@ -61,7 +61,7 @@ export const WithFilterSelected: Story = {
     },
 };
 
-export const WithFilterSelectedNoResults: Story = {
+export const WithSearchTermNoResults: Story = {
     parameters: {
         msw: { handlers },
     },
