@@ -407,6 +407,7 @@ class TaskLoggerService:
         """
         Save chat messages for a completed background task by reconstructing them from task events.
         This ensures chat history is available when users return to a session after a background task completes.
+        Uses upsert to avoid duplicates.
         """
         try:
             # Get all events for this task
@@ -427,6 +428,7 @@ class TaskLoggerService:
             
             # Parse events to extract session context and reconstruct messages
             message_bubbles = []
+            artifacts = []  # Track artifacts from artifact update events
             
             for event in events:
                 try:
@@ -469,6 +471,25 @@ class TaskLoggerService:
                                         "parts": filtered_parts,
                                     })
                     
+                    # Collect artifacts from status events that contain artifact info
+                    elif event.direction == "status":
+                        if "result" in payload:
+                            result = payload["result"]
+                            # Check for artifact in the result (regardless of kind)
+                            if isinstance(result, dict):
+                                artifact = result.get("artifact", {})
+                                if isinstance(artifact, dict) and artifact.get("name"):
+                                    artifacts.append({
+                                        "kind": "artifact",
+                                        "status": "completed",
+                                        "name": artifact["name"],
+                                        "file": {
+                                            "name": artifact["name"],
+                                            "mime_type": artifact.get("mimeType"),
+                                            "uri": f"artifact://{session_id}/{artifact['name']}" if session_id else f"artifact://unknown/{artifact['name']}"
+                                        }
+                                    })
+                    
                     # Extract agent response messages - only from final task response
                     elif event.direction == "response":
                         if "result" in payload:
@@ -476,6 +497,28 @@ class TaskLoggerService:
                             
                             # Only process final task response (kind="task")
                             if isinstance(result, dict) and result.get("kind") == "task":
+                                # Extract artifacts from task metadata
+                                metadata = result.get("metadata", {})
+                                if isinstance(metadata, dict):
+                                    # Try both 'produced_artifacts' and 'artifact_manifest'
+                                    artifact_list = metadata.get("produced_artifacts") or metadata.get("artifact_manifest", [])
+                                    if isinstance(artifact_list, list):
+                                        for artifact_info in artifact_list:
+                                            if isinstance(artifact_info, dict):
+                                                # Handle both 'name' and 'filename' keys
+                                                artifact_name = artifact_info.get("name") or artifact_info.get("filename")
+                                                if artifact_name:
+                                                    artifacts.append({
+                                                        "kind": "artifact",
+                                                        "status": "completed",
+                                                        "name": artifact_name,
+                                                        "file": {
+                                                            "name": artifact_name,
+                                                            "mime_type": artifact_info.get("mime_type"),
+                                                            "uri": f"artifact://{session_id}/{artifact_name}" if session_id else f"artifact://unknown/{artifact_name}"
+                                                        }
+                                                    })
+                                
                                 # Final task object - extract the complete message
                                 status = result.get("status", {})
                                 if isinstance(status, dict):
@@ -486,15 +529,20 @@ class TaskLoggerService:
                                         # Filter out data parts (status updates, tool invocations, etc.)
                                         content_parts = [p for p in parts if p.get("kind") != "data"]
                                         
-                                        if content_parts:
+                                        if content_parts or artifacts:
                                             text_parts = [p.get("text", "") for p in content_parts if p.get("kind") == "text"]
                                             combined_text = "".join(text_parts).strip()
+                                            
+                                            # Add artifact markers to text (frontend will parse these)
+                                            # Don't add artifact parts to avoid duplicates - frontend creates them from markers
+                                            for artifact in artifacts:
+                                                combined_text += f"«artifact_return:{artifact['name']}»"
                                             
                                             message_bubbles.append({
                                                 "id": f"msg-{uuid.uuid4()}",
                                                 "type": "agent",
                                                 "text": combined_text,
-                                                "parts": content_parts,  # Only content parts, no data parts
+                                                "parts": content_parts,  # Only content parts, no artifacts
                                             })
                 
                 except Exception as e:

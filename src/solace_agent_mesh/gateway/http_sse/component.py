@@ -2304,6 +2304,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 log_id_prefix,
                 sse_task_id,
             )
+            
 
     async def _send_error_to_external(
         self, external_request_context: dict[str, Any], error_data: JSONRPCError

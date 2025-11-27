@@ -32,12 +32,12 @@ from .routers import (
     agent_cards,
     artifacts,
     auth,
+    background_tasks,
     config,
     feedback,
     people,
     sse,
     speech,
-    task_events,
     visualization,
     projects,
     prompts,
@@ -608,7 +608,7 @@ def _setup_routers() -> None:
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
     app.include_router(task_router, prefix=api_prefix, tags=["Tasks"])
-    app.include_router(task_events.router, prefix=api_prefix, tags=["Task Events"])
+    app.include_router(background_tasks.router, prefix=api_prefix, tags=["Background Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
     app.include_router(
         artifacts.router, prefix=f"{api_prefix}/artifacts", tags=["Artifacts"]

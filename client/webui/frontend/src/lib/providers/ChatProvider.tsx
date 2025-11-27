@@ -116,6 +116,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const latestStatusText = useRef<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
     const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
+    const messagesRef = useRef<MessageFE[]>([]);
 
     // Agents State
     const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
@@ -226,15 +227,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         ),
     });
 
-    // Keep ref in sync with background tasks state
+    // Keep refs in sync with state
     useEffect(() => {
         backgroundTasksRef.current = backgroundTasks;
     }, [backgroundTasks]);
 
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
     // Helper function to serialize a MessageFE to MessageBubble format for backend
     const serializeMessageBubble = useCallback((message: MessageFE) => {
-        const textParts = message.parts?.filter(p => p.kind === "text") as TextPart[] | undefined;
-        const combinedText = textParts?.map(p => p.text).join("") || "";
+        // Build text with artifact markers embedded
+        let combinedText = "";
+        const parts = message.parts || [];
+
+        for (const part of parts) {
+            if (part.kind === "text") {
+                combinedText += (part as TextPart).text;
+            } else if (part.kind === "artifact") {
+                // Add artifact marker for artifact parts
+                const artifactPart = part as ArtifactPart;
+                combinedText += `«artifact_return:${artifactPart.name}»`;
+            }
+        }
 
         return {
             id: message.metadata?.messageId || `msg-${v4()}`,
@@ -300,22 +316,169 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     // Helper function to deserialize task data to MessageFE objects
     const deserializeTaskToMessages = useCallback((task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
-        return task.messageBubbles.map(bubble => ({
-            taskId: task.taskId,
-            role: bubble.type === "user" ? "user" : "agent",
-            parts: bubble.parts || [{ kind: "text", text: bubble.text || "" }],
-            isUser: bubble.type === "user",
-            isComplete: true,
-            files: bubble.files,
-            uploadedFiles: bubble.uploadedFiles,
-            artifactNotification: bubble.artifactNotification,
-            isError: bubble.isError,
-            metadata: {
-                messageId: bubble.id,
-                sessionId: sessionId,
-                lastProcessedEventSequence: 0,
-            },
-        }));
+        return task.messageBubbles.map(bubble => {
+            // Process parts to handle markers and reconstruct artifact parts if needed
+            const processedParts: any[] = [];
+            const originalParts = bubble.parts || [{ kind: "text", text: bubble.text || "" }];
+
+            // Track artifact names we've already added to avoid duplicates
+            const addedArtifacts = new Set<string>();
+
+            // First, check the bubble.text field for artifact markers (TaskLoggerService saves markers there)
+            // This handles the case where backend saves text with markers but parts without artifacts
+            if (bubble.text) {
+                const artifactReturnRegex = /«artifact_return:([^»]+)»/g;
+                const artifactRegex = /«artifact:([^»]+)»/g;
+                let match;
+
+                // Extract artifact_return markers from bubble.text
+                while ((match = artifactReturnRegex.exec(bubble.text)) !== null) {
+                    const artifactFilename = match[1];
+                    if (!addedArtifacts.has(artifactFilename)) {
+                        addedArtifacts.add(artifactFilename);
+                        processedParts.push({
+                            kind: "artifact",
+                            status: "completed",
+                            name: artifactFilename,
+                            file: {
+                                name: artifactFilename,
+                                uri: `artifact://${sessionId}/${artifactFilename}`,
+                            },
+                        });
+                    }
+                }
+
+                // Extract artifact: markers from bubble.text
+                while ((match = artifactRegex.exec(bubble.text)) !== null) {
+                    const artifactFilename = match[1];
+                    if (!addedArtifacts.has(artifactFilename)) {
+                        addedArtifacts.add(artifactFilename);
+                        processedParts.push({
+                            kind: "artifact",
+                            status: "completed",
+                            name: artifactFilename,
+                            file: {
+                                name: artifactFilename,
+                                uri: `artifact://${sessionId}/${artifactFilename}`,
+                            },
+                        });
+                    }
+                }
+            }
+
+            for (const part of originalParts) {
+                if (part.kind === "text" && part.text) {
+                    let textContent = part.text;
+
+                    // Extract artifact markers and convert them to artifact parts
+                    const artifactReturnRegex = /«artifact_return:([^»]+)»/g;
+                    const artifactRegex = /«artifact:([^»]+)»/g;
+                    let lastIndex = 0;
+                    const textSegments: string[] = [];
+
+                    // Process artifact_return markers
+                    let match;
+                    while ((match = artifactReturnRegex.exec(textContent)) !== null) {
+                        // Add text before the marker
+                        if (match.index > lastIndex) {
+                            textSegments.push(textContent.substring(lastIndex, match.index));
+                        }
+
+                        // Create artifact part only if not already added
+                        const artifactFilename = match[1];
+                        if (!addedArtifacts.has(artifactFilename)) {
+                            addedArtifacts.add(artifactFilename);
+                            processedParts.push({
+                                kind: "artifact",
+                                status: "completed",
+                                name: artifactFilename,
+                                file: {
+                                    name: artifactFilename,
+                                    uri: `artifact://${sessionId}/${artifactFilename}`,
+                                },
+                            });
+                        }
+
+                        lastIndex = match.index + match[0].length;
+                    }
+
+                    // Add remaining text
+                    if (lastIndex < textContent.length) {
+                        textSegments.push(textContent.substring(lastIndex));
+                    }
+
+                    // Combine and process artifact: markers
+                    textContent = textSegments.join("");
+                    textSegments.length = 0;
+                    lastIndex = 0;
+
+                    while ((match = artifactRegex.exec(textContent)) !== null) {
+                        if (match.index > lastIndex) {
+                            textSegments.push(textContent.substring(lastIndex, match.index));
+                        }
+
+                        // Create artifact part only if not already added
+                        const artifactFilename = match[1];
+                        if (!addedArtifacts.has(artifactFilename)) {
+                            addedArtifacts.add(artifactFilename);
+                            processedParts.push({
+                                kind: "artifact",
+                                status: "completed",
+                                name: artifactFilename,
+                                file: {
+                                    name: artifactFilename,
+                                    uri: `artifact://${sessionId}/${artifactFilename}`,
+                                },
+                            });
+                        }
+
+                        lastIndex = match.index + match[0].length;
+                    }
+
+                    if (lastIndex < textContent.length) {
+                        textSegments.push(textContent.substring(lastIndex));
+                    }
+
+                    textContent = textSegments.join("");
+
+                    // Remove status update markers
+                    textContent = textContent.replace(/«status_update:[^»]+»\n?/g, "");
+
+                    // Add text part if there's content
+                    if (textContent.trim()) {
+                        processedParts.push({ kind: "text", text: textContent });
+                    }
+                } else if (part.kind === "artifact") {
+                    // Only add artifact part if not already added (from markers)
+                    const artifactName = part.name;
+                    if (artifactName && !addedArtifacts.has(artifactName)) {
+                        addedArtifacts.add(artifactName);
+                        processedParts.push(part);
+                    }
+                    // Skip duplicate artifacts
+                } else {
+                    // Keep other non-text parts as-is
+                    processedParts.push(part);
+                }
+            }
+
+            return {
+                taskId: task.taskId,
+                role: bubble.type === "user" ? "user" : "agent",
+                parts: processedParts,
+                isUser: bubble.type === "user",
+                isComplete: true,
+                files: bubble.files,
+                uploadedFiles: bubble.uploadedFiles,
+                artifactNotification: bubble.artifactNotification,
+                isError: bubble.isError,
+                metadata: {
+                    messageId: bubble.id,
+                    sessionId: sessionId,
+                    lastProcessedEventSequence: 0,
+                },
+            };
+        });
     }, []);
 
     // Helper function to apply migrations to a task
@@ -1235,66 +1398,67 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Save complete task when agent response is done (Step 10.5-10.9)
-                // Note: We need to save even if we're not in the same session anymore (for background tasks)
+                // Note: For background tasks, the backend TaskLoggerService handles saving automatically
+                // For non-background tasks, we save here
                 if (currentTaskIdFromResult) {
-                    // Gather all messages for this task, filtering out status bubbles
-                    const taskMessages = messages.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
+                    const isBackgroundTask = isTaskRunningInBackground(currentTaskIdFromResult);
 
-                    if (taskMessages.length > 0) {
-                        // Serialize all message bubbles
-                        const messageBubbles = taskMessages.map(serializeMessageBubble);
+                    // Only save non-background tasks from frontend
+                    // Background tasks are saved by TaskLoggerService to avoid race conditions
+                    if (!isBackgroundTask) {
+                        // Use messagesRef to get the latest messages
+                        const taskMessages = messagesRef.current.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
 
-                        // Extract user message text
-                        const userMessage = taskMessages.find(m => m.isUser);
-                        const userMessageText =
-                            userMessage?.parts
-                                ?.filter(p => p.kind === "text")
-                                .map(p => (p as TextPart).text)
-                                .join("") || "";
+                        if (taskMessages.length > 0) {
+                            // Serialize all message bubbles
+                            const messageBubbles = taskMessages.map(serializeMessageBubble);
 
-                        // Determine task status
-                        const hasError = taskMessages.some(m => m.isError);
-                        const taskStatus = hasError ? "error" : "completed";
+                            // Extract user message text
+                            const userMessage = taskMessages.find(m => m.isUser);
+                            const userMessageText =
+                                userMessage?.parts
+                                    ?.filter(p => p.kind === "text")
+                                    .map(p => (p as TextPart).text)
+                                    .join("") || "";
 
-                        // Get the session ID from the task's context (for background tasks that may have completed in a different session)
-                        const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
+                            // Determine task status
+                            const hasError = taskMessages.some(m => m.isError);
+                            const taskStatus = hasError ? "error" : "completed";
 
-                        // Save complete task and wait for it to complete before updating UI
-                        // Pass the task's session ID explicitly to ensure it saves to the correct session
-                        // For background tasks, wait for save to complete before unregistering
-                        const isBackgroundTask = isTaskRunningInBackground(currentTaskIdFromResult);
+                            // Get the session ID from the task's context
+                            const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
 
-                        saveTaskToBackend(
-                            {
-                                task_id: currentTaskIdFromResult,
-                                user_message: userMessageText,
-                                message_bubbles: messageBubbles,
-                                task_metadata: {
-                                    schema_version: CURRENT_SCHEMA_VERSION,
-                                    status: taskStatus,
-                                    agent_name: selectedAgentName,
+                            // Save complete task
+                            saveTaskToBackend(
+                                {
+                                    task_id: currentTaskIdFromResult,
+                                    user_message: userMessageText,
+                                    message_bubbles: messageBubbles,
+                                    task_metadata: {
+                                        schema_version: CURRENT_SCHEMA_VERSION,
+                                        status: taskStatus,
+                                        agent_name: selectedAgentName,
+                                    },
                                 },
-                            },
-                            taskSessionId
-                        )
-                            .then(saved => {
-                                if (saved) {
-                                    // For background tasks, unregister and refresh immediately after save completes
-                                    if (isBackgroundTask) {
-                                        unregisterBackgroundTask(currentTaskIdFromResult);
-                                    }
-
-                                    // Trigger session list refresh to update spinner
-                                    if (typeof window !== "undefined") {
+                                taskSessionId
+                            )
+                                .then(saved => {
+                                    if (saved && typeof window !== "undefined") {
                                         window.dispatchEvent(new CustomEvent("new-chat-session"));
                                     }
-                                } else {
-                                    console.error(`[ChatProvider] Failed to save task ${currentTaskIdFromResult}`);
-                                }
-                            })
-                            .catch(error => {
-                                console.error(`[ChatProvider] Error saving task ${currentTaskIdFromResult}:`, error);
-                            });
+                                })
+                                .catch(error => {
+                                    console.error(`[ChatProvider] Error saving task ${currentTaskIdFromResult}:`, error);
+                                });
+                        }
+                    } else {
+                        // For background tasks, just unregister after completion
+                        unregisterBackgroundTask(currentTaskIdFromResult);
+
+                        // Trigger session list refresh
+                        if (typeof window !== "undefined") {
+                            window.dispatchEvent(new CustomEvent("new-chat-session"));
+                        }
                     }
                 }
 
@@ -1444,9 +1608,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             const currentSessionBackgroundTasks = backgroundTasks.filter(t => t.sessionId === sessionId);
             const hasRunningBackgroundTask = currentSessionBackgroundTasks.some(t => t.taskId === currentTaskId);
 
-            // Only clear messages if we're not returning to a session with a running background task
-            // This preserves the UI state for background tasks
-            if (!hasRunningBackgroundTask) {
+            // DON'T clear messages if there are background tasks in the current session
+            // This ensures the messages are available for saving when the task completes
+            const hasAnyBackgroundTasks = currentSessionBackgroundTasks.length > 0;
+
+            if (!hasRunningBackgroundTask && !hasAnyBackgroundTasks) {
                 setMessages([]);
             }
 
@@ -1544,6 +1710,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     for (const bgTask of sessionBackgroundTasks) {
                         const status = await checkTaskStatus(bgTask.taskId);
                         if (status && status.is_running) {
+                            console.log(`[ChatProvider] Reconnecting to running background task ${bgTask.taskId}`);
                             setCurrentTaskId(bgTask.taskId);
                             setIsResponding(true);
                             if (bgTask.agentName) {
@@ -1551,6 +1718,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             }
                             // Only reconnect to the first running task
                             break;
+                        } else {
+                            // Task is no longer running - unregister it immediately
+                            // This prevents the SSE useEffect from trying to reconnect
+                            console.log(`[ChatProvider] Background task ${bgTask.taskId} is not running, unregistering`);
+                            unregisterBackgroundTask(bgTask.taskId);
                         }
                     }
                 }
@@ -1577,6 +1749,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isTaskRunningInBackground,
             backgroundTasks,
             checkTaskStatus,
+            unregisterBackgroundTask,
         ]
     );
 
@@ -2042,8 +2215,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     }
                 }
 
-                // Save initial task with user message for ALL tasks (new and existing sessions)
-                // This enables the spinner to show immediately for background tasks
+                // Save initial task with user message
+                // For background tasks, we save with "pending" status so the session list shows the spinner
+                // The backend TaskLoggerService will update this with the full response when complete
+                const enabledForBackground = backgroundTasksEnabled ?? false;
                 if (finalSessionId) {
                     await saveTaskToBackend(
                         {
@@ -2054,6 +2229,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 schema_version: CURRENT_SCHEMA_VERSION,
                                 status: "pending",
                                 agent_name: selectedAgentName,
+                                is_background_task: enabledForBackground,
                             },
                         },
                         finalSessionId
@@ -2065,9 +2241,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setTaskIdInSidePanel(taskId);
 
                 // Check if this should be a background task (enabled via gateway config)
-                const isBackgroundTask = backgroundTasksEnabled ?? false;
-
-                if (isBackgroundTask) {
+                if (enabledForBackground) {
                     console.log(`[ChatProvider] Registering ${taskId} as background task`);
                     registerBackgroundTask(taskId, finalSessionId, selectedAgentName);
 
@@ -2152,6 +2326,35 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             window.removeEventListener("session-moved", handleSessionMoved);
         };
     }, [sessionId, projects, setActiveProject]);
+
+    useEffect(() => {
+        // Listen for background task completion events
+        // When a background task completes, reload ANY session it belongs to (not just current)
+        // This ensures we get the latest data even if the task completed while we were in a different session
+        const handleBackgroundTaskCompleted = async (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { taskId: completedTaskId } = customEvent.detail;
+
+            // Find the completed task
+            const completedTask = backgroundTasksRef.current.find(t => t.taskId === completedTaskId);
+            if (completedTask) {
+                console.log(`[ChatProvider] Background task ${completedTaskId} completed, will reload session ${completedTask.sessionId} after delay`);
+                // Wait a bit to ensure any pending operations complete
+                setTimeout(async () => {
+                    // Reload the session if it's currently active
+                    if (currentSessionIdRef.current === completedTask.sessionId) {
+                        console.log(`[ChatProvider] Reloading current session ${completedTask.sessionId} to get latest data`);
+                        await loadSessionTasks(completedTask.sessionId);
+                    }
+                }, 1500); // Increased delay to ensure save completes
+            }
+        };
+
+        window.addEventListener("background-task-completed", handleBackgroundTaskCompleted);
+        return () => {
+            window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
+        };
+    }, [loadSessionTasks]);
 
     useEffect(() => {
         // When the active project changes, reset the chat view to a clean slate
@@ -2251,7 +2454,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Use a ref to get the latest background tasks without triggering re-renders
             const bgTask = backgroundTasksRef.current.find(t => t.taskId === currentTaskId);
             const isReconnecting = bgTask !== undefined;
-            const lastTimestamp = bgTask?.lastEventTimestamp || 0;
 
             // Build SSE URL with reconnection parameters if needed
             let eventSourceUrl = `${apiPrefix}/sse/subscribe/${currentTaskId}`;
@@ -2261,10 +2463,26 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 params.append("token", accessToken);
             }
 
-            if (isReconnecting && lastTimestamp > 0) {
+            if (isReconnecting) {
+                // For background task reconnection, always request full replay
+                // The backend will replay ALL events from the beginning for background tasks
+                // This ensures we can reconstruct the full message content after browser refresh
                 params.append("reconnect", "true");
-                params.append("last_event_timestamp", lastTimestamp.toString());
-                console.log(`[ChatProvider] Reconnecting to background task ${currentTaskId} with event replay from ${lastTimestamp}`);
+                params.append("last_event_timestamp", "0"); // Request all events from beginning
+                console.log(`[ChatProvider] Reconnecting to background task ${currentTaskId} - requesting full event replay`);
+
+                // Clear agent messages for this task before replaying
+                // This prevents duplicate content when events are replayed
+                setMessages(prev => {
+                    const filtered = prev.filter(msg => {
+                        // Keep user messages and messages from other tasks
+                        if (msg.isUser) return true;
+                        if (msg.taskId !== currentTaskId) return true;
+                        // Remove agent messages for this task - they will be rebuilt from replayed events
+                        return false;
+                    });
+                    return filtered;
+                });
             }
 
             if (params.toString()) {

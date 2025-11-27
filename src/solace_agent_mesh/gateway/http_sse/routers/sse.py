@@ -62,12 +62,26 @@ async def subscribe_to_task_events(
                 log.debug("%sSent initial SSE comment.", log_prefix)
                 
                 # If reconnecting, replay missed events from database
-                if reconnect and last_event_timestamp > 0:
-                    log.info("%sReplaying events since timestamp %d", log_prefix, last_event_timestamp)
+                # For background tasks, always replay ALL events from the beginning
+                # to ensure the frontend can reconstruct the full message content
+                # after a browser refresh
+                if reconnect:
+                    replay_from_timestamp = last_event_timestamp if last_event_timestamp > 0 else 0
+                    
+                    # For background tasks, always replay from the beginning
+                    # This handles the case where the browser was refreshed and
+                    # the accumulated message content was lost
+                    if is_background_task:
+                        replay_from_timestamp = 0
+                        log.info("%sBackground task reconnection - replaying ALL events from beginning", log_prefix)
+                    else:
+                        log.info("%sReplaying events since timestamp %d", log_prefix, replay_from_timestamp)
+                    
                     task_with_events = repo.find_by_id_with_events(db, task_id)
                     if task_with_events:
                         _, events = task_with_events
-                        missed_events = [e for e in events if e.created_time > last_event_timestamp]
+                        # Use >= for timestamp 0 to include all events
+                        missed_events = [e for e in events if e.created_time > replay_from_timestamp]
                         log.info("%sReplaying %d missed events", log_prefix, len(missed_events))
                         
                         for event in missed_events:

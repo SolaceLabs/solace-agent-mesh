@@ -1,16 +1,18 @@
 """
-API Router for task events and status queries.
-Supports reconnection and event replay for background tasks.
+API Router for background task status queries.
+Supports background task status checking and active task listing.
+
+Note: The /tasks/{task_id}/events endpoint is defined in tasks.py
+to return the format expected by the workflow visualization frontend.
 """
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session as DBSession
-from typing import List
 
 from ....gateway.http_sse.dependencies import get_db
 from ....gateway.http_sse.repository.task_repository import TaskRepository
-from ....gateway.http_sse.repository.entities import Task, TaskEvent
+from ....gateway.http_sse.repository.entities import Task
 from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
@@ -24,14 +26,6 @@ class TaskStatusResponse(BaseModel):
     is_running: bool
     is_background: bool
     can_reconnect: bool
-
-
-class TaskEventsResponse(BaseModel):
-    """Response model for task events queries."""
-    task: Task
-    events: List[TaskEvent]
-    total_events: int
-    has_more: bool
 
 
 @router.get("/tasks/{task_id}/status", response_model=TaskStatusResponse)
@@ -77,59 +71,6 @@ async def get_task_status(
         is_running=is_running,
         is_background=is_background,
         can_reconnect=can_reconnect
-    )
-
-
-@router.get("/tasks/{task_id}/events", response_model=TaskEventsResponse)
-async def get_task_events(
-    task_id: str,
-    since_timestamp: int = Query(0, description="Return events after this timestamp (epoch ms)"),
-    limit: int = Query(100, description="Maximum number of events to return"),
-    db: DBSession = Depends(get_db),
-):
-    """
-    Retrieve events for a task, optionally filtered by timestamp.
-    Used for reconnection to replay missed events.
-    
-    Args:
-        task_id: The task ID to query
-        since_timestamp: Only return events after this timestamp (epoch milliseconds)
-        limit: Maximum number of events to return
-        
-    Returns:
-        Task information and list of events
-    """
-    log_prefix = f"[GET /api/v1/tasks/{task_id}/events]"
-    log.debug(f"{log_prefix} Querying events since {since_timestamp}")
-    
-    repo = TaskRepository()
-    result = repo.find_by_id_with_events(db, task_id)
-    
-    if not result:
-        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    
-    task, all_events = result
-    
-    # Filter events by timestamp
-    filtered_events = [
-        event for event in all_events
-        if event.created_time > since_timestamp
-    ]
-    
-    # Apply limit
-    limited_events = filtered_events[:limit]
-    has_more = len(filtered_events) > limit
-    
-    log.info(
-        f"{log_prefix} Returning {len(limited_events)} events "
-        f"(filtered from {len(all_events)} total, has_more={has_more})"
-    )
-    
-    return TaskEventsResponse(
-        task=task,
-        events=limited_events,
-        total_events=len(filtered_events),
-        has_more=has_more
     )
 
 
