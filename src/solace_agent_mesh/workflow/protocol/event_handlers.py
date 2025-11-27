@@ -172,8 +172,32 @@ async def handle_task_request(
 
     except Exception as e:
         log.exception(f"{component.log_identifier} Error handling task request: {e}")
+        
         # Send error response
-        # ...
+        try:
+            error_response = a2a.create_internal_error_response(
+                message=f"Failed to start workflow: {e}",
+                request_id=request_id,
+                data={"taskId": logical_task_id} if 'logical_task_id' in locals() else None
+            )
+            
+            if reply_to:
+                component.publish_a2a_message(
+                    payload=error_response.model_dump(exclude_none=True),
+                    topic=reply_to,
+                    user_properties={"a2aUserConfig": user_config} if 'user_config' in locals() else {}
+                )
+            
+            # NACK the original message if possible
+            message.call_negative_acknowledgements()
+            
+        except Exception as send_err:
+            log.error(f"{component.log_identifier} Failed to send error response: {send_err}")
+            # Fallback ACK to prevent redelivery loop if NACK fails or logic is broken
+            try:
+                message.call_acknowledgements()
+            except:
+                pass
 
 
 async def _initialize_workflow_state(
@@ -276,6 +300,14 @@ async def handle_persona_response(
 
     except Exception as e:
         log.exception(f"{component.log_identifier} Error handling persona response: {e}")
+        
+        # If we have a workflow context, fail the workflow gracefully
+        if 'workflow_context' in locals() and workflow_context:
+            try:
+                await component.finalize_workflow_failure(workflow_context, e)
+            except Exception as final_err:
+                log.error(f"{component.log_identifier} Failed to finalize workflow failure: {final_err}")
+        
         message.call_acknowledgements() # ACK to avoid redelivery loop on error
 
 
