@@ -6,7 +6,7 @@ import logging
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import jsonschema
 from google.adk.tools import BaseTool, ToolContext
@@ -122,76 +122,21 @@ class WorkflowAgentTool(BaseTool):
         log_identifier = f"{self.log_identifier}[SubTask:{sub_task_id}]"
 
         try:
-            # 1. Determine Input Mode
-            input_artifact_name = args.get("input_artifact")
-            payload_artifact_name = None
-            payload_artifact_version = None
-
-            if input_artifact_name:
-                # Artifact Mode
-                log.info(
-                    "%s Invoking in Artifact Mode with '%s'",
-                    log_identifier,
-                    input_artifact_name,
-                )
-                payload_artifact_name = input_artifact_name
-            else:
-                # Parameter Mode
-                log.info("%s Invoking in Parameter Mode", log_identifier)
-
-                # Validate against strict schema
-                try:
-                    jsonschema.validate(instance=args, schema=self.input_schema)
-                except jsonschema.ValidationError as e:
-                    return {
-                        "status": "error",
-                        "message": f"Input validation failed: {e.message}. Please provide required parameters or use input_artifact.",
-                    }
-
-                # Create implicit artifact
-                payload_data = args
-                payload_bytes = json.dumps(payload_data).encode("utf-8")
-
-                # Generate filename
-                sanitized_wf_name = "".join(
-                    c for c in self.target_agent_name if c.isalnum() or c in "_-"
-                )
-                payload_artifact_name = f"wi_{sanitized_wf_name}.json"
-
-                # Save artifact
-                user_id = tool_context._invocation_context.user_id
-                session_id = tool_context._invocation_context.session.id
-
-                save_result = await save_artifact_with_metadata(
-                    artifact_service=self.host_component.artifact_service,
-                    app_name=self.host_component.agent_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=payload_artifact_name,
-                    content_bytes=payload_bytes,
-                    mime_type="application/json",
-                    metadata_dict={
-                        "description": f"Auto-generated input for workflow '{self.target_agent_name}'",
-                        "source": "workflow_tool_implicit_creation",
-                    },
-                    timestamp=datetime.now(timezone.utc),
-                )
-
-                if save_result["status"] != "success":
-                    raise RuntimeError(
-                        f"Failed to save implicit input artifact: {save_result.get('message')}"
-                    )
-
-                payload_artifact_version = save_result.get("data_version")
-
-                log.info(
-                    "%s Created implicit input artifact: %s v%s",
-                    log_identifier,
+            # 1. Prepare Input Artifact
+            try:
+                (
                     payload_artifact_name,
                     payload_artifact_version,
+                ) = await self._prepare_input_artifact(
+                    args, tool_context, log_identifier
                 )
+            except jsonschema.ValidationError as e:
+                return {
+                    "status": "error",
+                    "message": f"Input validation failed: {e.message}. Please provide required parameters or use input_artifact.",
+                }
 
-            # 2. Prepare A2A Message
+            # 2. Prepare Context
             original_task_context = tool_context.state.get("a2a_context", {})
             main_logical_task_id = original_task_context.get(
                 "logical_task_id", "unknown_task"
@@ -200,78 +145,27 @@ class WorkflowAgentTool(BaseTool):
             user_id = tool_context._invocation_context.user_id
             user_config = original_task_context.get("a2a_user_config", {})
 
-            # Register parallel call
-            task_context_obj = None
-            with self.host_component.active_tasks_lock:
-                task_context_obj = self.host_component.active_tasks.get(
-                    main_logical_task_id
-                )
-
-            if not task_context_obj:
-                raise ValueError(
-                    f"TaskExecutionContext not found for task '{main_logical_task_id}'"
-                )
-
-            task_context_obj.register_parallel_call_sent(invocation_id)
-
-            # Construct message
-            a2a_message_parts = [
-                a2a.create_text_part(
-                    text=f"Invoking workflow with input artifact: {payload_artifact_name}"
-                )
-            ]
-
-            invoked_artifacts = []
-            if payload_artifact_name:
-                artifact_ref = {"filename": payload_artifact_name}
-                if payload_artifact_version is not None:
-                    artifact_ref["version"] = payload_artifact_version
-                invoked_artifacts.append(artifact_ref)
-
-            a2a_metadata = {
-                "sessionBehavior": "RUN_BASED",
-                "parentTaskId": main_logical_task_id,
-                "function_call_id": tool_context.function_call_id,
-                "agent_name": self.target_agent_name,
-                "invoked_with_artifacts": invoked_artifacts,
-            }
-
-            a2a_message = a2a.create_user_message(
-                parts=a2a_message_parts,
-                metadata=a2a_metadata,
-                context_id=original_task_context.get("contextId"),
+            # 3. Prepare Message
+            a2a_message = self._prepare_a2a_message(
+                payload_artifact_name,
+                payload_artifact_version,
+                tool_context,
+                main_logical_task_id,
+                original_task_context,
             )
 
-            # 3. Submit Task
-            correlation_data = {
-                "adk_function_call_id": tool_context.function_call_id,
-                "original_task_context": original_task_context,
-                "peer_tool_name": self.name,
-                "peer_agent_name": self.target_agent_name,
-                "logical_task_id": main_logical_task_id,
-                "invocation_id": invocation_id,
-            }
-
-            task_context_obj.register_peer_sub_task(sub_task_id, correlation_data)
-
-            timeout_sec = self.host_component.get_config(
-                "inter_agent_communication", {}
-            ).get("request_timeout_seconds", DEFAULT_COMMUNICATION_TIMEOUT)
-
-            self.host_component.cache_service.add_data(
-                key=sub_task_id,
-                value=main_logical_task_id,
-                expiry=timeout_sec,
-                component=self.host_component,
-            )
-
+            # 4. Submit Task
             try:
-                self.host_component.submit_a2a_task(
-                    target_agent_name=self.target_agent_name,
-                    a2a_message=a2a_message,
-                    user_id=user_id,
-                    user_config=user_config,
-                    sub_task_id=sub_task_id,
+                self._submit_workflow_task(
+                    sub_task_id,
+                    main_logical_task_id,
+                    invocation_id,
+                    tool_context,
+                    original_task_context,
+                    a2a_message,
+                    user_id,
+                    user_config,
+                    log_identifier,
                 )
             except MessageSizeExceededError as e:
                 log.error("%s Message size exceeded: %s", log_identifier, e)
@@ -280,7 +174,6 @@ class WorkflowAgentTool(BaseTool):
                     "message": f"Error: {str(e)}. Message size exceeded.",
                 }
 
-            log.info("%s Workflow task submitted.", log_identifier)
             return None  # Fire-and-forget
 
         except Exception as e:
@@ -289,3 +182,167 @@ class WorkflowAgentTool(BaseTool):
                 "status": "error",
                 "message": f"Failed to invoke workflow '{self.target_agent_name}': {e}",
             }
+
+    async def _prepare_input_artifact(
+        self, args: Dict[str, Any], tool_context: ToolContext, log_identifier: str
+    ) -> Tuple[str, Optional[int]]:
+        """
+        Determines input mode, validates parameters, and creates implicit artifact if needed.
+        Returns (artifact_name, artifact_version).
+        """
+        input_artifact_name = args.get("input_artifact")
+
+        if input_artifact_name:
+            log.info(
+                "%s Invoking in Artifact Mode with '%s'",
+                log_identifier,
+                input_artifact_name,
+            )
+            return input_artifact_name, None
+
+        # Parameter Mode
+        log.info("%s Invoking in Parameter Mode", log_identifier)
+
+        # Validate against strict schema
+        jsonschema.validate(instance=args, schema=self.input_schema)
+
+        # Create implicit artifact
+        payload_data = args
+        payload_bytes = json.dumps(payload_data).encode("utf-8")
+
+        # Generate filename
+        sanitized_wf_name = "".join(
+            c for c in self.target_agent_name if c.isalnum() or c in "_-"
+        )
+        payload_artifact_name = f"wi_{sanitized_wf_name}.json"
+
+        # Save artifact
+        user_id = tool_context._invocation_context.user_id
+        session_id = tool_context._invocation_context.session.id
+
+        save_result = await save_artifact_with_metadata(
+            artifact_service=self.host_component.artifact_service,
+            app_name=self.host_component.agent_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=payload_artifact_name,
+            content_bytes=payload_bytes,
+            mime_type="application/json",
+            metadata_dict={
+                "description": f"Auto-generated input for workflow '{self.target_agent_name}'",
+                "source": "workflow_tool_implicit_creation",
+            },
+            timestamp=datetime.now(timezone.utc),
+        )
+
+        if save_result["status"] != "success":
+            raise RuntimeError(
+                f"Failed to save implicit input artifact: {save_result.get('message')}"
+            )
+
+        payload_artifact_version = save_result.get("data_version")
+
+        log.info(
+            "%s Created implicit input artifact: %s v%s",
+            log_identifier,
+            payload_artifact_name,
+            payload_artifact_version,
+        )
+
+        return payload_artifact_name, payload_artifact_version
+
+    def _prepare_a2a_message(
+        self,
+        payload_artifact_name: str,
+        payload_artifact_version: Optional[int],
+        tool_context: ToolContext,
+        main_logical_task_id: str,
+        original_task_context: Dict[str, Any],
+    ) -> Any:
+        """Constructs the A2A message with metadata."""
+        a2a_message_parts = [
+            a2a.create_text_part(
+                text=f"Invoking workflow with input artifact: {payload_artifact_name}"
+            )
+        ]
+
+        invoked_artifacts = []
+        if payload_artifact_name:
+            artifact_ref = {"filename": payload_artifact_name}
+            if payload_artifact_version is not None:
+                artifact_ref["version"] = payload_artifact_version
+            invoked_artifacts.append(artifact_ref)
+
+        a2a_metadata = {
+            "sessionBehavior": "RUN_BASED",
+            "parentTaskId": main_logical_task_id,
+            "function_call_id": tool_context.function_call_id,
+            "agent_name": self.target_agent_name,
+            "invoked_with_artifacts": invoked_artifacts,
+        }
+
+        return a2a.create_user_message(
+            parts=a2a_message_parts,
+            metadata=a2a_metadata,
+            context_id=original_task_context.get("contextId"),
+        )
+
+    def _submit_workflow_task(
+        self,
+        sub_task_id: str,
+        main_logical_task_id: str,
+        invocation_id: str,
+        tool_context: ToolContext,
+        original_task_context: Dict[str, Any],
+        a2a_message: Any,
+        user_id: str,
+        user_config: Dict[str, Any],
+        log_identifier: str,
+    ):
+        """Handles task registration, correlation data, and submission."""
+        # Register parallel call
+        task_context_obj = None
+        with self.host_component.active_tasks_lock:
+            task_context_obj = self.host_component.active_tasks.get(
+                main_logical_task_id
+            )
+
+        if not task_context_obj:
+            raise ValueError(
+                f"TaskExecutionContext not found for task '{main_logical_task_id}'"
+            )
+
+        task_context_obj.register_parallel_call_sent(invocation_id)
+
+        # Submit Task
+        correlation_data = {
+            "adk_function_call_id": tool_context.function_call_id,
+            "original_task_context": original_task_context,
+            "peer_tool_name": self.name,
+            "peer_agent_name": self.target_agent_name,
+            "logical_task_id": main_logical_task_id,
+            "invocation_id": invocation_id,
+        }
+
+        task_context_obj.register_peer_sub_task(sub_task_id, correlation_data)
+
+        timeout_sec = self.host_component.get_config(
+            "inter_agent_communication", {}
+        ).get("request_timeout_seconds", DEFAULT_COMMUNICATION_TIMEOUT)
+
+        self.host_component.cache_service.add_data(
+            key=sub_task_id,
+            value=main_logical_task_id,
+            expiry=timeout_sec,
+            component=self.host_component,
+        )
+
+        self.host_component.submit_a2a_task(
+            target_agent_name=self.target_agent_name,
+            a2a_message=a2a_message,
+            user_id=user_id,
+            user_config=user_config,
+            sub_task_id=sub_task_id,
+        )
+
+        log.info("%s Workflow task submitted.", log_identifier)
