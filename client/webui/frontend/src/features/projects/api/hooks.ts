@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { projects } from "./key";
-import { createProject, getProjects } from "./services";
+import { addFilesToProject, createProject, getProjects } from "./services";
 import type { Project } from "@/lib";
 
 export const useProjects = (enabled: boolean) => {
@@ -17,5 +17,12 @@ export const useCreateProject = () => {
         mutationFn: (project: FormData): Promise<Project> => {
             return createProject(project);
         },
+    });
+};
+
+export const useAddFilesToProject = (projectId: string) => {
+    return useMutation({
+        mutationKey: projects.artifacts(projectId)._ctx.new.queryKey,
+        mutationFn: (data: FormData) => addFilesToProject(projectId, data),
     });
 };

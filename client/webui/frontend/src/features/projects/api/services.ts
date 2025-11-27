@@ -15,3 +15,12 @@ export const createProject = async (data: FormData) => {
     });
     return await response.json();
 };
+
+export const addFilesToProject = async (projectId: string, data: FormData) => {
+    const response = await authenticatedFetch(`/api/v1/projects/${projectId}/artifacts`, {
+        method: "POST",
+        body: data,
+        credentials: "include",
+    });
+    return await response.json();
+};
