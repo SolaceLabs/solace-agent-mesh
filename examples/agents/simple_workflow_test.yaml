@@ -220,10 +220,11 @@ apps:
         # Map output from whichever branch ran
         output_mapping:
           processed_order_id: "{{workflow.input.order_id}}"
-          # For MVP testing, we map one path. In a real scenario, we'd use a merge node or handle missing keys.
-          # If 'send_to_review' didn't run, this might be null or fail depending on implementation.
-          # But for the test case of high risk (amount > 100), this path will run.
-          final_status: "{{send_to_review.output.status}}" 
+          # Use coalesce to pick the status from whichever branch executed
+          final_status:
+            coalesce:
+              - "{{send_to_review.output.status}}"
+              - "{{auto_approve.output.status}}"
 
       session_service:
         <<: *default_session_service
