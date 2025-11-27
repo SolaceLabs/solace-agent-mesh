@@ -463,7 +463,7 @@ class DAGExecutor:
         log_id = f"{self.host.log_identifier}[Map:{node.id}]"
 
         # Resolve items array
-        items = self._resolve_template(node.items, workflow_state)
+        items = self.resolve_value(node.items, workflow_state)
 
         if not isinstance(items, list):
             raise ValueError(f"Map target must be array, got: {type(items)}")
@@ -558,6 +558,49 @@ class DAGExecutor:
                     "sub_task_id": sub_task_id,
                 }
             )
+
+    def resolve_value(
+        self, value_def: Any, workflow_state: WorkflowExecutionState
+    ) -> Any:
+        """
+        Resolve a value definition, handling templates and operators.
+        Supports:
+        - Literal values
+        - Template strings: "{{...}}"
+        - Operators: coalesce, concat
+        """
+        # Handle template string
+        if isinstance(value_def, str) and value_def.startswith("{{"):
+            return self._resolve_template(value_def, workflow_state)
+
+        # Handle intrinsic functions (operators)
+        if isinstance(value_def, dict) and len(value_def) == 1:
+            op = next(iter(value_def))
+            args = value_def[op]
+
+            if op == "coalesce":
+                if not isinstance(args, list):
+                    raise ValueError("'coalesce' operator requires a list of values")
+
+                for arg in args:
+                    resolved = self.resolve_value(arg, workflow_state)
+                    if resolved is not None:
+                        return resolved
+                return None
+
+            if op == "concat":
+                if not isinstance(args, list):
+                    raise ValueError("'concat' operator requires a list of values")
+
+                parts = []
+                for arg in args:
+                    resolved = self.resolve_value(arg, workflow_state)
+                    if resolved is not None:
+                        parts.append(str(resolved))
+                return "".join(parts)
+
+        # Return literal
+        return value_def
 
     def _resolve_template(
         self, template: str, workflow_state: WorkflowExecutionState

@@ -68,7 +68,9 @@ class MapNode(WorkflowNode):
     """Map (parallel iteration) node."""
 
     type: Literal["map"] = "map"
-    items: str = Field(..., description="Array template reference to iterate over")
+    items: Union[str, Dict[str, Any]] = Field(
+        ..., description="Array template reference or expression to iterate over"
+    )
     node: str = Field(..., description="Node ID to execute for each item")
     max_items: Optional[int] = Field(100, description="Max items to process")
     concurrency_limit: Optional[int] = Field(

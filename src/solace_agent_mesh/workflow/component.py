@@ -430,46 +430,9 @@ class WorkflowExecutorComponent(SamComponentBase):
 
         final_output = {}
         for key, value_def in mapping.items():
-            final_output[key] = self._resolve_output_value(value_def, state)
+            final_output[key] = self.dag_executor.resolve_value(value_def, state)
 
         return final_output
-
-    def _resolve_output_value(
-        self, value_def: Any, state: WorkflowExecutionState
-    ) -> Any:
-        """Resolve a single output value definition."""
-        # Handle template string
-        if isinstance(value_def, str) and value_def.startswith("{{"):
-            return self.dag_executor._resolve_template(value_def, state)
-
-        # Handle intrinsic functions (operators)
-        if isinstance(value_def, dict) and len(value_def) == 1:
-            op = next(iter(value_def))
-            args = value_def[op]
-
-            if op == "coalesce":
-                if not isinstance(args, list):
-                    raise ValueError("'coalesce' operator requires a list of values")
-                
-                for arg in args:
-                    resolved = self._resolve_output_value(arg, state)
-                    if resolved is not None:
-                        return resolved
-                return None
-
-            if op == "concat":
-                if not isinstance(args, list):
-                    raise ValueError("'concat' operator requires a list of values")
-                
-                parts = []
-                for arg in args:
-                    resolved = self._resolve_output_value(arg, state)
-                    if resolved is not None:
-                        parts.append(str(resolved))
-                return "".join(parts)
-
-        # Return literal
-        return value_def
 
     async def _update_workflow_state(
         self,

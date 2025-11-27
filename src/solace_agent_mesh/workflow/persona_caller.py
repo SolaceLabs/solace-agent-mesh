@@ -93,13 +93,11 @@ class PersonaCaller:
         if node.input is not None:
             resolved_input = {}
             for key, value in node.input.items():
-                if isinstance(value, str) and value.startswith("{{"):
-                    # Template reference
-                    resolved_value = self._resolve_template(value, workflow_state)
-                    resolved_input[key] = resolved_value
-                else:
-                    # Literal value
-                    resolved_input[key] = value
+                # Use DAGExecutor's resolve_value to handle templates and operators
+                resolved_value = self.host.dag_executor.resolve_value(
+                    value, workflow_state
+                )
+                resolved_input[key] = resolved_value
             return resolved_input
 
         # Case 2: Implicit Input Inference
@@ -127,55 +125,6 @@ class PersonaCaller:
             "Please provide an explicit 'input' mapping."
         )
 
-    def _resolve_template(
-        self, template: str, workflow_state: WorkflowExecutionState
-    ) -> Any:
-        """
-        Resolve template variable.
-        Format: {{node_id.output.field_path}} or {{workflow.input.field_path}}
-        """
-        # Extract variable path
-        match = re.match(r"\{\{(.+?)\}\}", template)
-        if not match:
-            return template
-
-        path = match.group(1)
-        parts = path.split(".")
-
-        # Navigate path in workflow state
-        if parts[0] == "workflow" and parts[1] == "input":
-            # Reference to workflow input
-            # Workflow input is stored in node_outputs["workflow_input"]
-            if "workflow_input" not in workflow_state.node_outputs:
-                raise ValueError("Workflow input has not been initialized")
-
-            # Navigate from workflow_input.output.field_path
-            data = workflow_state.node_outputs["workflow_input"]["output"]
-            for part in parts[2:]:  # Skip "workflow" and "input"
-                if isinstance(data, dict) and part in data:
-                    data = data[part]
-                else:
-                    raise ValueError(
-                        f"Workflow input field '{part}' not found in path: {path}"
-                    )
-            return data
-        else:
-            # Reference to node output
-            node_id = parts[0]
-            if node_id not in workflow_state.node_outputs:
-                raise ValueError(f"Referenced node '{node_id}' has not completed")
-
-            # Navigate remaining path
-            data = workflow_state.node_outputs[node_id]
-            for part in parts[1:]:
-                if isinstance(data, dict) and part in data:
-                    data = data[part]
-                else:
-                    raise ValueError(
-                        f"Output field '{part}' not found in node '{node_id}' for path: {path}"
-                    )
-
-            return data
 
     def _generate_result_embed_reminder(
         self, output_schema: Optional[Dict[str, Any]]

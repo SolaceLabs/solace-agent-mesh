@@ -261,7 +261,10 @@ apps:
             # Let's simplify: The workflow always generates data for this test.
             # We will test Implicit Input and Map.
             
-            items: "{{generate_data.output.items}}"
+            items:
+              coalesce:
+                - "{{generate_data.output.items}}"
+                - "{{workflow.input.direct_items}}"
             node: process_single_item
             concurrency_limit: 2
 
