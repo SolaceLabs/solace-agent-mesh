@@ -868,12 +868,17 @@ class DAGExecutor:
 
         # Create merged artifact
         merged_artifact_name = f"fork_{fork_node_id}_merged.json"
+        merged_bytes = json.dumps(merged_output).encode("utf-8")
         await self.host.artifact_service.save_artifact(
             app_name=self.host.workflow_name,
             user_id=workflow_context.a2a_context["user_id"],
             session_id=workflow_context.a2a_context["session_id"],
             filename=merged_artifact_name,
-            artifact=adk_types.Part(text=json.dumps(merged_output)), # Simplified for MVP
+            artifact=adk_types.Part(
+                inline_data=adk_types.Blob(
+                    mime_type="application/json", data=merged_bytes
+                )
+            ),
         )
         # Note: The above save_artifact call is simplified. 
         # Real implementation needs to construct a proper Part or use a helper.
@@ -926,12 +931,17 @@ class DAGExecutor:
 
         # Create aggregated artifact
         merged_artifact_name = f"map_{map_node_id}_results.json"
+        merged_bytes = json.dumps({"results": results_list}).encode("utf-8")
         await self.host.artifact_service.save_artifact(
             app_name=self.host.workflow_name,
             user_id=workflow_context.a2a_context["user_id"],
             session_id=workflow_context.a2a_context["session_id"],
             filename=merged_artifact_name,
-            artifact=adk_types.Part(text=json.dumps({"results": results_list})),
+            artifact=adk_types.Part(
+                inline_data=adk_types.Blob(
+                    mime_type="application/json", data=merged_bytes
+                )
+            ),
         )
 
         workflow_state.completed_nodes[map_node_id] = merged_artifact_name
