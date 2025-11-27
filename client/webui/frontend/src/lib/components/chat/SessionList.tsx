@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Loader2 } from "lucide-react";
 
 import { useChatContext, useConfigContext } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
@@ -105,13 +105,37 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 return prevSessions;
             });
         };
+        const handleBackgroundTaskCompleted = () => {
+            // Refresh session list when background task completes to update indicators
+            fetchSessions(1, false);
+        };
         window.addEventListener("new-chat-session", handleNewSession);
         window.addEventListener("session-updated", handleSessionUpdated as EventListener);
+        window.addEventListener("background-task-completed", handleBackgroundTaskCompleted);
         return () => {
             window.removeEventListener("new-chat-session", handleNewSession);
             window.removeEventListener("session-updated", handleSessionUpdated as EventListener);
+            window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
         };
     }, [fetchSessions]);
+
+    // Periodic refresh when there are sessions with running background tasks
+    // This is necessary to detect task completion when user is on a different session
+    useEffect(() => {
+        const hasBackgroundTasks = sessions.some(s => s.hasRunningBackgroundTask);
+
+        if (!hasBackgroundTasks) {
+            return; // No background tasks, no need to poll
+        }
+
+        const intervalId = setInterval(() => {
+            fetchSessions(1, false);
+        }, 10000); // Check every 10 seconds
+
+        return () => {
+            clearInterval(intervalId);
+        };
+    }, [sessions, fetchSessions]);
 
     useEffect(() => {
         if (inView && hasMore && !isLoading) {
@@ -326,7 +350,17 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         <button onClick={() => handleSessionClick(session.id)} className="min-w-0 flex-1 cursor-pointer text-left">
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                                    <span className="truncate font-semibold">{getSessionDisplayName(session)}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="truncate font-semibold">{getSessionDisplayName(session)}</span>
+                                                        {session.hasRunningBackgroundTask && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Loader2 className="text-primary h-4 w-4 flex-shrink-0 animate-spin" />
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Background task running</TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                    </div>
                                                     <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
                                                 {session.projectName && (

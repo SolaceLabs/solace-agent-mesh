@@ -33,6 +33,34 @@ def _get_validation_limits() -> Dict[str, Any]:
     }
 
 
+def _get_background_tasks_config(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> Dict[str, Any]:
+    """
+    Extracts background tasks configuration for the frontend.
+    
+    Returns:
+        Dict with background tasks settings:
+        - enabled: Whether background execution is enabled for all agents
+        - default_timeout_ms: Default timeout for background tasks
+    """
+    background_config = component.get_config("background_tasks", {})
+    
+    enabled = background_config.get("enabled", False)
+    default_timeout_ms = background_config.get("default_timeout_ms", 3600000)  # 1 hour default
+    
+    if enabled:
+        log.debug("%s Background tasks enabled globally for all agents", log_prefix)
+    else:
+        log.debug("%s Background tasks disabled", log_prefix)
+    
+    return {
+        "enabled": enabled,
+        "default_timeout_ms": default_timeout_ms,
+    }
+
+
 def _determine_projects_enabled(
     component: "WebUIBackendComponent",
     api_config: Dict[str, Any],
@@ -287,6 +315,7 @@ async def get_app_config(
             "validation_limits": _get_validation_limits(),
             "tool_config_status": tool_config_status,
             "tts_settings": tts_settings,
+            "background_tasks": _get_background_tasks_config(component, log_prefix),
         }
         log.debug("%sReturning frontend configuration.", log_prefix)
         return config_data
