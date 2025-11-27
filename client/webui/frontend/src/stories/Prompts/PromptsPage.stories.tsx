@@ -61,4 +61,15 @@ export const WithFilterSelected: Story = {
     },
 };
 
+export const WithFilterSelectedNoResults: Story = {
+    parameters: {
+        msw: { handlers },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const search = await canvas.findByTestId("promptSearchInput");
+        await userEvent.type(search, "asdf");
+    },
+};
+
 export const NoPrompts: Story = {};
