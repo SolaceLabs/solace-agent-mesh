@@ -30,7 +30,7 @@
 - **Install Node.js dependencies**:
   ```bash
   cd client/webui/frontend
-  npm install
+  npm ci
   ```
   - **TIMING**: ~15 seconds. Set timeout to 2+ minutes.
 - **Build frontend**:
