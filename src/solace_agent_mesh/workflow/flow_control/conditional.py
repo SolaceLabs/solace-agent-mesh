@@ -3,6 +3,7 @@ Conditional expression evaluation for workflow flow control.
 """
 
 import logging
+import re
 from typing import Any, Dict
 from simpleeval import simple_eval
 
@@ -33,13 +34,37 @@ def evaluate_condition(
     functions = {"true": True, "false": False, "null": None}
 
     try:
-        # Pre-process the expression to handle {{...}} syntax if present
-        # (Though simpleeval works on variable names directly)
-        # If the user writes "{{node.output.val}} == 1", we need to strip {{}}
-        # But our design says: "{{validate.output.is_valid}} == true"
-        # simpleeval expects: "validate.output.is_valid == true"
-        # So we should strip {{ and }}
-        clean_expr = condition_expr.replace("{{", "").replace("}}", "")
+        # Helper to resolve a single match
+        def replace_match(match):
+            path = match.group(1).strip()
+            parts = path.split(".")
+
+            # Navigate path in workflow state (similar to DAGExecutor._resolve_template)
+            if parts[0] == "workflow" and parts[1] == "input":
+                if "workflow_input" not in workflow_state.node_outputs:
+                    raise ValueError("Workflow input has not been initialized")
+                data = workflow_state.node_outputs["workflow_input"]["output"]
+                parts = parts[2:]
+            else:
+                node_id = parts[0]
+                if node_id not in workflow_state.node_outputs:
+                    raise ValueError(f"Referenced node '{node_id}' has not completed")
+                data = workflow_state.node_outputs[node_id].get("output")
+                parts = parts[1:]
+
+            # Traverse remaining parts
+            for part in parts:
+                if isinstance(data, dict) and part in data:
+                    data = data[part]
+                else:
+                    raise ValueError(f"Field '{part}' not found in path: {path}")
+
+            return str(data)
+
+        # Replace all {{...}} patterns with their resolved string values
+        clean_expr = re.sub(r"\{\{(.+?)\}\}", replace_match, condition_expr)
+
+        log.debug(f"Evaluated condition: '{condition_expr}' -> '{clean_expr}'")
 
         result = simple_eval(clean_expr, names=context, functions=functions)
         return bool(result)
