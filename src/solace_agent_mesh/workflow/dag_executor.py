@@ -873,7 +873,7 @@ class DAGExecutor:
             user_id=workflow_context.a2a_context["user_id"],
             session_id=workflow_context.a2a_context["session_id"],
             filename=merged_artifact_name,
-            artifact=adk_types.Part.from_text(json.dumps(merged_output)), # Simplified for MVP
+            artifact=adk_types.Part(text=json.dumps(merged_output)), # Simplified for MVP
         )
         # Note: The above save_artifact call is simplified. 
         # Real implementation needs to construct a proper Part or use a helper.
@@ -931,7 +931,7 @@ class DAGExecutor:
             user_id=workflow_context.a2a_context["user_id"],
             session_id=workflow_context.a2a_context["session_id"],
             filename=merged_artifact_name,
-            artifact=adk_types.Part.from_text(json.dumps({"results": results_list})),
+            artifact=adk_types.Part(text=json.dumps({"results": results_list})),
         )
 
         workflow_state.completed_nodes[map_node_id] = merged_artifact_name
