@@ -1,0 +1,145 @@
+# Guide
+
+## Getting Started
+
+- [What is Agent Mesh?](docs/documentation/getting-started/introduction.md): An introduction to Agent Mesh, an open-source framework that serves as an integration layer for AI applications. It explains how Agent Mesh uses event-driven architecture to enable specialized agents to collaborate across isolated data silos, featuring unified AI collaboration, complex workflow orchestration, seamless system integration, and enterprise-grade reliability built on Solace Event Broker.
+
+- [Getting Started](docs/documentation/getting-started/getting-started.md): Overview of Agent Mesh and guide to navigating the documentation, providing developers with a roadmap for understanding the framework's capabilities and structure.
+
+- [Architecture](docs/documentation/getting-started/architecture.md): Detailed explanation of Agent Mesh's architectural design, including its event-driven core, component interactions, and how the event mesh creates a neural network for AI components to communicate asynchronously.
+
+- [Try Agent Mesh](docs/documentation/getting-started/try-agent-mesh.md): Quick start guide for creating your first project, building, and running Agent Mesh to get hands-on experience with the framework.
+
+## Installing and Configuring
+
+- [Installing and Configuring](docs/documentation/installing-and-configuring/installing-and-configuring.md): Overview of installation and configuration options for Agent Mesh, covering prerequisites and setup requirements.
+
+- [Installation](docs/documentation/installing-and-configuring/installation.md): Step-by-step instructions for installing Agent Mesh, including system requirements, dependencies, and environment setup.
+
+- [Configurations](docs/documentation/installing-and-configuring/configurations.md): Comprehensive guide to configuring Agent Mesh components using YAML-based configuration files, providing precise control without code changes.
+
+- [Large Language Models](docs/documentation/installing-and-configuring/large_language_models.md): Guide to integrating and configuring various LLM providers with Agent Mesh, including setup for different AI models and their specific requirements.
+
+- [Run Project](docs/documentation/installing-and-configuring/run-project.md): Instructions for running Agent Mesh projects, including command-line options, environment variables, and deployment considerations.
+
+- [Artifact Storage](docs/documentation/installing-and-configuring/artifact-storage.md): Configuration guide for artifact storage systems, explaining how to set up and manage storage for files, documents, and other artifacts generated or processed by agents.
+
+- [Session Storage](docs/documentation/installing-and-configuring/session-storage.md): Guide to configuring session storage mechanisms for maintaining conversation state and context across agent interactions.
+
+- [User Feedback](docs/documentation/installing-and-configuring/user-feedback.md): Setup instructions for implementing user feedback collection and processing within Agent Mesh applications.
+
+## Components
+
+- [Components Overview](docs/documentation/components/components.md): Comprehensive overview of Agent Mesh's modular architecture, explaining how agents, gateways, proxies, and other components work together to create a flexible AI system.
+
+- [Agents](docs/documentation/components/agents.md): Detailed documentation on agents—the core processing units in Agent Mesh that execute tasks, use tools, and collaborate with other agents to solve complex problems.
+
+- [Gateways](docs/documentation/components/gateways.md): Guide to gateways that bridge Agent Mesh with external systems, including web interfaces, chat platforms, APIs, and event streams.
+
+- [Proxies](docs/documentation/components/proxies.md): Documentation on proxy components that facilitate communication between agents and external services, handling authentication, routing, and protocol translation.
+
+- [Orchestrator](docs/documentation/components/orchestrator.md): Explanation of the orchestrator component that manages complex multi-agent workflows, coordinating task execution across multiple specialized agents.
+
+- [Projects](docs/documentation/components/projects.md): Guide to organizing and managing Agent Mesh projects, including project structure, configuration, and best practices.
+
+- [Prompts](docs/documentation/components/prompts.md): Documentation on creating and managing prompts for agents, including prompt templates, variables, and optimization techniques.
+
+- [Plugins](docs/documentation/components/plugins.md): Guide to the plugin architecture that allows extending Agent Mesh with custom functionality, tools, and integrations.
+
+- [CLI](docs/documentation/components/cli.md): Comprehensive reference for the Agent Mesh command-line interface, covering all available commands, options, and usage examples.
+
+- [Speech](docs/documentation/components/speech.md): Documentation on speech-to-text and text-to-speech capabilities, enabling voice-based interactions with Agent Mesh.
+
+### Built-in Tools
+
+- [Built-in Tools Overview](docs/documentation/components/builtin-tools/builtin-tools.md): Overview of the tools that come pre-packaged with Agent Mesh, providing agents with ready-to-use capabilities for common tasks.
+
+- [Artifact Management](docs/documentation/components/builtin-tools/artifact-management.md): Guide to built-in tools for creating, storing, retrieving, and managing artifacts such as files, documents, and generated content.
+
+- [Audio Tools](docs/documentation/components/builtin-tools/audio-tools.md): Documentation on audio processing tools, including speech recognition, audio generation, and audio file manipulation capabilities.
+
+- [Data Analysis Tools](docs/documentation/components/builtin-tools/data-analysis-tools.md): Reference for built-in data analysis tools that enable agents to process, analyze, and visualize data from various sources.
+
+- [Embeds](docs/documentation/components/builtin-tools/embeds.md): Guide to embedding tools that allow agents to generate and work with vector embeddings for semantic search and similarity operations.
+
+## Developing
+
+- [Developing Overview](docs/documentation/developing/developing.md): Introduction to developing with Agent Mesh, covering development workflows, best practices, and available resources.
+
+- [Create Agents](docs/documentation/developing/create-agents.md): Step-by-step guide to creating custom agents, including defining capabilities, implementing tools, and configuring agent behavior.
+
+- [Create Gateways](docs/documentation/developing/create-gateways.md): Tutorial on building custom gateways to integrate Agent Mesh with new platforms, protocols, or external systems.
+
+- [Creating Python Tools](docs/documentation/developing/creating-python-tools.md): Guide to developing custom Python-based tools that agents can use, including function signatures, parameter handling, and error management.
+
+- [Creating Service Providers](docs/documentation/developing/creating-service-providers.md): Documentation on implementing custom service providers to extend Agent Mesh's integration capabilities with external services.
+
+- [Structure](docs/documentation/developing/structure.md): Explanation of Agent Mesh's code structure, project organization, and architectural patterns to help developers navigate and extend the framework.
+
+- [Evaluations](docs/documentation/developing/evaluations.md): Guide to testing and evaluating agent performance, including metrics, test cases, and quality assurance practices.
+
+### Tutorials
+
+- [Custom Agent Tutorial](docs/documentation/developing/tutorials/custom-agent.md): Hands-on tutorial for building a custom agent from scratch, covering all aspects from configuration to deployment.
+
+- [MCP Integration](docs/documentation/developing/tutorials/mcp-integration.md): Tutorial on integrating Model Context Protocol (MCP) tools with Agent Mesh, enabling agents to use MCP-compatible tools and services.
+
+- [RAG Integration](docs/documentation/developing/tutorials/rag-integration.md): Guide to implementing Retrieval-Augmented Generation (RAG) patterns in Agent Mesh, combining vector databases with LLMs for knowledge-enhanced responses.
+
+- [SQL Database Integration](docs/documentation/developing/tutorials/sql-database.md): Tutorial on connecting agents to SQL databases, enabling natural language queries and data manipulation.
+
+- [MongoDB Integration](docs/documentation/developing/tutorials/mongodb-integration.md): Guide to integrating MongoDB with Agent Mesh, allowing agents to work with NoSQL document databases.
+
+- [REST Gateway Tutorial](docs/documentation/developing/tutorials/rest-gateway.md): Tutorial on creating and configuring REST API gateways for HTTP-based interactions with Agent Mesh.
+
+- [Event Mesh Gateway](docs/documentation/developing/tutorials/event-mesh-gateway.md): Guide to building gateways that connect Agent Mesh to event-driven architectures and message brokers.
+
+- [Slack Integration](docs/documentation/developing/tutorials/slack-integration.md): Tutorial on integrating Agent Mesh with Slack, enabling agents to interact with users through Slack channels and direct messages.
+
+- [Teams Integration](docs/documentation/developing/tutorials/teams-integration.md): Guide to connecting Agent Mesh with Microsoft Teams for enterprise collaboration scenarios.
+
+- [Bedrock Agents](docs/documentation/developing/tutorials/bedrock-agents.md): Tutorial on integrating AWS Bedrock agents with Agent Mesh, leveraging Amazon's managed AI services.
+
+## Deploying
+
+- [Deploying Overview](docs/documentation/deploying/deploying.md): Overview of deployment strategies, environments, and considerations for running Agent Mesh in production.
+
+- [Deployment Options](docs/documentation/deploying/deployment-options.md): Comprehensive guide to different deployment architectures, from single-server setups to distributed cloud deployments.
+
+- [Kubernetes Deployment](docs/documentation/deploying/kubernetes-deployment.md): Detailed instructions for deploying Agent Mesh on Kubernetes, including manifests, configurations, and scaling strategies.
+
+- [Proxy Configuration](docs/documentation/deploying/proxy_configuration.md): Guide to configuring proxies for production deployments, including load balancing, SSL termination, and security settings.
+
+- [Logging](docs/documentation/deploying/logging.md): Documentation on logging configuration, log levels, structured logging, and log aggregation for Agent Mesh deployments.
+
+- [Observability](docs/documentation/deploying/observability.md): Guide to monitoring and observability tools for Agent Mesh, including metrics, tracing, and health checks for production systems.
+
+- [Debugging](docs/documentation/deploying/debugging.md): Troubleshooting guide and debugging techniques for diagnosing and resolving issues in Agent Mesh deployments.
+
+## Enterprise
+
+- [Enterprise Overview](docs/documentation/enterprise/enterprise.md): Introduction to enterprise features and capabilities available in Agent Mesh for large-scale organizational deployments.
+
+- [Installation](docs/documentation/enterprise/installation.md): Enterprise-specific installation instructions, including licensing, advanced configurations, and enterprise support setup.
+
+- [Wheel Installation](docs/documentation/enterprise/wheel-installation.md): Guide to installing Agent Mesh using Python wheel packages for enterprise environments with restricted internet access.
+
+- [Agent Builder](docs/documentation/enterprise/agent-builder.md): Documentation on the enterprise agent builder tool for creating and managing agents through a visual interface.
+
+- [OpenAPI Tools](docs/documentation/enterprise/openapi-tools.md): Guide to automatically generating tools from OpenAPI specifications, enabling agents to interact with any REST API.
+
+- [Single Sign-On](docs/documentation/enterprise/single-sign-on.md): Configuration guide for integrating Agent Mesh with enterprise SSO providers like SAML, OAuth, and OIDC.
+
+- [RBAC Setup Guide](docs/documentation/enterprise/rbac-setup-guide.md): Comprehensive guide to implementing Role-Based Access Control in Agent Mesh, including user roles, permissions, and security policies.
+
+- [Secure User Delegated Access](docs/documentation/enterprise/secure-user-delegated-access.md): Documentation on implementing secure delegated access patterns where agents act on behalf of users with proper authorization.
+
+### Connectors
+
+- [Connectors](docs/documentation/enterprise/connectors/connectors.md): Overview of enterprise connectors that provide pre-built integrations with popular enterprise systems and SaaS platforms.
+
+## Migrations
+
+- [A2A Gateway Upgrade to 0.3.0](docs/documentation/migrations/a2a-upgrade/a2a-gateway-upgrade-to-0.3.0.md): Migration guide for upgrading Agent-to-Agent (A2A) gateways to version 0.3.0, including breaking changes and upgrade steps.
+
+- [A2A Technical Migration Map](docs/documentation/migrations/a2a-upgrade/a2a-technical-migration-map.md): Technical reference mapping old A2A configurations to new patterns, helping developers migrate existing implementations.
