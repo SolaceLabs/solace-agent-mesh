@@ -39,6 +39,19 @@ export const Default: Story = {
     },
 };
 
+export const AIAssistanceDisabled: Story = {
+    parameters: {
+        msw: { handlers },
+    },
+    args: {
+        configContext: {
+            configFeatureEnablement: {
+                promptAIAssisted: false,
+            },
+        },
+    },
+};
+
 export const WithPromptOpen: Story = {
     parameters: {
         msw: { handlers },
