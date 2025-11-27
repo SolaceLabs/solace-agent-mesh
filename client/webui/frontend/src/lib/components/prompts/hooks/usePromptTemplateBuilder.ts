@@ -100,7 +100,7 @@ export function usePromptTemplateBuilder(editingGroup?: PromptGroup | null) {
 
         // Show notification to user only if valid (errors are shown in the UI banner)
         if (isValid) {
-            addNotification("✓ Template is valid and ready to save!", "success");
+            addNotification("Template is valid and ready to save!", "success");
         }
 
         return isValid;
