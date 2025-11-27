@@ -89,7 +89,7 @@ async def run_adk_async_task_thread_wrapper(
                             adk_types.Part(
                                 text="Initializing A2A context for task run."
                             )
-                        ]
+                        ],
                     ),
                     actions=EventActions(state_delta={"a2a_context": a2a_context}),
                     branch=None,
