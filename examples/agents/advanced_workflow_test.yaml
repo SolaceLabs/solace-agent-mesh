@@ -239,6 +239,7 @@ apps:
           # Step 3: Map (Parallel Processing)
           - id: process_items
             type: map
+            depends_on: [generate_data]
             # Coalesce the list from either branch
             # Note: MapNode 'items' field supports templates. 
             # We need to ensure 'items' resolves to a list.

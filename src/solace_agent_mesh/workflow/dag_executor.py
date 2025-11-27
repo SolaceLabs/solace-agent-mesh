@@ -59,6 +59,13 @@ class DAGExecutor:
         self.nodes: Dict[str, WorkflowNode] = {
             node.id: node for node in workflow_definition.nodes
         }
+
+        # Identify inner nodes (targets of MapNodes) that should not be executed directly
+        self.inner_nodes = set()
+        for node in workflow_definition.nodes:
+            if node.type == "map":
+                self.inner_nodes.add(node.node)
+
         self.dependencies = self._build_dependency_graph()
         self.reverse_dependencies = self._build_reverse_dependencies()
 
@@ -86,7 +93,9 @@ class DAGExecutor:
     def get_initial_nodes(self) -> List[str]:
         """Get nodes with no dependencies (entry points)."""
         return [
-            node_id for node_id, deps in self.dependencies.items() if not deps
+            node_id
+            for node_id, deps in self.dependencies.items()
+            if not deps and node_id not in self.inner_nodes
         ]
 
     def get_next_nodes(
@@ -100,6 +109,10 @@ class DAGExecutor:
         next_nodes = []
 
         for node_id, deps in self.dependencies.items():
+            # Skip inner nodes (executed by MapNodes)
+            if node_id in self.inner_nodes:
+                continue
+
             # Skip if already completed
             if node_id in completed:
                 continue
