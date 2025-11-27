@@ -632,9 +632,8 @@ class DAGExecutor:
                 if isinstance(data, dict) and part in data:
                     data = data[part]
                 else:
-                    raise ValueError(
-                        f"Workflow input field '{part}' not found in path: {path}"
-                    )
+                    # Return None if input field is missing (allows coalesce to work)
+                    return None
             return data
         else:
             # Reference to node output
