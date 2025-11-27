@@ -664,7 +664,12 @@ class DAGExecutor:
                     return None
 
             # Navigate remaining path
-            data = workflow_state.node_outputs[node_id]
+            # Special handling for map variables: unwrap 'output' immediately
+            if node_id in ["_map_item", "_map_index"]:
+                data = workflow_state.node_outputs[node_id].get("output")
+            else:
+                data = workflow_state.node_outputs[node_id]
+
             for part in parts[1:]:
                 if isinstance(data, dict) and part in data:
                     data = data[part]
