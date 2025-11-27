@@ -2,7 +2,7 @@ import { PromptsPage } from "@/lib";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
 import { defaultPromptGroups, languagePromptGroup } from "./data";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 const handlers = [
     http.get("*/api/v1/prompts/groups/all", () => {
@@ -37,6 +37,11 @@ export const Default: Story = {
     parameters: {
         msw: { handlers },
     },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const createPromptLabel = await canvas.findByText("Create New Prompt");
+        expect(createPromptLabel).toBeInTheDocument();
+    },
 };
 
 export const AIAssistanceDisabled: Story = {
@@ -50,6 +55,11 @@ export const AIAssistanceDisabled: Story = {
             },
         },
     },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const buildWithAIButton = await canvas.findByTestId("buildWithAIButton");
+        expect(buildWithAIButton).toBeDisabled();
+    },
 };
 
 export const WithPromptOpen: Story = {
@@ -60,6 +70,8 @@ export const WithPromptOpen: Story = {
         const canvas = within(canvasElement);
         const prompt = await canvas.findByTestId(languagePromptGroup.id);
         prompt.click();
+        const startNewChat = await canvas.findByTestId("startNewChatButton");
+        expect(startNewChat).toBeInTheDocument();
     },
 };
 
@@ -71,6 +83,9 @@ export const WithSearchTerm: Story = {
         const canvas = within(canvasElement);
         const search = await canvas.findByTestId("promptSearchInput");
         await userEvent.type(search, "language");
+
+        const promptGroup = await canvas.findByTestId(languagePromptGroup.id);
+        expect(promptGroup).toBeVisible();
     },
 };
 
@@ -82,6 +97,8 @@ export const WithSearchTermNoResults: Story = {
         const canvas = within(canvasElement);
         const search = await canvas.findByTestId("promptSearchInput");
         await userEvent.type(search, "asdf");
+
+        expect(canvas.findByTestId("startNewChatButton", {}, { timeout: 1000 })).rejects.toThrowError();
     },
 };
 
@@ -95,7 +112,20 @@ export const WithTagSelected: Story = {
         tags.click();
         const communicationFilter = await canvas.findByTestId(`category-checkbox-${languagePromptGroup.category}`);
         communicationFilter.click();
+        expect(communicationFilter).toBeChecked();
+
+        const clearFiltersButton = await canvas.findByTestId("clearFiltersButton");
+        expect(clearFiltersButton).toBeVisible();
+
+        const promptGroup = await canvas.findByTestId(languagePromptGroup.id);
+        expect(promptGroup).toBeVisible();
     },
 };
 
-export const NoPrompts: Story = {};
+export const NoPrompts: Story = {
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const buildWithAIButton = await canvas.findByTestId("Build with AI");
+        expect(buildWithAIButton).toBeInTheDocument();
+    },
+};

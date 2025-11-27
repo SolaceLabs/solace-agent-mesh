@@ -28,7 +28,7 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
 
                     {/* Action buttons */}
                     <div className="flex w-full max-w-[320px] flex-col gap-3">
-                        <Button onClick={onAIAssisted} disabled={!aiAssistedEnabled} variant="default" size="lg" className="w-full">
+                        <Button data-testid="buildWithAIButton" onClick={onAIAssisted} disabled={!aiAssistedEnabled} variant="default" size="lg" className="w-full">
                             <Sparkles className="mr-2 h-4 w-4" />
                             Build with AI
                             {!aiAssistedEnabled && <span className="ml-1 text-xs">(Disabled)</span>}
@@ -50,7 +50,7 @@ export const CreatePromptCard: React.FC<CreatePromptCardProps> = ({ onManualCrea
                 <h3 className="text-center text-lg font-semibold">Create New Prompt</h3>
 
                 <div className="flex w-full max-w-[240px] flex-col gap-3">
-                    <Button onClick={onAIAssisted} disabled={!aiAssistedEnabled} variant="outline" className="w-full">
+                    <Button data-testid="buildWithAIButton" onClick={onAIAssisted} disabled={!aiAssistedEnabled} variant="outline" className="w-full">
                         <Sparkles />
                         Build with AI
                         {!aiAssistedEnabled && <span className="ml-1 text-xs">(Disabled)</span>}
