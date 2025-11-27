@@ -1,0 +1,36 @@
+# Platform Service Configuration
+# Phase 1: Minimal implementation for testing boilerplate
+# Provides REST API for platform configuration (agents, connectors, toolsets, deployments)
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: platform_service.log
+
+!include shared_config.yaml
+
+apps:
+  - name: platform_service_app
+    app_base_path: .
+    app_module: solace_agent_mesh.services.platform.app
+
+    broker:
+      <<: *broker_connection
+
+    components:
+      - component_module: solace_agent_mesh.services.platform.component
+        component_name: platform_service_component
+
+    app_config:
+      # Required configuration
+      namespace: ${NAMESPACE}
+      database_url: "sqlite:///platform.db"
+
+      # Optional configuration with defaults
+      fastapi_host: 127.0.0.1
+      fastapi_port: 8001
+
+      # CORS configuration
+      cors_allowed_origins:
+        - "http://localhost:3000"
+        - "http://127.0.0.1:3000"
