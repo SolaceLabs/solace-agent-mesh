@@ -1,7 +1,8 @@
 import { PromptsPage } from "@/lib";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
 import { http, HttpResponse } from "msw";
-import { defaultPromptGroups } from "./data";
+import { defaultPromptGroups, languagePromptGroup } from "./data";
+import { within } from "storybook/test";
 
 const handlers = [
     http.get("*/api/v1/prompts/groups/all", () => {
@@ -35,6 +36,17 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
     parameters: {
         msw: { handlers },
+    },
+};
+
+export const WithPromptOpen: Story = {
+    parameters: {
+        msw: { handlers },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const prompt = await canvas.findByTestId(languagePromptGroup.id);
+        prompt.click();
     },
 };
 

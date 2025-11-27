@@ -70,7 +70,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
     };
 
     return (
-        <GridCard isSelected={isSelected} onClick={onPromptClick}>
+        <GridCard data-testid={prompt.id} isSelected={isSelected} onClick={onPromptClick}>
             <div className="flex h-full w-full flex-col">
                 <div className="flex items-center justify-between px-4">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
