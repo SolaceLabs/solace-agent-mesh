@@ -54,3 +54,11 @@ export const updateProject = async (projectId: string, data: UpdateProjectData) 
     });
     return await response.json();
 };
+
+export const deleteProject = async (projectId: string) => {
+    const response = await authenticatedFetch(`/api/v1/projects/${projectId}`, {
+        method: "DELETE",
+        credentials: "include",
+    });
+    return await response.json();
+};

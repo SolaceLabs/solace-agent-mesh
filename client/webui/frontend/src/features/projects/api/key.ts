@@ -4,6 +4,8 @@ export const projects = createQueryKeys("projects", {
     all: null,
     import: null,
     new: null,
+
+    delete: (projectId: string) => [projectId],
     update: (projectId: string) => [projectId],
     export: (projectId: string) => [projectId],
     artifacts: (projectID: string) => ({
