@@ -32,3 +32,15 @@ export const removeFileFromProject = async (projectId: string, filename: string)
     });
     return await response.json();
 };
+
+export const updateFileMetadata = async (projectId: string, filename: string, description: string) => {
+    const formData = new FormData();
+    formData.append("description", description);
+
+    const response = await authenticatedFetch(`/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
+        method: "PATCH",
+        body: formData,
+        credentials: "include",
+    });
+    return await response.json();
+};
