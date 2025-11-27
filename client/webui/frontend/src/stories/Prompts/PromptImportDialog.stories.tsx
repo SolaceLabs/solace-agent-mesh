@@ -1,5 +1,6 @@
 import { PromptImportDialog } from "@/lib/components/prompts";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
+import { within, screen } from "storybook/test";
 
 const meta = {
     title: "Pages/Prompts/PromptImportDialog",
@@ -27,5 +28,18 @@ type Story = StoryObj<typeof PromptImportDialog>;
 export const Default: Story = {
     args: {
         open: true,
+    },
+};
+
+export const NoFileSelected: Story = {
+    args: {
+        open: true,
+    },
+    play: async () => {
+        const dialog = await screen.findByRole("dialog");
+        const dialogContent = within(dialog);
+
+        const importButton = await dialogContent.findByTestId("importPromptButton");
+        importButton.click();
     },
 };

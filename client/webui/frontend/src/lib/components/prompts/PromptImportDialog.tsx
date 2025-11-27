@@ -295,7 +295,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                     <Button variant="outline" onClick={handleClose} disabled={isImporting}>
                         Cancel
                     </Button>
-                    <Button onClick={handleImport} disabled={isImporting}>
+                    <Button data-testid="importPromptButton" onClick={handleImport} disabled={isImporting}>
                         {isImporting ? "Importing..." : "Import"}
                     </Button>
                 </DialogFooter>
