@@ -49,7 +49,7 @@ def evaluate_condition(
                 node_id = parts[0]
                 if node_id not in workflow_state.node_outputs:
                     raise ValueError(f"Referenced node '{node_id}' has not completed")
-                data = workflow_state.node_outputs[node_id].get("output")
+                data = workflow_state.node_outputs[node_id]
                 parts = parts[1:]
 
             # Traverse remaining parts
