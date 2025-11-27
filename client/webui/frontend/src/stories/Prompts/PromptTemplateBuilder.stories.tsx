@@ -1,5 +1,6 @@
 import { PromptTemplateBuilder } from "@/lib/components/prompts";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
+import { within } from "storybook/test";
 
 const meta = {
     title: "Pages/Prompts/PromptTemplateBuilder",
@@ -26,4 +27,17 @@ type Story = StoryObj<typeof PromptTemplateBuilder>;
 
 export const Default: Story = {
     args: {},
+};
+
+export const ManualMode: Story = {
+    args: { initialMode: "manual" },
+};
+
+export const ManualModeValidationErrors: Story = {
+    args: { initialMode: "manual" },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const createButton = await canvas.findByTestId("createPromptButton");
+        createButton.click();
+    },
 };

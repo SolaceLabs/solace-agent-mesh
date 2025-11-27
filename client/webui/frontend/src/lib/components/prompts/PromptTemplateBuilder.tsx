@@ -354,7 +354,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                             )}
                         </Button>
                     )}
-                    <Button onClick={handleSave} disabled={isLoading}>
+                    <Button data-testid="createPromptButton" onClick={handleSave} disabled={isLoading}>
                         {isLoading ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
