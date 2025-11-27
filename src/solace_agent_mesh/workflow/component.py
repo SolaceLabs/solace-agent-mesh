@@ -457,6 +457,17 @@ class WorkflowExecutorComponent(SamComponentBase):
                         return resolved
                 return None
 
+            if op == "concat":
+                if not isinstance(args, list):
+                    raise ValueError("'concat' operator requires a list of values")
+                
+                parts = []
+                for arg in args:
+                    resolved = self._resolve_output_value(arg, state)
+                    if resolved is not None:
+                        parts.append(str(resolved))
+                return "".join(parts)
+
         # Return literal
         return value_def
 

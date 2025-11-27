@@ -578,7 +578,9 @@ class DAGExecutor:
         Format: {{node_id.output.field_path}} or {{workflow.input.field_path}}
         """
         # Extract variable path
-        match = re.match(r"\{\{(.+?)\}\}", template)
+        # Use fullmatch to ensure the template takes up the entire string
+        # and handle optional whitespace inside braces: {{  value  }}
+        match = re.fullmatch(r"\{\{\s*(.+?)\s*\}\}", template)
         if not match:
             return template
 
