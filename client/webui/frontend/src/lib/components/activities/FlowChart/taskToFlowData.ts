@@ -635,7 +635,7 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
         createTimelineEdge(
             previousNodeId,
             newNode.id,
-            step,
+            currentSubflow.lastResultStep || step, // Use the result of the previous node if available
             edges,
             manager,
             edgeAnimationService,
@@ -644,6 +644,14 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
             "peer-top-input"
         );
     }
+}
+
+function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    const currentSubflow = getCurrentSubflow(manager);
+    if (!currentSubflow) return;
+
+    // Store this result step so it can be used as the data for the edge connecting to the NEXT node
+    currentSubflow.lastResultStep = step;
 }
 
 function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
@@ -692,7 +700,7 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
         createTimelineEdge(
             currentSubflow.lastNodeId,
             finishNodeId,
-            step,
+            currentSubflow.lastResultStep || step, // Use the result of the last node if available
             edges,
             manager,
             edgeAnimationService,
