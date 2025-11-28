@@ -507,12 +507,11 @@ class DAGExecutor:
                 depends_on=[node.id],  # Depends on fork node
             )
 
-            # Execute branch (returns immediately with sub-task ID)
-            sub_task_id = await self.host.persona_caller.call_persona(
-                branch_node, workflow_state, workflow_context
-            )
+            # Generate sub-task ID
+            import uuid
+            sub_task_id = f"wf_{workflow_state.execution_id}_{branch.id}_{uuid.uuid4().hex[:8]}"
 
-            # Emit start event for branch
+            # Emit start event for branch BEFORE execution
             start_data = WorkflowNodeExecutionStartData(
                 type="workflow_node_execution_start",
                 node_id=branch.id,
@@ -521,6 +520,11 @@ class DAGExecutor:
                 sub_task_id=sub_task_id,
             )
             await self.host.publish_workflow_event(workflow_context, start_data)
+
+            # Execute branch
+            await self.host.persona_caller.call_persona(
+                branch_node, workflow_state, workflow_context, sub_task_id=sub_task_id
+            )
 
             branch_sub_tasks.append(
                 {
@@ -636,12 +640,11 @@ class DAGExecutor:
             # Assign unique ID for this iteration to ensure distinct events and tracking
             iter_node.id = f"{map_node_id}_{index}"
 
-            # Execute
-            sub_task_id = await self.host.persona_caller.call_persona(
-                iter_node, iteration_state, workflow_context
-            )
+            # Generate sub-task ID
+            import uuid
+            sub_task_id = f"wf_{workflow_state.execution_id}_{iter_node.id}_{uuid.uuid4().hex[:8]}"
 
-            # Emit start event for iteration
+            # Emit start event for iteration BEFORE execution
             start_data = WorkflowNodeExecutionStartData(
                 type="workflow_node_execution_start",
                 node_id=iter_node.id,
@@ -651,6 +654,11 @@ class DAGExecutor:
                 sub_task_id=sub_task_id,
             )
             await self.host.publish_workflow_event(workflow_context, start_data)
+
+            # Execute
+            await self.host.persona_caller.call_persona(
+                iter_node, iteration_state, workflow_context, sub_task_id=sub_task_id
+            )
 
             # Track active sub-task
             workflow_state.active_branches[map_node_id].append(

@@ -793,6 +793,11 @@ export function createNewToolNodeInContext(
 
         // Y position relative to group
         nodePositionY = toolY_absolute - subflow.groupNode.yPosition;
+
+        // Shift siblings down to make space for this new tool
+        // We shift everything that is currently at or below the insertion point
+        shiftNodesVertically(nodes, manager, nodePositionY, TOOL_STACKING_OFFSET, subflow.groupNode.id);
+
     } else {
         // For tools in the main flow (not in a subflow)
         toolX_absolute = LANE_X_POSITIONS.TOOLS; // Default absolute X for main flow tools
@@ -1048,4 +1053,35 @@ export function getAgentHandle(agentType: "orchestrator" | "peer", direction: "i
 // Helper function to determine if an agent name represents an orchestrator
 export function isOrchestratorAgent(agentName: string): boolean {
     return agentName === "OrchestratorAgent" || agentName.toLowerCase().includes("orchestrator");
+}
+
+export function shiftNodesVertically(nodes: Node[], manager: TimelineLayoutManager, startY: number, shiftAmount: number, parentId?: string) {
+    nodes.forEach(n => {
+        // Check if node is a sibling (same parent) and is below the startY
+        // Note: n.position.y is relative if parentId is set
+        if (n.parentId === parentId && n.position.y >= startY) {
+            n.position.y += shiftAmount;
+            manager.nodePositions.set(n.id, { x: n.position.x, y: n.position.y });
+
+            // Update NodeInstance if it exists in subflows to ensure future placements are correct
+            manager.phases.forEach(phase => {
+                phase.subflows.forEach(sf => {
+                    if (sf.peerAgent.id === n.id) {
+                        sf.peerAgent.yPosition += shiftAmount;
+                        sf.maxY += shiftAmount;
+                    }
+                    sf.toolInstances.forEach(ti => {
+                        if (ti.id === n.id) {
+                            ti.yPosition += shiftAmount;
+                        }
+                    });
+                });
+                phase.userNodes.forEach(un => {
+                    if (un.id === n.id) {
+                        un.yPosition += shiftAmount;
+                    }
+                });
+            });
+        }
+    });
 }
