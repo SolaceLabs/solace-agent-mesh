@@ -6,6 +6,8 @@ export interface ConditionalNodeData extends GenericNodeData {
     condition?: string;
     trueBranch?: string;
     falseBranch?: string;
+    trueBranchLabel?: string;
+    falseBranchLabel?: string;
 }
 
 export type ConditionalNodeType = Node<ConditionalNodeData>;

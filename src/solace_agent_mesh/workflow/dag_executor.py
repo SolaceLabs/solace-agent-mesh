@@ -286,6 +286,17 @@ class DAGExecutor:
                 start_data_args["true_branch"] = node.true_branch
                 start_data_args["false_branch"] = node.false_branch
 
+                # Resolve labels for branches
+                if node.true_branch and node.true_branch in self.nodes:
+                    true_node = self.nodes[node.true_branch]
+                    if hasattr(true_node, "agent_persona"):
+                        start_data_args["true_branch_label"] = true_node.agent_persona
+
+                if node.false_branch and node.false_branch in self.nodes:
+                    false_node = self.nodes[node.false_branch]
+                    if hasattr(false_node, "agent_persona"):
+                        start_data_args["false_branch_label"] = false_node.agent_persona
+
             start_data = WorkflowNodeExecutionStartData(**start_data_args)
             await self.host.publish_workflow_event(workflow_context, start_data)
 
@@ -358,6 +369,7 @@ class DAGExecutor:
             metadata={
                 "condition_result": result,
                 "selected_branch": next_node_id,
+                "condition": node.condition,
             },
         )
         await self.host.publish_workflow_event(workflow_context, result_data)

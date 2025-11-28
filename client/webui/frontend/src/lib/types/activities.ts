@@ -175,6 +175,8 @@ export interface WorkflowNodeExecutionStartData {
     condition?: string;
     trueBranch?: string;
     falseBranch?: string;
+    trueBranchLabel?: string;
+    falseBranchLabel?: string;
 }
 
 export interface WorkflowNodeExecutionResultData {

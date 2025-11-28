@@ -688,6 +688,8 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
         nodeData.condition = data.condition;
         nodeData.trueBranch = data.trueBranch;
         nodeData.falseBranch = data.falseBranch;
+        nodeData.trueBranchLabel = data.trueBranchLabel;
+        nodeData.falseBranchLabel = data.falseBranchLabel;
     }
 
     const node: Node = {

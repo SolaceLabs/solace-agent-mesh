@@ -700,6 +700,15 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
             if (untakenBranchId) {
                 // Create a "Skipped" node to visualize the untaken path
                 const skippedNodeId = generateNodeId(manager, `skipped_${untakenBranchId}`);
+
+                let label = untakenBranchId;
+                const cData = conditionalNode.data as any;
+                if (untakenBranchId === cData.trueBranch && cData.trueBranchLabel) {
+                    label = cData.trueBranchLabel;
+                } else if (untakenBranchId === cData.falseBranch && cData.falseBranchLabel) {
+                    label = cData.falseBranchLabel;
+                }
+
                 const skippedNode: Node = {
                     id: skippedNodeId,
                     type: "genericAgentNode",
@@ -708,7 +717,7 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
                         y: conditionalNode.position.y, // Same Y level
                     },
                     data: {
-                        label: untakenBranchId,
+                        label: label,
                         description: `Untaken branch`,
                         variant: "pill",
                     },

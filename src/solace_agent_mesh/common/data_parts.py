@@ -235,6 +235,12 @@ class WorkflowNodeExecutionStartData(BaseModel):
     false_branch: Optional[str] = Field(
         None, description="Node ID for false branch"
     )
+    true_branch_label: Optional[str] = Field(
+        None, description="Label/Persona for true branch"
+    )
+    false_branch_label: Optional[str] = Field(
+        None, description="Label/Persona for false branch"
+    )
 
 
 class WorkflowNodeExecutionResultData(BaseModel):

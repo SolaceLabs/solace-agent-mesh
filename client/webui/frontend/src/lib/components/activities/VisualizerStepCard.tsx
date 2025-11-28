@@ -216,6 +216,14 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             <p>
                 <strong>Status:</strong> {data.status}
             </p>
+            {data.metadata?.condition && (
+                <div className="mt-1 mb-1">
+                    <p>
+                        <strong>Condition:</strong>
+                    </p>
+                    <code className="block rounded bg-gray-100 p-1 dark:bg-gray-800">{data.metadata.condition}</code>
+                </div>
+            )}
             {data.metadata?.condition_result !== undefined && (
                 <p>
                     <strong>Condition Result:</strong> {data.metadata.condition_result ? "True" : "False"}
