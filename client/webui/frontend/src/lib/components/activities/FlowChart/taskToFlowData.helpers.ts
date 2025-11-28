@@ -828,17 +828,16 @@ export function createNewToolNodeInContext(
 
         // Position tools with a consistent offset from the peer agent node
         // This ensures tools are properly positioned regardless of group indentation
-        const peerAgentRelativeX = 50; // The peer agent's x position relative to group
-        const toolOffsetFromPeer = 300; // Desired x-distance from peer agent to tool
-
-        // Position the tool relative to the peer agent
-        nodePositionX = peerAgentRelativeX + toolOffsetFromPeer;
-
-        // For nodes inside a group, position must be relative to the group's origin
         // groupNode.xPosition and yPosition are absolute
         if (subflow.groupNode.xPosition === undefined || subflow.groupNode.yPosition === undefined) {
             return null;
         }
+
+        const peerAgentRelativeX = (subflow.peerAgent.xPosition || 0) - subflow.groupNode.xPosition;
+        const toolOffsetFromPeer = 300; // Desired x-distance from peer agent to tool
+
+        // Position the tool relative to the peer agent
+        nodePositionX = peerAgentRelativeX + toolOffsetFromPeer;
 
         // Set absolute position for tracking
         toolX_absolute = subflow.groupNode.xPosition + nodePositionX;

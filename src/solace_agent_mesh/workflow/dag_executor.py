@@ -1004,6 +1004,15 @@ class DAGExecutor:
             timestamp=datetime.now(timezone.utc),
         )
 
+        # Publish result event
+        result_data = WorkflowNodeExecutionResultData(
+            type="workflow_node_execution_result",
+            node_id=fork_node_id,
+            status="success",
+            output_artifact_ref=ArtifactRef(name=merged_artifact_name),
+        )
+        await self.host.publish_workflow_event(workflow_context, result_data)
+
         # Mark fork complete
         workflow_state.completed_nodes[fork_node_id] = merged_artifact_name
         if fork_node_id in workflow_state.pending_nodes:
@@ -1066,6 +1075,15 @@ class DAGExecutor:
             },
             timestamp=datetime.now(timezone.utc),
         )
+
+        # Publish result event
+        result_data = WorkflowNodeExecutionResultData(
+            type="workflow_node_execution_result",
+            node_id=map_node_id,
+            status="success",
+            output_artifact_ref=ArtifactRef(name=merged_artifact_name),
+        )
+        await self.host.publish_workflow_event(workflow_context, result_data)
 
         workflow_state.completed_nodes[map_node_id] = merged_artifact_name
         if map_node_id in workflow_state.pending_nodes:
