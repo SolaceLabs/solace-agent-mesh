@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { projects } from "./key";
-import { addFilesToProject, createProject, deleteProject, getProjects, removeFileFromProject, updateFileMetadata, updateProject } from "./services";
+import { addFilesToProject, createProject, deleteProject, getProjectArtifacts, getProjects, removeFileFromProject, updateFileMetadata, updateProject } from "./services";
 import type { Project, UpdateProjectData } from "@/lib";
 
 export const useProjects = (enabled: boolean) => {
@@ -74,5 +74,19 @@ export const useDeleteProject = (projectId: string) => {
             queryClient.invalidateQueries({
                 queryKey: projects.all.queryKey,
             }),
+    });
+};
+
+export const useProjectArtifacts = (projectId: string) => {
+    return useQuery({
+        queryKey: projects.artifacts(projectId).queryKey,
+        queryFn: () => getProjectArtifacts(projectId),
+        select: data => {
+            return [...data].sort((a, b) => {
+                const dateA = a.last_modified ? new Date(a.last_modified).getTime() : 0;
+                const dateB = b.last_modified ? new Date(b.last_modified).getTime() : 0;
+                return dateB - dateA;
+            });
+        },
     });
 };

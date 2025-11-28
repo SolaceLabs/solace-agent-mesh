@@ -1,4 +1,4 @@
-import type { Project, UpdateProjectData } from "@/lib";
+import type { ArtifactInfo, Project, UpdateProjectData } from "@/lib";
 import { authenticatedFetch } from "@/lib/utils";
 
 export const getProjects = async () => {
@@ -64,4 +64,10 @@ export const deleteProject = async (projectId: string) => {
     if (!response.ok) {
         throw new Error(`Failed to delete project: ${projectId}`);
     }
+};
+
+export const getProjectArtifacts = async (projectId: string) => {
+    const url = `/api/v1/projects/${projectId}/artifacts`;
+    const response = await authenticatedFetch(url, { credentials: "include" });
+    return (await response.json()) as ArtifactInfo[];
 };
