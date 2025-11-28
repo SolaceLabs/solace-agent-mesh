@@ -26,7 +26,7 @@ export const useCreateProject = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationKey: projects.new.queryKey,
+        mutationKey: projects.create.queryKey,
         mutationFn: (project: FormData): Promise<Project> => {
             return createProject(project);
         },
@@ -41,7 +41,7 @@ export const useAddFilesToProject = (projectId: string) => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationKey: projects.artifacts(projectId)._ctx.new.queryKey,
+        mutationKey: projects.artifacts(projectId)._ctx.create.queryKey,
         mutationFn: (data: FormData) => addFilesToProject(projectId, data),
         onSettled: () =>
             queryClient.invalidateQueries({

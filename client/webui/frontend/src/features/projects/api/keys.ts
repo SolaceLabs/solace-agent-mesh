@@ -2,19 +2,19 @@ import { createQueryKeys } from "@lukemorales/query-key-factory";
 
 export const projects = createQueryKeys("projects", {
     all: null,
-    import: null,
-    new: null,
 
-    delete: (projectId: string) => [projectId],
+    create: null,
     update: (projectId: string) => [projectId],
+    delete: (projectId: string) => [projectId],
+    import: null,
     export: (projectId: string) => [projectId],
-    artifacts: (projectID: string) => ({
-        queryKey: [projectID],
+    artifacts: (projectId: string) => ({
+        queryKey: [projectId],
         contextQueries: {
             detail: (filename: string) => [filename],
-            new: null,
-            delete: null,
+            create: null,
             update: null,
+            delete: null,
         },
     }),
     sessions: (projectId: string) => [projectId],
