@@ -635,6 +635,84 @@ export function startNewWorkflowContext(manager: TimelineLayoutManager, workflow
     return newSubflow;
 }
 
+export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step: VisualizerStep, nodes: Node[]): NodeInstance | null {
+    const subflow = getCurrentSubflow(manager);
+    if (!subflow) return null;
+
+    const data = step.data.workflowNodeExecutionStart;
+    if (!data) return null;
+
+    const nodeId = data.nodeId;
+    const nodeType = data.nodeType;
+    // Use agent persona for label if available, otherwise node ID. Add type for clarity if not an agent.
+    let label = data.agentPersona || nodeId;
+    if (nodeType !== "agent") {
+        label = `${nodeId} (${nodeType})`;
+    }
+
+    // Determine visual style
+    const isControlNode = ["conditional", "fork", "map"].includes(nodeType);
+    const variant = isControlNode ? "pill" : "default";
+
+    // Calculate absolute Y position
+    // Relative to peer agent (Start node) + current offset
+    const nodeY_absolute = subflow.peerAgent.yPosition + subflow.currentToolYOffset + VERTICAL_SPACING;
+    subflow.currentToolYOffset += isControlNode ? NODE_HEIGHT : NODE_HEIGHT + VERTICAL_SPACING; // Less space for pills
+
+    // Position relative to group
+    // Start node is at x=50. We align these nodes with the start node.
+    const nodeX_relative = 50;
+    const nodeY_relative = nodeY_absolute - subflow.groupNode.yPosition;
+
+    const flowNodeId = generateNodeId(manager, `wf_node_${nodeId}`);
+
+    const node: Node = {
+        id: flowNodeId,
+        type: "genericAgentNode",
+        position: { x: nodeX_relative, y: nodeY_relative },
+        data: {
+            label: label,
+            visualizerStepId: step.id,
+            description: `Workflow Node: ${nodeType}`,
+            variant: variant,
+        },
+        parentId: subflow.groupNode.id,
+    };
+
+    addNode(nodes, manager.allCreatedNodeIds, node);
+    manager.nodePositions.set(flowNodeId, { x: subflow.groupNode.xPosition + nodeX_relative, y: nodeY_absolute });
+
+    const nodeInstance: NodeInstance = {
+        id: flowNodeId,
+        xPosition: subflow.groupNode.xPosition + nodeX_relative,
+        yPosition: nodeY_absolute,
+        height: NODE_HEIGHT,
+        width: NODE_WIDTH,
+    };
+
+    // Update layout metrics
+    subflow.toolInstances.push(nodeInstance); // Track as part of subflow content
+    subflow.lastNodeId = flowNodeId; // Update chain
+
+    // Update group dimensions
+    subflow.maxY = Math.max(subflow.maxY, nodeY_absolute + NODE_HEIGHT);
+    const requiredGroupHeight = subflow.maxY - subflow.groupNode.yPosition + GROUP_PADDING_Y;
+    subflow.groupNode.height = Math.max(subflow.groupNode.height, requiredGroupHeight);
+
+    // Update group node style
+    const groupNodeData = nodes.find(n => n.id === subflow.groupNode.id);
+    if (groupNodeData) {
+        groupNodeData.style = {
+            ...groupNodeData.style,
+            height: `${subflow.groupNode.height}px`,
+        };
+    }
+
+    manager.nextAvailableGlobalY = Math.max(manager.nextAvailableGlobalY, subflow.groupNode.yPosition + subflow.groupNode.height + VERTICAL_SPACING);
+
+    return nodeInstance;
+}
+
 export function createNewToolNodeInContext(
     manager: TimelineLayoutManager,
     toolName: string,

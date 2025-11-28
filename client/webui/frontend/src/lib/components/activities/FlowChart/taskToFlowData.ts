@@ -23,6 +23,7 @@ import {
     createNewMainPhase,
     startNewSubflow,
     startNewWorkflowContext,
+    createWorkflowNodeInContext,
     createNewToolNodeInContext,
     createTimelineEdge,
     createNewUserNodeAtBottom,
@@ -33,7 +34,7 @@ import {
 import { EdgeAnimationService } from "./edgeAnimationService";
 
 // Relevant step types that should be processed in the flow chart
-const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED", "WORKFLOW_EXECUTION_START", "WORKFLOW_EXECUTION_RESULT"];
+const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED", "WORKFLOW_EXECUTION_START", "WORKFLOW_NODE_EXECUTION_START", "WORKFLOW_EXECUTION_RESULT"];
 
 interface FlowData {
     nodes: Node[];
@@ -602,6 +603,48 @@ function handleWorkflowExecutionStart(step: VisualizerStep, manager: TimelineLay
     }
 }
 
+function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    const currentSubflow = getCurrentSubflow(manager);
+    if (!currentSubflow) return;
+
+    // Capture the previous node ID before creating the new one
+    const previousNodeId = currentSubflow.lastNodeId;
+
+    // Create the new node
+    const newNode = createWorkflowNodeInContext(manager, step, nodes);
+
+    if (newNode && previousNodeId) {
+        // Determine source handle based on previous node type
+        // If previous was Start node (genericAgentNode), use peer handle
+        // If previous was another workflow node (genericAgentNode), use peer handle
+        // If previous was a tool (genericToolNode), use tool handle
+        // Since we are using genericAgentNode for workflow nodes, we use peer handles.
+        // Note: If we mix tools inside workflow, we might need logic here.
+        // For now, workflow nodes are genericAgentNodes.
+
+        // Check if previous node was a tool (unlikely in this simple chain, but possible if we add tools later)
+        const prevNodeObj = nodes.find(n => n.id === previousNodeId);
+        let sourceHandle = "peer-bottom-output";
+        if (prevNodeObj?.type === "genericToolNode") {
+            sourceHandle = `${previousNodeId}-tool-bottom-output`;
+        } else if (prevNodeObj?.type === "llmNode") {
+            sourceHandle = "llm-bottom-output";
+        }
+
+        createTimelineEdge(
+            previousNodeId,
+            newNode.id,
+            step,
+            edges,
+            manager,
+            edgeAnimationService,
+            processedSteps,
+            sourceHandle,
+            "peer-top-input"
+        );
+    }
+}
+
 function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
     const currentSubflow = getCurrentSubflow(manager);
     if (!currentSubflow) return;
@@ -863,6 +906,9 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
                 break;
             case "WORKFLOW_EXECUTION_START":
                 handleWorkflowExecutionStart(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
+                break;
+            case "WORKFLOW_NODE_EXECUTION_START":
+                handleWorkflowNodeExecutionStart(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
                 break;
             case "WORKFLOW_EXECUTION_RESULT":
                 handleWorkflowExecutionResult(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
