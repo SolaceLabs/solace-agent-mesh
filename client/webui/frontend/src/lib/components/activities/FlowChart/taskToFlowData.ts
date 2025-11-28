@@ -17,6 +17,7 @@ import {
     generateNodeId,
     getCurrentPhase,
     getCurrentSubflow,
+    findSubflowBySubTaskId,
     resolveSubflowContext,
     isParallelFlow,
     findToolInstanceByNameEnhanced,
@@ -605,14 +606,14 @@ function handleWorkflowExecutionStart(step: VisualizerStep, manager: TimelineLay
 }
 
 function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
-    const currentSubflow = getCurrentSubflow(manager);
+    const currentSubflow = findSubflowBySubTaskId(manager, step.owningTaskId);
     if (!currentSubflow) return;
 
     // Capture the previous node ID before creating the new one
     const previousNodeId = currentSubflow.lastNodeId;
 
     // Create the new node
-    const newNode = createWorkflowNodeInContext(manager, step, nodes);
+    const newNode = createWorkflowNodeInContext(manager, step, nodes, currentSubflow);
 
     if (newNode && previousNodeId) {
         // Determine source handle based on previous node type
@@ -647,7 +648,7 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
 }
 
 function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
-    const currentSubflow = getCurrentSubflow(manager);
+    const currentSubflow = findSubflowBySubTaskId(manager, step.owningTaskId);
     if (!currentSubflow) return;
 
     // Store this result step so it can be used as the data for the edge connecting to the NEXT node
@@ -655,7 +656,7 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
 }
 
 function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
-    const currentSubflow = getCurrentSubflow(manager);
+    const currentSubflow = findSubflowBySubTaskId(manager, step.owningTaskId);
     if (!currentSubflow) return;
 
     // Create Finish Node

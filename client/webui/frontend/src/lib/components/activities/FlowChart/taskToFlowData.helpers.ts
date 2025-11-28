@@ -636,8 +636,8 @@ export function startNewWorkflowContext(manager: TimelineLayoutManager, workflow
     return newSubflow;
 }
 
-export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step: VisualizerStep, nodes: Node[]): NodeInstance | null {
-    const subflow = getCurrentSubflow(manager);
+export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step: VisualizerStep, nodes: Node[], subflowContext?: SubflowContext): NodeInstance | null {
+    const subflow = subflowContext || getCurrentSubflow(manager);
     if (!subflow) return null;
 
     const data = step.data.workflowNodeExecutionStart;
