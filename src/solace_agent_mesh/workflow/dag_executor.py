@@ -512,6 +512,16 @@ class DAGExecutor:
                 branch_node, workflow_state, workflow_context
             )
 
+            # Emit start event for branch
+            start_data = WorkflowNodeExecutionStartData(
+                type="workflow_node_execution_start",
+                node_id=branch.id,
+                node_type="agent",
+                agent_persona=branch.agent_persona,
+                sub_task_id=sub_task_id,
+            )
+            await self.host.publish_workflow_event(workflow_context, start_data)
+
             branch_sub_tasks.append(
                 {
                     "branch_id": branch.id,
@@ -623,11 +633,24 @@ class DAGExecutor:
 
             target_node = self.nodes[target_node_id]
             iter_node = target_node.model_copy()
+            # Assign unique ID for this iteration to ensure distinct events and tracking
+            iter_node.id = f"{map_node_id}_{index}"
 
             # Execute
             sub_task_id = await self.host.persona_caller.call_persona(
                 iter_node, iteration_state, workflow_context
             )
+
+            # Emit start event for iteration
+            start_data = WorkflowNodeExecutionStartData(
+                type="workflow_node_execution_start",
+                node_id=iter_node.id,
+                node_type="agent",
+                agent_persona=iter_node.agent_persona,
+                iteration_index=index,
+                sub_task_id=sub_task_id,
+            )
+            await self.host.publish_workflow_event(workflow_context, start_data)
 
             # Track active sub-task
             workflow_state.active_branches[map_node_id].append(
