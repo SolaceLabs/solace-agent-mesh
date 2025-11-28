@@ -15,7 +15,7 @@ import { authenticatedFetch } from "@/lib/utils/api";
 import { downloadBlob } from "@/lib/utils/download";
 import { useCreateProject, useProjects } from "@/features/projects/api/hooks";
 import { useQueryClient } from "@tanstack/react-query";
-import { projects } from "@/features/projects/api/key";
+import { projects } from "@/features/projects/api/keys";
 
 export const ProjectsPage: React.FC = () => {
     const navigate = useNavigate();

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { projects } from "./key";
+import { projects } from "./keys";
 import { addFilesToProject, createProject, deleteProject, getProjectArtifacts, getProjects, getProjectSessions, removeFileFromProject, updateFileMetadata, updateProject } from "./services";
 import type { Project, UpdateProjectData } from "@/lib";
 
