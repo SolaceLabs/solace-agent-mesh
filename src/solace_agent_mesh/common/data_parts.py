@@ -63,6 +63,7 @@ class AgentProgressUpdateData(BaseModel):
 class ArtifactCreationProgressData(BaseModel):
     """
     Data model for an artifact creation progress signal.
+    Used for streaming artifact data during creation.
     Corresponds to artifact_creation_progress.json schema.
     """
 
@@ -71,7 +72,7 @@ class ArtifactCreationProgressData(BaseModel):
         description="The constant type for this data part.",
     )
     filename: str = Field(..., description="The name of the artifact being created.")
-    status: Literal["in-progress", "completed", "failed"] = Field(
+    status: Literal["in-progress", "failed"] = Field(
         ..., description="The status of the artifact creation."
     )
     bytes_transferred: int = Field(
@@ -82,15 +83,35 @@ class ArtifactCreationProgressData(BaseModel):
     )
     artifact_chunk: Optional[str] = Field(
         None,
-        description="The chunk of artifact data that was transferred in this progress update. Only present for 'in-progress' status.",
+        description="The chunk of artifact data that was transferred in this progress update.",
+    )
+
+
+class ArtifactCompletedData(BaseModel):
+    """
+    Data model for an artifact completion signal.
+    Sent once after an artifact has been successfully created.
+    """
+
+    type: Literal["artifact_completed"] = Field(
+        "artifact_completed",
+        description="The constant type for this data part.",
+    )
+    filename: str = Field(..., description="The name of the completed artifact.")
+    version: int = Field(
+        ..., description="The version number of the artifact."
+    )
+    bytes_transferred: int = Field(
+        ..., description="The total size of the artifact in bytes."
+    )
+    description: Optional[str] = Field(
+        None, description="An optional description of the artifact."
     )
     mime_type: Optional[str] = Field(
-        None,
-        description="The MIME type of the artifact. Only present for 'completed' status.",
+        None, description="The MIME type of the artifact."
     )
-    version: Optional[int] = Field(
-        None,
-        description="The version number of the artifact being created or updated.",
+    function_call_id: Optional[str] = Field(
+        None, description="The function call ID if artifact was created by a tool."
     )
 
 
@@ -145,6 +166,7 @@ SignalData = Union[
     LlmInvocationData,
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
+    ArtifactCompletedData,
     ToolResultData,
     TemplateBlockData,
 ]
