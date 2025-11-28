@@ -82,7 +82,7 @@ def _setup_middleware(component: "PlatformServiceComponent"):
     Add middleware to the FastAPI application.
 
     1. CORS middleware - allows cross-origin requests
-    2. OAuth2 stub middleware - authentication (Phase 1: stub, Phase 2: real)
+    2. OAuth2 middleware - authentication (uses enterprise implementation if available)
 
     Args:
         component: PlatformServiceComponent instance for configuration access.
@@ -98,13 +98,19 @@ def _setup_middleware(component: "PlatformServiceComponent"):
     )
     log.info(f"CORS middleware added with origins: {allowed_origins}")
 
-    # OAuth2 stub middleware (Phase 1)
-    from .middleware import oauth2_stub_middleware
+    # OAuth2 middleware - try enterprise implementation first, fall back to stub
+    try:
+        from solace_agent_mesh_enterprise.platform_service.middleware import create_oauth2_middleware
 
-    app.middleware("http")(oauth2_stub_middleware)
-    log.info(
-        "OAuth2 stub middleware added (Phase 1 - REPLACE IN PHASE 2 WITH REAL VALIDATION)"
-    )
+        oauth2_middleware_class = create_oauth2_middleware(component)
+        app.add_middleware(oauth2_middleware_class)
+        log.info("Enterprise OAuth2 middleware added (real token validation)")
+    except ImportError:
+        # Fall back to stub middleware if enterprise package not available
+        from .middleware import oauth2_stub_middleware
+
+        app.middleware("http")(oauth2_stub_middleware)
+        log.info("OAuth2 stub middleware added (development mode - no enterprise package)")
 
 
 def _setup_routers():
@@ -128,7 +134,7 @@ def _setup_routers():
 
     # Try to load enterprise platform routers
     try:
-        from solace_agent_mesh_enterprise.platform.routers import get_platform_routers
+        from solace_agent_mesh_enterprise.platform_service.routers import get_platform_routers
 
         enterprise_routers = get_platform_routers()
         for router_config in enterprise_routers:

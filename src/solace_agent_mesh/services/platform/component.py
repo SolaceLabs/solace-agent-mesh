@@ -46,11 +46,17 @@ class PlatformServiceComponent(ComponentBase):
             self.fastapi_port = int(self.get_config("fastapi_port", 8001))
             self.cors_allowed_origins = self.get_config("cors_allowed_origins", ["*"])
 
+            # OAuth2 configuration
+            self.external_auth_service_url = self.get_config("external_auth_service_url")
+            self.external_auth_provider = self.get_config("external_auth_provider", "azure")
+            self.use_authorization = self.get_config("use_authorization", True)
+
             log.info(
-                "%s Platform service configuration retrieved (Host: %s, Port: %d).",
+                "%s Platform service configuration retrieved (Host: %s, Port: %d, Auth: %s).",
                 self.log_identifier,
                 self.fastapi_host,
                 self.fastapi_port,
+                "enabled" if self.use_authorization else "disabled",
             )
         except Exception as e:
             log.error("%s Failed to retrieve configuration: %s", self.log_identifier, e)
@@ -71,10 +77,11 @@ class PlatformServiceComponent(ComponentBase):
         Start the FastAPI/Uvicorn server in a separate background thread.
 
         This method:
-        1. Imports the FastAPI app and setup function
-        2. Calls setup_dependencies to initialize DB, middleware, and routers
-        3. Creates uvicorn.Config and uvicorn.Server
-        4. Starts the server in a daemon thread
+        1. Runs enterprise platform migrations if available
+        2. Imports the FastAPI app and setup function
+        3. Calls setup_dependencies to initialize DB, middleware, and routers
+        4. Creates uvicorn.Config and uvicorn.Server
+        5. Starts the server in a daemon thread
         """
         log.info(
             "%s Attempting to start FastAPI/Uvicorn server...",
@@ -88,6 +95,18 @@ class PlatformServiceComponent(ComponentBase):
             return
 
         try:
+            # Run enterprise platform migrations if available
+            try:
+                from solace_agent_mesh_enterprise.platform_service.migration_runner import run_migrations
+                log.info("%s Running enterprise platform migrations...", self.log_identifier)
+                run_migrations(self.database_url)
+                log.info("%s Enterprise platform migrations completed", self.log_identifier)
+            except ImportError:
+                log.debug("%s No enterprise platform package - skipping migrations", self.log_identifier)
+            except Exception as e:
+                log.error("%s Enterprise platform migration failed: %s", self.log_identifier, e)
+                raise
+
             # Import FastAPI app and setup function
             from .api.main import app as fastapi_app_instance
             from .api.main import setup_dependencies

@@ -60,6 +60,26 @@ class PlatformServiceApp(App):
             "default": ["*"],
             "description": "List of allowed origins for CORS requests.",
         },
+        {
+            "name": "external_auth_service_url",
+            "required": False,
+            "type": "string",
+            "description": "OAuth2 authentication service base URL for token validation.",
+        },
+        {
+            "name": "external_auth_provider",
+            "required": False,
+            "type": "string",
+            "default": "azure",
+            "description": "OAuth2 provider name (e.g., 'azure', 'google', 'okta').",
+        },
+        {
+            "name": "use_authorization",
+            "required": False,
+            "type": "boolean",
+            "default": True,
+            "description": "Enable OAuth2 token validation. Set to false for development mode.",
+        },
     ]
 
     def __init__(self, app_info: Dict[str, Any], **kwargs):
