@@ -24,6 +24,12 @@ shared_config:
       temperature: 0.1 # Lower temperature for more deterministic planning
       # Prompt Caching Strategy
       cache_strategy: "5m"  # none, 5m, 1h
+      # Token Usage Tracking: When enabled, reports token usage metadata from LLM providers
+      # (prompt tokens, completion tokens, total tokens, and cached tokens).
+      # When disabled, no usage metadata is reported to the frontend.
+      # Requires LLM provider support (OpenAI, Anthropic, etc.)
+      # Set to true to enable tracking of token usage for cost analysis
+      track_token_usage: false  # Disabled by default
 
 
     general: &general_model

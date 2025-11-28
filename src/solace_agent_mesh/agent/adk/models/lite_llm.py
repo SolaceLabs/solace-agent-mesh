@@ -77,6 +77,7 @@ class UsageMetadataChunk(BaseModel):
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
+    cached_tokens: int = 0
 
 
 class LiteLLMClient:
@@ -436,10 +437,23 @@ def _model_response_to_chunk(
     # finish_reason set. But this is not the case we are observing from litellm.
     # So we are sending it as a separate chunk to be set on the llm_response.
     if response.get("usage", None):
+        usage = response["usage"]
+        # Extract cached tokens from prompt_tokens_details if available
+        # LiteLLM returns this as PromptTokensDetailsWrapper with cached_tokens attribute
+        cached_tokens = 0
+        prompt_tokens_details = usage.get("prompt_tokens_details")
+        if prompt_tokens_details:
+            # Handle both dict and object with cached_tokens attribute
+            if isinstance(prompt_tokens_details, dict):
+                cached_tokens = prompt_tokens_details.get("cached_tokens", 0) or 0
+            elif hasattr(prompt_tokens_details, "cached_tokens"):
+                cached_tokens = prompt_tokens_details.cached_tokens or 0
+        
         yield UsageMetadataChunk(
-            prompt_tokens=response["usage"].get("prompt_tokens", 0),
-            completion_tokens=response["usage"].get("completion_tokens", 0),
-            total_tokens=response["usage"].get("total_tokens", 0),
+            prompt_tokens=usage.get("prompt_tokens", 0),
+            completion_tokens=usage.get("completion_tokens", 0),
+            total_tokens=usage.get("total_tokens", 0),
+            cached_tokens=cached_tokens,
         ), None
 
 
@@ -464,10 +478,23 @@ def _model_response_to_generate_content_response(
 
     llm_response = _message_to_generate_content_response(message)
     if response.get("usage", None):
+        usage = response["usage"]
+        # Extract cached tokens from prompt_tokens_details if available
+        # LiteLLM returns this as PromptTokensDetailsWrapper with cached_tokens attribute
+        cached_tokens = 0
+        prompt_tokens_details = usage.get("prompt_tokens_details")
+        if prompt_tokens_details:
+            # Handle both dict and object with cached_tokens attribute
+            if isinstance(prompt_tokens_details, dict):
+                cached_tokens = prompt_tokens_details.get("cached_tokens", 0) or 0
+            elif hasattr(prompt_tokens_details, "cached_tokens"):
+                cached_tokens = prompt_tokens_details.cached_tokens or 0
+        
         llm_response.usage_metadata = types.GenerateContentResponseUsageMetadata(
-            prompt_token_count=response["usage"].get("prompt_tokens", 0),
-            candidates_token_count=response["usage"].get("completion_tokens", 0),
-            total_token_count=response["usage"].get("total_tokens", 0),
+            prompt_token_count=usage.get("prompt_tokens", 0),
+            candidates_token_count=usage.get("completion_tokens", 0),
+            total_token_count=usage.get("total_tokens", 0),
+            cached_content_token_count=cached_tokens if cached_tokens > 0 else None,
         )
     return llm_response
 
@@ -718,14 +745,20 @@ class LiteLlm(BaseLlm):
     _additional_args: Dict[str, Any] = None
     _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = None
     _cache_strategy: str = "5m"  # Default to 5-minute ephemeral cache
+    _track_token_usage: bool = False  # Default to disabled for backward compatibility
 
-    def __init__(self, model: str, cache_strategy: str = "5m", **kwargs):
+    def __init__(self, model: str, cache_strategy: str = "5m", track_token_usage: bool = False, **kwargs):
         """Initializes the LiteLlm class.
 
         Args:
           model: The name of the LiteLlm model.
           cache_strategy: Cache strategy to use. Options: "none", "5m" (ephemeral), "1h" (extended).
                          Defaults to "5m" for backward compatibility.
+          track_token_usage: Whether to track and report token usage metadata.
+                            When enabled, token usage (prompt tokens, completion tokens, total tokens,
+                            and cached tokens) from LLM providers will be extracted and included
+                            in the usage metadata. When disabled, no usage metadata is reported.
+                            Defaults to False for backward compatibility.
           **kwargs: Additional arguments to pass to the litellm completion api.
                    Can include OAuth configuration parameters.
         """
@@ -747,7 +780,12 @@ class LiteLlm(BaseLlm):
             )
             cache_strategy = "5m"
         self._cache_strategy = cache_strategy
-        logger.info("LiteLlm initialized with cache strategy: %s", self._cache_strategy)
+        self._track_token_usage = track_token_usage
+        logger.info(
+            "LiteLlm initialized with cache strategy: %s, track_token_usage: %s",
+            self._cache_strategy,
+            self._track_token_usage,
+        )
 
         # Extract OAuth configuration if present
         oauth_config = self._extract_oauth_config(self._additional_args)
@@ -905,11 +943,16 @@ class LiteLlm(BaseLlm):
                             is_partial=True,
                         )
                     elif isinstance(chunk, UsageMetadataChunk):
-                        usage_metadata = types.GenerateContentResponseUsageMetadata(
-                            prompt_token_count=chunk.prompt_tokens,
-                            candidates_token_count=chunk.completion_tokens,
-                            total_token_count=chunk.total_tokens,
-                        )
+                        # Only include usage metadata if track_token_usage is enabled
+                        if self._track_token_usage:
+                            cached_token_count = chunk.cached_tokens if chunk.cached_tokens > 0 else None
+                            usage_metadata = types.GenerateContentResponseUsageMetadata(
+                                prompt_token_count=chunk.prompt_tokens,
+                                candidates_token_count=chunk.completion_tokens,
+                                total_token_count=chunk.total_tokens,
+                                cached_content_token_count=cached_token_count,
+                            )
+                        # When track_token_usage is False, usage_metadata remains None
 
                     if (
                         finish_reason == "tool_calls" or finish_reason == "stop"
@@ -1009,7 +1052,12 @@ class LiteLlm(BaseLlm):
 
         else:
             response = await self.llm_client.acompletion(**completion_args)
-            yield _model_response_to_generate_content_response(response)
+            llm_response = _model_response_to_generate_content_response(response)
+            # Apply track_token_usage feature flag for non-streaming responses
+            if not self._track_token_usage:
+                # Clear all usage metadata if tracking is disabled
+                llm_response.usage_metadata = None
+            yield llm_response
 
     @staticmethod
     @override

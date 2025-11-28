@@ -32,8 +32,9 @@ class ChatTask(BaseModel):
         # Validate it's valid JSON (but don't validate structure)
         try:
             parsed = json.loads(v)
-            if not isinstance(parsed, list) or len(parsed) == 0:
-                raise ValueError("message_bubbles must be a non-empty JSON array")
+            # Allow empty lists for system/internal tasks (like compression usage tracking)
+            if not isinstance(parsed, list):
+                raise ValueError("message_bubbles must be a JSON array")
         except json.JSONDecodeError as e:
             raise ValueError(f"message_bubbles must be valid JSON: {e}")
         

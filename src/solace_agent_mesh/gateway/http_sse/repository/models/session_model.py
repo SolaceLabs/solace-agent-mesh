@@ -2,7 +2,7 @@
 Session SQLAlchemy model and Pydantic models for strongly-typed operations.
 """
 
-from sqlalchemy import BigInteger, Column, String, ForeignKey
+from sqlalchemy import BigInteger, Column, String, ForeignKey, Boolean, JSON
 from pydantic import BaseModel
 from sqlalchemy.orm import relationship
 
@@ -26,6 +26,10 @@ class SessionModel(Base):
     )
     deleted_at = Column(BigInteger, nullable=True)
     deleted_by = Column(String, nullable=True)
+    
+    # Compression support
+    is_compression_branch = Column(Boolean, nullable=False, default=False)
+    compression_metadata = Column(JSON, nullable=True)
 
     # Relationship to chat tasks
     chat_tasks = relationship(
