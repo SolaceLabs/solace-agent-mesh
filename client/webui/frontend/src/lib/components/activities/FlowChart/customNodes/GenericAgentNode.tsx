@@ -20,6 +20,7 @@ const GenericAgentNode: React.FC<NodeProps<Node<GenericNodeData>>> = ({ data }) 
                 style={{ minWidth: "80px", textAlign: "center" }}
             >
                 <Handle type="target" position={Position.Top} id="peer-top-input" className="!bg-indigo-500" isConnectable={true} />
+                <Handle type="target" position={Position.Left} id="peer-left-input" className="!bg-indigo-500" isConnectable={true} />
                 <Handle type="source" position={Position.Bottom} id="peer-bottom-output" className="!bg-indigo-500" isConnectable={true} />
                 <div className="flex items-center justify-center">
                     <div className="text-sm font-bold">{data.label}</div>

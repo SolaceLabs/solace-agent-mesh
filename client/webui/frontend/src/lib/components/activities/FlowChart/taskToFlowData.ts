@@ -651,6 +651,13 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
             }
         }
 
+        // Determine target handle based on new node type
+        const newNodeObj = nodes.find(n => n.id === newNode.id);
+        let targetHandle = "peer-top-input";
+        if (newNodeObj?.type === "conditionalNode") {
+            targetHandle = "cond-top-input";
+        }
+
         const edge = createTimelineEdge(
             previousNodeId,
             newNode.id,
@@ -660,7 +667,7 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
             edgeAnimationService,
             processedSteps,
             sourceHandle,
-            prevNodeObj?.type === "conditionalNode" ? "peer-top-input" : "peer-top-input"
+            targetHandle
         );
 
         if (edge && edgeLabel) {
