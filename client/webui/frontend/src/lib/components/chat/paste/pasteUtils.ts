@@ -8,6 +8,7 @@ export interface PastedArtifactItem {
     id: string;
     artifactId: string;
     filename: string;
+    mimeType: string;
     timestamp: number;
 }
 
@@ -18,10 +19,9 @@ export interface PastedArtifactItem {
  */
 export const isLargeText = (text: string): boolean => {
     const charCount = text.length;
-    const lineCount = text.split('\n').length;
+    const lineCount = text.split("\n").length;
     return charCount >= 1000 || lineCount >= 30;
 };
-
 
 /**
  * Generates a descriptive title from pasted content
@@ -32,24 +32,24 @@ export const generateArtifactTitle = (content: string): string => {
     // Detect file type
     const mimeType = detectContentType(content);
     const extension = getExtensionFromMimeType(mimeType);
-    
+
     // Try to extract a meaningful name from the first line
-    const firstLine = content.split('\n')[0].trim();
-    let baseName = 'pasted-content';
-    
+    const firstLine = content.split("\n")[0].trim();
+    let baseName = "pasted-content";
+
     if (firstLine.length > 0 && firstLine.length <= 50) {
         // Use first line as base name if it's reasonable
         baseName = firstLine
-            .replace(/[^a-zA-Z0-9-_\s]/g, '') // Remove special chars
-            .replace(/\s+/g, '-') // Replace spaces with hyphens
+            .replace(/[^a-zA-Z0-9-_\s]/g, "") // Remove special chars
+            .replace(/\s+/g, "-") // Replace spaces with hyphens
             .toLowerCase()
             .substring(0, 30); // Limit length
-        
+
         if (baseName.length < 3) {
-            baseName = 'pasted-content';
+            baseName = "pasted-content";
         }
     }
-    
+
     return `${baseName}.${extension}`;
 };
 
@@ -60,15 +60,15 @@ export const generateArtifactTitle = (content: string): string => {
  */
 export const generateArtifactDescription = (content: string): string => {
     const charCount = content.length;
-    const lineCount = content.split('\n').length;
+    const lineCount = content.split("\n").length;
     const contentType = detectContentType(content);
-    
+
     // Get a shorter preview of the content (50 chars instead of 100)
-    const preview = content.substring(0, 50).replace(/\n/g, ' ').trim();
+    const preview = content.substring(0, 50).replace(/\n/g, " ").trim();
     const previewText = preview.length < content.length ? `${preview}...` : preview;
-    
+
     const typeLabel = getTypeLabel(contentType);
-    
+
     return `Pasted ${typeLabel} (${charCount} chars, ${lineCount} lines): ${previewText}`;
 };
 
@@ -76,36 +76,36 @@ export const generateArtifactDescription = (content: string): string => {
  * Detects the content type from text
  */
 const detectContentType = (content: string): string => {
-    if (content.includes('def ') || content.includes('import ') && content.includes('from ')) {
-        return 'text/python';
+    if (content.includes("def ") || (content.includes("import ") && content.includes("from "))) {
+        return "text/python";
     }
-    if (content.includes('function ') || content.includes('const ') || content.includes('let ') || content.includes('=>')) {
-        return 'text/javascript';
+    if (content.includes("function ") || content.includes("const ") || content.includes("let ") || content.includes("=>")) {
+        return "text/javascript";
     }
-    if (content.includes('interface ') || content.includes('type ') && content.includes(':')) {
-        return 'text/typescript';
+    if (content.includes("interface ") || (content.includes("type ") && content.includes(":"))) {
+        return "text/typescript";
     }
-    if (content.includes('<!DOCTYPE') || content.includes('<html')) {
-        return 'text/html';
+    if (content.includes("<!DOCTYPE") || content.includes("<html")) {
+        return "text/html";
     }
-    if (content.includes('{') && content.includes('}') && content.includes(':')) {
+    if (content.includes("{") && content.includes("}") && content.includes(":")) {
         try {
             JSON.parse(content);
-            return 'application/json';
+            return "application/json";
         } catch {
             // Not valid JSON
         }
     }
-    if (content.includes('---') && (content.includes('apiVersion:') || content.includes('kind:'))) {
-        return 'text/yaml';
+    if (content.includes("---") && (content.includes("apiVersion:") || content.includes("kind:"))) {
+        return "text/yaml";
     }
-    if (content.includes('<?xml') || content.includes('<') && content.includes('/>')) {
-        return 'text/xml';
+    if (content.includes("<?xml") || (content.includes("<") && content.includes("/>"))) {
+        return "text/xml";
     }
-    if (content.includes('#') && (content.includes('##') || content.includes('```'))) {
-        return 'text/markdown';
+    if (content.includes("#") && (content.includes("##") || content.includes("```"))) {
+        return "text/markdown";
     }
-    return 'text/plain';
+    return "text/plain";
 };
 
 /**
@@ -113,18 +113,18 @@ const detectContentType = (content: string): string => {
  */
 const getExtensionFromMimeType = (mimeType: string): string => {
     const extensionMap: Record<string, string> = {
-        'text/plain': 'txt',
-        'text/markdown': 'md',
-        'application/json': 'json',
-        'text/html': 'html',
-        'text/css': 'css',
-        'text/javascript': 'js',
-        'text/typescript': 'ts',
-        'text/python': 'py',
-        'text/yaml': 'yaml',
-        'text/xml': 'xml',
+        "text/plain": "txt",
+        "text/markdown": "md",
+        "application/json": "json",
+        "text/html": "html",
+        "text/css": "css",
+        "text/javascript": "js",
+        "text/typescript": "ts",
+        "text/python": "py",
+        "text/yaml": "yaml",
+        "text/xml": "xml",
     };
-    return extensionMap[mimeType] || 'txt';
+    return extensionMap[mimeType] || "txt";
 };
 
 /**
@@ -132,18 +132,18 @@ const getExtensionFromMimeType = (mimeType: string): string => {
  */
 const getTypeLabel = (mimeType: string): string => {
     const labelMap: Record<string, string> = {
-        'text/plain': 'text',
-        'text/markdown': 'Markdown',
-        'application/json': 'JSON',
-        'text/html': 'HTML',
-        'text/css': 'CSS',
-        'text/javascript': 'JavaScript',
-        'text/typescript': 'TypeScript',
-        'text/python': 'Python code',
-        'text/yaml': 'YAML',
-        'text/xml': 'XML',
+        "text/plain": "text",
+        "text/markdown": "Markdown",
+        "application/json": "JSON",
+        "text/html": "HTML",
+        "text/css": "CSS",
+        "text/javascript": "JavaScript",
+        "text/typescript": "TypeScript",
+        "text/python": "Python code",
+        "text/yaml": "YAML",
+        "text/xml": "XML",
     };
-    return labelMap[mimeType] || 'text';
+    return labelMap[mimeType] || "text";
 };
 
 /**
@@ -164,8 +164,6 @@ export const createPastedTextItem = (content: string): PastedTextItem => ({
  * @returns Truncated text with ellipsis if needed
  */
 export const getTextPreview = (text: string, maxLength: number = 50): string => {
-    const singleLine = text.replace(/\n/g, ' ').trim();
-    return singleLine.length > maxLength 
-        ? `${singleLine.substring(0, maxLength)}...` 
-        : singleLine;
+    const singleLine = text.replace(/\n/g, " ").trim();
+    return singleLine.length > maxLength ? `${singleLine.substring(0, maxLength)}...` : singleLine;
 };

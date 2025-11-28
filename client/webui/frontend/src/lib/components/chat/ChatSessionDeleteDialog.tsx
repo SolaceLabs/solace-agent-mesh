@@ -10,17 +10,16 @@ export const ChatSessionDeleteDialog = React.memo<ChatSessionDeleteDialogProps>(
     return (
         <ConfirmationDialog
             open={open}
-            onOpenChange={open => {
-                if (!open) {
-                    onCancel();
-                }
-            }}
+            onOpenChange={open => !open && onCancel()}
             title="Delete Chat"
             content={
-                <div>
+                <>
                     This action cannot be undone. This chat session and any associated artifacts will be permanently deleted: <strong>{sessionName}</strong>
-                </div>
+                </>
             }
+            actionLabels={{
+                confirm: "Delete",
+            }}
             onConfirm={onConfirm}
         />
     );

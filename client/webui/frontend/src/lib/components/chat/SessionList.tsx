@@ -4,8 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles } from "lucide-react";
 
-import { useChatContext, useConfigContext, useTitleAnimation } from "@/lib/hooks";
-import { useTitleGeneration } from "@/lib/hooks/useTitleGeneration";
+import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";

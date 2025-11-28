@@ -87,7 +87,6 @@ const defaultMockChatContext: DefaultMockContextType = {
     setPreviewArtifact: () => {},
     openArtifactForPreview: async () => null,
     navigateArtifactVersion: async () => null,
-    openMessageAttachmentForPreview: () => {},
     setSessionId: () => {},
     setSessionName: () => {},
     handleSwitchSession: async () => {},
