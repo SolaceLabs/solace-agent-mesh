@@ -524,7 +524,7 @@ export const processTaskForVisualization = (
                                         functionCallId: p.function_call.id,
                                         toolName: p.function_call.name,
                                         toolArguments: p.function_call.args || {},
-                                        isPeerDelegation: p.function_call.name?.startsWith("peer_"),
+                                        isPeerDelegation: p.function_call.name?.startsWith("peer_") || p.function_call.name?.startsWith("workflow_"),
                                     }));
                                     const toolDecisionData: ToolDecisionData = { decisions, isParallel: decisions.length > 1 };
 
@@ -532,7 +532,13 @@ export const processTaskForVisualization = (
                                     const claimedSubTaskIds = new Set<string>();
                                     decisions.forEach(decision => {
                                         if (decision.isPeerDelegation) {
-                                            const peerAgentActualName = decision.toolName.substring(5);
+                                            let peerAgentActualName = decision.toolName;
+                                            if (decision.toolName.startsWith("peer_")) {
+                                                peerAgentActualName = decision.toolName.substring(5);
+                                            } else if (decision.toolName.startsWith("workflow_")) {
+                                                peerAgentActualName = decision.toolName.substring(9);
+                                            }
+
                                             for (const stId in allMonitoredTasks) {
                                                 const candSubTask = allMonitoredTasks[stId];
                                                 if (claimedSubTaskIds.has(candSubTask.taskId)) continue;
@@ -631,7 +637,7 @@ export const processTaskForVisualization = (
                                     functionCallId: signalData.function_call_id,
                                     toolName: signalData.tool_name,
                                     toolArguments: signalData.tool_args,
-                                    isPeerInvocation: signalData.tool_name?.startsWith("peer_"),
+                                    isPeerInvocation: signalData.tool_name?.startsWith("peer_") || signalData.tool_name?.startsWith("workflow_"),
                                 };
                                 visualizerSteps.push({
                                     id: `vstep-toolinvokestart-${visualizerSteps.length}-${eventId}`,
@@ -657,12 +663,21 @@ export const processTaskForVisualization = (
                                     const duration = new Date(eventTimestamp).getTime() - new Date(openToolCallForPerf.timestamp).getTime();
                                     const invokingAgentMetrics = report.agents[openToolCallForPerf.invokingAgentInstanceId];
                                     if (invokingAgentMetrics) {
+                                        let peerAgentName: string | undefined;
+                                        if (openToolCallForPerf.isPeer) {
+                                            if (openToolCallForPerf.toolName.startsWith("peer_")) {
+                                                peerAgentName = openToolCallForPerf.toolName.substring(5);
+                                            } else if (openToolCallForPerf.toolName.startsWith("workflow_")) {
+                                                peerAgentName = openToolCallForPerf.toolName.substring(9);
+                                            }
+                                        }
+
                                         const toolCallPerf: ToolCallPerformance = {
                                             toolName: openToolCallForPerf.toolName,
                                             durationMs: duration,
                                             isPeer: openToolCallForPerf.isPeer,
                                             timestamp: openToolCallForPerf.timestamp,
-                                            peerAgentName: openToolCallForPerf.isPeer ? openToolCallForPerf.toolName.substring(5) : undefined,
+                                            peerAgentName: peerAgentName,
                                             subTaskId: openToolCallForPerf.subTaskId,
                                             parallelBlockId: openToolCallForPerf.parallelBlockId,
                                         };
@@ -676,7 +691,7 @@ export const processTaskForVisualization = (
                                     toolName: signalData.tool_name,
                                     functionCallId: functionCallId,
                                     resultData: signalData.result_data,
-                                    isPeerResponse: signalData.tool_name?.startsWith("peer_"),
+                                    isPeerResponse: signalData.tool_name?.startsWith("peer_") || signalData.tool_name?.startsWith("workflow_"),
                                 };
                                 visualizerSteps.push({
                                     id: `vstep-toolresult-${visualizerSteps.length}-${eventId}`,
