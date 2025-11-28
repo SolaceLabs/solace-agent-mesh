@@ -42,6 +42,8 @@ shared_config:
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
       # Prompt Caching Strategy
       cache_strategy: "5m" # none, 5m, 1h
+      # Token Usage Tracking
+      track_token_usage: false  # Disabled by default
 
     image_gen: &image_generation_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper.
@@ -60,6 +62,8 @@ shared_config:
       api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
       # 'api_key' provides authentication.
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+      # Token Usage Tracking
+      track_token_usage: false  # Disabled by default
 
     multimodal: &multimodal_model  "gemini-2.5-flash-preview-04-17"
 
@@ -81,6 +85,8 @@ shared_config:
 
       # Enable parallel tool calls for planning model
       parallel_tool_calls: true
+      # Token Usage Tracking
+      track_token_usage: false  # Disabled by default
       # max_tokens: ${MAX_TOKENS, 16000} # Set a reasonable max token limit for planning
       # temperature: 0.1 # Lower temperature for more deterministic planning
 
@@ -98,6 +104,8 @@ shared_config:
       oauth_scope: ${LLM_SERVICE_OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
       # oauth_ca_cert: ${LLM_SERVICE_OAUTH_CA_CERT_PATH} # Optional: Custom CA certificate path
       oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300} # Refresh buffer
+      # Token Usage Tracking
+      track_token_usage: false  # Disabled by default
 
   - services:
     # Default session service configuration

@@ -27,6 +27,10 @@ Plugins extend the capabilities of Agent Mesh by providing custom tools, integra
 
 Agent Mesh includes a comprehensive set of built-in tools that provide essential capabilities for most AI agent scenarios. These tools handle common tasks like artifact management, data analysis, web interactions, and inter-agent communication. The built-in tools are designed to work seamlessly with the A2A protocol and provide consistent behavior across all agents in your mesh. For detailed documentation of available tools and their usage, see [Built-in Tools](./builtin-tools/builtin-tools.md).
 
+## Context Management
+
+Agent Mesh provides features for managing LLM context efficiently, helping you monitor token consumption and optimize long conversations. You can track token usage in real time, compress conversation history when approaching context limits, and configure prompt caching to reduce latency and costs. These capabilities are particularly valuable when working with large language models that have context window limitations. For guidance on context management features, see [Context Management](./context-management/context-management.md).
+
 ## Command Line Interface
 
 The CLI provides the primary interface for managing your Agent Mesh deployment. You can use it to start agents, configure gateways, monitor system health, and perform administrative tasks. The CLI simplifies complex operations and provides helpful feedback during development and deployment. For complete CLI documentation and command reference, see [CLI](./cli.md).

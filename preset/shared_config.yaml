@@ -16,6 +16,8 @@ shared_config:
       api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
       # 'api_key' provides authentication.
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+      # Token Usage Tracking
+      track_token_usage: false  # Disabled by default
 
     general: &general_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper.
@@ -25,6 +27,8 @@ shared_config:
       api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
       # 'api_key' provides authentication.
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+      # Token Usage Tracking
+      track_token_usage: false  # Disabled by default
 
     image_gen: &image_generation_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper.
@@ -43,6 +47,8 @@ shared_config:
       api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
       # 'api_key' provides authentication.
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+      # Token Usage Tracking
+      track_token_usage: false  # Disabled by default
 
     multimodal: &multimodal_model  "gemini-2.5-flash-preview-04-17"
     gemini_pro: &gemini_pro_model "gemini-2.5-pro-exp-03-25"
@@ -61,6 +67,8 @@ shared_config:
       oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
 
       parallel_tool_calls: true
+      # Token Usage Tracking
+      track_token_usage: false  # Disabled by default
 
     oauth_general: &oauth_general_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper with OAuth authentication.
@@ -73,6 +81,8 @@ shared_config:
       oauth_client_secret: ${LLM_SERVICE_OAUTH_CLIENT_SECRET} # OAuth client secret
       oauth_scope: ${LLM_SERVICE_OAUTH_SCOPE} # Optional: OAuth scope (space-separated)
       oauth_token_refresh_buffer_seconds: ${LLM_SERVICE_OAUTH_TOKEN_REFRESH_BUFFER_SECONDS, 300}
+      # Token Usage Tracking
+      track_token_usage: false  # Disabled by default
 
   - services:    
     # Default artifact service configuration
