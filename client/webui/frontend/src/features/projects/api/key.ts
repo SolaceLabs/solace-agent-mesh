@@ -18,4 +18,3 @@ export const projects = createQueryKeys("projects", {
         },
     }),
 });
-
