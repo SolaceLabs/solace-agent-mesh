@@ -267,6 +267,7 @@ This is MANDATORY for the workflow to continue.
                 "workflow_name": workflow_state.workflow_name,
                 "node_id": node.id,
                 "sub_task_id": sub_task_id,
+                "parentTaskId": workflow_context.workflow_task_id,
             },
         )
 
