@@ -4,10 +4,11 @@
  */
 
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
 import { Button } from "@/lib/components/ui/button";
 import { UsageOverviewCard } from "../usage/UsageOverviewCard";
 import { getCurrentUsage, getUsageHistory, getTransactions } from "../../api/token-usage-api";
+import { useConfigContext } from "@/lib/hooks";
 import type { CurrentUsage, MonthlyUsageHistory, TransactionsResponse } from "../../types/token-usage";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
 
@@ -16,6 +17,9 @@ interface UsageDetailsPageProps {
 }
 
 export const UsageDetailsPage: React.FC<UsageDetailsPageProps> = ({ onBack }) => {
+    const { configFeatureEnablement } = useConfigContext();
+    const tokenUsageTrackingEnabled = configFeatureEnablement?.tokenUsageTracking ?? false;
+
     const [currentUsage, setCurrentUsage] = useState<CurrentUsage | null>(null);
     const [history, setHistory] = useState<MonthlyUsageHistory[]>([]);
     const [transactions, setTransactions] = useState<TransactionsResponse | null>(null);
@@ -25,8 +29,12 @@ export const UsageDetailsPage: React.FC<UsageDetailsPageProps> = ({ onBack }) =>
     const [showAllTransactions, setShowAllTransactions] = useState(false);
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (tokenUsageTrackingEnabled) {
+            loadData();
+        } else {
+            setLoading(false);
+        }
+    }, [tokenUsageTrackingEnabled]);
 
     const loadData = async () => {
         try {
@@ -43,6 +51,37 @@ export const UsageDetailsPage: React.FC<UsageDetailsPageProps> = ({ onBack }) =>
             setLoading(false);
         }
     };
+
+    // Show feature disabled message if token usage tracking is not enabled
+    if (!tokenUsageTrackingEnabled) {
+        return (
+            <div className="h-full overflow-y-auto bg-gray-50 dark:bg-gray-900">
+                <div className="mx-auto max-w-7xl space-y-8 p-8">
+                    {/* Header */}
+                    <div className="flex items-center space-x-4">
+                        {onBack && (
+                            <Button onClick={onBack} variant="ghost" size="sm" className="hover:bg-gray-200 dark:hover:bg-gray-800">
+                                <ArrowLeft className="h-4 w-4" />
+                            </Button>
+                        )}
+                        <div>
+                            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Token Usage</h1>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Monitor your usage and costs</p>
+                        </div>
+                    </div>
+
+                    {/* Feature Disabled Message */}
+                    <div className="rounded-xl border border-gray-200 bg-white p-8 dark:border-gray-700 dark:bg-gray-800">
+                        <div className="flex flex-col items-center justify-center text-center">
+                            <AlertCircle className="mb-4 h-12 w-12 text-gray-400 dark:text-gray-500" />
+                            <h2 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">Token Usage Tracking Disabled</h2>
+                            <p className="max-w-md text-gray-500 dark:text-gray-400">Token usage tracking is currently disabled. Contact your administrator to enable this feature.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (

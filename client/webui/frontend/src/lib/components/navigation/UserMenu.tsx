@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { SettingsDialog } from "@/lib/components/settings";
 import { getQuotaStatus } from "../../api/token-usage-api";
 import { getUserProfile } from "../../api/user-profile-api";
+import { useConfigContext } from "@/lib/hooks";
 import type { QuotaStatus } from "../../types/token-usage";
 import type { UserProfile } from "../../api/user-profile-api";
 
@@ -19,6 +20,9 @@ interface UserMenuProps {
 }
 
 export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail = "user@example.com", onUsageClick }) => {
+    const { configFeatureEnablement } = useConfigContext();
+    const tokenUsageTrackingEnabled = configFeatureEnablement?.tokenUsageTracking ?? false;
+
     const [quotaStatus, setQuotaStatus] = useState<QuotaStatus | null>(null);
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [isOpen, setIsOpen] = useState(false);
@@ -45,12 +49,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
         return () => window.removeEventListener("avatar-updated", handleAvatarUpdate);
     }, []);
 
-    // Load quota status when menu opens
+    // Load quota status when menu opens (only if token usage tracking is enabled)
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && tokenUsageTrackingEnabled) {
             loadQuotaStatus();
         }
-    }, [isOpen]);
+    }, [isOpen, tokenUsageTrackingEnabled]);
 
     const loadQuotaStatus = async () => {
         try {
@@ -150,8 +154,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
                     </div>
                 </DropdownMenuLabel>
 
-                {/* Token Usage Section - Compact version below profile */}
-                {quotaStatus && quotaStatus.usagePercentage !== undefined && (
+                {/* Token Usage Section - Compact version below profile (only shown if feature is enabled) */}
+                {tokenUsageTrackingEnabled && quotaStatus && quotaStatus.usagePercentage !== undefined && (
                     <>
                         <div className="bg-gray-50 px-3 py-2 dark:bg-gray-900/50">
                             <div className="mb-1.5 flex items-center justify-between">
@@ -174,17 +178,19 @@ export const UserMenu: React.FC<UserMenuProps> = ({ userName = "User", userEmail
 
                 <DropdownMenuSeparator />
 
-                {/* Menu Items */}
-                <DropdownMenuItem
-                    className="cursor-pointer hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)] focus:bg-[var(--color-primary-w90)] focus:text-[var(--color-primary-text-w10)]"
-                    onClick={() => {
-                        setIsOpen(false);
-                        onUsageClick?.();
-                    }}
-                >
-                    <BarChart3 className="mr-2 h-4 w-4" />
-                    <span>Usage Details</span>
-                </DropdownMenuItem>
+                {/* Menu Items - Usage Details only shown if feature is enabled */}
+                {tokenUsageTrackingEnabled && (
+                    <DropdownMenuItem
+                        className="cursor-pointer hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)] focus:bg-[var(--color-primary-w90)] focus:text-[var(--color-primary-text-w10)]"
+                        onClick={() => {
+                            setIsOpen(false);
+                            onUsageClick?.();
+                        }}
+                    >
+                        <BarChart3 className="mr-2 h-4 w-4" />
+                        <span>Usage Details</span>
+                    </DropdownMenuItem>
+                )}
 
                 {/* Settings - uses SettingsDialog component */}
                 <SettingsDialog iconOnly={false} />

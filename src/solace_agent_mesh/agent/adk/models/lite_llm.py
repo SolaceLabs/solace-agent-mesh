@@ -745,14 +745,20 @@ class LiteLlm(BaseLlm):
     _additional_args: Dict[str, Any] = None
     _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = None
     _cache_strategy: str = "5m"  # Default to 5-minute ephemeral cache
+    _track_token_usage: bool = False  # Default to disabled for backward compatibility
 
-    def __init__(self, model: str, cache_strategy: str = "5m", **kwargs):
+    def __init__(self, model: str, cache_strategy: str = "5m", track_token_usage: bool = False, **kwargs):
         """Initializes the LiteLlm class.
 
         Args:
           model: The name of the LiteLlm model.
           cache_strategy: Cache strategy to use. Options: "none", "5m" (ephemeral), "1h" (extended).
                          Defaults to "5m" for backward compatibility.
+          track_token_usage: Whether to track and report token usage metadata.
+                            When enabled, token usage (prompt tokens, completion tokens, total tokens,
+                            and cached tokens) from LLM providers will be extracted and included
+                            in the usage metadata. When disabled, no usage metadata is reported.
+                            Defaults to False for backward compatibility.
           **kwargs: Additional arguments to pass to the litellm completion api.
                    Can include OAuth configuration parameters.
         """
@@ -774,7 +780,12 @@ class LiteLlm(BaseLlm):
             )
             cache_strategy = "5m"
         self._cache_strategy = cache_strategy
-        logger.info("LiteLlm initialized with cache strategy: %s", self._cache_strategy)
+        self._track_token_usage = track_token_usage
+        logger.info(
+            "LiteLlm initialized with cache strategy: %s, track_token_usage: %s",
+            self._cache_strategy,
+            self._track_token_usage,
+        )
 
         # Extract OAuth configuration if present
         oauth_config = self._extract_oauth_config(self._additional_args)
@@ -932,12 +943,16 @@ class LiteLlm(BaseLlm):
                             is_partial=True,
                         )
                     elif isinstance(chunk, UsageMetadataChunk):
-                        usage_metadata = types.GenerateContentResponseUsageMetadata(
-                            prompt_token_count=chunk.prompt_tokens,
-                            candidates_token_count=chunk.completion_tokens,
-                            total_token_count=chunk.total_tokens,
-                            cached_content_token_count=chunk.cached_tokens if chunk.cached_tokens > 0 else None,
-                        )
+                        # Only include usage metadata if track_token_usage is enabled
+                        if self._track_token_usage:
+                            cached_token_count = chunk.cached_tokens if chunk.cached_tokens > 0 else None
+                            usage_metadata = types.GenerateContentResponseUsageMetadata(
+                                prompt_token_count=chunk.prompt_tokens,
+                                candidates_token_count=chunk.completion_tokens,
+                                total_token_count=chunk.total_tokens,
+                                cached_content_token_count=cached_token_count,
+                            )
+                        # When track_token_usage is False, usage_metadata remains None
 
                     if (
                         finish_reason == "tool_calls" or finish_reason == "stop"
@@ -1037,7 +1052,12 @@ class LiteLlm(BaseLlm):
 
         else:
             response = await self.llm_client.acompletion(**completion_args)
-            yield _model_response_to_generate_content_response(response)
+            llm_response = _model_response_to_generate_content_response(response)
+            # Apply track_token_usage feature flag for non-streaming responses
+            if not self._track_token_usage:
+                # Clear all usage metadata if tracking is disabled
+                llm_response.usage_metadata = None
+            yield llm_response
 
     @staticmethod
     @override

@@ -197,7 +197,27 @@ async def get_app_config(
         else:
             log.debug("%s Projects feature flag is disabled.", log_prefix)
 
+        # Determine if token usage tracking UI should be enabled
+        # This controls the visibility of usage-related UI components:
+        # - Usage bar in user menu
+        # - Usage details page
+        # - Context usage indicator
+        # Check explicit frontend_feature_enablement.tokenUsageTracking first
+        token_usage_tracking_enabled = feature_enablement.get("tokenUsageTracking", None)
+        if token_usage_tracking_enabled is None:
+            # Check token_usage_tracking config section
+            token_usage_config = component.get_config("token_usage_tracking", {})
+            if isinstance(token_usage_config, dict):
+                token_usage_tracking_enabled = token_usage_config.get("enabled", False)
+            else:
+                token_usage_tracking_enabled = False
         
+        feature_enablement["tokenUsageTracking"] = token_usage_tracking_enabled
+        if token_usage_tracking_enabled:
+            log.debug("%s tokenUsageTracking feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s tokenUsageTracking feature flag is disabled.", log_prefix)
+
         # Check tool configuration status
         tool_config_status = {}
         

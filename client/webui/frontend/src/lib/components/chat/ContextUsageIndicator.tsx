@@ -9,7 +9,7 @@ import { getSessionUsage } from "@/lib/api/token-usage-api";
 import { compressAndBranchSession } from "@/lib/api/sessions-api";
 import type { SessionTokenUsage } from "@/lib/types/token-usage";
 import { getModelContextLimit, formatTokenCount, calculateContextPercentage, getUsageColor, getUsageBgColor } from "@/lib/utils/modelContextLimits";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
 
 interface ContextUsageIndicatorProps {
     sessionId: string;
@@ -27,6 +27,9 @@ const CompressionIcon = ({ className }: { className?: string }) => (
 );
 
 export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ sessionId, onRefresh, messageCount = 0 }) => {
+    const { configFeatureEnablement } = useConfigContext();
+    const tokenUsageTrackingEnabled = configFeatureEnablement?.tokenUsageTracking ?? false;
+
     const [isExpanded, setIsExpanded] = useState(false);
     const [sessionUsage, setSessionUsage] = useState<SessionTokenUsage | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -37,9 +40,9 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
     const containerRef = useRef<HTMLDivElement>(null);
     const { handleSwitchSession, selectedAgentName, agents } = useChatContext();
 
-    // Fetch session usage
+    // Fetch session usage (only if feature is enabled)
     const fetchSessionUsage = React.useCallback(async () => {
-        if (!sessionId) return;
+        if (!sessionId || !tokenUsageTrackingEnabled) return;
 
         setIsLoading(true);
         setError(null);
@@ -52,23 +55,25 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId]);
+    }, [sessionId, tokenUsageTrackingEnabled]);
 
-    // Initial fetch and refresh on sessionId change
+    // Initial fetch and refresh on sessionId change (only if feature is enabled)
     useEffect(() => {
-        fetchSessionUsage();
-    }, [sessionId, fetchSessionUsage]);
+        if (tokenUsageTrackingEnabled) {
+            fetchSessionUsage();
+        }
+    }, [sessionId, fetchSessionUsage, tokenUsageTrackingEnabled]);
 
-    // Auto-refresh every 3 seconds to catch new token usage
+    // Auto-refresh every 3 seconds to catch new token usage (only if feature is enabled)
     useEffect(() => {
-        if (!sessionId) return;
+        if (!sessionId || !tokenUsageTrackingEnabled) return;
 
         const interval = setInterval(() => {
             fetchSessionUsage();
         }, 3000);
 
         return () => clearInterval(interval);
-    }, [sessionId, fetchSessionUsage]);
+    }, [sessionId, fetchSessionUsage, tokenUsageTrackingEnabled]);
 
     // Click outside to collapse
     useEffect(() => {
@@ -189,7 +194,8 @@ export const ContextUsageIndicator: React.FC<ContextUsageIndicatorProps> = ({ se
         }
     };
 
-    if (!sessionId) {
+    // Don't render if feature is disabled or no session
+    if (!sessionId || !tokenUsageTrackingEnabled) {
         return null;
     }
 
