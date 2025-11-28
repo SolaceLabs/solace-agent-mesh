@@ -1,13 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { projects } from "./keys";
 import { addFilesToProject, createProject, deleteProject, getProjectArtifacts, getProjects, getProjectSessions, removeFileFromProject, updateFileMetadata, updateProject } from "./services";
-import type { Project, UpdateProjectData } from "@/lib";
+import { useConfigContext, type Project, type UpdateProjectData } from "@/lib";
 
-export const useProjects = (enabled: boolean) => {
+const useProjectsConfig = () => {
+    const { projectsEnabled } = useConfigContext();
+    return Boolean(projectsEnabled);
+};
+
+export const useProjects = () => {
     return useQuery({
         queryKey: projects.all.queryKey,
         queryFn: () => getProjects(),
-        enabled,
+        enabled: useProjectsConfig(),
         select: data => {
             const sorted = [...data.projects].sort((a, b) => {
                 return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
@@ -87,6 +92,7 @@ export const useProjectArtifacts = (projectId: string) => {
     return useQuery({
         queryKey: projects.artifacts(projectId).queryKey,
         queryFn: () => getProjectArtifacts(projectId),
+        enabled: useProjectsConfig(),
         select: data => {
             return [...data].sort((a, b) => {
                 const dateA = a.last_modified ? new Date(a.last_modified).getTime() : 0;
@@ -101,5 +107,6 @@ export const useProjectSessions = (projectId: string) => {
     return useQuery({
         queryKey: projects.sessions(projectId).queryKey,
         queryFn: () => getProjectSessions(projectId),
+        enabled: useProjectsConfig(),
     });
 };

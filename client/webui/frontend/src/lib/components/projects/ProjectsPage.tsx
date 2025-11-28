@@ -29,7 +29,7 @@ export const ProjectsPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const { handleNewSession, handleSwitchSession, addNotification } = useChatContext();
 
-    const { data, isLoading } = useProjects(true);
+    const { data, isLoading } = useProjects();
     const createProject = useCreateProject();
     const queryClient = useQueryClient();
     const selectedProject = useMemo(() => (data ? data.projects.find(p => p.id === loaderData?.projectId) : null), [data, loaderData?.projectId]);

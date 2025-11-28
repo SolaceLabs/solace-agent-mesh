@@ -6,7 +6,7 @@ export const ChatSessions = () => {
     const { persistenceEnabled } = useConfigContext();
     const { sessionName } = useChatContext();
 
-    const { data } = useProjects(true);
+    const { data } = useProjects();
     if (!data) return;
 
     if (persistenceEnabled) return <SessionList projects={data.projects} />;

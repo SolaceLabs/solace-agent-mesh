@@ -82,7 +82,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const apiPrefix = useMemo(() => `${configServerUrl}/api/v1`, [configServerUrl]);
     const { activeProject, setActiveProject } = useProjectContext();
     const { ErrorDialog, setError } = useErrorDialog();
-    const { data } = useProjects(true);
+    const { data } = useProjects();
     const projects = useMemo(() => (data ? data.projects : []), [data]);
 
     // State Variables from useChat
