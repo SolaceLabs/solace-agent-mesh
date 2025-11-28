@@ -20,8 +20,7 @@ interface BackendConfig {
         projectDescriptionMax?: number;
         projectInstructionsMax?: number;
     };
-    background_tasks?: {
-        enabled?: boolean;
+    background_tasks_config?: {
         default_timeout_ms?: number;
     };
 }
@@ -100,9 +99,9 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                 // Compute projectsEnabled from feature flags
                 const projectsEnabled = data.frontend_feature_enablement?.projects ?? false;
 
-                // Extract background tasks config
-                const backgroundTasksEnabled = data.background_tasks?.enabled ?? false;
-                const backgroundTasksDefaultTimeoutMs = data.background_tasks?.default_timeout_ms ?? 3600000;
+                // Extract background tasks config from feature enablement
+                const backgroundTasksEnabled = data.frontend_feature_enablement?.background_tasks ?? false;
+                const backgroundTasksDefaultTimeoutMs = data.background_tasks_config?.default_timeout_ms ?? 3600000;
 
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {

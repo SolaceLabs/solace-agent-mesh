@@ -11,7 +11,7 @@ export interface BackgroundTaskState {
     agentName?: string;
 }
 
-export interface TaskStatusResponse {
+export interface BackgroundTaskStatusResponse {
     task: {
         id: string;
         user_id: string;
@@ -30,7 +30,7 @@ export interface TaskStatusResponse {
     can_reconnect: boolean;
 }
 
-export interface TaskEvent {
+export interface BackgroundTaskEvent {
     id: string;
     task_id: string;
     user_id: string | null;
@@ -40,15 +40,15 @@ export interface TaskEvent {
     payload: Record<string, unknown>;
 }
 
-export interface TaskEventsResponse {
-    task: TaskStatusResponse["task"];
-    events: TaskEvent[];
+export interface BackgroundTaskEventsResponse {
+    task: BackgroundTaskStatusResponse["task"];
+    events: BackgroundTaskEvent[];
     total_events: number;
     has_more: boolean;
 }
 
 export interface ActiveBackgroundTasksResponse {
-    tasks: TaskStatusResponse["task"][];
+    tasks: BackgroundTaskStatusResponse["task"][];
     count: number;
 }
 

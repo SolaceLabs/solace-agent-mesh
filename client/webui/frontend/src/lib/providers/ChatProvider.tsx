@@ -314,6 +314,41 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [apiPrefix, sessionId, persistenceEnabled]
     );
 
+    // Helper function to extract artifact markers and create artifact parts
+    const extractArtifactMarkers = useCallback((text: string, sessionId: string, addedArtifacts: Set<string>, processedParts: any[]) => {
+        const ARTIFACT_RETURN_REGEX = /«artifact_return:([^»]+)»/g;
+        const ARTIFACT_REGEX = /«artifact:([^»]+)»/g;
+
+        const createArtifactPart = (filename: string) => ({
+            kind: "artifact",
+            status: "completed",
+            name: filename,
+            file: {
+                name: filename,
+                uri: `artifact://${sessionId}/${filename}`,
+            },
+        });
+
+        // Extract artifact_return markers
+        let match;
+        while ((match = ARTIFACT_RETURN_REGEX.exec(text)) !== null) {
+            const artifactFilename = match[1];
+            if (!addedArtifacts.has(artifactFilename)) {
+                addedArtifacts.add(artifactFilename);
+                processedParts.push(createArtifactPart(artifactFilename));
+            }
+        }
+
+        // Extract artifact: markers
+        while ((match = ARTIFACT_REGEX.exec(text)) !== null) {
+            const artifactFilename = match[1];
+            if (!addedArtifacts.has(artifactFilename)) {
+                addedArtifacts.add(artifactFilename);
+                processedParts.push(createArtifactPart(artifactFilename));
+            }
+        }
+    }, []);
+
     // Helper function to deserialize task data to MessageFE objects
     const deserializeTaskToMessages = useCallback((task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
         return task.messageBubbles.map(bubble => {
@@ -327,43 +362,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // First, check the bubble.text field for artifact markers (TaskLoggerService saves markers there)
             // This handles the case where backend saves text with markers but parts without artifacts
             if (bubble.text) {
-                const artifactReturnRegex = /«artifact_return:([^»]+)»/g;
-                const artifactRegex = /«artifact:([^»]+)»/g;
-                let match;
-
-                // Extract artifact_return markers from bubble.text
-                while ((match = artifactReturnRegex.exec(bubble.text)) !== null) {
-                    const artifactFilename = match[1];
-                    if (!addedArtifacts.has(artifactFilename)) {
-                        addedArtifacts.add(artifactFilename);
-                        processedParts.push({
-                            kind: "artifact",
-                            status: "completed",
-                            name: artifactFilename,
-                            file: {
-                                name: artifactFilename,
-                                uri: `artifact://${sessionId}/${artifactFilename}`,
-                            },
-                        });
-                    }
-                }
-
-                // Extract artifact: markers from bubble.text
-                while ((match = artifactRegex.exec(bubble.text)) !== null) {
-                    const artifactFilename = match[1];
-                    if (!addedArtifacts.has(artifactFilename)) {
-                        addedArtifacts.add(artifactFilename);
-                        processedParts.push({
-                            kind: "artifact",
-                            status: "completed",
-                            name: artifactFilename,
-                            file: {
-                                name: artifactFilename,
-                                uri: `artifact://${sessionId}/${artifactFilename}`,
-                            },
-                        });
-                    }
-                }
+                extractArtifactMarkers(bubble.text, sessionId, addedArtifacts, processedParts);
             }
 
             for (const part of originalParts) {
@@ -371,75 +370,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     let textContent = part.text;
 
                     // Extract artifact markers and convert them to artifact parts
-                    const artifactReturnRegex = /«artifact_return:([^»]+)»/g;
-                    const artifactRegex = /«artifact:([^»]+)»/g;
-                    let lastIndex = 0;
-                    const textSegments: string[] = [];
+                    extractArtifactMarkers(textContent, sessionId, addedArtifacts, processedParts);
 
-                    // Process artifact_return markers
-                    let match;
-                    while ((match = artifactReturnRegex.exec(textContent)) !== null) {
-                        // Add text before the marker
-                        if (match.index > lastIndex) {
-                            textSegments.push(textContent.substring(lastIndex, match.index));
-                        }
-
-                        // Create artifact part only if not already added
-                        const artifactFilename = match[1];
-                        if (!addedArtifacts.has(artifactFilename)) {
-                            addedArtifacts.add(artifactFilename);
-                            processedParts.push({
-                                kind: "artifact",
-                                status: "completed",
-                                name: artifactFilename,
-                                file: {
-                                    name: artifactFilename,
-                                    uri: `artifact://${sessionId}/${artifactFilename}`,
-                                },
-                            });
-                        }
-
-                        lastIndex = match.index + match[0].length;
-                    }
-
-                    // Add remaining text
-                    if (lastIndex < textContent.length) {
-                        textSegments.push(textContent.substring(lastIndex));
-                    }
-
-                    // Combine and process artifact: markers
-                    textContent = textSegments.join("");
-                    textSegments.length = 0;
-                    lastIndex = 0;
-
-                    while ((match = artifactRegex.exec(textContent)) !== null) {
-                        if (match.index > lastIndex) {
-                            textSegments.push(textContent.substring(lastIndex, match.index));
-                        }
-
-                        // Create artifact part only if not already added
-                        const artifactFilename = match[1];
-                        if (!addedArtifacts.has(artifactFilename)) {
-                            addedArtifacts.add(artifactFilename);
-                            processedParts.push({
-                                kind: "artifact",
-                                status: "completed",
-                                name: artifactFilename,
-                                file: {
-                                    name: artifactFilename,
-                                    uri: `artifact://${sessionId}/${artifactFilename}`,
-                                },
-                            });
-                        }
-
-                        lastIndex = match.index + match[0].length;
-                    }
-
-                    if (lastIndex < textContent.length) {
-                        textSegments.push(textContent.substring(lastIndex));
-                    }
-
-                    textContent = textSegments.join("");
+                    // Remove artifact markers from text content
+                    textContent = textContent.replace(/«artifact_return:[^»]+»/g, "");
+                    textContent = textContent.replace(/«artifact:[^»]+»/g, "");
 
                     // Remove status update markers
                     textContent = textContent.replace(/«status_update:[^»]+»\n?/g, "");

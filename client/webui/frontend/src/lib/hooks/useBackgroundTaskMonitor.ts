@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { authenticatedFetch } from "@/lib/utils/api";
-import type { BackgroundTaskState, TaskStatusResponse, ActiveBackgroundTasksResponse, BackgroundTaskNotification } from "@/lib/types/background-tasks";
+import type { BackgroundTaskState, BackgroundTaskStatusResponse, ActiveBackgroundTasksResponse, BackgroundTaskNotification } from "@/lib/types/background-tasks";
 
 const STORAGE_KEY = "sam_background_tasks";
 
@@ -79,7 +79,7 @@ export function useBackgroundTaskMonitor({ apiPrefix, userId, onTaskCompleted, o
 
     // Check status of a specific task
     const checkTaskStatus = useCallback(
-        async (taskId: string): Promise<TaskStatusResponse | null> => {
+        async (taskId: string): Promise<BackgroundTaskStatusResponse | null> => {
             try {
                 const response = await authenticatedFetch(`${apiPrefix}/tasks/${taskId}/status`);
                 if (!response.ok) {
