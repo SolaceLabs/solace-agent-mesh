@@ -362,6 +362,7 @@ class WorkflowExecutorComponent(SamComponentBase):
             WorkflowExecutionResultData(
                 type="workflow_execution_result",
                 status="success",
+                workflow_output=final_output,
             ),
         )
 

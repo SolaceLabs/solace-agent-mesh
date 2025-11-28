@@ -8,6 +8,7 @@ export interface ConditionalNodeData extends GenericNodeData {
     falseBranch?: string;
     trueBranchLabel?: string;
     falseBranchLabel?: string;
+    conditionResult?: boolean;
 }
 
 export type ConditionalNodeType = Node<ConditionalNodeData>;
@@ -40,10 +41,29 @@ const ConditionalNode: React.FC<NodeProps<ConditionalNodeType>> = ({ data }) => 
                 </div>
             </div>
 
+            {/* Branch Labels */}
+            {data.conditionResult !== undefined && (
+                <>
+                    <div className="absolute bottom-[-15px] left-1/2 transform -translate-x-1/2 text-[9px] font-bold text-gray-500 dark:text-gray-400">
+                        {data.conditionResult ? "True" : "False"}
+                    </div>
+                    <div className="absolute right-[-5px] top-1/2 transform -translate-y-1/2 text-[9px] font-bold text-gray-500 dark:text-gray-400">
+                        {data.conditionResult ? "False" : "True"}
+                    </div>
+                </>
+            )}
+
             {/* Handles - positioned relative to the unrotated container */}
             <Handle type="target" position={Position.Top} id="cond-top-input" className="!bg-gray-500" isConnectable={true} />
             <Handle type="source" position={Position.Bottom} id="cond-bottom-output" className="!bg-gray-500" isConnectable={true} />
-            <Handle type="source" position={Position.Right} id="cond-right-output" className="!bg-gray-500" isConnectable={true} />
+            <Handle
+                type="source"
+                position={Position.Right}
+                id="cond-right-output"
+                className="!bg-gray-500"
+                isConnectable={true}
+                style={{ right: "22px" }}
+            />
         </div>
     );
 };

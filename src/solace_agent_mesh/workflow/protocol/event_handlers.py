@@ -175,6 +175,7 @@ async def handle_task_request(
                 type="workflow_execution_start",
                 workflow_name=component.workflow_name,
                 execution_id=workflow_task_id,
+                workflow_input=workflow_input,
             ),
         )
 

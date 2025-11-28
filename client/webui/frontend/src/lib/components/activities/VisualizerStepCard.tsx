@@ -242,6 +242,47 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         </div>
     );
 
+    const renderWorkflowExecutionStartData = (data: WorkflowExecutionStartData) => (
+        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <p>
+                <strong>Workflow:</strong> {data.workflowName}
+            </p>
+            {data.workflowInput && (
+                <div className="mt-1">
+                    <p>
+                        <strong>Input:</strong>
+                    </p>
+                    <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-800">
+                        <JSONViewer data={data.workflowInput} />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
+    const renderWorkflowExecutionResultData = (data: WorkflowExecutionResultData) => (
+        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <p>
+                <strong>Status:</strong> {data.status}
+            </p>
+            {data.workflowOutput && (
+                <div className="mt-1">
+                    <p>
+                        <strong>Output:</strong>
+                    </p>
+                    <div className="max-h-60 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-800">
+                        <JSONViewer data={data.workflowOutput} />
+                    </div>
+                </div>
+            )}
+            {data.errorMessage && (
+                <p className="text-red-600">
+                    <strong>Error:</strong> {data.errorMessage}
+                </p>
+            )}
+        </div>
+    );
+
     // Calculate indentation based on nesting level - only apply in list variant
     const indentationStyle =
         variant === "list" && step.nestingLevel && step.nestingLevel > 0
@@ -331,8 +372,10 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             {step.data.toolInvocationStart && renderToolInvocationStartData(step.data.toolInvocationStart)}
             {step.data.toolResult && renderToolResultData(step.data.toolResult)}
             {step.data.artifactNotification && renderArtifactNotificationData(step.data.artifactNotification)}
+            {step.data.workflowExecutionStart && renderWorkflowExecutionStartData(step.data.workflowExecutionStart)}
             {step.data.workflowNodeExecutionStart && renderWorkflowNodeStartData(step.data.workflowNodeExecutionStart)}
             {step.data.workflowNodeExecutionResult && renderWorkflowNodeResultData(step.data.workflowNodeExecutionResult)}
+            {step.data.workflowExecutionResult && renderWorkflowExecutionResultData(step.data.workflowExecutionResult)}
         </div>
     );
 };

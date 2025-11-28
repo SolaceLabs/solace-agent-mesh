@@ -692,6 +692,19 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
 
         if (conditionalNode && conditionalNode.type === "conditionalNode") {
             const conditionResult = resultData.metadata.condition_result as boolean;
+
+            // Update the conditional node data to include the result for visualization
+            const conditionalNodeIndex = nodes.findIndex(n => n.id === conditionalNode.id);
+            if (conditionalNodeIndex !== -1) {
+                nodes[conditionalNodeIndex] = {
+                    ...conditionalNode,
+                    data: {
+                        ...conditionalNode.data,
+                        conditionResult: conditionResult,
+                    },
+                };
+            }
+
             const trueBranchId = conditionalNode.data.trueBranch as string;
             const falseBranchId = conditionalNode.data.falseBranch as string;
 

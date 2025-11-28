@@ -164,6 +164,7 @@ export interface WorkflowExecutionStartData {
     workflowName: string;
     executionId: string;
     inputArtifactRef?: ArtifactRef;
+    workflowInput?: Record<string, any>;
 }
 
 export interface WorkflowNodeExecutionStartData {
@@ -185,6 +186,7 @@ export interface WorkflowNodeExecutionResultData {
     outputArtifactRef?: ArtifactRef;
     errorMessage?: string;
     metadata?: Record<string, any>;
+    conditionResult?: boolean;
 }
 
 export interface WorkflowMapProgressData {
@@ -198,6 +200,7 @@ export interface WorkflowExecutionResultData {
     status: "success" | "failure";
     outputArtifactRef?: ArtifactRef;
     errorMessage?: string;
+    workflowOutput?: Record<string, any>;
 }
 
 /**

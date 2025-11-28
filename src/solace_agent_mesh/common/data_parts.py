@@ -203,6 +203,9 @@ class WorkflowExecutionStartData(BaseModel):
     input_artifact_ref: Optional[ArtifactRef] = Field(
         None, description="Reference to the input artifact"
     )
+    workflow_input: Optional[Dict[str, Any]] = Field(
+        None, description="Input data for the workflow"
+    )
 
 
 class WorkflowNodeExecutionStartData(BaseModel):
@@ -297,6 +300,9 @@ class WorkflowExecutionResultData(BaseModel):
         None, description="Reference to the final output artifact"
     )
     error_message: Optional[str] = Field(None, description="Error message if failed")
+    workflow_output: Optional[Dict[str, Any]] = Field(
+        None, description="Final output data of the workflow"
+    )
 
 
 SignalData = Union[
