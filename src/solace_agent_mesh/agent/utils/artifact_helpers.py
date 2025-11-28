@@ -335,18 +335,19 @@ async def save_artifact_with_metadata(
                 data_version,
             )
 
-        # Always attempt to publish artifact creation signal for workflow visualization
+        # Always attempt to publish artifact completion signal for workflow visualization
         # This works independently of artifact_delta and should succeed if we have
         # the necessary context (host_component and a2a_context)
         # Skip if suppress_visualization_signal is True (e.g., when called from fenced block callback)
         if not suppress_visualization_signal:
             try:
-                from ...common.data_parts import ArtifactCreationProgressData
+                from ...common.data_parts import ArtifactCompletedData
                 from ...agent.adk.callbacks import _publish_data_part_status_update
 
                 # Try to get context from tool_context if available
                 host_component = None
                 a2a_context = None
+                function_call_id = None
 
                 if tool_context:
                     try:
@@ -354,6 +355,8 @@ async def save_artifact_with_metadata(
                         agent = getattr(inv_context, "agent", None)
                         host_component = getattr(agent, "host_component", None)
                         a2a_context = tool_context.state.get("a2a_context")
+                        # Get function_call_id if this was created by a tool
+                        function_call_id = tool_context.state.get("function_call_id")
                     except Exception as ctx_err:
                         log.info(
                             "%s Could not extract context from tool_context: %s",
@@ -363,18 +366,18 @@ async def save_artifact_with_metadata(
 
                 # Only proceed if we have both required components
                 if host_component and a2a_context:
-                    # Create artifact creation completion signal
-                    artifact_signal = ArtifactCreationProgressData(
-                        type="artifact_creation_progress",
+                    # Create artifact completion signal
+                    artifact_signal = ArtifactCompletedData(
                         filename=filename,
-                        status="completed",
+                        version=data_version,
                         bytes_transferred=len(content_bytes),
                         mime_type=mime_type,
-                        version=data_version,
+                        description=metadata_dict.get("description") if metadata_dict else None,
+                        function_call_id=function_call_id,
                     )
 
                     log.info(
-                        "%s 🎨 EMITTING ARTIFACT SIGNAL: filename=%s, version=%d, mime_type=%s, size=%d bytes",
+                        "%s 🎨 EMITTING ARTIFACT COMPLETED SIGNAL: filename=%s, version=%d, mime_type=%s, size=%d bytes",
                         log_identifier,
                         filename,
                         data_version,

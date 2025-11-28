@@ -189,6 +189,23 @@ export const processTaskForVisualization = (
 
     const taskNestingLevels = new Map<string, number>();
 
+    // Queue for pending artifact completions that are waiting for their tool result
+    // Key: function_call_id, Value: artifact data
+    const pendingArtifacts = new Map<
+        string,
+        {
+            filename: string;
+            version?: number;
+            description?: string;
+            mimeType?: string;
+            timestamp: string;
+            agentName: string;
+            taskId: string;
+            nestingLevel: number;
+            eventId: string;
+        }
+    >();
+
     const combinedEvents = collectAllDescendantEvents(
         parentTaskObject.taskId,
         allMonitoredTasks,
@@ -623,81 +640,86 @@ export const processTaskForVisualization = (
                                     functionCallId: functionCallIdForStep,
                                 });
 
-                                // Special handling for _notify_artifact_save tool results
-                                // Create an artifact notification step for fenced block artifacts
-                                if (signalData.tool_name === "_notify_artifact_save" && signalData.result_data) {
-                                    flushAggregatedTextStep(currentEventOwningTaskId);
-                                    const resultData = signalData.result_data as {
-                                        filename?: string;
-                                        version?: number;
-                                        status?: string;
-                                        description?: string;
-                                        mime_type?: string;
-                                        message?: string;
-                                    };
-                                    if (resultData.filename && resultData.status === "success") {
+                                // Check if this is _notify_artifact_save and we have a pending artifact
+                                if (signalData.tool_name === "_notify_artifact_save" && functionCallId) {
+                                    const pendingArtifact = pendingArtifacts.get(functionCallId);
+                                    if (pendingArtifact) {
+                                        console.log(`[Timeline] Creating artifact node for ${pendingArtifact.filename} after tool result`);
                                         const artifactNotification: ArtifactNotificationData = {
-                                            artifactName: resultData.filename,
-                                            version: resultData.version,
-                                            description: resultData.description,
-                                            mimeType: resultData.mime_type,
+                                            artifactName: pendingArtifact.filename,
+                                            version: pendingArtifact.version,
+                                            description: pendingArtifact.description,
+                                            mimeType: pendingArtifact.mimeType,
                                         };
                                         visualizerSteps.push({
-                                            id: `vstep-fencedartifact-${visualizerSteps.length}-${eventId}`,
+                                            id: `vstep-artifactcreated-${visualizerSteps.length}-${pendingArtifact.eventId}`,
                                             type: "AGENT_ARTIFACT_NOTIFICATION",
-                                            timestamp: eventTimestamp,
-                                            title: `${statusUpdateAgentName}: Created Artifact - ${artifactNotification.artifactName}`,
-                                            source: statusUpdateAgentName,
+                                            timestamp: pendingArtifact.timestamp,
+                                            title: `${pendingArtifact.agentName}: Created Artifact - ${artifactNotification.artifactName}`,
+                                            source: pendingArtifact.agentName,
                                             target: "User/System",
                                             data: { artifactNotification },
-                                            rawEventIds: [eventId],
-                                            isSubTaskStep: currentEventNestingLevel > 0,
-                                            nestingLevel: currentEventNestingLevel,
-                                            owningTaskId: currentEventOwningTaskId,
-                                            functionCallId: functionCallIdForStep,
+                                            rawEventIds: [pendingArtifact.eventId],
+                                            isSubTaskStep: pendingArtifact.nestingLevel > 0,
+                                            nestingLevel: pendingArtifact.nestingLevel,
+                                            owningTaskId: pendingArtifact.taskId,
+                                            functionCallId: functionCallId,
                                         });
+                                        pendingArtifacts.delete(functionCallId);
                                     }
                                 }
                                 break;
                             }
                             case "artifact_creation_progress": {
-                                // Create workflow nodes for artifacts from regular tool calls
-                                // Skip for fenced block artifacts (they use _notify_artifact_save tool results)
-                                console.log("[Timeline] Handling artifact_creation_progress signal");
-                                if (signalData.status === "completed") {
-                                    // Check if this is a fenced block artifact by looking for _notify_artifact_save in recent steps
-                                    // Fenced blocks will have both the signal AND a _notify_artifact_save tool result
-                                    // To avoid duplicates, we skip the signal if there's a pending _notify_artifact_save
-                                    // Since _notify_artifact_save comes in the same event as the final response,
-                                    // we can check if functionCallId is undefined (direct creation) vs defined (tool-created)
+                                // Only handle in-progress and failed statuses for streaming updates
+                                // Completion is handled by artifact_completed signal
+                                console.log("[Timeline] Handling artifact_creation_progress signal (streaming only)");
+                                break;
+                            }
+                            case "artifact_completed": {
+                                // Handle artifact completion
+                                console.log("[Timeline] Handling artifact_completed signal");
+                                flushAggregatedTextStep(currentEventOwningTaskId);
 
-                                    // If there's no functionCallId, it's likely a direct artifact creation (not from a tool call)
-                                    // In that case, skip it because it will be handled by _notify_artifact_save
-                                    const isFencedBlockArtifact = !functionCallIdForStep;
+                                // Check if this is a synthetic tool call (fenced block)
+                                const isSyntheticToolCall = signalData.function_call_id && signalData.function_call_id.startsWith("host-notify-");
 
-                                    if (!isFencedBlockArtifact) {
-                                        flushAggregatedTextStep(currentEventOwningTaskId);
-                                        const artifactNotification: ArtifactNotificationData = {
-                                            artifactName: signalData.filename || "Unnamed Artifact",
-                                            version: signalData.version,
-                                            description: signalData.description,
-                                            mimeType: signalData.mime_type,
-                                        };
-                                        visualizerSteps.push({
-                                            id: `vstep-artifactcreated-${visualizerSteps.length}-${eventId}`,
-                                            type: "AGENT_ARTIFACT_NOTIFICATION",
-                                            timestamp: eventTimestamp,
-                                            title: `${statusUpdateAgentName}: Created Artifact - ${artifactNotification.artifactName}`,
-                                            source: statusUpdateAgentName,
-                                            target: "User/System",
-                                            data: { artifactNotification },
-                                            rawEventIds: [eventId],
-                                            isSubTaskStep: currentEventNestingLevel > 0,
-                                            nestingLevel: currentEventNestingLevel,
-                                            owningTaskId: currentEventOwningTaskId,
-                                            functionCallId: functionCallIdForStep,
-                                        });
-                                    }
+                                if (isSyntheticToolCall) {
+                                    // Queue this artifact - will be created when we see the _notify_artifact_save tool result
+                                    console.log(`[Timeline] Queuing artifact ${signalData.filename} for function_call_id ${signalData.function_call_id}`);
+                                    pendingArtifacts.set(signalData.function_call_id, {
+                                        filename: signalData.filename || "Unnamed Artifact",
+                                        version: signalData.version,
+                                        description: signalData.description,
+                                        mimeType: signalData.mime_type,
+                                        timestamp: eventTimestamp,
+                                        agentName: statusUpdateAgentName,
+                                        taskId: currentEventOwningTaskId,
+                                        nestingLevel: currentEventNestingLevel,
+                                        eventId: eventId,
+                                    });
+                                } else {
+                                    // Regular tool call - create node immediately
+                                    const artifactNotification: ArtifactNotificationData = {
+                                        artifactName: signalData.filename || "Unnamed Artifact",
+                                        version: signalData.version,
+                                        description: signalData.description,
+                                        mimeType: signalData.mime_type,
+                                    };
+                                    visualizerSteps.push({
+                                        id: `vstep-artifactcreated-${visualizerSteps.length}-${eventId}`,
+                                        type: "AGENT_ARTIFACT_NOTIFICATION",
+                                        timestamp: eventTimestamp,
+                                        title: `${statusUpdateAgentName}: Created Artifact - ${artifactNotification.artifactName}`,
+                                        source: statusUpdateAgentName,
+                                        target: "User/System",
+                                        data: { artifactNotification },
+                                        rawEventIds: [eventId],
+                                        isSubTaskStep: currentEventNestingLevel > 0,
+                                        nestingLevel: currentEventNestingLevel,
+                                        owningTaskId: currentEventOwningTaskId,
+                                        functionCallId: signalData.function_call_id || functionCallIdForStep,
+                                    });
                                 }
                                 break;
                             }

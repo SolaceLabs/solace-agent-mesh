@@ -511,20 +511,9 @@ async def process_artifact_blocks_callback(
                                         host_component, a2a_context, final_progress_data
                                     )
 
-                            # Publish completion status immediately via SSE
-                            if a2a_context:
-                                progress_data = ArtifactCreationProgressData(
-                                    filename=filename,
-                                    description=params.get("description"),
-                                    status="completed",
-                                    bytes_transferred=len(event.content),
-                                    mime_type=params.get("mime_type"),
-                                    version=version_for_tool,
-                                )
-
-                                await _publish_data_part_status_update(
-                                    host_component, a2a_context, progress_data
-                                )
+                            # Don't send completion signal here - it will be sent later
+                            # when we inject the _notify_artifact_save tool call
+                            # This ensures the signal and tool call arrive together with matching IDs
                         else:
                             status_for_tool = "error"
                             version_for_tool = 0
@@ -547,6 +536,7 @@ async def process_artifact_blocks_callback(
                                 "status": status_for_tool,
                                 "description": params.get("description"),
                                 "mime_type": params.get("mime_type"),
+                                "bytes_transferred": len(event.content),
                                 "original_text": original_text,
                             }
                         )
@@ -699,8 +689,12 @@ async def process_artifact_blocks_callback(
                 len(completed_blocks_list),
             )
 
+            # Get a2a_context for sending signals
+            a2a_context = callback_context.state.get("a2a_context")
+
             tool_call_parts = []
             for block_info in completed_blocks_list:
+                function_call_id = f"host-notify-{uuid.uuid4()}"
                 notify_tool_call = adk_types.FunctionCall(
                     name="_notify_artifact_save",
                     args={
@@ -710,9 +704,38 @@ async def process_artifact_blocks_callback(
                         "description": block_info.get("description"),
                         "mime_type": block_info.get("mime_type"),
                     },
-                    id=f"host-notify-{uuid.uuid4()}",
+                    id=function_call_id,
                 )
                 tool_call_parts.append(adk_types.Part(function_call=notify_tool_call))
+
+                # Send artifact_completed signal now that we have the function_call_id
+                # This ensures the signal and tool call arrive together
+                if block_info["status"] == "success" and a2a_context:
+                    try:
+                        from ...common.data_parts import ArtifactCompletedData
+                        completed_data = ArtifactCompletedData(
+                            filename=block_info["filename"],
+                            description=block_info.get("description"),
+                            version=block_info["version"],
+                            bytes_transferred=block_info.get("bytes_transferred", 0),
+                            mime_type=block_info.get("mime_type"),
+                            function_call_id=function_call_id,
+                        )
+                        await _publish_data_part_status_update(
+                            host_component, a2a_context, completed_data
+                        )
+                        log.info(
+                            "%s Published artifact_completed signal for fenced block: %s (function_call_id=%s)",
+                            log_identifier,
+                            block_info["filename"],
+                            function_call_id,
+                        )
+                    except Exception as signal_err:
+                        log.warning(
+                            "%s Failed to publish artifact_completed signal: %s",
+                            log_identifier,
+                            signal_err,
+                        )
 
             existing_parts = llm_response.content.parts if llm_response.content else []
             final_existing_parts = existing_parts
