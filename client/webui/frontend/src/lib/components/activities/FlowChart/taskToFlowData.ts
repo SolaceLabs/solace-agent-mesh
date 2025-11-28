@@ -674,6 +674,34 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
             edge.label = edgeLabel;
         }
     }
+
+    // If this node execution corresponds to a sub-task (agent execution), create a nested subflow context
+    // This allows internal events (LLM calls, tools) to be visualized "inside" or attached to this node
+    const subTaskId = step.data.workflowNodeExecutionStart?.subTaskId;
+    if (subTaskId && newNode) {
+        const currentPhase = getCurrentPhase(manager);
+        if (currentPhase) {
+            const nestedSubflow: any = {
+                id: subTaskId,
+                functionCallId: "", // Not triggered by a tool call in the traditional sense
+                isParallel: false,
+                peerAgent: newNode, // The workflow node acts as the "peer agent" anchor
+                groupNode: currentSubflow.groupNode, // Share the same group container
+                toolInstances: [],
+                currentToolYOffset: 0,
+                maxY: currentSubflow.maxY, // Start from current max Y
+                maxContentXRelative: currentSubflow.maxContentXRelative,
+                callingPhaseId: currentPhase.id,
+                parentSubflowId: currentSubflow.id,
+                lastNodeId: newNode.id,
+            };
+            currentPhase.subflows.push(nestedSubflow);
+            // We don't switch currentSubflowIndex because we want subsequent workflow nodes
+            // to still be added to the main workflow subflow.
+            // However, events with this subTaskId will be resolved to this nested subflow
+            // by findSubflowBySubTaskId/resolveSubflowContext.
+        }
+    }
 }
 
 function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {

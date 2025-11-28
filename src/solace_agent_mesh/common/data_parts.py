@@ -244,6 +244,9 @@ class WorkflowNodeExecutionStartData(BaseModel):
     false_branch_label: Optional[str] = Field(
         None, description="Label/Persona for false branch"
     )
+    sub_task_id: Optional[str] = Field(
+        None, description="The sub-task ID associated with this node execution"
+    )
 
 
 class WorkflowNodeExecutionResultData(BaseModel):

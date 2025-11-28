@@ -860,6 +860,18 @@ export function createNewToolNodeInContext(
             };
         }
 
+        // Propagate height increase to parent subflow if this is a nested subflow sharing the same group
+        // This ensures that subsequent nodes in the parent flow are pushed down
+        if (subflow.parentSubflowId) {
+            const parentSubflow = manager.phases.flatMap(p => p.subflows).find(sf => sf.id === subflow.parentSubflowId);
+            if (parentSubflow && parentSubflow.groupNode.id === subflow.groupNode.id) {
+                // If sharing the same group node, sync the maxY and currentToolYOffset
+                // We add the height of the new tool (plus spacing) to the parent's offset
+                parentSubflow.currentToolYOffset += TOOL_STACKING_OFFSET;
+                parentSubflow.maxY = Math.max(parentSubflow.maxY, subflow.maxY);
+            }
+        }
+
         manager.nextAvailableGlobalY = Math.max(manager.nextAvailableGlobalY, subflow.groupNode.yPosition + subflow.groupNode.height + VERTICAL_SPACING);
     } else {
         currentPhase.maxY = Math.max(currentPhase.maxY, newMaxYInContext);

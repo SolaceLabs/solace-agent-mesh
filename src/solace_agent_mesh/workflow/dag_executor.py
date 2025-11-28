@@ -272,6 +272,12 @@ class DAGExecutor:
 
         try:
             node = self.nodes[node_id]
+            
+            # Generate sub-task ID for agent nodes to link events
+            sub_task_id = None
+            if node.type == "agent":
+                import uuid
+                sub_task_id = f"wf_{workflow_state.execution_id}_{node.id}_{uuid.uuid4().hex[:8]}"
 
             # Publish start event
             start_data_args = {
@@ -279,6 +285,7 @@ class DAGExecutor:
                 "node_id": node_id,
                 "node_type": node.type,
                 "agent_persona": getattr(node, "agent_persona", None),
+                "sub_task_id": sub_task_id,
             }
 
             if node.type == "conditional":
@@ -302,7 +309,7 @@ class DAGExecutor:
 
             # Handle different node types
             if node.type == "agent":
-                await self._execute_agent_node(node, workflow_state, workflow_context)
+                await self._execute_agent_node(node, workflow_state, workflow_context, sub_task_id)
             elif node.type == "conditional":
                 await self._execute_conditional_node(
                     node, workflow_state, workflow_context
@@ -333,10 +340,11 @@ class DAGExecutor:
         node: AgentNode,
         workflow_state: WorkflowExecutionState,
         workflow_context: WorkflowExecutionContext,
+        sub_task_id: Optional[str] = None,
     ):
         """Execute an agent node by calling the persona."""
         await self.host.persona_caller.call_persona(
-            node, workflow_state, workflow_context
+            node, workflow_state, workflow_context, sub_task_id
         )
 
     async def _execute_conditional_node(

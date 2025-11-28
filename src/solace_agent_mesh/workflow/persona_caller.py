@@ -38,6 +38,7 @@ class PersonaCaller:
         node: WorkflowNode,
         workflow_state: WorkflowExecutionState,
         workflow_context: WorkflowExecutionContext,
+        sub_task_id: Optional[str] = None,
     ) -> str:
         """
         Invoke a persona agent for a workflow node.
@@ -45,10 +46,11 @@ class PersonaCaller:
         """
         log_id = f"{self.host.log_identifier}[CallPersona:{node.agent_persona}]"
 
-        # Generate sub-task ID
-        sub_task_id = (
-            f"wf_{workflow_state.execution_id}_{node.id}_{uuid.uuid4().hex[:8]}"
-        )
+        # Generate sub-task ID if not provided
+        if not sub_task_id:
+            sub_task_id = (
+                f"wf_{workflow_state.execution_id}_{node.id}_{uuid.uuid4().hex[:8]}"
+            )
 
         # Resolve input data
         input_data = await self._resolve_node_input(node, workflow_state)

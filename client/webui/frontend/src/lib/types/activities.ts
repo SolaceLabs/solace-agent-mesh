@@ -178,6 +178,7 @@ export interface WorkflowNodeExecutionStartData {
     falseBranch?: string;
     trueBranchLabel?: string;
     falseBranchLabel?: string;
+    subTaskId?: string;
 }
 
 export interface WorkflowNodeExecutionResultData {
