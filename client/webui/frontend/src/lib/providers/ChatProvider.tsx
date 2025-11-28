@@ -1136,14 +1136,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 }
                                 case "tool_result": {
                                     // Handle tool results that may contain RAG metadata
-                                    console.log("ChatProvider: Received tool_result data part:", data);
-
                                     const resultData = (data as any).result_data;
 
                                     // Check if result_data contains rag_metadata
                                     if (resultData && typeof resultData === "object" && resultData.rag_metadata) {
                                         const ragMetadata = resultData.rag_metadata;
-                                        console.log("ChatProvider: Found RAG metadata in tool_result.result_data:", ragMetadata);
                                         if (ragMetadata && ragEnabled) {
                                             const ragSearchResult: RAGSearchResult = {
                                                 query: ragMetadata.query,
@@ -1157,7 +1154,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             // For deep research: REPLACE all previous entries for this task with the final metadata
                                             // This ensures we have the complete, properly structured data with metadata.queries
                                             if (ragMetadata.searchType === "deep_research") {
-                                                console.log("ChatProvider: Replacing deep research entries with final metadata");
                                                 setRagData(prev => {
                                                     // Remove all previous deep research entries for this task
                                                     const filtered = prev.filter(r => !(r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult));
@@ -1168,7 +1164,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 // For regular web search: append as before
                                                 setRagData(prev => [...prev, ragSearchResult]);
                                             }
-                                            console.log("ChatProvider: RAG search result added to state from tool_result");
                                         }
                                     }
                                     // Don't add tool_result to content parts - it's metadata only

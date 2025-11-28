@@ -111,7 +111,9 @@ const MessageContent = React.memo<{ message: MessageFE }>(({ message }) => {
     // Parse citations from text and match to RAG sources
     const taskRagData = useMemo(() => {
         if (!message.taskId || !ragData) return undefined;
-        return ragData.find(r => r.taskId === message.taskId);
+        // Find the last matching entry (most recent/complete data)
+        const matches = ragData.filter(r => r.taskId === message.taskId);
+        return matches.length > 0 ? matches[matches.length - 1] : undefined;
     }, [message.taskId, ragData]);
 
     const citations = useMemo(() => {
