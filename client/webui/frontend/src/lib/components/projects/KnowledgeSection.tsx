@@ -4,7 +4,6 @@ import { Upload } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { Spinner } from "@/lib/components/ui/spinner";
 import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
-import { useProjectContext } from "@/lib/providers";
 import { useDownload } from "@/lib/hooks/useDownload";
 import type { Project } from "@/lib/types/projects";
 import type { ArtifactInfo } from "@/lib/types";
@@ -12,6 +11,7 @@ import { DocumentListItem } from "./DocumentListItem";
 import { AddProjectFilesDialog } from "./AddProjectFilesDialog";
 import { FileDetailsDialog } from "./FileDetailsDialog";
 import { EditFileDescriptionDialog } from "./EditFileDescriptionDialog";
+import { useAddFilesToProject, useRemoveFileFromProject, useUpdateFileMetadata } from "@/features/projects/api/hooks";
 
 interface KnowledgeSectionProps {
     project: Project;
@@ -19,7 +19,6 @@ interface KnowledgeSectionProps {
 
 export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) => {
     const { artifacts, isLoading, error, refetch } = useProjectArtifacts(project.id);
-    const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
     const { onDownload } = useDownload(project.id);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -30,6 +29,10 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const [showDetailsDialog, setShowDetailsDialog] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+
+    const addFilesToProject = useAddFilesToProject(project.id);
+    const removeFileFromProject = useRemoveFileFromProject(project.id);
+    const updateFileMetadata = useUpdateFileMetadata(project.id);
 
     const sortedArtifacts = React.useMemo(() => {
         return [...artifacts].sort((a, b) => {
@@ -80,26 +83,23 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         }
     };
 
-    const handleConfirmUpload = async (formData: FormData) => {
+    const handleConfirmUpload = (formData: FormData) => {
         setIsSubmitting(true);
-        try {
-            await addFilesToProject(project.id, formData);
-            await refetch();
-            setFilesToUpload(null);
-        } catch (e) {
-            console.error("Failed to add files:", e);
-        } finally {
-            setIsSubmitting(false);
-        }
+        addFilesToProject.mutate(formData, {
+            onSuccess: async () => {
+                await refetch();
+                setFilesToUpload(null);
+                setIsSubmitting(false);
+            },
+        });
     };
 
     const handleDelete = async (filename: string) => {
-        try {
-            await removeFileFromProject(project.id, filename);
-            await refetch();
-        } catch (e) {
-            console.error(`Failed to delete file ${filename}:`, e);
-        }
+        removeFileFromProject.mutate(filename, {
+            onSuccess: async () => {
+                await refetch();
+            },
+        });
     };
 
     const handleFileClick = (artifact: ArtifactInfo) => {
@@ -116,16 +116,17 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         if (!selectedArtifact) return;
 
         setIsSavingMetadata(true);
-        try {
-            await updateFileMetadata(project.id, selectedArtifact.filename, description);
-            await refetch();
-            setShowEditDialog(false);
-            setSelectedArtifact(null);
-        } catch (e) {
-            console.error("Failed to update file description:", e);
-        } finally {
-            setIsSavingMetadata(false);
-        }
+        updateFileMetadata.mutate(
+            { filename: selectedArtifact.filename, description },
+            {
+                onSuccess: async () => {
+                    await refetch();
+                    setShowEditDialog(false);
+                    setSelectedArtifact(null);
+                },
+                onSettled: () => setIsSavingMetadata(false),
+            }
+        );
     };
 
     const handleCloseDetailsDialog = () => {
