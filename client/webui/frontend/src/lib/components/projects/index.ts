@@ -6,7 +6,6 @@ export { ProjectList } from "./ProjectList";
 export { ProjectsPage } from "./ProjectsPage";
 export { ProjectCards } from "./ProjectCards";
 export { ProjectDetailView } from "./ProjectDetailView";
-export { ProjectFilesManager } from "./ProjectFilesManager";
 export { ProjectHeader } from "./ProjectHeader";
 export { ProjectDescription } from "./ProjectDescription";
 export { ProjectChatsSection } from "./ProjectChatsSection";

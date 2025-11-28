@@ -3,7 +3,6 @@ import { RefreshCcw, Upload } from "lucide-react";
 import { useLoaderData, useNavigate } from "react-router-dom";
 
 import { CreateProjectDialog } from "./CreateProjectDialog";
-import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { ProjectImportDialog } from "./ProjectImportDialog";
 import { ProjectCards } from "./ProjectCards";
 import { ProjectDetailView } from "./ProjectDetailView";
@@ -14,6 +13,9 @@ import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { downloadBlob } from "@/lib/utils/download";
+import { useCreateProject, useProjects } from "@/features/projects/api/hooks";
+import { useQueryClient } from "@tanstack/react-query";
+import { projects } from "@/features/projects/api/key";
 
 export const ProjectsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -21,14 +23,23 @@ export const ProjectsPage: React.FC = () => {
 
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
     const [showImportDialog, setShowImportDialog] = useState(false);
 
-    const { projects, isLoading, createProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
+    const { setActiveProject, searchQuery, setSearchQuery } = useProjectContext();
     const { handleNewSession, handleSwitchSession, addNotification } = useChatContext();
-    const selectedProject = useMemo(() => projects.find(p => p.id === loaderData?.projectId) || null, [projects, loaderData?.projectId]);
+
+    const { data, isLoading } = useProjects(true);
+    const createProject = useCreateProject();
+    const queryClient = useQueryClient();
+    const selectedProject = useMemo(() => (data ? data.projects.find(p => p.id === loaderData?.projectId) : null), [data, loaderData?.projectId]);
+
+    const filteredProjects = useMemo(() => {
+        if (!data) return [];
+        if (!searchQuery.trim()) return data.projects;
+
+        const query = searchQuery.toLowerCase();
+        return data.projects.filter(project => project.name.toLowerCase().includes(query) || (project.description?.toLowerCase().includes(query) ?? false));
+    }, [data, searchQuery]);
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
         setIsCreating(true);
@@ -39,13 +50,13 @@ export const ProjectsPage: React.FC = () => {
                 formData.append("description", data.description);
             }
 
-            const newProject = await createProject(formData);
-            setShowCreateDialog(false);
-
-            // Refetch projects to get artifact counts
-            await refetch();
-
-            navigate(`/projects/${newProject.id}`);
+            await createProject.mutateAsync(formData, {
+                onSuccess: data => {
+                    navigate(`/projects/${data.id}`);
+                    queryClient.invalidateQueries({ queryKey: projects.all.queryKey });
+                },
+                onSettled: () => setShowCreateDialog(false),
+            });
         } finally {
             setIsCreating(false);
         }
@@ -71,31 +82,11 @@ export const ProjectsPage: React.FC = () => {
         setShowCreateDialog(true);
     };
 
-    const handleDeleteClick = (project: Project) => {
-        setProjectToDelete(project);
-        setIsDeleteDialogOpen(true);
-    };
-
-    const handleDeleteConfirm = async () => {
-        if (!projectToDelete) return;
-
-        setIsDeleting(true);
-        try {
-            await deleteProject(projectToDelete.id);
-            setIsDeleteDialogOpen(false);
-            setProjectToDelete(null);
-        } catch (error) {
-            console.error("Failed to delete project:", error);
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-
     const handleStartNewChat = useCallback(async () => {
         if (selectedProject) {
             setActiveProject(selectedProject);
             // Start a new session while preserving the active project context
-            await handleNewSession(true);
+            handleNewSession(true);
             navigate("chat");
         }
     }, [selectedProject, setActiveProject, handleNewSession, navigate]);
@@ -142,7 +133,7 @@ export const ProjectsPage: React.FC = () => {
                 }
 
                 // Refresh projects and navigate to the newly imported one
-                await refetch();
+                queryClient.invalidateQueries({ queryKey: projects.all.queryKey });
                 navigate(`/projects/${result.projectId}`);
 
                 addNotification(`Project imported successfully with ${result.artifactsImported} artifacts`, "success");
@@ -160,6 +151,8 @@ export const ProjectsPage: React.FC = () => {
     // Determine if we should show list or detail view
     const showDetailView = selectedProject !== null;
 
+    if (!data) return;
+
     return (
         <div className="flex h-full w-full flex-col">
             {!showDetailView && (
@@ -170,7 +163,7 @@ export const ProjectsPage: React.FC = () => {
                             <Upload className="size-4" />
                             Import Project
                         </Button>,
-                        <Button key="refreshProjects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
+                        <Button key="refreshProjects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => queryClient.invalidateQueries({ queryKey: projects.all.queryKey })}>
                             <RefreshCcw className="size-4" />
                             Refresh Projects
                         </Button>,
@@ -179,36 +172,15 @@ export const ProjectsPage: React.FC = () => {
             )}
 
             <div className="min-h-0 flex-1">
-                {showDetailView ? (
+                {showDetailView && selectedProject ? (
                     <ProjectDetailView project={selectedProject} onBack={handleBackToList} onStartNewChat={handleStartNewChat} onChatClick={handleChatClick} />
                 ) : (
-                    <ProjectCards
-                        projects={filteredProjects}
-                        searchQuery={searchQuery}
-                        onSearchChange={setSearchQuery}
-                        onProjectClick={handleProjectSelect}
-                        onCreateNew={handleCreateNew}
-                        onDelete={handleDeleteClick}
-                        onExport={handleExport}
-                        isLoading={isLoading}
-                    />
+                    <ProjectCards projects={filteredProjects ?? []} searchQuery={searchQuery} onSearchChange={setSearchQuery} onProjectClick={handleProjectSelect} onCreateNew={handleCreateNew} onExport={handleExport} isLoading={isLoading} />
                 )}
             </div>
 
             {/* Create Project Dialog */}
             <CreateProjectDialog isOpen={showCreateDialog} onClose={() => setShowCreateDialog(false)} onSubmit={handleCreateProject} isSubmitting={isCreating} />
-
-            {/* Delete Project Dialog */}
-            <DeleteProjectDialog
-                isOpen={isDeleteDialogOpen}
-                onClose={() => {
-                    setIsDeleteDialogOpen(false);
-                    setProjectToDelete(null);
-                }}
-                onConfirm={handleDeleteConfirm}
-                project={projectToDelete}
-                isDeleting={isDeleting}
-            />
 
             {/* Import Project Dialog */}
             <ProjectImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
