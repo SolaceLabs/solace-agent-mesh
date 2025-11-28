@@ -314,8 +314,9 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
 
     const stepSource = step.source || "UnknownSource";
     const targetAgentName = step.target || "OrchestratorAgent";
+    const isWorkflowReturn = stepSource.startsWith("workflow_");
 
-    if (step.data.toolResult?.isPeerResponse) {
+    if (step.data.toolResult?.isPeerResponse || isWorkflowReturn) {
         const returningFunctionCallId = step.data.toolResult?.functionCallId;
 
         // 1. FIRST, check if this return belongs to any active parallel flow.
@@ -361,8 +362,15 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
 
             // 3. Connect ALL completed parallel agents to this single join node.
             sourceSubflows.forEach(subflow => {
+                // Determine source node ID
+                let sourceNodeId = subflow.lastSubflow?.peerAgent.id ?? subflow.peerAgent.id;
+                // If it's a workflow subflow, prefer finishNodeId
+                if (subflow.finishNodeId) {
+                    sourceNodeId = subflow.finishNodeId;
+                }
+
                 createTimelineEdge(
-                    subflow.lastSubflow?.peerAgent.id ?? subflow.peerAgent.id,
+                    sourceNodeId,
                     joinNode.id,
                     step, // Use the final step as the representative event for the join
                     edges,
@@ -380,17 +388,32 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
             return; // Exit after handling the parallel join.
         }
 
-        // If we reach here, it's a NON-PARALLEL (sequential) peer return.
-        const sourceAgent = manager.agentRegistry.findAgentByName(stepSource.startsWith("peer_") ? stepSource.substring(5) : stepSource);
-        if (!sourceAgent) {
-            console.error(`[Timeline] Source peer agent not found for peer response: ${stepSource}.`);
+        // If we reach here, it's a NON-PARALLEL (sequential) peer/workflow return.
+
+        // Determine Source Node ID
+        let sourceNodeId: string | undefined;
+
+        if (isWorkflowReturn) {
+            const workflowSubflow = manager.phases
+                .flatMap(p => p.subflows)
+                .find(sf => sf.functionCallId === step.functionCallId);
+            if (workflowSubflow) {
+                sourceNodeId = workflowSubflow.finishNodeId || workflowSubflow.peerAgent.id;
+            }
+        } else {
+            const sourceAgent = manager.agentRegistry.findAgentByName(stepSource.startsWith("peer_") ? stepSource.substring(5) : stepSource);
+            if (sourceAgent) sourceNodeId = sourceAgent.id;
+        }
+
+        if (!sourceNodeId) {
+            console.error(`[Timeline] Source node not found for response: ${stepSource}.`);
             return;
         }
 
         if (isOrchestratorAgent(targetAgentName)) {
             manager.indentationLevel = 0;
             const newOrchestratorPhase = createNewMainPhase(manager, targetAgentName, step, nodes);
-            createTimelineEdge(sourceAgent.id, newOrchestratorPhase.orchestratorAgent.id, step, edges, manager, edgeAnimationService, processedSteps, "peer-bottom-output", "orch-top-input");
+            createTimelineEdge(sourceNodeId, newOrchestratorPhase.orchestratorAgent.id, step, edges, manager, edgeAnimationService, processedSteps, "peer-bottom-output", "orch-top-input");
             manager.currentSubflowIndex = -1;
         } else {
             // Peer-to-peer sequential return.
@@ -401,33 +424,18 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
 
             const newSubflow = startNewSubflow(manager, targetAgentName, step, nodes, isWithinParallelContext);
             if (newSubflow) {
-                createTimelineEdge(sourceAgent.id, newSubflow.peerAgent.id, step, edges, manager, edgeAnimationService, processedSteps, "peer-bottom-output", "peer-top-input");
+                createTimelineEdge(sourceNodeId, newSubflow.peerAgent.id, step, edges, manager, edgeAnimationService, processedSteps, "peer-bottom-output", "peer-top-input");
             }
         }
     } else {
-        // Regular tool (non-peer) returning result
+        // Regular tool (non-peer, non-workflow) returning result
         let toolNodeId: string | undefined;
         const subflow = resolveSubflowContext(manager, step);
         const context = subflow || currentPhase;
 
-        // Special handling for workflow tool returns
-        if (stepSource.startsWith("workflow_")) {
-            // For workflow tools, the "tool node" is actually the Workflow Context (Group/Start Node) we created earlier.
-            // We need to find the subflow that corresponds to this workflow execution.
-            // The step.functionCallId should match the subflow's functionCallId.
-            const workflowSubflow = manager.phases
-                .flatMap(p => p.subflows)
-                .find(sf => sf.functionCallId === step.functionCallId);
-
-            if (workflowSubflow) {
-                // If a Finish node exists, use it as the source. Otherwise, fallback to the Start node (peerAgent).
-                toolNodeId = workflowSubflow.finishNodeId || workflowSubflow.peerAgent.id;
-            }
-        } else {
-            const toolInstance = findToolInstanceByNameEnhanced(context.toolInstances, stepSource, nodes, step.functionCallId);
-            if (toolInstance) {
-                toolNodeId = toolInstance.id;
-            }
+        const toolInstance = findToolInstanceByNameEnhanced(context.toolInstances, stepSource, nodes, step.functionCallId);
+        if (toolInstance) {
+            toolNodeId = toolInstance.id;
         }
 
         if (toolNodeId) {
@@ -452,8 +460,6 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
             let sourceHandle = `${toolNodeId}-tool-bottom-output`;
             if (stepSource === "LLM") {
                 sourceHandle = "llm-bottom-output";
-            } else if (stepSource.startsWith("workflow_")) {
-                sourceHandle = "peer-bottom-output"; // Workflow start/finish nodes use peer handles
             }
 
             createTimelineEdge(toolNodeId, receivingAgentNodeId, step, edges, manager, edgeAnimationService, processedSteps, sourceHandle, targetHandle);
@@ -596,12 +602,16 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
 
     // Create Finish Node
     const finishNodeId = generateNodeId(manager, `finish_${currentSubflow.id}`);
+
+    // Calculate relative Y position for Finish node based on current content height
+    const relativeY = currentSubflow.maxY - currentSubflow.groupNode.yPosition + GROUP_PADDING_Y;
+
     const finishNode: Node = {
         id: finishNodeId,
         type: "genericAgentNode",
         position: {
             x: 50,
-            y: currentSubflow.currentToolYOffset + GROUP_PADDING_Y, // Position at the end of the subflow
+            y: relativeY,
         },
         data: {
             label: "Finish",
