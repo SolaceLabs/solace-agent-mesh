@@ -662,7 +662,8 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
     const finishNodeId = generateNodeId(manager, `finish_${currentSubflow.id}`);
 
     // Calculate relative Y position for Finish node based on current content height
-    const relativeY = currentSubflow.maxY - currentSubflow.groupNode.yPosition + GROUP_PADDING_Y;
+    // Add VERTICAL_SPACING to ensure consistent gap after the last node
+    const relativeY = currentSubflow.maxY - currentSubflow.groupNode.yPosition + VERTICAL_SPACING;
 
     const finishNode: Node = {
         id: finishNodeId,
