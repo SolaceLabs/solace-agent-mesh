@@ -8,14 +8,15 @@ export const projects = createQueryKeys("projects", {
     delete: (projectId: string) => [projectId],
     import: null,
     export: (projectId: string) => [projectId],
+
     artifacts: (projectId: string) => ({
         queryKey: [projectId],
         contextQueries: {
-            detail: (filename: string) => [filename],
             create: null,
             update: (filename: string) => [filename],
             delete: (filename: string) => [filename],
         },
     }),
+
     sessions: (projectId: string) => [projectId],
 });
