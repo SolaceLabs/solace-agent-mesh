@@ -396,9 +396,10 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
         let sourceNodeId: string | undefined;
 
         if (isWorkflowReturn) {
+            const lookupId = returningFunctionCallId || step.functionCallId;
             const workflowSubflow = manager.phases
                 .flatMap(p => p.subflows)
-                .find(sf => sf.functionCallId === step.functionCallId);
+                .find(sf => sf.functionCallId === lookupId);
             if (workflowSubflow) {
                 sourceNodeId = workflowSubflow.finishNodeId || workflowSubflow.peerAgent.id;
             } else {
