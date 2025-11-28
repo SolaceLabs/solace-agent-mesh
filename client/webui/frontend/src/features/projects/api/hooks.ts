@@ -12,11 +12,17 @@ export const useProjects = (enabled: boolean) => {
 };
 
 export const useCreateProject = () => {
+    const queryClient = useQueryClient();
+
     return useMutation({
         mutationKey: projects.new.queryKey,
         mutationFn: (project: FormData): Promise<Project> => {
             return createProject(project);
         },
+        onSettled: () =>
+            queryClient.invalidateQueries({
+                queryKey: projects.all.queryKey,
+            }),
     });
 };
 
