@@ -4,13 +4,13 @@ import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
 import { Button, Input, Textarea, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
-import { useProjectContext } from "@/lib/providers";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { SystemPromptSection } from "./SystemPromptSection";
 import { DefaultAgentSection } from "./DefaultAgentSection";
 import { KnowledgeSection } from "./KnowledgeSection";
 import { ProjectChatsSection } from "./ProjectChatsSection";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
+import { useProjects, useUpdateProject } from "@/features/projects/api/hooks";
 
 interface ProjectDetailViewProps {
     project: Project;
@@ -20,7 +20,7 @@ interface ProjectDetailViewProps {
 }
 
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, onBack, onStartNewChat, onChatClick }) => {
-    const { updateProject, projects, deleteProject } = useProjectContext();
+    const { data } = useProjects(true);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -28,34 +28,23 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     const [editedDescription, setEditedDescription] = useState(project.description || "");
     const [nameError, setNameError] = useState<string | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
+
+    const updateProject = useUpdateProject(project.id);
+
+    if (!data) return;
+    const projects = data.projects;
 
     const handleSaveSystemPrompt = async (systemPrompt: string) => {
         setError(null);
         setIsSaving(true);
-        try {
-            const updateData: UpdateProjectData = { systemPrompt };
-            await updateProject(project.id, updateData);
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "Failed to update instructions";
-            setError(errorMessage);
-            throw err;
-        } finally {
-            setIsSaving(false);
-        }
+        const updateData: UpdateProjectData = { systemPrompt };
+        updateProject.mutate(updateData, { onSettled: () => setIsSaving(false) });
     };
 
     const handleSaveDefaultAgent = async (defaultAgentId: string | null) => {
         setIsSaving(true);
-        try {
-            const updateData: UpdateProjectData = { defaultAgentId };
-            await updateProject(project.id, updateData);
-        } catch (err) {
-            console.error("Failed to update default agent:", err);
-            throw err;
-        } finally {
-            setIsSaving(false);
-        }
+        const updateData: UpdateProjectData = { defaultAgentId };
+        updateProject.mutate(updateData, { onSettled: () => setIsSaving(false) });
     };
 
     const handleSave = async () => {
@@ -72,25 +61,18 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
 
         setNameError(null);
         setIsSaving(true);
-        try {
-            const updateData: UpdateProjectData = {};
-            if (trimmedName !== project.name) {
-                updateData.name = trimmedName;
-            }
-            if (trimmedDescription !== (project.description || "")) {
-                updateData.description = trimmedDescription;
-            }
-
-            if (Object.keys(updateData).length > 0) {
-                await updateProject(project.id, updateData);
-            }
-            setIsEditing(false);
-        } catch (err) {
-            console.error("Failed to update project:", err);
-            setNameError(err instanceof Error ? err.message : "Failed to update project");
-        } finally {
-            setIsSaving(false);
+        const updateData: UpdateProjectData = {};
+        if (trimmedName !== project.name) {
+            updateData.name = trimmedName;
         }
+        if (trimmedDescription !== (project.description || "")) {
+            updateData.description = trimmedDescription;
+        }
+
+        if (Object.keys(updateData).length > 0) {
+            updateProject.mutate(updateData, { onSettled: () => setIsSaving(false) });
+        }
+        setIsEditing(false);
     };
 
     const handleCancelEdit = () => {
@@ -104,17 +86,8 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
     };
 
     const handleDeleteConfirm = async () => {
-        setIsDeleting(true);
-        try {
-            await deleteProject(project.id);
-            setIsDeleteDialogOpen(false);
-            // Navigate back to list after successful deletion
-            onBack();
-        } catch (error) {
-            console.error("Failed to delete project:", error);
-        } finally {
-            setIsDeleting(false);
-        }
+        setIsDeleteDialogOpen(false);
+        onBack();
     };
 
     return (
@@ -205,7 +178,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, o
             </Dialog>
 
             {/* Delete Project Dialog */}
-            <DeleteProjectDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleDeleteConfirm} project={project} isDeleting={isDeleting} />
+            <DeleteProjectDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleDeleteConfirm} project={project} />
         </div>
     );
 };
