@@ -1,4 +1,5 @@
 import type { ArtifactInfo, Project, UpdateProjectData } from "@/lib";
+import type { PaginatedSessionsResponse } from "@/lib/components/chat/SessionList";
 import { authenticatedFetch } from "@/lib/utils";
 
 export const getProjects = async () => {
@@ -70,4 +71,11 @@ export const getProjectArtifacts = async (projectId: string) => {
     const url = `/api/v1/projects/${projectId}/artifacts`;
     const response = await authenticatedFetch(url, { credentials: "include" });
     return (await response.json()) as ArtifactInfo[];
+};
+
+export const getProjectSessions = async (projectId: string) => {
+    const url = `/api/v1/sessions?project_id=${projectId}&pageNumber=1&pageSize=100`;
+    const response = await authenticatedFetch(url, { credentials: "include" });
+    const json = (await response.json()) as PaginatedSessionsResponse;
+    return json.data;
 };

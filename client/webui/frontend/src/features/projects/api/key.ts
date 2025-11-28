@@ -17,4 +17,5 @@ export const projects = createQueryKeys("projects", {
             update: null,
         },
     }),
+    sessions: (projectId: string) => [projectId],
 });
