@@ -866,14 +866,19 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
     }
 
     // Update layout metrics
-    currentSubflow.maxY += NODE_HEIGHT + VERTICAL_SPACING;
+    // The finish node is at relativeY. Its bottom is relativeY + NODE_HEIGHT.
+    // We want the group to extend to relativeY + NODE_HEIGHT + GROUP_PADDING_Y.
+    const finishNodeBottomRelative = relativeY + NODE_HEIGHT;
+    const requiredGroupHeight = finishNodeBottomRelative + GROUP_PADDING_Y;
+
     // Update group height
     const groupNodeData = nodes.find(n => n.id === currentSubflow.groupNode.id);
     if (groupNodeData && groupNodeData.style) {
-        const currentHeight = parseInt(groupNodeData.style.height?.toString().replace("px", "") || "0");
-        groupNodeData.style.height = `${currentHeight + NODE_HEIGHT + VERTICAL_SPACING}px`;
+        groupNodeData.style.height = `${requiredGroupHeight}px`;
     }
-    manager.nextAvailableGlobalY += NODE_HEIGHT + VERTICAL_SPACING;
+    
+    // Update global Y tracker
+    manager.nextAvailableGlobalY = currentSubflow.groupNode.yPosition + requiredGroupHeight + VERTICAL_SPACING;
 }
 
 function handleTaskFailed(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[]): void {
