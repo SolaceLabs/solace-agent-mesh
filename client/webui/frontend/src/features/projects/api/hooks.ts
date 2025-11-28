@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { projects } from "./key";
 import { addFilesToProject, createProject, deleteProject, getProjects, removeFileFromProject, updateFileMetadata, updateProject } from "./services";
 import type { Project, UpdateProjectData } from "@/lib";
@@ -53,8 +53,14 @@ export const useUpdateProject = (projectId: string) => {
 };
 
 export const useDeleteProject = (projectId: string) => {
+    const queryClient = useQueryClient();
+
     return useMutation({
         mutationKey: projects.delete(projectId).queryKey,
         mutationFn: () => deleteProject(projectId),
+        onSettled: () =>
+            queryClient.invalidateQueries({
+                queryKey: projects.all.queryKey,
+            }),
     });
 };
