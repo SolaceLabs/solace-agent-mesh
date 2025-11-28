@@ -68,6 +68,7 @@ export interface SubflowContext {
     lastSubflow?: SubflowContext; // Last subflow context for this subflow for nested flows
     lastNodeId?: string; // ID of the last node added to this subflow (for connecting Finish node)
     finishNodeId?: string; // ID of the Finish node (if created)
+    lastResultStep?: VisualizerStep; // The result step of the last executed node, used for edge data
 }
 
 export interface ParallelFlowContext {

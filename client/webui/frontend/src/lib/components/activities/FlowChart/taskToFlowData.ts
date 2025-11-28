@@ -34,7 +34,7 @@ import {
 import { EdgeAnimationService } from "./edgeAnimationService";
 
 // Relevant step types that should be processed in the flow chart
-const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED", "WORKFLOW_EXECUTION_START", "WORKFLOW_NODE_EXECUTION_START", "WORKFLOW_EXECUTION_RESULT"];
+const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED", "WORKFLOW_EXECUTION_START", "WORKFLOW_NODE_EXECUTION_START", "WORKFLOW_NODE_EXECUTION_RESULT", "WORKFLOW_EXECUTION_RESULT"];
 
 interface FlowData {
     nodes: Node[];
@@ -910,6 +910,9 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
                 break;
             case "WORKFLOW_NODE_EXECUTION_START":
                 handleWorkflowNodeExecutionStart(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
+                break;
+            case "WORKFLOW_NODE_EXECUTION_RESULT":
+                handleWorkflowNodeExecutionResult(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
                 break;
             case "WORKFLOW_EXECUTION_RESULT":
                 handleWorkflowExecutionResult(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
