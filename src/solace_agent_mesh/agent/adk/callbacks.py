@@ -100,14 +100,46 @@ async def _publish_data_part_status_update(
 
     loop = host_component.get_async_loop()
     if loop and loop.is_running():
-        asyncio.run_coroutine_threadsafe(
-            host_component._publish_status_update_with_buffer_flush(
-                status_update_event,
-                a2a_context,
-                skip_buffer_flush=False,
-            ),
-            loop,
-        )
+        # Check if we're already in the target event loop
+        try:
+            current_loop = asyncio.get_running_loop()
+            if current_loop == loop:
+                # We're in the same loop, just await directly
+                await host_component._publish_status_update_with_buffer_flush(
+                    status_update_event,
+                    a2a_context,
+                    skip_buffer_flush=False,
+                )
+            else:
+                # Different loop, use run_coroutine_threadsafe and wrap as awaitable
+                future = asyncio.run_coroutine_threadsafe(
+                    host_component._publish_status_update_with_buffer_flush(
+                        status_update_event,
+                        a2a_context,
+                        skip_buffer_flush=False,
+                    ),
+                    loop,
+                )
+                # Convert concurrent.futures.Future to asyncio.Future so we can await it
+                await asyncio.wrap_future(future)
+        except RuntimeError:
+            # No running loop in current thread, use run_coroutine_threadsafe
+            future = asyncio.run_coroutine_threadsafe(
+                host_component._publish_status_update_with_buffer_flush(
+                    status_update_event,
+                    a2a_context,
+                    skip_buffer_flush=False,
+                ),
+                loop,
+            )
+            # Convert to awaitable
+            await asyncio.wrap_future(future)
+        except Exception as e:
+            log.error(
+                "%s Error publishing status update: %s",
+                host_component.log_identifier,
+                e,
+            )
     else:
         log.error(
             "%s Async loop not available. Cannot publish status update.",
@@ -342,7 +374,8 @@ async def process_artifact_blocks_callback(
                                     log_identifier,
                                     e_track,
                                 )
-                            # Publish completion status immediately via SSE
+                            # Publish completion status for chat UI (not for workflow visualization)
+                            # The workflow will use _notify_artifact_save tool result instead
                             if a2a_context:
                                 progress_data = ArtifactCreationProgressData(
                                     filename=filename,
@@ -375,6 +408,8 @@ async def process_artifact_blocks_callback(
                                 "filename": filename,
                                 "version": version_for_tool,
                                 "status": status_for_tool,
+                                "description": params.get("description"),
+                                "mime_type": params.get("mime_type"),
                                 "original_text": original_text,
                             }
                         )
@@ -535,6 +570,8 @@ async def process_artifact_blocks_callback(
                         "filename": block_info["filename"],
                         "version": block_info["version"],
                         "status": block_info["status"],
+                        "description": block_info.get("description"),
+                        "mime_type": block_info.get("mime_type"),
                     },
                     id=f"host-notify-{uuid.uuid4()}",
                 )
