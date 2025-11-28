@@ -3,7 +3,17 @@ import React from "react";
 import { CheckCircle, FileText, HardDrive, Link, MessageSquare, Share2, Terminal, User, XCircle, Zap } from "lucide-react";
 
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
-import type { ArtifactNotificationData, LLMCallData, LLMResponseToAgentData, ToolDecisionData, ToolInvocationStartData, ToolResultData, VisualizerStep } from "@/lib/types";
+import type {
+    ArtifactNotificationData,
+    LLMCallData,
+    LLMResponseToAgentData,
+    ToolDecisionData,
+    ToolInvocationStartData,
+    ToolResultData,
+    VisualizerStep,
+    WorkflowNodeExecutionResultData,
+    WorkflowNodeExecutionStartData,
+} from "@/lib/types";
 
 interface VisualizerStepCardProps {
     step: VisualizerStep;
@@ -175,6 +185,55 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
         </div>
     );
 
+    const renderWorkflowNodeStartData = (data: WorkflowNodeExecutionStartData) => (
+        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <p>
+                <strong>Node Type:</strong> {data.nodeType}
+            </p>
+            {data.condition && (
+                <div className="mt-1">
+                    <p>
+                        <strong>Condition:</strong>
+                    </p>
+                    <code className="block rounded bg-gray-100 p-1 dark:bg-gray-800">{data.condition}</code>
+                </div>
+            )}
+            {data.trueBranch && (
+                <p>
+                    <strong>True Branch:</strong> {data.trueBranch}
+                </p>
+            )}
+            {data.falseBranch && (
+                <p>
+                    <strong>False Branch:</strong> {data.falseBranch}
+                </p>
+            )}
+        </div>
+    );
+
+    const renderWorkflowNodeResultData = (data: WorkflowNodeExecutionResultData) => (
+        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <p>
+                <strong>Status:</strong> {data.status}
+            </p>
+            {data.metadata?.condition_result !== undefined && (
+                <p>
+                    <strong>Condition Result:</strong> {data.metadata.condition_result ? "True" : "False"}
+                </p>
+            )}
+            {data.outputArtifactRef && (
+                <p>
+                    <strong>Output:</strong> {data.outputArtifactRef.name} (v{data.outputArtifactRef.version})
+                </p>
+            )}
+            {data.errorMessage && (
+                <p className="text-red-600">
+                    <strong>Error:</strong> {data.errorMessage}
+                </p>
+            )}
+        </div>
+    );
+
     // Calculate indentation based on nesting level - only apply in list variant
     const indentationStyle =
         variant === "list" && step.nestingLevel && step.nestingLevel > 0
@@ -264,6 +323,8 @@ const VisualizerStepCard: React.FC<VisualizerStepCardProps> = ({ step, isHighlig
             {step.data.toolInvocationStart && renderToolInvocationStartData(step.data.toolInvocationStart)}
             {step.data.toolResult && renderToolResultData(step.data.toolResult)}
             {step.data.artifactNotification && renderArtifactNotificationData(step.data.artifactNotification)}
+            {step.data.workflowNodeExecutionStart && renderWorkflowNodeStartData(step.data.workflowNodeExecutionStart)}
+            {step.data.workflowNodeExecutionResult && renderWorkflowNodeResultData(step.data.workflowNodeExecutionResult)}
         </div>
     );
 };

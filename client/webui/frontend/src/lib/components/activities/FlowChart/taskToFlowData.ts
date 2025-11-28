@@ -708,8 +708,8 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
                         y: conditionalNode.position.y, // Same Y level
                     },
                     data: {
-                        label: "Skipped",
-                        description: `Untaken branch: ${untakenBranchId}`,
+                        label: untakenBranchId,
+                        description: `Untaken branch`,
                         variant: "pill",
                     },
                     parentId: currentSubflow.groupNode.id,

@@ -36,11 +36,6 @@ const ConditionalNode: React.FC<NodeProps<ConditionalNodeType>> = ({ data }) => 
                 <div className="text-[10px] font-bold text-gray-800 dark:text-gray-200 max-w-[100px] truncate" title={data.label}>
                     {data.label}
                 </div>
-                {data.condition && (
-                    <div className="text-[9px] text-gray-600 dark:text-gray-400 max-w-[100px] truncate" title={data.condition}>
-                        {data.condition}
-                    </div>
-                )}
             </div>
 
             {/* Handles - positioned relative to the unrotated container */}
