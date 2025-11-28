@@ -687,9 +687,8 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
     const resultData = step.data.workflowNodeExecutionResult;
     if (resultData?.metadata?.condition_result !== undefined) {
         // Find the conditional node
-        const conditionalNode = nodes.find(n => n.data.visualizerStepId === currentSubflow.lastNodeId); // Assuming lastNodeId is the conditional node that just finished
-        // Actually, lastNodeId points to the node created in Start.
-        // We can also find it by matching nodeId from resultData to the node ID generation logic, but lastNodeId is safer if sequential.
+        // lastNodeId points to the node ID (e.g. wf_node_check_risk_7), not the step ID.
+        const conditionalNode = nodes.find(n => n.id === currentSubflow.lastNodeId);
 
         if (conditionalNode && conditionalNode.type === "conditionalNode") {
             const conditionResult = resultData.metadata.condition_result as boolean;

@@ -23,19 +23,6 @@ import OrchestratorAgentNode from "./FlowChart/customNodes/OrchestratorAgentNode
 import UserNode from "./FlowChart/customNodes/UserNode";
 import { VisualizerStepCard } from "./VisualizerStepCard";
 
-const nodeTypes = {
-    genericAgentNode: GenericAgentNode,
-    userNode: UserNode,
-    llmNode: LLMNode,
-    orchestratorNode: OrchestratorAgentNode,
-    genericToolNode: GenericToolNode,
-    conditionalNode: ConditionalNode,
-};
-
-const edgeTypes = {
-    defaultFlowEdge: GenericFlowEdge,
-};
-
 interface FlowChartPanelProps {
     processedSteps: VisualizerStep[];
     isRightPanelVisible?: boolean;
@@ -47,6 +34,25 @@ const POPOVER_OFFSET = { x: 16, y: 0 };
 
 // Internal component to house the React Flow logic
 const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPanelVisible = false, isSidePanelTransitioning = false }) => {
+    const nodeTypes = useMemo(
+        () => ({
+            genericAgentNode: GenericAgentNode,
+            userNode: UserNode,
+            llmNode: LLMNode,
+            orchestratorNode: OrchestratorAgentNode,
+            genericToolNode: GenericToolNode,
+            conditionalNode: ConditionalNode,
+        }),
+        []
+    );
+
+    const edgeTypes = useMemo(
+        () => ({
+            defaultFlowEdge: GenericFlowEdge,
+        }),
+        []
+    );
+
     const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
     const { fitView } = useReactFlow();
@@ -227,6 +233,9 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
 
             case "genericToolNode":
                 return [`${node.id}-tool-bottom-output`];
+
+            case "conditionalNode":
+                return ["cond-bottom-output", "cond-right-output"];
 
             default:
                 return [];
