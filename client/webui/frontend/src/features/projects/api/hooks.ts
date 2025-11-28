@@ -50,11 +50,17 @@ export const useUpdateFileMetadata = (projectId: string) => {
 };
 
 export const useUpdateProject = (projectId: string) => {
+    const queryClient = useQueryClient();
+
     return useMutation({
         mutationKey: projects.update(projectId).queryKey,
         mutationFn: (data: UpdateProjectData) => {
             return updateProject(projectId, data);
         },
+        onSettled: () =>
+            queryClient.invalidateQueries({
+                queryKey: projects.all.queryKey,
+            }),
     });
 };
 
