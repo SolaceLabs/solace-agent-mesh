@@ -223,6 +223,7 @@ apps:
           - id: generate_data
             type: agent
             agent_persona: "DataGenerator"
+            depends_on: [mode_check]
             # Implicit input: None (uses workflow input, but agent ignores it)
 
           # Step 2b: Use Direct Data (Pass-through Agent - simulating by calling generator with override)
@@ -232,14 +233,15 @@ apps:
           # Actually, let's just use the same agent but map input differently
           - id: use_direct_data
             type: agent
-            agent_persona: "DataGenerator" 
+            agent_persona: "DataGenerator"
+            depends_on: [mode_check]
             # We are cheating here for the test - normally we'd pass data through.
             # But let's test the 'coalesce' logic on the output.
 
           # Step 3: Map (Parallel Processing)
           - id: process_items
             type: map
-            depends_on: [generate_data]
+            depends_on: [generate_data, use_direct_data]
             # Coalesce the list from either branch
             # Note: MapNode 'items' field supports templates. 
             # We need to ensure 'items' resolves to a list.
