@@ -3,7 +3,6 @@ import { Upload } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
 import { Spinner } from "@/lib/components/ui/spinner";
-import { useProjectArtifacts } from "@/lib/hooks/useProjectArtifacts";
 import { useDownload } from "@/lib/hooks/useDownload";
 import type { Project } from "@/lib/types/projects";
 import type { ArtifactInfo } from "@/lib/types";
@@ -11,14 +10,14 @@ import { DocumentListItem } from "./DocumentListItem";
 import { AddProjectFilesDialog } from "./AddProjectFilesDialog";
 import { FileDetailsDialog } from "./FileDetailsDialog";
 import { EditFileDescriptionDialog } from "./EditFileDescriptionDialog";
-import { useAddFilesToProject, useRemoveFileFromProject, useUpdateFileMetadata } from "@/features/projects/api/hooks";
+import { useAddFilesToProject, useProjectArtifacts, useRemoveFileFromProject, useUpdateFileMetadata } from "@/features/projects/api/hooks";
 
 interface KnowledgeSectionProps {
     project: Project;
 }
 
 export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) => {
-    const { artifacts, isLoading, error, refetch } = useProjectArtifacts(project.id);
+    const { data: artifacts, isLoading, error, isSuccess, refetch } = useProjectArtifacts(project.id);
     const { onDownload } = useDownload(project.id);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,14 +32,6 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const addFilesToProject = useAddFilesToProject(project.id);
     const removeFileFromProject = useRemoveFileFromProject(project.id);
     const updateFileMetadata = useUpdateFileMetadata(project.id);
-
-    const sortedArtifacts = React.useMemo(() => {
-        return [...artifacts].sort((a, b) => {
-            const dateA = a.last_modified ? new Date(a.last_modified).getTime() : 0;
-            const dateB = b.last_modified ? new Date(b.last_modified).getTime() : 0;
-            return dateB - dateA;
-        });
-    }, [artifacts]);
 
     const handleUploadClick = () => {
         fileInputRef.current?.click();
@@ -151,7 +142,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
             <div className="mb-3 flex items-center justify-between px-4">
                 <div className="flex items-center gap-2">
                     <h3 className="text-foreground text-sm font-semibold">Knowledge</h3>
-                    {!isLoading && artifacts.length > 0 && <span className="text-muted-foreground text-xs">({artifacts.length})</span>}
+                    {isSuccess && artifacts.length > 0 && <span className="text-muted-foreground text-xs">({artifacts.length})</span>}
                 </div>
                 <Button variant="ghost" size="sm" onClick={handleUploadClick}>
                     <Upload className="mr-2 h-4 w-4" />
@@ -166,9 +157,9 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                     </div>
                 )}
 
-                {error && <div className="text-destructive border-destructive/50 rounded-md border p-3 text-sm">Error loading files: {error}</div>}
+                {error && <div className="text-destructive border-destructive/50 rounded-md border p-3 text-sm">Error loading files: {error.message}</div>}
 
-                {!isLoading && !error && artifacts.length === 0 && (
+                {isSuccess && artifacts.length === 0 && (
                     <div className={`flex flex-col items-center justify-center rounded-md border-2 border-dashed p-6 text-center transition-all ${isDragging ? "border-primary bg-primary/10 scale-[1.02]" : "border-muted-foreground/30"}`}>
                         <Upload className={`mb-3 h-10 w-10 transition-colors ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
                         <p className={`mb-1 text-sm font-medium transition-colors ${isDragging ? "text-primary" : "text-foreground"}`}>{isDragging ? "Drop files here to upload" : "Drag and drop files here"}</p>
@@ -176,14 +167,14 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                     </div>
                 )}
 
-                {!isLoading && !error && artifacts.length > 0 && (
+                {isSuccess && artifacts.length > 0 && (
                     <>
                         <div className={`mb-2 rounded-md border-2 border-dashed p-3 text-center transition-all ${isDragging ? "border-primary bg-primary/10 scale-[1.02]" : "border-muted-foreground/20 bg-muted/30"}`}>
                             <Upload className={`mx-auto mb-1 h-5 w-5 transition-colors ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
                             <p className={`text-xs transition-colors ${isDragging ? "text-primary font-medium" : "text-muted-foreground"}`}>{isDragging ? "Drop files here to upload" : "Drag and drop files here to upload"}</p>
                         </div>
                         <div className="max-h-[400px] space-y-1 overflow-y-auto rounded-md">
-                            {sortedArtifacts.map(artifact => (
+                            {artifacts.map(artifact => (
                                 <DocumentListItem
                                     key={artifact.filename}
                                     artifact={artifact}
