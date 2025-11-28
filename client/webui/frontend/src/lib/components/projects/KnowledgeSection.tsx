@@ -10,7 +10,7 @@ import { DocumentListItem } from "./DocumentListItem";
 import { AddProjectFilesDialog } from "./AddProjectFilesDialog";
 import { FileDetailsDialog } from "./FileDetailsDialog";
 import { EditFileDescriptionDialog } from "./EditFileDescriptionDialog";
-import { useAddFilesToProject, useProjectArtifacts, useRemoveFileFromProject, useUpdateFileMetadata } from "@/features/projects/api/hooks";
+import { useAddFilesToProject, useProjectArtifacts, useUpdateFileMetadata } from "@/features/projects/api/hooks";
 
 interface KnowledgeSectionProps {
     project: Project;
@@ -30,7 +30,6 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
     const [isSavingMetadata, setIsSavingMetadata] = useState(false);
 
     const addFilesToProject = useAddFilesToProject(project.id);
-    const removeFileFromProject = useRemoveFileFromProject(project.id);
     const updateFileMetadata = useUpdateFileMetadata(project.id);
 
     const handleUploadClick = () => {
@@ -81,14 +80,6 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                 await refetch();
                 setFilesToUpload(null);
                 setIsSubmitting(false);
-            },
-        });
-    };
-
-    const handleDelete = async (filename: string) => {
-        removeFileFromProject.mutate(filename, {
-            onSuccess: async () => {
-                await refetch();
             },
         });
     };
@@ -177,9 +168,9 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                             {artifacts.map(artifact => (
                                 <DocumentListItem
                                     key={artifact.filename}
+                                    project={project}
                                     artifact={artifact}
                                     onDownload={() => onDownload(artifact)}
-                                    onDelete={() => handleDelete(artifact.filename)}
                                     onClick={() => handleFileClick(artifact)}
                                     onEditDescription={() => handleEditDescription(artifact)}
                                 />

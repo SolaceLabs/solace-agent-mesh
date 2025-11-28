@@ -14,7 +14,7 @@ export const projects = createQueryKeys("projects", {
             detail: (filename: string) => [filename],
             create: null,
             update: null,
-            delete: null,
+            delete: (filename: string) => [filename],
         },
     }),
     sessions: (projectId: string) => [projectId],

@@ -50,12 +50,12 @@ export const useAddFilesToProject = (projectId: string) => {
     });
 };
 
-export const useRemoveFileFromProject = (projectId: string) => {
+export const useRemoveFileFromProject = (projectId: string, filename: string) => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationKey: projects.artifacts(projectId)._ctx.delete.queryKey,
-        mutationFn: (filename: string) => removeFileFromProject(projectId, filename),
+        mutationKey: projects.artifacts(projectId)._ctx.delete(filename).queryKey,
+        mutationFn: () => removeFileFromProject(projectId, filename),
         onSettled: () =>
             queryClient.invalidateQueries({
                 queryKey: projects.artifacts(projectId).queryKey,

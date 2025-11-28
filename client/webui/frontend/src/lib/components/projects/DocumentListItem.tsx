@@ -3,20 +3,22 @@ import { Download, Trash, Pencil } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
 import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
-import type { ArtifactInfo } from "@/lib/types";
+import type { ArtifactInfo, Project } from "@/lib/types";
 import { getFileIcon } from "../chat/file/fileUtils";
 import { ConfirmationDialog } from "../common";
+import { useRemoveFileFromProject } from "@/features/projects/api/hooks";
 
 interface DocumentListItemProps {
+    project: Project;
     artifact: ArtifactInfo;
     onDownload: () => void;
-    onDelete?: () => void;
     onClick?: () => void;
     onEditDescription?: () => void;
 }
 
-export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, onDownload, onDelete, onClick, onEditDescription }) => {
+export const DocumentListItem: React.FC<DocumentListItemProps> = ({ project, artifact, onDownload, onClick, onEditDescription }) => {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const removeFileFromProject = useRemoveFileFromProject(project.id, artifact.filename);
 
     return (
         <>
@@ -65,7 +67,7 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, on
                     >
                         <Download />
                     </Button>
-                    {onDelete && (
+                    {
                         <Button
                             variant="ghost"
                             tooltip="Delete"
@@ -76,10 +78,10 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, on
                         >
                             <Trash />
                         </Button>
-                    )}
+                    }
                 </div>
             </div>
-            {onDelete && (
+            {
                 <ConfirmationDialog
                     title="Delete Project File"
                     content={
@@ -89,10 +91,10 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({ artifact, on
                     }
                     actionLabels={{ confirm: "Delete" }}
                     open={showDeleteDialog}
-                    onConfirm={onDelete}
+                    onConfirm={() => removeFileFromProject.mutate()}
                     onOpenChange={setShowDeleteDialog}
                 />
-            )}
+            }
         </>
     );
 };
