@@ -10,7 +10,7 @@ import { Button, ChatMessageList, CHAT_STYLES, Badge } from "@/lib/components/ui
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
-import { useChatContext, useTaskContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useTitleAnimation } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 
 import { ChatSidePanel } from "../chat/ChatSidePanel";
@@ -42,6 +42,7 @@ export function ChatPage() {
     const { activeProject } = useProjectContext();
     const {
         agents,
+        sessionId,
         sessionName,
         messages,
         isSidePanelCollapsed,
@@ -106,10 +107,28 @@ export function ChatPage() {
 
     const breadcrumbs = undefined;
 
-    // Determine the page title
-    const pageTitle = useMemo(() => {
+    // Determine the page title with pulse/fade effect
+    const rawPageTitle = useMemo(() => {
         return sessionName || "New Chat";
     }, [sessionName]);
+
+    const { text: pageTitle, isAnimating: isTitleAnimating, isGenerating: isTitleGenerating } = useTitleAnimation(rawPageTitle, sessionId);
+
+    const isWaitingForTitle = useMemo(() => {
+        const isNewChat = !sessionName || sessionName === "New Chat";
+        return (isNewChat && isResponding) || isTitleGenerating;
+    }, [sessionName, isResponding, isTitleGenerating]);
+
+    // Determine the appropriate animation class
+    const titleAnimationClass = useMemo(() => {
+        if (isWaitingForTitle) {
+            return "animate-pulse-slow";
+        }
+        if (isTitleAnimating) {
+            return "animate-pulse opacity-50";
+        }
+        return "opacity-100";
+    }, [isWaitingForTitle, isTitleAnimating]);
 
     useEffect(() => {
         if (chatSidePanelRef.current && isSidePanelCollapsed) {
@@ -195,7 +214,9 @@ export function ChatPage() {
                     title={
                         <div className="flex items-center gap-3">
                             <Tooltip delayDuration={300}>
-                                <TooltipTrigger className="font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit hover:bg-transparent">{pageTitle}</TooltipTrigger>
+                                <TooltipTrigger className={`font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit transition-opacity duration-300 hover:bg-transparent ${titleAnimationClass}`}>
+                                    {pageTitle}
+                                </TooltipTrigger>
                                 <TooltipContent side="bottom">
                                     <p>{pageTitle}</p>
                                 </TooltipContent>

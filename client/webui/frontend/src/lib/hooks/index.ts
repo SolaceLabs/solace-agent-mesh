@@ -20,3 +20,5 @@ export * from "./useProjectSessions";
 export * from "./useAgentSelection";
 export * from "./useNavigationBlocker";
 export * from "./useErrorDialog";
+export * from "./useTitleGeneration";
+export * from "./useTitleAnimation";

@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles } from "lucide-react";
 
-import { useChatContext, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import { authenticatedFetch } from "@/lib/utils/api";
 import { formatTimestamp } from "@/lib/utils/format";
 import { Button } from "@/lib/components/ui/button";
@@ -17,6 +17,43 @@ import { SessionSearch } from "@/lib/components/chat/SessionSearch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/lib/components/ui/dropdown-menu";
 import type { Session } from "@/lib/types";
 import type { Project } from "@/lib/types/projects";
+
+interface SessionNameProps {
+    session: Session;
+    isCurrentSession: boolean;
+    isResponding: boolean;
+}
+
+const SessionName: React.FC<SessionNameProps> = ({ session, isCurrentSession, isResponding }) => {
+    const displayName = useMemo(() => {
+        if (session.name && session.name.trim()) {
+            return session.name;
+        }
+        // Fallback to "New Chat" if no name
+        return "New Chat";
+    }, [session.name, session.id]);
+
+    // Pass session ID to useTitleAnimation so it can listen for title generation events
+    const { text: animatedName, isAnimating, isGenerating } = useTitleAnimation(displayName, session.id);
+
+    const isWaitingForTitle = useMemo(() => {
+        const isNewChat = !session.name || session.name === "New Chat";
+        return (isCurrentSession && isNewChat && isResponding) || isGenerating;
+    }, [session.name, isCurrentSession, isResponding, isGenerating]);
+
+    // Show slow pulse while waiting for title, faster pulse during transition animation
+    const animationClass = useMemo(() => {
+        if (isWaitingForTitle) {
+            return "animate-pulse-slow";
+        }
+        if (isAnimating) {
+            return "animate-pulse opacity-50";
+        }
+        return "opacity-100";
+    }, [isWaitingForTitle, isAnimating]);
+
+    return <span className={`truncate font-semibold transition-opacity duration-300 ${animationClass}`}>{animatedName}</span>;
+};
 
 interface PaginatedSessionsResponse {
     data: Session[];
@@ -37,8 +74,9 @@ interface SessionListProps {
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification } = useChatContext();
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, isResponding } = useChatContext();
     const { configServerUrl, persistenceEnabled } = useConfigContext();
+    const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
 
     const [sessions, setSessions] = useState<Session[]>([]);
@@ -50,6 +88,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [selectedProject, setSelectedProject] = useState<string>("all");
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
+    const [regeneratingTitleForSession, setRegeneratingTitleForSession] = useState<string | null>(null);
 
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
@@ -105,11 +144,34 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 return prevSessions;
             });
         };
+        const handleTitleUpdated = async (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const { sessionId } = customEvent.detail;
+
+            // Fetch the updated session from backend to get the new title
+            try {
+                const response = await authenticatedFetch(`${configServerUrl}/api/v1/sessions/${sessionId}`);
+                if (response.ok) {
+                    const sessionData = await response.json();
+                    const updatedSession = sessionData?.data;
+
+                    if (updatedSession) {
+                        setSessions(prevSessions => prevSessions.map(s => (s.id === sessionId ? { ...s, name: updatedSession.name } : s)));
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching updated session:", error);
+                // Fallback: just refresh the entire list
+                fetchSessions(1, false);
+            }
+        };
         window.addEventListener("new-chat-session", handleNewSession);
         window.addEventListener("session-updated", handleSessionUpdated as EventListener);
+        window.addEventListener("session-title-updated", handleTitleUpdated);
         return () => {
             window.removeEventListener("new-chat-session", handleNewSession);
             window.removeEventListener("session-updated", handleSessionUpdated as EventListener);
+            window.removeEventListener("session-title-updated", handleTitleUpdated);
         };
     }, [fetchSessions]);
 
@@ -164,6 +226,75 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         navigate(`/projects/${session.projectId}`);
     };
 
+    const handleRenameWithAI = useCallback(
+        async (session: Session) => {
+            if (regeneratingTitleForSession) {
+                addNotification?.("AI rename already in progress", "info");
+                return;
+            }
+
+            setRegeneratingTitleForSession(session.id);
+            addNotification?.("Generating AI name...", "info");
+
+            try {
+                // Fetch all tasks/messages for this session
+                const response = await authenticatedFetch(`${configServerUrl}/api/v1/sessions/${session.id}/chat-tasks`);
+
+                if (!response.ok) {
+                    throw new Error("Failed to fetch session messages");
+                }
+
+                const data = await response.json();
+                const tasks = data.tasks || [];
+
+                if (tasks.length === 0) {
+                    addNotification?.("No messages found in this session", "error");
+                    setRegeneratingTitleForSession(null);
+                    return;
+                }
+
+                // Parse and extract all messages from all tasks
+                const allMessages: string[] = [];
+
+                for (const task of tasks) {
+                    const messageBubbles = JSON.parse(task.messageBubbles);
+                    for (const bubble of messageBubbles) {
+                        const text = bubble.text || "";
+                        if (text.trim()) {
+                            allMessages.push(text.trim());
+                        }
+                    }
+                }
+
+                if (allMessages.length === 0) {
+                    addNotification?.("No text content found in session", "error");
+                    setRegeneratingTitleForSession(null);
+                    return;
+                }
+
+                // Create a summary of the conversation for better context
+                // Use LAST 3 messages of each type to capture recent conversation
+                const userMessages = allMessages.filter((_, idx) => idx % 2 === 0); // Assuming alternating user/agent
+                const agentMessages = allMessages.filter((_, idx) => idx % 2 === 1);
+
+                const userSummary = userMessages.slice(-3).join(" | ");
+                const agentSummary = agentMessages.slice(-3).join(" | ");
+
+                // Call the title generation service with the full context
+                // Pass current title so polling can detect the change
+                await generateTitle(session.id, userSummary, agentSummary, session.name || "New Chat");
+
+                addNotification?.("Title regenerated successfully", "success");
+            } catch (error) {
+                console.error("Error regenerating title:", error);
+                addNotification?.(`Failed to regenerate title: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+            } finally {
+                setRegeneratingTitleForSession(null);
+            }
+        },
+        [configServerUrl, generateTitle, addNotification, regeneratingTitleForSession]
+    );
+
     const handleMoveConfirm = async (targetProjectId: string | null) => {
         if (!sessionToMove) return;
 
@@ -215,22 +346,6 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
     const formatSessionDate = (dateString: string) => {
         return formatTimestamp(dateString);
-    };
-
-    const getSessionDisplayName = (session: Session) => {
-        if (session.name && session.name.trim()) {
-            return session.name;
-        }
-        // Generate a short, readable identifier from the session ID
-        const sessionId = session.id;
-        if (sessionId.startsWith("web-session-")) {
-            // Extract the UUID part and create a short identifier
-            const uuid = sessionId.replace("web-session-", "");
-            const shortId = uuid.substring(0, 8);
-            return `Chat ${shortId}`;
-        }
-        // Fallback for other ID formats
-        return `Session ${sessionId.substring(0, 8)}`;
     };
 
     // Get unique project names from sessions, sorted alphabetically
@@ -326,7 +441,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         <button onClick={() => handleSessionClick(session.id)} className="min-w-0 flex-1 cursor-pointer text-left">
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                                    <span className="truncate font-semibold">{getSessionDisplayName(session)}</span>
+                                                    <SessionName session={session} isCurrentSession={session.id === sessionId} isResponding={isResponding} />
                                                     <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
                                                 {session.projectName && (
@@ -382,6 +497,16 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                     >
                                                         <Pencil size={16} className="mr-2" />
                                                         Rename
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={e => {
+                                                            e.stopPropagation();
+                                                            handleRenameWithAI(session);
+                                                        }}
+                                                        disabled={regeneratingTitleForSession === session.id}
+                                                    >
+                                                        <Sparkles size={16} className={`mr-2 ${regeneratingTitleForSession === session.id ? "animate-pulse" : ""}`} />
+                                                        Rename with AI
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
                                                         onClick={e => {
