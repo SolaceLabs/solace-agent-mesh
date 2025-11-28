@@ -12,7 +12,6 @@ import type { Project } from "@/lib/types/projects";
 import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
 import { authenticatedFetch } from "@/lib/utils/api";
-import { downloadBlob } from "@/lib/utils/download";
 import { useCreateProject, useProjects } from "@/features/projects/api/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { projects } from "@/features/projects/api/keys";
@@ -92,27 +91,6 @@ export const ProjectsPage: React.FC = () => {
         }
     }, [selectedProject, setActiveProject, handleNewSession, navigate]);
 
-    const handleExport = async (project: Project) => {
-        try {
-            const response = await authenticatedFetch(`/api/v1/projects/${project.id}/export`);
-
-            if (response.ok) {
-                const blob = await response.blob();
-                const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
-                downloadBlob(blob, filename);
-
-                addNotification("Project exported successfully", "success");
-            } else {
-                const error = await response.json();
-                const errorMessage = error.detail || "Failed to export project";
-                addNotification(errorMessage, "error");
-            }
-        } catch (error) {
-            console.error("Failed to export project:", error);
-            addNotification("Failed to export project", "error");
-        }
-    };
-
     const handleImport = async (file: File, options: { preserveName: boolean; customName?: string }) => {
         try {
             const formData = new FormData();
@@ -176,7 +154,7 @@ export const ProjectsPage: React.FC = () => {
                 {showDetailView && selectedProject ? (
                     <ProjectDetailView project={selectedProject} onBack={handleBackToList} onStartNewChat={handleStartNewChat} onChatClick={handleChatClick} />
                 ) : (
-                    <ProjectCards projects={filteredProjects ?? []} searchQuery={searchQuery} onSearchChange={setSearchQuery} onProjectClick={handleProjectSelect} onCreateNew={handleCreateNew} onExport={handleExport} isLoading={isLoading} />
+                    <ProjectCards projects={filteredProjects ?? []} searchQuery={searchQuery} onSearchChange={setSearchQuery} onProjectClick={handleProjectSelect} onCreateNew={handleCreateNew} isLoading={isLoading} />
                 )}
             </div>
 

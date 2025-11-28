@@ -6,32 +6,45 @@ import { CardContent, CardDescription, CardHeader, CardTitle, Badge, Button, Pop
 import type { MenuAction } from "@/lib/components/ui/menu";
 import type { Project } from "@/lib/types/projects";
 import { formatTimestamp } from "@/lib/utils/format";
-import { DeleteProjectDialog } from "@/lib";
+import { DeleteProjectDialog, downloadBlob, useChatContext } from "@/lib";
+import { useExportProject } from "@/features/projects/api/hooks";
 
 interface ProjectCardProps {
     project: Project;
     onClick?: () => void;
-    onExport?: (project: Project) => void;
 }
 
-export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onExport }) => {
+export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const { refetch } = useExportProject(project.id);
+    const { addNotification } = useChatContext();
+
+    const handleExport = async () => {
+        try {
+            const blob = await refetch();
+
+            if (blob.data) {
+                const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
+                downloadBlob(blob.data, filename);
+                addNotification("Project exported successfully", "success");
+            }
+        } catch (error) {
+            console.error("Failed to export project:", error);
+            addNotification("Failed to export project", "error");
+        }
+    };
 
     const menuActions: MenuAction[] = [
-        ...(onExport
-            ? [
-                  {
-                      id: "export",
-                      label: "Export Project",
-                      icon: <Download size={14} />,
-                      onClick: () => {
-                          setMenuOpen(false);
-                          onExport(project);
-                      },
-                  },
-              ]
-            : []),
+        {
+            id: "export",
+            label: "Export Project",
+            icon: <Download size={14} />,
+            onClick: () => {
+                setMenuOpen(false);
+                handleExport();
+            },
+        },
         {
             id: "delete",
             label: "Delete",

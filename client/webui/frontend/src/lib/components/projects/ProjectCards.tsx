@@ -12,11 +12,10 @@ interface ProjectCardsProps {
     onSearchChange: (query: string) => void;
     onProjectClick: (project: Project) => void;
     onCreateNew: () => void;
-    onExport?: (project: Project) => void;
     isLoading?: boolean;
 }
 
-export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onExport, isLoading = false }) => {
+export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, isLoading = false }) => {
     return (
         <div className="bg-background flex h-full flex-col">
             <div className="flex h-full flex-col pt-6 pb-6 pl-6">
@@ -39,7 +38,7 @@ export const ProjectCards: React.FC<ProjectCardsProps> = ({ projects, searchQuer
                         <div className="flex flex-wrap gap-6">
                             <CreateProjectCard onClick={onCreateNew} />
                             {projects.map(project => (
-                                <ProjectCard key={project.id} project={project} onClick={() => onProjectClick(project)} onExport={onExport} />
+                                <ProjectCard key={project.id} project={project} onClick={() => onProjectClick(project)} />
                             ))}
                         </div>
                     </div>

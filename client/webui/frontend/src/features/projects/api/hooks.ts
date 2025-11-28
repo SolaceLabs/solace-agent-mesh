@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { projects } from "./keys";
-import { addFilesToProject, createProject, deleteProject, getProjectArtifacts, getProjects, getProjectSessions, removeFileFromProject, updateFileMetadata, updateProject } from "./services";
+import { addFilesToProject, createProject, deleteProject, exportProject, getProjectArtifacts, getProjects, getProjectSessions, removeFileFromProject, updateFileMetadata, updateProject } from "./services";
 import { useConfigContext, type Project, type UpdateProjectData } from "@/lib";
 
 const useProjectsConfig = () => {
@@ -124,5 +124,14 @@ export const useProjectSessions = (projectId: string) => {
         queryKey: projects.sessions(projectId).queryKey,
         queryFn: () => getProjectSessions(projectId),
         enabled: useProjectsConfig(),
+    });
+};
+
+export const useExportProject = (projectId: string) => {
+    return useQuery({
+        queryKey: projects.export(projectId).queryKey,
+        queryFn: () => exportProject(projectId),
+        enabled: false,
+        retry: 1,
     });
 };

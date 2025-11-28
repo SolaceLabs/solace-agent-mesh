@@ -79,3 +79,14 @@ export const getProjectSessions = async (projectId: string) => {
     const json = (await response.json()) as PaginatedSessionsResponse;
     return json.data;
 };
+
+export const exportProject = async (projectId: string) => {
+    const response = await authenticatedFetch(`/api/v1/projects/${projectId}/export`);
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to export project");
+    }
+
+    return await response.blob();
+};
