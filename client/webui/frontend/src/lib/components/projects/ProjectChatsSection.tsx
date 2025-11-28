@@ -1,11 +1,11 @@
 import React from "react";
 import { MessageCircle, Calendar, Plus } from "lucide-react";
 
-import { useProjectSessions } from "@/lib/hooks/useProjectSessions";
 import { Spinner } from "@/lib/components/ui/spinner";
 import { Button } from "@/lib/components/ui";
 import { formatTimestamp } from "@/lib/utils/format";
 import type { Project } from "@/lib/types/projects";
+import { useProjectSessions } from "@/features/projects/api/hooks";
 
 interface ProjectChatsSectionProps {
     project: Project;
@@ -13,62 +13,52 @@ interface ProjectChatsSectionProps {
     onStartNewChat?: () => void;
 }
 
-export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({
-    project,
-    onChatClick,
-    onStartNewChat,
-}) => {
-    const { sessions, isLoading, error } = useProjectSessions(project.id);
+export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({ project, onChatClick, onStartNewChat }) => {
+    const { data: sessions, isLoading, error, isSuccess } = useProjectSessions(project.id);
 
     return (
         <div className="px-6 py-4">
-            <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-foreground">Chats</h3>
+            <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-foreground text-sm font-semibold">Chats</h3>
                 {onStartNewChat && (
                     <Button onClick={onStartNewChat} size="sm">
-                        <Plus className="h-4 w-4 mr-2" />
+                        <Plus className="mr-2 h-4 w-4" />
                         New Chat
                     </Button>
                 )}
             </div>
-            
+
             {isLoading && (
                 <div className="flex items-center justify-center p-8">
                     <Spinner size="small" />
                 </div>
             )}
 
-            {error && (
-                <div className="text-sm text-destructive p-4 border border-destructive/50 rounded-md">
-                    Error loading chats: {error}
-                </div>
-            )}
+            {error && <div className="text-destructive border-destructive/50 rounded-md border p-4 text-sm">Error loading chats: {error.message}</div>}
 
-            {!isLoading && !error && sessions.length === 0 && (
-                <div className="flex flex-col items-center justify-center p-8 text-center border border-dashed rounded-md">
-                    <MessageCircle className="h-8 w-8 text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground mb-4">
-                        No chats yet. Start a new chat with this project's context.
-                    </p>
+            {isSuccess && sessions.length === 0 && (
+                <div className="flex flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">
+                    <MessageCircle className="text-muted-foreground mb-2 h-8 w-8" />
+                    <p className="text-muted-foreground mb-4 text-sm">No chats yet. Start a new chat with this project's context.</p>
                     {onStartNewChat && (
                         <Button onClick={onStartNewChat} size="sm">
-                            <Plus className="h-4 w-4 mr-2" />
+                            <Plus className="mr-2 h-4 w-4" />
                             Start New Chat
                         </Button>
                     )}
                 </div>
             )}
 
-            {!isLoading && !error && sessions.length > 0 && (
+            {isSuccess && sessions.length > 0 && (
                 <div className="space-y-2">
-                    {sessions.map((session) => (
+                    {sessions.map(session => (
                         <div
                             key={session.id}
-                            className="p-3 border rounded-md hover:bg-accent/50 cursor-pointer transition-colors shadow-sm"
+                            className="hover:bg-accent/50 cursor-pointer rounded-md border p-3 shadow-sm transition-colors"
                             onClick={() => onChatClick(session.id)}
                             role="button"
                             tabIndex={0}
-                            onKeyDown={(e) => {
+                            onKeyDown={e => {
                                 if (e.key === "Enter" || e.key === " ") {
                                     e.preventDefault();
                                     onChatClick(session.id);
@@ -77,10 +67,8 @@ export const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({
                         >
                             <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-medium text-foreground truncate">
-                                        {session.name || `Chat ${session.id.substring(0, 8)}`}
-                                    </p>
-                                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                                    <p className="text-foreground truncate text-sm font-medium">{session.name || `Chat ${session.id.substring(0, 8)}`}</p>
+                                    <div className="text-muted-foreground mt-1 flex items-center gap-1 text-xs">
                                         <Calendar className="h-3 w-3" />
                                         <span>{formatTimestamp(session.updatedTime)}</span>
                                     </div>

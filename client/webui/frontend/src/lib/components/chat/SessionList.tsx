@@ -18,7 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import type { Session } from "@/lib/types";
 import type { Project } from "@/lib/types/projects";
 
-interface PaginatedSessionsResponse {
+export interface PaginatedSessionsResponse {
     data: Session[];
     meta: {
         pagination: {

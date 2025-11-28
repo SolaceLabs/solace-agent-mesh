@@ -16,7 +16,6 @@ export * from "./useStreamingTTS";
 export * from "./useTaskContext";
 export * from "./useTextToSpeech";
 export * from "./useThemeContext";
-export * from "./useProjectSessions";
 export * from "./useAgentSelection";
 export * from "./useNavigationBlocker";
 export * from "./useErrorDialog";
