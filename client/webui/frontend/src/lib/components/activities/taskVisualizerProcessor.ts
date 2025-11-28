@@ -622,32 +622,82 @@ export const processTaskForVisualization = (
                                     owningTaskId: currentEventOwningTaskId,
                                     functionCallId: functionCallIdForStep,
                                 });
+
+                                // Special handling for _notify_artifact_save tool results
+                                // Create an artifact notification step for fenced block artifacts
+                                if (signalData.tool_name === "_notify_artifact_save" && signalData.result_data) {
+                                    flushAggregatedTextStep(currentEventOwningTaskId);
+                                    const resultData = signalData.result_data as {
+                                        filename?: string;
+                                        version?: number;
+                                        status?: string;
+                                        description?: string;
+                                        mime_type?: string;
+                                        message?: string;
+                                    };
+                                    if (resultData.filename && resultData.status === "success") {
+                                        const artifactNotification: ArtifactNotificationData = {
+                                            artifactName: resultData.filename,
+                                            version: resultData.version,
+                                            description: resultData.description,
+                                            mimeType: resultData.mime_type,
+                                        };
+                                        visualizerSteps.push({
+                                            id: `vstep-fencedartifact-${visualizerSteps.length}-${eventId}`,
+                                            type: "AGENT_ARTIFACT_NOTIFICATION",
+                                            timestamp: eventTimestamp,
+                                            title: `${statusUpdateAgentName}: Created Artifact - ${artifactNotification.artifactName}`,
+                                            source: statusUpdateAgentName,
+                                            target: "User/System",
+                                            data: { artifactNotification },
+                                            rawEventIds: [eventId],
+                                            isSubTaskStep: currentEventNestingLevel > 0,
+                                            nestingLevel: currentEventNestingLevel,
+                                            owningTaskId: currentEventOwningTaskId,
+                                            functionCallId: functionCallIdForStep,
+                                        });
+                                    }
+                                }
                                 break;
                             }
                             case "artifact_creation_progress": {
-                                // Only show completed artifacts in the workflow
+                                // Create workflow nodes for artifacts from regular tool calls
+                                // Skip for fenced block artifacts (they use _notify_artifact_save tool results)
+                                console.log("[Timeline] Handling artifact_creation_progress signal");
                                 if (signalData.status === "completed") {
-                                    flushAggregatedTextStep(currentEventOwningTaskId);
-                                    const artifactNotification: ArtifactNotificationData = {
-                                        artifactName: signalData.filename || "Unnamed Artifact",
-                                        version: signalData.version,
-                                        description: signalData.description,
-                                        mimeType: signalData.mime_type,
-                                    };
-                                    visualizerSteps.push({
-                                        id: `vstep-artifactcreated-${visualizerSteps.length}-${eventId}`,
-                                        type: "AGENT_ARTIFACT_NOTIFICATION",
-                                        timestamp: eventTimestamp,
-                                        title: `${statusUpdateAgentName}: Created Artifact - ${artifactNotification.artifactName}`,
-                                        source: statusUpdateAgentName,
-                                        target: "User/System",
-                                        data: { artifactNotification },
-                                        rawEventIds: [eventId],
-                                        isSubTaskStep: currentEventNestingLevel > 0,
-                                        nestingLevel: currentEventNestingLevel,
-                                        owningTaskId: currentEventOwningTaskId,
-                                        functionCallId: functionCallIdForStep,
-                                    });
+                                    // Check if this is a fenced block artifact by looking for _notify_artifact_save in recent steps
+                                    // Fenced blocks will have both the signal AND a _notify_artifact_save tool result
+                                    // To avoid duplicates, we skip the signal if there's a pending _notify_artifact_save
+                                    // Since _notify_artifact_save comes in the same event as the final response,
+                                    // we can check if functionCallId is undefined (direct creation) vs defined (tool-created)
+
+                                    // If there's no functionCallId, it's likely a direct artifact creation (not from a tool call)
+                                    // In that case, skip it because it will be handled by _notify_artifact_save
+                                    const isFencedBlockArtifact = !functionCallIdForStep;
+
+                                    if (!isFencedBlockArtifact) {
+                                        flushAggregatedTextStep(currentEventOwningTaskId);
+                                        const artifactNotification: ArtifactNotificationData = {
+                                            artifactName: signalData.filename || "Unnamed Artifact",
+                                            version: signalData.version,
+                                            description: signalData.description,
+                                            mimeType: signalData.mime_type,
+                                        };
+                                        visualizerSteps.push({
+                                            id: `vstep-artifactcreated-${visualizerSteps.length}-${eventId}`,
+                                            type: "AGENT_ARTIFACT_NOTIFICATION",
+                                            timestamp: eventTimestamp,
+                                            title: `${statusUpdateAgentName}: Created Artifact - ${artifactNotification.artifactName}`,
+                                            source: statusUpdateAgentName,
+                                            target: "User/System",
+                                            data: { artifactNotification },
+                                            rawEventIds: [eventId],
+                                            isSubTaskStep: currentEventNestingLevel > 0,
+                                            nestingLevel: currentEventNestingLevel,
+                                            owningTaskId: currentEventOwningTaskId,
+                                            functionCallId: functionCallIdForStep,
+                                        });
+                                    }
                                 }
                                 break;
                             }

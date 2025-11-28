@@ -446,6 +446,7 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
 }
 
 function handleArtifactNotification(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    console.log("[Timeline] Handling artifact notification for step:", step.id);
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
 

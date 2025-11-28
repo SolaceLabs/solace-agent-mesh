@@ -930,6 +930,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             let isFinalEvent = false;
             let messageToProcess: Message | undefined;
             let currentTaskIdFromResult: string | undefined;
+            // Track artifacts that have been marked as completed via _notify_artifact_save
+            const completedArtifactFilenames = new Set<string>();
 
             // Determine event type and extract relevant data
             switch (result.kind) {
@@ -1185,10 +1187,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             const artifactData = data as { filename: string; version: number; status: string };
 
                             if (artifactData.status === "success") {
+                                // Track that this artifact should be marked as completed
+                                completedArtifactFilenames.add(artifactData.filename);
+
                                 // Mark the artifact as completed in the message parts
                                 setMessages(currentMessages => {
                                     return currentMessages.map(msg => {
-                                        if (msg.isUser || !msg.parts.some(p => p.kind === "artifact" && p.name === artifactData.filename)) {
+                                        // Only update messages for the current task to avoid cross-task filename conflicts
+                                        if (msg.isUser || msg.taskId !== currentTaskIdFromResult || !msg.parts.some(p => p.kind === "artifact" && p.name === artifactData.filename)) {
                                             return msg;
                                         }
 
@@ -1274,15 +1280,33 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         if (msg.taskId === currentTaskIdFromResult && msg.parts.some(p => p.kind === "artifact" && p.status === "in-progress")) {
                             const finalParts: PartFE[] = msg.parts.map(p => {
                                 if (p.kind === "artifact" && p.status === "in-progress") {
-                                    // Mark in-progress part as failed
+                                    // Check if this artifact was marked as completed via _notify_artifact_save
+                                    if (completedArtifactFilenames.has(p.name)) {
+                                        // Mark as completed instead of failed
+                                        const fileAttachment: FileAttachment = {
+                                            name: p.name,
+                                            uri: `artifact://${sessionId}/${p.name}`,
+                                        };
+                                        return {
+                                            kind: "artifact",
+                                            status: "completed",
+                                            name: p.name,
+                                            file: fileAttachment,
+                                        } as ArtifactPart;
+                                    }
+                                    // Otherwise mark in-progress part as failed
                                     return { ...p, status: "failed", error: `Artifact creation for "${p.name}" did not complete.` };
                                 }
                                 return p;
                             });
+
+                            // Only mark as error if there are actual failed artifacts (not just completed ones)
+                            const hasFailedArtifacts = finalParts.some(p => p.kind === "artifact" && p.status === "failed");
+
                             newMessages[i] = {
                                 ...msg,
                                 parts: finalParts,
-                                isError: true, // Mark as error because it didn't complete
+                                isError: hasFailedArtifacts, // Only mark as error if artifacts actually failed
                                 isComplete: true,
                             };
                         }
