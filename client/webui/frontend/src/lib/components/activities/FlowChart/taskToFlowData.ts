@@ -591,9 +591,22 @@ function handleWorkflowExecutionStart(step: VisualizerStep, manager: TimelineLay
         sourceHandle = "orch-bottom-output";
     }
 
+    // Attempt to recover functionCallId if missing
+    let functionCallIdOverride: string | undefined;
+    if (!step.functionCallId && step.owningTaskId) {
+        const parentStep = processedSteps.find(s => s.delegationInfo?.some(info => info.subTaskId === step.owningTaskId));
+        if (parentStep) {
+            const info = parentStep.delegationInfo?.find(i => i.subTaskId === step.owningTaskId);
+            if (info) {
+                functionCallIdOverride = info.functionCallId;
+                console.log(`[Timeline] Recovered functionCallId ${functionCallIdOverride} for workflow ${step.owningTaskId}`);
+            }
+        }
+    }
+
     // Create workflow context (Group + Agent Node)
     const workflowName = step.data.workflowExecutionStart?.workflowName || "Workflow";
-    const workflowContext = startNewWorkflowContext(manager, workflowName, step, nodes);
+    const workflowContext = startNewWorkflowContext(manager, workflowName, step, nodes, functionCallIdOverride);
 
     if (workflowContext) {
         console.log(`[Timeline] handleWorkflowExecutionStart: Created workflow context. ID: ${workflowContext.id}, FunctionCallId: ${workflowContext.functionCallId}`);

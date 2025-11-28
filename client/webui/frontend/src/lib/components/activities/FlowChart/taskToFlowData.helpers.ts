@@ -530,7 +530,7 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
     return newSubflow;
 }
 
-export function startNewWorkflowContext(manager: TimelineLayoutManager, workflowName: string, step: VisualizerStep, nodes: Node[]): SubflowContext | null {
+export function startNewWorkflowContext(manager: TimelineLayoutManager, workflowName: string, step: VisualizerStep, nodes: Node[], functionCallIdOverride?: string): SubflowContext | null {
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return null;
 
@@ -546,7 +546,7 @@ export function startNewWorkflowContext(manager: TimelineLayoutManager, workflow
     const groupNodeId = generateNodeId(manager, `group_${workflowName}_${subflowId}`);
 
     // Workflows don't necessarily have a functionCallId in the start event, but we can try to find it
-    const invocationFunctionCallId = step.functionCallId || "";
+    const invocationFunctionCallId = functionCallIdOverride || step.functionCallId || "";
 
     let groupNodeX: number;
     let groupNodeY: number;
