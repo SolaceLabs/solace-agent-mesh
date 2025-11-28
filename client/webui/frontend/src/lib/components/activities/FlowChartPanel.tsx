@@ -162,7 +162,6 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                 const currentHeight = parseInt(node.style?.height?.toString().replace("px", "") || "0");
 
                 if (currentWidth !== finalRequiredWidth || currentHeight !== requiredHeight) {
-                    console.log(`[FlowChart] Resizing group ${node.id}: ${currentWidth}x${currentHeight} -> ${finalRequiredWidth}x${requiredHeight}`);
                     return {
                         ...node,
                         style: {
