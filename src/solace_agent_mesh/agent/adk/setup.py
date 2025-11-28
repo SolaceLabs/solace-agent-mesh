@@ -993,6 +993,13 @@ def initialize_adk_agent(
                 model_config["num_retries"],
                 model_config["timeout"],
             )
+            
+            # Apply track_token_usage setting if not explicitly set in model config
+            # The global setting comes from agent's app_config
+            if "track_token_usage" not in model_config:
+                global_track_token_usage = component.get_config("track_token_usage")
+                if global_track_token_usage is not None:
+                    model_config["track_token_usage"] = global_track_token_usage
 
         try:
 

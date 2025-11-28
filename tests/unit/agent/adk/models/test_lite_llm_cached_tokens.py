@@ -262,10 +262,13 @@ class TestModelResponseToGenerateContentResponse:
 
 
 class TestTrackTokenUsageFeatureFlag:
-    """Tests for the track_token_usage feature flag."""
+    """Tests for the track_token_usage feature flag.
+    
+    The global setting is injected by setup.py when creating the model.
+    """
 
     def test_default_track_token_usage_is_false(self):
-        """Test that track_token_usage defaults to False."""
+        """Test that track_token_usage defaults to False when not specified."""
         llm = LiteLlm(model="test-model")
         assert llm._track_token_usage is False
 

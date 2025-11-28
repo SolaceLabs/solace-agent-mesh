@@ -758,7 +758,8 @@ class LiteLlm(BaseLlm):
                             When enabled, token usage (prompt tokens, completion tokens, total tokens,
                             and cached tokens) from LLM providers will be extracted and included
                             in the usage metadata. When disabled, no usage metadata is reported.
-                            Defaults to False for backward compatibility.
+                            Configure globally via YAML: track_token_usage: ${TRACK_TOKEN_USAGE, false}
+                            Defaults to False.
           **kwargs: Additional arguments to pass to the litellm completion api.
                    Can include OAuth configuration parameters.
         """
@@ -780,7 +781,10 @@ class LiteLlm(BaseLlm):
             )
             cache_strategy = "5m"
         self._cache_strategy = cache_strategy
+        
+        # Store track_token_usage setting (configured via YAML with env var substitution)
         self._track_token_usage = track_token_usage
+        
         logger.info(
             "LiteLlm initialized with cache strategy: %s, track_token_usage: %s",
             self._cache_strategy,
