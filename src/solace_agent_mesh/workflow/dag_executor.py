@@ -652,6 +652,7 @@ class DAGExecutor:
                 agent_persona=iter_node.agent_persona,
                 iteration_index=index,
                 sub_task_id=sub_task_id,
+                parent_node_id=map_node_id,
             )
             await self.host.publish_workflow_event(workflow_context, start_data)
 

@@ -29,6 +29,14 @@ export interface LayoutContext {
     agentsByLevel: Map<number, string[]>; // Store agents at each Y level for horizontal alignment
 }
 
+export interface MapLayoutContext {
+    mapNodeId: string;
+    baseX: number;
+    baseY: number;
+    currentXOffset: number;
+    iterationNodeIds: string[];
+}
+
 // Layout Management Interfaces
 export interface NodeInstance {
     id: string;
@@ -122,6 +130,9 @@ export interface TimelineLayoutManager {
 
     // Agent name to display name mapping
     agentNameMap?: Record<string, string>;
+
+    // Map layout contexts for parallel iterations
+    mapLayouts: Map<string, MapLayoutContext>;
 }
 
 // Layout Constants
@@ -645,6 +656,8 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
 
     const nodeId = data.nodeId;
     const nodeType = data.nodeType;
+    const parentNodeId = data.parentNodeId;
+
     // Use agent persona for label if available, otherwise node ID. Add type for clarity if not an agent.
     let label = data.agentPersona || nodeId;
     if (nodeType !== "agent") {
@@ -655,25 +668,58 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
     const isControlNode = ["conditional", "fork", "map"].includes(nodeType);
     const variant = isControlNode ? "pill" : "default";
 
-    // Calculate absolute Y position
-    // Relative to peer agent (Start node) + current offset
-    // We add NODE_HEIGHT to account for the Start node's height, plus VERTICAL_SPACING for the gap.
-    const nodeY_absolute = subflow.peerAgent.yPosition + NODE_HEIGHT + VERTICAL_SPACING + subflow.currentToolYOffset;
+    // --- Positioning Logic ---
+    let nodeX_relative = 50;
+    let nodeY_relative = 0;
+    let nodeY_absolute = 0;
 
-    // Update offset for the next node
-    // We use a consistent spacing for all node types, but add extra for conditionals
-    let spacing = VERTICAL_SPACING;
-    if (nodeType === "conditional") {
-        spacing += 20;
+    // Check if this is a child of a map node (parallel iteration)
+    if (parentNodeId && manager.mapLayouts.has(parentNodeId)) {
+        const mapContext = manager.mapLayouts.get(parentNodeId)!;
+
+        // Position horizontally based on current offset in map context
+        nodeX_relative = mapContext.baseX + mapContext.currentXOffset;
+        nodeY_relative = mapContext.baseY;
+        nodeY_absolute = subflow.groupNode.yPosition + nodeY_relative;
+
+        // Estimate width for spacing
+        let childWidth = NODE_WIDTH;
+        if (variant === "pill") childWidth = 150;
+
+        // Update map context for next sibling
+        mapContext.currentXOffset += childWidth + GROUP_PADDING_X;
+    } else {
+        // Standard vertical stacking
+        // Relative to peer agent (Start node) + current offset
+        nodeY_absolute = subflow.peerAgent.yPosition + NODE_HEIGHT + VERTICAL_SPACING + subflow.currentToolYOffset;
+
+        // Update offset for the next node
+        let spacing = VERTICAL_SPACING;
+        if (nodeType === "conditional") {
+            spacing += 20;
+        }
+        subflow.currentToolYOffset += NODE_HEIGHT + spacing;
+
+        nodeY_relative = nodeY_absolute - subflow.groupNode.yPosition;
     }
-    subflow.currentToolYOffset += NODE_HEIGHT + spacing;
-
-    // Position relative to group
-    // Start node is at x=50. We align these nodes with the start node.
-    const nodeX_relative = 50;
-    const nodeY_relative = nodeY_absolute - subflow.groupNode.yPosition;
 
     const flowNodeId = generateNodeId(manager, `wf_node_${nodeId}`);
+
+    // If this is a Map node, initialize its layout context
+    if (nodeType === "map") {
+        manager.mapLayouts.set(nodeId, {
+            mapNodeId: nodeId,
+            baseX: nodeX_relative,
+            baseY: nodeY_relative + NODE_HEIGHT + VERTICAL_SPACING, // Children start below map node
+            currentXOffset: 0,
+            iterationNodeIds: [],
+        });
+    }
+
+    // If this is a child of a map, register it
+    if (parentNodeId && manager.mapLayouts.has(parentNodeId)) {
+        manager.mapLayouts.get(parentNodeId)!.iterationNodeIds.push(flowNodeId);
+    }
 
     let nodeTypeStr = "genericAgentNode";
     const nodeData: any = {
@@ -720,7 +766,13 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
 
     // Update layout metrics
     subflow.toolInstances.push(nodeInstance); // Track as part of subflow content
-    subflow.lastNodeId = flowNodeId; // Update chain
+    
+    // Only update lastNodeId if NOT a map iteration (to avoid chaining iterations sequentially)
+    // Iterations will be connected to the Map node explicitly in the main handler
+    if (!parentNodeId) {
+        subflow.lastNodeId = flowNodeId;
+    }
+
     subflow.maxContentXRelative = Math.max(subflow.maxContentXRelative, nodeX_relative + estimatedWidth);
 
     // Update group dimensions

@@ -247,6 +247,9 @@ class WorkflowNodeExecutionStartData(BaseModel):
     sub_task_id: Optional[str] = Field(
         None, description="The sub-task ID associated with this node execution"
     )
+    parent_node_id: Optional[str] = Field(
+        None, description="ID of the parent node (e.g. for map iterations)"
+    )
 
 
 class WorkflowNodeExecutionResultData(BaseModel):

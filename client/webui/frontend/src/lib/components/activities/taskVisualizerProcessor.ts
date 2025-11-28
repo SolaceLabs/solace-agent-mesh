@@ -375,6 +375,7 @@ export const processTaskForVisualization = (
                                             trueBranchLabel: signalData.true_branch_label,
                                             falseBranchLabel: signalData.false_branch_label,
                                             subTaskId: signalData.sub_task_id,
+                                            parentNodeId: signalData.parent_node_id,
                                         },
                                     },
                                     rawEventIds: [eventId],

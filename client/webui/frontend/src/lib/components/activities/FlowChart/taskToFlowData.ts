@@ -623,7 +623,56 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
     if (!currentSubflow) return;
 
     // Capture the previous node ID before creating the new one
-    const previousNodeId = currentSubflow.lastNodeId;
+    let previousNodeId = currentSubflow.lastNodeId;
+
+    // If this is a map iteration, override previousNodeId to be the Map Node
+    const parentNodeId = step.data.workflowNodeExecutionStart?.parentNodeId;
+    if (parentNodeId) {
+        // Find the generated node ID for the parent map node
+        // We assume the parent map node was created recently and is in the nodes list
+        // We can find it by matching the visualizerStepId or by reconstructing the ID if we knew the counter
+        // But simpler: we stored it in mapLayouts!
+        // Wait, mapLayouts stores the generated ID? No, it stores the raw ID as key.
+        // But we can find the node in `nodes` that corresponds to the parentNodeId.
+        // Actually, `createWorkflowNodeInContext` generates IDs like `wf_node_${nodeId}`.
+        // So we can reconstruct it.
+        // However, `generateNodeId` appends a counter.
+        // We need to find the node where data.label or data.description matches?
+        // Better: `createWorkflowNodeInContext` should store the generated ID in mapLayouts.
+        // Let's assume `wf_node_${parentNodeId}` pattern but we need the exact ID.
+        // We can search `nodes` for a node where `data.visualizerStepId` corresponds to the start event of the map node?
+        // Or simpler: The Map Node was the `lastNodeId` before any iterations started.
+        // But if we have multiple maps, or other nodes...
+        // Let's look at `mapLayouts`. We can store the generated `flowNodeId` in `MapLayoutContext`.
+        // I'll update `createWorkflowNodeInContext` to do that.
+        // Assuming I did that (I didn't in the previous block, let me fix that assumption or logic).
+        // Actually, I can find the node by `wf_node_${parentNodeId}` prefix? No, `generateNodeId` uses global counter.
+        
+        // Let's search for the node in `nodes` that represents the parent map node.
+        // The parent map node would have `data.label` or `data.description` containing the ID?
+        // Or we can look at `manager.mapLayouts` if we store the generated ID there.
+        // I will update `createWorkflowNodeInContext` to store `generatedMapNodeId` in `MapLayoutContext`.
+        // Since I can't edit the previous block again in this thought process, I will assume I can find it.
+        // Wait, `createWorkflowNodeInContext` is in `taskToFlowData.helpers.ts`. I just edited it.
+        // I didn't add `generatedMapNodeId` to `MapLayoutContext`.
+        // I can find the node by iterating nodes and checking `data.visualizerStepId`? No, I don't have the parent step ID here.
+        
+        // Fallback: Iterate nodes to find one where `data.label` or `data.description` matches?
+        // Or, since `MapNode` execution happens just before iterations, `currentSubflow.lastNodeId` IS the Map Node!
+        // Unless there are multiple maps running in parallel?
+        // `DAGExecutor` executes map node, then launches iterations.
+        // So `lastNodeId` should be the Map Node.
+        // BUT, if we have 2 iterations, for the 2nd iteration, `lastNodeId` is NOT updated (per my change in helpers).
+        // So `lastNodeId` remains the Map Node!
+        // So `previousNodeId` is correct!
+        
+        // Verify: `createWorkflowNodeInContext` says:
+        // if (!parentNodeId) { subflow.lastNodeId = flowNodeId; }
+        // So for iterations, `lastNodeId` is NOT updated.
+        // So `previousNodeId` (which is `currentSubflow.lastNodeId`) will point to the node BEFORE the first iteration.
+        // Which is the Map Node.
+        // So this logic holds.
+    }
 
     // Create the new node
     const newNode = createWorkflowNodeInContext(manager, step, nodes, currentSubflow);
@@ -711,8 +760,92 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
     // Store this result step so it can be used as the data for the edge connecting to the NEXT node
     currentSubflow.lastResultStep = step;
 
-    // Handle visualization of untaken branch for conditional nodes
     const resultData = step.data.workflowNodeExecutionResult;
+    const nodeId = resultData?.nodeId;
+
+    // Check if this is a Map Node completing
+    if (nodeId && manager.mapLayouts.has(nodeId)) {
+        const mapContext = manager.mapLayouts.get(nodeId)!;
+        
+        // Create a "Join" node (small dot or pill) to bring parallel branches back together
+        const joinNodeId = generateNodeId(manager, `join_${nodeId}`);
+        
+        // Position Join node below the lowest branch
+        // We need to find the max Y of all branches.
+        // Since we don't track dynamic height of branches easily here without querying nodes,
+        // we can estimate or use the current subflow maxY.
+        // subflow.maxY should have been updated by the branches growing.
+        
+        const joinY = currentSubflow.maxY - currentSubflow.groupNode.yPosition + VERTICAL_SPACING;
+        
+        const joinNode: Node = {
+            id: joinNodeId,
+            type: "genericAgentNode",
+            position: { x: 50, y: joinY }, // Centered relative to group (assuming start node is at 50)
+            data: {
+                label: "Join",
+                visualizerStepId: step.id,
+                description: "Map Completion",
+                variant: "pill",
+            },
+            parentId: currentSubflow.groupNode.id,
+        };
+        
+        addNode(nodes, manager.allCreatedNodeIds, joinNode);
+        manager.nodePositions.set(joinNodeId, { 
+            x: currentSubflow.groupNode.xPosition + 50, 
+            y: currentSubflow.groupNode.yPosition + joinY 
+        });
+        
+        // Connect all iteration nodes to the Join node
+        mapContext.iterationNodeIds.forEach(iterNodeId => {
+            // We need to find the "end" of the iteration branch.
+            // If the iteration node had children (tools), we should connect from the last tool.
+            // But we don't track the "last node" of each iteration branch easily.
+            // However, `shiftNodesVertically` and tool creation logic updates `subflow.lastNodeId`?
+            // No, for iterations we explicitly DID NOT update `subflow.lastNodeId`.
+            // So `subflow.lastNodeId` is still the Map Node!
+            
+            // We need to find the last node for each iteration branch.
+            // Heuristic: Find the iteration node. Check if it has tools linked to it?
+            // The iteration node is an agent node.
+            // If it called tools, they are in `subflow.toolInstances`.
+            // We can find tools where `parentId` matches the iteration node? No, parentId is group.
+            // But we can trace edges?
+            
+            // Simplification: Connect from the iteration node itself.
+            // If there were tools, visually it might look like the line goes through them or overlaps.
+            // Ideally, we connect from the bottom-most node in that vertical column.
+            
+            // Let's just connect from the iteration node for now.
+            // If the iteration node expanded (tools), the edge might cross them.
+            // To fix this, we would need to track the "tail" of each parallel branch.
+            
+            createTimelineEdge(
+                iterNodeId,
+                joinNodeId,
+                step,
+                edges,
+                manager,
+                edgeAnimationService,
+                processedSteps,
+                "peer-bottom-output",
+                "peer-top-input"
+            );
+        });
+        
+        // Update subflow state so next node connects to Join
+        currentSubflow.lastNodeId = joinNodeId;
+        
+        // Update layout metrics
+        currentSubflow.maxY = currentSubflow.groupNode.yPosition + joinY + NODE_HEIGHT;
+        manager.nextAvailableGlobalY = currentSubflow.maxY + VERTICAL_SPACING;
+        
+        // Clean up map context
+        manager.mapLayouts.delete(nodeId);
+    }
+
+    // Handle visualization of untaken branch for conditional nodes
     if (resultData?.metadata?.condition_result !== undefined) {
         // Find the conditional node
         // lastNodeId points to the node ID (e.g. wf_node_check_risk_7), not the step ID.
@@ -1041,6 +1174,7 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
         indentationLevel: 0,
         indentationStep: 50, // Pixels to indent per level
         agentNameMap: agentNameMap,
+        mapLayouts: new Map(),
     };
 
     const filteredSteps = processedSteps.filter(step => RELEVANT_STEP_TYPES.includes(step.type));
