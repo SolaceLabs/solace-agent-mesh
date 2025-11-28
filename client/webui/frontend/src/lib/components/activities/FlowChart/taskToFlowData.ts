@@ -746,7 +746,11 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
 
                 // Expand group width if needed
                 const requiredWidth = skippedNode.position.x + NODE_WIDTH + GROUP_PADDING_X;
-                if (currentSubflow.groupNode.width && requiredWidth > currentSubflow.groupNode.width) {
+
+                // Update maxContentXRelative to ensure final pass respects this width
+                currentSubflow.maxContentXRelative = Math.max(currentSubflow.maxContentXRelative, skippedNode.position.x + NODE_WIDTH);
+
+                if (requiredWidth > (currentSubflow.groupNode.width || 0)) {
                     currentSubflow.groupNode.width = requiredWidth;
                     const groupNode = nodes.find(n => n.id === currentSubflow.groupNode.id);
                     if (groupNode) {
