@@ -330,6 +330,126 @@ export const processTaskForVisualization = (
                         const signalType = signalData?.type as string;
 
                         switch (signalType) {
+                            case "workflow_execution_start": {
+                                console.log("[Visualizer] Processing WORKFLOW_EXECUTION_START", signalData);
+                                visualizerSteps.push({
+                                    id: `vstep-wfstart-${visualizerSteps.length}-${eventId}`,
+                                    type: "WORKFLOW_EXECUTION_START",
+                                    timestamp: eventTimestamp,
+                                    title: `Workflow Started: ${signalData.workflow_name}`,
+                                    source: "System",
+                                    target: "Workflow",
+                                    data: {
+                                        workflowExecutionStart: {
+                                            workflowName: signalData.workflow_name,
+                                            executionId: signalData.execution_id,
+                                            inputArtifactRef: signalData.input_artifact_ref,
+                                        },
+                                    },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                });
+                                break;
+                            }
+                            case "workflow_node_execution_start": {
+                                console.log("[Visualizer] Processing WORKFLOW_NODE_EXECUTION_START", signalData);
+                                visualizerSteps.push({
+                                    id: `vstep-wfnode-start-${visualizerSteps.length}-${eventId}`,
+                                    type: "WORKFLOW_NODE_EXECUTION_START",
+                                    timestamp: eventTimestamp,
+                                    title: `Node Started: ${signalData.node_id} (${signalData.node_type})`,
+                                    source: "Workflow",
+                                    target: signalData.agent_persona || signalData.node_id,
+                                    data: {
+                                        workflowNodeExecutionStart: {
+                                            nodeId: signalData.node_id,
+                                            nodeType: signalData.node_type,
+                                            agentPersona: signalData.agent_persona,
+                                            inputArtifactRef: signalData.input_artifact_ref,
+                                            iterationIndex: signalData.iteration_index,
+                                        },
+                                    },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                });
+                                break;
+                            }
+                            case "workflow_node_execution_result": {
+                                console.log("[Visualizer] Processing WORKFLOW_NODE_EXECUTION_RESULT", signalData);
+                                visualizerSteps.push({
+                                    id: `vstep-wfnode-result-${visualizerSteps.length}-${eventId}`,
+                                    type: "WORKFLOW_NODE_EXECUTION_RESULT",
+                                    timestamp: eventTimestamp,
+                                    title: `Node Completed: ${signalData.node_id} (${signalData.status})`,
+                                    source: signalData.node_id,
+                                    target: "Workflow",
+                                    data: {
+                                        workflowNodeExecutionResult: {
+                                            nodeId: signalData.node_id,
+                                            status: signalData.status,
+                                            outputArtifactRef: signalData.output_artifact_ref,
+                                            errorMessage: signalData.error_message,
+                                            metadata: signalData.metadata,
+                                        },
+                                    },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                });
+                                break;
+                            }
+                            case "workflow_map_progress": {
+                                console.log("[Visualizer] Processing WORKFLOW_MAP_PROGRESS", signalData);
+                                visualizerSteps.push({
+                                    id: `vstep-wfmap-${visualizerSteps.length}-${eventId}`,
+                                    type: "WORKFLOW_MAP_PROGRESS",
+                                    timestamp: eventTimestamp,
+                                    title: `Map Progress: ${signalData.node_id} (${signalData.completed_items}/${signalData.total_items})`,
+                                    source: signalData.node_id,
+                                    target: "Workflow",
+                                    data: {
+                                        workflowMapProgress: {
+                                            nodeId: signalData.node_id,
+                                            totalItems: signalData.total_items,
+                                            completedItems: signalData.completed_items,
+                                            status: signalData.status,
+                                        },
+                                    },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                });
+                                break;
+                            }
+                            case "workflow_execution_result": {
+                                console.log("[Visualizer] Processing WORKFLOW_EXECUTION_RESULT", signalData);
+                                visualizerSteps.push({
+                                    id: `vstep-wfresult-${visualizerSteps.length}-${eventId}`,
+                                    type: "WORKFLOW_EXECUTION_RESULT",
+                                    timestamp: eventTimestamp,
+                                    title: `Workflow Finished: ${signalData.status}`,
+                                    source: "Workflow",
+                                    target: "User",
+                                    data: {
+                                        workflowExecutionResult: {
+                                            status: signalData.status,
+                                            outputArtifactRef: signalData.output_artifact_ref,
+                                            errorMessage: signalData.error_message,
+                                        },
+                                    },
+                                    rawEventIds: [eventId],
+                                    isSubTaskStep: currentEventNestingLevel > 0,
+                                    nestingLevel: currentEventNestingLevel,
+                                    owningTaskId: currentEventOwningTaskId,
+                                });
+                                break;
+                            }
                             case "agent_progress_update": {
                                 visualizerSteps.push({
                                     id: `vstep-progress-${visualizerSteps.length}-${eventId}`,

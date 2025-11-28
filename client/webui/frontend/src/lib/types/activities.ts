@@ -61,7 +61,12 @@ export type VisualizerStepType =
     | "AGENT_RESPONSE_TEXT" // Agent provides textual output (intermediate or final for a turn)
     | "AGENT_STATUS_UPDATE" // A simple status update from the agent (e.g., "Thinking...")
     | "TASK_COMPLETED" // Task has successfully completed
-    | "TASK_FAILED"; // Task has failed
+    | "TASK_FAILED" // Task has failed
+    | "WORKFLOW_EXECUTION_START" // Workflow execution started
+    | "WORKFLOW_NODE_EXECUTION_START" // A specific node in the workflow started
+    | "WORKFLOW_NODE_EXECUTION_RESULT" // A specific node in the workflow completed
+    | "WORKFLOW_MAP_PROGRESS" // Progress update for a map/loop node
+    | "WORKFLOW_EXECUTION_RESULT"; // Workflow execution finished
 
 /**
  * Represents specific data associated with an 'AGENT_LLM_CALL' step.
@@ -150,6 +155,46 @@ export interface DelegationInfo {
     subTaskId?: string; // Optional: The ID of the sub-task created for this delegation
 }
 
+export interface ArtifactRef {
+    name: string;
+    version?: number;
+}
+
+export interface WorkflowExecutionStartData {
+    workflowName: string;
+    executionId: string;
+    inputArtifactRef?: ArtifactRef;
+}
+
+export interface WorkflowNodeExecutionStartData {
+    nodeId: string;
+    nodeType: string;
+    agentPersona?: string;
+    inputArtifactRef?: ArtifactRef;
+    iterationIndex?: number;
+}
+
+export interface WorkflowNodeExecutionResultData {
+    nodeId: string;
+    status: "success" | "failure" | "skipped";
+    outputArtifactRef?: ArtifactRef;
+    errorMessage?: string;
+    metadata?: Record<string, any>;
+}
+
+export interface WorkflowMapProgressData {
+    nodeId: string;
+    totalItems: number;
+    completedItems: number;
+    status: "in-progress" | "completed" | "failed";
+}
+
+export interface WorkflowExecutionResultData {
+    status: "success" | "failure";
+    outputArtifactRef?: ArtifactRef;
+    errorMessage?: string;
+}
+
 /**
  * Represents a single logical step in the visualized task flow.
  */
@@ -172,6 +217,11 @@ export interface VisualizerStep {
         errorDetails?: ErrorDetailsData; // For TASK_FAILED
         statusText?: string; // For AGENT_STATUS_UPDATE
         finalMessage?: string; // For TASK_COMPLETED (if there's a final summary message)
+        workflowExecutionStart?: WorkflowExecutionStartData; // For WORKFLOW_EXECUTION_START
+        workflowNodeExecutionStart?: WorkflowNodeExecutionStartData; // For WORKFLOW_NODE_EXECUTION_START
+        workflowNodeExecutionResult?: WorkflowNodeExecutionResultData; // For WORKFLOW_NODE_EXECUTION_RESULT
+        workflowMapProgress?: WorkflowMapProgressData; // For WORKFLOW_MAP_PROGRESS
+        workflowExecutionResult?: WorkflowExecutionResultData; // For WORKFLOW_EXECUTION_RESULT
     };
     rawEventIds: string[]; // Array of IDs/indices referencing the raw A2AEventSSEPayload(s) that constitute this logical step
     functionCallId?: string; // The function call ID this step is related to, especially for sub-task steps.
