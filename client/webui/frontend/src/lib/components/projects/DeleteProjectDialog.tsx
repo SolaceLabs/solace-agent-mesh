@@ -1,18 +1,18 @@
+import { useDeleteProject } from "@/features/projects/api/hooks";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 import type { Project } from "@/lib/types/projects";
 
 interface DeleteProjectDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: () => Promise<void>;
-    project: Project | null;
-    isDeleting?: boolean;
+    onConfirm?: () => Promise<void>;
+    project: Project;
 }
 
-export const DeleteProjectDialog = ({ isOpen, onClose, onConfirm, project, isDeleting = false }: DeleteProjectDialogProps) => {
-    if (!project) {
-        return null;
-    }
+export const DeleteProjectDialog = ({ isOpen, onClose, onConfirm, project }: DeleteProjectDialogProps) => {
+    const deleteProject = useDeleteProject(project.id);
+
+    if (!project) return null;
 
     return (
         <ConfirmationDialog
@@ -25,9 +25,12 @@ export const DeleteProjectDialog = ({ isOpen, onClose, onConfirm, project, isDel
                 </>
             }
             actionLabels={{ confirm: "Delete" }}
-            onConfirm={onConfirm}
+            onConfirm={async () => {
+                await deleteProject.mutateAsync();
+                onConfirm?.();
+            }}
             onCancel={onClose}
-            isLoading={isDeleting}
+            isLoading={deleteProject.isPending}
         />
     );
 };
