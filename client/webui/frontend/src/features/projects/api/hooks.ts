@@ -8,6 +8,12 @@ export const useProjects = (enabled: boolean) => {
         queryKey: projects.all.queryKey,
         queryFn: () => getProjects(),
         enabled,
+        select: data => {
+            const sorted = [...data.projects].sort((a, b) => {
+                return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+            });
+            return { ...data, projects: sorted };
+        },
     });
 };
 
