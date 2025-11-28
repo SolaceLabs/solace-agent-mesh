@@ -560,20 +560,18 @@ export function startNewWorkflowContext(manager: TimelineLayoutManager, workflow
     // Create the Workflow Start Node (acts as the entry point)
     const workflowAgentNode: Node = {
         id: workflowAgentNodeId,
-        type: "genericAgentNode", // We can use a specialized node type later if needed
+        type: "genericAgentNode",
         position: {
             x: 50,
             y: GROUP_PADDING_Y,
         },
-        data: { label: "Start", visualizerStepId: step.id, description: "Workflow Entry Point" },
-        parentId: groupNodeId,
-        style: {
-            width: "100px",
-            minWidth: "100px",
-            borderRadius: "20px", // Pill shape
-            backgroundColor: "#eef2ff",
-            border: "2px solid #6366f1",
+        data: {
+            label: "Start",
+            visualizerStepId: step.id,
+            description: "Workflow Entry Point",
+            variant: "pill",
         },
+        parentId: groupNodeId,
     };
 
     const groupNode: Node = {
