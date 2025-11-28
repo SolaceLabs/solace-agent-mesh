@@ -33,7 +33,7 @@ import {
 import { EdgeAnimationService } from "./edgeAnimationService";
 
 // Relevant step types that should be processed in the flow chart
-const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED", "WORKFLOW_EXECUTION_START"];
+const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED", "WORKFLOW_EXECUTION_START", "WORKFLOW_EXECUTION_RESULT"];
 
 interface FlowData {
     nodes: Node[];
@@ -420,9 +420,8 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
                 .find(sf => sf.functionCallId === step.functionCallId);
 
             if (workflowSubflow) {
-                // The source is the "Start" node of the workflow (or the last node in it, but let's use the anchor)
-                // Actually, visually it looks better if it comes from the workflow box or the start node.
-                toolNodeId = workflowSubflow.peerAgent.id;
+                // If a Finish node exists, use it as the source. Otherwise, fallback to the Start node (peerAgent).
+                toolNodeId = workflowSubflow.finishNodeId || workflowSubflow.peerAgent.id;
             }
         } else {
             const toolInstance = findToolInstanceByNameEnhanced(context.toolInstances, stepSource, nodes, step.functionCallId);
@@ -454,7 +453,7 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
             if (stepSource === "LLM") {
                 sourceHandle = "llm-bottom-output";
             } else if (stepSource.startsWith("workflow_")) {
-                sourceHandle = "peer-bottom-output"; // Workflow start node uses peer handles
+                sourceHandle = "peer-bottom-output"; // Workflow start/finish nodes use peer handles
             }
 
             createTimelineEdge(toolNodeId, receivingAgentNodeId, step, edges, manager, edgeAnimationService, processedSteps, sourceHandle, targetHandle);
@@ -589,6 +588,69 @@ function handleWorkflowExecutionStart(step: VisualizerStep, manager: TimelineLay
             "peer-top-input"
         );
     }
+}
+
+function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    const currentSubflow = getCurrentSubflow(manager);
+    if (!currentSubflow) return;
+
+    // Create Finish Node
+    const finishNodeId = generateNodeId(manager, `finish_${currentSubflow.id}`);
+    const finishNode: Node = {
+        id: finishNodeId,
+        type: "genericAgentNode",
+        position: {
+            x: 50,
+            y: currentSubflow.currentToolYOffset + GROUP_PADDING_Y, // Position at the end of the subflow
+        },
+        data: {
+            label: "Finish",
+            visualizerStepId: step.id,
+            description: "Workflow Completion",
+            variant: "pill",
+        },
+        parentId: currentSubflow.groupNode.id,
+    };
+
+    addNode(nodes, manager.allCreatedNodeIds, finishNode);
+    manager.nodePositions.set(finishNodeId, finishNode.position);
+
+    // Store finishNodeId in context for later use by handleToolExecutionResult
+    currentSubflow.finishNodeId = finishNodeId;
+
+    // Connect last node to Finish node
+    if (currentSubflow.lastNodeId) {
+        // Determine source handle for last node
+        // If last node was a tool, use tool handle. If it was an agent (Start node), use peer handle.
+        const lastNode = nodes.find(n => n.id === currentSubflow.lastNodeId);
+        let sourceHandle = "peer-bottom-output";
+        if (lastNode?.type === "genericToolNode" || lastNode?.type === "llmNode") {
+            sourceHandle = `${currentSubflow.lastNodeId}-tool-bottom-output`;
+            if (lastNode.type === "llmNode") sourceHandle = "llm-bottom-output";
+        }
+
+        createTimelineEdge(
+            currentSubflow.lastNodeId,
+            finishNodeId,
+            step,
+            edges,
+            manager,
+            edgeAnimationService,
+            processedSteps,
+            sourceHandle,
+            "peer-top-input"
+        );
+    }
+
+    // Update layout metrics
+    currentSubflow.maxY += NODE_HEIGHT + VERTICAL_SPACING;
+    // Update group height
+    const groupNodeData = nodes.find(n => n.id === currentSubflow.groupNode.id);
+    if (groupNodeData && groupNodeData.style) {
+        const currentHeight = parseInt(groupNodeData.style.height?.toString().replace("px", "") || "0");
+        groupNodeData.style.height = `${currentHeight + NODE_HEIGHT + VERTICAL_SPACING}px`;
+    }
+    manager.nextAvailableGlobalY += NODE_HEIGHT + VERTICAL_SPACING;
 }
 
 function handleTaskFailed(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[]): void {
@@ -785,6 +847,9 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
                 break;
             case "WORKFLOW_EXECUTION_START":
                 handleWorkflowExecutionStart(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
+                break;
+            case "WORKFLOW_EXECUTION_RESULT":
+                handleWorkflowExecutionResult(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
                 break;
         }
     }

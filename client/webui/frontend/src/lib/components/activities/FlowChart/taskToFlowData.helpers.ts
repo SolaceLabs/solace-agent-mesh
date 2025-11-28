@@ -66,6 +66,8 @@ export interface SubflowContext {
     parentSubflowId?: string; // ID of the parent subflow (if nested)
     inheritedXOffset?: number; // X offset inherited from parent parallel flow
     lastSubflow?: SubflowContext; // Last subflow context for this subflow for nested flows
+    lastNodeId?: string; // ID of the last node added to this subflow (for connecting Finish node)
+    finishNodeId?: string; // ID of the Finish node (if created)
 }
 
 export interface ParallelFlowContext {
@@ -623,6 +625,7 @@ export function startNewWorkflowContext(manager: TimelineLayoutManager, workflow
         maxContentXRelative: workflowAgentNode.position.x + NODE_WIDTH,
         callingPhaseId: currentPhase.id,
         parentSubflowId: getCurrentSubflow(manager)?.id,
+        lastNodeId: workflowAgentNodeId, // Initialize lastNodeId with the Start node
     };
 
     currentPhase.subflows.push(newSubflow);
@@ -727,6 +730,7 @@ export function createNewToolNodeInContext(
     const newMaxYInContext = toolY_absolute + NODE_HEIGHT; // Use absolute Y for maxY tracking
     if (subflow) {
         subflow.maxY = Math.max(subflow.maxY, newMaxYInContext); // subflow.maxY is absolute
+        subflow.lastNodeId = toolNodeId; // Update lastNodeId
 
         // Update maxContentXRelative to ensure it accounts for the tool node width
         subflow.maxContentXRelative = Math.max(subflow.maxContentXRelative, nodePositionX + NODE_WIDTH);
