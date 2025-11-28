@@ -134,7 +134,7 @@ export const ProjectsPage: React.FC = () => {
 
     return (
         <div className="flex h-full w-full flex-col">
-            {!showDetailView && (
+            {!selectedProject && (
                 <Header
                     title="Projects"
                     buttons={[
