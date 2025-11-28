@@ -18,7 +18,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import type { Session } from "@/lib/types";
 import type { Project } from "@/lib/types/projects";
 
-const SessionName: React.FC<{ session: Session }> = ({ session }) => {
+interface SessionNameProps {
+    session: Session;
+    isCurrentSession: boolean;
+    isResponding: boolean;
+}
+
+const SessionName: React.FC<SessionNameProps> = ({ session, isCurrentSession, isResponding }) => {
     const displayName = useMemo(() => {
         if (session.name && session.name.trim()) {
             return session.name;
@@ -27,9 +33,26 @@ const SessionName: React.FC<{ session: Session }> = ({ session }) => {
         return "New Chat";
     }, [session.name, session.id]);
 
-    const { text: animatedName, isAnimating } = useTitleAnimation(displayName);
+    // Pass session ID to useTitleAnimation so it can listen for title generation events
+    const { text: animatedName, isAnimating, isGenerating } = useTitleAnimation(displayName, session.id);
 
-    return <span className={`truncate font-semibold transition-opacity duration-300 ${isAnimating ? "animate-pulse opacity-50" : "opacity-100"}`}>{animatedName}</span>;
+    const isWaitingForTitle = useMemo(() => {
+        const isNewChat = !session.name || session.name === "New Chat";
+        return (isCurrentSession && isNewChat && isResponding) || isGenerating;
+    }, [session.name, isCurrentSession, isResponding, isGenerating]);
+
+    // Show slow pulse while waiting for title, faster pulse during transition animation
+    const animationClass = useMemo(() => {
+        if (isWaitingForTitle) {
+            return "animate-pulse-slow";
+        }
+        if (isAnimating) {
+            return "animate-pulse opacity-50";
+        }
+        return "opacity-100";
+    }, [isWaitingForTitle, isAnimating]);
+
+    return <span className={`truncate font-semibold transition-opacity duration-300 ${animationClass}`}>{animatedName}</span>;
 };
 
 interface PaginatedSessionsResponse {
@@ -51,7 +74,7 @@ interface SessionListProps {
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification } = useChatContext();
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, isResponding } = useChatContext();
     const { configServerUrl, persistenceEnabled } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -418,7 +441,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                         <button onClick={() => handleSessionClick(session.id)} className="min-w-0 flex-1 cursor-pointer text-left">
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                                    <SessionName session={session} />
+                                                    <SessionName session={session} isCurrentSession={session.id === sessionId} isResponding={isResponding} />
                                                     <span className="text-muted-foreground truncate text-xs">{formatSessionDate(session.updatedTime)}</span>
                                                 </div>
                                                 {session.projectName && (

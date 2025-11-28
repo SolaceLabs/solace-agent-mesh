@@ -44,6 +44,15 @@ export const useTitleGeneration = () => {
 
                 console.log(`[useTitleGeneration] Initial title: "${initialTitle}"`);
 
+                // Dispatch event to indicate title generation is starting
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(
+                        new CustomEvent("session-title-generating", {
+                            detail: { sessionId, isGenerating: true },
+                        })
+                    );
+                }
+
                 // Trigger async title generation
                 const response = await authenticatedFetch(`${apiPrefix}/sessions/${sessionId}/generate-title`, {
                     method: "POST",
@@ -60,6 +69,14 @@ export const useTitleGeneration = () => {
                         detail: "Failed to trigger title generation",
                     }));
                     console.warn("[useTitleGeneration] Title generation failed:", errorData.detail);
+                    // Stop generating indicator on failure
+                    if (typeof window !== "undefined") {
+                        window.dispatchEvent(
+                            new CustomEvent("session-title-generating", {
+                                detail: { sessionId, isGenerating: false },
+                            })
+                        );
+                    }
                     return;
                 }
 
@@ -80,6 +97,14 @@ export const useTitleGeneration = () => {
                                 const currentName = sessionData?.data?.name;
 
                                 if (currentName && currentName !== initialTitle) {
+                                    // Dispatch event to stop generating indicator
+                                    if (typeof window !== "undefined") {
+                                        window.dispatchEvent(
+                                            new CustomEvent("session-title-generating", {
+                                                detail: { sessionId, isGenerating: false },
+                                            })
+                                        );
+                                    }
                                     // Dispatch event to update UI
                                     if (typeof window !== "undefined") {
                                         window.dispatchEvent(
@@ -97,7 +122,13 @@ export const useTitleGeneration = () => {
                     }
 
                     console.warn("[useTitleGeneration] Title generation polling timed out - dispatching event anyway");
+                    // Stop generating indicator on timeout
                     if (typeof window !== "undefined") {
+                        window.dispatchEvent(
+                            new CustomEvent("session-title-generating", {
+                                detail: { sessionId, isGenerating: false },
+                            })
+                        );
                         window.dispatchEvent(
                             new CustomEvent("session-title-updated", {
                                 detail: { sessionId },
@@ -110,6 +141,14 @@ export const useTitleGeneration = () => {
                 pollForTitle();
             } catch (error) {
                 console.error("[useTitleGeneration] Error triggering title generation:", error);
+                // Stop generating indicator on error
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(
+                        new CustomEvent("session-title-generating", {
+                            detail: { sessionId, isGenerating: false },
+                        })
+                    );
+                }
             }
         },
         [apiPrefix]
