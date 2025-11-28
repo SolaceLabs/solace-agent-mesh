@@ -657,8 +657,12 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
 
     // Calculate absolute Y position
     // Relative to peer agent (Start node) + current offset
-    const nodeY_absolute = subflow.peerAgent.yPosition + subflow.currentToolYOffset + VERTICAL_SPACING;
-    subflow.currentToolYOffset += isControlNode ? NODE_HEIGHT : NODE_HEIGHT + VERTICAL_SPACING; // Less space for pills
+    // We add NODE_HEIGHT to account for the Start node's height, plus VERTICAL_SPACING for the gap.
+    const nodeY_absolute = subflow.peerAgent.yPosition + NODE_HEIGHT + VERTICAL_SPACING + subflow.currentToolYOffset;
+
+    // Update offset for the next node
+    // We use a consistent spacing for all node types
+    subflow.currentToolYOffset += NODE_HEIGHT + VERTICAL_SPACING;
 
     // Position relative to group
     // Start node is at x=50. We align these nodes with the start node.
