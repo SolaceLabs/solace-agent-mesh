@@ -9,6 +9,7 @@ from ..repository import (
     Session,
 )
 from ..repository.chat_task_repository import ChatTaskRepository
+from ..repository.task_repository import TaskRepository
 from ..repository.entities import ChatTask
 from ..shared.enums import SenderType
 from ..shared.types import SessionId, UserId
@@ -46,7 +47,7 @@ class SessionService:
         project_id: str | None = None
     ) -> PaginatedResponse[Session]:
         """
-        Get paginated sessions for a user with full metadata including project names.
+        Get paginated sessions for a user with full metadata including project names and background task status.
         Uses default pagination if none provided (page 1, size 20).
         Returns paginated response with pageNumber, pageSize, nextPage, totalPages, totalCount.
 
@@ -80,6 +81,63 @@ class SessionService:
             for session in sessions:
                 if session.project_id:
                     session.project_name = project_map.get(session.project_id)
+
+        # Check for running background tasks in these sessions
+        task_repo = TaskRepository()
+        session_ids = [s.id for s in sessions]
+        
+        # Get all running background tasks for this user
+        running_bg_tasks = task_repo.find_background_tasks_by_status(db, status=None)
+        running_bg_tasks = [
+            task for task in running_bg_tasks
+            if task.status in [None, "running", "pending"] and task.end_time is None and task.user_id == user_id
+        ]
+        
+        log.info(f"[get_user_sessions] Found {len(running_bg_tasks)} running background tasks for user {user_id}")
+        
+        # Create a map of session_id -> has_running_background_task
+        # Query ChatTaskModel to find which sessions these tasks belong to
+        # Also filter out tasks that have been marked as completed in their metadata
+        from ..repository.models import ChatTaskModel
+        import json
+        session_task_map = {}
+        if running_bg_tasks:
+            task_ids = [task.id for task in running_bg_tasks]
+            log.info(f"[get_user_sessions] Looking up chat tasks for task IDs: {task_ids}")
+            
+            # Query chat tasks for these task IDs
+            chat_tasks = db.query(ChatTaskModel).filter(
+                ChatTaskModel.id.in_(task_ids),
+                ChatTaskModel.user_id == user_id
+            ).all()
+            
+            log.info(f"[get_user_sessions] Found {len(chat_tasks)} chat tasks")
+            
+            for chat_task in chat_tasks:
+                if chat_task.session_id:
+                    # Check if task metadata indicates completion
+                    is_completed = False
+                    if chat_task.task_metadata:
+                        try:
+                            metadata = json.loads(chat_task.task_metadata) if isinstance(chat_task.task_metadata, str) else chat_task.task_metadata
+                            task_status = metadata.get("status")
+                            is_completed = task_status in ["completed", "error", "failed"]
+                            log.info(f"[get_user_sessions] Task {chat_task.id} metadata status: {task_status}, is_completed: {is_completed}")
+                        except Exception as e:
+                            log.warning(f"[get_user_sessions] Failed to parse task metadata for {chat_task.id}: {e}")
+                    
+                    # Only mark session as having running task if task is not completed
+                    if not is_completed:
+                        session_task_map[chat_task.session_id] = True
+                        log.debug(f"[get_user_sessions] Session {chat_task.session_id} has running background task {chat_task.id}")
+                    else:
+                        log.debug(f"[get_user_sessions] Task {chat_task.id} is completed, not marking session as having running task")
+        
+        # Add background task status to sessions
+        for session in sessions:
+            session.has_running_background_task = session_task_map.get(session.id, False)
+            if session.has_running_background_task:
+                log.info(f"[get_user_sessions] Marking session {session.id} as having running background task")
 
         return PaginatedResponse.create(sessions, total_count, pagination)
 
@@ -327,6 +385,63 @@ class SessionService:
             for session in sessions:
                 if session.project_id:
                     session.project_name = project_map.get(session.project_id)
+
+        # Check for running background tasks in these sessions
+        task_repo = TaskRepository()
+        session_ids = [s.id for s in sessions]
+        
+        # Get all running background tasks for this user
+        running_bg_tasks = task_repo.find_background_tasks_by_status(db, status=None)
+        running_bg_tasks = [
+            task for task in running_bg_tasks
+            if task.status in [None, "running", "pending"] and task.end_time is None and task.user_id == user_id
+        ]
+        
+        log.info(f"[search_sessions] Found {len(running_bg_tasks)} running background tasks for user {user_id}")
+        
+        # Create a map of session_id -> has_running_background_task
+        # Query ChatTaskModel to find which sessions these tasks belong to
+        # Also filter out tasks that have been marked as completed in their metadata
+        from ..repository.models import ChatTaskModel
+        import json
+        session_task_map = {}
+        if running_bg_tasks:
+            task_ids = [task.id for task in running_bg_tasks]
+            log.info(f"[search_sessions] Looking up chat tasks for task IDs: {task_ids}")
+            
+            # Query chat tasks for these task IDs
+            chat_tasks = db.query(ChatTaskModel).filter(
+                ChatTaskModel.id.in_(task_ids),
+                ChatTaskModel.user_id == user_id
+            ).all()
+            
+            log.info(f"[search_sessions] Found {len(chat_tasks)} chat tasks")
+            
+            for chat_task in chat_tasks:
+                if chat_task.session_id:
+                    # Check if task metadata indicates completion
+                    is_completed = False
+                    if chat_task.task_metadata:
+                        try:
+                            metadata = json.loads(chat_task.task_metadata) if isinstance(chat_task.task_metadata, str) else chat_task.task_metadata
+                            task_status = metadata.get("status")
+                            is_completed = task_status in ["completed", "error", "failed"]
+                            log.info(f"[search_sessions] Task {chat_task.id} metadata status: {task_status}, is_completed: {is_completed}")
+                        except Exception as e:
+                            log.warning(f"[search_sessions] Failed to parse task metadata for {chat_task.id}: {e}")
+                    
+                    # Only mark session as having running task if task is not completed
+                    if not is_completed:
+                        session_task_map[chat_task.session_id] = True
+                        log.info(f"[search_sessions] Session {chat_task.session_id} has running background task {chat_task.id}")
+                    else:
+                        log.info(f"[search_sessions] Task {chat_task.id} is completed, not marking session as having running task")
+        
+        # Add background task status to sessions
+        for session in sessions:
+            session.has_running_background_task = session_task_map.get(session.id, False)
+            if session.has_running_background_task:
+                log.info(f"[search_sessions] Marking session {session.id} as having running background task")
 
         log.info(
             "Search for '%s' by user %s returned %d results (total: %d)",

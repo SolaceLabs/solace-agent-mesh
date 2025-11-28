@@ -1,6 +1,6 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
+import type { AgentCardInfo, ArtifactInfo, ArtifactRenderingState, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session } from "@/lib/types";
 
 export interface ChatState {
     configCollectFeedback: boolean;
@@ -45,6 +45,9 @@ export interface ChatState {
     submittedFeedback: Record<string, { type: "up" | "down"; text: string }>;
     // Artifact Rendering State
     artifactRenderingState: ArtifactRenderingState;
+    // Background Task Monitoring State
+    backgroundTasks: BackgroundTaskState[];
+    backgroundNotifications: BackgroundTaskNotification[];
 }
 
 export interface ChatActions {
@@ -94,6 +97,9 @@ export interface ChatActions {
     updateSessionName: (sessionId: string, newName: string, showNotification?: boolean) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
     handleFeedbackSubmit: (taskId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
+
+    /** Background Task Monitoring Actions */
+    isTaskRunningInBackground: (taskId: string) => boolean;
 }
 
 export type ChatContextValue = ChatState & ChatActions;

@@ -2,7 +2,7 @@
 Task SQLAlchemy model.
 """
 
-from sqlalchemy import BigInteger, Column, Integer, JSON, String, Text
+from sqlalchemy import BigInteger, Boolean, Column, Integer, JSON, String, Text
 from sqlalchemy.orm import relationship
 
 from .base import Base
@@ -26,6 +26,12 @@ class TaskModel(Base):
     total_output_tokens = Column(Integer, nullable=True)
     total_cached_input_tokens = Column(Integer, nullable=True)
     token_usage_details = Column(JSON, nullable=True)
+    
+    # Background task execution columns
+    execution_mode = Column(String(20), nullable=True, default="foreground", index=True)
+    last_activity_time = Column(BigInteger, nullable=True, index=True)
+    background_execution_enabled = Column(Boolean, nullable=True, default=False)
+    max_execution_time_ms = Column(BigInteger, nullable=True)
 
     # Relationship to events
     events = relationship(

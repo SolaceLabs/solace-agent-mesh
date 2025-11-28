@@ -21,6 +21,12 @@ class Task(BaseModel):
     total_output_tokens: int | None = None
     total_cached_input_tokens: int | None = None
     token_usage_details: dict | None = None
+    
+    # Background task execution fields
+    execution_mode: str | None = "foreground"
+    last_activity_time: int | None = None
+    background_execution_enabled: bool | None = False
+    max_execution_time_ms: int | None = None
 
     class Config:
         from_attributes = True
