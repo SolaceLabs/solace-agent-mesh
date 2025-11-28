@@ -15,12 +15,12 @@ export interface PastedArtifactItem {
 /**
  * Determines if pasted text should be treated as "large" and rendered as a badge
  * @param text - The pasted text content
- * @returns true if text is >= 1000 characters OR >= 30 lines
+ * @returns true if text is >= 2000 characters OR >= 50 lines
  */
 export const isLargeText = (text: string): boolean => {
     const charCount = text.length;
     const lineCount = text.split("\n").length;
-    return charCount >= 1000 || lineCount >= 30;
+    return charCount >= 2000 || lineCount >= 50;
 };
 
 /**
@@ -73,9 +73,35 @@ export const generateArtifactDescription = (content: string): string => {
 };
 
 /**
+ * Helper function to detect if content is CSV
+ */
+const isCSV = (content: string): boolean => {
+    const lines = content.trim().split("\n");
+    if (lines.length < 2) return false;
+
+    // Check if lines have consistent comma-separated values
+    const firstLineCommas = (lines[0].match(/,/g) || []).length;
+    if (firstLineCommas === 0) return false;
+
+    // Check at least first 3 lines (or all if less) have similar comma count
+    const linesToCheck = Math.min(lines.length, 5);
+    for (let i = 1; i < linesToCheck; i++) {
+        const commas = (lines[i].match(/,/g) || []).length;
+        // Allow some variance but should be close to first line
+        if (Math.abs(commas - firstLineCommas) > 1) return false;
+    }
+
+    return true;
+};
+
+/**
  * Detects the content type from text
  */
 const detectContentType = (content: string): string => {
+    // Check for CSV first (common paste format)
+    if (isCSV(content)) {
+        return "text/csv";
+    }
     if (content.includes("def ") || (content.includes("import ") && content.includes("from "))) {
         return "text/python";
     }
@@ -115,6 +141,7 @@ const getExtensionFromMimeType = (mimeType: string): string => {
     const extensionMap: Record<string, string> = {
         "text/plain": "txt",
         "text/markdown": "md",
+        "text/csv": "csv",
         "application/json": "json",
         "text/html": "html",
         "text/css": "css",
@@ -134,6 +161,7 @@ const getTypeLabel = (mimeType: string): string => {
     const labelMap: Record<string, string> = {
         "text/plain": "text",
         "text/markdown": "Markdown",
+        "text/csv": "CSV",
         "application/json": "JSON",
         "text/html": "HTML",
         "text/css": "CSS",

@@ -15,7 +15,7 @@ import { FileBadge } from "./file/FileBadge";
 import { AudioRecorder } from "./AudioRecorder";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { VariableDialog } from "./VariableDialog";
-import { PastedTextBadge, PasteActionDialog, isLargeText, type PastedArtifactItem } from "./paste";
+import { PastedTextBadge, PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PastedArtifactItem, type PastedTextItem } from "./paste";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     switch (command) {
@@ -60,9 +60,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-    // Pasted artifact support
+    // Pasted artifact support (already saved as artifacts)
     const [pastedArtifactItems, setPastedArtifactItems] = useState<PastedArtifactItem[]>([]);
-    const [pendingPasteContent, setPendingPasteContent] = useState<string | null>(null);
+
+    // Pending pasted text support (not yet saved as artifacts, shown as badges)
+    const [pendingPastedTextItems, setPendingPastedTextItems] = useState<PastedTextItem[]>([]);
+    const [selectedPendingPasteId, setSelectedPendingPasteId] = useState<string | null>(null);
     const [showArtifactForm, setShowArtifactForm] = useState(false);
 
     const [contextText, setContextText] = useState<string | null>(null);
@@ -119,6 +122,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             setInputValue("");
             setShowPromptsCommand(false);
             setPastedArtifactItems([]);
+            setPendingPastedTextItems([]);
         }
         prevSessionIdRef.current = sessionId;
         setContextText(null);
@@ -233,19 +237,19 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             return;
         }
 
-        // Handle text pastes - show artifact form for large text
+        // Handle text pastes - show badge for large text
         const pastedText = clipboardData.getData("text");
         if (pastedText && isLargeText(pastedText)) {
-            // Large text - show artifact creation form
+            // Large text - add as pending pasted text badge
             event.preventDefault();
-            setPendingPasteContent(pastedText);
-            setShowArtifactForm(true);
+            const newItem = createPastedTextItem(pastedText);
+            setPendingPastedTextItems(prev => [...prev, newItem]);
         }
         // Small text pastes go through normally (no preventDefault)
     };
 
-    const handleSaveAsArtifact = async (title: string, fileType: string, description?: string) => {
-        if (!pendingPasteContent) return;
+    const handleSaveAsArtifact = async (title: string, fileType: string, content: string, description?: string) => {
+        if (!selectedPendingPasteId) return;
 
         try {
             // Determine MIME type
@@ -254,8 +258,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 mimeType = fileType;
             }
 
-            // Create a File object from the text content
-            const blob = new Blob([pendingPasteContent], { type: mimeType });
+            // Create a File object from the text content (use the potentially edited content)
+            const blob = new Blob([content], { type: mimeType });
             const file = new File([blob], title, { type: mimeType });
 
             // Upload the artifact
@@ -286,6 +290,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     return [...prev, artifactItem];
                 });
 
+                // Remove the pending item that was just saved
+                setPendingPastedTextItems(prev => prev.filter(item => item.id !== selectedPendingPasteId));
+
                 addNotification(`Artifact "${title}" created from pasted content.`);
                 // Refresh artifacts panel
                 await artifactsRefetch();
@@ -296,21 +303,33 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             console.error("Error saving artifact:", error);
             addNotification(`Error creating artifact: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
         } finally {
-            setPendingPasteContent(null);
+            setSelectedPendingPasteId(null);
             setShowArtifactForm(false);
         }
     };
 
     const handleCancelArtifactForm = () => {
-        setPendingPasteContent(null);
+        setSelectedPendingPasteId(null);
         setShowArtifactForm(false);
+    };
+
+    const handlePendingPasteClick = (id: string) => {
+        setSelectedPendingPasteId(id);
+        setShowArtifactForm(true);
+    };
+
+    const handleRemovePendingPaste = (id: string) => {
+        setPendingPastedTextItems(prev => prev.filter(item => item.id !== id));
     };
 
     const handleRemoveFile = (index: number) => {
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pastedArtifactItems.length !== 0), [isResponding, inputValue, selectedFiles, pastedArtifactItems]);
+    const isSubmittingEnabled = useMemo(
+        () => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pastedArtifactItems.length !== 0 || pendingPastedTextItems.length !== 0),
+        [isResponding, inputValue, selectedFiles, pastedArtifactItems, pendingPastedTextItems]
+    );
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
@@ -318,6 +337,17 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             let fullMessage = inputValue.trim();
             if (contextText && showContextBadge) {
                 fullMessage = `Context: "${contextText}"\n\n${fullMessage}`;
+            }
+
+            // Include pending pasted text content in the message
+            if (pendingPastedTextItems.length > 0) {
+                const pastedTextContent = pendingPastedTextItems.map((item, index) => `--- Pasted Text #${index + 1} ---\n${item.content}`).join("\n\n");
+
+                if (fullMessage) {
+                    fullMessage = `${fullMessage}\n\n${pastedTextContent}`;
+                } else {
+                    fullMessage = pastedTextContent;
+                }
             }
 
             const artifactFiles: File[] = pastedArtifactItems
@@ -342,6 +372,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             await handleSubmit(event, allFiles, fullMessage);
             setSelectedFiles([]);
             setPastedArtifactItems([]);
+            setPendingPastedTextItems([]);
             setInputValue("");
             setContextText(null);
             setShowContextBadge(false);
@@ -533,8 +564,23 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 );
             })()}
 
+            {/* Pending Pasted Text Items (not yet saved as artifacts) */}
+            {pendingPastedTextItems.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                    {pendingPastedTextItems.map(item => (
+                        <PendingPastedTextBadge key={item.id} id={item.id} content={item.content} onClick={() => handlePendingPasteClick(item.id)} onRemove={() => handleRemovePendingPaste(item.id)} />
+                    ))}
+                </div>
+            )}
+
             {/* Artifact Creation Dialog */}
-            <PasteActionDialog isOpen={showArtifactForm} content={pendingPasteContent || ""} onSaveAsArtifact={handleSaveAsArtifact} onCancel={handleCancelArtifactForm} existingArtifacts={artifacts.map(a => a.filename)} />
+            <PasteActionDialog
+                isOpen={showArtifactForm}
+                content={pendingPastedTextItems.find(item => item.id === selectedPendingPasteId)?.content || ""}
+                onSaveAsArtifact={handleSaveAsArtifact}
+                onCancel={handleCancelArtifactForm}
+                existingArtifacts={artifacts.map(a => a.filename)}
+            />
 
             {/* Prompts Command Popover */}
             <PromptsCommand
