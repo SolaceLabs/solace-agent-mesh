@@ -5,32 +5,24 @@ import { Button } from "@/lib/components/ui";
 import { Spinner } from "@/lib/components/ui/spinner";
 import { useDownload } from "@/lib/hooks/useDownload";
 import type { Project } from "@/lib/types/projects";
-import type { ArtifactInfo } from "@/lib/types";
 import { DocumentListItem } from "./DocumentListItem";
 import { AddProjectFilesDialog } from "./AddProjectFilesDialog";
-import { FileDetailsDialog } from "./FileDetailsDialog";
-import { EditFileDescriptionDialog } from "./EditFileDescriptionDialog";
-import { useAddFilesToProject, useProjectArtifacts, useUpdateFileMetadata } from "@/features/projects/api/hooks";
+import { useAddFilesToProject, useProjectArtifacts } from "@/features/projects/api/hooks";
 
 interface KnowledgeSectionProps {
     project: Project;
 }
 
 export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) => {
-    const { data: artifacts, isLoading, error, isSuccess, refetch } = useProjectArtifacts(project.id);
+    const { data: artifacts, isLoading, error, isSuccess } = useProjectArtifacts(project.id);
     const { onDownload } = useDownload(project.id);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [filesToUpload, setFilesToUpload] = useState<FileList | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
-    const [selectedArtifact, setSelectedArtifact] = useState<ArtifactInfo | null>(null);
-    const [showDetailsDialog, setShowDetailsDialog] = useState(false);
-    const [showEditDialog, setShowEditDialog] = useState(false);
-    const [isSavingMetadata, setIsSavingMetadata] = useState(false);
 
     const addFilesToProject = useAddFilesToProject(project.id);
-    const updateFileMetadata = useUpdateFileMetadata(project.id);
 
     const handleUploadClick = () => {
         fileInputRef.current?.click();
@@ -77,55 +69,10 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         setIsSubmitting(true);
         addFilesToProject.mutate(formData, {
             onSuccess: async () => {
-                await refetch();
                 setFilesToUpload(null);
                 setIsSubmitting(false);
             },
         });
-    };
-
-    const handleFileClick = (artifact: ArtifactInfo) => {
-        setSelectedArtifact(artifact);
-        setShowDetailsDialog(true);
-    };
-
-    const handleEditDescription = (artifact: ArtifactInfo) => {
-        setSelectedArtifact(artifact);
-        setShowEditDialog(true);
-    };
-
-    const handleSaveDescription = async (description: string) => {
-        if (!selectedArtifact) return;
-
-        setIsSavingMetadata(true);
-        updateFileMetadata.mutate(
-            { filename: selectedArtifact.filename, description },
-            {
-                onSuccess: async () => {
-                    await refetch();
-                    setShowEditDialog(false);
-                    setSelectedArtifact(null);
-                },
-                onSettled: () => setIsSavingMetadata(false),
-            }
-        );
-    };
-
-    const handleCloseDetailsDialog = () => {
-        setShowDetailsDialog(false);
-        setSelectedArtifact(null);
-    };
-
-    const handleCloseEditDialog = () => {
-        setShowEditDialog(false);
-        if (!showDetailsDialog) {
-            setSelectedArtifact(null);
-        }
-    };
-
-    const handleEditFromDetails = () => {
-        setShowDetailsDialog(false);
-        setShowEditDialog(true);
     };
 
     return (
@@ -166,14 +113,7 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
                         </div>
                         <div className="max-h-[400px] space-y-1 overflow-y-auto rounded-md">
                             {artifacts.map(artifact => (
-                                <DocumentListItem
-                                    key={artifact.filename}
-                                    project={project}
-                                    artifact={artifact}
-                                    onDownload={() => onDownload(artifact)}
-                                    onClick={() => handleFileClick(artifact)}
-                                    onEditDescription={() => handleEditDescription(artifact)}
-                                />
+                                <DocumentListItem key={artifact.filename} project={project} artifact={artifact} onDownload={() => onDownload(artifact)} />
                             ))}
                         </div>
                     </>
@@ -183,10 +123,6 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
             </div>
 
             <AddProjectFilesDialog isOpen={!!filesToUpload} files={filesToUpload} onClose={() => setFilesToUpload(null)} onConfirm={handleConfirmUpload} isSubmitting={isSubmitting} />
-
-            <FileDetailsDialog isOpen={showDetailsDialog} artifact={selectedArtifact} onClose={handleCloseDetailsDialog} onEdit={handleEditFromDetails} />
-
-            <EditFileDescriptionDialog isOpen={showEditDialog} artifact={selectedArtifact} onClose={handleCloseEditDialog} onSave={handleSaveDescription} isSaving={isSavingMetadata} />
         </div>
     );
 };

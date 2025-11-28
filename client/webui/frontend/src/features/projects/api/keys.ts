@@ -13,7 +13,7 @@ export const projects = createQueryKeys("projects", {
         contextQueries: {
             detail: (filename: string) => [filename],
             create: null,
-            update: null,
+            update: (filename: string) => [filename],
             delete: (filename: string) => [filename],
         },
     }),
