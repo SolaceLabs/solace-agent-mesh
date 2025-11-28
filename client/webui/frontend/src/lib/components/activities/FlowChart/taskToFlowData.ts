@@ -322,6 +322,10 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
     if (step.data.toolResult?.isPeerResponse || isWorkflowReturn) {
         const returningFunctionCallId = step.data.toolResult?.functionCallId;
 
+        if (isWorkflowReturn) {
+            console.log(`[Timeline] handleToolExecutionResult: Processing workflow return for tool ${toolName}. FunctionCallId: ${returningFunctionCallId || step.functionCallId}`);
+        }
+
         // 1. FIRST, check if this return belongs to any active parallel flow.
         const parallelFlowEntry = Array.from(manager.parallelFlows.entries()).find(
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -402,8 +406,10 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
                 .flatMap(p => p.subflows)
                 .find(sf => sf.functionCallId === lookupId);
             if (workflowSubflow) {
+                console.log(`[Timeline] handleToolExecutionResult: Found subflow ${workflowSubflow.id}. FinishNodeId: ${workflowSubflow.finishNodeId}, PeerAgentId: ${workflowSubflow.peerAgent.id}`);
                 sourceNodeId = workflowSubflow.finishNodeId || workflowSubflow.peerAgent.id;
             } else {
+                console.log(`[Timeline] handleToolExecutionResult: Subflow not found for lookupId ${lookupId}.`);
                 // Fallback: try to find the workflow agent by name if subflow lookup fails
                 const workflowName = toolName.replace("workflow_", "");
                 const agentInfo = manager.agentRegistry.findAgentByName(workflowName);
@@ -590,6 +596,7 @@ function handleWorkflowExecutionStart(step: VisualizerStep, manager: TimelineLay
     const workflowContext = startNewWorkflowContext(manager, workflowName, step, nodes);
 
     if (workflowContext) {
+        console.log(`[Timeline] handleWorkflowExecutionStart: Created workflow context. ID: ${workflowContext.id}, FunctionCallId: ${workflowContext.functionCallId}`);
         // Connect source to workflow agent
         createTimelineEdge(
             sourceNodeId,
@@ -657,6 +664,7 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
 
 function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
     const currentSubflow = findSubflowBySubTaskId(manager, step.owningTaskId);
+    console.log(`[Timeline] handleWorkflowExecutionResult: Step OwningTaskId: ${step.owningTaskId}. Found subflow: ${currentSubflow?.id}`);
     if (!currentSubflow) return;
 
     // Create Finish Node
@@ -687,6 +695,7 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
 
     // Store finishNodeId in context for later use by handleToolExecutionResult
     currentSubflow.finishNodeId = finishNodeId;
+    console.log(`[Timeline] handleWorkflowExecutionResult: Set finishNodeId: ${finishNodeId} for subflow ${currentSubflow.id}`);
 
     // Connect last node to Finish node
     if (currentSubflow.lastNodeId) {
