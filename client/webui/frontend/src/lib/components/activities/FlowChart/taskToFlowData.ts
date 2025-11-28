@@ -313,8 +313,9 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
     if (!currentPhase) return;
 
     const stepSource = step.source || "UnknownSource";
+    const toolName = step.data.toolResult?.toolName || stepSource;
     const targetAgentName = step.target || "OrchestratorAgent";
-    const isWorkflowReturn = stepSource.startsWith("workflow_");
+    const isWorkflowReturn = toolName.startsWith("workflow_");
 
     if (step.data.toolResult?.isPeerResponse || isWorkflowReturn) {
         const returningFunctionCallId = step.data.toolResult?.functionCallId;
@@ -399,6 +400,11 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
                 .find(sf => sf.functionCallId === step.functionCallId);
             if (workflowSubflow) {
                 sourceNodeId = workflowSubflow.finishNodeId || workflowSubflow.peerAgent.id;
+            } else {
+                // Fallback: try to find the workflow agent by name if subflow lookup fails
+                const workflowName = toolName.replace("workflow_", "");
+                const agentInfo = manager.agentRegistry.findAgentByName(workflowName);
+                if (agentInfo) sourceNodeId = agentInfo.id;
             }
         } else {
             const sourceAgent = manager.agentRegistry.findAgentByName(stepSource.startsWith("peer_") ? stepSource.substring(5) : stepSource);
