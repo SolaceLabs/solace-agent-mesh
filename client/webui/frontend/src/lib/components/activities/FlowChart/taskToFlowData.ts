@@ -817,7 +817,18 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
 
     // Calculate relative Y position for Finish node based on current content height
     // Add VERTICAL_SPACING to ensure consistent gap after the last node
-    const relativeY = currentSubflow.maxY - currentSubflow.groupNode.yPosition + VERTICAL_SPACING;
+    let relativeY = currentSubflow.maxY - currentSubflow.groupNode.yPosition + VERTICAL_SPACING;
+
+    // Safety check: Ensure relativeY is strictly below the last node
+    if (currentSubflow.lastNodeId) {
+        const lastNode = nodes.find(n => n.id === currentSubflow.lastNodeId);
+        if (lastNode) {
+            // Use estimated height if not available
+            const lastNodeHeight = (lastNode.measured?.height) || NODE_HEIGHT;
+            const lastNodeBottom = lastNode.position.y + lastNodeHeight;
+            relativeY = Math.max(relativeY, lastNodeBottom + VERTICAL_SPACING);
+        }
+    }
 
     const finishNode: Node = {
         id: finishNodeId,
@@ -871,6 +882,9 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
     const finishNodeBottomRelative = relativeY + NODE_HEIGHT;
     const requiredGroupHeight = finishNodeBottomRelative + GROUP_PADDING_Y;
 
+    // Update subflow.maxY to reflect the finish node (absolute Y)
+    currentSubflow.maxY = currentSubflow.groupNode.yPosition + finishNodeBottomRelative;
+
     // Update group height
     const groupNodeData = nodes.find(n => n.id === currentSubflow.groupNode.id);
     if (groupNodeData && groupNodeData.style) {
@@ -878,7 +892,7 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
     }
     
     // Update global Y tracker
-    manager.nextAvailableGlobalY = currentSubflow.groupNode.yPosition + requiredGroupHeight + VERTICAL_SPACING;
+    manager.nextAvailableGlobalY = currentSubflow.maxY + VERTICAL_SPACING;
 }
 
 function handleTaskFailed(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[]): void {
