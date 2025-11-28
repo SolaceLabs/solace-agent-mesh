@@ -172,6 +172,9 @@ export interface WorkflowNodeExecutionStartData {
     agentPersona?: string;
     inputArtifactRef?: ArtifactRef;
     iterationIndex?: number;
+    condition?: string;
+    trueBranch?: string;
+    falseBranch?: string;
 }
 
 export interface WorkflowNodeExecutionResultData {

@@ -274,12 +274,19 @@ class DAGExecutor:
             node = self.nodes[node_id]
 
             # Publish start event
-            start_data = WorkflowNodeExecutionStartData(
-                type="workflow_node_execution_start",
-                node_id=node_id,
-                node_type=node.type,
-                agent_persona=getattr(node, "agent_persona", None),
-            )
+            start_data_args = {
+                "type": "workflow_node_execution_start",
+                "node_id": node_id,
+                "node_type": node.type,
+                "agent_persona": getattr(node, "agent_persona", None),
+            }
+
+            if node.type == "conditional":
+                start_data_args["condition"] = node.condition
+                start_data_args["true_branch"] = node.true_branch
+                start_data_args["false_branch"] = node.false_branch
+
+            start_data = WorkflowNodeExecutionStartData(**start_data_args)
             await self.host.publish_workflow_event(workflow_context, start_data)
 
             # Handle different node types

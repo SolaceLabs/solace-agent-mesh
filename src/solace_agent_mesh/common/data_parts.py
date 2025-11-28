@@ -226,6 +226,15 @@ class WorkflowNodeExecutionStartData(BaseModel):
     iteration_index: Optional[int] = Field(
         None, description="Index if inside a map/loop"
     )
+    condition: Optional[str] = Field(
+        None, description="Condition expression for conditional nodes"
+    )
+    true_branch: Optional[str] = Field(
+        None, description="Node ID for true branch"
+    )
+    false_branch: Optional[str] = Field(
+        None, description="Node ID for false branch"
+    )
 
 
 class WorkflowNodeExecutionResultData(BaseModel):
