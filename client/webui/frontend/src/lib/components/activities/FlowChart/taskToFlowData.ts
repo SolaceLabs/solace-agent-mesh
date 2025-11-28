@@ -22,6 +22,7 @@ import {
     findToolInstanceByNameEnhanced,
     createNewMainPhase,
     startNewSubflow,
+    startNewWorkflowContext,
     createNewToolNodeInContext,
     createTimelineEdge,
     createNewUserNodeAtBottom,
@@ -32,7 +33,7 @@ import {
 import { EdgeAnimationService } from "./edgeAnimationService";
 
 // Relevant step types that should be processed in the flow chart
-const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED"];
+const RELEVANT_STEP_TYPES = ["USER_REQUEST", "AGENT_LLM_CALL", "AGENT_LLM_RESPONSE_TO_AGENT", "AGENT_LLM_RESPONSE_TOOL_DECISION", "AGENT_TOOL_INVOCATION_START", "AGENT_TOOL_EXECUTION_RESULT", "AGENT_RESPONSE_TEXT", "TASK_COMPLETED", "TASK_FAILED", "WORKFLOW_EXECUTION_START"];
 
 interface FlowData {
     nodes: Node[];
@@ -251,6 +252,11 @@ function handleToolInvocationStart(step: VisualizerStep, manager: TimelineLayout
 
     const sourceName = step.source || "UnknownSource";
     const targetToolName = step.target || "UnknownTool";
+
+    // Skip workflow tool invocations as they are handled by WORKFLOW_EXECUTION_START
+    if (targetToolName.startsWith("workflow_")) {
+        return;
+    }
 
     const isPeerDelegation = step.data.toolInvocationStart?.isPeerInvocation || targetToolName.startsWith("peer_");
 
@@ -524,6 +530,43 @@ function handleTaskCompleted(step: VisualizerStep, manager: TimelineLayoutManage
     manager.currentSubflowIndex = -1;
 }
 
+function handleWorkflowExecutionStart(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
+    const currentPhase = getCurrentPhase(manager);
+    if (!currentPhase) return;
+
+    // Determine source node
+    let sourceNodeId: string;
+    let sourceHandle: string;
+
+    const currentSubflow = getCurrentSubflow(manager);
+    if (currentSubflow) {
+        sourceNodeId = currentSubflow.peerAgent.id;
+        sourceHandle = "peer-bottom-output";
+    } else {
+        sourceNodeId = currentPhase.orchestratorAgent.id;
+        sourceHandle = "orch-bottom-output";
+    }
+
+    // Create workflow context (Group + Agent Node)
+    const workflowName = step.data.workflowExecutionStart?.workflowName || "Workflow";
+    const workflowContext = startNewWorkflowContext(manager, workflowName, step, nodes);
+
+    if (workflowContext) {
+        // Connect source to workflow agent
+        createTimelineEdge(
+            sourceNodeId,
+            workflowContext.peerAgent.id,
+            step,
+            edges,
+            manager,
+            edgeAnimationService,
+            processedSteps,
+            sourceHandle,
+            "peer-top-input"
+        );
+    }
+}
+
 function handleTaskFailed(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[]): void {
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
@@ -715,6 +758,9 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
                 break;
             case "TASK_FAILED":
                 handleTaskFailed(step, manager, newNodes, newEdges);
+                break;
+            case "WORKFLOW_EXECUTION_START":
+                handleWorkflowExecutionStart(step, manager, newNodes, newEdges, edgeAnimationService, processedSteps);
                 break;
         }
     }

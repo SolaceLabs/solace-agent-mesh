@@ -527,6 +527,106 @@ export function startNewSubflow(manager: TimelineLayoutManager, peerAgentName: s
     return newSubflow;
 }
 
+export function startNewWorkflowContext(manager: TimelineLayoutManager, workflowName: string, step: VisualizerStep, nodes: Node[]): SubflowContext | null {
+    const currentPhase = getCurrentPhase(manager);
+    if (!currentPhase) return null;
+
+    // For workflows, we assume sequential for now unless we detect parallel context
+    // We can enhance this later if workflows are launched in parallel
+    const isParallel = false;
+
+    manager.indentationLevel++;
+
+    // Use executionId as the subflow ID
+    const subflowId = step.data.workflowExecutionStart?.executionId || step.owningTaskId;
+    const workflowAgentNodeId = generateNodeId(manager, `${workflowName}_${subflowId}`);
+    const groupNodeId = generateNodeId(manager, `group_${workflowName}_${subflowId}`);
+
+    // Workflows don't necessarily have a functionCallId in the start event, but we can try to find it
+    const invocationFunctionCallId = step.functionCallId || "";
+
+    let groupNodeX: number;
+    let groupNodeY: number;
+    let peerAgentY: number;
+
+    // Standard sequential flow positioning
+    peerAgentY = manager.nextAvailableGlobalY;
+    const baseX = LANE_X_POSITIONS.MAIN_FLOW - 50;
+    groupNodeX = baseX + manager.indentationLevel * manager.indentationStep;
+    groupNodeY = peerAgentY - GROUP_PADDING_Y;
+
+    const displayName = resolveAgentDisplayName(workflowName, manager.agentNameMap);
+
+    // Create the Workflow Agent Node (acts as the header/anchor)
+    const workflowAgentNode: Node = {
+        id: workflowAgentNodeId,
+        type: "genericAgentNode", // Or a specialized 'workflowAgentNode' if we want distinct styling
+        position: {
+            x: 50,
+            y: GROUP_PADDING_Y,
+        },
+        data: { label: displayName, visualizerStepId: step.id, description: "Workflow Orchestrator" },
+        parentId: groupNodeId,
+    };
+
+    const groupNode: Node = {
+        id: groupNodeId,
+        type: "group",
+        position: { x: groupNodeX, y: groupNodeY },
+        data: { label: `${displayName} Workflow` },
+        style: {
+            backgroundColor: "rgba(240, 240, 255, 0.15)", // Slightly different color for workflows
+            border: "2px dashed #88a", // Dashed border to distinguish workflows
+            borderRadius: "8px",
+            minHeight: `${NODE_HEIGHT + 2 * GROUP_PADDING_Y}px`,
+        },
+    };
+
+    addNode(nodes, manager.allCreatedNodeIds, groupNode);
+    addNode(nodes, manager.allCreatedNodeIds, workflowAgentNode);
+    manager.nodePositions.set(workflowAgentNodeId, workflowAgentNode.position);
+    manager.nodePositions.set(groupNodeId, groupNode.position);
+
+    const workflowAgentInstance: NodeInstance = {
+        id: workflowAgentNodeId,
+        xPosition: LANE_X_POSITIONS.MAIN_FLOW,
+        yPosition: peerAgentY,
+        height: NODE_HEIGHT,
+        width: NODE_WIDTH,
+    };
+
+    const agentInfo: AgentNodeInfo = {
+        id: workflowAgentNodeId,
+        name: workflowName,
+        type: "peer", // Treat as peer for now
+        phaseId: currentPhase.id,
+        subflowId: subflowId,
+        context: "subflow",
+        nodeInstance: workflowAgentInstance,
+    };
+    manager.agentRegistry.registerAgent(agentInfo);
+
+    const newSubflow: SubflowContext = {
+        id: subflowId,
+        functionCallId: invocationFunctionCallId,
+        isParallel: isParallel,
+        peerAgent: workflowAgentInstance,
+        groupNode: { id: groupNodeId, xPosition: groupNodeX, yPosition: groupNodeY, height: NODE_HEIGHT + 2 * GROUP_PADDING_Y, width: 0 },
+        toolInstances: [],
+        currentToolYOffset: 0,
+        maxY: peerAgentY + NODE_HEIGHT,
+        maxContentXRelative: workflowAgentNode.position.x + NODE_WIDTH,
+        callingPhaseId: currentPhase.id,
+        parentSubflowId: getCurrentSubflow(manager)?.id,
+    };
+
+    currentPhase.subflows.push(newSubflow);
+    manager.currentSubflowIndex = currentPhase.subflows.length - 1;
+    manager.nextAvailableGlobalY = newSubflow.groupNode.yPosition + newSubflow.groupNode.height + VERTICAL_SPACING;
+
+    return newSubflow;
+}
+
 export function createNewToolNodeInContext(
     manager: TimelineLayoutManager,
     toolName: string,
