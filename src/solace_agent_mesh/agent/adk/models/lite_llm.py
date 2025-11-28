@@ -77,6 +77,7 @@ class UsageMetadataChunk(BaseModel):
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
+    cached_tokens: int = 0
 
 
 class LiteLLMClient:
@@ -436,10 +437,23 @@ def _model_response_to_chunk(
     # finish_reason set. But this is not the case we are observing from litellm.
     # So we are sending it as a separate chunk to be set on the llm_response.
     if response.get("usage", None):
+        usage = response["usage"]
+        # Extract cached tokens from prompt_tokens_details if available
+        # LiteLLM returns this as PromptTokensDetailsWrapper with cached_tokens attribute
+        cached_tokens = 0
+        prompt_tokens_details = usage.get("prompt_tokens_details")
+        if prompt_tokens_details:
+            # Handle both dict and object with cached_tokens attribute
+            if isinstance(prompt_tokens_details, dict):
+                cached_tokens = prompt_tokens_details.get("cached_tokens", 0) or 0
+            elif hasattr(prompt_tokens_details, "cached_tokens"):
+                cached_tokens = prompt_tokens_details.cached_tokens or 0
+        
         yield UsageMetadataChunk(
-            prompt_tokens=response["usage"].get("prompt_tokens", 0),
-            completion_tokens=response["usage"].get("completion_tokens", 0),
-            total_tokens=response["usage"].get("total_tokens", 0),
+            prompt_tokens=usage.get("prompt_tokens", 0),
+            completion_tokens=usage.get("completion_tokens", 0),
+            total_tokens=usage.get("total_tokens", 0),
+            cached_tokens=cached_tokens,
         ), None
 
 
@@ -464,10 +478,23 @@ def _model_response_to_generate_content_response(
 
     llm_response = _message_to_generate_content_response(message)
     if response.get("usage", None):
+        usage = response["usage"]
+        # Extract cached tokens from prompt_tokens_details if available
+        # LiteLLM returns this as PromptTokensDetailsWrapper with cached_tokens attribute
+        cached_tokens = 0
+        prompt_tokens_details = usage.get("prompt_tokens_details")
+        if prompt_tokens_details:
+            # Handle both dict and object with cached_tokens attribute
+            if isinstance(prompt_tokens_details, dict):
+                cached_tokens = prompt_tokens_details.get("cached_tokens", 0) or 0
+            elif hasattr(prompt_tokens_details, "cached_tokens"):
+                cached_tokens = prompt_tokens_details.cached_tokens or 0
+        
         llm_response.usage_metadata = types.GenerateContentResponseUsageMetadata(
-            prompt_token_count=response["usage"].get("prompt_tokens", 0),
-            candidates_token_count=response["usage"].get("completion_tokens", 0),
-            total_token_count=response["usage"].get("total_tokens", 0),
+            prompt_token_count=usage.get("prompt_tokens", 0),
+            candidates_token_count=usage.get("completion_tokens", 0),
+            total_token_count=usage.get("total_tokens", 0),
+            cached_content_token_count=cached_tokens if cached_tokens > 0 else None,
         )
     return llm_response
 
@@ -909,6 +936,7 @@ class LiteLlm(BaseLlm):
                             prompt_token_count=chunk.prompt_tokens,
                             candidates_token_count=chunk.completion_tokens,
                             total_token_count=chunk.total_tokens,
+                            cached_content_token_count=chunk.cached_tokens if chunk.cached_tokens > 0 else None,
                         )
 
                     if (
