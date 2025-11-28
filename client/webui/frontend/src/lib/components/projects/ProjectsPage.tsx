@@ -11,7 +11,6 @@ import { useChatContext } from "@/lib/hooks";
 import type { Project } from "@/lib/types/projects";
 import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
-import { authenticatedFetch } from "@/lib/utils/api";
 import { useCreateProject, useProjects } from "@/features/projects/api/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { projects } from "@/features/projects/api/keys";
@@ -26,7 +25,7 @@ export const ProjectsPage: React.FC = () => {
 
     const { setActiveProject } = useProjectContext();
     const [searchQuery, setSearchQuery] = useState("");
-    const { handleNewSession, handleSwitchSession, addNotification } = useChatContext();
+    const { handleNewSession, handleSwitchSession } = useChatContext();
 
     const { data, isLoading } = useProjects();
     const createProject = useCreateProject();
@@ -91,42 +90,6 @@ export const ProjectsPage: React.FC = () => {
         }
     }, [selectedProject, setActiveProject, handleNewSession, navigate]);
 
-    const handleImport = async (file: File, options: { preserveName: boolean; customName?: string }) => {
-        try {
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("options", JSON.stringify(options));
-
-            const response = await authenticatedFetch("/api/v1/projects/import", {
-                method: "POST",
-                body: formData,
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-
-                // Show warnings if any (combine into single notification for better UX)
-                if (result.warnings && result.warnings.length > 0) {
-                    const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
-                    addNotification(warningMessage, "info");
-                }
-
-                // Refresh projects and navigate to the newly imported one
-                queryClient.invalidateQueries({ queryKey: projects.all.queryKey });
-                navigate(`/projects/${result.projectId}`);
-
-                addNotification(`Project imported successfully with ${result.artifactsImported} artifacts`, "success");
-            } else {
-                const error = await response.json();
-                const errorMessage = error.detail || "Failed to import project";
-                throw new Error(errorMessage);
-            }
-        } catch (error) {
-            console.error("Failed to import project:", error);
-            throw error; // Re-throw to let dialog handle it
-        }
-    };
-
     // Determine if we should show list or detail view
     const showDetailView = selectedProject !== null;
 
@@ -162,7 +125,7 @@ export const ProjectsPage: React.FC = () => {
             <CreateProjectDialog isOpen={showCreateDialog} onClose={() => setShowCreateDialog(false)} onSubmit={handleCreateProject} isSubmitting={isCreating} />
 
             {/* Import Project Dialog */}
-            <ProjectImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} />
+            <ProjectImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} />
         </div>
     );
 };

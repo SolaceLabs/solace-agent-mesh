@@ -90,3 +90,21 @@ export const exportProject = async (projectId: string) => {
 
     return await response.blob();
 };
+
+export const importProject = async (file: File, options: { preserveName: boolean; customName?: string }) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("options", JSON.stringify(options));
+
+    const response = await authenticatedFetch("/api/v1/projects/import", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to import project");
+    }
+    return await response.json();
+};
