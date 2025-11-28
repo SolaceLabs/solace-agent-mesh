@@ -38,25 +38,41 @@ export const useCreateProject = () => {
 };
 
 export const useAddFilesToProject = (projectId: string) => {
+    const queryClient = useQueryClient();
+
     return useMutation({
         mutationKey: projects.artifacts(projectId)._ctx.new.queryKey,
         mutationFn: (data: FormData) => addFilesToProject(projectId, data),
+        onSettled: () =>
+            queryClient.invalidateQueries({
+                queryKey: projects.artifacts(projectId).queryKey,
+            }),
     });
 };
 
 export const useRemoveFileFromProject = (projectId: string) => {
+    const queryClient = useQueryClient();
+
     return useMutation({
         mutationKey: projects.artifacts(projectId)._ctx.delete.queryKey,
         mutationFn: (filename: string) => removeFileFromProject(projectId, filename),
+        onSettled: () =>
+            queryClient.invalidateQueries({
+                queryKey: projects.artifacts(projectId).queryKey,
+            }),
     });
 };
 
 export const useUpdateFileMetadata = (projectId: string) => {
+    const queryClient = useQueryClient();
+
     return useMutation({
         mutationKey: projects.artifacts(projectId)._ctx.update.queryKey,
-        mutationFn: ({ filename, description }: { filename: string; description: string }) => {
-            return updateFileMetadata(projectId, filename, description);
-        },
+        mutationFn: ({ filename, description }: { filename: string; description: string }) => updateFileMetadata(projectId, filename, description),
+        onSettled: () =>
+            queryClient.invalidateQueries({
+                queryKey: projects.artifacts(projectId).queryKey,
+            }),
     });
 };
 
