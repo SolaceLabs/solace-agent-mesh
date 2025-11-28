@@ -1650,15 +1650,23 @@ async def deep_research(
                 log.warning("%s Failed to explicitly register/signal artifact: %s",
                            log_identifier, e_track)
         
+        # Build the response artifact reference for the embed pattern
+        artifact_version = artifact_result.get("data_version", 1) if artifact_result.get("status") in ["success", "partial_success"] else None
+        
+        # Create a structured response that the agent can use with artifact_content embed
         result_dict = {
             "status": "success",
-            "message": f"Research complete: analyzed {len(all_findings)} sources. Report saved as artifact '{artifact_filename}'.",
-            "report": report,
+            "message": f"Research complete: analyzed {len(all_findings)} sources.",
             "artifact_filename": artifact_filename,
-            "artifact_version": artifact_result.get("data_version", 1) if artifact_result.get("status") in ["success", "partial_success"] else None,
+            "artifact_version": artifact_version,
             "total_sources": len(all_findings),
             "iterations_completed": min(iteration, max_iterations),
-            "rag_metadata": citation_tracker.get_rag_metadata()
+            "rag_metadata": citation_tracker.get_rag_metadata(),
+            # Include the response_artifact for the agent to use with artifact_content embed
+            "response_artifact": {
+                "filename": artifact_filename,
+                "version": artifact_version
+            }
         }
         
         return result_dict

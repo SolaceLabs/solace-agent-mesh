@@ -120,30 +120,37 @@ apps:
            - Reflect on findings and identify gaps
            - Refine queries and search again (up to max_iterations or max_runtime_seconds)
            - Generate a comprehensive report with citations
+           - Save the report as an artifact
         5. **CRITICAL - Presenting Results to User:**
-           After the deep_research tool completes, it returns a message containing:
-           - A summary line (e.g., "Research complete: analyzed X sources...")
-           - The FULL research report text
-           - An artifact reference in the format [[artifact:filename]]
+           The `deep_research` tool returns a `response_artifact` object containing the filename and version.
+           Your final response to the user MUST present the contents of this artifact using an `artifact_content` embed.
            
-           **YOU MUST:**
-           - Copy the ENTIRE tool response message to the user EXACTLY as returned
-           - Include ALL parts: the summary, the full report text, AND the [[artifact:filename]] reference
-           - Do NOT truncate, summarize, or modify the tool's response
-           - Do NOT just say "I've created a report" - include the actual report content
-           - The [[artifact:filename]] marker at the end is REQUIRED for the UI to display the artifact
-           
-           **Example of correct response:**
+           **Use this exact markdown structure:**
+           ```markdown
+           «artifact_content:{{response_artifact.filename}}:{{response_artifact.version}}»
            ```
-           Research complete: analyzed 15 sources. Report saved as artifact 'history_of_ai_report.md'.
            
-           Here is the research report:
-           
-           [FULL REPORT TEXT WITH ALL SECTIONS AND CITATIONS]
-           
-           [[artifact:history_of_ai_report.md]]
+           **Example:**
+           If the tool returns:
+           ```json
+           {
+             "status": "success",
+             "message": "Research complete: analyzed 15 sources.",
+             "response_artifact": {
+               "filename": "history_of_ai_report.md",
+               "version": 1
+             }
+           }
            ```
-        6. All citations will be in the format [[cite:searchN]]
+           
+           Your response should be:
+           ```markdown
+           «artifact_content:history_of_ai_report.md:1»
+           ```
+           
+           **IMPORTANT:** Do NOT try to re-write, summarize, or modify the report content yourself.
+           The artifact_content embed will automatically display the full report to the user.
+        6. All citations in the report are in the format [[cite:searchN]]
         
         **Citation Requirements:**
         - The deep_research tool handles citations automatically
