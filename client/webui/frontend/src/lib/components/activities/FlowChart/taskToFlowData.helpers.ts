@@ -648,7 +648,7 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
     // Use agent persona for label if available, otherwise node ID. Add type for clarity if not an agent.
     let label = data.agentPersona || nodeId;
     if (nodeType !== "agent") {
-        label = `${nodeId} (${nodeType})`;
+        label = nodeType === "conditional" ? "Decision" : `${nodeId} (${nodeType})`;
     }
 
     // Determine visual style
@@ -671,16 +671,26 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
 
     const flowNodeId = generateNodeId(manager, `wf_node_${nodeId}`);
 
+    let nodeTypeStr = "genericAgentNode";
+    const nodeData: any = {
+        label: label,
+        visualizerStepId: step.id,
+        description: `Workflow Node: ${nodeType}`,
+        variant: variant,
+    };
+
+    if (nodeType === "conditional") {
+        nodeTypeStr = "conditionalNode";
+        nodeData.condition = data.condition;
+        nodeData.trueBranch = data.trueBranch;
+        nodeData.falseBranch = data.falseBranch;
+    }
+
     const node: Node = {
         id: flowNodeId,
-        type: "genericAgentNode",
+        type: nodeTypeStr,
         position: { x: nodeX_relative, y: nodeY_relative },
-        data: {
-            label: label,
-            visualizerStepId: step.id,
-            description: `Workflow Node: ${nodeType}`,
-            variant: variant,
-        },
+        data: nodeData,
         parentId: subflow.groupNode.id,
     };
 
@@ -890,9 +900,9 @@ export function createTimelineEdge(
     _processedSteps: VisualizerStep[],
     sourceHandleId?: string,
     targetHandleId?: string
-): void {
+): Edge | undefined {
     if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) {
-        return;
+        return undefined;
     }
 
     // Validate that source and target nodes exist
@@ -900,11 +910,11 @@ export function createTimelineEdge(
     const targetExists = manager.allCreatedNodeIds.has(targetNodeId);
 
     if (!sourceExists) {
-        return;
+        return undefined;
     }
 
     if (!targetExists) {
-        return;
+        return undefined;
     }
 
     const edgeId = `edge-${sourceNodeId}${sourceHandleId || ""}-to-${targetNodeId}${targetHandleId || ""}-${step.id}`;
@@ -940,7 +950,9 @@ export function createTimelineEdge(
         }
 
         addEdgeAction(edges, newEdge);
+        return newEdge;
     }
+    return edges.find(e => e.id === edgeId);
 }
 
 // Agent Registry Implementation

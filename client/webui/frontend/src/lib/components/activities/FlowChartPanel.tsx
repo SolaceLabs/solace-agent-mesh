@@ -15,6 +15,7 @@ import { EdgeAnimationService } from "./FlowChart/edgeAnimationService";
 import { GROUP_PADDING_X, GROUP_PADDING_Y, NODE_HEIGHT, NODE_WIDTH } from "./FlowChart/taskToFlowData.helpers";
 import { transformProcessedStepsToTimelineFlow } from "./FlowChart/taskToFlowData";
 import GenericFlowEdge, { type AnimatedEdgeData } from "./FlowChart/customEdges/GenericFlowEdge";
+import ConditionalNode from "./FlowChart/customNodes/ConditionalNode";
 import GenericAgentNode from "./FlowChart/customNodes/GenericAgentNode";
 import GenericToolNode from "./FlowChart/customNodes/GenericToolNode";
 import LLMNode from "./FlowChart/customNodes/LLMNode";
@@ -28,6 +29,7 @@ const nodeTypes = {
     llmNode: LLMNode,
     orchestratorNode: OrchestratorAgentNode,
     genericToolNode: GenericToolNode,
+    conditionalNode: ConditionalNode,
 };
 
 const edgeTypes = {

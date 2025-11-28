@@ -630,23 +630,28 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
 
     if (newNode && previousNodeId) {
         // Determine source handle based on previous node type
-        // If previous was Start node (genericAgentNode), use peer handle
-        // If previous was another workflow node (genericAgentNode), use peer handle
-        // If previous was a tool (genericToolNode), use tool handle
-        // Since we are using genericAgentNode for workflow nodes, we use peer handles.
-        // Note: If we mix tools inside workflow, we might need logic here.
-        // For now, workflow nodes are genericAgentNodes.
-
-        // Check if previous node was a tool (unlikely in this simple chain, but possible if we add tools later)
         const prevNodeObj = nodes.find(n => n.id === previousNodeId);
         let sourceHandle = "peer-bottom-output";
+        let edgeLabel: string | undefined;
+
         if (prevNodeObj?.type === "genericToolNode") {
             sourceHandle = `${previousNodeId}-tool-bottom-output`;
         } else if (prevNodeObj?.type === "llmNode") {
             sourceHandle = "llm-bottom-output";
+        } else if (prevNodeObj?.type === "conditionalNode") {
+            sourceHandle = "cond-bottom-output";
+            // Determine label based on which branch this node represents
+            const resultStep = currentSubflow.lastResultStep;
+            if (resultStep?.data.workflowNodeExecutionResult?.metadata) {
+                const meta = resultStep.data.workflowNodeExecutionResult.metadata;
+                const currentNodeId = step.data.workflowNodeExecutionStart?.nodeId;
+                if (currentNodeId === meta.selected_branch) {
+                    edgeLabel = meta.condition_result ? "True" : "False";
+                }
+            }
         }
 
-        createTimelineEdge(
+        const edge = createTimelineEdge(
             previousNodeId,
             newNode.id,
             currentSubflow.lastResultStep || step, // Use the result of the previous node if available
@@ -655,8 +660,12 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
             edgeAnimationService,
             processedSteps,
             sourceHandle,
-            "peer-top-input"
+            prevNodeObj?.type === "conditionalNode" ? "peer-top-input" : "peer-top-input"
         );
+
+        if (edge && edgeLabel) {
+            edge.label = edgeLabel;
+        }
     }
 }
 
@@ -666,6 +675,77 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
 
     // Store this result step so it can be used as the data for the edge connecting to the NEXT node
     currentSubflow.lastResultStep = step;
+
+    // Handle visualization of untaken branch for conditional nodes
+    const resultData = step.data.workflowNodeExecutionResult;
+    if (resultData?.metadata?.condition_result !== undefined) {
+        // Find the conditional node
+        const conditionalNode = nodes.find(n => n.data.visualizerStepId === currentSubflow.lastNodeId); // Assuming lastNodeId is the conditional node that just finished
+        // Actually, lastNodeId points to the node created in Start.
+        // We can also find it by matching nodeId from resultData to the node ID generation logic, but lastNodeId is safer if sequential.
+
+        if (conditionalNode && conditionalNode.type === "conditionalNode") {
+            const conditionResult = resultData.metadata.condition_result as boolean;
+            const trueBranchId = conditionalNode.data.trueBranch as string;
+            const falseBranchId = conditionalNode.data.falseBranch as string;
+
+            const untakenBranchId = conditionResult ? falseBranchId : trueBranchId;
+
+            if (untakenBranchId) {
+                // Create a "Skipped" node to visualize the untaken path
+                const skippedNodeId = generateNodeId(manager, `skipped_${untakenBranchId}`);
+                const skippedNode: Node = {
+                    id: skippedNodeId,
+                    type: "genericAgentNode",
+                    position: {
+                        x: conditionalNode.position.x + 200, // Position to the right
+                        y: conditionalNode.position.y, // Same Y level
+                    },
+                    data: {
+                        label: "Skipped",
+                        description: `Untaken branch: ${untakenBranchId}`,
+                        variant: "pill",
+                    },
+                    parentId: currentSubflow.groupNode.id,
+                    style: { opacity: 0.5, borderStyle: "dashed" },
+                };
+
+                addNode(nodes, manager.allCreatedNodeIds, skippedNode);
+                manager.nodePositions.set(skippedNodeId, {
+                    x: (currentSubflow.groupNode.xPosition || 0) + skippedNode.position.x,
+                    y: (currentSubflow.groupNode.yPosition || 0) + skippedNode.position.y
+                });
+
+                // Expand group width if needed
+                const requiredWidth = skippedNode.position.x + NODE_WIDTH + GROUP_PADDING_X;
+                if (currentSubflow.groupNode.width && requiredWidth > currentSubflow.groupNode.width) {
+                    currentSubflow.groupNode.width = requiredWidth;
+                    const groupNode = nodes.find(n => n.id === currentSubflow.groupNode.id);
+                    if (groupNode) {
+                        groupNode.style = { ...groupNode.style, width: `${requiredWidth}px` };
+                    }
+                }
+
+                // Draw dashed edge to skipped node
+                const edge = createTimelineEdge(
+                    conditionalNode.id,
+                    skippedNodeId,
+                    step,
+                    edges,
+                    manager,
+                    edgeAnimationService,
+                    processedSteps,
+                    "cond-right-output",
+                    "peer-left-input"
+                );
+
+                if (edge) {
+                    edge.label = conditionResult ? "False" : "True";
+                    edge.style = { ...edge.style, strokeDasharray: "5,5", opacity: 0.5 };
+                }
+            }
+        }
+    }
 }
 
 function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
