@@ -600,7 +600,7 @@ export function startNewWorkflowContext(manager: TimelineLayoutManager, workflow
         xPosition: LANE_X_POSITIONS.MAIN_FLOW,
         yPosition: peerAgentY,
         height: NODE_HEIGHT,
-        width: NODE_WIDTH,
+        width: 150, // Start node is pill
     };
 
     const agentInfo: AgentNodeInfo = {
@@ -623,7 +623,7 @@ export function startNewWorkflowContext(manager: TimelineLayoutManager, workflow
         toolInstances: [],
         currentToolYOffset: 0,
         maxY: peerAgentY + NODE_HEIGHT,
-        maxContentXRelative: workflowAgentNode.position.x + NODE_WIDTH,
+        maxContentXRelative: workflowAgentNode.position.x + 150,
         callingPhaseId: currentPhase.id,
         parentSubflowId: getCurrentSubflow(manager)?.id,
         lastNodeId: workflowAgentNodeId, // Initialize lastNodeId with the Start node
@@ -703,17 +703,25 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
     addNode(nodes, manager.allCreatedNodeIds, node);
     manager.nodePositions.set(flowNodeId, { x: subflow.groupNode.xPosition + nodeX_relative, y: nodeY_absolute });
 
+    let estimatedWidth = NODE_WIDTH;
+    if (nodeType === "conditional") {
+        estimatedWidth = 120;
+    } else if (variant === "pill") {
+        estimatedWidth = 150;
+    }
+
     const nodeInstance: NodeInstance = {
         id: flowNodeId,
         xPosition: subflow.groupNode.xPosition + nodeX_relative,
         yPosition: nodeY_absolute,
         height: NODE_HEIGHT,
-        width: NODE_WIDTH,
+        width: estimatedWidth,
     };
 
     // Update layout metrics
     subflow.toolInstances.push(nodeInstance); // Track as part of subflow content
     subflow.lastNodeId = flowNodeId; // Update chain
+    subflow.maxContentXRelative = Math.max(subflow.maxContentXRelative, nodeX_relative + estimatedWidth);
 
     // Update group dimensions
     subflow.maxY = Math.max(subflow.maxY, nodeY_absolute + NODE_HEIGHT);

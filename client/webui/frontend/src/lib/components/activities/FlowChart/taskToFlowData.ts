@@ -745,10 +745,10 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
                 });
 
                 // Expand group width if needed
-                const requiredWidth = skippedNode.position.x + NODE_WIDTH + GROUP_PADDING_X;
+                const requiredWidth = skippedNode.position.x + 150 + GROUP_PADDING_X;
 
                 // Update maxContentXRelative to ensure final pass respects this width
-                currentSubflow.maxContentXRelative = Math.max(currentSubflow.maxContentXRelative, skippedNode.position.x + NODE_WIDTH);
+                currentSubflow.maxContentXRelative = Math.max(currentSubflow.maxContentXRelative, skippedNode.position.x + 150);
 
                 if (requiredWidth > (currentSubflow.groupNode.width || 0)) {
                     currentSubflow.groupNode.width = requiredWidth;
@@ -1074,10 +1074,7 @@ export const transformProcessedStepsToTimelineFlow = (processedSteps: Visualizer
                 // Ensure the group width is sufficient to contain all indented tool nodes
                 const requiredGroupWidth = subflow.maxContentXRelative + GROUP_PADDING_X;
 
-                // Add extra padding to ensure the group is wide enough for indented tools
-                const minRequiredWidth = NODE_WIDTH + 2 * GROUP_PADDING_X + manager.indentationLevel * manager.indentationStep;
-
-                groupNodeData.style.width = `${Math.max(requiredGroupWidth, minRequiredWidth)}px`;
+                groupNodeData.style.width = `${requiredGroupWidth}px`;
             }
         });
     });

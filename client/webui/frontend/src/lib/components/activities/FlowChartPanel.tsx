@@ -129,34 +129,33 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                 let maxY = 0;
 
                 childNodes.forEach(child => {
-                    const childRight = child.position.x + NODE_WIDTH;
-                    const childBottom = child.position.y + NODE_HEIGHT;
+                    // Use measured dimensions if available, otherwise estimate based on type
+                    let width = child.measured?.width;
+                    let height = child.measured?.height;
+
+                    if (!width || !height) {
+                        // Fallback estimates
+                        if (child.type === "conditionalNode") {
+                            width = 120;
+                            height = 80;
+                        } else if (child.type === "genericAgentNode" && (child.data as any)?.variant === "pill") {
+                            width = 150;
+                            height = 50;
+                        } else {
+                            width = NODE_WIDTH;
+                            height = NODE_HEIGHT;
+                        }
+                    }
+
+                    const childRight = child.position.x + width;
+                    const childBottom = child.position.y + height;
                     maxX = Math.max(maxX, childRight);
                     maxY = Math.max(maxY, childBottom);
                 });
 
                 // Add padding
-                const requiredWidth = maxX + GROUP_PADDING_X;
+                const finalRequiredWidth = maxX + GROUP_PADDING_X;
                 const requiredHeight = maxY + GROUP_PADDING_Y;
-
-                // Ensure minimum width for indented groups
-                // Extract indentation level from group ID if possible
-                let indentationLevel = 0;
-                const groupIdParts = node.id.split("_");
-                if (groupIdParts.length > 2) {
-                    // Try to extract the subflow number which correlates with indentation level
-                    const subflowPart = groupIdParts.find(part => part.startsWith("subflow"));
-                    if (subflowPart) {
-                        const subflowNum = parseInt(subflowPart.replace("subflow", ""));
-                        if (!isNaN(subflowNum)) {
-                            indentationLevel = subflowNum;
-                        }
-                    }
-                }
-
-                // Add extra space for indented tool nodes
-                const minRequiredWidth = NODE_WIDTH + 2 * GROUP_PADDING_X + indentationLevel * 50;
-                const finalRequiredWidth = Math.max(requiredWidth, minRequiredWidth);
 
                 // Update group node style if needed
                 const currentWidth = parseInt(node.style?.width?.toString().replace("px", "") || "0");
