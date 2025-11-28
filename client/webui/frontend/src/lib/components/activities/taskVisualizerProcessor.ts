@@ -670,12 +670,6 @@ export const processTaskForVisualization = (
                                 }
                                 break;
                             }
-                            case "artifact_creation_progress": {
-                                // Only handle in-progress and failed statuses for streaming updates
-                                // Completion is handled by artifact_completed signal
-                                console.log("[Timeline] Handling artifact_creation_progress signal (streaming only)");
-                                break;
-                            }
                             case "artifact_completed": {
                                 // Handle artifact completion
                                 console.log("[Timeline] Handling artifact_completed signal");
