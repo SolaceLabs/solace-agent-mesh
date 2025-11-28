@@ -557,23 +557,30 @@ export function startNewWorkflowContext(manager: TimelineLayoutManager, workflow
 
     const displayName = resolveAgentDisplayName(workflowName, manager.agentNameMap);
 
-    // Create the Workflow Agent Node (acts as the header/anchor)
+    // Create the Workflow Start Node (acts as the entry point)
     const workflowAgentNode: Node = {
         id: workflowAgentNodeId,
-        type: "genericAgentNode", // Or a specialized 'workflowAgentNode' if we want distinct styling
+        type: "genericAgentNode", // We can use a specialized node type later if needed
         position: {
             x: 50,
             y: GROUP_PADDING_Y,
         },
-        data: { label: displayName, visualizerStepId: step.id, description: "Workflow Orchestrator" },
+        data: { label: "Start", visualizerStepId: step.id, description: "Workflow Entry Point" },
         parentId: groupNodeId,
+        style: {
+            width: "100px",
+            minWidth: "100px",
+            borderRadius: "20px", // Pill shape
+            backgroundColor: "#eef2ff",
+            border: "2px solid #6366f1",
+        },
     };
 
     const groupNode: Node = {
         id: groupNodeId,
         type: "group",
         position: { x: groupNodeX, y: groupNodeY },
-        data: { label: `${displayName} Workflow` },
+        data: { label: displayName }, // The box is the Workflow itself
         style: {
             backgroundColor: "rgba(240, 240, 255, 0.15)", // Slightly different color for workflows
             border: "2px dashed #88a", // Dashed border to distinguish workflows

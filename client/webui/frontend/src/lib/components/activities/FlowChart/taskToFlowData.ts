@@ -409,10 +409,26 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
         let toolNodeId: string | undefined;
         const subflow = resolveSubflowContext(manager, step);
         const context = subflow || currentPhase;
-        const toolInstance = findToolInstanceByNameEnhanced(context.toolInstances, stepSource, nodes, step.functionCallId);
 
-        if (toolInstance) {
-            toolNodeId = toolInstance.id;
+        // Special handling for workflow tool returns
+        if (stepSource.startsWith("workflow_")) {
+            // For workflow tools, the "tool node" is actually the Workflow Context (Group/Start Node) we created earlier.
+            // We need to find the subflow that corresponds to this workflow execution.
+            // The step.functionCallId should match the subflow's functionCallId.
+            const workflowSubflow = manager.phases
+                .flatMap(p => p.subflows)
+                .find(sf => sf.functionCallId === step.functionCallId);
+
+            if (workflowSubflow) {
+                // The source is the "Start" node of the workflow (or the last node in it, but let's use the anchor)
+                // Actually, visually it looks better if it comes from the workflow box or the start node.
+                toolNodeId = workflowSubflow.peerAgent.id;
+            }
+        } else {
+            const toolInstance = findToolInstanceByNameEnhanced(context.toolInstances, stepSource, nodes, step.functionCallId);
+            if (toolInstance) {
+                toolNodeId = toolInstance.id;
+            }
         }
 
         if (toolNodeId) {
@@ -433,7 +449,15 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
                 }
             }
 
-            createTimelineEdge(toolNodeId, receivingAgentNodeId, step, edges, manager, edgeAnimationService, processedSteps, stepSource === "LLM" ? "llm-bottom-output" : `${toolNodeId}-tool-bottom-output`, targetHandle);
+            // Determine source handle based on whether it's a workflow or a regular tool
+            let sourceHandle = `${toolNodeId}-tool-bottom-output`;
+            if (stepSource === "LLM") {
+                sourceHandle = "llm-bottom-output";
+            } else if (stepSource.startsWith("workflow_")) {
+                sourceHandle = "peer-bottom-output"; // Workflow start node uses peer handles
+            }
+
+            createTimelineEdge(toolNodeId, receivingAgentNodeId, step, edges, manager, edgeAnimationService, processedSteps, sourceHandle, targetHandle);
         } else {
             console.error(`[Timeline] Could not find source tool node for regular tool result: ${step.id}. Step source (tool name): ${stepSource}.`);
         }
