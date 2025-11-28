@@ -109,22 +109,52 @@ class WorkflowDefinition(BaseModel):
 
     @model_validator(mode="after")
     def validate_dag_structure(self) -> "WorkflowDefinition":
-        """Validate DAG has no cycles and valid references."""
-        node_ids = {node.id for node in self.nodes}
+        """Validate DAG has no cycles, valid references, and consistent control flow."""
+        node_map = {node.id: node for node in self.nodes}
 
         for node in self.nodes:
             # Check dependencies reference valid nodes
             if node.depends_on:
                 for dep in node.depends_on:
-                    if dep not in node_ids:
+                    if dep not in node_map:
                         raise ValueError(
                             f"Node '{node.id}' depends on non-existent node '{dep}'"
                         )
 
-        # Check for cycles (implemented in DAGExecutor)
-        # For now, basic check passes
+            # Validate Conditional Node Consistency
+            # If A routes to B, B must depend on A. Otherwise B runs immediately/concurrently.
+            if node.type == "conditional":
+                self._validate_branch_dependency(
+                    node, node.true_branch, "true_branch", node_map
+                )
+                if node.false_branch:
+                    self._validate_branch_dependency(
+                        node, node.false_branch, "false_branch", node_map
+                    )
 
         return self
+
+    def _validate_branch_dependency(
+        self,
+        parent: WorkflowNode,
+        target_id: str,
+        branch_name: str,
+        node_map: Dict[str, WorkflowNode],
+    ):
+        """Ensure target node depends on parent node."""
+        target = node_map.get(target_id)
+        if not target:
+            raise ValueError(
+                f"Conditional node '{parent.id}' references non-existent {branch_name} '{target_id}'"
+            )
+
+        if not target.depends_on or parent.id not in target.depends_on:
+            raise ValueError(
+                f"Logic Error: Conditional node '{parent.id}' routes to '{target.id}' ({branch_name}), "
+                f"but '{target.id}' does not list '{parent.id}' in its 'depends_on' field. "
+                f"This would cause '{target.id}' to run immediately. "
+                f"Fix: Add 'depends_on: [{parent.id}]' to node '{target.id}'."
+            )
 
 
 class WorkflowAppConfig(SamAgentAppConfig):
