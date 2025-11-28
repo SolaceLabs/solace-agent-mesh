@@ -812,12 +812,16 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
     const currentSubflow = findSubflowBySubTaskId(manager, step.owningTaskId);
     if (!currentSubflow) return;
 
+    console.log(`[Timeline] handleWorkflowExecutionResult for subflow ${currentSubflow.id}`);
+    console.log(`[Timeline] Current maxY: ${currentSubflow.maxY}, GroupY: ${currentSubflow.groupNode.yPosition}`);
+
     // Create Finish Node
     const finishNodeId = generateNodeId(manager, `finish_${currentSubflow.id}`);
 
     // Calculate relative Y position for Finish node based on current content height
     // Add VERTICAL_SPACING to ensure consistent gap after the last node
     let relativeY = currentSubflow.maxY - currentSubflow.groupNode.yPosition + VERTICAL_SPACING;
+    console.log(`[Timeline] Initial relativeY: ${relativeY}`);
 
     // Safety check: Ensure relativeY is strictly below the last node
     if (currentSubflow.lastNodeId) {
@@ -826,7 +830,11 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
             // Use estimated height if not available
             const lastNodeHeight = (lastNode.measured?.height) || NODE_HEIGHT;
             const lastNodeBottom = lastNode.position.y + lastNodeHeight;
+            console.log(`[Timeline] Last node ${lastNode.id} bottom (relative): ${lastNodeBottom}`);
             relativeY = Math.max(relativeY, lastNodeBottom + VERTICAL_SPACING);
+            console.log(`[Timeline] Adjusted relativeY: ${relativeY}`);
+        } else {
+            console.log(`[Timeline] Last node ${currentSubflow.lastNodeId} not found in nodes list.`);
         }
     }
 
@@ -882,13 +890,19 @@ function handleWorkflowExecutionResult(step: VisualizerStep, manager: TimelineLa
     const finishNodeBottomRelative = relativeY + NODE_HEIGHT;
     const requiredGroupHeight = finishNodeBottomRelative + GROUP_PADDING_Y;
 
+    console.log(`[Timeline] Finish node bottom (relative): ${finishNodeBottomRelative}`);
+    console.log(`[Timeline] Required group height: ${requiredGroupHeight}`);
+
     // Update subflow.maxY to reflect the finish node (absolute Y)
     currentSubflow.maxY = currentSubflow.groupNode.yPosition + finishNodeBottomRelative;
 
     // Update group height
     const groupNodeData = nodes.find(n => n.id === currentSubflow.groupNode.id);
     if (groupNodeData && groupNodeData.style) {
+        console.log(`[Timeline] Updating group ${groupNodeData.id} height to ${requiredGroupHeight}px`);
         groupNodeData.style.height = `${requiredGroupHeight}px`;
+    } else {
+        console.log(`[Timeline] Group node ${currentSubflow.groupNode.id} not found or missing style.`);
     }
     
     // Update global Y tracker
