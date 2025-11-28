@@ -25,7 +25,8 @@ export const ProjectsPage: React.FC = () => {
     const [isCreating, setIsCreating] = useState(false);
     const [showImportDialog, setShowImportDialog] = useState(false);
 
-    const { setActiveProject, searchQuery, setSearchQuery } = useProjectContext();
+    const { setActiveProject } = useProjectContext();
+    const [searchQuery, setSearchQuery] = useState("");
     const { handleNewSession, handleSwitchSession, addNotification } = useChatContext();
 
     const { data, isLoading } = useProjects(true);
