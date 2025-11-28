@@ -5,8 +5,6 @@ export { ProjectCard } from "./ProjectCard";
 export { ProjectsPage } from "./ProjectsPage";
 export { ProjectCards } from "./ProjectCards";
 export { ProjectDetailView } from "./ProjectDetailView";
-export { ProjectHeader } from "./ProjectHeader";
-export { ProjectDescription } from "./ProjectDescription";
 export { ProjectChatsSection } from "./ProjectChatsSection";
 export { SystemPromptSection } from "./SystemPromptSection";
 export { DefaultAgentSection } from "./DefaultAgentSection";
