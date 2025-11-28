@@ -331,7 +331,6 @@ export const processTaskForVisualization = (
 
                         switch (signalType) {
                             case "workflow_execution_start": {
-                                console.log("[Visualizer] Processing WORKFLOW_EXECUTION_START", signalData);
                                 visualizerSteps.push({
                                     id: `vstep-wfstart-${visualizerSteps.length}-${eventId}`,
                                     type: "WORKFLOW_EXECUTION_START",
@@ -354,7 +353,6 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "workflow_node_execution_start": {
-                                console.log("[Visualizer] Processing WORKFLOW_NODE_EXECUTION_START", signalData);
                                 visualizerSteps.push({
                                     id: `vstep-wfnode-start-${visualizerSteps.length}-${eventId}`,
                                     type: "WORKFLOW_NODE_EXECUTION_START",
@@ -379,7 +377,6 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "workflow_node_execution_result": {
-                                console.log("[Visualizer] Processing WORKFLOW_NODE_EXECUTION_RESULT", signalData);
                                 visualizerSteps.push({
                                     id: `vstep-wfnode-result-${visualizerSteps.length}-${eventId}`,
                                     type: "WORKFLOW_NODE_EXECUTION_RESULT",
@@ -404,7 +401,6 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "workflow_map_progress": {
-                                console.log("[Visualizer] Processing WORKFLOW_MAP_PROGRESS", signalData);
                                 visualizerSteps.push({
                                     id: `vstep-wfmap-${visualizerSteps.length}-${eventId}`,
                                     type: "WORKFLOW_MAP_PROGRESS",
@@ -428,7 +424,6 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "workflow_execution_result": {
-                                console.log("[Visualizer] Processing WORKFLOW_EXECUTION_RESULT", signalData);
                                 visualizerSteps.push({
                                     id: `vstep-wfresult-${visualizerSteps.length}-${eventId}`,
                                     type: "WORKFLOW_EXECUTION_RESULT",
