@@ -369,6 +369,14 @@ class DAGExecutor:
         # Mark conditional as complete immediately since it's internal logic
         workflow_state.completed_nodes[node.id] = "conditional_evaluated"
 
+        # Store output for dependency resolution
+        workflow_state.node_outputs[node.id] = {
+            "output": {
+                "condition_result": result,
+                "condition": node.condition,
+            }
+        }
+
         # Publish result event
         result_data = WorkflowNodeExecutionResultData(
             type="workflow_node_execution_result",

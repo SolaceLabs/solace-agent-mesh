@@ -116,6 +116,17 @@ class PersonaCaller:
         # Case 2b: Single Dependency -> Use Dependency Output
         if len(node.depends_on) == 1:
             dep_id = node.depends_on[0]
+
+            # Check if dependency is a conditional node
+            dep_node = self.host.dag_executor.nodes.get(dep_id)
+            if dep_node and dep_node.type == "conditional":
+                log.debug(
+                    f"{self.host.log_identifier} Node '{node.id}' depends on conditional '{dep_id}'. Using workflow input."
+                )
+                if "workflow_input" not in workflow_state.node_outputs:
+                    raise ValueError("Workflow input has not been initialized")
+                return workflow_state.node_outputs["workflow_input"]["output"]
+
             if dep_id not in workflow_state.node_outputs:
                 raise ValueError(f"Dependency '{dep_id}' has not completed")
             return workflow_state.node_outputs[dep_id]["output"]
