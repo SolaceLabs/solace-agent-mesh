@@ -165,8 +165,8 @@ async def _inject_project_context(
                         elif not inject_full_context and new_artifact_descriptions:
                             # Existing session: notify about newly added files
                             new_files_context = (
-                                "\nNew Files Added to Project:\n"
-                                "The following files have been added to the project and are now available in your session:\n"
+                                "\nNew Files Added to Session:\n"
+                                "The following files have been added to your session (in addition to any files already present):\n"
                                 + "\n".join(new_artifact_descriptions)
                             )
                             context_parts.append(new_files_context)
