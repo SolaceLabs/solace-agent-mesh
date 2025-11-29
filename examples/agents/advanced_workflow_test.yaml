@@ -53,57 +53,6 @@ apps:
       agent_card_publishing: { interval_seconds: 10 }
       agent_discovery: { enabled: false }
 
-  # ============================================================================
-  # AGENT 2: Data Pass-Through
-  # Simulates passing through direct data
-  # ============================================================================
-  - name: data_passthrough_app
-    app_base_path: .
-    app_module: solace_agent_mesh.agent.sac.app
-    broker:
-      <<: *broker_connection
-
-    app_config:
-      namespace: ${NAMESPACE}
-      agent_name: "DataPassThrough"
-      model: *planning_model
-      
-      instruction: |
-        You pass through data items.
-        1. Read 'direct_items' from input.
-        2. Create a JSON artifact "items.json" with: {"items": direct_items}
-        3. End with: «result:artifact=items.json status=success»
-
-      input_schema:
-        type: object
-        properties:
-          direct_items: 
-            type: array
-            items: {type: object}
-        required: [direct_items]
-
-      output_schema:
-        type: object
-        properties:
-          items: 
-            type: array
-            items: {type: object}
-        required: [items]
-
-      tools:
-        - tool_type: builtin-group
-          group_name: "artifact_management"
-
-      session_service:
-        <<: *default_session_service
-      artifact_service:
-        <<: *default_artifact_service
-      
-      agent_card:
-        description: "Passes through data items"
-        skills: [{id: "pass_data", name: "Pass Data", description: "Passes data", tags: ["data"]}]
-      agent_card_publishing: { interval_seconds: 10 }
-      agent_discovery: { enabled: false }
 
   # ============================================================================
   # AGENT 3: Item Processor
@@ -269,53 +218,24 @@ apps:
             type: conditional
             condition: "'{{workflow.input.mode}}' == 'generate'"
             true_branch: generate_data
-            false_branch: use_direct_data
+            # false_branch omitted: if false, generate_data is skipped, and we fall through to process_items
 
-          # Step 2a: Generate Data (Agent)
+          # Step 2: Generate Data (Agent) - Only runs if mode == 'generate'
           - id: generate_data
             type: agent
             agent_persona: "DataGenerator"
             depends_on: [mode_check]
             # Implicit input: None (uses workflow input, but agent ignores it)
 
-          # Step 2b: Use Direct Data (Pass-through Agent)
-          - id: use_direct_data
-            type: agent
-            agent_persona: "DataPassThrough"
-            depends_on: [mode_check]
-            input:
-              direct_items: "{{workflow.input.direct_items}}"
-
           # Step 3: Map (Parallel Processing)
           - id: process_items
             type: map
-            depends_on: [generate_data, use_direct_data]
-            # Coalesce the list from either branch
-            # Note: MapNode 'items' field supports templates. 
-            # We need to ensure 'items' resolves to a list.
-            # Since we can't use coalesce inside the 'items' string directly (it's a template string),
-            # we rely on the fact that only one branch runs.
-            # BUT, if we reference a skipped node, it returns None.
-            # We need a way to say "Output of A OR Output of B".
-            # The current template syntax doesn't support OR logic inside {{...}}.
-            # Workaround: Use a conditional node to route to the Map, and have the Map
-            # use a variable that is set by the previous step? No variables.
-            #
-            # Actually, this highlights a gap! How do we merge data for the next step?
-            #
-            # Option A: Two Map nodes (one for each branch), then merge results.
-            # Option B: A "Merge" or "PassThrough" agent that unifies the data format.
-            #
-            # Let's use Option A for this test to demonstrate branching fully.
-            
-            # This path is dead-ended for now in this config structure because we can't dynamic bind 'items'.
-            # Let's simplify: The workflow always generates data for this test.
-            # We will test Implicit Input and Map.
-            
+            depends_on: [generate_data]
+            # Coalesce: Use generated data if available, otherwise use direct input
             items:
               coalesce:
                 - "{{generate_data.output.items}}"
-                - "{{use_direct_data.output.items}}"
+                - "{{workflow.input.direct_items}}"
             node: process_single_item
             concurrency_limit: 2
 
