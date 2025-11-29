@@ -483,12 +483,21 @@ class DAGExecutor:
         # Find children
         children = self.reverse_dependencies.get(node_id, [])
         for child_id in children:
-            # If child depends ONLY on skipped nodes (or completed nodes), skip it too?
-            # If child has other dependencies that are NOT skipped, should it run?
-            # Usually in workflow engines, if a parent is skipped, the child is skipped
-            # unless there's a specific "join" logic (like "all_done" vs "all_success").
-            # For MVP, we'll assume strict dependency: if any parent is skipped, child is skipped.
-            await self._skip_branch(child_id, workflow_state)
+            # Only skip child if ALL its dependencies are skipped
+            child_deps = self.dependencies.get(child_id, [])
+
+            all_deps_skipped = True
+            for dep in child_deps:
+                # If dependency is not completed, or completed but not skipped, then child might still run
+                if dep not in workflow_state.completed_nodes:
+                    all_deps_skipped = False
+                    break
+                if workflow_state.completed_nodes[dep] != "SKIPPED":
+                    all_deps_skipped = False
+                    break
+
+            if all_deps_skipped:
+                await self._skip_branch(child_id, workflow_state)
 
     async def _execute_fork_node(
         self,
