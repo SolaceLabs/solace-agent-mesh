@@ -48,20 +48,22 @@ const GenericAgentNode: React.FC<NodeProps<Node<GenericNodeData>>> = ({ data }) 
             {data.toolSlots &&
                 data.toolSlots.map(slot => (
                     <React.Fragment key={slot.id}>
+                        {/* Output handle (Request) - positioned slightly higher */}
                         <Handle
                             type="source"
                             position={Position.Right}
                             id={`agent-out-${slot.id}`}
                             className="!bg-blue-700"
-                            style={{ top: `${slot.yOffset}px`, right: "-2px" }}
+                            style={{ top: `${slot.yOffset - 12}px`, right: "-2px" }}
                             isConnectable={true}
                         />
+                        {/* Input handle (Response) - positioned slightly lower */}
                         <Handle
                             type="target"
                             position={Position.Right}
                             id={`agent-in-${slot.id}`}
                             className="!bg-blue-700"
-                            style={{ top: `${slot.yOffset}px`, right: "-2px" }}
+                            style={{ top: `${slot.yOffset + 12}px`, right: "-2px" }}
                             isConnectable={true}
                         />
                     </React.Fragment>
