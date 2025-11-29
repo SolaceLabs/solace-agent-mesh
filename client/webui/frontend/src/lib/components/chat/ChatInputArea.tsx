@@ -48,7 +48,8 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages } = useChatContext();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages, handleNewSession } =
+        useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
@@ -86,43 +87,73 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
+    // Track pending prompt to set after new session is created
+    const pendingPromptRef = useRef<{ promptText: string; groupId: string; groupName: string } | null>(null);
 
     useEffect(() => {
         // Check for pending prompt use from router state
         if (location.state?.promptText) {
             const { promptText, groupId, groupName } = location.state;
 
-            // Check if prompt has variables
-            const variables = detectVariables(promptText);
-            if (variables.length > 0) {
-                // Show variable dialog
-                setPendingPromptGroup({
-                    id: groupId,
-                    name: groupName,
-                    productionPrompt: { promptText: promptText },
-                } as PromptGroup);
-                setShowVariableDialog(true);
-            } else {
-                setInputValue(promptText);
-                setTimeout(() => {
-                    chatInputRef.current?.focus();
-                }, 100);
-            }
-
-            // Clear the location state to prevent re-triggering
+            // Clear the location state immediately to prevent re-triggering
             navigate(location.pathname, { replace: true, state: {} });
-            return; // Don't clear input if we just set it
+
+            // If we have an existing session, start a new one and store the prompt for later
+            if (sessionId) {
+                // Store the prompt to be set after session change
+                pendingPromptRef.current = { promptText, groupId, groupName };
+                handleNewSession();
+            } else {
+                // No existing session, just set the prompt directly
+                const variables = detectVariables(promptText);
+                if (variables.length > 0) {
+                    setPendingPromptGroup({
+                        id: groupId,
+                        name: groupName,
+                        productionPrompt: { promptText: promptText },
+                    } as PromptGroup);
+                    setShowVariableDialog(true);
+                } else {
+                    setInputValue(promptText);
+                    setTimeout(() => {
+                        chatInputRef.current?.focus();
+                    }, 100);
+                }
+            }
+            return;
         }
 
         // Only clear if session actually changed (not just initialized)
         if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId) {
-            setInputValue("");
-            setShowPromptsCommand(false);
-            setPastedArtifactItems([]);
+            // Check if we have a pending prompt to set after session change
+            if (pendingPromptRef.current) {
+                const { promptText, groupId, groupName } = pendingPromptRef.current;
+                pendingPromptRef.current = null;
+
+                const variables = detectVariables(promptText);
+                if (variables.length > 0) {
+                    setPendingPromptGroup({
+                        id: groupId,
+                        name: groupName,
+                        productionPrompt: { promptText: promptText },
+                    } as PromptGroup);
+                    setShowVariableDialog(true);
+                } else {
+                    setInputValue(promptText);
+                    setTimeout(() => {
+                        chatInputRef.current?.focus();
+                    }, 100);
+                }
+            } else {
+                // Normal session change - clear input
+                setInputValue("");
+                setShowPromptsCommand(false);
+                setPastedArtifactItems([]);
+            }
         }
         prevSessionIdRef.current = sessionId;
         setContextText(null);
-    }, [sessionId, location.state, location.pathname, navigate]);
+    }, [sessionId, location.state, location.pathname, navigate, handleNewSession]);
 
     useEffect(() => {
         if (prevIsRespondingRef.current && !isResponding) {
