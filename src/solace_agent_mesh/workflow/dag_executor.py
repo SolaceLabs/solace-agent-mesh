@@ -296,13 +296,13 @@ class DAGExecutor:
                 # Resolve labels for branches
                 if node.true_branch and node.true_branch in self.nodes:
                     true_node = self.nodes[node.true_branch]
-                    if hasattr(true_node, "agent_persona"):
-                        start_data_args["true_branch_label"] = true_node.agent_persona
+                    # Use node ID as label to ensure uniqueness in visualization
+                    start_data_args["true_branch_label"] = true_node.id
 
                 if node.false_branch and node.false_branch in self.nodes:
                     false_node = self.nodes[node.false_branch]
-                    if hasattr(false_node, "agent_persona"):
-                        start_data_args["false_branch_label"] = false_node.agent_persona
+                    # Use node ID as label to ensure uniqueness in visualization
+                    start_data_args["false_branch_label"] = false_node.id
 
             start_data = WorkflowNodeExecutionStartData(**start_data_args)
             await self.host.publish_workflow_event(workflow_context, start_data)
