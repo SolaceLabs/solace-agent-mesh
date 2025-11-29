@@ -1640,7 +1640,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             else None
                         )
                         task_status = a2a.get_task_status(result)
-                        if task_status and task_status.message:
+                        # Guard against task_status being an Enum (TaskState) instead of TaskStatus object
+                        if (
+                            task_status
+                            and not isinstance(task_status, TaskState)
+                            and hasattr(task_status, "message")
+                        ):
                             data_parts = a2a.get_data_parts_from_message(
                                 task_status.message
                             )

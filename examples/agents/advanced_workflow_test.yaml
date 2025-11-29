@@ -230,7 +230,7 @@ apps:
           # Step 3: Map (Parallel Processing)
           - id: process_items
             type: map
-            depends_on: [generate_data]
+            depends_on: [generate_data, mode_check]
             # Coalesce: Use generated data if available, otherwise use direct input
             items:
               coalesce:
