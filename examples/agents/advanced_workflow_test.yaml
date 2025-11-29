@@ -54,7 +54,59 @@ apps:
       agent_discovery: { enabled: false }
 
   # ============================================================================
-  # AGENT 2: Item Processor
+  # AGENT 2: Data Pass-Through
+  # Simulates passing through direct data
+  # ============================================================================
+  - name: data_passthrough_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      agent_name: "DataPassThrough"
+      model: *planning_model
+      
+      instruction: |
+        You pass through data items.
+        1. Read 'direct_items' from input.
+        2. Create a JSON artifact "items.json" with: {"items": direct_items}
+        3. End with: «result:artifact=items.json status=success»
+
+      input_schema:
+        type: object
+        properties:
+          direct_items: 
+            type: array
+            items: {type: object}
+        required: [direct_items]
+
+      output_schema:
+        type: object
+        properties:
+          items: 
+            type: array
+            items: {type: object}
+        required: [items]
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        <<: *default_session_service
+      artifact_service:
+        <<: *default_artifact_service
+      
+      agent_card:
+        description: "Passes through data items"
+        skills: [{id: "pass_data", name: "Pass Data", description: "Passes data", tags: ["data"]}]
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+
+  # ============================================================================
+  # AGENT 3: Item Processor
   # Processes a single item
   # ============================================================================
   - name: item_processor_app
@@ -226,17 +278,13 @@ apps:
             depends_on: [mode_check]
             # Implicit input: None (uses workflow input, but agent ignores it)
 
-          # Step 2b: Use Direct Data (Pass-through Agent - simulating by calling generator with override)
-          # For simplicity in this test, we'll just use the same generator but pretend it's different
-          # In a real scenario, this might be a transformer or just direct access
-          # Since we don't have a "PassThrough" node, we'll use DataGenerator again but ignore output
-          # Actually, let's just use the same agent but map input differently
+          # Step 2b: Use Direct Data (Pass-through Agent)
           - id: use_direct_data
             type: agent
-            agent_persona: "DataGenerator"
+            agent_persona: "DataPassThrough"
             depends_on: [mode_check]
-            # We are cheating here for the test - normally we'd pass data through.
-            # But let's test the 'coalesce' logic on the output.
+            input:
+              direct_items: "{{workflow.input.direct_items}}"
 
           # Step 3: Map (Parallel Processing)
           - id: process_items
@@ -267,7 +315,7 @@ apps:
             items:
               coalesce:
                 - "{{generate_data.output.items}}"
-                - "{{workflow.input.direct_items}}"
+                - "{{use_direct_data.output.items}}"
             node: process_single_item
             concurrency_limit: 2
 
