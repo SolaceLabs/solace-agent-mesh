@@ -47,6 +47,7 @@ from a2a.types import (
     JSONRPCResponse,
     Task,
     TaskArtifactUpdateEvent,
+    TaskState,
     TaskStatusUpdateEvent,
 )
 
