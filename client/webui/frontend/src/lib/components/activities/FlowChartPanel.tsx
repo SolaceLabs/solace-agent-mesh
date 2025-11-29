@@ -224,10 +224,16 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                 return ["user-right-output"];
             }
             case "orchestratorNode":
-                return ["orch-right-output-tools", "orch-bottom-output"];
-
-            case "genericAgentNode":
-                return ["peer-right-output-tools", "peer-bottom-output"];
+            case "genericAgentNode": {
+                const handles = ["peer-bottom-output", "orch-bottom-output"];
+                // Add dynamic tool handles if present
+                if (node.data.toolSlots && Array.isArray(node.data.toolSlots)) {
+                    node.data.toolSlots.forEach((slot: any) => {
+                        handles.push(`agent-out-${slot.id}`);
+                    });
+                }
+                return handles;
+            }
 
             case "llmNode":
                 return ["llm-bottom-output"];

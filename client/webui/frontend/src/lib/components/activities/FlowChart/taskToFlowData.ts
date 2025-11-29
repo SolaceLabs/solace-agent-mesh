@@ -176,7 +176,7 @@ function handleLLMCall(step: VisualizerStep, manager: TimelineLayoutManager, nod
             manager,
             edgeAnimationService,
             processedSteps,
-            subflow ? "peer-right-output-tools" : "orch-right-output-tools", // Agent output to LLM
+            `agent-out-${llmToolInstance.id}`, // Dynamic handle for this specific LLM call
             "llm-left-input" // LLM input
         );
     }
@@ -225,10 +225,10 @@ function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutM
 
     if (subflow) {
         targetAgentNodeId = subflow.peerAgent.id;
-        targetAgentHandleId = "peer-right-input-tools";
+        targetAgentHandleId = `agent-in-${llmNodeId}`; // Dynamic handle matching the LLM node ID
     } else if (currentPhase.orchestratorAgent.id.startsWith(targetAgentName.replace(/[^a-zA-Z0-9_]/g, "_") + "_")) {
         targetAgentNodeId = currentPhase.orchestratorAgent.id;
-        targetAgentHandleId = "orch-right-input-tools";
+        targetAgentHandleId = `agent-in-${llmNodeId}`; // Dynamic handle matching the LLM node ID
     }
 
     if (llmNodeId && targetAgentNodeId && targetAgentHandleId) {
@@ -241,7 +241,7 @@ function handleLLMResponseToAgent(step: VisualizerStep, manager: TimelineLayoutM
             edgeAnimationService,
             processedSteps,
             "llm-bottom-output", // LLM's bottom output handle
-            targetAgentHandleId // Agent's right input handle
+            targetAgentHandleId // Agent's dynamic input handle
         );
     } else {
         console.error(`[Timeline] Could not determine target agent node ID or handle for step type ${step.type}: ${step.id}. Target agent name: ${targetAgentName}. Edge will be missing.`);
@@ -287,24 +287,22 @@ function handleToolInvocationStart(step: VisualizerStep, manager: TimelineLayout
         // Regular tool call
         const subflow = resolveSubflowContext(manager, step);
         let sourceNodeId: string;
-        let sourceHandle: string;
 
         if (subflow) {
             sourceNodeId = subflow.peerAgent.id;
-            sourceHandle = "peer-right-output-tools";
         } else {
             const sourceAgent = manager.agentRegistry.findAgentByName(sourceName);
             if (sourceAgent) {
                 sourceNodeId = sourceAgent.id;
-                sourceHandle = getAgentHandle(sourceAgent.type, "output", "right");
             } else {
                 sourceNodeId = currentPhase.orchestratorAgent.id;
-                sourceHandle = "orch-right-output-tools";
             }
         }
 
         const toolInstance = createNewToolNodeInContext(manager, targetToolName, "genericToolNode", step, nodes, subflow);
         if (toolInstance) {
+            // Use dynamic handle based on the tool instance ID
+            const sourceHandle = `agent-out-${toolInstance.id}`;
             createTimelineEdge(sourceNodeId, toolInstance.id, step, edges, manager, edgeAnimationService, processedSteps, sourceHandle, `${toolInstance.id}-tool-left-input`);
         }
     }
@@ -453,15 +451,15 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
 
             if (subflow) {
                 receivingAgentNodeId = subflow.peerAgent.id;
-                targetHandle = "peer-right-input-tools";
+                targetHandle = `agent-in-${toolNodeId}`; // Dynamic handle
             } else {
                 const targetAgent = manager.agentRegistry.findAgentByName(targetAgentName);
                 if (targetAgent) {
                     receivingAgentNodeId = targetAgent.id;
-                    targetHandle = getAgentHandle(targetAgent.type, "input", "right");
+                    targetHandle = `agent-in-${toolNodeId}`; // Dynamic handle
                 } else {
                     receivingAgentNodeId = currentPhase.orchestratorAgent.id;
-                    targetHandle = "orch-right-input-tools";
+                    targetHandle = `agent-in-${toolNodeId}`; // Dynamic handle
                 }
             }
 

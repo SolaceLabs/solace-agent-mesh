@@ -821,6 +821,9 @@ export function createNewToolNodeInContext(
     let nodePositionX: number;
     let nodePositionY: number;
 
+    // Generate unique ID for each tool call using step ID
+    const toolNodeId = generateNodeId(manager, `${baseNodeIdPrefix}_${step.id}`);
+
     if (subflow) {
         // Tool's Y is relative to the peer agent's absolute Y, plus current offset within the subflow
         toolY_absolute = subflow.peerAgent.yPosition + subflow.currentToolYOffset;
@@ -849,6 +852,28 @@ export function createNewToolNodeInContext(
         // We shift everything that is currently at or below the insertion point
         shiftNodesVertically(nodes, manager, nodePositionY, TOOL_STACKING_OFFSET, subflow.groupNode.id);
 
+        // --- Dynamic Agent Growth Logic (Subflow) ---
+        const agentNode = nodes.find(n => n.id === subflow.peerAgent.id);
+        if (agentNode) {
+            // Calculate relative Y of the tool slot within the agent node
+            // The agent node starts at subflow.peerAgent.yPosition (absolute)
+            // The tool is at toolY_absolute
+            // We want the slot to align with the center of the tool node
+            const slotYRelative = toolY_absolute - subflow.peerAgent.yPosition + NODE_HEIGHT / 2;
+
+            // Update agent node height
+            // Ensure height covers the new slot plus some padding
+            const currentHeight = parseInt(agentNode.style?.height?.toString().replace("px", "") || `${NODE_HEIGHT}`);
+            const newHeight = Math.max(currentHeight, slotYRelative + NODE_HEIGHT / 2 + 10);
+
+            agentNode.style = { ...agentNode.style, height: `${newHeight}px` };
+
+            // Add tool slot
+            const slots = (agentNode.data.toolSlots as any[]) || [];
+            slots.push({ id: toolNodeId, yOffset: slotYRelative });
+            agentNode.data = { ...agentNode.data, toolSlots: slots };
+        }
+
     } else {
         // For tools in the main flow (not in a subflow)
         toolX_absolute = LANE_X_POSITIONS.TOOLS; // Default absolute X for main flow tools
@@ -858,10 +883,22 @@ export function createNewToolNodeInContext(
         currentPhase.currentToolYOffset += TOOL_STACKING_OFFSET;
         nodePositionX = toolX_absolute;
         nodePositionY = toolY_absolute;
+
+        // --- Dynamic Agent Growth Logic (Main Flow) ---
+        const agentNode = nodes.find(n => n.id === currentPhase.orchestratorAgent.id);
+        if (agentNode) {
+            const slotYRelative = toolY_absolute - currentPhase.orchestratorAgent.yPosition + NODE_HEIGHT / 2;
+            const currentHeight = parseInt(agentNode.style?.height?.toString().replace("px", "") || `${NODE_HEIGHT}`);
+            const newHeight = Math.max(currentHeight, slotYRelative + NODE_HEIGHT / 2 + 10);
+
+            agentNode.style = { ...agentNode.style, height: `${newHeight}px` };
+
+            const slots = (agentNode.data.toolSlots as any[]) || [];
+            slots.push({ id: toolNodeId, yOffset: slotYRelative });
+            agentNode.data = { ...agentNode.data, toolSlots: slots };
+        }
     }
 
-    // Generate unique ID for each tool call using step ID
-    const toolNodeId = generateNodeId(manager, `${baseNodeIdPrefix}_${step.id}`);
     const toolNode: Node = {
         id: toolNodeId,
         type: toolType,

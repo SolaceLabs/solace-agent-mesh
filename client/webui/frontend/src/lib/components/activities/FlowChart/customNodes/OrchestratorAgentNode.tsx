@@ -16,14 +16,37 @@ const OrchestratorAgentNode: React.FC<NodeProps<OrchestratorAgentNodeType>> = ({
                 borderWidth: "2px",
                 borderStyle: "solid",
                 boxShadow: "0 0 0 1px rgba(79, 70, 229, 0.3), 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+                height: "100%",
             }}
         >
-            <Handle type="source" position={Position.Right} id="orch-right-output-tools" className="!bg-indigo-500" style={{ top: "25%" }} isConnectable={true} />
-            <Handle type="target" position={Position.Right} id="orch-right-input-tools" className="!bg-indigo-500" style={{ top: "75%" }} isConnectable={true} />
             <Handle type="target" position={Position.Top} id="orch-top-input" className="!bg-indigo-500" isConnectable={true} />
             <Handle type="source" position={Position.Bottom} id="orch-bottom-output" className="!bg-indigo-500" isConnectable={true} />
             <Handle type="target" position={Position.Left} id="orch-left-input" className="!bg-indigo-500" isConnectable={true} />
-            <div className="flex items-center justify-center">
+
+            {/* Dynamic Tool Slots */}
+            {data.toolSlots &&
+                data.toolSlots.map(slot => (
+                    <React.Fragment key={slot.id}>
+                        <Handle
+                            type="source"
+                            position={Position.Right}
+                            id={`agent-out-${slot.id}`}
+                            className="!bg-indigo-500"
+                            style={{ top: `${slot.yOffset}px`, right: "-2px" }}
+                            isConnectable={true}
+                        />
+                        <Handle
+                            type="target"
+                            position={Position.Right}
+                            id={`agent-in-${slot.id}`}
+                            className="!bg-indigo-500"
+                            style={{ top: `${slot.yOffset}px`, right: "-2px" }}
+                            isConnectable={true}
+                        />
+                    </React.Fragment>
+                ))}
+
+            <div className="flex items-center justify-center pt-2">
                 <div className="text-md truncate font-bold" style={{ maxWidth: "200px" }}>
                     {data.label}
                 </div>
