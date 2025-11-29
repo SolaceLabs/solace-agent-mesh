@@ -18,6 +18,7 @@ import GenericFlowEdge, { type AnimatedEdgeData } from "./FlowChart/customEdges/
 import ConditionalNode from "./FlowChart/customNodes/ConditionalNode";
 import GenericAgentNode from "./FlowChart/customNodes/GenericAgentNode";
 import GenericToolNode from "./FlowChart/customNodes/GenericToolNode";
+import GroupNode from "./FlowChart/customNodes/GroupNode";
 import LLMNode from "./FlowChart/customNodes/LLMNode";
 import OrchestratorAgentNode from "./FlowChart/customNodes/OrchestratorAgentNode";
 import UserNode from "./FlowChart/customNodes/UserNode";
@@ -42,6 +43,7 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
             orchestratorNode: OrchestratorAgentNode,
             genericToolNode: GenericToolNode,
             conditionalNode: ConditionalNode,
+            group: GroupNode,
         }),
         []
     );
