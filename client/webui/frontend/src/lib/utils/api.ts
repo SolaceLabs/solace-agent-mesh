@@ -42,6 +42,26 @@ const refreshToken = async () => {
     return null;
 };
 
+const getErrorFromResponse = async (response: Response): Promise<string> => {
+    const fallbackMessage = `An unknown error occurred. HTTP status: ${response.status}.`;
+
+    try {
+        const errorData = await response.json();
+        return errorData.message || errorData.detail || fallbackMessage;
+    } catch {
+        // Response body is not valid JSON, use fallback
+        return fallbackMessage;
+    }
+};
+
+export const getErrorMessage = (error: unknown, fallbackMessage: string = "An unknown error occurred"): string => {
+    if (error instanceof Error) {
+        return error.message ?? fallbackMessage;
+    }
+
+    return fallbackMessage;
+};
+
 export const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
     const accessToken = getAccessToken();
 
@@ -68,6 +88,16 @@ export const authenticatedFetch = async (url: string, options: RequestInit = {})
                 },
             });
         }
+    }
+
+    return response;
+};
+
+export const authenticatedFetchWithError = async (url: string, options: RequestInit = {}) => {
+    const response = await authenticatedFetch(url, options);
+
+    if (!response.ok) {
+        throw new Error(await getErrorFromResponse(response));
     }
 
     return response;
