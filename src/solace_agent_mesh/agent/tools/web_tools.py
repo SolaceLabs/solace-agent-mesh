@@ -2,6 +2,7 @@
 Collection of Python tools for web-related tasks, such as making HTTP requests.
 """
 
+import asyncio
 import logging
 import json
 import uuid
@@ -70,9 +71,10 @@ async def web_request(
     output_artifact_filename: Optional[str] = None,
     tool_context: ToolContext = None,
     tool_config: Optional[Dict[str, Any]] = None,
+    max_retries: int = 2,
 ) -> Dict[str, Any]:
     """
-    Makes an HTTP request to the specified URL, processes the content (e.g., HTML to Markdown),
+    Makes an HTTP request to the specified URL with retry logic, processes the content (e.g., HTML to Markdown),
     and saves the result as an artifact.
 
     Args:
@@ -83,6 +85,7 @@ async def web_request(
         output_artifact_filename: Optional. Desired filename for the output artifact.
         tool_context: The context provided by the ADK framework.
         tool_config: Optional. Configuration passed by the ADK, generally not used by this simplified tool.
+        max_retries: Maximum number of retry attempts for failed requests. Defaults to 2.
 
     Returns:
         A dictionary with status, message, and artifact details if successful.
@@ -140,19 +143,65 @@ async def web_request(
         if body:
             request_body_bytes = body.encode("utf-8")
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            log.debug(
-                f"{log_identifier} Making {method} request to {url} with headers: {headers}"
-            )
-            response = await client.request(
-                method=method.upper(),
-                url=url,
-                headers=headers,
-                content=request_body_bytes,
-            )
-            log.debug(
-                f"{log_identifier} Received response with status code: {response.status_code}"
-            )
+        # Retry logic with exponential backoff
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                    log.info(
+                        f"{log_identifier} Attempt {attempt}/{max_retries}: Making {method} request to {url}"
+                    )
+                    response = await client.request(
+                        method=method.upper(),
+                        url=url,
+                        headers=headers,
+                        content=request_body_bytes,
+                    )
+                    log.info(
+                        f"{log_identifier} Received response with status code: {response.status_code}"
+                    )
+                    # Success - break out of retry loop
+                    break
+                    
+            except (httpx.ReadTimeout, httpx.ConnectTimeout) as timeout_error:
+                last_error = timeout_error
+                log.warning(
+                    f"{log_identifier} Attempt {attempt}/{max_retries} timed out: {timeout_error}"
+                )
+                
+                if attempt < max_retries:
+                    # Exponential backoff with jitter
+                    import random
+                    base_delay = 3.0 * (2 ** (attempt - 1))  # 3s, 6s, 12s...
+                    jitter = random.uniform(0, 1.0)
+                    delay = base_delay + jitter
+                    log.info(f"{log_identifier} Waiting {delay:.1f}s before retry {attempt + 1}/{max_retries}")
+                    await asyncio.sleep(delay)
+                else:
+                    # Final attempt failed
+                    error_message = f"Request timed out after {max_retries} attempts (30s timeout per attempt)"
+                    log.error(f"{log_identifier} {error_message}")
+                    return {
+                        "status": "error",
+                        "message": f"{error_message}. The website may be slow or blocking automated requests."
+                    }
+                    
+            except httpx.RequestError as req_error:
+                last_error = req_error
+                log.warning(
+                    f"{log_identifier} Attempt {attempt}/{max_retries} failed with request error: {req_error}"
+                )
+                
+                if attempt < max_retries:
+                    import random
+                    base_delay = 3.0 * (2 ** (attempt - 1))
+                    jitter = random.uniform(0, 1.0)
+                    delay = base_delay + jitter
+                    log.info(f"{log_identifier} Waiting {delay:.1f}s before retry {attempt + 1}/{max_retries}")
+                    await asyncio.sleep(delay)
+                else:
+                    # Will be handled by the outer exception handler
+                    raise
 
         response_content_bytes = response.content
         response_status_code = response.status_code
@@ -335,9 +384,12 @@ async def web_request(
             return {"status": "error", "message": error_message}
 
     except httpx.RequestError as re:
-        error_message = f"Request error while fetching {url}: {re}"
+        error_message = f"Request error while fetching {url} after {max_retries} attempts: {re}"
         log.error(f"{log_identifier} {error_message}", exc_info=True)
-        return {"status": "error", "message": error_message}
+        return {
+            "status": "error",
+            "message": f"{error_message}. The website may be unreachable or blocking requests."
+        }
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}", exc_info=True)
         return {"status": "error", "message": str(ve)}

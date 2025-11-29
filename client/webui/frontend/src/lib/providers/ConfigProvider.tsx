@@ -20,6 +20,10 @@ interface BackendConfig {
         projectDescriptionMax?: number;
         projectInstructionsMax?: number;
     };
+    tool_config_status?: {
+        web_search?: boolean;
+        deep_research?: boolean;
+    };
 }
 
 interface ConfigProviderProps {
@@ -111,6 +115,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     persistenceEnabled: data.persistence_enabled ?? false,
                     projectsEnabled,
                     validationLimits: data.validation_limits,
+                    toolConfigStatus: data.tool_config_status,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

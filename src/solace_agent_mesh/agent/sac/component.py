@@ -1010,6 +1010,9 @@ class SamAgentComponent(SamComponentBase):
                 "Replace `<agent_name>` with the actual name of the target agent.\n"
                 "Provide a clear `task_description` for the peer and include the original `user_query` for context.\n"
                 "Be aware that the peer agent may not have access to your session history, so you must provide all required context necessary to fulfill the request.\n\n"
+                "IMPORTANT: When a peer agent's response contains citation markers like [[cite:search0]], [[cite:file1]], etc., "
+                "you MUST preserve these markers in your response to the user. These markers link to source references and are "
+                "essential for proper attribution. Include them exactly as they appear in the peer's response. DO NOT repeat them without markers.\n\n"
                 "Available peer agents you can delegate to (use the `peer_...` tool name):\n"
                 f"{peer_list_str}"
             )
