@@ -19,6 +19,9 @@ export abstract class LayoutBlock {
 
     // The React Flow node data associated with this block (if any)
     nodePayload?: Node;
+    
+    // The ID of the node that logically "starts" this block (e.g. Map node)
+    anchorNodeId?: string;
 
     constructor(id: string, nodePayload?: Node) {
         this.id = id;

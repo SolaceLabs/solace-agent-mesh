@@ -14,6 +14,7 @@ export class BlockBuilder {
     
     private edges: Edge[] = [];
     private lastNodeId: string | null = null;
+    private lastNodeByTaskId: Map<string, string> = new Map();
 
     constructor() {
         this.root = new VerticalStackBlock("root");
@@ -34,10 +35,10 @@ export class BlockBuilder {
     private processStep(step: VisualizerStep) {
         switch (step.type) {
             case "USER_REQUEST":
-                this.addNode("userNode", step, "User");
+                this.handleUserRequest(step);
                 break;
             case "AGENT_LLM_CALL":
-                this.addNode("llmNode", step, "LLM");
+                this.handleLLMCall(step);
                 break;
             case "AGENT_TOOL_INVOCATION_START":
                 this.handleToolInvocation(step);
@@ -46,10 +47,7 @@ export class BlockBuilder {
                 this.handleToolResult(step);
                 break;
             case "AGENT_RESPONSE_TEXT":
-                // Only add user node for root level responses (Orchestrator -> User)
-                if (this.stack.length === 1 && !step.isSubTaskStep) {
-                    this.addNode("userNode", step, "User");
-                }
+                this.handleAgentResponse(step);
                 break;
             case "WORKFLOW_EXECUTION_START":
                 this.startGroup("workflow", step, step.data.workflowExecutionStart?.workflowName || "Workflow");
@@ -66,8 +64,23 @@ export class BlockBuilder {
         }
     }
 
+    private handleUserRequest(step: VisualizerStep) {
+        this.addNode("userNode", step, "User");
+    }
+
+    private handleLLMCall(step: VisualizerStep) {
+        this.addNode("llmNode", step, "LLM");
+    }
+
+    private handleAgentResponse(step: VisualizerStep) {
+        // Only add user node for root level responses (Orchestrator -> User)
+        if (this.stack.length === 1 && !step.isSubTaskStep) {
+            this.addNode("userNode", step, "User");
+        }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private addNode(type: string, step: VisualizerStep, label: string, data: any = {}) {
+    private addNode(type: string, step: VisualizerStep, label: string, data: any = {}, connectToLast: boolean = true): string {
         const nodeId = `${type}_${this.nodeCounter++}`;
         const node: Node = {
             id: nodeId,
@@ -88,22 +101,47 @@ export class BlockBuilder {
 
         this.currentBlock.addChild(block);
         
-        // Create edge from last node
-        if (this.lastNodeId) {
-            this.createEdge(this.lastNodeId, nodeId);
+        // Determine source node for edge
+        let sourceNodeId = this.lastNodeId;
+        
+        // Check if we are the first node in the current block and if the block has an anchor
+        // This handles connecting parallel branches to their parent Map/Fork node
+        if (this.currentBlock.children.length === 1 && this.currentBlock.parent?.anchorNodeId) {
+             sourceNodeId = this.currentBlock.parent.anchorNodeId;
         }
+        // Otherwise, check task-specific history for sequential flow
+        else if (step.owningTaskId && this.lastNodeByTaskId.has(step.owningTaskId)) {
+            sourceNodeId = this.lastNodeByTaskId.get(step.owningTaskId)!;
+        }
+
+        // Create edge
+        if (connectToLast && sourceNodeId) {
+            this.createEdge(sourceNodeId, nodeId);
+        }
+        
+        // Update tracking
         this.lastNodeId = nodeId;
+        if (step.owningTaskId) {
+            this.lastNodeByTaskId.set(step.owningTaskId, nodeId);
+        }
+        
+        return nodeId;
     }
 
-    private createEdge(source: string, target: string) {
+    private createEdge(source: string, target: string, sourceHandle?: string, targetHandle?: string) {
         const edgeId = `e_${source}_${target}`;
-        this.edges.push({
+        const edge: Edge = {
             id: edgeId,
             source: source,
             target: target,
             type: "defaultFlowEdge",
-            animated: true, // Default to animated for now
-        });
+            animated: true,
+        };
+        
+        if (sourceHandle) edge.sourceHandle = sourceHandle;
+        if (targetHandle) edge.targetHandle = targetHandle;
+        
+        this.edges.push(edge);
     }
 
     private startGroup(type: string, step: VisualizerStep, label: string) {
@@ -181,9 +219,10 @@ export class BlockBuilder {
         if (nodeType === "map" || nodeType === "fork") {
             // Start a horizontal block for parallel execution
             // First add the control node itself (e.g. "Map" or "Fork" pill)
-            this.addNode("genericAgentNode", step, label, { variant: "pill" });
+            const mapNodeId = this.addNode("genericAgentNode", step, label, { variant: "pill" });
 
             const hStack = new HorizontalStackBlock(`hstack_${nodeId}`);
+            hStack.anchorNodeId = mapNodeId; // Set anchor for children branches
             this.currentBlock.addChild(hStack);
             this.stack.push(hStack);
         } else {
