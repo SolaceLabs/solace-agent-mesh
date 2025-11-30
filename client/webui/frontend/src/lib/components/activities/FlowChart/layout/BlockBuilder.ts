@@ -71,7 +71,13 @@ export class BlockBuilder {
     }
 
     private handleUserRequest(step: VisualizerStep) {
-        this.addNode("userNode", step, "User");
+        // 1. Add User Node (Top)
+        this.addNode("userNode", step, "User", { isTopNode: true });
+
+        // 2. Add Orchestrator Node immediately
+        const agentName = step.target || "Orchestrator";
+        const displayName = this.agentNameMap[agentName] || agentName;
+        this.addNode("orchestratorNode", step, displayName);
     }
 
     private handleLLMCall(step: VisualizerStep) {
@@ -81,7 +87,7 @@ export class BlockBuilder {
     private handleAgentResponse(step: VisualizerStep) {
         // Only add user node for root level responses (Orchestrator -> User)
         if (this.stack.length === 1 && !step.isSubTaskStep) {
-            this.addNode("userNode", step, "User");
+            this.addNode("userNode", step, "User", { isBottomNode: true });
         }
     }
 
@@ -109,20 +115,32 @@ export class BlockBuilder {
         
         // Determine source node for edge
         let sourceNodeId = this.lastNodeId;
-        
+        let sourceType = "";
+
         // Check if we are the first node in the current block and if the block has an anchor
         // This handles connecting parallel branches to their parent Map/Fork node
         if (this.currentBlock.children.length === 1 && this.currentBlock.parent?.anchorNodeId) {
              sourceNodeId = this.currentBlock.parent.anchorNodeId;
+             // We need to find the type of the anchor node. 
+             // Since we don't store it easily, we assume genericAgentNode for Map/Fork anchors for now.
+             sourceType = "genericAgentNode"; 
         }
         // Otherwise, check task-specific history for sequential flow
         else if (step.owningTaskId && this.lastNodeByTaskId.has(step.owningTaskId)) {
             sourceNodeId = this.lastNodeByTaskId.get(step.owningTaskId)!;
+            // We need to find the type of the source node.
+            // We can look it up in the root tree if we traversed, but for now let's rely on ID prefix convention
+            // or just pass it if we tracked it.
+            // Hack: extract type from ID (e.g. "userNode_0")
+            sourceType = sourceNodeId.split("_")[0];
+        } else if (this.lastNodeId) {
+            sourceType = this.lastNodeId.split("_")[0];
         }
 
         // Create edge
         if (connectToLast && sourceNodeId) {
-            this.createEdge(sourceNodeId, nodeId, step.id);
+            const { sourceHandle, targetHandle } = this.resolveHandles(sourceType, type, sourceNodeId, nodeId);
+            this.createEdge(sourceNodeId, nodeId, step.id, sourceHandle, targetHandle);
         }
         
         // Update tracking
@@ -132,6 +150,57 @@ export class BlockBuilder {
         }
         
         return nodeId;
+    }
+
+    private resolveHandles(sourceType: string, targetType: string, sourceId: string, targetId: string): { sourceHandle?: string, targetHandle?: string } {
+        let sourceHandle: string | undefined;
+        let targetHandle: string | undefined;
+
+        // Source Handle
+        switch (sourceType) {
+            case "userNode":
+                sourceHandle = "user-bottom-output";
+                break;
+            case "orchestratorNode":
+                sourceHandle = "orch-bottom-output";
+                break;
+            case "genericAgentNode":
+                sourceHandle = "peer-bottom-output";
+                break;
+            case "llmNode":
+                sourceHandle = "llm-bottom-output";
+                break;
+            case "genericToolNode":
+                sourceHandle = `${sourceId}-tool-bottom-output`;
+                break;
+            case "conditionalNode":
+                sourceHandle = "cond-bottom-output";
+                break;
+        }
+
+        // Target Handle
+        switch (targetType) {
+            case "userNode":
+                targetHandle = "user-top-input";
+                break;
+            case "orchestratorNode":
+                targetHandle = "orch-top-input";
+                break;
+            case "genericAgentNode":
+                targetHandle = "peer-top-input";
+                break;
+            case "llmNode":
+                targetHandle = "llm-left-input";
+                break;
+            case "genericToolNode":
+                targetHandle = `${targetId}-tool-left-input`;
+                break;
+            case "conditionalNode":
+                targetHandle = "cond-top-input";
+                break;
+        }
+
+        return { sourceHandle, targetHandle };
     }
 
     private createEdge(source: string, target: string, stepId?: string, sourceHandle?: string, targetHandle?: string) {
