@@ -223,6 +223,17 @@ export class BlockBuilder {
                     
                     customSourceHandle = `agent-out-${nodeId}`;
                     customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
+
+                    // If this is the FIRST tool call for this agent block, pull it up
+                    // We check if the last added block in the current container is the source agent
+                    // This ensures we only pull up if they are immediate siblings in the layout
+                    // Note: We check children length BEFORE adding the new block (which hasn't been added yet)
+                    if (this.currentBlock.children.length > 0) {
+                        const lastChild = this.currentBlock.children[this.currentBlock.children.length - 1];
+                        if (lastChild.id === sourceNodeId) {
+                            block.pullUp = true;
+                        }
+                    }
                 }
             }
         }
