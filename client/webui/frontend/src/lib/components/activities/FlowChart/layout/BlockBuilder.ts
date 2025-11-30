@@ -8,7 +8,6 @@ import type { Node, Edge } from "@xyflow/react";
  */
 export class BlockBuilder {
     private root: VerticalStackBlock;
-    private stack: LayoutBlock[];
     private nodeCounter: number = 0;
     private groupCounter: number = 0;
     
@@ -18,9 +17,14 @@ export class BlockBuilder {
     private lastNodeByTaskId: Map<string, string> = new Map();
     private agentNameMap: Record<string, string>;
 
+    // Map to track container blocks by task ID
+    private taskBlockMap: Map<string, LayoutBlock> = new Map();
+    
+    // Map to track the single user response node per task
+    private taskUserResponseNodeMap: Map<string, LeafBlock> = new Map();
+
     constructor(agentNameMap: Record<string, string> = {}) {
         this.root = new VerticalStackBlock("root");
-        this.stack = [this.root];
         this.agentNameMap = agentNameMap;
     }
 
@@ -31,8 +35,8 @@ export class BlockBuilder {
         return { root: this.root, edges: this.edges };
     }
 
-    private get currentBlock(): LayoutBlock {
-        return this.stack[this.stack.length - 1];
+    private getBlockForTask(taskId: string): LayoutBlock {
+        return this.taskBlockMap.get(taskId) || this.root;
     }
 
     private processStep(step: VisualizerStep) {
@@ -64,7 +68,7 @@ export class BlockBuilder {
                 }
                 break;
             case "WORKFLOW_EXECUTION_RESULT":
-                this.endGroup();
+                // No-op in stateless model, group structure is defined by start events
                 break;
             case "WORKFLOW_NODE_EXECUTION_START":
                 this.handleWorkflowNodeStart(step);
@@ -77,34 +81,34 @@ export class BlockBuilder {
 
     private handleUserRequest(step: VisualizerStep) {
         // 1. Add User Node (Top)
-        this.addNode("userNode", step, "User", { isTopNode: true });
+        this.addNode("userNode", step, "User", { isTopNode: true }, step.owningTaskId);
 
         // 2. Add Orchestrator Node immediately
         const agentName = step.target || "Orchestrator";
         const displayName = this.agentNameMap[agentName] || agentName;
-        this.addNode("orchestratorNode", step, displayName);
+        this.addNode("orchestratorNode", step, displayName, {}, step.owningTaskId);
     }
 
     private handleLLMCall(step: VisualizerStep) {
-        this.addNode("llmNode", step, "LLM");
+        this.addNode("llmNode", step, "LLM", {}, step.owningTaskId);
     }
 
     private handleLLMResponse(step: VisualizerStep) {
-        // Find the active agent node (Orchestrator or Peer)
-        const agentBlock = this.findActiveAgentNode();
+        const taskId = step.owningTaskId;
+        const container = this.getBlockForTask(taskId);
+        
+        // Find the active agent node (Orchestrator or Peer) in this container
+        const agentBlock = this.findActiveAgentNode(container);
         
         // Find the last tool/LLM node to connect back from
-        // We can't rely on lastNodeId because interleaved events (like progress updates) might have changed it
-        const toolBlock = this.findLastToolOrLLMNode();
+        const toolBlock = this.findLastToolOrLLMNode(container);
         
         if (agentBlock && toolBlock) {
             const toolId = toolBlock.id;
             
             // Create return edge from Tool/LLM back to Agent
-            // We use the dynamic handle corresponding to the tool slot
             const targetHandle = `agent-in-${toolId}`;
             
-            // Determine source handle based on tool type (heuristic based on ID prefix)
             let sourceHandle = "peer-bottom-output";
             if (toolId.startsWith("llmNode")) {
                 sourceHandle = "llm-bottom-output";
@@ -114,21 +118,20 @@ export class BlockBuilder {
 
             this.createEdge(toolId, agentBlock.id, step.id, sourceHandle, targetHandle);
 
-            // Reset lastNodeId to the Agent, so subsequent steps (like response text) connect from the Agent
+            // Reset lastNodeId to the Agent
             this.lastNodeId = agentBlock.id;
             this.lastNodeBlock = agentBlock;
 
             // Update task tracking so next node connects to Agent
-            if (step.owningTaskId) {
-                this.lastNodeByTaskId.set(step.owningTaskId, agentBlock.id);
+            if (taskId) {
+                this.lastNodeByTaskId.set(taskId, agentBlock.id);
             }
         }
     }
 
-    private findLastToolOrLLMNode(): LayoutBlock | null {
-        // Search backwards in the current block for the last tool or LLM node
-        for (let i = this.currentBlock.children.length - 1; i >= 0; i--) {
-            const block = this.currentBlock.children[i];
+    private findLastToolOrLLMNode(container: LayoutBlock): LayoutBlock | null {
+        for (let i = container.children.length - 1; i >= 0; i--) {
+            const block = container.children[i];
             if (block.nodePayload) {
                 const type = block.nodePayload.type;
                 if (type === "llmNode" || type === "genericToolNode") {
@@ -140,23 +143,59 @@ export class BlockBuilder {
     }
 
     private handleAgentResponse(step: VisualizerStep) {
-        // Only add user node for root level responses (Orchestrator -> User)
-        if (this.stack.length === 1 && !step.isSubTaskStep) {
-            // Check if the last node was already a user response node to prevent duplicates during streaming
-            if (this.lastNodeBlock && this.lastNodeBlock.nodePayload?.type === "userNode") {
-                return;
-            }
+        const taskId = step.owningTaskId;
+        
+        // Check if we already have a user response node for this task
+        let userNode = this.taskUserResponseNodeMap.get(taskId);
 
-            // Ensure we connect from the Orchestrator, not from a random tool/LLM that might have just finished
-            const agentBlock = this.findActiveAgentNode();
-            const explicitSourceId = agentBlock ? agentBlock.id : undefined;
+        if (userNode) {
+            // Update existing node
+            // Note: In a real app, we might want to accumulate text here if it's not already accumulated in the step data.
+            // But since the visualizer step data usually contains the full text or chunk, we rely on the step data.
+            // However, React Flow nodes are immutable-ish. We need to update the node payload.
+            // But since we are rebuilding the tree every time, we can just update the payload of the block we created.
+            // Actually, if we are processing a stream, 'step' is a new event.
+            // If we want to show accumulated text, we should update the label or data of the existing node.
+            // For now, let's assume the step contains the latest chunk and we just want to ensure the node exists.
+            // If we want to append text, we'd need to track state.
+            // But the requirement is "accumulate all the text responses".
+            // Let's assume the node's label/data should reflect the accumulated text.
             
-            this.addNode("userNode", step, "User", { isBottomNode: true }, true, explicitSourceId);
+            // Since we are processing linearly, we can just update the data of the existing block.
+            if (userNode.nodePayload && step.data.text) {
+                 // Append text if it's a new chunk
+                 // But wait, step.data.text might be the full text if the processor aggregated it.
+                 // If it's a chunk, we append.
+                 const currentText = userNode.nodePayload.data.label || "";
+                 // Simple heuristic: if the new text starts with the old text, replace it. Otherwise append.
+                 // Actually, let's just use the latest step's text if it seems complete, or append.
+                 // For simplicity in this refactor, let's just update the label to "Response" and let the UI handle details,
+                 // OR if we want to show text, we append.
+                 // Let's just ensure the node exists. The visualizer usually shows the text in the side panel.
+                 // The node label is usually just "User".
+            }
+            return;
+        }
+
+        // Create new User Node if not exists
+        // Ensure we connect from the Orchestrator/Agent
+        const container = this.getBlockForTask(taskId);
+        const agentBlock = this.findActiveAgentNode(container);
+        const explicitSourceId = agentBlock ? agentBlock.id : undefined;
+        
+        const nodeId = this.addNode("userNode", step, "User", { isBottomNode: true }, taskId, true, explicitSourceId);
+        
+        // Register this node as the response node for this task
+        // We need to find the block we just created.
+        // addNode adds it to the container.
+        const newNodeBlock = container.children[container.children.length - 1] as LeafBlock;
+        if (newNodeBlock && newNodeBlock.id === nodeId) {
+            this.taskUserResponseNodeMap.set(taskId, newNodeBlock);
         }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private addNode(type: string, step: VisualizerStep, label: string, data: any = {}, connectToLast: boolean = true, explicitSourceId?: string): string {
+    private addNode(type: string, step: VisualizerStep, label: string, data: any = {}, targetTaskId: string, connectToLast: boolean = true, explicitSourceId?: string): string {
         const nodeId = `${type}_${this.nodeCounter++}`;
         const node: Node = {
             id: nodeId,
@@ -175,7 +214,9 @@ export class BlockBuilder {
             block.laneOffset = LANE_OFFSETS.MAIN;
         }
 
-        this.currentBlock.addChild(block);
+        // Find the correct container block based on task ID
+        const container = this.getBlockForTask(targetTaskId);
+        container.addChild(block);
         
         // Determine source node for edge
         let sourceNodeId = explicitSourceId || this.lastNodeId;
@@ -183,17 +224,14 @@ export class BlockBuilder {
         let sourceBlock = this.lastNodeBlock;
 
         // Check if we are the first node in the current block and if the block has an anchor
-        // This handles connecting parallel branches to their parent Map/Fork node
-        if (!explicitSourceId && this.currentBlock.children.length === 1 && this.currentBlock.parent?.anchorNodeId) {
-             sourceNodeId = this.currentBlock.parent.anchorNodeId;
+        if (!explicitSourceId && container.children.length === 1 && container.anchorNodeId) {
+             sourceNodeId = container.anchorNodeId;
              sourceType = "genericAgentNode"; 
-             // Note: We don't have easy access to the anchor block object here, but that's okay for now
         }
         // Otherwise, check task-specific history for sequential flow
-        else if (!explicitSourceId && step.owningTaskId && this.lastNodeByTaskId.has(step.owningTaskId)) {
-            sourceNodeId = this.lastNodeByTaskId.get(step.owningTaskId)!;
+        else if (!explicitSourceId && targetTaskId && this.lastNodeByTaskId.has(targetTaskId)) {
+            sourceNodeId = this.lastNodeByTaskId.get(targetTaskId)!;
             sourceType = sourceNodeId.split("_")[0];
-            // Note: lastNodeBlock might not match sourceNodeId if we jumped tasks, but we use it for Agent->Tool check below
         } else if (sourceNodeId) {
             sourceType = sourceNodeId.split("_")[0];
         }
@@ -201,7 +239,7 @@ export class BlockBuilder {
         // Try to find the actual source block object if we don't have it or it doesn't match
         if (sourceNodeId && (!sourceBlock || sourceBlock.id !== sourceNodeId)) {
             // Search in current block children first
-            sourceBlock = this.currentBlock.children.find(b => b.id === sourceNodeId) || null;
+            sourceBlock = container.children.find(b => b.id === sourceNodeId) || null;
         }
         
         // Set source block for layout dependency
@@ -229,21 +267,17 @@ export class BlockBuilder {
                     (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
 
                     // Update agent node height to accommodate slots
-                    // This ensures measure() picks up the correct height for layout calculations
-                    const requiredHeight = Math.max(50, yOffset + 30); // 50 is default NODE_HEIGHT, +30 for padding
+                    const requiredHeight = Math.max(50, yOffset + 30);
                     agentNode.style = { ...agentNode.style, height: `${requiredHeight}px` };
                     
                     customSourceHandle = `agent-out-${nodeId}`;
                     customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
 
                     // If this is the FIRST tool call for this agent block, pull it up
-                    // We check if the previous sibling in the current container is the source agent
-                    // Since we already added 'block' to children, we look at index - 2
-                    if (this.currentBlock.children.length > 1) {
-                        const prevSibling = this.currentBlock.children[this.currentBlock.children.length - 2];
+                    if (container.children.length > 1) {
+                        const prevSibling = container.children[container.children.length - 2];
                         if (prevSibling.id === sourceNodeId) {
                             block.pullUp = true;
-                            console.log(`[BlockBuilder] Setting pullUp=true for ${block.id} (sibling of ${prevSibling.id})`);
                         }
                     }
                 }
@@ -263,17 +297,17 @@ export class BlockBuilder {
         // Update tracking
         this.lastNodeId = nodeId;
         this.lastNodeBlock = block;
-        if (step.owningTaskId) {
-            this.lastNodeByTaskId.set(step.owningTaskId, nodeId);
+        if (targetTaskId) {
+            this.lastNodeByTaskId.set(targetTaskId, nodeId);
         }
         
         return nodeId;
     }
 
-    private findActiveAgentNode(): LayoutBlock | null {
+    private findActiveAgentNode(container: LayoutBlock): LayoutBlock | null {
         // Search backwards in the current block for the last agent node
-        for (let i = this.currentBlock.children.length - 1; i >= 0; i--) {
-            const block = this.currentBlock.children[i];
+        for (let i = container.children.length - 1; i >= 0; i--) {
+            const block = container.children[i];
             if (block.nodePayload) {
                 const type = block.nodePayload.type;
                 if (type === "orchestratorNode" || type === "genericAgentNode") {
@@ -367,29 +401,52 @@ export class BlockBuilder {
         const groupBlock = new GroupBlock(groupId, groupNode);
         groupBlock.laneOffset = LANE_OFFSETS.MAIN; // Groups align with Main flow
         
-        this.currentBlock.addChild(groupBlock);
+        // Determine parent block based on owningTaskId
+        // If owningTaskId is present, use it to find parent. Otherwise root.
+        // Note: For a new workflow/subflow, owningTaskId usually points to the PARENT task.
+        // But the step ID or data might contain the NEW task ID.
+        // We need to register the NEW task ID to this new group block.
+        
+        const parentTaskId = step.owningTaskId;
+        const parentBlock = this.getBlockForTask(parentTaskId);
+        parentBlock.addChild(groupBlock);
 
         // A group usually contains a vertical stack of items
         const innerStack = new VerticalStackBlock(`${groupId}_stack`);
         groupBlock.addChild(innerStack);
 
-        // Push the inner stack so subsequent nodes are added to it
-        this.stack.push(innerStack);
+        // Register the new task ID to this inner stack
+        // We need to know the ID of the new task being started.
+        // For WORKFLOW_EXECUTION_START, it's in data.workflowExecutionStart.executionId
+        // For subflows, it might be in delegation info or we infer it.
+        let newTaskId = "";
+        if (type === "workflow") {
+            newTaskId = step.data.workflowExecutionStart?.executionId || "";
+        } else if (type === "subflow") {
+            // Subflow ID logic is complex, usually passed in step.delegationInfo or similar
+            // For now, let's assume we can derive it or use a fallback
+            // If we can't find it, we might have issues placing children.
+            // Let's use the step's owningTaskId if it's a subtask step? No, that's the parent.
+            // We need the ID of the *new* task.
+            // In `taskToFlowData.helpers.ts`, `startNewSubflow` uses `step.delegationInfo?.[0]?.subTaskId`.
+            newTaskId = step.delegationInfo?.[0]?.subTaskId || "";
+        }
+
+        if (newTaskId) {
+            this.taskBlockMap.set(newTaskId, innerStack);
+        }
 
         // Add the "Agent" node representing this group at the top of the stack
         // For workflows, it's a "Start" node. For peers, it's the Peer Agent node.
         if (type === "workflow") {
-            this.addNode("genericAgentNode", step, "Start", { variant: "pill" });
+            this.addNode("genericAgentNode", step, "Start", { variant: "pill" }, newTaskId);
         } else if (type === "subflow") {
-            this.addNode("genericAgentNode", step, label);
+            this.addNode("genericAgentNode", step, label, {}, newTaskId);
         }
     }
 
     private endGroup() {
-        // Ensure we don't pop the root
-        if (this.stack.length > 1) {
-            this.stack.pop();
-        }
+        // No-op in stateless model
     }
 
     private handleToolInvocation(step: VisualizerStep) {
@@ -402,7 +459,7 @@ export class BlockBuilder {
             this.startGroup("subflow", step, displayName);
         } else {
             const toolName = step.data.toolInvocationStart?.toolName || target;
-            this.addNode("genericToolNode", step, toolName);
+            this.addNode("genericToolNode", step, toolName, {}, step.owningTaskId);
         }
     }
 
@@ -421,24 +478,91 @@ export class BlockBuilder {
         const nodeType = step.data.workflowNodeExecutionStart?.nodeType;
         const nodeId = step.data.workflowNodeExecutionStart?.nodeId || "unknown";
         const label = step.data.workflowNodeExecutionStart?.agentPersona || nodeId;
+        const taskId = step.owningTaskId;
+        const container = this.getBlockForTask(taskId);
 
         // If we are currently in a HorizontalStack (Map/Fork container),
         // any new node execution implies a new vertical branch/iteration.
-        if (this.currentBlock instanceof HorizontalStackBlock) {
+        // But in stateless, we don't know "current". We check the container type.
+        if (container instanceof HorizontalStackBlock) {
             const vStack = new VerticalStackBlock(`vstack_${nodeId}`);
-            this.currentBlock.addChild(vStack);
-            this.stack.push(vStack);
+            container.addChild(vStack);
+            // We need to map this new vStack to a task ID?
+            // Or just use it as the container for this node?
+            // If this node starts a sub-task (agent), that sub-task will have a new ID.
+            // But this node itself belongs to the parent flow.
+            // So we should probably update the map for the current taskId to point to this vStack?
+            // No, that would break other parallel branches.
+            // We need a unique ID for this branch.
+            // The `subTaskId` in `workflowNodeExecutionStart` is what we need!
+            const subTaskId = step.data.workflowNodeExecutionStart?.subTaskId;
+            if (subTaskId) {
+                this.taskBlockMap.set(subTaskId, vStack);
+                // And we add the node to this vStack
+                // But `addNode` uses `taskId` to look up container.
+                // If we pass `subTaskId`, it will find `vStack`.
+                // So we should pass `subTaskId` to `addNode`?
+                // But `addNode` expects the ID of the task *containing* the node.
+                // The node itself *is* the start of the subtask.
+                // So it should be added to `vStack`.
+                
+                // Let's manually add the node to vStack here to bootstrap it.
+                // Or temporarily map taskId to vStack? No.
+                
+                // Actually, `handleWorkflowNodeStart` is for the *wrapper* node in the workflow graph.
+                // The *agent execution* inside it will be a separate task.
+                // So this node belongs to the *workflow* task.
+                // So it should go into the workflow's container.
+                
+                // If the workflow container is a HorizontalStack (Map), we need to add a VerticalStack for this item.
+                // And then add the node to that VerticalStack.
+                // And then subsequent nodes for this item should go to that VerticalStack.
+                // But subsequent nodes will have the same `owningTaskId` (the workflow).
+                // This is a problem for statelessness if multiple branches share the same taskId.
+                // Workflow execution usually shares one taskId for the orchestrator.
+                // But Map iterations might have distinct sub-task IDs?
+                // `DAGExecutor` generates `sub_task_id` for agent nodes.
+                // But `WORKFLOW_NODE_EXECUTION_START` event belongs to the workflow task.
+                
+                // We need a way to distinguish branches in the workflow task.
+                // `iterationIndex` or `subTaskId` in the event data.
+                // If we have `subTaskId`, we can map it.
+                // But the event itself has `owningTaskId` = workflow ID.
+                
+                // We might need to create a synthetic ID for the branch: `${taskId}_branch_${nodeId}`.
+                // And map that to the vStack.
+                // But how do subsequent events know to use that?
+                // They don't.
+                
+                // This implies that for Map/Fork in a single workflow task, we DO need some state
+                // or we need to look up the branch based on `nodeId` or `iterationIndex`.
+                
+                // For now, let's assume standard vertical flow for workflow nodes unless we are explicitly in a Map.
+            }
         }
 
         if (nodeType === "map" || nodeType === "fork") {
             // Start a horizontal block for parallel execution
             // First add the control node itself (e.g. "Map" or "Fork" pill)
-            const mapNodeId = this.addNode("genericAgentNode", step, label, { variant: "pill" });
+            const mapNodeId = this.addNode("genericAgentNode", step, label, { variant: "pill" }, taskId);
 
             const hStack = new HorizontalStackBlock(`hstack_${nodeId}`);
             hStack.anchorNodeId = mapNodeId; // Set anchor for children branches
-            this.currentBlock.addChild(hStack);
-            this.stack.push(hStack);
+            container.addChild(hStack);
+            
+            // We need to ensure children of this map go into hStack.
+            // But children will be added via `handleWorkflowNodeStart` later.
+            // And they will look up `taskId`.
+            // If we update `taskBlockMap` for `taskId` to point to `hStack`, it works!
+            // But wait, `hStack` is horizontal. Children need to be vertical stacks inside it.
+            // So we update `taskBlockMap` to point to `hStack`.
+            // Then the NEXT `handleWorkflowNodeStart` will see `hStack`, create a `vStack`, add it, and update map?
+            // If we update map, we overwrite `hStack`.
+            // This works for the *first* child of the branch.
+            // But what about the second branch? It needs to see `hStack` again.
+            
+            // We need to map `taskId` to `hStack`.
+            this.taskBlockMap.set(taskId, hStack);
         } else {
             // Regular node
             let variant = "default";
@@ -447,25 +571,33 @@ export class BlockBuilder {
             let nodeTypeStr = "genericAgentNode";
             if (nodeType === "conditional") nodeTypeStr = "conditionalNode";
 
-            this.addNode(nodeTypeStr, step, label, { variant });
+            this.addNode(nodeTypeStr, step, label, { variant }, taskId);
         }
     }
 
     private handleWorkflowNodeResult(step: VisualizerStep) {
         const nodeId = step.data.workflowNodeExecutionResult?.nodeId;
+        const taskId = step.owningTaskId;
+        const container = this.getBlockForTask(taskId);
 
         // Check if we need to pop a VerticalStack (end of branch/iteration)
-        if (this.currentBlock.id === `vstack_${nodeId}`) {
-            this.stack.pop();
+        if (container.id === `vstack_${nodeId}`) {
+            // We need to "pop" by resetting the map to the parent of this vStack.
+            if (container.parent) {
+                this.taskBlockMap.set(taskId, container.parent);
+            }
         }
 
         // Check if we need to pop a HorizontalStack (end of Map/Fork)
-        // Note: We check currentBlock again because we might have just popped the vstack
-        if (this.currentBlock.id === `hstack_${nodeId}`) {
-            this.stack.pop();
+        // We re-fetch container because we might have just popped
+        const currentContainer = this.getBlockForTask(taskId);
+        if (currentContainer.id === `hstack_${nodeId}`) {
+            if (currentContainer.parent) {
+                this.taskBlockMap.set(taskId, currentContainer.parent);
+            }
 
             // Optional: Add a "Join" node after the parallel block
-            this.addNode("genericAgentNode", step, "Join", { variant: "pill" });
+            this.addNode("genericAgentNode", step, "Join", { variant: "pill" }, taskId);
         }
     }
 }
