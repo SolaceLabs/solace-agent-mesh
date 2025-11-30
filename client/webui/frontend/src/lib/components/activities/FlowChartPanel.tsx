@@ -13,8 +13,6 @@ import { getThemeButtonHtmlStyles } from "@/lib/utils";
 
 import { EdgeAnimationService } from "./FlowChart/edgeAnimationService";
 import { BlockBuilder } from "./FlowChart/layout/BlockBuilder";
-import { GROUP_PADDING_X, GROUP_PADDING_Y, NODE_HEIGHT, NODE_WIDTH } from "./FlowChart/taskToFlowData.helpers";
-import { transformProcessedStepsToTimelineFlow } from "./FlowChart/taskToFlowData";
 import GenericFlowEdge, { type AnimatedEdgeData } from "./FlowChart/customEdges/GenericFlowEdge";
 import ConditionalNode from "./FlowChart/customNodes/ConditionalNode";
 import GenericAgentNode from "./FlowChart/customNodes/GenericAgentNode";
@@ -80,45 +78,19 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         if (!processedSteps || processedSteps.length === 0) {
             return { nodes: [], edges: [] };
         }
-        return transformProcessedStepsToTimelineFlow(processedSteps, agentNameMap);
-    }, [processedSteps, agentNameMap]);
 
-    // Debugging BlockBuilder
-    useEffect(() => {
-        if (processedSteps && processedSteps.length > 0) {
-            console.log("--- Debugging BlockBuilder ---");
-
-            // Log event summary
-            console.log(
-                "Events Summary:",
-                processedSteps.map(s => `${s.type} (${s.id}) - ${s.title}`)
-            );
-
-            try {
-                const builder = new BlockBuilder();
-                const { root, edges } = builder.build(processedSteps);
-                root.measure();
-                root.layout(300, 0); // Start with offset to accommodate User lane on left
-
-                // Helper for terse tree dump
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const dumpTree = (block: any): any => {
-                    return {
-                        type: block.constructor.name,
-                        id: block.id,
-                        dims: `${block.width}x${block.height}`,
-                        pos: `(${block.x},${block.y})`,
-                        children: block.children.map((c: any) => dumpTree(c)),
-                    };
-                };
-
-                console.log("BlockBuilder Tree Structure:", JSON.stringify(dumpTree(root), null, 2));
-                console.log("BlockBuilder Edges:", edges);
-            } catch (e) {
-                console.error("BlockBuilder Error:", e);
-            }
+        try {
+            const builder = new BlockBuilder(agentNameMap);
+            const { root, edges } = builder.build(processedSteps);
+            root.measure();
+            root.layout(300, 0); // Start with offset to accommodate User lane on left
+            const nodes = root.collectNodes();
+            return { nodes, edges };
+        } catch (e) {
+            console.error("BlockBuilder Error:", e);
+            return { nodes: [], edges: [] };
         }
-    }, [processedSteps]);
+    }, [processedSteps, agentNameMap]);
 
     // Consolidated edge computation
     const computedEdges = useMemo(() => {
@@ -155,73 +127,10 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         });
     }, [memoizedFlowData.edges, processedSteps, selectedEdgeId, highlightedStepId]);
 
-    const updateGroupNodeSizes = useCallback(() => {
-        setNodes(currentNodes => {
-            return currentNodes.map(node => {
-                if (node.type !== "group") return node;
-
-                // Find all child nodes of this group
-                const childNodes = currentNodes.filter(n => n.parentId === node.id);
-                if (childNodes.length === 0) return node;
-
-                // Calculate required width and height based on child positions
-                let maxX = 0;
-                let maxY = 0;
-
-                childNodes.forEach(child => {
-                    // Use measured dimensions if available, otherwise estimate based on type
-                    let width = child.measured?.width;
-                    let height = child.measured?.height;
-
-                    if (!width || !height) {
-                        // Fallback estimates
-                        if (child.type === "conditionalNode") {
-                            width = 120;
-                            height = 80;
-                        } else if (child.type === "genericAgentNode" && (child.data as any)?.variant === "pill") {
-                            width = 150;
-                            height = 50;
-                        } else {
-                            width = NODE_WIDTH;
-                            height = NODE_HEIGHT;
-                        }
-                    }
-
-                    const childRight = child.position.x + width;
-                    const childBottom = child.position.y + height;
-                    maxX = Math.max(maxX, childRight);
-                    maxY = Math.max(maxY, childBottom);
-                });
-
-                // Add padding
-                const finalRequiredWidth = maxX + GROUP_PADDING_X;
-                const requiredHeight = maxY + GROUP_PADDING_Y;
-
-                // Update group node style if needed
-                const currentWidth = parseInt(node.style?.width?.toString().replace("px", "") || "0");
-                const currentHeight = parseInt(node.style?.height?.toString().replace("px", "") || "0");
-
-                if (currentWidth !== finalRequiredWidth || currentHeight !== requiredHeight) {
-                    return {
-                        ...node,
-                        style: {
-                            ...node.style,
-                            width: `${finalRequiredWidth}px`,
-                            height: `${requiredHeight}px`,
-                        },
-                    };
-                }
-
-                return node;
-            });
-        });
-    }, [setNodes]);
-
     useEffect(() => {
         setNodes(memoizedFlowData.nodes);
         setEdges(computedEdges);
-        updateGroupNodeSizes();
-    }, [memoizedFlowData.nodes, computedEdges, setNodes, setEdges, updateGroupNodeSizes]);
+    }, [memoizedFlowData.nodes, computedEdges, setNodes, setEdges]);
 
     const findEdgeBySourceAndHandle = useCallback(
         (sourceNodeId: string, sourceHandleId?: string): Edge | null => {

@@ -15,10 +15,12 @@ export class BlockBuilder {
     private edges: Edge[] = [];
     private lastNodeId: string | null = null;
     private lastNodeByTaskId: Map<string, string> = new Map();
+    private agentNameMap: Record<string, string>;
 
-    constructor() {
+    constructor(agentNameMap: Record<string, string> = {}) {
         this.root = new VerticalStackBlock("root");
         this.stack = [this.root];
+        this.agentNameMap = agentNameMap;
     }
 
     public build(steps: VisualizerStep[]): { root: LayoutBlock, edges: Edge[] } {
@@ -50,7 +52,11 @@ export class BlockBuilder {
                 this.handleAgentResponse(step);
                 break;
             case "WORKFLOW_EXECUTION_START":
-                this.startGroup("workflow", step, step.data.workflowExecutionStart?.workflowName || "Workflow");
+                {
+                    const wfName = step.data.workflowExecutionStart?.workflowName || "Workflow";
+                    const displayName = this.agentNameMap[wfName] || wfName;
+                    this.startGroup("workflow", step, displayName);
+                }
                 break;
             case "WORKFLOW_EXECUTION_RESULT":
                 this.endGroup();
@@ -116,7 +122,7 @@ export class BlockBuilder {
 
         // Create edge
         if (connectToLast && sourceNodeId) {
-            this.createEdge(sourceNodeId, nodeId);
+            this.createEdge(sourceNodeId, nodeId, step.id);
         }
         
         // Update tracking
@@ -128,7 +134,7 @@ export class BlockBuilder {
         return nodeId;
     }
 
-    private createEdge(source: string, target: string, sourceHandle?: string, targetHandle?: string) {
+    private createEdge(source: string, target: string, stepId?: string, sourceHandle?: string, targetHandle?: string) {
         const edgeId = `e_${source}_${target}`;
         const edge: Edge = {
             id: edgeId,
@@ -136,6 +142,9 @@ export class BlockBuilder {
             target: target,
             type: "defaultFlowEdge",
             animated: true,
+            data: {
+                visualizerStepId: stepId
+            }
         };
         
         if (sourceHandle) edge.sourceHandle = sourceHandle;
@@ -188,7 +197,8 @@ export class BlockBuilder {
 
         if (isPeer) {
             const peerName = target.startsWith("peer_") ? target.substring(5) : target;
-            this.startGroup("subflow", step, peerName);
+            const displayName = this.agentNameMap[peerName] || peerName;
+            this.startGroup("subflow", step, displayName);
         } else {
             const toolName = step.data.toolInvocationStart?.toolName || target;
             this.addNode("genericToolNode", step, toolName);
