@@ -14,6 +14,7 @@ export class BlockBuilder {
     
     private edges: Edge[] = [];
     private lastNodeId: string | null = null;
+    private lastNodeBlock: LayoutBlock | null = null;
     private lastNodeByTaskId: Map<string, string> = new Map();
     private agentNameMap: Record<string, string>;
 
@@ -41,6 +42,10 @@ export class BlockBuilder {
                 break;
             case "AGENT_LLM_CALL":
                 this.handleLLMCall(step);
+                break;
+            case "AGENT_LLM_RESPONSE_TO_AGENT":
+            case "AGENT_LLM_RESPONSE_TOOL_DECISION":
+                this.handleLLMResponse(step);
                 break;
             case "AGENT_TOOL_INVOCATION_START":
                 this.handleToolInvocation(step);
@@ -84,6 +89,34 @@ export class BlockBuilder {
         this.addNode("llmNode", step, "LLM");
     }
 
+    private handleLLMResponse(step: VisualizerStep) {
+        // Find the active agent node (Orchestrator or Peer)
+        const agentBlock = this.findActiveAgentNode();
+        
+        if (agentBlock && this.lastNodeId) {
+            // The last node should be the LLM node or Tool node
+            const toolId = this.lastNodeId;
+            
+            // Create return edge from Tool/LLM back to Agent
+            // We use the dynamic handle corresponding to the tool slot
+            const targetHandle = `agent-in-${toolId}`;
+            
+            // Determine source handle based on tool type (heuristic based on ID prefix)
+            let sourceHandle = "peer-bottom-output";
+            if (toolId.startsWith("llmNode")) {
+                sourceHandle = "llm-bottom-output";
+            } else if (toolId.startsWith("genericToolNode")) {
+                sourceHandle = `${toolId}-tool-bottom-output`;
+            }
+
+            this.createEdge(toolId, agentBlock.id, step.id, sourceHandle, targetHandle);
+
+            // Reset lastNodeId to the Agent, so subsequent steps (like response text) connect from the Agent
+            this.lastNodeId = agentBlock.id;
+            this.lastNodeBlock = agentBlock;
+        }
+    }
+
     private handleAgentResponse(step: VisualizerStep) {
         // Only add user node for root level responses (Orchestrator -> User)
         if (this.stack.length === 1 && !step.isSubTaskStep) {
@@ -116,40 +149,84 @@ export class BlockBuilder {
         // Determine source node for edge
         let sourceNodeId = this.lastNodeId;
         let sourceType = "";
+        let sourceBlock = this.lastNodeBlock;
 
         // Check if we are the first node in the current block and if the block has an anchor
         // This handles connecting parallel branches to their parent Map/Fork node
         if (this.currentBlock.children.length === 1 && this.currentBlock.parent?.anchorNodeId) {
              sourceNodeId = this.currentBlock.parent.anchorNodeId;
-             // We need to find the type of the anchor node. 
-             // Since we don't store it easily, we assume genericAgentNode for Map/Fork anchors for now.
              sourceType = "genericAgentNode"; 
+             // Note: We don't have easy access to the anchor block object here, but that's okay for now
         }
         // Otherwise, check task-specific history for sequential flow
         else if (step.owningTaskId && this.lastNodeByTaskId.has(step.owningTaskId)) {
             sourceNodeId = this.lastNodeByTaskId.get(step.owningTaskId)!;
-            // We need to find the type of the source node.
-            // We can look it up in the root tree if we traversed, but for now let's rely on ID prefix convention
-            // or just pass it if we tracked it.
-            // Hack: extract type from ID (e.g. "userNode_0")
             sourceType = sourceNodeId.split("_")[0];
+            // Note: lastNodeBlock might not match sourceNodeId if we jumped tasks, but we use it for Agent->Tool check below
         } else if (this.lastNodeId) {
             sourceType = this.lastNodeId.split("_")[0];
         }
 
+        // Special handling for Agent -> Tool/LLM connections to use dynamic slots
+        let customSourceHandle: string | undefined;
+        let customTargetHandle: string | undefined;
+
+        if (connectToLast && sourceNodeId && (type === "llmNode" || type === "genericToolNode")) {
+            // If source is an agent, add a tool slot
+            if (sourceType === "orchestratorNode" || sourceType === "genericAgentNode") {
+                // We need to update the agent node data. 
+                // If sourceBlock is available and matches sourceNodeId, use it.
+                // Otherwise we might miss adding the slot if we switched tasks.
+                // For now, assume sequential flow for LLM calls (usually true).
+                if (sourceBlock && sourceBlock.id === sourceNodeId && sourceBlock.nodePayload) {
+                    const agentNode = sourceBlock.nodePayload;
+                    if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
+                    
+                    // Calculate Y offset for the slot
+                    // We estimate based on existing slots to stack them
+                    const slotIndex = (agentNode.data.toolSlots as any[]).length;
+                    const yOffset = 40 + (slotIndex * 20); // Start at 40px down
+                    
+                    (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
+                    
+                    customSourceHandle = `agent-out-${nodeId}`;
+                    customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
+                }
+            }
+        }
+
         // Create edge
         if (connectToLast && sourceNodeId) {
-            const { sourceHandle, targetHandle } = this.resolveHandles(sourceType, type, sourceNodeId, nodeId);
+            let { sourceHandle, targetHandle } = this.resolveHandles(sourceType, type, sourceNodeId, nodeId);
+            
+            if (customSourceHandle) sourceHandle = customSourceHandle;
+            if (customTargetHandle) targetHandle = customTargetHandle;
+
             this.createEdge(sourceNodeId, nodeId, step.id, sourceHandle, targetHandle);
         }
         
         // Update tracking
         this.lastNodeId = nodeId;
+        this.lastNodeBlock = block;
         if (step.owningTaskId) {
             this.lastNodeByTaskId.set(step.owningTaskId, nodeId);
         }
         
         return nodeId;
+    }
+
+    private findActiveAgentNode(): LayoutBlock | null {
+        // Search backwards in the current block for the last agent node
+        for (let i = this.currentBlock.children.length - 1; i >= 0; i--) {
+            const block = this.currentBlock.children[i];
+            if (block.nodePayload) {
+                const type = block.nodePayload.type;
+                if (type === "orchestratorNode" || type === "genericAgentNode") {
+                    return block;
+                }
+            }
+        }
+        return null;
     }
 
     private resolveHandles(sourceType: string, targetType: string, sourceId: string, targetId: string): { sourceHandle?: string, targetHandle?: string } {
