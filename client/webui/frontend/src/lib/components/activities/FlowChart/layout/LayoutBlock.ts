@@ -58,12 +58,12 @@ export class LeafBlock extends LayoutBlock {
         // Use fixed dimensions or dimensions from payload if available
         // We check measured dimensions first (if React Flow has rendered it), then style, then defaults
         this.width = this.nodePayload?.measured?.width ?? 
-                     parseInt(this.nodePayload?.style?.width?.toString() || "0") || 
-                     NODE_WIDTH;
+                     (parseInt(this.nodePayload?.style?.width?.toString() || "0") || 
+                     NODE_WIDTH);
                      
         this.height = this.nodePayload?.measured?.height ?? 
-                      parseInt(this.nodePayload?.style?.height?.toString() || "0") || 
-                      NODE_HEIGHT;
+                      (parseInt(this.nodePayload?.style?.height?.toString() || "0") || 
+                      NODE_HEIGHT);
     }
 
     layout(offsetX: number, offsetY: number): void {
