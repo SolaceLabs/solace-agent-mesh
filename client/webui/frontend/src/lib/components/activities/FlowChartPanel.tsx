@@ -12,6 +12,7 @@ import type { VisualizerStep } from "@/lib/types";
 import { getThemeButtonHtmlStyles } from "@/lib/utils";
 
 import { EdgeAnimationService } from "./FlowChart/edgeAnimationService";
+import { BlockBuilder } from "./FlowChart/layout/BlockBuilder";
 import { GROUP_PADDING_X, GROUP_PADDING_Y, NODE_HEIGHT, NODE_WIDTH } from "./FlowChart/taskToFlowData.helpers";
 import { transformProcessedStepsToTimelineFlow } from "./FlowChart/taskToFlowData";
 import GenericFlowEdge, { type AnimatedEdgeData } from "./FlowChart/customEdges/GenericFlowEdge";
@@ -81,6 +82,23 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
         }
         return transformProcessedStepsToTimelineFlow(processedSteps, agentNameMap);
     }, [processedSteps, agentNameMap]);
+
+    // Debugging BlockBuilder
+    useEffect(() => {
+        if (processedSteps && processedSteps.length > 0) {
+            console.log("--- Debugging BlockBuilder ---");
+            try {
+                const builder = new BlockBuilder();
+                const root = builder.build(processedSteps);
+                root.measure();
+                root.layout(0, 0);
+                console.log("BlockBuilder Tree (Measured & Layout):", root);
+                console.log("BlockBuilder Nodes:", root.collectNodes());
+            } catch (e) {
+                console.error("BlockBuilder Error:", e);
+            }
+        }
+    }, [processedSteps]);
 
     // Consolidated edge computation
     const computedEdges = useMemo(() => {
