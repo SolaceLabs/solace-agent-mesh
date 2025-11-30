@@ -132,7 +132,7 @@ export class VerticalStackBlock extends LayoutBlock {
                 // Pull up to align with the top of the previous child
                 // We subtract the previous child's height and the spacing that was added
                 childY -= (previousChildHeight + this.spacing);
-                // console.log(`[Layout] Pulling up ${child.id}. PrevHeight: ${previousChildHeight}, Spacing: ${this.spacing}. New Y: ${childY}`);
+                console.log(`[Layout] Pulling up ${child.id}. PrevHeight: ${previousChildHeight}, Spacing: ${this.spacing}. New Y: ${childY}`);
             }
 
             // Align children to the left (offsetX)
