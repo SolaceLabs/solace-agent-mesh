@@ -23,6 +23,9 @@ export abstract class LayoutBlock {
     // The ID of the node that logically "starts" this block (e.g. Map node)
     anchorNodeId?: string;
 
+    // Flag to indicate this block should be pulled up to align with the top of the previous sibling
+    pullUp: boolean = false;
+
     constructor(id: string, nodePayload?: Node) {
         this.id = id;
         this.nodePayload = nodePayload;
@@ -101,10 +104,35 @@ export class VerticalStackBlock extends LayoutBlock {
         this.y = offsetY;
 
         let currentY = offsetY;
+        let previousChildHeight = 0;
+
         for (const child of this.children) {
+            let childY = currentY;
+            
+            if (child.pullUp) {
+                // Pull up to align with the top of the previous child
+                // We subtract the previous child's height and the spacing that was added
+                childY -= (previousChildHeight + this.spacing);
+            }
+
             // Align children to the left (offsetX)
-            child.layout(offsetX, currentY);
-            currentY += child.height + this.spacing;
+            child.layout(offsetX, childY);
+
+            if (child.pullUp) {
+                // If pulled up, the new currentY should be the max of the two parallel tracks
+                // The 'currentY' variable currently points to (prevY + prevHeight + spacing)
+                // We want it to point to max(prevBottom, childBottom) + spacing
+                
+                // prevBottom is currentY - spacing
+                const prevBottom = currentY - this.spacing;
+                const childBottom = childY + child.height;
+                
+                currentY = Math.max(prevBottom, childBottom) + this.spacing;
+            } else {
+                currentY += child.height + this.spacing;
+            }
+            
+            previousChildHeight = child.height;
         }
     }
 }
