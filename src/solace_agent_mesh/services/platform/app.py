@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 
 info = {
     "class_name": "PlatformServiceApp",
-    "description": "Platform Service for configuration management (agents, connectors, toolsets, deployments)",
+    "description": "Platform Service for configuration management",
 }
 
 

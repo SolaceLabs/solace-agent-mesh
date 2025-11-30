@@ -95,18 +95,6 @@ class PlatformServiceComponent(ComponentBase):
             return
 
         try:
-            # Run enterprise platform migrations if available
-            try:
-                from solace_agent_mesh_enterprise.platform_service.migration_runner import run_migrations
-                log.info("%s Running enterprise platform migrations...", self.log_identifier)
-                run_migrations(self.database_url)
-                log.info("%s Enterprise platform migrations completed", self.log_identifier)
-            except ImportError:
-                log.debug("%s No enterprise platform package - skipping migrations", self.log_identifier)
-            except Exception as e:
-                log.error("%s Enterprise platform migration failed: %s", self.log_identifier, e)
-                raise
-
             # Import FastAPI app and setup function
             from .api.main import app as fastapi_app_instance
             from .api.main import setup_dependencies
