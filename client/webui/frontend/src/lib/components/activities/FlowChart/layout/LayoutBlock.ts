@@ -87,15 +87,34 @@ export class VerticalStackBlock extends LayoutBlock {
     measure(): void {
         this.width = 0;
         this.height = 0;
+        let previousChildHeight = 0;
 
-        for (const child of this.children) {
+        for (let i = 0; i < this.children.length; i++) {
+            const child = this.children[i];
             child.measure();
             this.width = Math.max(this.width, child.width);
-            this.height += child.height;
-        }
 
-        if (this.children.length > 1) {
-            this.height += (this.children.length - 1) * this.spacing;
+            if (i > 0) {
+                // If pullUp, we don't add spacing to the "stack height" yet, 
+                // because we are positioning relative to previous.
+                if (!child.pullUp) {
+                    this.height += this.spacing;
+                }
+            }
+
+            if (child.pullUp) {
+                // Child is placed at top of previous child.
+                // Previous child top is `this.height - previousChildHeight`.
+                const childTop = this.height - previousChildHeight;
+                const childBottom = childTop + child.height;
+                
+                // The new height is max of current height and where this child ends
+                this.height = Math.max(this.height, childBottom);
+            } else {
+                this.height += child.height;
+            }
+            
+            previousChildHeight = child.height;
         }
     }
 
@@ -113,6 +132,7 @@ export class VerticalStackBlock extends LayoutBlock {
                 // Pull up to align with the top of the previous child
                 // We subtract the previous child's height and the spacing that was added
                 childY -= (previousChildHeight + this.spacing);
+                // console.log(`[Layout] Pulling up ${child.id}. PrevHeight: ${previousChildHeight}, Spacing: ${this.spacing}. New Y: ${childY}`);
             }
 
             // Align children to the left (offsetX)

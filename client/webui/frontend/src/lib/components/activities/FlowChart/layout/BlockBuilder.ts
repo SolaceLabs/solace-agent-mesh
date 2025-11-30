@@ -220,6 +220,11 @@ export class BlockBuilder {
                     const yOffset = 40 + (slotIndex * 20); // Start at 40px down
                     
                     (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
+
+                    // Update agent node height to accommodate slots
+                    // This ensures measure() picks up the correct height for layout calculations
+                    const requiredHeight = Math.max(50, yOffset + 30); // 50 is default NODE_HEIGHT, +30 for padding
+                    agentNode.style = { ...agentNode.style, height: `${requiredHeight}px` };
                     
                     customSourceHandle = `agent-out-${nodeId}`;
                     customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
