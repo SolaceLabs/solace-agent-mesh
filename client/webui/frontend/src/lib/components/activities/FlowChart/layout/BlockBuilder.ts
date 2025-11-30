@@ -142,6 +142,11 @@ export class BlockBuilder {
     private handleAgentResponse(step: VisualizerStep) {
         // Only add user node for root level responses (Orchestrator -> User)
         if (this.stack.length === 1 && !step.isSubTaskStep) {
+            // Check if the last node was already a user response node to prevent duplicates during streaming
+            if (this.lastNodeBlock && this.lastNodeBlock.nodePayload?.type === "userNode") {
+                return;
+            }
+
             // Ensure we connect from the Orchestrator, not from a random tool/LLM that might have just finished
             const agentBlock = this.findActiveAgentNode();
             const explicitSourceId = agentBlock ? agentBlock.id : undefined;
@@ -193,6 +198,17 @@ export class BlockBuilder {
             sourceType = sourceNodeId.split("_")[0];
         }
 
+        // Try to find the actual source block object if we don't have it or it doesn't match
+        if (sourceNodeId && (!sourceBlock || sourceBlock.id !== sourceNodeId)) {
+            // Search in current block children first
+            sourceBlock = this.currentBlock.children.find(b => b.id === sourceNodeId) || null;
+        }
+        
+        // Set source block for layout dependency
+        if (sourceBlock) {
+            block.sourceBlock = sourceBlock;
+        }
+
         // Special handling for Agent -> Tool/LLM connections to use dynamic slots
         let customSourceHandle: string | undefined;
         let customTargetHandle: string | undefined;
@@ -201,15 +217,6 @@ export class BlockBuilder {
             // If source is an agent, add a tool slot
             if (sourceType === "orchestratorNode" || sourceType === "genericAgentNode") {
                 // We need to update the agent node data. 
-                // If sourceBlock is available and matches sourceNodeId, use it.
-                // Otherwise we might miss adding the slot if we switched tasks.
-                // For now, assume sequential flow for LLM calls (usually true).
-                // If explicitSourceId was used, we might need to find the block if sourceBlock is stale.
-                if (explicitSourceId && (!sourceBlock || sourceBlock.id !== explicitSourceId)) {
-                    // Try to find the block in current children (common case)
-                    sourceBlock = this.currentBlock.children.find(b => b.id === explicitSourceId) || null;
-                }
-
                 if (sourceBlock && sourceBlock.id === sourceNodeId && sourceBlock.nodePayload) {
                     const agentNode = sourceBlock.nodePayload;
                     if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];

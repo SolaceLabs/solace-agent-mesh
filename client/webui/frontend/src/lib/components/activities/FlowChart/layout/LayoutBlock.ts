@@ -25,6 +25,9 @@ export abstract class LayoutBlock {
 
     // Flag to indicate this block should be pulled up to align with the top of the previous sibling
     pullUp: boolean = false;
+    
+    // The block that logically triggered this block (for layout dependency)
+    sourceBlock?: LayoutBlock;
 
     constructor(id: string, nodePayload?: Node) {
         this.id = id;
@@ -81,81 +84,76 @@ export class LeafBlock extends LayoutBlock {
     }
 }
 
-export class VerticalStackBlock extends LayoutBlock {
+export class TimelineBlock extends LayoutBlock {
     spacing: number = VERTICAL_SPACING;
 
     measure(): void {
         this.width = 0;
         this.height = 0;
-        let previousChildHeight = 0;
-
-        for (let i = 0; i < this.children.length; i++) {
-            const child = this.children[i];
+        
+        // Simulate layout to determine height and width
+        const laneY: Record<number, number> = {};
+        
+        for (const child of this.children) {
             child.measure();
-            this.width = Math.max(this.width, child.width);
-
-            if (i > 0) {
-                // If pullUp, we don't add spacing to the "stack height" yet, 
-                // because we are positioning relative to previous.
-                if (!child.pullUp) {
-                    this.height += this.spacing;
-                }
-            }
-
-            if (child.pullUp) {
-                // Child is placed at top of previous child.
-                // Previous child top is `this.height - previousChildHeight`.
-                const childTop = this.height - previousChildHeight;
-                const childBottom = childTop + child.height;
-                
-                // The new height is max of current height and where this child ends
-                this.height = Math.max(this.height, childBottom);
-            } else {
-                this.height += child.height;
-            }
             
-            previousChildHeight = child.height;
+            // Calculate max width including lane offset
+            const childRight = child.laneOffset + child.width;
+            this.width = Math.max(this.width, childRight);
+
+            const lane = child.laneOffset;
+            const laneBottom = laneY[lane] || 0;
+            
+            // Simple height estimation for measure phase
+            laneY[lane] = laneBottom + child.height + this.spacing;
         }
+        
+        this.height = Math.max(...Object.values(laneY), 0);
     }
 
     layout(offsetX: number, offsetY: number): void {
         this.x = offsetX;
         this.y = offsetY;
 
-        let currentY = offsetY;
-        let previousChildHeight = 0;
+        const laneY: Record<number, number> = {}; // laneOffset -> currentY
 
         for (const child of this.children) {
-            let childY = currentY;
+            const lane = child.laneOffset;
             
-            if (child.pullUp) {
-                // Pull up to align with the top of the previous child
-                // We subtract the previous child's height and the spacing that was added
-                childY -= (previousChildHeight + this.spacing);
-                console.log(`[Layout] Pulling up ${child.id}. PrevHeight: ${previousChildHeight}, Spacing: ${this.spacing}. New Y: ${childY}`);
+            // Determine Y based on source dependency
+            let dependencyY = offsetY;
+            if (child.sourceBlock) {
+                // sourceBlock.y is absolute. We need to ensure it's been laid out.
+                // Assuming chronological order, it should be.
+                dependencyY = child.sourceBlock.y + child.sourceBlock.height + this.spacing;
             }
 
-            // Align children to the left (offsetX)
-            child.layout(offsetX, childY);
-
-            if (child.pullUp) {
-                // If pulled up, the new currentY should be the max of the two parallel tracks
-                // The 'currentY' variable currently points to (prevY + prevHeight + spacing)
-                // We want it to point to max(prevBottom, childBottom) + spacing
-                
-                // prevBottom is currentY - spacing
-                const prevBottom = currentY - this.spacing;
-                const childBottom = childY + child.height;
-                
-                currentY = Math.max(prevBottom, childBottom) + this.spacing;
-            } else {
-                currentY += child.height + this.spacing;
-            }
+            // Determine Y based on lane availability
+            const laneBottom = laneY[lane] || offsetY;
             
-            previousChildHeight = child.height;
+            let y = Math.max(laneBottom, dependencyY);
+            
+            // PullUp logic: Align with source top if requested
+            if (child.pullUp && child.sourceBlock) {
+                // We want to start at the same Y as the source
+                // But we must still respect laneBottom (can't overlap previous item in same lane)
+                y = Math.max(laneBottom, child.sourceBlock.y);
+            }
+
+            child.layout(offsetX, y);
+            
+            // Update lane tracker
+            laneY[lane] = y + child.height + this.spacing;
         }
+        
+        // Update final height based on actual layout
+        const maxBottom = Math.max(...Object.values(laneY), offsetY);
+        this.height = maxBottom - offsetY;
     }
 }
+
+// Alias for backward compatibility
+export class VerticalStackBlock extends TimelineBlock {}
 
 export class HorizontalStackBlock extends LayoutBlock {
     spacing: number = HORIZONTAL_SPACING;
