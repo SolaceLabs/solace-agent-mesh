@@ -19,7 +19,6 @@ export class BlockBuilder {
         for (const step of steps) {
             this.processStep(step);
         }
-        console.log("BlockBuilder Tree:", this.root);
         return this.root;
     }
 

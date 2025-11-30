@@ -87,13 +87,32 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
     useEffect(() => {
         if (processedSteps && processedSteps.length > 0) {
             console.log("--- Debugging BlockBuilder ---");
+
+            // Log event summary
+            console.log(
+                "Events Summary:",
+                processedSteps.map(s => `${s.type} (${s.id}) - ${s.title}`)
+            );
+
             try {
                 const builder = new BlockBuilder();
                 const root = builder.build(processedSteps);
                 root.measure();
                 root.layout(0, 0);
-                console.log("BlockBuilder Tree (Measured & Layout):", root);
-                console.log("BlockBuilder Nodes:", root.collectNodes());
+
+                // Helper for terse tree dump
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const dumpTree = (block: any): any => {
+                    return {
+                        type: block.constructor.name,
+                        id: block.id,
+                        dims: `${block.width}x${block.height}`,
+                        pos: `(${block.x},${block.y})`,
+                        children: block.children.map((c: any) => dumpTree(c)),
+                    };
+                };
+
+                console.log("BlockBuilder Tree Structure:", JSON.stringify(dumpTree(root), null, 2));
             } catch (e) {
                 console.error("BlockBuilder Error:", e);
             }
