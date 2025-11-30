@@ -93,9 +93,12 @@ export class BlockBuilder {
         // Find the active agent node (Orchestrator or Peer)
         const agentBlock = this.findActiveAgentNode();
         
-        if (agentBlock && this.lastNodeId) {
-            // The last node should be the LLM node or Tool node
-            const toolId = this.lastNodeId;
+        // Find the last tool/LLM node to connect back from
+        // We can't rely on lastNodeId because interleaved events (like progress updates) might have changed it
+        const toolBlock = this.findLastToolOrLLMNode();
+        
+        if (agentBlock && toolBlock) {
+            const toolId = toolBlock.id;
             
             // Create return edge from Tool/LLM back to Agent
             // We use the dynamic handle corresponding to the tool slot
@@ -122,15 +125,33 @@ export class BlockBuilder {
         }
     }
 
+    private findLastToolOrLLMNode(): LayoutBlock | null {
+        // Search backwards in the current block for the last tool or LLM node
+        for (let i = this.currentBlock.children.length - 1; i >= 0; i--) {
+            const block = this.currentBlock.children[i];
+            if (block.nodePayload) {
+                const type = block.nodePayload.type;
+                if (type === "llmNode" || type === "genericToolNode") {
+                    return block;
+                }
+            }
+        }
+        return null;
+    }
+
     private handleAgentResponse(step: VisualizerStep) {
         // Only add user node for root level responses (Orchestrator -> User)
         if (this.stack.length === 1 && !step.isSubTaskStep) {
-            this.addNode("userNode", step, "User", { isBottomNode: true });
+            // Ensure we connect from the Orchestrator, not from a random tool/LLM that might have just finished
+            const agentBlock = this.findActiveAgentNode();
+            const explicitSourceId = agentBlock ? agentBlock.id : undefined;
+            
+            this.addNode("userNode", step, "User", { isBottomNode: true }, true, explicitSourceId);
         }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private addNode(type: string, step: VisualizerStep, label: string, data: any = {}, connectToLast: boolean = true): string {
+    private addNode(type: string, step: VisualizerStep, label: string, data: any = {}, connectToLast: boolean = true, explicitSourceId?: string): string {
         const nodeId = `${type}_${this.nodeCounter++}`;
         const node: Node = {
             id: nodeId,
@@ -152,24 +173,24 @@ export class BlockBuilder {
         this.currentBlock.addChild(block);
         
         // Determine source node for edge
-        let sourceNodeId = this.lastNodeId;
+        let sourceNodeId = explicitSourceId || this.lastNodeId;
         let sourceType = "";
         let sourceBlock = this.lastNodeBlock;
 
         // Check if we are the first node in the current block and if the block has an anchor
         // This handles connecting parallel branches to their parent Map/Fork node
-        if (this.currentBlock.children.length === 1 && this.currentBlock.parent?.anchorNodeId) {
+        if (!explicitSourceId && this.currentBlock.children.length === 1 && this.currentBlock.parent?.anchorNodeId) {
              sourceNodeId = this.currentBlock.parent.anchorNodeId;
              sourceType = "genericAgentNode"; 
              // Note: We don't have easy access to the anchor block object here, but that's okay for now
         }
         // Otherwise, check task-specific history for sequential flow
-        else if (step.owningTaskId && this.lastNodeByTaskId.has(step.owningTaskId)) {
+        else if (!explicitSourceId && step.owningTaskId && this.lastNodeByTaskId.has(step.owningTaskId)) {
             sourceNodeId = this.lastNodeByTaskId.get(step.owningTaskId)!;
             sourceType = sourceNodeId.split("_")[0];
             // Note: lastNodeBlock might not match sourceNodeId if we jumped tasks, but we use it for Agent->Tool check below
-        } else if (this.lastNodeId) {
-            sourceType = this.lastNodeId.split("_")[0];
+        } else if (sourceNodeId) {
+            sourceType = sourceNodeId.split("_")[0];
         }
 
         // Special handling for Agent -> Tool/LLM connections to use dynamic slots
@@ -183,6 +204,12 @@ export class BlockBuilder {
                 // If sourceBlock is available and matches sourceNodeId, use it.
                 // Otherwise we might miss adding the slot if we switched tasks.
                 // For now, assume sequential flow for LLM calls (usually true).
+                // If explicitSourceId was used, we might need to find the block if sourceBlock is stale.
+                if (explicitSourceId && (!sourceBlock || sourceBlock.id !== explicitSourceId)) {
+                    // Try to find the block in current children (common case)
+                    sourceBlock = this.currentBlock.children.find(b => b.id === explicitSourceId) || null;
+                }
+
                 if (sourceBlock && sourceBlock.id === sourceNodeId && sourceBlock.nodePayload) {
                     const agentNode = sourceBlock.nodePayload;
                     if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
