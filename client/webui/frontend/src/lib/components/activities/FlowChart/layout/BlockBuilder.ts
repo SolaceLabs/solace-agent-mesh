@@ -114,6 +114,11 @@ export class BlockBuilder {
             // Reset lastNodeId to the Agent, so subsequent steps (like response text) connect from the Agent
             this.lastNodeId = agentBlock.id;
             this.lastNodeBlock = agentBlock;
+
+            // Update task tracking so next node connects to Agent
+            if (step.owningTaskId) {
+                this.lastNodeByTaskId.set(step.owningTaskId, agentBlock.id);
+            }
         }
     }
 
@@ -356,6 +361,9 @@ export class BlockBuilder {
 
         if (isPeer) {
             this.endGroup();
+        } else {
+            // Local tool return - connect back to agent
+            this.handleLLMResponse(step);
         }
     }
 
