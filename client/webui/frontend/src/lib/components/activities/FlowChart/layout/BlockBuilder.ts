@@ -1,6 +1,7 @@
 import type { VisualizerStep } from "@/lib/types";
 import { LayoutBlock, VerticalStackBlock, LeafBlock, GroupBlock, HorizontalStackBlock } from "./LayoutBlock";
-import type { Node } from "@xyflow/react";
+import { LANE_OFFSETS } from "./constants";
+import type { Node, Edge } from "@xyflow/react";
 
 /**
  * Responsible for converting a linear stream of VisualizerSteps into a hierarchical LayoutBlock tree.
@@ -10,17 +11,20 @@ export class BlockBuilder {
     private stack: LayoutBlock[];
     private nodeCounter: number = 0;
     private groupCounter: number = 0;
+    
+    private edges: Edge[] = [];
+    private lastNodeId: string | null = null;
 
     constructor() {
         this.root = new VerticalStackBlock("root");
         this.stack = [this.root];
     }
 
-    public build(steps: VisualizerStep[]): LayoutBlock {
+    public build(steps: VisualizerStep[]): { root: LayoutBlock, edges: Edge[] } {
         for (const step of steps) {
             this.processStep(step);
         }
-        return this.root;
+        return { root: this.root, edges: this.edges };
     }
 
     private get currentBlock(): LayoutBlock {
@@ -72,7 +76,34 @@ export class BlockBuilder {
             data: { label: label, visualizerStepId: step.id, ...data }
         };
         const block = new LeafBlock(nodeId, node);
+        
+        // Assign lane offset based on node type
+        if (type === "userNode") {
+            block.laneOffset = LANE_OFFSETS.USER;
+        } else if (type === "genericToolNode" || type === "llmNode") {
+            block.laneOffset = LANE_OFFSETS.TOOL;
+        } else {
+            block.laneOffset = LANE_OFFSETS.MAIN;
+        }
+
         this.currentBlock.addChild(block);
+        
+        // Create edge from last node
+        if (this.lastNodeId) {
+            this.createEdge(this.lastNodeId, nodeId);
+        }
+        this.lastNodeId = nodeId;
+    }
+
+    private createEdge(source: string, target: string) {
+        const edgeId = `e_${source}_${target}`;
+        this.edges.push({
+            id: edgeId,
+            source: source,
+            target: target,
+            type: "defaultFlowEdge",
+            animated: true, // Default to animated for now
+        });
     }
 
     private startGroup(type: string, step: VisualizerStep, label: string) {
@@ -86,6 +117,8 @@ export class BlockBuilder {
         };
 
         const groupBlock = new GroupBlock(groupId, groupNode);
+        groupBlock.laneOffset = LANE_OFFSETS.MAIN; // Groups align with Main flow
+        
         this.currentBlock.addChild(groupBlock);
 
         // A group usually contains a vertical stack of items

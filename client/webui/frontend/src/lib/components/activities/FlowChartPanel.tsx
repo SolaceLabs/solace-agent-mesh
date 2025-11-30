@@ -96,9 +96,9 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
 
             try {
                 const builder = new BlockBuilder();
-                const root = builder.build(processedSteps);
+                const { root, edges } = builder.build(processedSteps);
                 root.measure();
-                root.layout(0, 0);
+                root.layout(300, 0); // Start with offset to accommodate User lane on left
 
                 // Helper for terse tree dump
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,6 +113,7 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
                 };
 
                 console.log("BlockBuilder Tree Structure:", JSON.stringify(dumpTree(root), null, 2));
+                console.log("BlockBuilder Edges:", edges);
             } catch (e) {
                 console.error("BlockBuilder Error:", e);
             }

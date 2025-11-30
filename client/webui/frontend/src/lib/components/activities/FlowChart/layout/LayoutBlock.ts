@@ -13,6 +13,9 @@ export abstract class LayoutBlock {
     // Position (calculated by layout)
     x: number = 0;
     y: number = 0;
+    
+    // Offset for swimlanes (relative to parent)
+    laneOffset: number = 0;
 
     // The React Flow node data associated with this block (if any)
     nodePayload?: Node;
@@ -67,7 +70,7 @@ export class LeafBlock extends LayoutBlock {
     }
 
     layout(offsetX: number, offsetY: number): void {
-        this.x = offsetX;
+        this.x = offsetX + this.laneOffset;
         this.y = offsetY;
     }
 }
@@ -157,12 +160,12 @@ export class GroupBlock extends LayoutBlock {
     }
 
     layout(offsetX: number, offsetY: number): void {
-        this.x = offsetX;
+        this.x = offsetX + this.laneOffset;
         this.y = offsetY;
 
         // Layout children inside the padding
-        let currentY = offsetY + this.paddingY;
-        let currentX = offsetX + this.paddingX;
+        let currentY = this.y + this.paddingY;
+        let currentX = this.x + this.paddingX;
         
         for (const child of this.children) {
             child.layout(currentX, currentY);
