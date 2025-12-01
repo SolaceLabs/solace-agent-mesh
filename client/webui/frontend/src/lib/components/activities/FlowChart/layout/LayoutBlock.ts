@@ -45,7 +45,6 @@ export abstract class LayoutBlock {
             // This ensures stretched agents get their new height rendered
              this.nodePayload.style = {
                 ...this.nodePayload.style,
-                width: `${this.width}px`,
                 height: `${this.height}px`,
             };
         }

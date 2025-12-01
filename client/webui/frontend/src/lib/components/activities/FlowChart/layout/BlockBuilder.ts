@@ -163,37 +163,17 @@ export class BlockBuilder {
     }
 
     private handleAgentResponse(step: VisualizerStep) {
+        // Only create User response nodes for the top-level task (nestingLevel 0)
+        if (step.nestingLevel > 0) {
+            return;
+        }
+
         const taskId = step.owningTaskId;
         
         // Check if we already have a user response node for this task
         let userNode = this.taskUserResponseNodeMap.get(taskId);
 
         if (userNode) {
-            // Update existing node
-            // Note: In a real app, we might want to accumulate text here if it's not already accumulated in the step data.
-            // But since the visualizer step data usually contains the full text or chunk, we rely on the step data.
-            // However, React Flow nodes are immutable-ish. We need to update the node payload.
-            // But since we are rebuilding the tree every time, we can just update the payload of the block we created.
-            // Actually, if we are processing a stream, 'step' is a new event.
-            // If we want to show accumulated text, we should update the label or data of the existing node.
-            // For now, let's assume the step contains the latest chunk and we just want to ensure the node exists.
-            // If we want to append text, we'd need to track state.
-            // But the requirement is "accumulate all the text responses".
-            // Let's assume the node's label/data should reflect the accumulated text.
-            
-            // Since we are processing linearly, we can just update the data of the existing block.
-            if (userNode.nodePayload && step.data.text) {
-                 // Append text if it's a new chunk
-                 // But wait, step.data.text might be the full text if the processor aggregated it.
-                 // If it's a chunk, we append.
-                 const currentText = userNode.nodePayload.data.label || "";
-                 // Simple heuristic: if the new text starts with the old text, replace it. Otherwise append.
-                 // Actually, let's just use the latest step's text if it seems complete, or append.
-                 // For simplicity in this refactor, let's just update the label to "Response" and let the UI handle details,
-                 // OR if we want to show text, we append.
-                 // Let's just ensure the node exists. The visualizer usually shows the text in the side panel.
-                 // The node label is usually just "User".
-            }
             return;
         }
 
@@ -591,7 +571,7 @@ export class BlockBuilder {
             }
             
             if (peerAgentId) {
-                const sourceHandle = "peer-bottom-output";
+                const sourceHandle = "peer-left-output";
                 const targetHandle = `agent-in-${peerAgentId}`;
                 
                 this.createEdge(peerAgentId, agentBlock.id, step.id, sourceHandle, targetHandle);
