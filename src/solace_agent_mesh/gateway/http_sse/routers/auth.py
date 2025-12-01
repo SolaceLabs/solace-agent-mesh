@@ -127,79 +127,43 @@ async def auth_callback(
     access_token_enabled = config.get("access_token_enabled", False)
     token_to_return = access_token  # Default: return IdP token
 
-    # If SAM token feature is enabled AND we have user_claims, mint SAM token
+    # If SAM token feature is enabled AND we have user_claims, try to mint token
     if access_token_enabled and user_claims:
-        log.info("SAM token minting enabled and user_claims available. Minting SAM token...")
+        log.info("SAM token minting enabled and user_claims available. Attempting to mint token...")
 
         try:
             # Extract user identity from claims
             user_id = user_claims.get("sub") or user_claims.get("email") or "unknown"
 
-            # Check if authorization service and trust manager are available
-            if not hasattr(component, "authorization_service") or not component.authorization_service:
-                log.warning("Authorization service not available. Cannot mint SAM token.")
-                raise Exception("Authorization service not configured")
-
-            if not hasattr(component, "trust_manager") or not component.trust_manager:
-                log.warning("Trust manager not available. Cannot mint SAM token.")
-                raise Exception("Trust manager not configured")
-
-            # Build gateway_context for authorization service
-            gateway_context = {
-                "gateway_id": component.gateway_id,
-                "idp_claims": user_claims,  # CRITICAL: Pass IdP claims to authorization service
-                "request": request,
-            }
-
-            # Get roles from authorization service (calls Chunk 1 role mapping)
-            user_roles = await component.authorization_service.get_roles_for_user(
-                user_identity=user_id,
-                gateway_context=gateway_context
-            )
-
-            # Get scopes from authorization service (resolves roles → scopes)
-            user_scopes = await component.authorization_service.get_scopes_for_user(
-                user_identity=user_id,
-                gateway_context=gateway_context
-            )
-
-            log.info(
-                f"Authorization service returned roles={user_roles}, scopes count={len(user_scopes)} "
-                f"for user {user_id}"
-            )
-
-            # Build user_info for SAM token
-            user_info = {
-                "id": user_id,
-                "name": user_claims.get("name"),
-                "email": user_claims.get("email"),
-                "roles": user_roles,
-                "scopes": user_scopes,
-            }
-
-            # Create temporary task_id for this auth session
-            # (SAM tokens must be bound to a task for security)
+            # Create task_id for this auth session
             auth_task_id = f"auth-{user_id}-{int(time.time())}"
 
-            # Mint SAM token using trust manager
-            sam_token = component.trust_manager.sign_user_claims(
-                user_info=user_info,
+            # Use token service to mint token
+            # - Base implementation: returns IdP token unchanged
+            # - Enterprise implementation: mints self-signed SAM token
+            minted_token = await component.token_service.mint_token(
+                user_claims=user_claims,
+                idp_access_token=access_token,
                 task_id=auth_task_id,
             )
 
-            log.info(f"Successfully minted SAM token for user {user_id}")
-
-            # Store SAM token info in session for middleware
-            request.session["sam_token"] = sam_token
-            request.session["sam_token_task_id"] = auth_task_id
-            request.session["token_type"] = "sam"
-
-            # Return SAM token to client
-            token_to_return = sam_token
+            # Check if a different token was minted (enterprise behavior)
+            if minted_token != access_token:
+                # SAM token was minted
+                log.info(f"Successfully minted SAM token for user {user_id}")
+                request.session["sam_token"] = minted_token
+                request.session["sam_token_task_id"] = auth_task_id
+                request.session["token_type"] = "sam"
+                token_to_return = minted_token
+            else:
+                # Base implementation returned IdP token
+                log.debug("Token service returned IdP token (base mode)")
+                request.session["token_type"] = "idp"
+                token_to_return = access_token
 
         except Exception as e:
-            # If SAM token minting fails, fall back to IdP token
-            log.error(f"Failed to mint SAM token: {e}. Falling back to IdP access_token.")
+            # If token minting fails, fall back to IdP token
+            log.error(f"Failed to mint token: {e}. Falling back to IdP access_token.")
             token_to_return = access_token
             request.session["token_type"] = "idp"
 
@@ -308,64 +272,40 @@ async def refresh_token(
 
     token_to_return = access_token
 
-    # If SAM token feature is enabled AND we have user_claims, re-mint SAM token
+    # If SAM token feature is enabled AND we have user_claims, re-mint token
     access_token_enabled = config.get("access_token_enabled", False)
     if access_token_enabled and user_claims:
-        log.info("Re-minting SAM token with refreshed claims...")
+        log.info("Re-minting token with refreshed claims...")
 
         try:
             user_id = user_claims.get("sub") or user_claims.get("email") or "unknown"
-
-            # Check if services are available
-            if not hasattr(component, "authorization_service") or not component.authorization_service:
-                log.warning("Authorization service not available. Cannot re-mint SAM token.")
-                raise Exception("Authorization service not configured")
-
-            if not hasattr(component, "trust_manager") or not component.trust_manager:
-                log.warning("Trust manager not available. Cannot re-mint SAM token.")
-                raise Exception("Trust manager not configured")
-
-            gateway_context = {
-                "gateway_id": component.gateway_id,
-                "idp_claims": user_claims,
-                "request": request,
-            }
-
-            user_roles = await component.authorization_service.get_roles_for_user(
-                user_identity=user_id,
-                gateway_context=gateway_context
-            )
-
-            user_scopes = await component.authorization_service.get_scopes_for_user(
-                user_identity=user_id,
-                gateway_context=gateway_context
-            )
-
-            user_info = {
-                "id": user_id,
-                "name": user_claims.get("name"),
-                "email": user_claims.get("email"),
-                "roles": user_roles,
-                "scopes": user_scopes,
-            }
-
             auth_task_id = f"auth-{user_id}-{int(time.time())}"
 
-            sam_token = component.trust_manager.sign_user_claims(
-                user_info=user_info,
+            # Use token service to re-mint token
+            # - Base implementation: returns IdP token unchanged
+            # - Enterprise implementation: re-mints SAM token with fresh claims
+            minted_token = await component.token_service.mint_token(
+                user_claims=user_claims,
+                idp_access_token=access_token,
                 task_id=auth_task_id,
             )
 
-            log.info(f"Successfully re-minted SAM token for user {user_id}")
-
-            request.session["sam_token"] = sam_token
-            request.session["sam_token_task_id"] = auth_task_id
-            request.session["token_type"] = "sam"
-
-            token_to_return = sam_token
+            # Check if a different token was minted (enterprise behavior)
+            if minted_token != access_token:
+                # SAM token was re-minted
+                log.info(f"Successfully re-minted SAM token for user {user_id}")
+                request.session["sam_token"] = minted_token
+                request.session["sam_token_task_id"] = auth_task_id
+                request.session["token_type"] = "sam"
+                token_to_return = minted_token
+            else:
+                # Base implementation returned IdP token
+                log.debug("Token service returned IdP token (base mode)")
+                request.session["token_type"] = "idp"
+                token_to_return = access_token
 
         except Exception as e:
-            log.error(f"Failed to re-mint SAM token: {e}. Using IdP access_token.")
+            log.error(f"Failed to re-mint token: {e}. Using IdP access_token.")
             token_to_return = access_token
             request.session["token_type"] = "idp"
     else:

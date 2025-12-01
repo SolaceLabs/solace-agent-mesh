@@ -298,6 +298,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Data retention is disabled via configuration.", self.log_identifier
             )
 
+        # Initialize token service
+        from ...common.services.token_service import TokenServiceRegistry
+
+        token_service_class = TokenServiceRegistry.get_token_service_class()
+        self.token_service = token_service_class(component=self)
+        log.info(
+            "%s Initialized token service: %s",
+            self.log_identifier,
+            token_service_class.__name__
+        )
+
         log.info("%s Web UI Backend Component initialized.", self.log_identifier)
 
     def process_event(self, event: Event):

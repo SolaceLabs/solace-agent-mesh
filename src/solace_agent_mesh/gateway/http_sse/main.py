@@ -87,9 +87,10 @@ def _extract_access_token(request: FastAPIRequest) -> str:
     return None
 
 
-async def _validate_token(
+async def _validate_token_http(
     auth_service_url: str, auth_provider: str, access_token: str
 ) -> bool:
+    """Validate token via HTTP call to external auth service (legacy IdP validation)."""
     async with httpx.AsyncClient() as client:
         validation_response = await client.post(
             f"{auth_service_url}/is_token_valid",
@@ -114,36 +115,45 @@ async def _get_user_info(
     return userinfo_response.json()
 
 
-async def _validate_sam_token(
-    sam_token: str, component: "WebUIBackendComponent", task_id: str
+async def _validate_token(
+    token: str, component: "WebUIBackendComponent", task_id: str
 ) -> dict:
     """
-    Validate SAM token signature and extract claims.
+    Validate access token and extract claims.
+
+    Uses token service to validate. Returns None if validation not supported
+    (base mode) or if validation fails.
 
     Args:
-        sam_token: SAM JWT token string
+        token: Access token string
         component: WebUIBackendComponent instance
         task_id: Expected task ID for binding verification
 
     Returns:
         Verified claims dict if valid, None otherwise
     """
-    if not hasattr(component, 'trust_manager') or not component.trust_manager:
-        log.warning("Trust manager not available for SAM token validation")
+    if not hasattr(component, 'token_service') or not component.token_service:
+        log.warning("Token service not available")
         return None
 
     try:
-        # Verify SAM token using trust manager
-        verified_claims = component.trust_manager.verify_user_identity_jwt(
-            jwt_token=sam_token,
-            expected_task_id=task_id
+        # Use token service to validate
+        # - Base implementation: returns None (cannot validate IdP tokens)
+        # - Enterprise implementation: validates SAM token signature
+        verified_claims = component.token_service.validate_token(
+            token=token,
+            task_id=task_id
         )
 
-        log.debug(f"SAM token validated successfully for user {verified_claims.get('sub')}")
+        if verified_claims:
+            log.debug(f"Token validated successfully for user {verified_claims.get('sub')}")
+        else:
+            log.debug("Token validation not supported (base mode)")
+
         return verified_claims
 
     except Exception as e:
-        log.warning(f"SAM token validation failed: {e}")
+        log.warning(f"Token validation failed: {e}")
         return None
 
 
@@ -347,8 +357,8 @@ def _create_auth_middleware(component):
                     pass
 
                 if sam_token_task_id:
-                    verified_claims = await _validate_sam_token(
-                        sam_token=access_token,
+                    verified_claims = await _validate_token(
+                        token=access_token,
                         component=self.component,
                         task_id=sam_token_task_id
                     )
@@ -394,7 +404,7 @@ def _create_auth_middleware(component):
 
                 try:
                     # Validate IdP token (HTTP call)
-                    if not await _validate_token(auth_service_url, auth_provider, access_token):
+                    if not await _validate_token_http(auth_service_url, auth_provider, access_token):
                         log.warning("AuthMiddleware: IdP token validation failed")
                         response = JSONResponse(
                             status_code=status.HTTP_401_UNAUTHORIZED,

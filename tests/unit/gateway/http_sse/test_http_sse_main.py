@@ -193,51 +193,51 @@ class TestTokenValidation:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_httpx_client.post.return_value = mock_response
-        
-        result = await main._validate_token(
+
+        result = await main._validate_token_http(
             "http://auth-service",
             "azure",
             "valid_token"
         )
-        
+
         assert result is True
         mock_httpx_client.post.assert_called_once_with(
             "http://auth-service/is_token_valid",
             json={"provider": "azure"},
             headers={"Authorization": "Bearer valid_token"}
         )
-    
+
     @pytest.mark.asyncio
     async def test_validate_token_failure(self, mock_httpx_client):
         """Test failed token validation."""
         mock_response = MagicMock()
         mock_response.status_code = 401
         mock_httpx_client.post.return_value = mock_response
-        
-        result = await main._validate_token(
+
+        result = await main._validate_token_http(
             "http://auth-service",
             "azure",
             "invalid_token"
         )
-        
+
         assert result is False
-    
+
     @pytest.mark.asyncio
     async def test_validate_token_with_different_providers(self, mock_httpx_client):
         """Test token validation with different auth providers."""
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_httpx_client.post.return_value = mock_response
-        
+
         providers = ["azure", "okta", "auth0", "keycloak"]
-        
+
         for provider in providers:
-            await main._validate_token(
+            await main._validate_token_http(
                 "http://auth-service",
                 provider,
                 "test_token"
             )
-        
+
         assert mock_httpx_client.post.call_count == len(providers)
 
 
