@@ -189,38 +189,50 @@ async def get_all_prompt_groups(
         # Fetch production prompts for each group
         result = []
         for group in groups:
-            group_dict = {
-                "id": group.id,
-                "name": group.name,
-                "description": group.description,
-                "category": group.category,
-                "command": group.command,
-                "user_id": group.user_id,
-                "author_name": group.author_name,
-                "production_prompt_id": group.production_prompt_id,
-                "is_shared": group.is_shared,
-                "is_pinned": group.is_pinned,
-                "created_at": group.created_at,
-                "updated_at": group.updated_at,
-                "production_prompt": None,
-            }
-            
-            if group.production_prompt_id:
-                prod_prompt = db.query(PromptModel).filter(
-                    PromptModel.id == group.production_prompt_id
-                ).first()
-                if prod_prompt:
-                    group_dict["production_prompt"] = {
-                        "id": prod_prompt.id,
-                        "prompt_text": prod_prompt.prompt_text,
-                        "group_id": prod_prompt.group_id,
-                        "user_id": prod_prompt.user_id,
-                        "version": prod_prompt.version,
-                        "created_at": prod_prompt.created_at,
-                        "updated_at": prod_prompt.updated_at,
-                    }
-            
-            result.append(PromptGroupResponse(**group_dict))
+            try:
+                # Truncate fields that exceed max length to prevent validation errors
+                name = group.name[:255] if group.name and len(group.name) > 255 else group.name
+                description = group.description[:1000] if group.description and len(group.description) > 1000 else group.description
+                category = group.category[:100] if group.category and len(group.category) > 100 else group.category
+                command = group.command[:50] if group.command and len(group.command) > 50 else group.command
+                author_name = group.author_name[:255] if group.author_name and len(group.author_name) > 255 else group.author_name
+                
+                group_dict = {
+                    "id": group.id,
+                    "name": name,
+                    "description": description,
+                    "category": category,
+                    "command": command,
+                    "user_id": group.user_id,
+                    "author_name": author_name,
+                    "production_prompt_id": group.production_prompt_id,
+                    "is_shared": group.is_shared,
+                    "is_pinned": group.is_pinned,
+                    "created_at": group.created_at,
+                    "updated_at": group.updated_at,
+                    "production_prompt": None,
+                }
+                
+                if group.production_prompt_id:
+                    prod_prompt = db.query(PromptModel).filter(
+                        PromptModel.id == group.production_prompt_id
+                    ).first()
+                    if prod_prompt:
+                        group_dict["production_prompt"] = {
+                            "id": prod_prompt.id,
+                            "prompt_text": prod_prompt.prompt_text,
+                            "group_id": prod_prompt.group_id,
+                            "user_id": prod_prompt.user_id,
+                            "version": prod_prompt.version,
+                            "created_at": prod_prompt.created_at,
+                            "updated_at": prod_prompt.updated_at,
+                        }
+                
+                result.append(PromptGroupResponse(**group_dict))
+            except Exception as e:
+                # Log the error but continue processing other groups
+                log.warning(f"Skipping invalid prompt group {group.id}: {e}")
+                continue
         
         return result
     except Exception as e:
@@ -282,38 +294,50 @@ async def list_prompt_groups(
         # Fetch production prompts for each group
         result_groups = []
         for group in groups:
-            group_dict = {
-                "id": group.id,
-                "name": group.name,
-                "description": group.description,
-                "category": group.category,
-                "command": group.command,
-                "user_id": group.user_id,
-                "author_name": group.author_name,
-                "production_prompt_id": group.production_prompt_id,
-                "is_shared": group.is_shared,
-                "is_pinned": group.is_pinned,
-                "created_at": group.created_at,
-                "updated_at": group.updated_at,
-                "production_prompt": None,
-            }
-            
-            if group.production_prompt_id:
-                prod_prompt = db.query(PromptModel).filter(
-                    PromptModel.id == group.production_prompt_id
-                ).first()
-                if prod_prompt:
-                    group_dict["production_prompt"] = {
-                        "id": prod_prompt.id,
-                        "prompt_text": prod_prompt.prompt_text,
-                        "group_id": prod_prompt.group_id,
-                        "user_id": prod_prompt.user_id,
-                        "version": prod_prompt.version,
-                        "created_at": prod_prompt.created_at,
-                        "updated_at": prod_prompt.updated_at,
-                    }
-            
-            result_groups.append(PromptGroupResponse(**group_dict))
+            try:
+                # Truncate fields that exceed max length to prevent validation errors
+                name = group.name[:255] if group.name and len(group.name) > 255 else group.name
+                description = group.description[:1000] if group.description and len(group.description) > 1000 else group.description
+                category = group.category[:100] if group.category and len(group.category) > 100 else group.category
+                command = group.command[:50] if group.command and len(group.command) > 50 else group.command
+                author_name = group.author_name[:255] if group.author_name and len(group.author_name) > 255 else group.author_name
+                
+                group_dict = {
+                    "id": group.id,
+                    "name": name,
+                    "description": description,
+                    "category": category,
+                    "command": command,
+                    "user_id": group.user_id,
+                    "author_name": author_name,
+                    "production_prompt_id": group.production_prompt_id,
+                    "is_shared": group.is_shared,
+                    "is_pinned": group.is_pinned,
+                    "created_at": group.created_at,
+                    "updated_at": group.updated_at,
+                    "production_prompt": None,
+                }
+                
+                if group.production_prompt_id:
+                    prod_prompt = db.query(PromptModel).filter(
+                        PromptModel.id == group.production_prompt_id
+                    ).first()
+                    if prod_prompt:
+                        group_dict["production_prompt"] = {
+                            "id": prod_prompt.id,
+                            "prompt_text": prod_prompt.prompt_text,
+                            "group_id": prod_prompt.group_id,
+                            "user_id": prod_prompt.user_id,
+                            "version": prod_prompt.version,
+                            "created_at": prod_prompt.created_at,
+                            "updated_at": prod_prompt.updated_at,
+                        }
+                
+                result_groups.append(PromptGroupResponse(**group_dict))
+            except Exception as e:
+                # Log the error but continue processing other groups
+                log.warning(f"Skipping invalid prompt group {group.id}: {e}")
+                continue
         
         return PromptGroupListResponse(
             groups=result_groups,

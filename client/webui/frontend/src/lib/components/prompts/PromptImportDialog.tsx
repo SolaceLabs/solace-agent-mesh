@@ -31,6 +31,7 @@ interface PromptImportDialogProps {
 export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, onOpenChange, onImport }) => {
     const [importData, setImportData] = useState<PromptImportData | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [validationErrors, setValidationErrors] = useState<string[]>([]);
     const [isImporting, setIsImporting] = useState(false);
     const [editedCommand, setEditedCommand] = useState<string>("");
     const [isDragging, setIsDragging] = useState(false);
@@ -42,6 +43,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         if (!selectedFile) return;
 
         setError(null);
+        setValidationErrors([]);
         setImportData(null);
 
         // Validate file type
@@ -75,6 +77,35 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
 
             if (!data.prompt.name || !data.prompt.promptText) {
                 setError("Invalid export format: missing prompt name or text");
+                return;
+            }
+
+            // Validate field lengths to match backend constraints
+            const validationErrors: string[] = [];
+
+            if (data.prompt.name.length > 255) {
+                validationErrors.push(`Name is too long (${data.prompt.name.length} characters, max 255)`);
+            }
+
+            if (data.prompt.description && data.prompt.description.length > 500) {
+                validationErrors.push(`Description is too long (${data.prompt.description.length} characters, max 500)`);
+            }
+
+            if (data.prompt.category && data.prompt.category.length > 100) {
+                validationErrors.push(`Category is too long (${data.prompt.category.length} characters, max 100)`);
+            }
+
+            if (data.prompt.command && data.prompt.command.length > 50) {
+                validationErrors.push(`Command is too long (${data.prompt.command.length} characters, max 50)`);
+            }
+
+            if (data.prompt.metadata?.authorName && data.prompt.metadata.authorName.length > 255) {
+                validationErrors.push(`Author name is too long (${data.prompt.metadata.authorName.length} characters, max 255)`);
+            }
+
+            if (validationErrors.length > 0) {
+                setValidationErrors(validationErrors);
+                setError("The imported prompt has fields that exceed maximum length limits:");
                 return;
             }
 
@@ -152,6 +183,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
             setSelectedFileName("");
             setEditedCommand("");
             setError(null);
+            setValidationErrors([]);
             onOpenChange(false);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to import prompt");
@@ -166,6 +198,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
             setSelectedFileName("");
             setEditedCommand("");
             setError(null);
+            setValidationErrors([]);
             onOpenChange(false);
         }
     };
@@ -179,12 +212,12 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>Import Prompt</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 overflow-x-hidden py-4">
                     {/* File Upload - Drag and Drop or Selected File Display */}
                     {!selectedFileName ? (
                         <div
@@ -215,6 +248,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                     setImportData(null);
                                     setEditedCommand("");
                                     setError(null);
+                                    setValidationErrors([]);
                                 }}
                                 disabled={isImporting}
                             >
@@ -224,7 +258,20 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                     )}
 
                     {/* Error Display */}
-                    {error && <MessageBanner variant="error" message={error} />}
+                    {error && (
+                        <div className="space-y-2">
+                            <MessageBanner variant="error" message={error} />
+                            {validationErrors.length > 0 && (
+                                <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/30">
+                                    <ul className="list-inside list-disc space-y-1 text-sm text-red-800 dark:text-red-200">
+                                        {validationErrors.map((err, idx) => (
+                                            <li key={idx}>{err}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Preview */}
                     {importData && !error && (
@@ -234,37 +281,37 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                                 <AlertDescription>File validated successfully. Review the details below:</AlertDescription>
                             </Alert>
 
-                            <div className="space-y-3 rounded-lg border p-4">
+                            <div className="space-y-3 overflow-hidden rounded-lg border p-4">
                                 <div>
                                     <Label className="text-muted-foreground text-xs">Name</Label>
-                                    <p className="font-medium">{importData.prompt.name}</p>
+                                    <p className="overflow-wrap-anywhere font-medium break-words">{importData.prompt.name}</p>
                                 </div>
 
                                 {importData.prompt.description && (
                                     <div>
                                         <Label className="text-muted-foreground text-xs">Description</Label>
-                                        <p className="text-sm">{importData.prompt.description}</p>
+                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.description}</p>
                                     </div>
                                 )}
 
                                 {importData.prompt.category && (
                                     <div>
                                         <Label className="text-muted-foreground text-xs">Category</Label>
-                                        <p className="text-sm">{importData.prompt.category}</p>
+                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.category}</p>
                                     </div>
                                 )}
 
                                 {importData.prompt.command && (
                                     <div>
                                         <Label className="text-muted-foreground text-xs">Command</Label>
-                                        <p className="font-mono text-sm">/{importData.prompt.command}</p>
+                                        <p className="font-mono text-sm break-all">{importData.prompt.command}</p>
                                     </div>
                                 )}
 
                                 {importData.prompt.metadata?.authorName && (
                                     <div>
                                         <Label className="text-muted-foreground text-xs">Original Author</Label>
-                                        <p className="text-sm">{importData.prompt.metadata.authorName}</p>
+                                        <p className="overflow-wrap-anywhere text-sm break-words">{importData.prompt.metadata.authorName}</p>
                                     </div>
                                 )}
                             </div>
