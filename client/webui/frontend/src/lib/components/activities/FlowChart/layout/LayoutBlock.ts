@@ -41,13 +41,13 @@ export abstract class LayoutBlock {
         if (this.nodePayload) {
             this.nodePayload.position = { x: absX, y: absY };
             
-            if (this.nodePayload.type === 'group') {
-                 this.nodePayload.style = {
-                    ...this.nodePayload.style,
-                    width: `${this.width}px`,
-                    height: `${this.height}px`,
-                };
-            }
+            // Update dimensions in style for ALL blocks that have a payload
+            // This ensures stretched agents get their new height rendered
+             this.nodePayload.style = {
+                ...this.nodePayload.style,
+                width: `${this.width}px`,
+                height: `${this.height}px`,
+            };
         }
         
         for (const child of this.children) {
@@ -132,6 +132,16 @@ export class HorizontalStackBlock extends LayoutBlock {
         if (this.children.length > 1) {
             this.width += (this.children.length - 1) * this.spacing;
         }
+
+        // Stretch the first child (Agent) to match the row height
+        if (this.children.length > 0) {
+             const firstChild = this.children[0];
+             if (firstChild instanceof LeafBlock && 
+                 (firstChild.nodePayload?.type === 'orchestratorNode' || firstChild.nodePayload?.type === 'genericAgentNode')) {
+                 firstChild.height = this.height;
+             }
+        }
+
         console.log(`[HorizontalStackBlock] ${this.id} measured: ${this.width}x${this.height}`);
     }
 

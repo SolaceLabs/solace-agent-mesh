@@ -108,7 +108,13 @@ export class BlockBuilder {
 
     private handleLLMResponse(step: VisualizerStep) {
         const taskId = step.owningTaskId;
-        const container = this.getBlockForTask(taskId);
+        
+        // Try to find the tool stack first, as that's where tools/LLMs live
+        // If not found, fallback to the main task block (e.g. for simple flows)
+        let container = this.taskToolStackMap.get(taskId);
+        if (!container) {
+             container = this.getBlockForTask(taskId) as VerticalStackBlock;
+        }
         
         // Find the active agent node (Orchestrator or Peer) in this container
         const agentBlock = this.findActiveAgentNode(container);
