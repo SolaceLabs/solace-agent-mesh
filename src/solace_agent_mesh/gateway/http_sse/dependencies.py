@@ -412,6 +412,8 @@ class ValidatedUserConfig:
     This class creates a callable dependency that validates a user has the required
     scopes before allowing access to protected endpoints.
 
+    Now supports direct scope validation from SAM token claims.
+
     Args:
         required_scopes: List of scope strings required for authorization
 
@@ -440,7 +442,31 @@ class ValidatedUserConfig:
             f"ValidatedUserConfig called for user_id: {user_id} with required scopes: {self.required_scopes}"
         )
 
-        # Validate scopes
+        # First, try to check scopes from SAM token claims (if available)
+        if (hasattr(request.state, "user_claims")
+            and request.state.user_claims
+            and isinstance(request.state.user_claims, dict)):
+            user_scopes = request.state.user_claims.get("scopes", [])
+
+            # Check if user has all required scopes
+            if all(scope in user_scopes for scope in self.required_scopes):
+                log.debug(
+                    f"Authorization granted for user '{user_id}' via SAM token claims. "
+                    f"User scopes count: {len(user_scopes)}"
+                )
+                return user_config
+            else:
+                missing_scopes = [s for s in self.required_scopes if s not in user_scopes]
+                log.warning(
+                    f"Authorization denied for user '{user_id}'. "
+                    f"Missing scopes: {missing_scopes}. User scopes count: {len(user_scopes)}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Not authorized. Missing scopes: {missing_scopes}",
+                )
+
+        # Fall back to config_resolver for backwards compatibility (IdP tokens or development mode)
         if not config_resolver.is_feature_enabled(
             user_config,
             {"tool_metadata": {"required_scopes": self.required_scopes}},

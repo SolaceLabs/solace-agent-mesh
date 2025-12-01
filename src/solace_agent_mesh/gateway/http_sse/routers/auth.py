@@ -4,6 +4,7 @@ Router for handling authentication-related endpoints.
 
 import logging
 import secrets
+import time
 from urllib.parse import urlencode
 
 import httpx
@@ -75,6 +76,7 @@ async def auth_callback(
 ):
     """
     Handles the callback from the OIDC provider by calling an external exchange service.
+    Now supports SAM token minting based on id_token claims.
     """
     code = request.query_params.get("code")
 
@@ -110,50 +112,147 @@ async def auth_callback(
             log.error(f"Error during code exchange: {e}")
             raise HTTPException(status_code=500, detail="Error during code exchange")
 
+    # Extract ALL fields from OAuth2 response
     access_token = token_data.get("access_token")
     refresh_token = token_data.get("refresh_token")
+    id_token = token_data.get("id_token")  # NEW: May be None if validation failed
+    user_claims = token_data.get("user_claims")  # NEW: Decoded id_token claims
 
     if not access_token:
         raise HTTPException(
             status_code=400, detail="Access token not in response from exchange service"
         )
 
+    # Determine which token to return to client based on feature flag
+    access_token_enabled = config.get("access_token_enabled", False)
+    token_to_return = access_token  # Default: return IdP token
+
+    # If SAM token feature is enabled AND we have user_claims, mint SAM token
+    if access_token_enabled and user_claims:
+        log.info("SAM token minting enabled and user_claims available. Minting SAM token...")
+
+        try:
+            # Extract user identity from claims
+            user_id = user_claims.get("sub") or user_claims.get("email") or "unknown"
+
+            # Check if authorization service and trust manager are available
+            if not hasattr(component, "authorization_service") or not component.authorization_service:
+                log.warning("Authorization service not available. Cannot mint SAM token.")
+                raise Exception("Authorization service not configured")
+
+            if not hasattr(component, "trust_manager") or not component.trust_manager:
+                log.warning("Trust manager not available. Cannot mint SAM token.")
+                raise Exception("Trust manager not configured")
+
+            # Build gateway_context for authorization service
+            gateway_context = {
+                "gateway_id": component.gateway_id,
+                "idp_claims": user_claims,  # CRITICAL: Pass IdP claims to authorization service
+                "request": request,
+            }
+
+            # Get roles from authorization service (calls Chunk 1 role mapping)
+            user_roles = await component.authorization_service.get_roles_for_user(
+                user_identity=user_id,
+                gateway_context=gateway_context
+            )
+
+            # Get scopes from authorization service (resolves roles → scopes)
+            user_scopes = await component.authorization_service.get_scopes_for_user(
+                user_identity=user_id,
+                gateway_context=gateway_context
+            )
+
+            log.info(
+                f"Authorization service returned roles={user_roles}, scopes count={len(user_scopes)} "
+                f"for user {user_id}"
+            )
+
+            # Build user_info for SAM token
+            user_info = {
+                "id": user_id,
+                "name": user_claims.get("name"),
+                "email": user_claims.get("email"),
+                "roles": user_roles,
+                "scopes": user_scopes,
+            }
+
+            # Create temporary task_id for this auth session
+            # (SAM tokens must be bound to a task for security)
+            auth_task_id = f"auth-{user_id}-{int(time.time())}"
+
+            # Mint SAM token using trust manager
+            sam_token = component.trust_manager.sign_user_claims(
+                user_info=user_info,
+                task_id=auth_task_id,
+            )
+
+            log.info(f"Successfully minted SAM token for user {user_id}")
+
+            # Store SAM token info in session for middleware
+            request.session["sam_token"] = sam_token
+            request.session["sam_token_task_id"] = auth_task_id
+            request.session["token_type"] = "sam"
+
+            # Return SAM token to client
+            token_to_return = sam_token
+
+        except Exception as e:
+            # If SAM token minting fails, fall back to IdP token
+            log.error(f"Failed to mint SAM token: {e}. Falling back to IdP access_token.")
+            token_to_return = access_token
+            request.session["token_type"] = "idp"
+
+    else:
+        # SAM token feature disabled or no user_claims available
+        if not access_token_enabled:
+            log.debug("SAM token feature disabled (access_token_enabled=false). Using IdP access_token.")
+        elif not user_claims:
+            log.warning(
+                "SAM token feature enabled but no user_claims in OAuth2 response. "
+                "Using IdP access_token. Check OAuth2 service id_token validation."
+            )
+        request.session["token_type"] = "idp"
+
+    # Store IdP tokens in session (always keep these for refresh flow)
     request.session["access_token"] = access_token
     if refresh_token:
         request.session["refresh_token"] = refresh_token
-    log.debug("Tokens stored directly in session.")
 
-    try:
-        async with httpx.AsyncClient() as client:
-            user_info_response = await client.get(
-                f"{external_auth_url}/user_info",
-                params={"provider": config.get("external_auth_provider", "azure")},
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-            user_info_response.raise_for_status()
-            user_info = user_info_response.json()
+    # Store user info from claims (if available)
+    if user_claims:
+        user_id = user_claims.get("sub") or user_claims.get("email") or "authenticated_user"
+        if user_id:
+            session_manager = component.get_session_manager()
+            session_manager.store_user_id(request, user_id)
+    else:
+        # Fallback: make HTTP call to /user_info (old behavior)
+        try:
+            async with httpx.AsyncClient() as client:
+                user_info_response = await client.get(
+                    f"{external_auth_url}/user_info",
+                    params={"provider": config.get("external_auth_provider", "azure")},
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                user_info_response.raise_for_status()
+                user_info = user_info_response.json()
 
-            user_id = user_info.get("email", "authenticated_user")
-            if user_id:
-                session_manager = component.get_session_manager()
-                session_manager.store_user_id(request, user_id)
-            else:
-                log.warning("Could not find 'email' in user info response.")
+                user_id = user_info.get("email", "authenticated_user")
+                if user_id:
+                    session_manager = component.get_session_manager()
+                    session_manager.store_user_id(request, user_id)
+        except Exception as e:
+            log.error(f"Error getting user info: {e}")
 
-    except httpx.HTTPStatusError as e:
-        log.error(f"Failed to get user info: {e.response.text}")
+    log.debug("Tokens stored in session.")
 
-    except Exception as e:
-        log.error(f"Error getting user info: {e}")
-
+    # Return token to frontend
     frontend_base_url = config.get("frontend_redirect_url", "http://localhost:3000")
-
-    hash_params = {"access_token": access_token}
+    hash_params = {"access_token": token_to_return}
     if refresh_token:
         hash_params["refresh_token"] = refresh_token
 
     hash_fragment = urlencode(hash_params)
-
     frontend_redirect_url = f"{frontend_base_url}/auth-callback.html#{hash_fragment}"
     return RedirectResponse(url=frontend_redirect_url)
 
@@ -166,6 +265,7 @@ async def refresh_token(
 ):
     """
     Refreshes an access token using the external authorization service.
+    Now supports refreshing SAM tokens with updated claims.
     """
     data = await request.json()
     refresh_token = data.get("refresh_token")
@@ -199,18 +299,87 @@ async def refresh_token(
 
     access_token = token_data.get("access_token")
     new_refresh_token = token_data.get("refresh_token")
+    user_claims = token_data.get("user_claims")  # NEW: May contain updated claims
 
     if not access_token:
         raise HTTPException(
             status_code=400, detail="Access token not in response from refresh service"
         )
 
+    token_to_return = access_token
+
+    # If SAM token feature is enabled AND we have user_claims, re-mint SAM token
+    access_token_enabled = config.get("access_token_enabled", False)
+    if access_token_enabled and user_claims:
+        log.info("Re-minting SAM token with refreshed claims...")
+
+        try:
+            user_id = user_claims.get("sub") or user_claims.get("email") or "unknown"
+
+            # Check if services are available
+            if not hasattr(component, "authorization_service") or not component.authorization_service:
+                log.warning("Authorization service not available. Cannot re-mint SAM token.")
+                raise Exception("Authorization service not configured")
+
+            if not hasattr(component, "trust_manager") or not component.trust_manager:
+                log.warning("Trust manager not available. Cannot re-mint SAM token.")
+                raise Exception("Trust manager not configured")
+
+            gateway_context = {
+                "gateway_id": component.gateway_id,
+                "idp_claims": user_claims,
+                "request": request,
+            }
+
+            user_roles = await component.authorization_service.get_roles_for_user(
+                user_identity=user_id,
+                gateway_context=gateway_context
+            )
+
+            user_scopes = await component.authorization_service.get_scopes_for_user(
+                user_identity=user_id,
+                gateway_context=gateway_context
+            )
+
+            user_info = {
+                "id": user_id,
+                "name": user_claims.get("name"),
+                "email": user_claims.get("email"),
+                "roles": user_roles,
+                "scopes": user_scopes,
+            }
+
+            auth_task_id = f"auth-{user_id}-{int(time.time())}"
+
+            sam_token = component.trust_manager.sign_user_claims(
+                user_info=user_info,
+                task_id=auth_task_id,
+            )
+
+            log.info(f"Successfully re-minted SAM token for user {user_id}")
+
+            request.session["sam_token"] = sam_token
+            request.session["sam_token_task_id"] = auth_task_id
+            request.session["token_type"] = "sam"
+
+            token_to_return = sam_token
+
+        except Exception as e:
+            log.error(f"Failed to re-mint SAM token: {e}. Using IdP access_token.")
+            token_to_return = access_token
+            request.session["token_type"] = "idp"
+    else:
+        if not access_token_enabled:
+            log.debug("SAM token feature disabled. Using IdP access_token.")
+        request.session["token_type"] = "idp"
+
+    # Update session with new IdP tokens
     session_manager = component.get_session_manager()
     session_manager.store_auth_tokens(request, access_token, new_refresh_token)
     log.info("Successfully refreshed and updated tokens in session.")
 
     return {
-        "access_token": access_token,
+        "access_token": token_to_return,
         "refresh_token": new_refresh_token,
     }
 

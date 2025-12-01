@@ -114,6 +114,39 @@ async def _get_user_info(
     return userinfo_response.json()
 
 
+async def _validate_sam_token(
+    sam_token: str, component: "WebUIBackendComponent", task_id: str
+) -> dict:
+    """
+    Validate SAM token signature and extract claims.
+
+    Args:
+        sam_token: SAM JWT token string
+        component: WebUIBackendComponent instance
+        task_id: Expected task ID for binding verification
+
+    Returns:
+        Verified claims dict if valid, None otherwise
+    """
+    if not hasattr(component, 'trust_manager') or not component.trust_manager:
+        log.warning("Trust manager not available for SAM token validation")
+        return None
+
+    try:
+        # Verify SAM token using trust manager
+        verified_claims = component.trust_manager.verify_user_identity_jwt(
+            jwt_token=sam_token,
+            expected_task_id=task_id
+        )
+
+        log.debug(f"SAM token validated successfully for user {verified_claims.get('sub')}")
+        return verified_claims
+
+    except Exception as e:
+        log.warning(f"SAM token validation failed: {e}")
+        return None
+
+
 def _extract_user_identifier(user_info: dict) -> str:
     user_identifier = (
         user_info.get("sub")
@@ -260,6 +293,12 @@ def _create_auth_middleware(component):
             await self.app(scope, receive, send)
 
         async def _handle_authenticated_request(self, request, scope, receive, send):
+            """
+            Handle authenticated request with support for both SAM tokens and IdP tokens.
+
+            SAM tokens are validated locally (no HTTP calls).
+            IdP tokens fall back to HTTP validation (backwards compatibility).
+            """
             access_token = _extract_access_token(request)
 
             if not access_token:
@@ -274,122 +313,205 @@ def _create_auth_middleware(component):
                 await response(scope, receive, send)
                 return
 
+            # Check token type from session
+            token_type = "idp"  # Default
             try:
-                auth_service_url = dependencies.api_config.get(
-                    "external_auth_service_url"
+                if "token_type" in request.session:
+                    token_type = request.session.get("token_type", "idp")
+            except AssertionError:
+                log.debug("AuthMiddleware: Could not access request.session for token_type")
+
+            auth_service_url = dependencies.api_config.get("external_auth_service_url")
+            auth_provider = dependencies.api_config.get("external_auth_provider")
+
+            if not auth_service_url:
+                log.error("Auth service URL not configured.")
+                response = JSONResponse(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    content={"detail": "Auth service not configured"},
                 )
-                auth_provider = dependencies.api_config.get("external_auth_provider")
+                await response(scope, receive, send)
+                return
 
-                if not auth_service_url:
-                    log.error("Auth service URL not configured.")
-                    response = JSONResponse(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        content={"detail": "Auth service not configured"},
-                    )
-                    await response(scope, receive, send)
-                    return
+            user_info_dict = None
 
-                if not await _validate_token(
-                    auth_service_url, auth_provider, access_token
-                ):
-                    log.warning("AuthMiddleware: Token validation failed")
-                    response = JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={
-                            "detail": "Invalid token",
-                            "error_type": "invalid_token",
-                        },
-                    )
-                    await response(scope, receive, send)
-                    return
+            # Try SAM token validation first
+            if token_type == "sam":
+                log.debug("AuthMiddleware: Validating SAM token")
 
-                user_info = await _get_user_info(
-                    auth_service_url, auth_provider, access_token
-                )
-                if not user_info:
-                    log.warning(
-                        "AuthMiddleware: Failed to get user info from external auth service"
-                    )
-                    response = JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={
-                            "detail": "Could not retrieve user info from auth provider",
-                            "error_type": "user_info_failed",
-                        },
-                    )
-                    await response(scope, receive, send)
-                    return
+                # Get task_id from session
+                sam_token_task_id = None
+                try:
+                    sam_token_task_id = request.session.get("sam_token_task_id")
+                except AssertionError:
+                    pass
 
-                user_identifier = _extract_user_identifier(user_info)
-                if not user_identifier or user_identifier.lower() in [
-                    "null",
-                    "none",
-                    "",
-                ]:
-                    log.error(
-                        "AuthMiddleware: No valid user identifier from OAuth provider"
+                if sam_token_task_id:
+                    verified_claims = await _validate_sam_token(
+                        sam_token=access_token,
+                        component=self.component,
+                        task_id=sam_token_task_id
                     )
-                    response = JSONResponse(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        content={
-                            "detail": "OAuth provider returned no valid user identifier",
-                            "error_type": "invalid_user_identifier_from_provider",
-                        },
-                    )
-                    await response(scope, receive, send)
-                    return
 
-                email_from_auth, display_name = _extract_user_details(
-                    user_info, user_identifier
-                )
+                    if verified_claims:
+                        # SAM token is valid - extract user info from claims
+                        user_identifier = verified_claims.get("sub")
+                        email_from_auth = verified_claims.get("email") or user_identifier
+                        display_name = verified_claims.get("name") or email_from_auth
 
-                identity_service = self.component.identity_service
-                if not identity_service:
-                    request.state.user = (
-                        await _create_user_state_without_identity_service(
-                            user_identifier, email_from_auth, display_name
+                        # Build user_info from SAM token claims
+                        user_info_dict = {
+                            "id": user_identifier,
+                            "email": email_from_auth,
+                            "name": display_name,
+                            "roles": verified_claims.get("roles", []),
+                            "scopes": verified_claims.get("scopes", []),
+                            "authenticated": True,
+                            "auth_method": "sam_token",
+                        }
+
+                        # Set user_claims for downstream use
+                        request.state.user_claims = {
+                            "sub": user_identifier,
+                            "email": email_from_auth,
+                            "name": display_name,
+                            "roles": verified_claims.get("roles", []),
+                            "scopes": verified_claims.get("scopes", []),
+                        }
+
+                        log.debug(
+                            f"AuthMiddleware: SAM token validated. User: {user_identifier}, "
+                            f"Roles: {user_info_dict['roles']}, Scopes count: {len(user_info_dict['scopes'])}"
                         )
-                    )
-                else:
-                    user_state = await _create_user_state_with_identity_service(
-                        identity_service,
-                        user_identifier,
-                        email_from_auth,
-                        display_name,
-                        user_info,
-                    )
-                    if not user_state:
-                        log.error(
-                            "AuthMiddleware: User authenticated but not found in internal IdentityService"
-                        )
+                    else:
+                        # SAM token validation failed - fall back to IdP token validation
+                        log.warning("AuthMiddleware: SAM token validation failed. Falling back to IdP token validation.")
+                        token_type = "idp"
+
+            # Fall back to IdP token validation if SAM token not available or failed
+            if token_type == "idp" and not user_info_dict:
+                log.debug("AuthMiddleware: Validating IdP token via HTTP calls")
+
+                try:
+                    # Validate IdP token (HTTP call)
+                    if not await _validate_token(auth_service_url, auth_provider, access_token):
+                        log.warning("AuthMiddleware: IdP token validation failed")
                         response = JSONResponse(
-                            status_code=status.HTTP_403_FORBIDDEN,
+                            status_code=status.HTTP_401_UNAUTHORIZED,
                             content={
-                                "detail": "User not authorized for this application",
-                                "error_type": "not_authorized",
+                                "detail": "Invalid token",
+                                "error_type": "invalid_token",
                             },
                         )
                         await response(scope, receive, send)
                         return
-                    request.state.user = user_state
 
-            except httpx.RequestError as exc:
-                log.error("Error calling auth service: %s", exc)
+                    # Get user info from IdP (HTTP call)
+                    user_info_from_idp = await _get_user_info(
+                        auth_service_url, auth_provider, access_token
+                    )
+
+                    if not user_info_from_idp:
+                        log.warning(
+                            "AuthMiddleware: Failed to get user info from external auth service"
+                        )
+                        response = JSONResponse(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            content={
+                                "detail": "Could not retrieve user info from auth provider",
+                                "error_type": "user_info_failed",
+                            },
+                        )
+                        await response(scope, receive, send)
+                        return
+
+                    user_identifier = _extract_user_identifier(user_info_from_idp)
+                    if not user_identifier or user_identifier.lower() in ["null", "none", ""]:
+                        log.error(
+                            "AuthMiddleware: No valid user identifier from OAuth provider"
+                        )
+                        response = JSONResponse(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            content={
+                                "detail": "OAuth provider returned no valid user identifier",
+                                "error_type": "invalid_user_identifier_from_provider",
+                            },
+                        )
+                        await response(scope, receive, send)
+                        return
+
+                    email_from_auth, display_name = _extract_user_details(
+                        user_info_from_idp, user_identifier
+                    )
+
+                    # Check identity service
+                    identity_service = self.component.identity_service
+                    if not identity_service:
+                        user_info_dict = await _create_user_state_without_identity_service(
+                            user_identifier, email_from_auth, display_name
+                        )
+                    else:
+                        user_state = await _create_user_state_with_identity_service(
+                            identity_service,
+                            user_identifier,
+                            email_from_auth,
+                            display_name,
+                            user_info_from_idp,
+                        )
+                        if not user_state:
+                            log.error(
+                                "AuthMiddleware: User authenticated but not found in internal IdentityService"
+                            )
+                            response = JSONResponse(
+                                status_code=status.HTTP_403_FORBIDDEN,
+                                content={
+                                    "detail": "User not authorized for this application",
+                                    "error_type": "not_authorized",
+                                },
+                            )
+                            await response(scope, receive, send)
+                            return
+                        user_info_dict = user_state
+
+                except httpx.RequestError as exc:
+                    log.error("Error calling auth service: %s", exc)
+                    response = JSONResponse(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        content={"detail": "Auth service is unavailable"},
+                    )
+                    await response(scope, receive, send)
+                    return
+                except Exception as exc:
+                    log.error(
+                        "An unexpected error occurred during token validation: %s", exc
+                    )
+                    response = JSONResponse(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        content={
+                            "detail": "An internal error occurred during authentication"
+                        },
+                    )
+                    await response(scope, receive, send)
+                    return
+
+            # Set user state in request
+            if user_info_dict:
+                request.state.user = user_info_dict
+                # Set user_claims if not already set (for IdP tokens)
+                if not hasattr(request.state, "user_claims"):
+                    request.state.user_claims = {
+                        "sub": user_info_dict.get("id"),
+                        "email": user_info_dict.get("email"),
+                        "name": user_info_dict.get("name"),
+                        "roles": user_info_dict.get("roles", []),
+                        "scopes": user_info_dict.get("scopes", []),
+                    }
+                log.debug(f"AuthMiddleware: Set user state for user: {user_info_dict.get('id')}")
+            else:
+                log.error("AuthMiddleware: No user_info available after authentication")
                 response = JSONResponse(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    content={"detail": "Auth service is unavailable"},
-                )
-                await response(scope, receive, send)
-                return
-            except Exception as exc:
-                log.error(
-                    "An unexpected error occurred during token validation: %s", exc
-                )
-                response = JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    content={
-                        "detail": "An internal error occurred during authentication"
-                    },
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "Authentication failed"},
                 )
                 await response(scope, receive, send)
                 return
