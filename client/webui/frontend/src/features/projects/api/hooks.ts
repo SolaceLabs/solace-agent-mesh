@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { projects } from "./keys";
 import { addFilesToProject, createProject, deleteProject, exportProject, getProjectArtifacts, getProjects, getProjectSessions, importProject, removeFileFromProject, updateFileMetadata, updateProject } from "./services";
-import { useConfigContext, type Project, type UpdateProjectData } from "@/lib";
+import { useConfigContext, type CreateProjectRequest, type Project, type UpdateProjectData } from "@/lib";
 
 const useProjectsConfig = () => {
     const { projectsEnabled } = useConfigContext();
@@ -27,7 +27,7 @@ export const useCreateProject = () => {
 
     return useMutation({
         mutationKey: projects.create.queryKey,
-        mutationFn: (project: FormData): Promise<Project> => {
+        mutationFn: (project: CreateProjectRequest): Promise<Project> => {
             return createProject(project);
         },
         onSettled: () =>

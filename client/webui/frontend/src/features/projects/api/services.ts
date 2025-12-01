@@ -1,17 +1,30 @@
-import type { ArtifactInfo, Project, UpdateProjectData } from "@/lib";
+import type { ArtifactInfo, CreateProjectRequest, Project, UpdateProjectData } from "@/lib";
 import type { PaginatedSessionsResponse } from "@/lib/components/chat/SessionList";
 import { authenticatedFetch } from "@/lib/utils";
 
+/* TODO:
+ * Handle form data instantiation inside service
+ * Convert move to different project query
+ * Remove Project Provider
+ * Add back original error handling
+ * */
 export const getProjects = async () => {
     const response = await authenticatedFetch("/api/v1/projects?include_artifact_count=true", { credentials: "include" });
     const data = await response.json();
     return data as { projects: Project[]; total: number };
 };
 
-export const createProject = async (data: FormData) => {
+export const createProject = async (data: CreateProjectRequest) => {
+    const formData = new FormData();
+    formData.append("name", data.name);
+
+    if (data.description) {
+        formData.append("description", data.description);
+    }
+
     const response = await authenticatedFetch("/api/v1/projects", {
         method: "POST",
-        body: data,
+        body: formData,
         credentials: "include",
     });
     return await response.json();

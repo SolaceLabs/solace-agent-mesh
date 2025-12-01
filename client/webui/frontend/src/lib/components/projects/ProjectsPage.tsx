@@ -20,7 +20,6 @@ export const ProjectsPage: React.FC = () => {
     const loaderData = useLoaderData<{ projectId?: string }>();
 
     const [showCreateDialog, setShowCreateDialog] = useState(false);
-    const [isCreating, setIsCreating] = useState(false);
     const [showImportDialog, setShowImportDialog] = useState(false);
 
     const { setActiveProject } = useProjectContext();
@@ -41,24 +40,15 @@ export const ProjectsPage: React.FC = () => {
     }, [data, searchQuery]);
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
-        setIsCreating(true);
-        try {
-            const formData = new FormData();
-            formData.append("name", data.name);
-            if (data.description) {
-                formData.append("description", data.description);
-            }
-
-            await createProject.mutateAsync(formData, {
-                onSuccess: data => {
-                    navigate(`/projects/${data.id}`);
-                    queryClient.invalidateQueries({ queryKey: projects.all.queryKey });
-                },
-                onSettled: () => setShowCreateDialog(false),
-            });
-        } finally {
-            setIsCreating(false);
-        }
+        await createProject.mutateAsync(data, {
+            onSuccess: data => {
+                navigate(`/projects/${data.id}`);
+                queryClient.invalidateQueries({ queryKey: projects.all.queryKey });
+            },
+            onSettled: () => {
+                setShowCreateDialog(false);
+            },
+        });
     };
 
     const handleProjectSelect = (project: Project) => {
@@ -122,7 +112,7 @@ export const ProjectsPage: React.FC = () => {
             </div>
 
             {/* Create Project Dialog */}
-            <CreateProjectDialog isOpen={showCreateDialog} onClose={() => setShowCreateDialog(false)} onSubmit={handleCreateProject} isSubmitting={isCreating} />
+            <CreateProjectDialog isOpen={showCreateDialog} onClose={() => setShowCreateDialog(false)} onSubmit={handleCreateProject} isSubmitting={createProject.isPending} />
 
             {/* Import Project Dialog */}
             <ProjectImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} />
