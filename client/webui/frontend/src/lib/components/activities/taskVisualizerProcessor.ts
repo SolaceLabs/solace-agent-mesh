@@ -185,6 +185,7 @@ export const processTaskForVisualization = (
     const subTaskToFunctionCallIdMap = new Map<string, string>();
     const functionCallIdToDelegationInfoMap = new Map<string, DelegationInfo>();
     const activeFunctionCallIdByTask = new Map<string, string>();
+    const processedWorkflowEvents = new Set<string>();
 
     const flushAggregatedTextStep = (currentEventOwningTaskId?: string) => {
         if (currentAggregatedText.trim() && aggregatedTextSourceAgent && aggregatedTextTimestamp) {
@@ -346,6 +347,10 @@ export const processTaskForVisualization = (
 
                         switch (signalType) {
                             case "workflow_execution_start": {
+                                const dedupKey = `start:${signalData.execution_id}`;
+                                if (processedWorkflowEvents.has(dedupKey)) break;
+                                processedWorkflowEvents.add(dedupKey);
+
                                 visualizerSteps.push({
                                     id: `vstep-wfstart-${visualizerSteps.length}-${eventId}`,
                                     type: "WORKFLOW_EXECUTION_START",
@@ -370,6 +375,10 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "workflow_node_execution_start": {
+                                const dedupKey = `node_start:${signalData.sub_task_id || signalData.node_id}:${signalData.iteration_index || 0}`;
+                                if (processedWorkflowEvents.has(dedupKey)) break;
+                                processedWorkflowEvents.add(dedupKey);
+
                                 visualizerSteps.push({
                                     id: `vstep-wfnode-start-${visualizerSteps.length}-${eventId}`,
                                     type: "WORKFLOW_NODE_EXECUTION_START",
@@ -402,6 +411,10 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "workflow_node_execution_result": {
+                                const dedupKey = `node_result:${signalData.node_id}:${signalData.status}`;
+                                if (processedWorkflowEvents.has(dedupKey)) break;
+                                processedWorkflowEvents.add(dedupKey);
+
                                 visualizerSteps.push({
                                     id: `vstep-wfnode-result-${visualizerSteps.length}-${eventId}`,
                                     type: "WORKFLOW_NODE_EXECUTION_RESULT",
@@ -452,6 +465,10 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "workflow_execution_result": {
+                                const dedupKey = `result:${signalData.status}`;
+                                if (processedWorkflowEvents.has(dedupKey)) break;
+                                processedWorkflowEvents.add(dedupKey);
+
                                 visualizerSteps.push({
                                     id: `vstep-wfresult-${visualizerSteps.length}-${eventId}`,
                                     type: "WORKFLOW_EXECUTION_RESULT",

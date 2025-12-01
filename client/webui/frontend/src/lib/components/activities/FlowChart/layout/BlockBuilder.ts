@@ -546,14 +546,21 @@ export class BlockBuilder {
 
     private handleToolInvocation(step: VisualizerStep) {
         const target = step.target || "";
-        const isPeer = step.data.toolInvocationStart?.isPeerInvocation || target.startsWith("peer_") || target.startsWith("workflow_");
+        const toolName = step.data.toolInvocationStart?.toolName || target;
+
+        // Skip workflow tool invocations as they are handled by WORKFLOW_EXECUTION_START
+        if (target.includes("workflow_") || toolName.includes("workflow_")) {
+            console.log(`[BlockBuilder] Skipping workflow tool invocation: ${target} / ${toolName}`);
+            return;
+        }
+
+        const isPeer = step.data.toolInvocationStart?.isPeerInvocation || target.startsWith("peer_");
 
         if (isPeer) {
             const peerName = target.startsWith("peer_") ? target.substring(5) : target;
             const displayName = this.agentNameMap[peerName] || peerName;
             this.startGroup("subflow", step, displayName);
         } else {
-            const toolName = step.data.toolInvocationStart?.toolName || target;
             const taskId = step.owningTaskId;
             const container = this.getBlockForTask(taskId);
             const agentBlock = this.findActiveAgentNode(container);
