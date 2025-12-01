@@ -599,7 +599,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             {/* Pending Pasted Text Items (not yet saved as artifacts) */}
             {pendingPastedTextItems.length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
+                <div className="mb-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto">
                     {pendingPastedTextItems.map(item => (
                         <PendingPastedTextBadge key={item.id} id={item.id} content={item.content} onClick={() => handlePendingPasteClick(item.id)} onRemove={() => handleRemovePendingPaste(item.id)} />
                     ))}

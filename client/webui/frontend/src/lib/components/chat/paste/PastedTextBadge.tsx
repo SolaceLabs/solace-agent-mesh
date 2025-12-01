@@ -50,9 +50,9 @@ interface PendingPastedTextBadgeProps {
  * Shows a card-like preview similar to the screenshot with text preview and "PASTED" label
  */
 export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ content, onClick, onRemove }) => {
-    // Get first few lines for preview (max 5 lines, max 40 chars per line)
+    // Get first few lines for preview (max 2 lines, max 40 chars per line)
     const getPreviewLines = (text: string): string[] => {
-        const lines = text.split("\n").slice(0, 5);
+        const lines = text.split("\n").slice(0, 2);
         return lines.map(line => {
             const trimmed = line.trim();
             return trimmed.length > 40 ? trimmed.substring(0, 37) + "..." : trimmed;
@@ -84,7 +84,7 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
                         {line || "\u00A0"}
                     </div>
                 ))}
-                {content.split("\n").length > 5 && <div className="text-muted-foreground/60">...</div>}
+                {content.split("\n").length > 2 && <div className="text-muted-foreground/60">...</div>}
             </div>
 
             {/* PASTED label */}
