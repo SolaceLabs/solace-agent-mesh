@@ -278,8 +278,9 @@ export class BlockBuilder {
 
                     // Update agent node height to accommodate slots
                     // This ensures measure() picks up the correct height for layout calculations
-                    // Height = Top Padding + (NumSlots * Pitch) + Bottom Padding
-                    const requiredHeight = Math.max(NODE_HEIGHT, (slotIndex + 1) * toolPitch + 20); 
+                    // Height = Bottom of last slot + padding
+                    const lastSlotBottom = yOffset + (NODE_HEIGHT / 2);
+                    const requiredHeight = Math.max(NODE_HEIGHT, lastSlotBottom + 10); 
                     agentNode.style = { ...agentNode.style, height: `${requiredHeight}px` };
                     
                     customSourceHandle = `agent-out-${nodeId}`;
