@@ -483,8 +483,17 @@ export class BlockBuilder {
         } else {
             // Workflows go into the main flow of their PARENT task (the caller)
             // If parentTaskId is available, use it. Otherwise fallback to owningTaskId (which might be root)
-            const containerTaskId = step.parentTaskId || step.owningTaskId;
-            parentContainer = this.getBlockForTask(containerTaskId);
+            const containerTaskId = step.parentTaskId;
+            
+            if (containerTaskId) {
+                // If we have a parent task, we want to be in its tool stack (like a subflow)
+                // This ensures the workflow is nested under the calling agent
+                const toolStack = this.taskToolStackMap.get(containerTaskId);
+                parentContainer = toolStack || this.getBlockForTask(containerTaskId);
+            } else {
+                // Fallback to owning task (root) if no parent
+                parentContainer = this.getBlockForTask(step.owningTaskId);
+            }
         }
 
         parentContainer.addChild(groupBlock);

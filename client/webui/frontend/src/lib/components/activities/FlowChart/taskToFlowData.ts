@@ -577,13 +577,27 @@ function handleWorkflowExecutionStart(step: VisualizerStep, manager: TimelineLay
     let sourceNodeId: string;
     let sourceHandle: string;
 
-    const currentSubflow = getCurrentSubflow(manager);
-    if (currentSubflow) {
-        sourceNodeId = currentSubflow.peerAgent.id;
-        sourceHandle = "peer-bottom-output";
+    // Try to find the parent task's agent node using parentTaskId
+    if (step.parentTaskId) {
+        const parentSubflow = findSubflowBySubTaskId(manager, step.parentTaskId);
+        if (parentSubflow) {
+            sourceNodeId = parentSubflow.peerAgent.id;
+            sourceHandle = "peer-bottom-output";
+        } else {
+            // Assume parent is root/orchestrator if not found in subflows
+            sourceNodeId = currentPhase.orchestratorAgent.id;
+            sourceHandle = "orch-bottom-output";
+        }
     } else {
-        sourceNodeId = currentPhase.orchestratorAgent.id;
-        sourceHandle = "orch-bottom-output";
+        // Fallback to current context if parentTaskId is missing
+        const currentSubflow = getCurrentSubflow(manager);
+        if (currentSubflow) {
+            sourceNodeId = currentSubflow.peerAgent.id;
+            sourceHandle = "peer-bottom-output";
+        } else {
+            sourceNodeId = currentPhase.orchestratorAgent.id;
+            sourceHandle = "orch-bottom-output";
+        }
     }
 
     // Attempt to recover functionCallId if missing
