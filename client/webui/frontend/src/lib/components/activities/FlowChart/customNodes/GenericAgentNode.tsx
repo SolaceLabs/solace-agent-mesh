@@ -16,13 +16,17 @@ export interface GenericNodeData extends Record<string, unknown> {
     isFinal?: boolean;
     variant?: "default" | "pill";
     toolSlots?: ToolSlot[];
+    isSkipped?: boolean;
 }
 
 const GenericAgentNode: React.FC<NodeProps<Node<GenericNodeData>>> = ({ data }) => {
+    const opacityClass = data.isSkipped ? "opacity-50" : "";
+    const borderStyleClass = data.isSkipped ? "border-dashed" : "border-solid";
+
     if (data.variant === "pill") {
         return (
             <div
-                className="cursor-pointer rounded-full border-2 border-indigo-500 bg-indigo-50 px-4 py-2 text-indigo-900 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100"
+                className={`cursor-pointer rounded-full border-2 border-indigo-500 bg-indigo-50 px-4 py-2 text-indigo-900 shadow-sm transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md dark:border-indigo-400 dark:bg-indigo-900/50 dark:text-indigo-100 ${opacityClass} ${borderStyleClass}`}
                 style={{ minWidth: "80px", textAlign: "center" }}
             >
                 <Handle type="target" position={Position.Top} id="peer-top-input" className="!bg-indigo-500" isConnectable={true} />
@@ -41,7 +45,7 @@ const GenericAgentNode: React.FC<NodeProps<Node<GenericNodeData>>> = ({ data }) 
 
     return (
         <div
-            className="cursor-pointer rounded-md border-2 border-blue-700 bg-white px-5 py-3 text-gray-800 shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-blue-600 dark:bg-gray-800 dark:text-gray-200"
+            className={`cursor-pointer rounded-md border-2 border-blue-700 bg-white px-5 py-3 text-gray-800 shadow-md transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl dark:border-blue-600 dark:bg-gray-800 dark:text-gray-200 ${opacityClass} ${borderStyleClass}`}
             style={{ minWidth: "180px", textAlign: "center", height: "100%" }}
         >
             <Handle type="target" position={Position.Top} id="peer-top-input" className="!bg-blue-700" isConnectable={true} />

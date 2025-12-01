@@ -44,10 +44,10 @@ const ConditionalNode: React.FC<NodeProps<ConditionalNodeType>> = ({ data }) => 
             {/* Branch Labels */}
             {data.conditionResult !== undefined && (
                 <>
-                    <div className="absolute bottom-[-15px] left-1/2 transform -translate-x-1/2 text-[9px] font-bold text-gray-500 dark:text-gray-400">
+                    <div className="absolute bottom-[-20px] left-1/2 transform -translate-x-1/2 text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-white/80 dark:bg-gray-900/80 px-1 rounded">
                         {data.conditionResult ? "True" : "False"}
                     </div>
-                    <div className="absolute right-[-5px] top-1/2 transform -translate-y-1/2 text-[9px] font-bold text-gray-500 dark:text-gray-400">
+                    <div className="absolute right-[-20px] top-1/2 transform -translate-y-1/2 text-[10px] font-bold text-gray-600 dark:text-gray-300 bg-white/80 dark:bg-gray-900/80 px-1 rounded">
                         {data.conditionResult ? "False" : "True"}
                     </div>
                 </>

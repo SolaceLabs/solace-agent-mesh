@@ -856,9 +856,9 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
                         label: label,
                         description: `Untaken branch`,
                         variant: "pill",
+                        isSkipped: true,
                     },
                     parentId: currentSubflow.groupNode.id,
-                    style: { opacity: 0.5, borderStyle: "dashed" },
                 };
 
                 addNode(nodes, manager.allCreatedNodeIds, skippedNode);
