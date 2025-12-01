@@ -519,10 +519,41 @@ export class BlockBuilder {
         // Add the "Agent" node representing this group at the top of the stack
         if (type === "workflow") {
             // The Start node belongs to the workflow task ID
-            const startNodeId = this.addNode("genericAgentNode", step, "Start", { variant: "pill" }, newTaskId);
+            // We pass connectToLast=false because we want to manually handle the connection to parent
+            const startNodeId = this.addNode("genericAgentNode", step, "Start", { variant: "pill" }, newTaskId, false);
             
             // Explicitly set this as the last node for this task so subsequent nodes connect to it
             this.lastNodeByTaskId.set(newTaskId, startNodeId);
+
+            // Connect to parent agent if available (using slot mechanism)
+            const agentBlock = this.findActiveAgentNode(parentContainer);
+            
+            if (agentBlock && agentBlock.nodePayload) {
+                 // Register slot on caller agent
+                 const agentNode = agentBlock.nodePayload;
+                 if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
+
+                 const slotIndex = (agentNode.data.toolSlots as any[]).length;
+                 const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
+                 const initialOffset = 25;
+                 const yOffset = initialOffset + (slotIndex * toolPitch);
+
+                 (agentNode.data.toolSlots as any[]).push({ id: startNodeId, yOffset });
+
+                 const sourceHandle = `agent-out-${startNodeId}`;
+                 const targetHandle = "peer-left-input";
+                 this.createEdge(agentBlock.id, startNodeId, step.id, sourceHandle, targetHandle);
+            } else {
+                // Fallback if no parent agent found (e.g. root workflow or disconnected)
+                // Connect from last node if any
+                if (this.lastNodeId) {
+                     // Use standard handles
+                     let sourceHandle = "peer-bottom-output";
+                     if (this.lastNodeBlock?.nodePayload?.type === "orchestratorNode") sourceHandle = "orch-bottom-output";
+                     
+                     this.createEdge(this.lastNodeId, startNodeId, step.id, sourceHandle, "peer-top-input");
+                }
+            }
         } else if (type === "subflow") {
             // For subflows, we want to connect to the caller agent with a slot
             // Note: addNode will handle the creation of InteractionRow and ToolsStack for this new agent
