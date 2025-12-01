@@ -661,8 +661,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Fetch the latest version with embeds resolved
-                const versionsResponse = await fetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
-                const availableVersions: number[] = await versionsResponse.json();
+                const availableVersions: number[] = await fetchJsonWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
                 if (!availableVersions || availableVersions.length === 0) {
                     throw new Error("No versions available");
                 }
@@ -1331,8 +1330,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             try {
                 // Load session metadata first to get project info
-                const sessionResponse = await fetchWithError(`${apiPrefix}/sessions/${newSessionId}`);
-                const sessionData = await sessionResponse.json();
+                const sessionData = await fetchJsonWithError(`${apiPrefix}/sessions/${newSessionId}`);
                 const session: Session | null = sessionData?.data;
                 setSessionName(session?.name ?? "N/A");
 
@@ -1761,12 +1759,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // 5. Send the request
                 console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
-                const response = await fetchWithError(`${apiPrefix}/message:stream`, {
+                const result = await fetchJsonWithError(`${apiPrefix}/message:stream`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(sendMessageRequest),
                 });
-                const result = await response.json();
 
                 const task = result?.result as Task | undefined;
                 const taskId = task?.id;
