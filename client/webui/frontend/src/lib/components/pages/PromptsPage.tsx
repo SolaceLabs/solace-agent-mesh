@@ -6,7 +6,7 @@ import { useChatContext } from "@/lib/hooks";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
 import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
-import { authenticatedFetchWithError, detectVariables, downloadBlob, getErrorMessage } from "@/lib/utils";
+import { fetchWithError, detectVariables, downloadBlob, getErrorMessage, fetchJsonWithError } from "@/lib/utils";
 
 /**
  * Main page for managing prompt library with AI-assisted builder
@@ -34,8 +34,7 @@ export const PromptsPage: React.FC = () => {
     const fetchPromptGroups = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await authenticatedFetchWithError("/api/v1/prompts/groups/all");
-            const data = await response.json();
+            const data = await fetchJsonWithError("/api/v1/prompts/groups/all");
             setPromptGroups(data);
         } catch (error) {
             displayError({ title: "Failed to Load Prompts", error: getErrorMessage(error, "An error occurred while fetching prompt groups.") });
@@ -56,9 +55,8 @@ export const PromptsPage: React.FC = () => {
                 // Load the prompt group for editing
                 const loadPromptForEdit = async () => {
                     try {
-                        const response = await authenticatedFetchWithError(`/api/v1/prompts/groups/${loaderData.promptId}`);
-                        const group = await response.json();
-                        setEditingGroup(group);
+                        const data = await fetchJsonWithError(`/api/v1/prompts/groups/${loaderData.promptId}`);
+                        setEditingGroup(data);
                         setBuilderInitialMode("manual");
                         setShowBuilder(true);
                     } catch (error) {
@@ -83,9 +81,8 @@ export const PromptsPage: React.FC = () => {
             // Load the prompt group for version history
             const loadPromptGroup = async () => {
                 try {
-                    const response = await authenticatedFetchWithError(`/api/v1/prompts/groups/${loaderData.promptId}`);
-                    const group = await response.json();
-                    setVersionHistoryGroup(group);
+                    const data = await fetchJsonWithError(`/api/v1/prompts/groups/${loaderData.promptId}`);
+                    setVersionHistoryGroup(data);
                 } catch (error) {
                     displayError({ title: "Failed to View Versions", error: getErrorMessage(error, "An error occurred while fetching versions.") });
                 }
@@ -107,7 +104,7 @@ export const PromptsPage: React.FC = () => {
         if (!deletingPrompt) return;
 
         try {
-            await authenticatedFetchWithError(`/api/v1/prompts/groups/${deletingPrompt.id}`, {
+            await fetchWithError(`/api/v1/prompts/groups/${deletingPrompt.id}`, {
                 method: "DELETE",
             });
             if (versionHistoryGroup?.id === deletingPrompt.id) {
@@ -128,7 +125,7 @@ export const PromptsPage: React.FC = () => {
 
     const handleRestoreVersion = async (promptId: string) => {
         try {
-            await authenticatedFetchWithError(`/api/v1/prompts/${promptId}/make-production`, {
+            await fetchWithError(`/api/v1/prompts/${promptId}/make-production`, {
                 method: "PATCH",
             });
             fetchPromptGroups();
@@ -193,7 +190,7 @@ export const PromptsPage: React.FC = () => {
             // Optimistic update
             setPromptGroups(prev => prev.map(p => (p.id === id ? { ...p, isPinned: !currentStatus } : p)));
 
-            await authenticatedFetchWithError(`/api/v1/prompts/groups/${id}/pin`, {
+            await fetchWithError(`/api/v1/prompts/groups/${id}/pin`, {
                 method: "PATCH",
             });
 
@@ -207,11 +204,10 @@ export const PromptsPage: React.FC = () => {
 
     const handleExport = async (prompt: PromptGroup) => {
         try {
-            const response = await authenticatedFetchWithError(`/api/v1/prompts/groups/${prompt.id}/export`);
-            const exportData = await response.json();
+            const data = await fetchJsonWithError(`/api/v1/prompts/groups/${prompt.id}/export`);
 
             // Create a blob and trigger download using utility
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
             const filename = `prompt-${prompt.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.json`;
             downloadBlob(blob, filename);
 
@@ -249,18 +245,17 @@ export const PromptsPage: React.FC = () => {
                 },
             };
 
-            const response = await authenticatedFetchWithError("/api/v1/prompts/import", {
+            const data = await fetchJsonWithError("/api/v1/prompts/import", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify(apiPayload),
             });
-            const result = await response.json();
 
             // Show warnings if any (combine into single notification for better UX)
-            if (result.warnings && result.warnings.length > 0) {
-                const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
+            if (data.warnings && data.warnings.length > 0) {
+                const warningMessage = data.warnings.length === 1 ? data.warnings[0] : `Import completed with ${data.warnings.length} warnings:\n${data.warnings.join("\n")}`;
                 addNotification(warningMessage, "info");
             }
 
@@ -272,7 +267,7 @@ export const PromptsPage: React.FC = () => {
 
             // Refresh prompts and select the newly imported one
             await fetchPromptGroups();
-            setNewlyCreatedPromptId(result.prompt_group_id);
+            setNewlyCreatedPromptId(data.prompt_group_id);
 
             addNotification("Prompt imported successfully", "success");
         } catch (error) {

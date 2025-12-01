@@ -5,7 +5,7 @@ import { v4 } from "uuid";
 import { useConfigContext, useArtifacts, useAgentCards, useErrorDialog } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 
-import { authenticatedFetch, authenticatedFetchWithError, getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
+import { authenticatedFetch, fetchJsonWithError, fetchWithError, getAccessToken, getErrorMessage, submitFeedback } from "@/lib/utils/api";
 import { ChatContext, type ChatContextValue } from "@/lib/contexts";
 import type {
     ArtifactInfo,
@@ -284,8 +284,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // Helper function to load session tasks and reconstruct messages
     const loadSessionTasks = useCallback(
         async (sessionId: string) => {
-            const response = await authenticatedFetchWithError(`${apiPrefix}/sessions/${sessionId}/chat-tasks`);
-            const data = await response.json();
+            const data = await fetchJsonWithError(`${apiPrefix}/sessions/${sessionId}/chat-tasks`);
 
             // Check if this session is still active before processing
             if (currentSessionIdRef.current !== sessionId) {
@@ -417,7 +416,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const deleteArtifactInternal = useCallback(
         async (filename: string) => {
             try {
-                await authenticatedFetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
+                await fetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
                 });
                 addNotification(`File "${filename}" deleted.`, "success");
@@ -474,7 +473,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         let errorCount = 0;
         for (const filename of filenamesToDelete) {
             try {
-                await authenticatedFetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
+                await fetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}`, {
                     method: "DELETE",
                 });
                 successCount++;
@@ -520,8 +519,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact preview");
                 }
 
-                const versionsResponse = await authenticatedFetchWithError(versionsUrl);
-                const availableVersions: number[] = await versionsResponse.json();
+                const availableVersions: number[] = await fetchJsonWithError(versionsUrl);
                 if (!availableVersions || availableVersions.length === 0) throw new Error("No versions available");
                 setPreviewedArtifactAvailableVersions(availableVersions.sort((a, b) => a - b));
                 const latestVersion = Math.max(...availableVersions);
@@ -535,7 +533,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact content");
                 }
 
-                const contentResponse = await authenticatedFetchWithError(contentUrl);
+                const contentResponse = await fetchWithError(contentUrl);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -589,7 +587,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     throw new Error("No valid context for artifact navigation");
                 }
 
-                const contentResponse = await authenticatedFetchWithError(contentUrl);
+                const contentResponse = await fetchWithError(contentUrl);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -663,14 +661,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Fetch the latest version with embeds resolved
-                const versionsResponse = await authenticatedFetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
+                const versionsResponse = await fetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
                 const availableVersions: number[] = await versionsResponse.json();
                 if (!availableVersions || availableVersions.length === 0) {
                     throw new Error("No versions available");
                 }
 
                 const latestVersion = Math.max(...availableVersions);
-                const contentResponse = await authenticatedFetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`);
+                const contentResponse = await fetchWithError(`${apiPrefix}/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`);
                 const blob = await contentResponse.blob();
                 const base64Content = await new Promise<string>((resolve, reject) => {
                     const reader = new FileReader();
@@ -1333,7 +1331,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             try {
                 // Load session metadata first to get project info
-                const sessionResponse = await authenticatedFetchWithError(`${apiPrefix}/sessions/${newSessionId}`);
+                const sessionResponse = await fetchWithError(`${apiPrefix}/sessions/${newSessionId}`);
                 const sessionData = await sessionResponse.json();
                 const session: Session | null = sessionData?.data;
                 setSessionName(session?.name ?? "N/A");
@@ -1427,7 +1425,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const deleteSession = useCallback(
         async (sessionIdToDelete: string) => {
             try {
-                await authenticatedFetchWithError(`${apiPrefix}/sessions/${sessionIdToDelete}`, {
+                await fetchWithError(`${apiPrefix}/sessions/${sessionIdToDelete}`, {
                     method: "DELETE",
                 });
                 addNotification("Session deleted.", "success");
@@ -1596,7 +1594,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     const deleteUrl = `${apiPrefix}/artifacts/${fileSessionId}/${encodeURIComponent(filename)}`;
 
                     // Use the session ID that was used during upload
-                    await authenticatedFetchWithError(deleteUrl, {
+                    await fetchWithError(deleteUrl, {
                         method: "DELETE",
                     });
                 } catch (error) {
@@ -1763,7 +1761,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 // 5. Send the request
                 console.log("ChatProvider handleSubmit: Sending POST to /message:stream");
-                const response = await authenticatedFetchWithError(`${apiPrefix}/message:stream`, {
+                const response = await fetchWithError(`${apiPrefix}/message:stream`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(sendMessageRequest),

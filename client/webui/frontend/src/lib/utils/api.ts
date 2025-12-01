@@ -93,7 +93,7 @@ export const authenticatedFetch = async (url: string, options: RequestInit = {})
     return response;
 };
 
-export const authenticatedFetchWithError = async (url: string, options: RequestInit = {}) => {
+export const fetchWithError = async (url: string, options: RequestInit = {}) => {
     const response = await authenticatedFetch(url, options);
 
     if (!response.ok) {
@@ -101,6 +101,15 @@ export const authenticatedFetchWithError = async (url: string, options: RequestI
     }
 
     return response;
+};
+
+export const fetchJsonWithError = async (url: string, options: RequestInit = {}) => {
+    try {
+        const response = await fetchWithError(url, options);
+        return await response.json();
+    } catch (error) {
+        throw new Error(await getErrorMessage(error, "Failed to parse JSON data"));
+    }
 };
 
 export interface FeedbackPayload {
