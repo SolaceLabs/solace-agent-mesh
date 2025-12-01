@@ -48,6 +48,7 @@ export class BlockBuilder {
     }
 
     private processStep(step: VisualizerStep) {
+        console.log(`[BlockBuilder] Processing step: ${step.type} (${step.id})`);
         switch (step.type) {
             case "USER_REQUEST":
                 this.handleUserRequest(step);
@@ -894,7 +895,25 @@ export class BlockBuilder {
     private handleWorkflowExecutionResult(step: VisualizerStep) {
         const taskId = step.owningTaskId;
         // Add Finish node
-        this.addNode("genericAgentNode", step, "Finish", { variant: "pill" }, taskId);
+        const finishNodeId = this.addNode("genericAgentNode", step, "Finish", { variant: "pill" }, taskId);
+
+        // Fix up return edge if it was already created from Start Node (due to event ordering)
+        const innerStack = this.taskBlockMap.get(taskId);
+        if (innerStack && innerStack.parent instanceof GroupBlock) {
+            const groupBlock = innerStack.parent;
+            const startNodeId = this.findNodeIdByLabel(groupBlock, "Start");
+
+            if (startNodeId) {
+                // Find edge from Start Node that targets an agent input slot
+                const edge = this.edges.find(e => e.source === startNodeId && e.targetHandle?.startsWith("agent-in-"));
+                if (edge) {
+                    console.log(`[BlockBuilder] Redirecting return edge ${edge.id} from ${startNodeId} to ${finishNodeId}`);
+                    edge.source = finishNodeId;
+                    // Update edge ID to maintain consistency
+                    edge.id = `e_${finishNodeId}_${edge.target}`;
+                }
+            }
+        }
     }
 
     private handleTaskCompleted(step: VisualizerStep) {
@@ -917,18 +936,41 @@ export class BlockBuilder {
                         // Find the sub-agent node in the group to connect from
                         // taskBlock (innerStack) -> Row -> Agent
                         let subAgentId: string | undefined;
-                        if (taskBlock.children.length > 0) {
-                            const firstChild = taskBlock.children[0];
-                            if (firstChild instanceof HorizontalStackBlock && firstChild.children.length > 0) {
-                                subAgentId = firstChild.children[0].id;
-                            } else if (firstChild instanceof LeafBlock) {
-                                subAgentId = firstChild.id;
+
+                        // Prefer Finish node if available
+                        subAgentId = this.findNodeIdByLabel(groupBlock, "Finish");
+
+                        if (!subAgentId) {
+                            // Fallback to first child (Start node)
+                            if (taskBlock.children.length > 0) {
+                                const firstChild = taskBlock.children[0];
+                                if (firstChild instanceof HorizontalStackBlock && firstChild.children.length > 0) {
+                                    subAgentId = firstChild.children[0].id;
+                                } else if (firstChild instanceof LeafBlock) {
+                                    subAgentId = firstChild.id;
+                                }
                             }
                         }
 
-                        if (subAgentId && parentAgent) {
+                        // We need the Start node ID to determine the target handle (slot)
+                        let startNodeId = this.findNodeIdByLabel(groupBlock, "Start");
+                        if (!startNodeId && subAgentId) {
+                            // If we can't find Start node by label, assume subAgentId is the start node if we fell back
+                            // But if subAgentId is Finish, we still need Start ID for the slot.
+                            // Let's try to find the first node again.
+                            if (taskBlock.children.length > 0) {
+                                const firstChild = taskBlock.children[0];
+                                if (firstChild instanceof HorizontalStackBlock && firstChild.children.length > 0) {
+                                    startNodeId = firstChild.children[0].id;
+                                } else if (firstChild instanceof LeafBlock) {
+                                    startNodeId = firstChild.id;
+                                }
+                            }
+                        }
+
+                        if (subAgentId && parentAgent && startNodeId) {
                             const sourceHandle = "peer-left-output";
-                            const targetHandle = `agent-in-${subAgentId}`;
+                            const targetHandle = `agent-in-${startNodeId}`;
                             this.createEdge(subAgentId, parentAgent.id, step.id, sourceHandle, targetHandle);
                         }
                     }
