@@ -10,24 +10,15 @@ export abstract class LayoutBlock {
     width: number = 0;
     height: number = 0;
     
-    // Position (calculated by layout)
+    // Relative Position (calculated by layout)
     x: number = 0;
     y: number = 0;
-    
-    // Offset for swimlanes (relative to parent)
-    laneOffset: number = 0;
 
     // The React Flow node data associated with this block (if any)
     nodePayload?: Node;
     
     // The ID of the node that logically "starts" this block (e.g. Map node)
     anchorNodeId?: string;
-
-    // Flag to indicate this block should be pulled up to align with the top of the previous sibling
-    pullUp: boolean = false;
-    
-    // The block that logically triggered this block (for layout dependency)
-    sourceBlock?: LayoutBlock;
 
     constructor(id: string, nodePayload?: Node) {
         this.id = id;
@@ -40,15 +31,15 @@ export abstract class LayoutBlock {
     }
 
     abstract measure(): void;
-    abstract layout(offsetX: number, offsetY: number): void;
+    abstract layout(): void;
     
-    // Helper to collect all nodes recursively after layout
-    collectNodes(nodes: Node[] = []): Node[] {
+    resolveAbsolutePositions(parentX: number, parentY: number): void {
+        const absX = parentX + this.x;
+        const absY = parentY + this.y;
+        
         if (this.nodePayload) {
-            // Update the payload position with the calculated layout position
-            this.nodePayload.position = { x: this.x, y: this.y };
+            this.nodePayload.position = { x: absX, y: absY };
             
-            // If this block represents a group, we might need to update style dimensions
             if (this.nodePayload.type === 'group') {
                  this.nodePayload.style = {
                     ...this.nodePayload.style,
@@ -56,6 +47,15 @@ export abstract class LayoutBlock {
                     height: `${this.height}px`,
                 };
             }
+        }
+        
+        for (const child of this.children) {
+            child.resolveAbsolutePositions(absX, absY);
+        }
+    }
+    
+    collectNodes(nodes: Node[] = []): Node[] {
+        if (this.nodePayload) {
             nodes.push(this.nodePayload);
         }
         for (const child of this.children) {
@@ -67,8 +67,6 @@ export abstract class LayoutBlock {
 
 export class LeafBlock extends LayoutBlock {
     measure(): void {
-        // Use fixed dimensions or dimensions from payload if available
-        // We check measured dimensions first (if React Flow has rendered it), then style, then defaults
         this.width = this.nodePayload?.measured?.width ?? 
                      (parseInt(this.nodePayload?.style?.width?.toString() || "0") || 
                      NODE_WIDTH);
@@ -78,96 +76,39 @@ export class LeafBlock extends LayoutBlock {
                       NODE_HEIGHT);
     }
 
-    layout(offsetX: number, offsetY: number): void {
-        // console.log(`[LeafBlock] Layout ${this.id} at ${offsetX + this.laneOffset}, ${offsetY}`);
-        this.x = offsetX + this.laneOffset;
-        this.y = offsetY;
+    layout(): void {
+        // Leaf nodes don't layout children
     }
 }
 
-export class TimelineBlock extends LayoutBlock {
+export class VerticalStackBlock extends LayoutBlock {
     spacing: number = VERTICAL_SPACING;
 
     measure(): void {
         this.width = 0;
         this.height = 0;
         
-        // Simulate layout to determine height and width
-        const laneY: Record<number, number> = {};
-        
         for (const child of this.children) {
             child.measure();
-            
-            // Calculate max width including lane offset
-            const childRight = child.laneOffset + child.width;
-            this.width = Math.max(this.width, childRight);
-
-            const lane = child.laneOffset;
-            const laneBottom = laneY[lane] || 0;
-            
-            // Use reduced spacing for pulled up items (tools)
-            const currentSpacing = child.pullUp ? this.spacing / 2 : this.spacing;
-            
-            // Simple height estimation for measure phase
-            laneY[lane] = laneBottom + child.height + currentSpacing;
+            this.width = Math.max(this.width, child.width);
+            this.height += child.height;
         }
         
-        this.height = Math.max(...Object.values(laneY), 0);
+        if (this.children.length > 1) {
+            this.height += (this.children.length - 1) * this.spacing;
+        }
     }
 
-    layout(offsetX: number, offsetY: number): void {
-        console.log(`[TimelineBlock] Layout ${this.id} at ${offsetX}, ${offsetY}`);
-        this.x = offsetX;
-        this.y = offsetY;
-
-        const laneY: Record<number, number> = {}; // laneOffset -> currentY
-        let maxWidth = 0;
-
+    layout(): void {
+        let currentY = 0;
         for (const child of this.children) {
-            const lane = child.laneOffset;
-            
-            // Use reduced spacing for pulled up items (tools)
-            const currentSpacing = child.pullUp ? this.spacing / 2 : this.spacing;
-            
-            // Determine Y based on source dependency
-            let dependencyY = offsetY;
-            if (child.sourceBlock) {
-                // sourceBlock.y is absolute. We need to ensure it's been laid out.
-                // Assuming chronological order, it should be.
-                dependencyY = child.sourceBlock.y + child.sourceBlock.height + this.spacing;
-            }
-
-            // Determine Y based on lane availability
-            const laneBottom = laneY[lane] || offsetY;
-            
-            let y = Math.max(laneBottom, dependencyY);
-            
-            // PullUp logic: Align with source top if requested
-            if (child.pullUp && child.sourceBlock) {
-                // We want to start at the same Y as the source
-                // But we must still respect laneBottom (can't overlap previous item in same lane)
-                y = Math.max(laneBottom, child.sourceBlock.y);
-            }
-
-            child.layout(offsetX, y);
-            
-            // Update lane tracker
-            laneY[lane] = y + child.height + currentSpacing;
-            
-            // Update max width
-            const childRight = child.laneOffset + child.width;
-            maxWidth = Math.max(maxWidth, childRight);
+            child.x = 0; // Align left
+            child.y = currentY;
+            child.layout();
+            currentY += child.height + this.spacing;
         }
-        
-        // Update final height based on actual layout
-        const maxBottom = Math.max(...Object.values(laneY), offsetY);
-        this.height = maxBottom - offsetY;
-        this.width = maxWidth;
     }
 }
-
-// Alias for backward compatibility
-export class VerticalStackBlock extends TimelineBlock {}
 
 export class HorizontalStackBlock extends LayoutBlock {
     spacing: number = HORIZONTAL_SPACING;
@@ -187,22 +128,13 @@ export class HorizontalStackBlock extends LayoutBlock {
         }
     }
 
-    layout(offsetX: number, offsetY: number): void {
-        this.x = offsetX;
-        this.y = offsetY;
-
-        let currentX = offsetX;
-        let maxHeight = 0;
-
+    layout(): void {
+        let currentX = 0;
         for (const child of this.children) {
-            child.layout(currentX, offsetY);
+            child.x = currentX;
+            child.y = 0; // Align top
+            child.layout();
             currentX += child.width + this.spacing;
-            maxHeight = Math.max(maxHeight, child.height);
-        }
-
-        this.height = maxHeight;
-        if (this.children.length > 0) {
-            this.width = currentX - this.spacing - offsetX;
         }
     }
 }
@@ -212,93 +144,30 @@ export class GroupBlock extends LayoutBlock {
     paddingY: number = GROUP_PADDING_Y;
     
     measure(): void {
-        // Measure children (usually just one VerticalStackBlock inside)
         let contentWidth = 0;
         let contentHeight = 0;
 
         for (const child of this.children) {
             child.measure();
             contentWidth = Math.max(contentWidth, child.width);
-            contentHeight += child.height; 
+            contentHeight = Math.max(contentHeight, child.height); 
         }
 
         this.width = contentWidth + (this.paddingX * 2);
         this.height = contentHeight + (this.paddingY * 2);
         
-        // Ensure minimum size for the label visibility
         this.width = Math.max(this.width, 200); 
         this.height = Math.max(this.height, 100);
     }
 
-    layout(offsetX: number, offsetY: number): void {
-        console.log(`[GroupBlock] Layout ${this.id} at ${offsetX + this.laneOffset}, ${offsetY}`);
-        this.x = offsetX + this.laneOffset;
-        this.y = offsetY;
-
-        // Layout children inside the padding
-        let currentY = this.y + this.paddingY;
-        let currentX = this.x + this.paddingX;
+    layout(): void {
+        const currentX = this.paddingX;
+        const currentY = this.paddingY;
         
-        let maxChildBottom = currentY;
-        let maxChildRight = currentX;
-
         for (const child of this.children) {
-            child.layout(currentX, currentY);
-            
-            // Track bounds of children to update group size if needed
-            maxChildBottom = Math.max(maxChildBottom, child.y + child.height);
-            maxChildRight = Math.max(maxChildRight, child.x + child.width);
-        }
-
-        // Update dimensions based on actual layout to ensure container fits children
-        this.height = maxChildBottom - this.y + this.paddingY;
-        this.width = maxChildRight - this.x + this.paddingX;
-        
-        // Ensure minimum size
-        this.width = Math.max(this.width, 200); 
-        this.height = Math.max(this.height, 100);
-    }
-}
-
-export function adjustAgentSlots(nodes: Node[]): void {
-    const nodeMap = new Map<string, Node>(nodes.map(n => [n.id, n]));
-
-    for (const node of nodes) {
-        if (node.data && node.data.toolSlots && Array.isArray(node.data.toolSlots)) {
-            const slots = node.data.toolSlots as any[];
-            if (slots.length === 0) continue;
-
-            let maxSlotY = 0;
-
-            for (const slot of slots) {
-                const targetNode = nodeMap.get(slot.id);
-                if (targetNode) {
-                    // Calculate relative Y offset
-                    // We want the slot to align with the center of the target node
-                    // targetNode.position is absolute. node.position is absolute.
-                    
-                    // Use measured height if available, else style height, else default
-                    const targetHeight = targetNode.measured?.height ?? 
-                                        (parseInt(targetNode.style?.height?.toString() || "0") || NODE_HEIGHT);
-                                        
-                    const targetCenterY = targetNode.position.y + (targetHeight / 2);
-                    
-                    const relativeY = targetCenterY - node.position.y;
-                    
-                    slot.yOffset = relativeY;
-                    maxSlotY = Math.max(maxSlotY, relativeY);
-                }
-            }
-            
-            // Update agent node height to cover the last slot
-            // Add some padding at the bottom
-            const requiredHeight = maxSlotY + (NODE_HEIGHT / 2) + 20;
-            
-            const currentHeight = parseInt(node.style?.height?.toString() || "0") || NODE_HEIGHT;
-            
-            if (requiredHeight > currentHeight) {
-                node.style = { ...node.style, height: `${requiredHeight}px` };
-            }
+            child.x = currentX;
+            child.y = currentY;
+            child.layout();
         }
     }
 }

@@ -17,8 +17,11 @@ export class BlockBuilder {
     private lastNodeByTaskId: Map<string, string> = new Map();
     private agentNameMap: Record<string, string>;
 
-    // Map to track container blocks by task ID
+    // Map to track container blocks by task ID (for Agents/User nodes)
     private taskBlockMap: Map<string, LayoutBlock> = new Map();
+    
+    // Map to track tool stack blocks by task ID (for Tools/Sub-agents)
+    private taskToolStackMap: Map<string, VerticalStackBlock> = new Map();
     
     // Map to track the single user response node per task
     private taskUserResponseNodeMap: Map<string, LeafBlock> = new Map();
@@ -38,7 +41,7 @@ export class BlockBuilder {
     private getBlockForTask(taskId: string): LayoutBlock {
         const block = this.taskBlockMap.get(taskId);
         if (!block) {
-            console.log(`[BlockBuilder] No block found for task '${taskId}', defaulting to root.`);
+            // console.log(`[BlockBuilder] No block found for task '${taskId}', defaulting to root.`);
             return this.root;
         }
         return block;
@@ -140,6 +143,7 @@ export class BlockBuilder {
     }
 
     private findLastToolOrLLMNode(container: LayoutBlock): LayoutBlock | null {
+        // Search backwards in the current block (ToolsStack)
         for (let i = container.children.length - 1; i >= 0; i--) {
             const block = container.children[i];
             if (block.nodePayload) {
@@ -207,7 +211,7 @@ export class BlockBuilder {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private addNode(type: string, step: VisualizerStep, label: string, data: any = {}, targetTaskId: string, connectToLast: boolean = true, explicitSourceId?: string): string {
         const nodeId = `${type}_${this.nodeCounter++}`;
-        console.log(`[BlockBuilder] Adding node '${nodeId}' (${label}) for task '${targetTaskId}'`);
+        // console.log(`[BlockBuilder] Adding node '${nodeId}' (${label}) for task '${targetTaskId}'`);
 
         const node: Node = {
             id: nodeId,
@@ -217,24 +221,50 @@ export class BlockBuilder {
         };
         const block = new LeafBlock(nodeId, node);
         
-        // Assign lane offset based on node type
-        if (type === "userNode") {
-            block.laneOffset = LANE_OFFSETS.USER;
-        } else if (type === "genericToolNode" || type === "llmNode") {
-            block.laneOffset = LANE_OFFSETS.TOOL;
+        // Determine container based on node type and task ID
+        let container: LayoutBlock;
+
+        if (type === "orchestratorNode" || type === "genericAgentNode") {
+            // Agents start a new Interaction Row
+            // They are added to the main flow container (Root or parent ToolStack)
+            container = this.getBlockForTask(targetTaskId);
+            
+            const rowId = `row_${nodeId}`;
+            const rowBlock = new HorizontalStackBlock(rowId);
+            
+            // Add Agent to Row
+            rowBlock.addChild(block);
+            
+            // Create Tools Stack
+            const toolsStackId = `tools_${nodeId}`;
+            const toolsStack = new VerticalStackBlock(toolsStackId);
+            rowBlock.addChild(toolsStack);
+            
+            // Add Row to Container
+            container.addChild(rowBlock);
+            
+            // Register Tools Stack as the container for tools of this task
+            this.taskToolStackMap.set(targetTaskId, toolsStack);
+            
+        } else if (type === "userNode") {
+            // User nodes go to the main flow container
+            container = this.getBlockForTask(targetTaskId);
+            container.addChild(block);
         } else {
-            block.laneOffset = LANE_OFFSETS.MAIN;
+            // Tools, LLMs, etc. go to the Tools Stack
+            const toolStack = this.taskToolStackMap.get(targetTaskId);
+            if (toolStack) {
+                container = toolStack;
+            } else {
+                // Fallback to main container if no tool stack found
+                container = this.getBlockForTask(targetTaskId);
+            }
+            container.addChild(block);
         }
 
-        // Find the correct container block based on task ID
-        const container = this.getBlockForTask(targetTaskId);
-        console.log(`[BlockBuilder] Node '${nodeId}' added to container '${container.id}'`);
-        container.addChild(block);
-        
         // Determine source node for edge
         let sourceNodeId = explicitSourceId || this.lastNodeId;
         let sourceType = "";
-        let sourceBlock = this.lastNodeBlock;
 
         // Check if we are the first node in the current block and if the block has an anchor
         if (!explicitSourceId && container.children.length === 1 && container.anchorNodeId) {
@@ -249,17 +279,6 @@ export class BlockBuilder {
             sourceType = sourceNodeId.split("_")[0];
         }
 
-        // Try to find the actual source block object if we don't have it or it doesn't match
-        if (sourceNodeId && (!sourceBlock || sourceBlock.id !== sourceNodeId)) {
-            // Search in current block children first
-            sourceBlock = container.children.find(b => b.id === sourceNodeId) || null;
-        }
-        
-        // Set source block for layout dependency
-        if (sourceBlock) {
-            block.sourceBlock = sourceBlock;
-        }
-
         // Special handling for Agent -> Tool/LLM connections to use dynamic slots
         let customSourceHandle: string | undefined;
         let customTargetHandle: string | undefined;
@@ -267,41 +286,31 @@ export class BlockBuilder {
         if (connectToLast && sourceNodeId && (type === "llmNode" || type === "genericToolNode")) {
             // If source is an agent, add a tool slot
             if (sourceType === "orchestratorNode" || sourceType === "genericAgentNode") {
-                // We need to update the agent node data. 
-                if (sourceBlock && sourceBlock.id === sourceNodeId && sourceBlock.nodePayload) {
-                    const agentNode = sourceBlock.nodePayload;
-                    if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
-                    
-                    // Calculate Y offset for the slot
-                    // We need to match the layout logic in TimelineBlock
-                    // First slot aligns with top of agent (offset 0 relative to agent content area, but agent has padding)
-                    // Subsequent slots are spaced by (NODE_HEIGHT + VERTICAL_SPACING / 2)
-                    const slotIndex = (agentNode.data.toolSlots as any[]).length;
-                    
-                    const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
-                    
-                    // Agent node padding/header offset. 
-                    // Let's assume the first tool aligns with the agent's "body" start.
-                    // If we want the first tool to align with the top of the agent node, we use a small offset.
-                    const initialOffset = 25; // Half of NODE_HEIGHT to align centers if they start at same Y
-                    
-                    const yOffset = initialOffset + (slotIndex * toolPitch);
-                    
-                    (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
-
-                    // Update agent node height to accommodate slots
-                    // This ensures measure() picks up the correct height for layout calculations
-                    // Height = Bottom of last slot + padding
-                    const lastSlotBottom = yOffset + (NODE_HEIGHT / 2);
-                    const requiredHeight = Math.max(NODE_HEIGHT, lastSlotBottom + 10); 
-                    agentNode.style = { ...agentNode.style, height: `${requiredHeight}px` };
-                    
+                // We need to update the agent node data to render handles
+                // We don't need to calculate yOffset for layout anymore, but we need it for handle positioning
+                
+                // Find the source node object
+                let sourceBlock = this.lastNodeBlock;
+                if (sourceBlock?.id !== sourceNodeId) {
+                    // Fallback: we can't find it easily.
+                    // But we need to set the edge handles.
                     customSourceHandle = `agent-out-${nodeId}`;
                     customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
-
-                    // Always pull up tools connected to an agent to align with the agent's top (or stack below previous tools)
-                    // This ignores the agent's height in the dependency calculation, allowing tools to stack alongside the agent
-                    block.pullUp = true;
+                } else if (sourceBlock && sourceBlock.nodePayload) {
+                     // We have the block.
+                     const agentNode = sourceBlock.nodePayload;
+                     if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
+                     
+                     // Estimate offset for handle
+                     const slotIndex = (agentNode.data.toolSlots as any[]).length;
+                     const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
+                     const initialOffset = 25;
+                     const yOffset = initialOffset + (slotIndex * toolPitch);
+                     
+                     (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
+                     
+                     customSourceHandle = `agent-out-${nodeId}`;
+                     customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
                 }
             }
         }
@@ -327,7 +336,19 @@ export class BlockBuilder {
     }
 
     private findActiveAgentNode(container: LayoutBlock): LayoutBlock | null {
-        // Search backwards in the current block for the last agent node
+        // In the new nested model, the container is likely the ToolsStack.
+        // The Agent is the first child of the parent InteractionRow.
+        if (container.parent instanceof HorizontalStackBlock) {
+            const row = container.parent;
+            if (row.children.length > 0 && row.children[0] instanceof LeafBlock) {
+                const potentialAgent = row.children[0];
+                if (potentialAgent.nodePayload?.type === "orchestratorNode" || potentialAgent.nodePayload?.type === "genericAgentNode") {
+                    return potentialAgent;
+                }
+            }
+        }
+        
+        // Fallback for flat structures (e.g. root)
         for (let i = container.children.length - 1; i >= 0; i--) {
             const block = container.children[i];
             if (block.nodePayload) {
@@ -412,7 +433,7 @@ export class BlockBuilder {
 
     private startGroup(type: string, step: VisualizerStep, label: string) {
         const groupId = `group_${this.groupCounter++}`;
-        console.log(`[BlockBuilder] Starting group '${groupId}' (${type}: ${label}) for parent task '${step.owningTaskId}'`);
+        // console.log(`[BlockBuilder] Starting group '${groupId}' (${type}: ${label}) for parent task '${step.owningTaskId}'`);
 
         const groupNode: Node = {
             id: groupId,
@@ -425,22 +446,19 @@ export class BlockBuilder {
         const groupBlock = new GroupBlock(groupId, groupNode);
         
         const parentTaskId = step.owningTaskId;
-        const parentBlock = this.getBlockForTask(parentTaskId);
         
-        // Find active agent in parent block (caller)
-        const agentBlock = this.findActiveAgentNode(parentBlock);
-
+        // Determine where to add the group
+        let parentContainer: LayoutBlock;
         if (type === "subflow") {
-            groupBlock.laneOffset = LANE_OFFSETS.TOOL;
-            groupBlock.pullUp = true;
-            if (agentBlock) {
-                groupBlock.sourceBlock = agentBlock;
-            }
+            // Subflows go into the tool stack of the parent task
+            const toolStack = this.taskToolStackMap.get(parentTaskId);
+            parentContainer = toolStack || this.getBlockForTask(parentTaskId);
         } else {
-            groupBlock.laneOffset = LANE_OFFSETS.MAIN;
+            // Workflows go into the main flow
+            parentContainer = this.getBlockForTask(parentTaskId);
         }
 
-        parentBlock.addChild(groupBlock);
+        parentContainer.addChild(groupBlock);
 
         // A group usually contains a vertical stack of items
         const innerStack = new VerticalStackBlock(`${groupId}_stack`);
@@ -454,7 +472,7 @@ export class BlockBuilder {
             newTaskId = step.delegationInfo?.[0]?.subTaskId || "";
         }
 
-        console.log(`[BlockBuilder] Group '${groupId}' registered for new task ID '${newTaskId}'`);
+        // console.log(`[BlockBuilder] Group '${groupId}' registered for new task ID '${newTaskId}'`);
 
         if (newTaskId) {
             this.taskBlockMap.set(newTaskId, innerStack);
@@ -465,29 +483,28 @@ export class BlockBuilder {
             this.addNode("genericAgentNode", step, "Start", { variant: "pill" }, newTaskId);
         } else if (type === "subflow") {
             // For subflows, we want to connect to the caller agent with a slot
+            // Note: addNode will handle the creation of InteractionRow and ToolsStack for this new agent
             const nodeId = this.addNode("genericAgentNode", step, label, {}, newTaskId, false);
             
-            if (agentBlock && agentBlock.nodePayload) {
-                 // Register slot on caller agent
-                 const agentNode = agentBlock.nodePayload;
-                 if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
-                 
-                 const slotIndex = (agentNode.data.toolSlots as any[]).length;
-                 const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
-                 const initialOffset = 25;
-                 const yOffset = initialOffset + (slotIndex * toolPitch);
-                 
-                 (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
-                 
-                 // Update agent node height
-                 const lastSlotBottom = yOffset + (NODE_HEIGHT / 2);
-                 const requiredHeight = Math.max(NODE_HEIGHT, lastSlotBottom + 10); 
-                 agentNode.style = { ...agentNode.style, height: `${requiredHeight}px` };
-                 
-                 // Create edge from caller slot to peer agent
-                 const sourceHandle = `agent-out-${nodeId}`;
-                 const targetHandle = "peer-left-input";
-                 this.createEdge(agentBlock.id, nodeId, step.id, sourceHandle, targetHandle);
+            // We need to connect the caller to this new agent
+            const callerNodeId = this.lastNodeByTaskId.get(parentTaskId);
+            if (callerNodeId) {
+                 // We need to register slot on caller agent.
+                 if (this.lastNodeBlock && this.lastNodeBlock.id === callerNodeId && this.lastNodeBlock.nodePayload) {
+                     const agentNode = this.lastNodeBlock.nodePayload;
+                     if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
+                     
+                     const slotIndex = (agentNode.data.toolSlots as any[]).length;
+                     const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
+                     const initialOffset = 25;
+                     const yOffset = initialOffset + (slotIndex * toolPitch);
+                     
+                     (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
+                     
+                     const sourceHandle = `agent-out-${nodeId}`;
+                     const targetHandle = "peer-left-input";
+                     this.createEdge(callerNodeId, nodeId, step.id, sourceHandle, targetHandle);
+                 }
             }
         }
     }
