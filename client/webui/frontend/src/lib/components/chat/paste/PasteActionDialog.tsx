@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from "@/lib/components/ui";
+import { MessageBanner } from "@/lib/components/common";
 
 import { generateArtifactDescription } from "./pasteUtils";
 
@@ -129,6 +130,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
     const [isSaving, setIsSaving] = useState(false);
     const [userConfirmedOverwrite, setUserConfirmedOverwrite] = useState(false);
     const [editableContent, setEditableContent] = useState("");
+    const [contentError, setContentError] = useState<string | null>(null);
 
     // Check if current title exists in artifacts
     const titleExists = existingArtifacts.includes(title);
@@ -175,6 +177,15 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
     }, [title]);
 
     const handleSaveArtifact = async () => {
+        // Check if content is empty
+        if (!editableContent.trim()) {
+            setContentError("Content cannot be empty. Please add some content before saving.");
+            return;
+        }
+
+        // Clear any previous error
+        setContentError(null);
+
         // Check if artifact already exists and user hasn't confirmed
         if (titleExists && !userConfirmedOverwrite) {
             // First click on duplicate name - show warning and require confirmation
@@ -207,6 +218,7 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
         setIsSaving(false);
         setUserConfirmedOverwrite(false);
         setEditableContent("");
+        setContentError(null);
     };
 
     const charCount = editableContent.length;
@@ -264,10 +276,23 @@ export const PasteActionDialog: React.FC<PasteActionDialogProps> = ({ isOpen, co
 
                     <div className="space-y-2">
                         <Label htmlFor="content">Content (editable)</Label>
-                        <Textarea id="content" value={editableContent} onChange={e => setEditableContent(e.target.value)} className="max-h-[300px] min-h-[200px] resize-none font-mono text-sm" placeholder="Paste content here..." />
+                        <Textarea
+                            id="content"
+                            value={editableContent}
+                            onChange={e => {
+                                setEditableContent(e.target.value);
+                                // Clear error when user starts typing
+                                if (e.target.value.trim() && contentError) {
+                                    setContentError(null);
+                                }
+                            }}
+                            className="max-h-[300px] min-h-[200px] resize-none font-mono text-sm"
+                            placeholder="Paste content here..."
+                        />
                         <p className="text-muted-foreground text-xs">
                             {charCount} characters, {lineCount} lines
                         </p>
+                        {contentError && <MessageBanner variant="error" message={contentError} dismissible onDismiss={() => setContentError(null)} />}
                     </div>
                 </div>
 
