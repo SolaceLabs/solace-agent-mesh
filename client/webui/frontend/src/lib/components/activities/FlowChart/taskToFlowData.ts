@@ -781,29 +781,8 @@ function handleWorkflowNodeExecutionResult(step: VisualizerStep, manager: Timeli
         });
         
         // Connect all iteration nodes to the Join node
+        console.log(`[Timeline] Connecting ${mapContext.iterationNodeIds.length} iterations to Join node ${joinNodeId} for map ${nodeId}`);
         mapContext.iterationNodeIds.forEach(iterNodeId => {
-            // We need to find the "end" of the iteration branch.
-            // If the iteration node had children (tools), we should connect from the last tool.
-            // But we don't track the "last node" of each iteration branch easily.
-            // However, `shiftNodesVertically` and tool creation logic updates `subflow.lastNodeId`?
-            // No, for iterations we explicitly DID NOT update `subflow.lastNodeId`.
-            // So `subflow.lastNodeId` is still the Map Node!
-            
-            // We need to find the last node for each iteration branch.
-            // Heuristic: Find the iteration node. Check if it has tools linked to it?
-            // The iteration node is an agent node.
-            // If it called tools, they are in `subflow.toolInstances`.
-            // We can find tools where `parentId` matches the iteration node? No, parentId is group.
-            // But we can trace edges?
-            
-            // Simplification: Connect from the iteration node itself.
-            // If there were tools, visually it might look like the line goes through them or overlaps.
-            // Ideally, we connect from the bottom-most node in that vertical column.
-            
-            // Let's just connect from the iteration node for now.
-            // If the iteration node expanded (tools), the edge might cross them.
-            // To fix this, we would need to track the "tail" of each parallel branch.
-            
             createTimelineEdge(
                 iterNodeId,
                 joinNodeId,
