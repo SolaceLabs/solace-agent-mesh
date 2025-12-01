@@ -10,7 +10,8 @@ export const handleAPIError = async (response: Response, defaultMessageLabel: st
     throw new Error(errorData.message || errorData.detail || `${defaultMessageLabel}: ${response.statusText}`);
 };
 export const getProjects = async () => {
-    const response = await authenticatedFetch("/api/v1/projects?include_artifact_count=true", { credentials: "include" });
+    const url = "/api/v1/projects?include_artifact_count=true";
+    const response = await authenticatedFetch(url, { credentials: "include" });
     await handleAPIError(response, "Failed to get projects");
 
     const data = await response.json();
@@ -25,7 +26,8 @@ export const createProject = async (data: CreateProjectRequest) => {
         formData.append("description", data.description);
     }
 
-    const response = await authenticatedFetch("/api/v1/projects", {
+    const url = "/api/v1/projects";
+    const response = await authenticatedFetch(url, {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -47,7 +49,8 @@ export const addFilesToProject = async (projectId: string, files: File[], fileMe
         formData.append("fileMetadata", JSON.stringify(fileMetadata));
     }
 
-    const response = await authenticatedFetch(`/api/v1/projects/${projectId}/artifacts`, {
+    const url = `/api/v1/projects/${projectId}/artifacts`;
+    const response = await authenticatedFetch(url, {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -59,7 +62,8 @@ export const addFilesToProject = async (projectId: string, files: File[], fileMe
 };
 
 export const removeFileFromProject = async (projectId: string, filename: string) => {
-    const response = await authenticatedFetch(`/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
+    const url = `/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`;
+    const response = await authenticatedFetch(url, {
         method: "DELETE",
         credentials: "include",
     });
@@ -73,7 +77,8 @@ export const updateFileMetadata = async (projectId: string, filename: string, de
     const formData = new FormData();
     formData.append("description", description);
 
-    const response = await authenticatedFetch(`/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`, {
+    const url = `/api/v1/projects/${projectId}/artifacts/${encodeURIComponent(filename)}`;
+    const response = await authenticatedFetch(url, {
         method: "PATCH",
         body: formData,
         credentials: "include",
@@ -85,7 +90,8 @@ export const updateFileMetadata = async (projectId: string, filename: string, de
 };
 
 export const updateProject = async (projectId: string, data: UpdateProjectData) => {
-    const response = await authenticatedFetch(`/api/v1/projects/${projectId}`, {
+    const url = `/api/v1/projects/${projectId}`;
+    const response = await authenticatedFetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -98,7 +104,8 @@ export const updateProject = async (projectId: string, data: UpdateProjectData) 
 };
 
 export const deleteProject = async (projectId: string) => {
-    const response = await authenticatedFetch(`/api/v1/projects/${projectId}`, {
+    const url = `/api/v1/projects/${projectId}`;
+    const response = await authenticatedFetch(url, {
         method: "DELETE",
         credentials: "include",
     });
@@ -126,7 +133,8 @@ export const getProjectSessions = async (projectId: string) => {
 };
 
 export const exportProject = async (projectId: string) => {
-    const response = await authenticatedFetch(`/api/v1/projects/${projectId}/export`);
+    const url = `/api/v1/projects/${projectId}/export`;
+    const response = await authenticatedFetch(url);
 
     await handleAPIError(response, "Failed to export project");
 
@@ -138,7 +146,8 @@ export const importProject = async (file: File, options: { preserveName: boolean
     formData.append("file", file);
     formData.append("options", JSON.stringify(options));
 
-    const response = await authenticatedFetch("/api/v1/projects/import", {
+    const url = "/api/v1/projects/import";
+    const response = await authenticatedFetch(url, {
         method: "POST",
         body: formData,
         credentials: "include",
