@@ -10,7 +10,7 @@ export class BlockBuilder {
     private root: VerticalStackBlock;
     private nodeCounter: number = 0;
     private groupCounter: number = 0;
-    
+
     private edges: Edge[] = [];
     private lastNodeId: string | null = null;
     private lastNodeBlock: LayoutBlock | null = null;
@@ -19,10 +19,10 @@ export class BlockBuilder {
 
     // Map to track container blocks by task ID (for Agents/User nodes)
     private taskBlockMap: Map<string, LayoutBlock> = new Map();
-    
+
     // Map to track tool stack blocks by task ID (for Tools/Sub-agents)
     private taskToolStackMap: Map<string, VerticalStackBlock> = new Map();
-    
+
     // Map to track the single user response node per task
     private taskUserResponseNodeMap: Map<string, LeafBlock> = new Map();
 
@@ -111,26 +111,26 @@ export class BlockBuilder {
 
     private handleLLMResponse(step: VisualizerStep) {
         const taskId = step.owningTaskId;
-        
+
         // Try to find the tool stack first, as that's where tools/LLMs live
         // If not found, fallback to the main task block (e.g. for simple flows)
         let container = this.taskToolStackMap.get(taskId);
         if (!container) {
-             container = this.getBlockForTask(taskId) as VerticalStackBlock;
+            container = this.getBlockForTask(taskId) as VerticalStackBlock;
         }
-        
+
         // Find the active agent node (Orchestrator or Peer) in this container
         const agentBlock = this.findActiveAgentNode(container);
-        
+
         // Find the last tool/LLM node to connect back from
         const toolBlock = this.findLastToolOrLLMNode(container);
-        
+
         if (agentBlock && toolBlock) {
             const toolId = toolBlock.id;
-            
+
             // Create return edge from Tool/LLM back to Agent
             const targetHandle = `agent-in-${toolId}`;
-            
+
             let sourceHandle = "peer-bottom-output";
             if (toolId.startsWith("llmNode")) {
                 sourceHandle = "llm-bottom-output";
@@ -172,7 +172,7 @@ export class BlockBuilder {
         }
 
         const taskId = step.owningTaskId;
-        
+
         // Check if we already have a user response node for this task
         let userNode = this.taskUserResponseNodeMap.get(taskId);
 
@@ -185,9 +185,9 @@ export class BlockBuilder {
         const container = this.getBlockForTask(taskId);
         const agentBlock = this.findActiveAgentNode(container);
         const explicitSourceId = agentBlock ? agentBlock.id : undefined;
-        
+
         const nodeId = this.addNode("userNode", step, "User", { isBottomNode: true }, taskId, true, explicitSourceId, agentBlock || undefined);
-        
+
         // Register this node as the response node for this task
         // We need to find the block we just created.
         // addNode adds it to the container.
@@ -209,7 +209,7 @@ export class BlockBuilder {
             data: { label: label, visualizerStepId: step.id, ...data }
         };
         const block = new LeafBlock(nodeId, node);
-        
+
         // Determine container based on node type and task ID
         let container: LayoutBlock;
 
@@ -217,25 +217,25 @@ export class BlockBuilder {
             // Agents start a new Interaction Row
             // They are added to the main flow container (Root or parent ToolStack)
             container = this.getBlockForTask(targetTaskId);
-            
+
             const rowId = `row_${nodeId}`;
             const rowBlock = new HorizontalStackBlock(rowId);
-            
+
             // Add Agent to Row
             rowBlock.addChild(block);
-            
+
             // Create Tools Stack
             const toolsStackId = `tools_${nodeId}`;
             const toolsStack = new VerticalStackBlock(toolsStackId);
             rowBlock.addChild(toolsStack);
-            
+
             // Add Row to Container
             container.addChild(rowBlock);
-            
+
             // Register Tools Stack as the container for tools of this task
             console.log(`[BlockBuilder] Registering tool stack for task '${targetTaskId}': ${toolsStackId}`);
             this.taskToolStackMap.set(targetTaskId, toolsStack);
-            
+
         } else if (type === "userNode") {
             // User nodes go to the main flow container
             container = this.getBlockForTask(targetTaskId);
@@ -259,8 +259,8 @@ export class BlockBuilder {
 
         // Check if we are the first node in the current block and if the block has an anchor
         if (!explicitSourceId && container.children.length === 1 && container.anchorNodeId) {
-             sourceNodeId = container.anchorNodeId;
-             sourceType = "genericAgentNode"; 
+            sourceNodeId = container.anchorNodeId;
+            sourceType = "genericAgentNode";
         }
         // Otherwise, check task-specific history for sequential flow
         else if (!explicitSourceId && targetTaskId && this.lastNodeByTaskId.has(targetTaskId)) {
@@ -279,7 +279,7 @@ export class BlockBuilder {
             if (sourceType === "orchestratorNode" || sourceType === "genericAgentNode") {
                 // We need to update the agent node data to render handles
                 // We don't need to calculate yOffset for layout anymore, but we need it for handle positioning
-                
+
                 // Find the source node object
                 let sourceBlock = explicitSourceBlock;
                 if (!sourceBlock && this.lastNodeBlock?.id === sourceNodeId) {
@@ -287,20 +287,20 @@ export class BlockBuilder {
                 }
 
                 if (sourceBlock && sourceBlock.nodePayload) {
-                     // We have the block.
-                     const agentNode = sourceBlock.nodePayload;
-                     if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
-                     
-                     // Estimate offset for handle
-                     const slotIndex = (agentNode.data.toolSlots as any[]).length;
-                     const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
-                     const initialOffset = 25;
-                     const yOffset = initialOffset + (slotIndex * toolPitch);
-                     
-                     (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
-                     
-                     customSourceHandle = `agent-out-${nodeId}`;
-                     customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
+                    // We have the block.
+                    const agentNode = sourceBlock.nodePayload;
+                    if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
+
+                    // Estimate offset for handle
+                    const slotIndex = (agentNode.data.toolSlots as any[]).length;
+                    const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
+                    const initialOffset = 25;
+                    const yOffset = initialOffset + (slotIndex * toolPitch);
+
+                    (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
+
+                    customSourceHandle = `agent-out-${nodeId}`;
+                    customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
                 } else {
                     // Fallback: we can't find it easily.
                     // But we need to set the edge handles.
@@ -313,20 +313,20 @@ export class BlockBuilder {
         // Create edge
         if (connectToLast && sourceNodeId) {
             let { sourceHandle, targetHandle } = this.resolveHandles(sourceType, type, sourceNodeId, nodeId);
-            
+
             if (customSourceHandle) sourceHandle = customSourceHandle;
             if (customTargetHandle) targetHandle = customTargetHandle;
 
             this.createEdge(sourceNodeId, nodeId, step.id, sourceHandle, targetHandle);
         }
-        
+
         // Update tracking
         this.lastNodeId = nodeId;
         this.lastNodeBlock = block;
         if (targetTaskId) {
             this.lastNodeByTaskId.set(targetTaskId, nodeId);
         }
-        
+
         return nodeId;
     }
 
@@ -344,7 +344,7 @@ export class BlockBuilder {
         } else {
             // console.log(`[BlockBuilder] findActiveAgentNode: container parent is not HorizontalStackBlock. Parent type: ${container.parent?.constructor.name}`);
         }
-        
+
         // Fallback for flat structures (e.g. root)
         for (let i = container.children.length - 1; i >= 0; i--) {
             const block = container.children[i];
@@ -356,13 +356,13 @@ export class BlockBuilder {
             }
             // Check if block is a row containing an agent (for root container)
             if (block instanceof HorizontalStackBlock && block.children.length > 0) {
-                 const firstChild = block.children[0];
-                 if (firstChild instanceof LeafBlock && firstChild.nodePayload) {
-                     const type = firstChild.nodePayload.type;
-                     if (type === "orchestratorNode" || type === "genericAgentNode") {
-                         return firstChild;
-                     }
-                 }
+                const firstChild = block.children[0];
+                if (firstChild instanceof LeafBlock && firstChild.nodePayload) {
+                    const type = firstChild.nodePayload.type;
+                    if (type === "orchestratorNode" || type === "genericAgentNode") {
+                        return firstChild;
+                    }
+                }
             }
         }
         return null;
@@ -421,7 +421,7 @@ export class BlockBuilder {
 
     private createEdge(source: string, target: string, stepId?: string, sourceHandle?: string, targetHandle?: string) {
         const edgeId = `e_${source}_${target}`;
-        
+
         // Avoid duplicates
         if (this.edges.some(e => e.id === edgeId)) {
             return;
@@ -438,10 +438,10 @@ export class BlockBuilder {
                 visualizerStepId: stepId
             }
         };
-        
+
         if (sourceHandle) edge.sourceHandle = sourceHandle;
         if (targetHandle) edge.targetHandle = targetHandle;
-        
+
         this.edges.push(edge);
     }
 
@@ -457,24 +457,24 @@ export class BlockBuilder {
             type: "group",
             position: { x: 0, y: 0 },
             data: { label: groupLabel },
-            style: { 
-                width: 0, 
+            style: {
+                width: 0,
                 height: 0,
-                backgroundColor: "rgba(220, 220, 255, 0.1)",
+                backgroundColor: "rgba(220, 220, 255, 0.08)",
                 border: "1px solid #aac",
                 borderRadius: "8px",
-            } 
+            }
         };
 
         const groupBlock = new GroupBlock(groupId, groupNode);
-        
+
         // Reduce padding for sub-agent groups since they don't have a label
         if (type === "subflow") {
             groupBlock.paddingY = 20;
         }
-        
+
         const parentTaskId = step.owningTaskId;
-        
+
         // Determine where to add the group
         let parentContainer: LayoutBlock;
         if (type === "subflow") {
@@ -513,25 +513,25 @@ export class BlockBuilder {
             // For subflows, we want to connect to the caller agent with a slot
             // Note: addNode will handle the creation of InteractionRow and ToolsStack for this new agent
             const nodeId = this.addNode("genericAgentNode", step, label, {}, newTaskId, false);
-            
+
             // Find the caller agent block to add a slot
             const agentBlock = this.findActiveAgentNode(parentContainer);
-            
+
             if (agentBlock && agentBlock.nodePayload) {
-                 // Register slot on caller agent
-                 const agentNode = agentBlock.nodePayload;
-                 if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
-                 
-                 const slotIndex = (agentNode.data.toolSlots as any[]).length;
-                 const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
-                 const initialOffset = 25;
-                 const yOffset = initialOffset + (slotIndex * toolPitch);
-                 
-                 (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
-                 
-                 const sourceHandle = `agent-out-${nodeId}`;
-                 const targetHandle = "peer-left-input";
-                 this.createEdge(agentBlock.id, nodeId, step.id, sourceHandle, targetHandle);
+                // Register slot on caller agent
+                const agentNode = agentBlock.nodePayload;
+                if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
+
+                const slotIndex = (agentNode.data.toolSlots as any[]).length;
+                const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
+                const initialOffset = 25;
+                const yOffset = initialOffset + (slotIndex * toolPitch);
+
+                (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
+
+                const sourceHandle = `agent-out-${nodeId}`;
+                const targetHandle = "peer-left-input";
+                this.createEdge(agentBlock.id, nodeId, step.id, sourceHandle, targetHandle);
             }
         }
     }
@@ -575,14 +575,14 @@ export class BlockBuilder {
         const taskId = step.owningTaskId;
         const container = this.getBlockForTask(taskId);
         const agentBlock = this.findActiveAgentNode(container);
-        
+
         // Find the last group block (subflow)
         const groupBlock = this.findLastSubflowGroup(container);
-        
+
         if (agentBlock && groupBlock) {
             // We need the peer agent node ID inside the group.
             // Structure: Group -> VerticalStack (innerStack) -> HorizontalStack (Row) -> Leaf (Agent)
-            
+
             let peerAgentId: string | undefined;
             if (groupBlock.children.length > 0 && groupBlock.children[0] instanceof VerticalStackBlock) {
                 const stack = groupBlock.children[0];
@@ -599,13 +599,13 @@ export class BlockBuilder {
                     }
                 }
             }
-            
+
             if (peerAgentId) {
                 const sourceHandle = "peer-left-output";
                 const targetHandle = `agent-in-${peerAgentId}`;
-                
+
                 this.createEdge(peerAgentId, agentBlock.id, step.id, sourceHandle, targetHandle);
-                
+
                 // Reset lastNodeId to the Agent
                 this.lastNodeId = agentBlock.id;
                 this.lastNodeBlock = agentBlock;
@@ -659,15 +659,15 @@ export class BlockBuilder {
                 // But `addNode` expects the ID of the task *containing* the node.
                 // The node itself *is* the start of the subtask.
                 // So it should be added to `vStack`.
-                
+
                 // Let's manually add the node to vStack here to bootstrap it.
                 // Or temporarily map taskId to vStack? No.
-                
+
                 // Actually, `handleWorkflowNodeStart` is for the *wrapper* node in the workflow graph.
                 // The *agent execution* inside it will be a separate task.
                 // So this node belongs to the *workflow* task.
                 // So it should go into the workflow's container.
-                
+
                 // If the workflow container is a HorizontalStack (Map), we need to add a VerticalStack for this item.
                 // And then add the node to that VerticalStack.
                 // And then subsequent nodes for this item should go to that VerticalStack.
@@ -677,20 +677,20 @@ export class BlockBuilder {
                 // But Map iterations might have distinct sub-task IDs?
                 // `DAGExecutor` generates `sub_task_id` for agent nodes.
                 // But `WORKFLOW_NODE_EXECUTION_START` event belongs to the workflow task.
-                
+
                 // We need a way to distinguish branches in the workflow task.
                 // `iterationIndex` or `subTaskId` in the event data.
                 // If we have `subTaskId`, we can map it.
                 // But the event itself has `owningTaskId` = workflow ID.
-                
+
                 // We might need to create a synthetic ID for the branch: `${taskId}_branch_${nodeId}`.
                 // And map that to the vStack.
                 // But how do subsequent events know to use that?
                 // They don't.
-                
+
                 // This implies that for Map/Fork in a single workflow task, we DO need some state
                 // or we need to look up the branch based on `nodeId` or `iterationIndex`.
-                
+
                 // For now, let's assume standard vertical flow for workflow nodes unless we are explicitly in a Map.
             }
         }
@@ -703,7 +703,7 @@ export class BlockBuilder {
             const hStack = new HorizontalStackBlock(`hstack_${nodeId}`);
             hStack.anchorNodeId = mapNodeId; // Set anchor for children branches
             container.addChild(hStack);
-            
+
             // We need to ensure children of this map go into hStack.
             // But children will be added via `handleWorkflowNodeStart` later.
             // And they will look up `taskId`.
@@ -714,7 +714,7 @@ export class BlockBuilder {
             // If we update map, we overwrite `hStack`.
             // This works for the *first* child of the branch.
             // But what about the second branch? It needs to see `hStack` again.
-            
+
             // We need to map `taskId` to `hStack`.
             this.taskBlockMap.set(taskId, hStack);
         } else {
@@ -758,7 +758,7 @@ export class BlockBuilder {
     private handleTaskCompleted(step: VisualizerStep) {
         const taskId = step.owningTaskId;
         const taskBlock = this.taskBlockMap.get(taskId);
-        
+
         // Check if this is a sub-task completion (taskBlock is innerStack of a Group)
         if (taskBlock && taskBlock instanceof VerticalStackBlock) {
             const groupBlock = taskBlock.parent;
@@ -771,23 +771,23 @@ export class BlockBuilder {
                     const row = toolStack.parent;
                     if (row.children.length > 0 && row.children[0] instanceof LeafBlock) {
                         const parentAgent = row.children[0];
-                        
+
                         // Find the sub-agent node in the group to connect from
                         // taskBlock (innerStack) -> Row -> Agent
                         let subAgentId: string | undefined;
                         if (taskBlock.children.length > 0) {
-                             const firstChild = taskBlock.children[0];
-                             if (firstChild instanceof HorizontalStackBlock && firstChild.children.length > 0) {
-                                 subAgentId = firstChild.children[0].id;
-                             } else if (firstChild instanceof LeafBlock) {
-                                 subAgentId = firstChild.id;
-                             }
+                            const firstChild = taskBlock.children[0];
+                            if (firstChild instanceof HorizontalStackBlock && firstChild.children.length > 0) {
+                                subAgentId = firstChild.children[0].id;
+                            } else if (firstChild instanceof LeafBlock) {
+                                subAgentId = firstChild.id;
+                            }
                         }
-                        
+
                         if (subAgentId && parentAgent) {
-                             const sourceHandle = "peer-left-output";
-                             const targetHandle = `agent-in-${subAgentId}`;
-                             this.createEdge(subAgentId, parentAgent.id, step.id, sourceHandle, targetHandle);
+                            const sourceHandle = "peer-left-output";
+                            const targetHandle = `agent-in-${subAgentId}`;
+                            this.createEdge(subAgentId, parentAgent.id, step.id, sourceHandle, targetHandle);
                         }
                     }
                 }
