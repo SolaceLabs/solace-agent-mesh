@@ -275,13 +275,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         if (pastedText && isLargeText(pastedText)) {
             // Large text - add as pending pasted text badge
             event.preventDefault();
-
-            // Limit to 5 pending paste badges
-            if (pendingPastedTextItems.length >= 5) {
-                addNotification("Maximum of 5 pasted text items allowed. Please save or remove existing items first.", "info");
-                return;
-            }
-
             const newItem = createPastedTextItem(pastedText);
             setPendingPastedTextItems(prev => [...prev, newItem]);
         }
