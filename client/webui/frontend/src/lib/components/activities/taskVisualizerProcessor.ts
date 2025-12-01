@@ -389,7 +389,7 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "workflow_node_execution_start": {
-                                const dedupKey = `node_start:${signalData.sub_task_id || signalData.node_id}:${signalData.iteration_index || 0}`;
+                                const dedupKey = `node_start:${currentEventOwningTaskId}:${signalData.sub_task_id || signalData.node_id}:${signalData.iteration_index || 0}`;
                                 if (processedWorkflowEvents.has(dedupKey)) break;
                                 processedWorkflowEvents.add(dedupKey);
 
@@ -425,7 +425,7 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "workflow_node_execution_result": {
-                                const dedupKey = `node_result:${signalData.node_id}:${signalData.status}`;
+                                const dedupKey = `node_result:${currentEventOwningTaskId}:${signalData.node_id}:${signalData.status}`;
                                 if (processedWorkflowEvents.has(dedupKey)) break;
                                 processedWorkflowEvents.add(dedupKey);
 
@@ -479,7 +479,7 @@ export const processTaskForVisualization = (
                                 break;
                             }
                             case "workflow_execution_result": {
-                                const dedupKey = `result:${signalData.status}`;
+                                const dedupKey = `result:${currentEventOwningTaskId}:${signalData.status}`;
                                 if (processedWorkflowEvents.has(dedupKey)) break;
                                 processedWorkflowEvents.add(dedupKey);
 
