@@ -1,6 +1,6 @@
 import type { VisualizerStep } from "@/lib/types";
 import { LayoutBlock, VerticalStackBlock, LeafBlock, GroupBlock, HorizontalStackBlock } from "./LayoutBlock";
-import { LANE_OFFSETS } from "./constants";
+import { LANE_OFFSETS, VERTICAL_SPACING, NODE_HEIGHT } from "./constants";
 import type { Node, Edge } from "@xyflow/react";
 
 /**

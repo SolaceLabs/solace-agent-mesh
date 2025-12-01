@@ -104,8 +104,11 @@ export class TimelineBlock extends LayoutBlock {
             const lane = child.laneOffset;
             const laneBottom = laneY[lane] || 0;
             
+            // Use reduced spacing for pulled up items (tools)
+            const currentSpacing = child.pullUp ? this.spacing / 2 : this.spacing;
+            
             // Simple height estimation for measure phase
-            laneY[lane] = laneBottom + child.height + this.spacing;
+            laneY[lane] = laneBottom + child.height + currentSpacing;
         }
         
         this.height = Math.max(...Object.values(laneY), 0);
@@ -119,6 +122,9 @@ export class TimelineBlock extends LayoutBlock {
 
         for (const child of this.children) {
             const lane = child.laneOffset;
+            
+            // Use reduced spacing for pulled up items (tools)
+            const currentSpacing = child.pullUp ? this.spacing / 2 : this.spacing;
             
             // Determine Y based on source dependency
             let dependencyY = offsetY;
@@ -143,7 +149,7 @@ export class TimelineBlock extends LayoutBlock {
             child.layout(offsetX, y);
             
             // Update lane tracker
-            laneY[lane] = y + child.height + this.spacing;
+            laneY[lane] = y + child.height + currentSpacing;
         }
         
         // Update final height based on actual layout
