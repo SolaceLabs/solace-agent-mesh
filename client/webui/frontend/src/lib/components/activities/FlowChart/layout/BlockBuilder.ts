@@ -103,7 +103,7 @@ export class BlockBuilder {
         const agentBlock = this.findActiveAgentNode(container);
         const sourceId = agentBlock ? agentBlock.id : undefined;
 
-        this.addNode("llmNode", step, "LLM", {}, taskId, true, sourceId);
+        this.addNode("llmNode", step, "LLM", {}, taskId, true, sourceId, agentBlock || undefined);
     }
 
     private handleLLMResponse(step: VisualizerStep) {
@@ -197,7 +197,7 @@ export class BlockBuilder {
         const agentBlock = this.findActiveAgentNode(container);
         const explicitSourceId = agentBlock ? agentBlock.id : undefined;
         
-        const nodeId = this.addNode("userNode", step, "User", { isBottomNode: true }, taskId, true, explicitSourceId);
+        const nodeId = this.addNode("userNode", step, "User", { isBottomNode: true }, taskId, true, explicitSourceId, agentBlock || undefined);
         
         // Register this node as the response node for this task
         // We need to find the block we just created.
@@ -209,7 +209,7 @@ export class BlockBuilder {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private addNode(type: string, step: VisualizerStep, label: string, data: any = {}, targetTaskId: string, connectToLast: boolean = true, explicitSourceId?: string): string {
+    private addNode(type: string, step: VisualizerStep, label: string, data: any = {}, targetTaskId: string, connectToLast: boolean = true, explicitSourceId?: string, explicitSourceBlock?: LayoutBlock): string {
         const nodeId = `${type}_${this.nodeCounter++}`;
         console.log(`[BlockBuilder] Adding node '${nodeId}' (${type}: ${label}) for task '${targetTaskId}'`);
 
@@ -292,13 +292,12 @@ export class BlockBuilder {
                 // We don't need to calculate yOffset for layout anymore, but we need it for handle positioning
                 
                 // Find the source node object
-                let sourceBlock = this.lastNodeBlock;
-                if (sourceBlock?.id !== sourceNodeId) {
-                    // Fallback: we can't find it easily.
-                    // But we need to set the edge handles.
-                    customSourceHandle = `agent-out-${nodeId}`;
-                    customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
-                } else if (sourceBlock && sourceBlock.nodePayload) {
+                let sourceBlock = explicitSourceBlock;
+                if (!sourceBlock && this.lastNodeBlock?.id === sourceNodeId) {
+                    sourceBlock = this.lastNodeBlock;
+                }
+
+                if (sourceBlock && sourceBlock.nodePayload) {
                      // We have the block.
                      const agentNode = sourceBlock.nodePayload;
                      if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
@@ -313,6 +312,11 @@ export class BlockBuilder {
                      
                      customSourceHandle = `agent-out-${nodeId}`;
                      customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
+                } else {
+                    // Fallback: we can't find it easily.
+                    // But we need to set the edge handles.
+                    customSourceHandle = `agent-out-${nodeId}`;
+                    customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
                 }
             }
         }
@@ -349,7 +353,7 @@ export class BlockBuilder {
                 }
             }
         } else {
-            console.log(`[BlockBuilder] findActiveAgentNode: container parent is not HorizontalStackBlock. Parent type: ${container.parent?.constructor.name}`);
+            // console.log(`[BlockBuilder] findActiveAgentNode: container parent is not HorizontalStackBlock. Parent type: ${container.parent?.constructor.name}`);
         }
         
         // Fallback for flat structures (e.g. root)
@@ -543,7 +547,7 @@ export class BlockBuilder {
             const agentBlock = this.findActiveAgentNode(container);
             const sourceId = agentBlock ? agentBlock.id : undefined;
 
-            this.addNode("genericToolNode", step, toolName, {}, taskId, true, sourceId);
+            this.addNode("genericToolNode", step, toolName, {}, taskId, true, sourceId, agentBlock || undefined);
         }
     }
 
