@@ -413,16 +413,23 @@ export class BlockBuilder {
         };
 
         const groupBlock = new GroupBlock(groupId, groupNode);
-        groupBlock.laneOffset = LANE_OFFSETS.MAIN; // Groups align with Main flow
-        
-        // Determine parent block based on owningTaskId
-        // If owningTaskId is present, use it to find parent. Otherwise root.
-        // Note: For a new workflow/subflow, owningTaskId usually points to the PARENT task.
-        // But the step ID or data might contain the NEW task ID.
-        // We need to register the NEW task ID to this new group block.
         
         const parentTaskId = step.owningTaskId;
         const parentBlock = this.getBlockForTask(parentTaskId);
+        
+        // Find active agent in parent block (caller)
+        const agentBlock = this.findActiveAgentNode(parentBlock);
+
+        if (type === "subflow") {
+            groupBlock.laneOffset = LANE_OFFSETS.TOOL;
+            groupBlock.pullUp = true;
+            if (agentBlock) {
+                groupBlock.sourceBlock = agentBlock;
+            }
+        } else {
+            groupBlock.laneOffset = LANE_OFFSETS.MAIN;
+        }
+
         parentBlock.addChild(groupBlock);
 
         // A group usually contains a vertical stack of items
@@ -430,19 +437,10 @@ export class BlockBuilder {
         groupBlock.addChild(innerStack);
 
         // Register the new task ID to this inner stack
-        // We need to know the ID of the new task being started.
-        // For WORKFLOW_EXECUTION_START, it's in data.workflowExecutionStart.executionId
-        // For subflows, it might be in delegation info or we infer it.
         let newTaskId = "";
         if (type === "workflow") {
             newTaskId = step.data.workflowExecutionStart?.executionId || "";
         } else if (type === "subflow") {
-            // Subflow ID logic is complex, usually passed in step.delegationInfo or similar
-            // For now, let's assume we can derive it or use a fallback
-            // If we can't find it, we might have issues placing children.
-            // Let's use the step's owningTaskId if it's a subtask step? No, that's the parent.
-            // We need the ID of the *new* task.
-            // In `taskToFlowData.helpers.ts`, `startNewSubflow` uses `step.delegationInfo?.[0]?.subTaskId`.
             newTaskId = step.delegationInfo?.[0]?.subTaskId || "";
         }
 
@@ -451,11 +449,34 @@ export class BlockBuilder {
         }
 
         // Add the "Agent" node representing this group at the top of the stack
-        // For workflows, it's a "Start" node. For peers, it's the Peer Agent node.
         if (type === "workflow") {
             this.addNode("genericAgentNode", step, "Start", { variant: "pill" }, newTaskId);
         } else if (type === "subflow") {
-            this.addNode("genericAgentNode", step, label, {}, newTaskId);
+            // For subflows, we want to connect to the caller agent with a slot
+            const nodeId = this.addNode("genericAgentNode", step, label, {}, newTaskId, false);
+            
+            if (agentBlock && agentBlock.nodePayload) {
+                 // Register slot on caller agent
+                 const agentNode = agentBlock.nodePayload;
+                 if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
+                 
+                 const slotIndex = (agentNode.data.toolSlots as any[]).length;
+                 const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
+                 const initialOffset = 25;
+                 const yOffset = initialOffset + (slotIndex * toolPitch);
+                 
+                 (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
+                 
+                 // Update agent node height
+                 const lastSlotBottom = yOffset + (NODE_HEIGHT / 2);
+                 const requiredHeight = Math.max(NODE_HEIGHT, lastSlotBottom + 10); 
+                 agentNode.style = { ...agentNode.style, height: `${requiredHeight}px` };
+                 
+                 // Create edge from caller slot to peer agent
+                 const sourceHandle = `agent-out-${nodeId}`;
+                 const targetHandle = "peer-left-input";
+                 this.createEdge(agentBlock.id, nodeId, step.id, sourceHandle, targetHandle);
+            }
         }
     }
 
@@ -487,10 +508,58 @@ export class BlockBuilder {
 
         if (isPeer) {
             this.endGroup();
+            this.handlePeerResponse(step);
         } else {
             // Local tool return - connect back to agent
             this.handleLLMResponse(step);
         }
+    }
+
+    private handlePeerResponse(step: VisualizerStep) {
+        const taskId = step.owningTaskId;
+        const container = this.getBlockForTask(taskId);
+        const agentBlock = this.findActiveAgentNode(container);
+        
+        // Find the last group block (subflow)
+        const groupBlock = this.findLastSubflowGroup(container);
+        
+        if (agentBlock && groupBlock) {
+            // We need the peer agent node ID inside the group.
+            // The group contains an innerStack.
+            // The innerStack contains the peer agent node as the first child.
+            
+            let peerAgentId: string | undefined;
+            if (groupBlock.children.length > 0 && groupBlock.children[0] instanceof VerticalStackBlock) {
+                const stack = groupBlock.children[0];
+                if (stack.children.length > 0 && stack.children[0] instanceof LeafBlock) {
+                    peerAgentId = stack.children[0].id;
+                }
+            }
+            
+            if (peerAgentId) {
+                const sourceHandle = "peer-bottom-output";
+                const targetHandle = `agent-in-${peerAgentId}`;
+                
+                this.createEdge(peerAgentId, agentBlock.id, step.id, sourceHandle, targetHandle);
+                
+                // Reset lastNodeId to the Agent
+                this.lastNodeId = agentBlock.id;
+                this.lastNodeBlock = agentBlock;
+                if (taskId) {
+                    this.lastNodeByTaskId.set(taskId, agentBlock.id);
+                }
+            }
+        }
+    }
+
+    private findLastSubflowGroup(container: LayoutBlock): LayoutBlock | null {
+        for (let i = container.children.length - 1; i >= 0; i--) {
+            const block = container.children[i];
+            if (block instanceof GroupBlock) {
+                return block;
+            }
+        }
+        return null;
     }
 
     private handleWorkflowNodeStart(step: VisualizerStep) {
