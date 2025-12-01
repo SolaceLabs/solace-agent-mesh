@@ -27,11 +27,11 @@ const GenericAgentNode: React.FC<NodeProps<Node<GenericNodeData>>> = ({ data }) 
             >
                 <Handle type="target" position={Position.Top} id="peer-top-input" className="!bg-indigo-500" isConnectable={true} />
                 {data.label === "Finish" ? (
-                    <Handle type="source" position={Position.Left} id="peer-left-output" className="!bg-indigo-500" isConnectable={true} style={{ top: "50%" }} />
+                    <Handle type="source" position={Position.Left} id="peer-left-output" className="!bg-indigo-500" isConnectable={true} style={{ top: "45%" }} />
                 ) : (
-                    <Handle type="target" position={Position.Left} id="peer-left-input" className="!bg-indigo-500" isConnectable={true} style={{ top: "50%" }} />
+                    <Handle type="target" position={Position.Left} id="peer-left-input" className="!bg-indigo-500" isConnectable={true} style={{ top: "45%" }} />
                 )}
-                <Handle type="source" position={Position.Bottom} id="peer-bottom-output" className="!bg-indigo-500" isConnectable={true} />
+                <Handle type="source" position={Position.Bottom} id="peer-bottom-output" className="!bg-indigo-500" isConnectable={true} style={{ bottom: "-2px" }} />
                 <div className="flex items-center justify-center">
                     <div className="text-sm font-bold">{data.label}</div>
                 </div>
