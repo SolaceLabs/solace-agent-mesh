@@ -52,7 +52,7 @@ export const DocumentListItem: React.FC<DocumentListItemProps> = ({ project, art
                 onClose={() => setShowEditDialog(false)}
                 onSave={async description => {
                     await updateFileMetadata.mutateAsync(description, {
-                        onSettled: () => setShowEditDialog(false),
+                        onSuccess: () => setShowEditDialog(false),
                     });
                 }}
             />
