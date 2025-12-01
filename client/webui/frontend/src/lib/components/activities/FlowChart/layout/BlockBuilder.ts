@@ -244,6 +244,7 @@ export class BlockBuilder {
             container.addChild(rowBlock);
             
             // Register Tools Stack as the container for tools of this task
+            console.log(`[BlockBuilder] Registering tool stack for task '${targetTaskId}': ${toolsStackId}`);
             this.taskToolStackMap.set(targetTaskId, toolsStack);
             
         } else if (type === "userNode") {
@@ -256,6 +257,7 @@ export class BlockBuilder {
             if (toolStack) {
                 container = toolStack;
             } else {
+                console.log(`[BlockBuilder] Tool stack not found for task '${targetTaskId}'. Fallback to main container.`);
                 // Fallback to main container if no tool stack found
                 container = this.getBlockForTask(targetTaskId);
             }
@@ -346,6 +348,8 @@ export class BlockBuilder {
                     return potentialAgent;
                 }
             }
+        } else {
+            console.log(`[BlockBuilder] findActiveAgentNode: container parent is not HorizontalStackBlock. Parent type: ${container.parent?.constructor.name}`);
         }
         
         // Fallback for flat structures (e.g. root)
@@ -356,6 +360,16 @@ export class BlockBuilder {
                 if (type === "orchestratorNode" || type === "genericAgentNode") {
                     return block;
                 }
+            }
+            // Check if block is a row containing an agent (for root container)
+            if (block instanceof HorizontalStackBlock && block.children.length > 0) {
+                 const firstChild = block.children[0];
+                 if (firstChild instanceof LeafBlock && firstChild.nodePayload) {
+                     const type = firstChild.nodePayload.type;
+                     if (type === "orchestratorNode" || type === "genericAgentNode") {
+                         return firstChild;
+                     }
+                 }
             }
         }
         return null;
