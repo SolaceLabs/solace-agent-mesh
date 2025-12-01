@@ -32,6 +32,7 @@ export class BlockBuilder {
     }
 
     public build(steps: VisualizerStep[]): { root: LayoutBlock, edges: Edge[] } {
+        console.log(`[BlockBuilder] Building flow from ${steps.length} steps.`);
         for (const step of steps) {
             this.processStep(step);
         }

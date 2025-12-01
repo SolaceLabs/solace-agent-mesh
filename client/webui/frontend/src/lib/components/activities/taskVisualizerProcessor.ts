@@ -231,6 +231,9 @@ export const processTaskForVisualization = (
         aggregatedTextIsForwardedContext = undefined;
     };
 
+    // Debug: Log all monitored tasks keys
+    console.log("[Visualizer] All Monitored Tasks Keys:", Object.keys(allMonitoredTasks));
+
     // 3. Process the sorted, combined event stream
     sortedEvents.forEach((event, index) => {
         const eventTimestamp = getEventTimestamp(event);
@@ -357,6 +360,7 @@ export const processTaskForVisualization = (
                         switch (signalType) {
                             case "workflow_execution_start": {
                                 const dedupKey = `start:${signalData.execution_id}`;
+                                console.log(`[Visualizer] Processing WORKFLOW_EXECUTION_START. ExecutionID: ${signalData.execution_id}, DedupKey: ${dedupKey}, Seen: ${processedWorkflowEvents.has(dedupKey)}`);
                                 if (processedWorkflowEvents.has(dedupKey)) break;
                                 processedWorkflowEvents.add(dedupKey);
 
