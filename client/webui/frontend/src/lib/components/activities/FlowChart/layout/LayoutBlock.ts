@@ -34,6 +34,7 @@ export abstract class LayoutBlock {
     abstract layout(): void;
     
     resolveAbsolutePositions(parentX: number, parentY: number): void {
+        console.log(`[LayoutBlock] Resolving absolute position for ${this.id}: parent(${parentX}, ${parentY}) + rel(${this.x}, ${this.y})`);
         const absX = parentX + this.x;
         const absY = parentY + this.y;
         
@@ -74,6 +75,7 @@ export class LeafBlock extends LayoutBlock {
         this.height = this.nodePayload?.measured?.height ?? 
                       (parseInt(this.nodePayload?.style?.height?.toString() || "0") || 
                       NODE_HEIGHT);
+        console.log(`[LeafBlock] ${this.id} measured: ${this.width}x${this.height}`);
     }
 
     layout(): void {
@@ -85,6 +87,7 @@ export class VerticalStackBlock extends LayoutBlock {
     spacing: number = VERTICAL_SPACING;
 
     measure(): void {
+        console.log(`[VerticalStackBlock] Measuring ${this.id}`);
         this.width = 0;
         this.height = 0;
         
@@ -97,9 +100,11 @@ export class VerticalStackBlock extends LayoutBlock {
         if (this.children.length > 1) {
             this.height += (this.children.length - 1) * this.spacing;
         }
+        console.log(`[VerticalStackBlock] ${this.id} measured: ${this.width}x${this.height}`);
     }
 
     layout(): void {
+        console.log(`[VerticalStackBlock] Layout ${this.id}`);
         let currentY = 0;
         for (const child of this.children) {
             child.x = 0; // Align left
@@ -114,6 +119,7 @@ export class HorizontalStackBlock extends LayoutBlock {
     spacing: number = HORIZONTAL_SPACING;
 
     measure(): void {
+        console.log(`[HorizontalStackBlock] Measuring ${this.id}`);
         this.width = 0;
         this.height = 0;
 
@@ -126,9 +132,11 @@ export class HorizontalStackBlock extends LayoutBlock {
         if (this.children.length > 1) {
             this.width += (this.children.length - 1) * this.spacing;
         }
+        console.log(`[HorizontalStackBlock] ${this.id} measured: ${this.width}x${this.height}`);
     }
 
     layout(): void {
+        console.log(`[HorizontalStackBlock] Layout ${this.id}`);
         let currentX = 0;
         for (const child of this.children) {
             child.x = currentX;
@@ -144,6 +152,7 @@ export class GroupBlock extends LayoutBlock {
     paddingY: number = GROUP_PADDING_Y;
     
     measure(): void {
+        console.log(`[GroupBlock] Measuring ${this.id}`);
         let contentWidth = 0;
         let contentHeight = 0;
 
@@ -158,9 +167,11 @@ export class GroupBlock extends LayoutBlock {
         
         this.width = Math.max(this.width, 200); 
         this.height = Math.max(this.height, 100);
+        console.log(`[GroupBlock] ${this.id} measured: ${this.width}x${this.height}`);
     }
 
     layout(): void {
+        console.log(`[GroupBlock] Layout ${this.id}`);
         const currentX = this.paddingX;
         const currentY = this.paddingY;
         

@@ -91,10 +91,10 @@ export class BlockBuilder {
         // 1. Add User Node (Top)
         this.addNode("userNode", step, "User", { isTopNode: true }, step.owningTaskId);
 
-        // 2. Add Orchestrator Node immediately
-        const agentName = step.target || "Orchestrator";
+        // 2. Add Agent Node immediately (formerly Orchestrator)
+        const agentName = step.target || "Agent";
         const displayName = this.agentNameMap[agentName] || agentName;
-        this.addNode("orchestratorNode", step, displayName, {}, step.owningTaskId);
+        this.addNode("genericAgentNode", step, displayName, {}, step.owningTaskId);
     }
 
     private handleLLMCall(step: VisualizerStep) {
@@ -211,7 +211,7 @@ export class BlockBuilder {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private addNode(type: string, step: VisualizerStep, label: string, data: any = {}, targetTaskId: string, connectToLast: boolean = true, explicitSourceId?: string): string {
         const nodeId = `${type}_${this.nodeCounter++}`;
-        // console.log(`[BlockBuilder] Adding node '${nodeId}' (${label}) for task '${targetTaskId}'`);
+        console.log(`[BlockBuilder] Adding node '${nodeId}' (${type}: ${label}) for task '${targetTaskId}'`);
 
         const node: Node = {
             id: nodeId,
@@ -413,6 +413,7 @@ export class BlockBuilder {
     }
 
     private createEdge(source: string, target: string, stepId?: string, sourceHandle?: string, targetHandle?: string) {
+        console.log(`[BlockBuilder] Creating edge ${source} -> ${target} (step: ${stepId})`);
         const edgeId = `e_${source}_${target}`;
         const edge: Edge = {
             id: edgeId,
@@ -433,7 +434,7 @@ export class BlockBuilder {
 
     private startGroup(type: string, step: VisualizerStep, label: string) {
         const groupId = `group_${this.groupCounter++}`;
-        // console.log(`[BlockBuilder] Starting group '${groupId}' (${type}: ${label}) for parent task '${step.owningTaskId}'`);
+        console.log(`[BlockBuilder] Starting group '${groupId}' (${type}: ${label}) for parent task '${step.owningTaskId}'`);
 
         const groupNode: Node = {
             id: groupId,
