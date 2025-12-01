@@ -36,7 +36,12 @@ export class BlockBuilder {
     }
 
     private getBlockForTask(taskId: string): LayoutBlock {
-        return this.taskBlockMap.get(taskId) || this.root;
+        const block = this.taskBlockMap.get(taskId);
+        if (!block) {
+            console.log(`[BlockBuilder] No block found for task '${taskId}', defaulting to root.`);
+            return this.root;
+        }
+        return block;
     }
 
     private processStep(step: VisualizerStep) {
@@ -202,6 +207,8 @@ export class BlockBuilder {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private addNode(type: string, step: VisualizerStep, label: string, data: any = {}, targetTaskId: string, connectToLast: boolean = true, explicitSourceId?: string): string {
         const nodeId = `${type}_${this.nodeCounter++}`;
+        console.log(`[BlockBuilder] Adding node '${nodeId}' (${label}) for task '${targetTaskId}'`);
+
         const node: Node = {
             id: nodeId,
             type: type,
@@ -221,6 +228,7 @@ export class BlockBuilder {
 
         // Find the correct container block based on task ID
         const container = this.getBlockForTask(targetTaskId);
+        console.log(`[BlockBuilder] Node '${nodeId}' added to container '${container.id}'`);
         container.addChild(block);
         
         // Determine source node for edge
@@ -404,6 +412,8 @@ export class BlockBuilder {
 
     private startGroup(type: string, step: VisualizerStep, label: string) {
         const groupId = `group_${this.groupCounter++}`;
+        console.log(`[BlockBuilder] Starting group '${groupId}' (${type}: ${label}) for parent task '${step.owningTaskId}'`);
+
         const groupNode: Node = {
             id: groupId,
             type: "group",
@@ -443,6 +453,8 @@ export class BlockBuilder {
         } else if (type === "subflow") {
             newTaskId = step.delegationInfo?.[0]?.subTaskId || "";
         }
+
+        console.log(`[BlockBuilder] Group '${groupId}' registered for new task ID '${newTaskId}'`);
 
         if (newTaskId) {
             this.taskBlockMap.set(newTaskId, innerStack);

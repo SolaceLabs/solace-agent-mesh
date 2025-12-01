@@ -79,6 +79,7 @@ export class LeafBlock extends LayoutBlock {
     }
 
     layout(offsetX: number, offsetY: number): void {
+        // console.log(`[LeafBlock] Layout ${this.id} at ${offsetX + this.laneOffset}, ${offsetY}`);
         this.x = offsetX + this.laneOffset;
         this.y = offsetY;
     }
@@ -115,6 +116,7 @@ export class TimelineBlock extends LayoutBlock {
     }
 
     layout(offsetX: number, offsetY: number): void {
+        console.log(`[TimelineBlock] Layout ${this.id} at ${offsetX}, ${offsetY}`);
         this.x = offsetX;
         this.y = offsetY;
 
@@ -229,6 +231,7 @@ export class GroupBlock extends LayoutBlock {
     }
 
     layout(offsetX: number, offsetY: number): void {
+        console.log(`[GroupBlock] Layout ${this.id} at ${offsetX + this.laneOffset}, ${offsetY}`);
         this.x = offsetX + this.laneOffset;
         this.y = offsetY;
 
