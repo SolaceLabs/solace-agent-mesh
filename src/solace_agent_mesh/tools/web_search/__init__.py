@@ -4,6 +4,8 @@ from .models import SearchSource, SearchResult, ImageResult
 from .base import WebSearchTool
 from .tavily_search import TavilySearchTool
 from .google_search import GoogleSearchTool
+from .exa_search import ExaSearchTool
+from .brave_search import BraveSearchTool
 
 __all__ = [
     "SearchSource",
@@ -12,4 +14,6 @@ __all__ = [
     "WebSearchTool",
     "TavilySearchTool",
     "GoogleSearchTool",
+    "ExaSearchTool",
+    "BraveSearchTool",
 ]
