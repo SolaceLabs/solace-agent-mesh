@@ -119,6 +119,7 @@ export class TimelineBlock extends LayoutBlock {
         this.y = offsetY;
 
         const laneY: Record<number, number> = {}; // laneOffset -> currentY
+        let maxWidth = 0;
 
         for (const child of this.children) {
             const lane = child.laneOffset;
@@ -150,11 +151,16 @@ export class TimelineBlock extends LayoutBlock {
             
             // Update lane tracker
             laneY[lane] = y + child.height + currentSpacing;
+            
+            // Update max width
+            const childRight = child.laneOffset + child.width;
+            maxWidth = Math.max(maxWidth, childRight);
         }
         
         // Update final height based on actual layout
         const maxBottom = Math.max(...Object.values(laneY), offsetY);
         this.height = maxBottom - offsetY;
+        this.width = maxWidth;
     }
 }
 
@@ -184,9 +190,17 @@ export class HorizontalStackBlock extends LayoutBlock {
         this.y = offsetY;
 
         let currentX = offsetX;
+        let maxHeight = 0;
+
         for (const child of this.children) {
             child.layout(currentX, offsetY);
             currentX += child.width + this.spacing;
+            maxHeight = Math.max(maxHeight, child.height);
+        }
+
+        this.height = maxHeight;
+        if (this.children.length > 0) {
+            this.width = currentX - this.spacing - offsetX;
         }
     }
 }
@@ -222,10 +236,23 @@ export class GroupBlock extends LayoutBlock {
         let currentY = this.y + this.paddingY;
         let currentX = this.x + this.paddingX;
         
+        let maxChildBottom = currentY;
+        let maxChildRight = currentX;
+
         for (const child of this.children) {
             child.layout(currentX, currentY);
-            // If multiple children, they overlap in this simple implementation
-            // GroupBlock should typically wrap a single StackBlock
+            
+            // Track bounds of children to update group size if needed
+            maxChildBottom = Math.max(maxChildBottom, child.y + child.height);
+            maxChildRight = Math.max(maxChildRight, child.x + child.width);
         }
+
+        // Update dimensions based on actual layout to ensure container fits children
+        this.height = maxChildBottom - this.y + this.paddingY;
+        this.width = maxChildRight - this.x + this.paddingX;
+        
+        // Ensure minimum size
+        this.width = Math.max(this.width, 200); 
+        this.height = Math.max(this.height, 100);
     }
 }
