@@ -1364,6 +1364,18 @@ async def handle_a2a_response(component, message: SolaceMessage):
                                     return
 
                                 for data_part in data_parts:
+                                    # Filter out workflow status updates to prevent duplication in the gateway
+                                    # The gateway already sees these events via subscription to the peer agent
+                                    data_type = data_part.data.get("type", "")
+                                    if data_type.startswith("workflow_"):
+                                        log.debug(
+                                            "%s Skipping forwarding of workflow status update '%s' from peer for sub-task %s.",
+                                            component.log_identifier,
+                                            data_type,
+                                            sub_task_id,
+                                        )
+                                        continue
+
                                     log.info(
                                         "%s Received DataPart signal from peer for sub-task %s. Forwarding...",
                                         component.log_identifier,
