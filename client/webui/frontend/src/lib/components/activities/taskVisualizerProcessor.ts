@@ -522,7 +522,7 @@ export const processTaskForVisualization = (
                                 }
 
                                 const llmResponseData = signalData.data as any;
-                                const contentParts = llmResponseData.content?.parts as any[];
+                                const contentParts = llmResponseData?.content?.parts as any[];
                                 const functionCallParts = contentParts?.filter(p => p.function_call);
 
                                 if (functionCallParts && functionCallParts.length > 0) {
@@ -723,6 +723,9 @@ export const processTaskForVisualization = (
                                 });
                                 break;
                             }
+                            default:
+                                console.warn(`Received unknown data part type: ${signalType}`, signalData);
+                                break;
                         }
                     } else if (part.kind === "text" && part.text) {
                         if (aggregatedTextSourceAgent && aggregatedTextSourceAgent !== statusUpdateAgentName) {

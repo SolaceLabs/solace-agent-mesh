@@ -45,6 +45,24 @@ class LlmInvocationData(BaseModel):
     )
 
 
+class LlmResponseData(BaseModel):
+    """
+    Data model for an LLM response signal.
+    Corresponds to llm_response.json schema.
+    """
+
+    type: Literal["llm_response"] = Field(
+        "llm_response", description="The constant type for this data part."
+    )
+    data: Dict[str, Any] = Field(
+        ..., description="The raw response data from the LLM."
+    )
+    usage: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Token usage information.",
+    )
+
+
 class AgentProgressUpdateData(BaseModel):
     """
     Data model for an agent progress update signal.
@@ -314,6 +332,7 @@ class WorkflowExecutionResultData(BaseModel):
 SignalData = Union[
     ToolInvocationStartData,
     LlmInvocationData,
+    LlmResponseData,
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
     ToolResultData,
