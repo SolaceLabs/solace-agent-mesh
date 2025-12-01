@@ -655,6 +655,16 @@ export class BlockBuilder {
             // Find Finish Node
             finishNodeId = this.findNodeIdByLabel(groupBlock, "Finish");
 
+            // Fallback: use the last node in the group (likely the Finish node if label lookup failed)
+            if (!finishNodeId) {
+                finishNodeId = this.findLastNodeInGroup(groupBlock);
+                // If the last node is the start node, it means no progress was made or finish node wasn't added.
+                // In that case, we don't want to treat it as a distinct finish node.
+                if (finishNodeId === startNodeId) {
+                    finishNodeId = undefined;
+                }
+            }
+
             const sourceNodeId = finishNodeId || startNodeId;
 
             if (sourceNodeId && startNodeId) {
@@ -683,7 +693,7 @@ export class BlockBuilder {
                     this.lastNodeByTaskId.set(taskId, agentBlock.id);
                 }
             } else {
-                console.log(`[BlockBuilder] handlePeerResponse: Could not find source/start nodes in group ${groupBlock.id}`);
+                console.log(`[BlockBuilder] handlePeerResponse: Could not find source/start nodes in group ${groupBlock.id}. Start: ${startNodeId}, Finish: ${finishNodeId}`);
             }
         }
     }
@@ -695,6 +705,27 @@ export class BlockBuilder {
         for (const child of block.children) {
             const found = this.findNodeIdByLabel(child, label);
             if (found) return found;
+        }
+        return undefined;
+    }
+
+    private findLastNodeInGroup(groupBlock: LayoutBlock): string | undefined {
+        if (groupBlock.children.length > 0 && groupBlock.children[0] instanceof VerticalStackBlock) {
+            const stack = groupBlock.children[0];
+            if (stack.children.length > 0) {
+                const lastChild = stack.children[stack.children.length - 1];
+                // Check if it's a row (Agent)
+                if (lastChild instanceof HorizontalStackBlock && lastChild.children.length > 0) {
+                    const firstLeaf = lastChild.children[0];
+                    if (firstLeaf instanceof LeafBlock) {
+                        return firstLeaf.id;
+                    }
+                } 
+                // Check if it's a leaf (Tool/Node)
+                else if (lastChild instanceof LeafBlock) {
+                    return lastChild.id;
+                }
+            }
         }
         return undefined;
     }
