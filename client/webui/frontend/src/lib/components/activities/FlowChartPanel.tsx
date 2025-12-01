@@ -86,6 +86,9 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
             root.measure();
             root.layout();
             root.resolveAbsolutePositions(300, 0); // Start with offset to accommodate User lane on left
+            
+            builder.printTree();
+
             const nodes = root.collectNodes();
             adjustAgentSlots(nodes);
             return { nodes, edges };

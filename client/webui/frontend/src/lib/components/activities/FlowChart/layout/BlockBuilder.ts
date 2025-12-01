@@ -822,4 +822,26 @@ export class BlockBuilder {
             }
         }
     }
+
+    public printTree(): void {
+        console.groupCollapsed("[BlockBuilder] Layout Tree Structure");
+        this.printBlockRecursive(this.root, 0);
+        console.groupEnd();
+    }
+
+    private printBlockRecursive(block: LayoutBlock, depth: number) {
+        const indent = "  ".repeat(depth);
+        const type = block.constructor.name;
+        const id = block.id;
+        const label = block.nodePayload?.data?.label || "N/A";
+        const nodeType = block.nodePayload?.type || "N/A";
+        const dims = `${block.width}x${block.height}`;
+        const pos = `(${block.x},${block.y})`;
+        
+        console.log(`${indent}└─ [${type}] ${id} ${dims} ${pos} (Node: ${nodeType} "${label}")`);
+        
+        for (const child of block.children) {
+            this.printBlockRecursive(child, depth + 1);
+        }
+    }
 }
