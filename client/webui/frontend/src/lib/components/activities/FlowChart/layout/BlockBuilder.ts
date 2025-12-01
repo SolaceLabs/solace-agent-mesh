@@ -790,7 +790,8 @@ export class BlockBuilder {
 
             // If this is a child of a Map/Fork, we want to connect from the Map/Fork node
             if (parentNodeId) {
-                explicitSourceId = this.yamlNodeIdToGeneratedId.get(parentNodeId);
+                // Scope by taskId to ensure we get the parent node from the correct workflow execution
+                explicitSourceId = this.yamlNodeIdToGeneratedId.get(`${taskId}:${parentNodeId}`);
             }
         }
 
@@ -798,7 +799,8 @@ export class BlockBuilder {
             // Start a horizontal block for parallel execution
             // First add the control node itself (e.g. "Map" or "Fork" pill)
             const mapNodeId = this.addNode("genericAgentNode", step, label, { variant: "pill" }, taskId, true, explicitSourceId, undefined, targetContainer);
-            this.yamlNodeIdToGeneratedId.set(nodeId, mapNodeId);
+            // Scope by taskId
+            this.yamlNodeIdToGeneratedId.set(`${taskId}:${nodeId}`, mapNodeId);
 
             const hStack = new HorizontalStackBlock(`hstack_${nodeId}`);
             hStack.anchorNodeId = mapNodeId; // Set anchor for children branches
@@ -817,7 +819,8 @@ export class BlockBuilder {
 
             // Add the node to the workflow container
             const newNodeId = this.addNode(nodeTypeStr, step, label, { variant }, taskId, true, explicitSourceId, undefined, targetContainer);
-            this.yamlNodeIdToGeneratedId.set(nodeId, newNodeId);
+            // Scope by taskId
+            this.yamlNodeIdToGeneratedId.set(`${taskId}:${nodeId}`, newNodeId);
 
             // If this node is an Agent, it will have its own sub-task ID for execution.
             // We need to register the ToolsStack of this new node to that sub-task ID
