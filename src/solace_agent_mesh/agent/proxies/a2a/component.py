@@ -93,6 +93,15 @@ class A2AProxyComponent(BaseProxyComponent):
         # Caches CredentialManagerWithDiscovery instances per agent
         self._a2a_oauth2_credential_managers: Dict[str, Any] = {}
 
+        # NEW: Initialize enterprise features for OAuth2 support
+        try:
+            from solace_agent_mesh_enterprise.init_enterprise_component import (
+                init_enterprise_proxy_features
+            )
+            init_enterprise_proxy_features(self)
+        except ImportError:
+            pass  # Enterprise not installed
+
         # OAuth 2.0 configuration is now validated by Pydantic models at app initialization
         # No need for separate _validate_oauth_config() method
 
