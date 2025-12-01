@@ -378,36 +378,12 @@ async def save_artifact_with_metadata(
                         function_call_id=function_call_id,
                     )
 
-                    log.info(
-                        "%s 🎨 EMITTING ARTIFACT COMPLETED SIGNAL: filename=%s, version=%d, mime_type=%s, size=%d bytes",
-                        log_identifier,
-                        filename,
-                        data_version,
-                        mime_type,
-                        len(content_bytes),
-                    )
-
                     # Publish as status update with signal
                     await _publish_data_part_status_update(
                         host_component,
                         a2a_context,
                         artifact_signal,
                     )
-
-                    log.info(
-                        "%s ✅ Successfully published artifact creation signal for workflow visualization Robert: %s v%d",
-                        log_identifier,
-                        filename,
-                        data_version,
-                    )
-                else:
-                    log.info(
-                        "%s Skipping artifact signal emission - missing required context: tool_context=%s, host_component=%s, a2a_context=%s",
-                        log_identifier,
-                        tool_context is not None,
-                        host_component is not None,
-                        a2a_context is not None,
-                        )
             except Exception as signal_err:
                 # Don't fail artifact save if signal publishing fails
                 log.info(

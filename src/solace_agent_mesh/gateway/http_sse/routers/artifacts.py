@@ -418,36 +418,6 @@ async def upload_artifact_with_session(
             saved_version,
         )
 
-        # Publish artifact created event
-        if hasattr(component, "sam_events"):
-            success = component.sam_events.publish_artifact_created(
-                session_id=effective_session_id,
-                user_id=user_id,
-                filename=filename_clean,
-                size=len(content_bytes),
-                mime_type=mime_type,
-                artifact_uri=artifact_uri,
-                version=saved_version,
-            )
-
-            if success:
-                log.info(
-                    "%sSuccessfully published artifact creation event for artifact %s",
-                    log_prefix,
-                    filename_clean,
-                )
-            else:
-                log.warning(
-                    "%sFailed to publish artifact creation event for artifact %s",
-                    log_prefix,
-                    filename_clean,
-                )
-        else:
-            log.warning(
-                "%sSAM Events not available for artifact creation notification",
-                log_prefix,
-            )
-
         # Get metadata from upload result (it was already parsed and validated)
         metadata_dict = {}
         if metadata_json and metadata_json.strip():

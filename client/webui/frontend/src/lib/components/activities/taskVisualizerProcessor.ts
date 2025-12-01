@@ -644,7 +644,6 @@ export const processTaskForVisualization = (
                                 if (signalData.tool_name === "_notify_artifact_save" && functionCallId) {
                                     const pendingArtifact = pendingArtifacts.get(functionCallId);
                                     if (pendingArtifact) {
-                                        console.log(`[Timeline] Creating artifact node for ${pendingArtifact.filename} after tool result`);
                                         const artifactNotification: ArtifactNotificationData = {
                                             artifactName: pendingArtifact.filename,
                                             version: pendingArtifact.version,
@@ -672,8 +671,6 @@ export const processTaskForVisualization = (
                             }
                             case "artifact_creation_progress": {
                                 // Handle artifact creation/completion
-                                console.log("[Timeline] Handling artifact_creation_progress signal");
-
                                 if (signalData.status === "completed") {
                                     flushAggregatedTextStep(currentEventOwningTaskId);
 
@@ -682,7 +679,6 @@ export const processTaskForVisualization = (
 
                                     if (isSyntheticToolCall) {
                                         // Queue this artifact - will be created when we see the _notify_artifact_save tool result
-                                        console.log(`[Timeline] Queuing artifact ${signalData.filename} for function_call_id ${signalData.function_call_id}`);
                                         pendingArtifacts.set(signalData.function_call_id, {
                                             filename: signalData.filename || "Unnamed Artifact",
                                             version: signalData.version,
