@@ -44,8 +44,6 @@ export const ProjectsPage: React.FC = () => {
             onSuccess: data => {
                 navigate(`/projects/${data.id}`);
                 queryClient.invalidateQueries({ queryKey: projects.all.queryKey });
-            },
-            onSettled: () => {
                 setShowCreateDialog(false);
             },
         });
