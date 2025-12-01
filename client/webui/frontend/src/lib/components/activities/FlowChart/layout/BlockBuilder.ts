@@ -558,14 +558,22 @@ export class BlockBuilder {
         
         if (agentBlock && groupBlock) {
             // We need the peer agent node ID inside the group.
-            // The group contains an innerStack.
-            // The innerStack contains the peer agent node as the first child.
+            // Structure: Group -> VerticalStack (innerStack) -> HorizontalStack (Row) -> Leaf (Agent)
             
             let peerAgentId: string | undefined;
             if (groupBlock.children.length > 0 && groupBlock.children[0] instanceof VerticalStackBlock) {
                 const stack = groupBlock.children[0];
-                if (stack.children.length > 0 && stack.children[0] instanceof LeafBlock) {
-                    peerAgentId = stack.children[0].id;
+                if (stack.children.length > 0) {
+                    const firstChild = stack.children[0];
+                    if (firstChild instanceof HorizontalStackBlock) {
+                        // New structure with Interaction Row
+                        if (firstChild.children.length > 0 && firstChild.children[0] instanceof LeafBlock) {
+                            peerAgentId = firstChild.children[0].id;
+                        }
+                    } else if (firstChild instanceof LeafBlock) {
+                        // Old/Fallback structure
+                        peerAgentId = firstChild.id;
+                    }
                 }
             }
             
@@ -581,6 +589,8 @@ export class BlockBuilder {
                 if (taskId) {
                     this.lastNodeByTaskId.set(taskId, agentBlock.id);
                 }
+            } else {
+                console.log(`[BlockBuilder] handlePeerResponse: Could not find peerAgentId in group ${groupBlock.id}`);
             }
         }
     }
