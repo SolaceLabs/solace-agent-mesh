@@ -239,6 +239,7 @@ export interface VisualizerStep {
     isSubTaskStep?: boolean; // True if this step is part of a sub-task's execution flow
     nestingLevel: number; // ADDED: 0 for root, 1 for first sub-task, 2 for sub-task of sub-task, etc.
     owningTaskId: string; // ADDED: The ID of the task this step is part of
+    parentTaskId?: string; // ADDED: The ID of the parent task, if any
 }
 
 /**

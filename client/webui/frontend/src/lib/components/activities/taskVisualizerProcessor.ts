@@ -203,6 +203,9 @@ export const processTaskForVisualization = (
 
             const nestingLevelForFlush = taskNestingLevels.get(owningTaskIdForFlush) ?? 0;
             const functionCallIdForStep = subTaskToFunctionCallIdMap.get(owningTaskIdForFlush) || activeFunctionCallIdByTask.get(owningTaskIdForFlush);
+            
+            const taskForFlush = allMonitoredTasks[owningTaskIdForFlush];
+            const parentTaskIdForFlush = getParentTaskIdFromTaskObject(taskForFlush);
 
             visualizerSteps.push({
                 id: `vstep-agenttext-${visualizerSteps.length}-${aggregatedRawEventIds[0] || "unknown"}`,
@@ -216,6 +219,7 @@ export const processTaskForVisualization = (
                 isSubTaskStep: nestingLevelForFlush > 0,
                 nestingLevel: nestingLevelForFlush,
                 owningTaskId: owningTaskIdForFlush,
+                parentTaskId: parentTaskIdForFlush || undefined,
                 functionCallId: functionCallIdForStep,
             });
             lastFlushedAgentResponseText = textToFlush;
@@ -234,6 +238,9 @@ export const processTaskForVisualization = (
         const payload = event.full_payload;
         const currentEventOwningTaskId = event.task_id || parentTaskObject.taskId;
         const currentEventNestingLevel = taskNestingLevels.get(currentEventOwningTaskId) ?? 0;
+        
+        const currentTask = allMonitoredTasks[currentEventOwningTaskId];
+        const parentTaskId = getParentTaskIdFromTaskObject(currentTask);
 
         console.log(`[Visualizer] Processing event: ${event.direction} (Task: ${currentEventOwningTaskId}, Level: ${currentEventNestingLevel})`, payload);
 
@@ -316,9 +323,11 @@ export const processTaskForVisualization = (
             const messageMetadata = statusMessage?.metadata as any;
 
             let statusUpdateAgentName: string;
-            const isForwardedMessage = !!messageMetadata?.forwarded_from_peer;
+            // Check both message metadata and result metadata for forwarding flag
+            const isForwardedMessage = !!messageMetadata?.forwarded_from_peer || !!result.metadata?.forwarded_from_peer;
+            
             if (isForwardedMessage) {
-                statusUpdateAgentName = messageMetadata.forwarded_from_peer;
+                statusUpdateAgentName = messageMetadata?.forwarded_from_peer || result.metadata?.forwarded_from_peer;
             } else if (result.metadata?.agent_name) {
                 statusUpdateAgentName = result.metadata.agent_name as string;
             } else if (messageMetadata?.agent_name) {
@@ -370,6 +379,7 @@ export const processTaskForVisualization = (
                                     isSubTaskStep: currentEventNestingLevel > 0,
                                     nestingLevel: currentEventNestingLevel,
                                     owningTaskId: currentEventOwningTaskId,
+                                    parentTaskId: parentTaskId || undefined,
                                     functionCallId: functionCallIdForStep,
                                 });
                                 break;

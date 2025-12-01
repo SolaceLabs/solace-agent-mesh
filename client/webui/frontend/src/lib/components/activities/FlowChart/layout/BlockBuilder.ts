@@ -473,17 +473,18 @@ export class BlockBuilder {
             groupBlock.paddingY = 20;
         }
 
-        const parentTaskId = step.owningTaskId;
-
         // Determine where to add the group
         let parentContainer: LayoutBlock;
         if (type === "subflow") {
             // Subflows go into the tool stack of the parent task
+            const parentTaskId = step.owningTaskId;
             const toolStack = this.taskToolStackMap.get(parentTaskId);
             parentContainer = toolStack || this.getBlockForTask(parentTaskId);
         } else {
-            // Workflows go into the main flow
-            parentContainer = this.getBlockForTask(parentTaskId);
+            // Workflows go into the main flow of their PARENT task (the caller)
+            // If parentTaskId is available, use it. Otherwise fallback to owningTaskId (which might be root)
+            const containerTaskId = step.parentTaskId || step.owningTaskId;
+            parentContainer = this.getBlockForTask(containerTaskId);
         }
 
         parentContainer.addChild(groupBlock);
@@ -613,7 +614,20 @@ export class BlockBuilder {
 
             if (peerAgentId) {
                 const sourceHandle = "peer-left-output";
-                const targetHandle = `agent-in-${peerAgentId}`;
+                
+                // Check if the agent block has a slot for this peer agent
+                let targetHandle = `agent-in-${peerAgentId}`;
+                const agentNodeData = agentBlock.nodePayload?.data;
+                const hasSlot = agentNodeData?.toolSlots?.some((slot: any) => slot.id === peerAgentId);
+                
+                if (!hasSlot) {
+                    // Fallback to standard input handle if no slot exists (e.g. for workflows where tool invocation was skipped)
+                    if (agentBlock.nodePayload?.type === "orchestratorNode") {
+                        targetHandle = "orch-left-input";
+                    } else {
+                        targetHandle = "peer-left-input";
+                    }
+                }
 
                 this.createEdge(peerAgentId, agentBlock.id, step.id, sourceHandle, targetHandle);
 
