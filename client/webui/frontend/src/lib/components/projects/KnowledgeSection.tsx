@@ -65,14 +65,17 @@ export const KnowledgeSection: React.FC<KnowledgeSectionProps> = ({ project }) =
         }
     };
 
-    const handleConfirmUpload = (formData: FormData) => {
+    const handleConfirmUpload = (files: File[], fileMetadata: Record<string, string>) => {
         setIsSubmitting(true);
-        addFilesToProject.mutate(formData, {
-            onSuccess: async () => {
-                setFilesToUpload(null);
-                setIsSubmitting(false);
-            },
-        });
+        addFilesToProject.mutate(
+            { files, fileMetadata },
+            {
+                onSuccess: async () => {
+                    setFilesToUpload(null);
+                    setIsSubmitting(false);
+                },
+            }
+        );
     };
 
     return (

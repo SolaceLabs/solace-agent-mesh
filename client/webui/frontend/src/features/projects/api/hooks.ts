@@ -42,7 +42,7 @@ export const useAddFilesToProject = (projectId: string) => {
 
     return useMutation({
         mutationKey: projects.artifacts(projectId)._ctx.create.queryKey,
-        mutationFn: (data: FormData) => addFilesToProject(projectId, data),
+        mutationFn: (data: { files: File[]; fileMetadata?: Record<string, string> }) => addFilesToProject(projectId, data.files, data.fileMetadata),
         onSettled: () =>
             queryClient.invalidateQueries({
                 queryKey: projects.artifacts(projectId).queryKey,

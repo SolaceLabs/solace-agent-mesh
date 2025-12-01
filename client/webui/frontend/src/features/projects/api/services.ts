@@ -30,10 +30,20 @@ export const createProject = async (data: CreateProjectRequest) => {
     return await response.json();
 };
 
-export const addFilesToProject = async (projectId: string, data: FormData) => {
+export const addFilesToProject = async (projectId: string, files: File[], fileMetadata?: Record<string, string>) => {
+    const formData = new FormData();
+
+    files.forEach(file => {
+        formData.append("files", file);
+    });
+
+    if (fileMetadata && Object.keys(fileMetadata).length > 0) {
+        formData.append("fileMetadata", JSON.stringify(fileMetadata));
+    }
+
     const response = await authenticatedFetch(`/api/v1/projects/${projectId}/artifacts`, {
         method: "POST",
-        body: data,
+        body: formData,
         credentials: "include",
     });
     return await response.json();
