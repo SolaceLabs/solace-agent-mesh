@@ -458,7 +458,10 @@ export class BlockBuilder {
             id: groupId,
             type: "group",
             position: { x: 0, y: 0 },
-            data: { label: groupLabel },
+            data: { 
+                label: groupLabel,
+                functionCallId: step.functionCallId // Store functionCallId for correlation
+            },
             style: {
                 width: 0,
                 height: 0,
@@ -630,8 +633,14 @@ export class BlockBuilder {
         const container = this.getBlockForTask(taskId);
         const agentBlock = this.findActiveAgentNode(container);
 
-        // Find the last group block (subflow)
-        const groupBlock = this.findLastSubflowGroup(container);
+        // Find the matching group block using functionCallId
+        const targetFunctionCallId = step.data.toolResult?.functionCallId || step.functionCallId;
+        let groupBlock = this.findGroupBlockByFunctionCallId(container, targetFunctionCallId);
+
+        // Fallback to last group if specific match fails (legacy behavior)
+        if (!groupBlock) {
+            groupBlock = this.findLastSubflowGroup(container);
+        }
 
         if (agentBlock && groupBlock) {
             let startNodeId: string | undefined;
@@ -730,6 +739,21 @@ export class BlockBuilder {
             }
         }
         return undefined;
+    }
+
+    private findGroupBlockByFunctionCallId(container: LayoutBlock, functionCallId?: string): LayoutBlock | null {
+        if (!functionCallId) return null;
+        
+        // Search backwards as recent groups are more likely
+        for (let i = container.children.length - 1; i >= 0; i--) {
+            const block = container.children[i];
+            if (block instanceof GroupBlock) {
+                if (block.nodePayload?.data?.functionCallId === functionCallId) {
+                    return block;
+                }
+            }
+        }
+        return null;
     }
 
     private findLastSubflowGroup(container: LayoutBlock): LayoutBlock | null {
