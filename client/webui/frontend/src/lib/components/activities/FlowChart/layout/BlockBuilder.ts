@@ -454,7 +454,13 @@ export class BlockBuilder {
             type: "group",
             position: { x: 0, y: 0 },
             data: { label: label },
-            style: { width: 0, height: 0 } // Will be set by layout engine
+            style: { 
+                width: 0, 
+                height: 0,
+                backgroundColor: "rgba(220, 220, 255, 0.1)",
+                border: "1px solid #aac",
+                borderRadius: "8px",
+            } 
         };
 
         const groupBlock = new GroupBlock(groupId, groupNode);

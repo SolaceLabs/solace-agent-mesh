@@ -47,6 +47,11 @@ export abstract class LayoutBlock {
                 ...this.nodePayload.style,
                 height: `${this.height}px`,
             };
+
+            // For groups, we must also set width to ensure the bounding box is correct
+            if (this.nodePayload.type === 'group') {
+                this.nodePayload.style.width = `${this.width}px`;
+            }
         }
         
         for (const child of this.children) {
