@@ -3,10 +3,10 @@ import type { PaginatedSessionsResponse } from "@/lib/components/chat/SessionLis
 import { authenticatedFetch } from "@/lib/utils";
 
 /* TODO:
- * Handle form data instantiation inside service
+ * Add back original error handling
+ * Dynamically get Base URL
  * Convert move to different project query
  * Remove Project Provider
- * Add back original error handling
  * */
 export const getProjects = async () => {
     const response = await authenticatedFetch("/api/v1/projects?include_artifact_count=true", { credentials: "include" });
