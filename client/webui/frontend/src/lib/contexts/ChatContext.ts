@@ -47,6 +47,11 @@ export interface ChatState {
     artifactRenderingState: ArtifactRenderingState;
 }
 
+export interface SubmitOptions {
+    skillId?: string | null;
+    skillIds?: string[];
+}
+
 export interface ChatActions {
     setSessionId: React.Dispatch<React.SetStateAction<string>>;
     setSessionName: React.Dispatch<React.SetStateAction<string | null>>;
@@ -54,7 +59,7 @@ export interface ChatActions {
     setTaskIdInSidePanel: React.Dispatch<React.SetStateAction<string | null>>;
     handleNewSession: (preserveProjectContext?: boolean) => void;
     handleSwitchSession: (sessionId: string) => Promise<void>;
-    handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null) => Promise<void>;
+    handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null, options?: SubmitOptions) => Promise<void>;
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "error") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;

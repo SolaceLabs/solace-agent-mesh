@@ -33,6 +33,7 @@ from ....gateway.http_sse.dependencies import (
     get_sac_component,
     get_session_business_service,
     get_session_manager,
+    get_skill_service_optional,
     get_task_repository,
     get_task_service,
     get_user_config,
@@ -337,6 +338,98 @@ async def _inject_project_context(
         db.close()
 
 
+async def _inject_skill_context(
+    skill_ids: list[str],
+    message_text: str,
+    log_prefix: str,
+) -> str:
+    """
+    Helper function to inject skill context into the message.
+
+    Fetches skills by IDs and prepends their instructions to the message text.
+    Supports multiple skills being injected at once.
+
+    Returns the modified message text with skill context injected.
+    """
+    if not skill_ids or not message_text:
+        return message_text
+
+    try:
+        from ....gateway.http_sse.dependencies import get_skill_service_optional
+
+        log.info("%s_inject_skill_context called with skill_ids: %s", log_prefix, skill_ids)
+        
+        skill_service = get_skill_service_optional()
+        log.info("%sSkill service available: %s", log_prefix, skill_service is not None)
+        
+        if skill_service is None:
+            log.warning(
+                "%sSkill context injection skipped: skill service not available",
+                log_prefix,
+            )
+            return message_text
+
+        # Collect context from all skills
+        all_skill_context_parts = []
+        skills_injected = []
+
+        for skill_id in skill_ids:
+            skill = skill_service.get_skill(skill_id)
+            log.info("%sSkill found for id %s: %s", log_prefix, skill_id, skill is not None)
+            
+            if not skill:
+                log.warning(
+                    "%sSkill context injection skipped: skill '%s' not found",
+                    log_prefix,
+                    skill_id,
+                )
+                continue
+            
+            log.info("%sSkill details - name: %s, has_description: %s, has_markdown: %s, has_summary: %s",
+                     log_prefix, skill.name, bool(skill.description), bool(skill.markdown_content), bool(skill.summary))
+
+            # Build skill context from markdown content or description
+            skill_context_parts = []
+
+            # Add skill name and description
+            skill_context_parts.append(f'You are using the skill: "{skill.name}"')
+
+            if skill.description:
+                skill_context_parts.append(f"Skill Description: {skill.description}")
+
+            # Add markdown content if available (contains detailed instructions)
+            if skill.markdown_content:
+                skill_context_parts.append(f"\nSkill Instructions:\n{skill.markdown_content}")
+
+            # Add summary if available
+            if skill.summary:
+                skill_context_parts.append(f"\nSkill Summary: {skill.summary}")
+
+            if skill_context_parts:
+                all_skill_context_parts.append("\n".join(skill_context_parts))
+                skills_injected.append(f"{skill.name} ({skill_id})")
+
+        # Inject all skill contexts into the message
+        if all_skill_context_parts:
+            # Separate multiple skills with a divider
+            skill_context = "\n\n---\n\n".join(all_skill_context_parts)
+            modified_message_text = f"{skill_context}\n\nUSER QUERY:\n{message_text}"
+            log.info(
+                "%sInjected skill context for %d skills: %s",
+                log_prefix,
+                len(skills_injected),
+                ", ".join(skills_injected),
+            )
+            return modified_message_text
+
+        return message_text
+
+    except Exception as e:
+        log.warning("%sFailed to inject skill context: %s", log_prefix, e)
+        # Continue without injection - don't fail the request
+        return message_text
+
+
 async def _submit_task(
     request: FastAPIRequest,
     payload: SendMessageRequest | SendStreamingMessageRequest,
@@ -355,9 +448,19 @@ async def _submit_task(
 
     agent_name = None
     project_id = None
+    skill_ids = []
     if payload.params and payload.params.message and payload.params.message.metadata:
         agent_name = payload.params.message.metadata.get("agent_name")
         project_id = payload.params.message.metadata.get("project_id")
+        # Support both single skill_id (legacy) and multiple skill_ids
+        skill_id = payload.params.message.metadata.get("skill_id")
+        skill_ids_from_metadata = payload.params.message.metadata.get("skill_ids", [])
+        if skill_id:
+            skill_ids.append(skill_id)
+        if skill_ids_from_metadata:
+            for sid in skill_ids_from_metadata:
+                if sid and sid not in skill_ids:
+                    skill_ids.append(sid)
 
     if not agent_name:
         raise HTTPException(
@@ -365,7 +468,7 @@ async def _submit_task(
             detail="Missing 'agent_name' in request payload message metadata.",
         )
 
-    log.info("%sReceived request for agent: %s", log_prefix, agent_name)
+    log.info("%sReceived request for agent: %s, project_id: %s, skill_ids: %s", log_prefix, agent_name, project_id, skill_ids)
 
     try:
         user_identity = await component.authenticate_and_enrich_user(request)
@@ -475,14 +578,16 @@ async def _submit_task(
         # Project context injection - always inject for project sessions to ensure new files are available
         # Skip if project_service is None (persistence disabled)
         modified_message = payload.params.message
-        if project_service and project_id and message_text:
+        current_message_text = message_text  # Track the current message text for chained injections
+        
+        if project_service and project_id and current_message_text:
             # Inject context for new sessions (includes full context + artifact copy)
             # For existing sessions, only copy new artifacts without re-injecting full context
             should_inject_full_context = not frontend_session_id
 
             modified_message_text = await _inject_project_context(
                 project_id=project_id,
-                message_text=message_text,
+                message_text=current_message_text,
                 user_id=user_id,
                 session_id=session_id,
                 project_service=project_service,
@@ -492,7 +597,8 @@ async def _submit_task(
             )
 
             # Update the message with project context if it was modified
-            if modified_message_text != message_text:
+            if modified_message_text != current_message_text:
+                current_message_text = modified_message_text
                 # Create new text part with project context
                 new_text_part = a2a.create_text_part(modified_message_text)
 
@@ -515,6 +621,42 @@ async def _submit_task(
                 # Update the message with the new parts
                 modified_message = a2a.update_message_parts(
                     payload.params.message, new_parts
+                )
+
+        # Skill context injection - inject skill instructions when skill_ids are provided
+        if skill_ids and current_message_text:
+            log.info("%sAttempting skill context injection for skill_ids: %s", log_prefix, skill_ids)
+            modified_message_text = await _inject_skill_context(
+                skill_ids=skill_ids,
+                message_text=current_message_text,
+                log_prefix=log_prefix,
+            )
+            log.info("%sSkill context injection result - text modified: %s", log_prefix, modified_message_text != current_message_text)
+
+            # Update the message with skill context if it was modified
+            if modified_message_text != current_message_text:
+                # Create new text part with skill context
+                new_text_part = a2a.create_text_part(modified_message_text)
+
+                # Get existing parts and replace the first text part with the modified one
+                existing_parts = a2a.get_parts_from_message(modified_message)
+                new_parts = []
+                text_part_replaced = False
+
+                for part in existing_parts:
+                    if hasattr(part, "text") and not text_part_replaced:
+                        new_parts.append(new_text_part)
+                        text_part_replaced = True
+                    else:
+                        new_parts.append(part)
+
+                # If no text part was found, add the new text part at the beginning
+                if not text_part_replaced:
+                    new_parts.insert(0, new_text_part)
+
+                # Update the message with the new parts
+                modified_message = a2a.update_message_parts(
+                    modified_message, new_parts
                 )
 
         # Use the helper to get the unwrapped parts from the modified message (with project context if applied).

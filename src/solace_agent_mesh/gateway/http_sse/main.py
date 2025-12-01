@@ -40,6 +40,7 @@ from .routers import (
     visualization,
     projects,
     prompts,
+    skills,
 )
 from .routers.sessions import router as session_router
 from .routers.tasks import router as task_router
@@ -574,6 +575,9 @@ def setup_dependencies(
     _setup_middleware(component)
     _setup_routers()
     _setup_static_files()
+    
+    # Initialize skill service if configured
+    _setup_skill_service(component, database_url)
 
     _dependencies_initialized = True
     log.debug("[setup_dependencies] Dependencies initialization complete")
@@ -622,6 +626,7 @@ def _setup_routers() -> None:
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
     app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
+    app.include_router(skills.router, prefix=api_prefix, tags=["Skills"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers from community repo
@@ -653,6 +658,57 @@ def _setup_routers() -> None:
         )
     except Exception as e:
         log.warning("Failed to load enterprise routers and exception handlers: %s", e)
+
+
+def _setup_skill_service(component: "WebUIBackendComponent", database_url: str) -> None:
+    """
+    Initialize the skill learning service if configured.
+    
+    Args:
+        component: WebUIBackendComponent instance
+        database_url: Runtime database URL
+    """
+    app_config = _get_app_config(component)
+    skills_config = app_config.get("skills", {})
+    
+    if not skills_config.get("enabled", False):
+        log.debug("Skill learning service is disabled")
+        return
+    
+    if not database_url:
+        log.warning("Skill learning service requires database configuration - skipping initialization")
+        return
+    
+    try:
+        # Get skill database URL (can be separate from main database)
+        skill_db_config = skills_config.get("database", {})
+        skill_db_url = skill_db_config.get("url", database_url)
+        
+        # Get static skills configuration
+        static_config = skills_config.get("static_skills", {})
+        skills_directory = static_config.get("directory", "skills") if static_config.get("enabled", True) else None
+        
+        # Get embedding configuration
+        embedding_config = skills_config.get("embedding", {})
+        embedding_enabled = embedding_config.get("enabled", False)
+        embedding_provider = embedding_config.get("provider", "openai")
+        embedding_model = embedding_config.get("model", "text-embedding-3-small")
+        
+        log.info(f"Initializing skill learning service (embeddings: {embedding_enabled})")
+        
+        dependencies.init_skill_service(
+            database_url=skill_db_url,
+            skills_directory=skills_directory,
+            embedding_enabled=embedding_enabled,
+            embedding_provider=embedding_provider,
+            embedding_model=embedding_model,
+        )
+        
+        log.info("Skill learning service initialized successfully")
+        
+    except Exception as e:
+        log.error(f"Failed to initialize skill learning service: {e}")
+        log.warning("Skills feature will be unavailable")
 
 
 def _setup_static_files() -> None:

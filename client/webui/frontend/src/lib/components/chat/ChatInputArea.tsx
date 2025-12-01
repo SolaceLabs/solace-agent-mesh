@@ -2,12 +2,12 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from "react"
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import { Ban, Paperclip, Send, MessageSquarePlus } from "lucide-react";
+import { Ban, Paperclip, Send, MessageSquarePlus, Lightbulb, MessageSquare, X } from "lucide-react";
 
-import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { Button, ChatInput, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Popover, PopoverContent, PopoverTrigger, ScrollArea, Switch } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
 import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext } from "@/lib/hooks";
-import type { AgentCardInfo } from "@/lib/types";
+import type { AgentCardInfo, Skill } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
 
@@ -87,6 +87,101 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
 
+    // Track active skills for context (multiple skills can be selected)
+    const [activeSkills, setActiveSkills] = useState<Map<string, { id: string; name: string; description: string; markdownContent?: string }>>(new Map());
+
+    // Track which skills have already been injected in the current session
+    // Once a skill is injected, it's in the conversation history and doesn't need to be re-sent
+    const [injectedSkillIds, setInjectedSkillIds] = useState<Set<string>>(new Set());
+
+    // Skills dropdown state
+    const [showSkillsDropdown, setShowSkillsDropdown] = useState(false);
+    const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
+    const [skillsLoading, setSkillsLoading] = useState(false);
+
+    // Legacy single skill support (for backward compatibility with "Use in Chat" from Skills page)
+    const [activeSkill, setActiveSkill] = useState<{ id: string; name: string; description: string; markdownContent?: string } | null>(null);
+
+    // Fetch full skill content when skill is activated
+    const fetchSkillContent = async (skillId: string) => {
+        try {
+            const { authenticatedFetch: authFetch } = await import("@/lib/utils/api");
+            const response = await authFetch(`/api/v1/skills/${skillId}`, {
+                credentials: "include",
+            });
+            if (response.ok) {
+                const data = await response.json();
+                return data.markdown_content || data.markdownContent;
+            }
+        } catch (error) {
+            console.error("Failed to fetch skill content:", error);
+        }
+        return null;
+    };
+
+    // Fetch available skills for the dropdown
+    const fetchAvailableSkills = async () => {
+        setSkillsLoading(true);
+        try {
+            const { authenticatedFetch: authFetch } = await import("@/lib/utils/api");
+            const params = new URLSearchParams();
+            if (selectedAgentName) {
+                params.append("agent", selectedAgentName);
+            }
+
+            const response = await authFetch(`/api/v1/skills?${params.toString()}`, {
+                credentials: "include",
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Map snake_case API response to camelCase frontend types
+                const mappedSkills = (data.skills || []).map((s: Record<string, unknown>) => ({
+                    id: s.id as string,
+                    name: s.name as string,
+                    description: s.description as string,
+                    type: s.type as string,
+                    scope: s.scope as string,
+                    ownerAgent: s.owner_agent as string | undefined,
+                    tags: (s.tags as string[]) || [],
+                    successRate: s.success_rate as number | undefined,
+                    usageCount: (s.usage_count as number) || 0,
+                    isActive: (s.is_active as boolean) ?? true,
+                }));
+                setAvailableSkills(mappedSkills);
+            }
+        } catch (error) {
+            console.error("Failed to fetch skills:", error);
+        } finally {
+            setSkillsLoading(false);
+        }
+    };
+
+    // Toggle skill selection
+    const toggleSkill = async (skill: Skill) => {
+        const newActiveSkills = new Map(activeSkills);
+
+        if (newActiveSkills.has(skill.id)) {
+            newActiveSkills.delete(skill.id);
+        } else {
+            // Fetch full content for the skill
+            const markdownContent = await fetchSkillContent(skill.id);
+            newActiveSkills.set(skill.id, {
+                id: skill.id,
+                name: skill.name,
+                description: skill.description,
+                markdownContent: markdownContent || undefined,
+            });
+        }
+
+        setActiveSkills(newActiveSkills);
+    };
+
+    // Clear all selected skills
+    const clearAllSkills = () => {
+        setActiveSkills(new Map());
+        setActiveSkill(null);
+    };
+
     useEffect(() => {
         // Check for pending prompt use from router state
         if (location.state?.promptText) {
@@ -114,15 +209,44 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             return; // Don't clear input if we just set it
         }
 
+        // Check for skill use from router state
+        if (location.state?.skillId) {
+            const { skillId, skillName, skillDescription } = location.state;
+
+            // Fetch full skill content
+            fetchSkillContent(skillId).then(markdownContent => {
+                setActiveSkill({
+                    id: skillId,
+                    name: skillName,
+                    description: skillDescription,
+                    markdownContent: markdownContent || undefined,
+                });
+            });
+
+            // Clear the location state to prevent re-triggering
+            navigate(location.pathname, { replace: true, state: {} });
+
+            // Focus the input
+            setTimeout(() => {
+                chatInputRef.current?.focus();
+            }, 100);
+            return;
+        }
+
         // Only clear if session actually changed (not just initialized)
         if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId) {
             setInputValue("");
             setShowPromptsCommand(false);
             setPastedArtifactItems([]);
+            setActiveSkill(null);
+            setActiveSkills(new Map());
+            // Clear injected skills tracking when session changes
+            setInjectedSkillIds(new Set());
         }
         prevSessionIdRef.current = sessionId;
         setContextText(null);
-    }, [sessionId, location.state, location.pathname, navigate]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionId, location.state?.skillId, location.state?.promptText, location.state?.timestamp, location.pathname, navigate]);
 
     useEffect(() => {
         if (prevIsRespondingRef.current && !isResponding) {
@@ -320,6 +444,34 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 fullMessage = `Context: "${contextText}"\n\n${fullMessage}`;
             }
 
+            // Note: skill_id is passed via metadata to the backend, which injects skill content into the message
+            // Once injected, the skill context is in the conversation history and doesn't need to be re-sent
+            // We only send skill_id for NEW skills that haven't been injected yet in this session
+
+            // Combine legacy single skill with multi-select skills
+            const allActiveSkillIds: string[] = [];
+            if (activeSkill?.id) {
+                allActiveSkillIds.push(activeSkill.id);
+            }
+            activeSkills.forEach((_, skillId) => {
+                if (!allActiveSkillIds.includes(skillId)) {
+                    allActiveSkillIds.push(skillId);
+                }
+            });
+
+            // Filter to only skills that haven't been injected yet
+            const newSkillIds = allActiveSkillIds.filter(id => !injectedSkillIds.has(id));
+
+            // Mark all active skills as injected after this message
+            // (they'll be in the conversation history)
+            if (allActiveSkillIds.length > 0) {
+                setInjectedSkillIds(prev => {
+                    const newSet = new Set(prev);
+                    allActiveSkillIds.forEach(id => newSet.add(id));
+                    return newSet;
+                });
+            }
+
             const artifactFiles: File[] = pastedArtifactItems
                 .filter(item => item.artifactId && item.mimeType) // Skip invalid items early
                 .map(item => {
@@ -339,12 +491,14 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Combine regular files with artifact references
             const allFiles = [...selectedFiles, ...artifactFiles];
 
-            await handleSubmit(event, allFiles, fullMessage);
+            await handleSubmit(event, allFiles, fullMessage, { skillIds: newSkillIds.length > 0 ? newSkillIds : undefined });
             setSelectedFiles([]);
             setPastedArtifactItems([]);
             setInputValue("");
             setContextText(null);
             setShowContextBadge(false);
+            // Note: Skills are NOT cleared after submission - they persist for follow-up messages
+            // Users can manually clear skills using the X button on badges or "Clear all" button
             scrollToBottom?.();
         }
     };
@@ -494,6 +648,53 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 </div>
             )}
 
+            {/* Active Skills Badges */}
+            {(activeSkill || activeSkills.size > 0) && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                    {/* Legacy single skill badge */}
+                    {activeSkill && !activeSkills.has(activeSkill.id) && (
+                        <div className="bg-primary/10 border-primary/20 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                            <div className="flex flex-1 items-center gap-2">
+                                <MessageSquare className="text-primary h-4 w-4" />
+                                <span className="text-primary font-medium">{activeSkill.name}</span>
+                            </div>
+                            <Button variant="ghost" size="icon" className="hover:bg-background h-5 w-5 rounded-sm" onClick={() => setActiveSkill(null)}>
+                                <span className="sr-only">Remove skill</span>
+                                <X className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    )}
+                    {/* Multi-select skill badges */}
+                    {Array.from(activeSkills.values()).map(skill => (
+                        <div key={skill.id} className="bg-primary/10 border-primary/20 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                            <div className="flex flex-1 items-center gap-2">
+                                <MessageSquare className="text-primary h-4 w-4" />
+                                <span className="text-primary font-medium">{skill.name}</span>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="hover:bg-background h-5 w-5 rounded-sm"
+                                onClick={() => {
+                                    const newSkills = new Map(activeSkills);
+                                    newSkills.delete(skill.id);
+                                    setActiveSkills(newSkills);
+                                }}
+                            >
+                                <span className="sr-only">Remove skill</span>
+                                <X className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    ))}
+                    {/* Clear all button when multiple skills */}
+                    {(activeSkills.size > 1 || (activeSkill && activeSkills.size > 0)) && (
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground h-auto px-2 py-1 text-xs" onClick={clearAllSkills}>
+                            Clear all
+                        </Button>
+                    )}
+                </div>
+            )}
+
             {/* Context Text Badge (from text selection) */}
             {showContextBadge && contextText && (
                 <div className="mb-2">
@@ -582,6 +783,94 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file">
                     <Paperclip className="size-4" />
                 </Button>
+
+                {/* Skills Button with Dropdown */}
+                <Popover
+                    open={showSkillsDropdown}
+                    onOpenChange={open => {
+                        setShowSkillsDropdown(open);
+                        if (open) {
+                            fetchAvailableSkills();
+                        }
+                    }}
+                >
+                    <PopoverTrigger asChild>
+                        <Button variant="ghost" disabled={isResponding} tooltip="Attach skills" className={activeSkills.size > 0 || activeSkill ? "text-primary" : ""}>
+                            <Lightbulb className="size-4" />
+                            {(activeSkills.size > 0 || activeSkill) && (
+                                <span className="bg-primary text-primary-foreground ml-1 flex h-4 w-4 items-center justify-center rounded-full text-xs">{activeSkills.size + (activeSkill && !activeSkills.has(activeSkill.id) ? 1 : 0)}</span>
+                            )}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-0" align="start" sideOffset={5}>
+                        <div className="flex max-h-80 flex-col overflow-hidden">
+                            <ScrollArea className="flex-1">
+                                <div className="p-2">
+                                    {skillsLoading ? (
+                                        <div className="text-muted-foreground flex items-center justify-center py-4 text-sm">Loading skills...</div>
+                                    ) : availableSkills.length === 0 ? (
+                                        <div className="text-muted-foreground flex items-center justify-center py-4 text-sm">No skills available</div>
+                                    ) : (
+                                        <>
+                                            {/* Group skills by scope */}
+                                            {(() => {
+                                                const globalSkills = availableSkills.filter(s => s.scope === "global");
+                                                // Only show agent skills that belong to the currently selected agent
+                                                const agentSkills = availableSkills.filter(s => s.scope === "agent" && s.ownerAgent && selectedAgentName && s.ownerAgent === selectedAgentName);
+                                                const userSkills = availableSkills.filter(s => s.scope === "user" || s.scope === "shared");
+
+                                                return (
+                                                    <>
+                                                        {globalSkills.length > 0 && (
+                                                            <div className="mb-2">
+                                                                <div className="text-muted-foreground mb-1 px-2 text-xs font-medium uppercase">Global Skills</div>
+                                                                {globalSkills.map(skill => (
+                                                                    <div key={skill.id} className="hover:bg-accent flex w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-sm">
+                                                                        <div className="truncate font-medium">{skill.name}</div>
+                                                                        <Switch checked={activeSkills.has(skill.id)} onCheckedChange={() => toggleSkill(skill)} />
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        {agentSkills.length > 0 && (
+                                                            <div className="mb-2">
+                                                                <div className="text-muted-foreground mb-1 px-2 text-xs font-medium uppercase">Agent Skills</div>
+                                                                {agentSkills.map(skill => (
+                                                                    <div key={skill.id} className="hover:bg-accent flex w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-sm">
+                                                                        <div className="truncate font-medium">{skill.name}</div>
+                                                                        <Switch checked={activeSkills.has(skill.id)} onCheckedChange={() => toggleSkill(skill)} />
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        {userSkills.length > 0 && (
+                                                            <div className="mb-2">
+                                                                <div className="text-muted-foreground mb-1 px-2 text-xs font-medium uppercase">My Skills</div>
+                                                                {userSkills.map(skill => (
+                                                                    <div key={skill.id} className="hover:bg-accent flex w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-sm">
+                                                                        <div className="truncate font-medium">{skill.name}</div>
+                                                                        <Switch checked={activeSkills.has(skill.id)} onCheckedChange={() => toggleSkill(skill)} />
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
+                                        </>
+                                    )}
+                                </div>
+                            </ScrollArea>
+                            {activeSkills.size > 0 && (
+                                <div className="flex-shrink-0 border-t p-2">
+                                    <Button variant="ghost" size="sm" className="w-full" onClick={clearAllSkills}>
+                                        Clear all ({activeSkills.size})
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </PopoverContent>
+                </Popover>
 
                 <div>Agent: </div>
                 <Select value={selectedAgentName} onValueChange={handleAgentSelection} disabled={isResponding || agents.length === 0}>

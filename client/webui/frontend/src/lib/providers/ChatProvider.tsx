@@ -1633,10 +1633,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     );
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null) => {
+        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, options?: { skillId?: string | null; skillIds?: string[] }) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
+            const skillId = options?.skillId || null;
+            const skillIds = options?.skillIds || [];
             if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
                 return;
             }
@@ -1772,6 +1774,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     metadata: {
                         agent_name: selectedAgentName,
                         project_id: activeProject?.id || null,
+                        skill_id: skillId,
+                        skill_ids: skillIds.length > 0 ? skillIds : undefined,
                     },
                 };
 

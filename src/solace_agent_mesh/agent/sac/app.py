@@ -451,6 +451,14 @@ class SamAgentAppConfig(SamConfigBase):
         default_factory=McpProcessingConfig,
         description="Configuration for intelligent processing of MCP tool responses.",
     )
+    skill_learning: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Configuration for skill learning. Set 'enabled: true' to enable learning from successful tasks.",
+    )
+    track_token_usage: bool = Field(
+        default=False,
+        description="Whether to track token usage for tasks.",
+    )
 
 
 class SamAgentApp(App):

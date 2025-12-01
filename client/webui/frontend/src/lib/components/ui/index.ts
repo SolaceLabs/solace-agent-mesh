@@ -29,6 +29,7 @@ export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 export { Tooltip, TooltipTrigger, TooltipContent } from "./tooltip";
 export { Separator } from "./separator";
 export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table";
+export { ScrollArea, ScrollBar } from "./scroll-area";
 
 // Chat Components
 export { ChatInput } from "./chat/chat-input";

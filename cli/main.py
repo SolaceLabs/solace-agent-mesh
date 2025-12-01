@@ -18,6 +18,7 @@ from cli.commands.add_cmd import add
 from cli.commands.plugin_cmd import plugin
 from cli.commands.eval_cmd import eval_cmd
 from cli.commands.docs_cmd import docs
+from cli.commands.skill_learning_cmd import skill_learning
 
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
@@ -42,6 +43,7 @@ cli.add_command(add)
 cli.add_command(plugin)
 cli.add_command(eval_cmd)
 cli.add_command(docs)
+cli.add_command(skill_learning)
 
 
 def main():

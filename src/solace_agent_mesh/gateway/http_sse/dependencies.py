@@ -647,3 +647,109 @@ def get_user_display_name(
         return user_info.get("email") or user_info.get("name") or user_id
     
     return user_id
+
+
+# ==================== Skill Learning Service ====================
+
+# Global skill service instance
+_skill_service_instance = None
+
+
+def init_skill_service(
+    database_url: str,
+    skills_directory: str = "skills",
+    embedding_enabled: bool = True,
+    embedding_provider: str = "openai",
+    embedding_model: str = "text-embedding-3-small",
+):
+    """
+    Initialize the skill learning service.
+    
+    Called during application startup to configure the skill service.
+    
+    Args:
+        database_url: Database URL for skill storage
+        skills_directory: Directory for static skill files
+        embedding_enabled: Whether to enable embedding-based search
+        embedding_provider: Embedding provider (openai, litellm)
+        embedding_model: Embedding model name
+    """
+    global _skill_service_instance
+    
+    if _skill_service_instance is not None:
+        log.warning("Skill service already initialized")
+        return
+    
+    try:
+        from ...services.skill_learning import (
+            SkillService,
+            SkillRepository,
+            EmbeddingService,
+            StaticSkillLoader,
+        )
+        
+        # Initialize repository
+        repository = SkillRepository(database_url)
+        repository.create_tables()
+        
+        # Initialize embedding service if enabled
+        embedding_service = None
+        if embedding_enabled:
+            try:
+                embedding_service = EmbeddingService(
+                    provider_type=embedding_provider,
+                    model=embedding_model,
+                )
+                log.info(f"Embedding service initialized with {embedding_provider}/{embedding_model}")
+            except Exception as e:
+                log.warning(f"Failed to initialize embedding service: {e}")
+        
+        # Initialize static skill loader
+        static_loader = None
+        if skills_directory:
+            try:
+                static_loader = StaticSkillLoader(skills_directory)
+                log.info(f"Static skill loader initialized for {skills_directory}")
+            except Exception as e:
+                log.warning(f"Failed to initialize static skill loader: {e}")
+        
+        # Create skill service
+        _skill_service_instance = SkillService(
+            repository=repository,
+            embedding_service=embedding_service,
+            static_loader=static_loader,
+            auto_generate_embeddings=embedding_enabled,
+        )
+        
+        log.info("Skill learning service initialized successfully")
+        
+    except ImportError as e:
+        log.warning(f"Skill learning service not available: {e}")
+    except Exception as e:
+        log.error(f"Failed to initialize skill learning service: {e}")
+
+
+def get_skill_service():
+    """
+    FastAPI dependency to get the skill service.
+    
+    Returns:
+        SkillService instance or raises HTTPException if not initialized
+    """
+    if _skill_service_instance is None:
+        log.warning("Skill service not initialized")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Skill learning service not configured or available.",
+        )
+    return _skill_service_instance
+
+
+def get_skill_service_optional():
+    """
+    FastAPI dependency to get the skill service optionally.
+    
+    Returns:
+        SkillService instance or None if not initialized
+    """
+    return _skill_service_instance

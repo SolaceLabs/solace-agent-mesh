@@ -14,3 +14,4 @@ from . import web_tools
 from . import time_tools
 from . import test_tools
 from . import dynamic_tool
+from . import skill_tools

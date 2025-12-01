@@ -2240,6 +2240,49 @@ class SamAgentComponent(SamComponentBase):
                 logical_task_id,
                 target_topic,
             )
+            
+            # Trigger skill learning on successful task completion
+            skill_config = self.get_config("skill_learning", {})
+            log.info(
+                "%s Skill learning config for task %s: enabled=%s, config=%s",
+                self.log_identifier,
+                logical_task_id,
+                skill_config.get("enabled", False),
+                skill_config,
+            )
+            if skill_config.get("enabled", False):
+                try:
+                    from ..adk.skill_callbacks import on_task_complete_skill_learning
+                    
+                    log.info(
+                        "%s Calling on_task_complete_skill_learning for task %s",
+                        self.log_identifier,
+                        logical_task_id,
+                    )
+                    await on_task_complete_skill_learning(
+                        host_component=self,
+                        a2a_context=a2a_context,
+                        success=True,
+                    )
+                    log.info(
+                        "%s Triggered skill learning for successful task %s.",
+                        self.log_identifier,
+                        logical_task_id,
+                    )
+                except ImportError as e:
+                    log.warning(
+                        "%s Skill learning module not available: %s",
+                        self.log_identifier,
+                        e,
+                    )
+                except Exception as e:
+                    log.warning(
+                        "%s Error triggering skill learning for task %s: %s",
+                        self.log_identifier,
+                        logical_task_id,
+                        e,
+                    )
+            
             if original_message:
                 try:
                     original_message.call_acknowledgements()

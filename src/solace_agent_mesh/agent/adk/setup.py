@@ -800,6 +800,35 @@ def _load_internal_tools(component: "SamAgentComponent", loaded_tool_names: Set[
                 tool_name,
             )
 
+    # Load skill learning nomination tool if skill learning is enabled
+    skill_config = component.get_config("skill_learning", {})
+    if skill_config.get("enabled", False):
+        try:
+            from ..tools.nominate_for_learning_tool import create_nominate_for_learning_tool
+            
+            tool_name = "nominate_for_learning"
+            try:
+                _check_and_register_tool_name(tool_name, "skill_learning", loaded_tool_names)
+                nomination_tool = create_nominate_for_learning_tool(component)
+                loaded_tools.append(nomination_tool)
+                log.info(
+                    "%s Loaded skill learning nomination tool: %s",
+                    component.log_identifier,
+                    tool_name,
+                )
+            except ValueError:
+                log.debug(
+                    "%s Skill learning nomination tool '%s' was already loaded explicitly. Skipping.",
+                    component.log_identifier,
+                    tool_name,
+                )
+        except ImportError as e:
+            log.warning(
+                "%s Skill learning enabled but nominate_for_learning_tool module not available: %s",
+                component.log_identifier,
+                e,
+            )
+
     return loaded_tools, enabled_builtin_tools, []
 
 
@@ -1093,6 +1122,29 @@ def initialize_adk_agent(
             "%s Added inject_dynamic_instructions_callback to before_model chain.",
             component.log_identifier,
         )
+
+        # Add skill injection callback if skill learning is enabled
+        skill_config = component.get_config("skill_learning", {})
+        if skill_config.get("enabled", False):
+            try:
+                from .skill_callbacks import inject_skills_callback
+                
+                skill_injection_cb_with_component = functools.partial(
+                    inject_skills_callback, host_component=component
+                )
+                callbacks_in_order_for_before_model.append(
+                    skill_injection_cb_with_component
+                )
+                log.debug(
+                    "%s Added inject_skills_callback to before_model chain.",
+                    component.log_identifier,
+                )
+            except ImportError as e:
+                log.warning(
+                    "%s Skill learning enabled but skill_callbacks module not available: %s",
+                    component.log_identifier,
+                    e,
+                )
 
         solace_llm_trigger_callback_with_component = functools.partial(
             adk_callbacks.solace_llm_invocation_callback, host_component=component

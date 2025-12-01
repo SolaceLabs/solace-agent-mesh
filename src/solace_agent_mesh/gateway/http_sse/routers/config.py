@@ -194,6 +194,29 @@ async def get_app_config(
         else:
             log.debug("%s Projects feature flag is disabled.", log_prefix)
 
+        # Determine if skills should be enabled
+        # Skills require SQL session storage for persistence
+        skills_config = component.get_config("skills", {})
+        skills_explicitly_enabled = skills_config.get("enabled", True) if isinstance(skills_config, dict) else True
+        
+        if skills_explicitly_enabled:
+            # Check if SQL persistence is available (REQUIRED for skills)
+            session_config = component.get_config("session_service", {})
+            session_type = session_config.get("type", "memory")
+            
+            if session_type != "sql":
+                log.debug(
+                    "%s Skills disabled: session_service type is '%s' (not 'sql')",
+                    log_prefix,
+                    session_type
+                )
+                feature_enablement["skills"] = False
+            else:
+                feature_enablement["skills"] = True
+                log.debug("%s Skills feature flag is enabled.", log_prefix)
+        else:
+            feature_enablement["skills"] = False
+            log.debug("%s Skills feature flag is explicitly disabled.", log_prefix)
         
         # Check tool configuration status
         tool_config_status = {}
