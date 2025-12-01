@@ -32,7 +32,7 @@ export class BlockBuilder {
     }
 
     public build(steps: VisualizerStep[]): { root: LayoutBlock, edges: Edge[] } {
-        console.log(`[BlockBuilder] Building flow from ${steps.length} steps.`);
+        // console.log(`[BlockBuilder] Building flow from ${steps.length} steps.`);
         for (const step of steps) {
             this.processStep(step);
         }
@@ -49,7 +49,7 @@ export class BlockBuilder {
     }
 
     private processStep(step: VisualizerStep) {
-        console.log(`[BlockBuilder] Processing step: ${step.type} (${step.id})`);
+        // console.log(`[BlockBuilder] Processing step: ${step.type} (${step.id})`);
         switch (step.type) {
             case "USER_REQUEST":
                 this.handleUserRequest(step);

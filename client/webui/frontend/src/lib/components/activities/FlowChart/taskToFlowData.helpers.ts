@@ -722,7 +722,9 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
 
     // If this is a child of a map, register it
     if (parentNodeId && manager.mapLayouts.has(parentNodeId)) {
-        manager.mapLayouts.get(parentNodeId)!.iterationNodeIds.push(flowNodeId);
+        const mapContext = manager.mapLayouts.get(parentNodeId)!;
+        mapContext.iterationNodeIds.push(flowNodeId);
+        console.log(`[Timeline] Registered iteration node ${flowNodeId} for map ${parentNodeId}. Total iterations: ${mapContext.iterationNodeIds.length}`);
     }
 
     let nodeTypeStr = "genericAgentNode";

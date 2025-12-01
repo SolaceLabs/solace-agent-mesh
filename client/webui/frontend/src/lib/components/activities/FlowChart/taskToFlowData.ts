@@ -644,8 +644,12 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
     const parentNodeId = step.data.workflowNodeExecutionStart?.parentNodeId;
     if (parentNodeId) {
         const mapContext = manager.mapLayouts.get(parentNodeId);
+        console.log(`[Timeline] Map Iteration Start: Node=${step.data.workflowNodeExecutionStart?.nodeId}, Parent=${parentNodeId}, MapContext=${!!mapContext}, GeneratedMapId=${mapContext?.generatedNodeId}`);
+        
         if (mapContext && mapContext.generatedNodeId) {
             previousNodeId = mapContext.generatedNodeId;
+        } else {
+            console.warn(`[Timeline] Map context missing or invalid for parent ${parentNodeId}. Available maps: ${Array.from(manager.mapLayouts.keys()).join(", ")}`);
         }
     }
 
@@ -653,6 +657,7 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
     const newNode = createWorkflowNodeInContext(manager, step, nodes, currentSubflow);
 
     if (newNode && previousNodeId) {
+        console.log(`[Timeline] Connecting ${previousNodeId} -> ${newNode.id} (Parent: ${parentNodeId})`);
         // Determine source handle based on previous node type
         const prevNodeObj = nodes.find(n => n.id === previousNodeId);
         let sourceHandle = "peer-bottom-output";
