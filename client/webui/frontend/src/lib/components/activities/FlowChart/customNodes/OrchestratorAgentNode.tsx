@@ -48,7 +48,7 @@ const OrchestratorAgentNode: React.FC<NodeProps<OrchestratorAgentNodeType>> = ({
                     </React.Fragment>
                 ))}
 
-            <div className="flex items-center justify-center pt-2">
+            <div className="flex items-center justify-center">
                 <div className="text-md truncate font-bold" style={{ maxWidth: "200px" }}>
                     {data.label}
                 </div>

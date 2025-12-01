@@ -449,11 +449,14 @@ export class BlockBuilder {
         const groupId = `group_${this.groupCounter++}`;
         console.log(`[BlockBuilder] Starting group '${groupId}' (${type}: ${label}) for parent task '${step.owningTaskId}'`);
 
+        // Only show label for workflows, hide for sub-agents
+        const groupLabel = type === "workflow" ? label : "";
+
         const groupNode: Node = {
             id: groupId,
             type: "group",
             position: { x: 0, y: 0 },
-            data: { label: label },
+            data: { label: groupLabel },
             style: { 
                 width: 0, 
                 height: 0,
@@ -464,6 +467,11 @@ export class BlockBuilder {
         };
 
         const groupBlock = new GroupBlock(groupId, groupNode);
+        
+        // Reduce padding for sub-agent groups since they don't have a label
+        if (type === "subflow") {
+            groupBlock.paddingY = 20;
+        }
         
         const parentTaskId = step.owningTaskId;
         

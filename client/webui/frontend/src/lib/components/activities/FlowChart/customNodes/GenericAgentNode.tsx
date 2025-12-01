@@ -71,7 +71,7 @@ const GenericAgentNode: React.FC<NodeProps<Node<GenericNodeData>>> = ({ data }) 
                     </React.Fragment>
                 ))}
 
-            <div className="flex items-center justify-center pt-2">
+            <div className="flex items-center justify-center">
                 <div className="text-md truncate font-semibold" style={{ maxWidth: "200px" }}>
                     {data.label}
                 </div>
