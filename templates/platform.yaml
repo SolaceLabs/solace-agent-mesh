@@ -14,9 +14,11 @@ apps:
     app_base_path: .
     app_module: solace_agent_mesh.services.platform.app
 
+    # TODO: Platform today does not do messaging via the broker but it will change. 
     broker:
       <<: *broker_connection
 
+    # TODO: Create a solace-agent-mesh/services/base/... which removes the need to configure components like this:
     components:
       - component_module: solace_agent_mesh.services.platform.component
         component_name: platform_service_component
@@ -24,13 +26,13 @@ apps:
     app_config:
       # Required configuration
       namespace: ${NAMESPACE}
-      database_url: "sqlite:///platform.db"
+      database_url: "sqlite:///platform.db" # TODO: Should this be configurable via env variable? 
 
       # Optional configuration with defaults
-      fastapi_host: 127.0.0.1
-      fastapi_port: 8001
+      fastapi_host: ${PLATFORM_FAST_API_HOST, 127.0.0.1}
+      fastapi_port: ${PLATFORM_FAST_API_PORT, 8001}
 
-      # CORS configuration
+      # CORS configuration # TODO: Validate this
       cors_allowed_origins:
         - "http://localhost:3000"
         - "http://127.0.0.1:3000"
