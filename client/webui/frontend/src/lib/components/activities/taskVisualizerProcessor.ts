@@ -221,6 +221,8 @@ export const processTaskForVisualization = (
         const currentEventOwningTaskId = event.task_id || parentTaskObject.taskId;
         const currentEventNestingLevel = taskNestingLevels.get(currentEventOwningTaskId) ?? 0;
 
+        console.log(`[Visualizer] Processing event: ${event.direction} (Task: ${currentEventOwningTaskId}, Level: ${currentEventNestingLevel})`, payload);
+
         // Determine agent name
         let eventAgentName = event.source_entity || "UnknownAgent";
         if (payload?.params?.message?.metadata?.agent_name) {
@@ -792,7 +794,7 @@ export const processTaskForVisualization = (
             const finalState = result.status.state as string;
             const responseAgentName = result.metadata?.agent_name || result.status?.message?.metadata?.agent_name || event.source_entity || "Agent";
 
-            if (["completed", "failed", "canceled"].includes(finalState) && currentEventNestingLevel == 0) {
+            if (["completed", "failed", "canceled"].includes(finalState)) {
                 const stepType: VisualizerStepType = finalState === "completed" ? "TASK_COMPLETED" : "TASK_FAILED";
                 const title = `${responseAgentName}: Task ${finalState.charAt(0).toUpperCase() + finalState.slice(1)}`;
                 let dataPayload: any = {};
