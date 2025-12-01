@@ -260,14 +260,26 @@ export class BlockBuilder {
                     if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
                     
                     // Calculate Y offset for the slot
-                    // We estimate based on existing slots to stack them
+                    // We need to match the layout logic in TimelineBlock
+                    // First slot aligns with top of agent (offset 0 relative to agent content area, but agent has padding)
+                    // Subsequent slots are spaced by (NODE_HEIGHT + VERTICAL_SPACING / 2)
                     const slotIndex = (agentNode.data.toolSlots as any[]).length;
-                    const yOffset = 40 + (slotIndex * 20); // Start at 40px down
+                    
+                    const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
+                    
+                    // Agent node padding/header offset. 
+                    // Let's assume the first tool aligns with the agent's "body" start.
+                    // If we want the first tool to align with the top of the agent node, we use a small offset.
+                    const initialOffset = 25; // Half of NODE_HEIGHT to align centers if they start at same Y
+                    
+                    const yOffset = initialOffset + (slotIndex * toolPitch);
                     
                     (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
 
                     // Update agent node height to accommodate slots
-                    const requiredHeight = Math.max(50, yOffset + 30);
+                    // This ensures measure() picks up the correct height for layout calculations
+                    // Height = Top Padding + (NumSlots * Pitch) + Bottom Padding
+                    const requiredHeight = Math.max(NODE_HEIGHT, (slotIndex + 1) * toolPitch + 20); 
                     agentNode.style = { ...agentNode.style, height: `${requiredHeight}px` };
                     
                     customSourceHandle = `agent-out-${nodeId}`;
