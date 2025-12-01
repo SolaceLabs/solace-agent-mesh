@@ -19,9 +19,10 @@ Clearly state which class you selected before proceeding.
 
 For all request types, proactively use the following sources without requiring the user to say “use context7”:
 
-1. llm_vibeconfig.txt – Tutorials and instructions for end users  
+1. 'vibe_coding/llm_vibeconfig.txt' – Tutorials and instructions for end users  
 2. Context7 MCP tools – Technical knowledge about base code, agents, gateways, and configurations  
-3. sam-skills/SKILL.md – Installation and configuration instructions for agents and gateways  
+3. 'vibe_coding/index_skills.md' – Installation instructions for agents and gateways  
+4. 'vibe_coding/index_configs.md' – Configurations of agents, gateways and all other components
 
 Always consult these sources when relevant.
 
@@ -58,7 +59,8 @@ The plan must be:
 Leverage:
 
 - `llm_vibeconfig.txt`  
-- `sam-skills/SKILL.md`  
+- `vibe_coding/index_skills.md`  
+- `vibe_coding/index_configs.md`
 
 ### Step 3 – Create a sample project  
 Scaffold a project including:
@@ -67,7 +69,7 @@ Scaffold a project including:
 - Basic configuration templates
 - Example usage flows
 
-Ensure all configurations strictly follow the instructions and templates provided in the `sam-skills` folder.
+Ensure all configurations strictly follow the instructions and templates provided in the `vibe_coding/index_configs.md`.
 
 ### Step 4 – Implement step by step with verification  
 For each step of the plan:
