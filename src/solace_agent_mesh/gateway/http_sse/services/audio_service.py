@@ -1098,6 +1098,25 @@ class AudioService:
         log.debug("[AudioService] Available voices for provider %s: %d", final_provider, len(voices))
         return voices
     
+    def _is_valid_api_key(self, value: Any) -> bool:
+        """
+        Check if a value is a valid API key (non-empty string that's not an unresolved env var).
+        
+        Args:
+            value: The value to check
+            
+        Returns:
+            True if the value appears to be a valid API key
+        """
+        if not value:
+            return False
+        if not isinstance(value, str):
+            return False
+        # Check if it's an unresolved environment variable placeholder
+        if value.startswith("${") or value == "":
+            return False
+        return True
+    
     def get_speech_config(self) -> Dict[str, Any]:
         """
         Get speech configuration for frontend initialization.
@@ -1109,9 +1128,60 @@ class AudioService:
         tts_config = self.speech_config.get("tts", {})
         speech_tab = self.speech_config.get("speechTab", {})
         
+        # Check each STT provider individually
+        stt_openai_valid = False
+        stt_azure_valid = False
+        if stt_config:
+            # Check OpenAI - can be nested under 'openai' or at root level for backward compat
+            openai_config = stt_config.get("openai", {})
+            openai_api_key = openai_config.get("api_key") or stt_config.get("api_key")
+            stt_openai_valid = self._is_valid_api_key(openai_api_key)
+            
+            azure_config = stt_config.get("azure", {})
+            stt_azure_valid = (
+                self._is_valid_api_key(azure_config.get("api_key")) and
+                self._is_valid_api_key(azure_config.get("region"))
+            )
+        
+        stt_configured = stt_openai_valid or stt_azure_valid
+        
+        # Check each TTS provider individually
+        tts_gemini_valid = False
+        tts_azure_valid = False
+        tts_polly_valid = False
+        if tts_config:
+            # Check Gemini - can be nested under 'gemini' or at root level for backward compat
+            gemini_nested = tts_config.get("gemini", {})
+            gemini_api_key = gemini_nested.get("api_key") or tts_config.get("api_key")
+            tts_gemini_valid = self._is_valid_api_key(gemini_api_key)
+            
+            azure_config = tts_config.get("azure", {})
+            tts_azure_valid = (
+                self._is_valid_api_key(azure_config.get("api_key")) and
+                self._is_valid_api_key(azure_config.get("region"))
+            )
+            
+            polly_config = tts_config.get("polly", {})
+            tts_polly_valid = (
+                self._is_valid_api_key(polly_config.get("aws_access_key_id")) and
+                self._is_valid_api_key(polly_config.get("aws_secret_access_key"))
+            )
+        
+        tts_configured = tts_gemini_valid or tts_azure_valid or tts_polly_valid
+        
         config = {
-            "sttExternal": bool(stt_config),
-            "ttsExternal": bool(tts_config),
+            "sttExternal": stt_configured,
+            "ttsExternal": tts_configured,
+            # Per-provider configuration status
+            "sttProviders": {
+                "openai": stt_openai_valid,
+                "azure": stt_azure_valid,
+            },
+            "ttsProviders": {
+                "gemini": tts_gemini_valid,
+                "azure": tts_azure_valid,
+                "polly": tts_polly_valid,
+            },
         }
         
         # Add speech tab settings if configured
