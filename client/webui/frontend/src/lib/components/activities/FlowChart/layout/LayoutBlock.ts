@@ -102,13 +102,26 @@ export function adjustAgentSlots(nodes: Node[]): void {
 
 export class LeafBlock extends LayoutBlock {
     measure(): void {
+        let defaultWidth = NODE_WIDTH;
+        let defaultHeight = NODE_HEIGHT;
+        
+        if (this.nodePayload) {
+            const type = this.nodePayload.type;
+            if (type === 'conditionalNode') {
+                defaultWidth = 120;
+                defaultHeight = 80;
+            } else if (type === 'genericToolNode' || type === 'llmNode') {
+                defaultWidth = 180; 
+            }
+        }
+
         this.width = this.nodePayload?.measured?.width ?? 
                      (parseInt(this.nodePayload?.style?.width?.toString() || "0") || 
-                     NODE_WIDTH);
+                     defaultWidth);
                      
         this.height = this.nodePayload?.measured?.height ?? 
                       (parseInt(this.nodePayload?.style?.height?.toString() || "0") || 
-                      NODE_HEIGHT);
+                      defaultHeight);
         console.log(`[LeafBlock] ${this.id} measured: ${this.width}x${this.height}`);
     }
 
