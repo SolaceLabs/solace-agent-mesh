@@ -1,6 +1,7 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 
 import { AgentMeshPage, ChatPage, ProjectsPage, PromptsPage, SkillsPage } from "./lib";
+import { SkillVersionHistoryPageWrapper } from "./lib/components/pages/SkillVersionHistoryPageWrapper";
 import AppLayout from "./AppLayout";
 
 export const createRouter = () => {
@@ -72,6 +73,10 @@ export const createRouter = () => {
                 {
                     path: "skills",
                     element: <SkillsPage />,
+                },
+                {
+                    path: "skills/:skillId/versions",
+                    element: <SkillVersionHistoryPageWrapper />,
                 },
                 {
                     path: "*",

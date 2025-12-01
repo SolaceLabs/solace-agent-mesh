@@ -3,18 +3,22 @@ import { useNavigate } from "react-router-dom";
 import { RefreshCcw, Upload } from "lucide-react";
 
 import { useChatContext } from "@/lib/hooks";
-import type { SkillSummary, Skill } from "@/lib/types/skills";
+import type { SkillGroup, SkillGroupSummary } from "@/lib/types/skills";
 import { Button, EmptyState, Header } from "@/lib/components";
-import { SkillCards, SkillImportDialog } from "@/lib/components/skills";
+import { SkillGroupCards, SkillImportDialog } from "@/lib/components/skills";
 import { authenticatedFetch, downloadBlob } from "@/lib/utils";
+import * as versionedSkillsApi from "@/lib/services/versionedSkillsApi";
 
 /**
  * Main page for viewing and managing skills
+ *
+ * Uses the versioned skills API (skill_groups/skill_versions tables) with full
+ * version history support.
  */
 export const SkillsPage: React.FC = () => {
     const navigate = useNavigate();
     const { addNotification } = useChatContext();
-    const [skills, setSkills] = useState<SkillSummary[]>([]);
+    const [skills, setSkills] = useState<SkillGroupSummary[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showImportDialog, setShowImportDialog] = useState(false);
@@ -24,19 +28,11 @@ export const SkillsPage: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await authenticatedFetch("/api/v1/skills", {
-                credentials: "include",
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setSkills(data.skills || []);
-            } else {
-                const errorData = await response.json().catch(() => ({ detail: "Failed to fetch skills" }));
-                setError(errorData.detail || errorData.message || "Failed to fetch skills");
-            }
+            const response = await versionedSkillsApi.listSkills();
+            setSkills(response.skills || []);
         } catch (err) {
             console.error("Failed to fetch skills:", err);
-            setError("Failed to connect to the server");
+            setError(err instanceof Error ? err.message : "Failed to load skills");
         } finally {
             setIsLoading(false);
         }
@@ -47,7 +43,7 @@ export const SkillsPage: React.FC = () => {
     }, []);
 
     // Handle use in chat
-    const handleUseInChat = (skill: Skill) => {
+    const handleUseInChat = (skill: SkillGroup) => {
         // Navigate to chat with skill context
         // Use a timestamp key to force re-render even if already on /chat
         navigate("/chat", {
@@ -61,26 +57,23 @@ export const SkillsPage: React.FC = () => {
         addNotification(`Using skill: ${skill.name}`, "info");
     };
 
-    // Handle export skill (ZIP format by default for skill package compatibility)
-    const handleExport = async (skill: Skill) => {
-        try {
-            // Use ZIP format for full skill package compatibility (includes scripts/, resources/)
-            const response = await authenticatedFetch(`/api/v1/skills/${skill.id}/export?format=zip`);
+    // Handle view version history
+    const handleViewVersions = (skill: SkillGroup) => {
+        navigate(`/skills/${skill.id}/versions`);
+    };
 
-            if (response.ok) {
-                const blob = await response.blob();
-                // Sanitize skill name for filename
-                const safeName = skill.name.replace(/[^\w-]/g, "-");
-                const filename = `${safeName}.skill.zip`;
-                downloadBlob(blob, filename);
-                addNotification("Skill exported successfully", "success");
-            } else {
-                const errorData = await response.json().catch(() => ({ detail: "Failed to export skill" }));
-                addNotification(errorData.detail || "Failed to export skill", "error");
-            }
+    // Handle export skill (ZIP format by default for skill package compatibility)
+    const handleExport = async (skill: SkillGroup) => {
+        try {
+            const blob = await versionedSkillsApi.exportSkill(skill.id, "zip");
+            // Sanitize skill name for filename
+            const safeName = skill.name.replace(/[^\w-]/g, "-");
+            const filename = `${safeName}.skill.zip`;
+            downloadBlob(blob, filename);
+            addNotification("Skill exported successfully", "success");
         } catch (err) {
             console.error("Failed to export skill:", err);
-            addNotification("Failed to export skill", "error");
+            addNotification(err instanceof Error ? err.message : "Failed to export skill", "error");
         }
     };
 
@@ -157,7 +150,7 @@ export const SkillsPage: React.FC = () => {
                 />
             ) : (
                 <div className="relative flex-1 p-4">
-                    <SkillCards skills={skills} onUseInChat={handleUseInChat} onExport={handleExport} />
+                    <SkillGroupCards skills={skills} onUseInChat={handleUseInChat} onViewVersions={handleViewVersions} onExport={handleExport} />
                 </div>
             )}
 

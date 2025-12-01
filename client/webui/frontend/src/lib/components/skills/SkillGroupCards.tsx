@@ -1,25 +1,26 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { X, Filter } from "lucide-react";
 
-import type { SkillSummary, Skill } from "@/lib/types/skills";
+import type { SkillGroup, SkillGroupSummary } from "@/lib/types/versioned-skills";
 
-import { SkillCard } from "./SkillCard";
-import { SkillDetailSidePanel } from "./SkillDetailSidePanel";
+import { SkillGroupCard } from "./SkillGroupCard";
+import { SkillGroupDetailSidePanel } from "./SkillGroupDetailSidePanel";
 import { EmptyState } from "../common";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/lib/components/ui/resizable";
 import { Button, SearchInput } from "@/lib/components/ui";
-import { authenticatedFetch } from "@/lib/utils";
+import * as versionedSkillsApi from "@/lib/services/versionedSkillsApi";
 
-interface SkillCardsProps {
-    skills: SkillSummary[];
-    onUseInChat?: (skill: Skill) => void;
-    onExport?: (skill: Skill) => void;
-    onViewVersions?: (skill: SkillSummary) => void;
+interface SkillGroupCardsProps {
+    skills: SkillGroupSummary[];
+    onUseInChat?: (skill: SkillGroup) => void;
+    onExport?: (skill: SkillGroup) => void;
+    onViewVersions?: (skill: SkillGroup) => void;
+    onDelete?: (id: string, name: string) => void;
 }
 
-export const SkillCards: React.FC<SkillCardsProps> = ({ skills, onUseInChat, onExport, onViewVersions }) => {
+export const SkillGroupCards: React.FC<SkillGroupCardsProps> = ({ skills, onUseInChat, onExport, onViewVersions, onDelete }) => {
     const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
-    const [selectedSkillDetail, setSelectedSkillDetail] = useState<Skill | null>(null);
+    const [selectedSkillDetail, setSelectedSkillDetail] = useState<SkillGroup | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
     const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
@@ -27,95 +28,43 @@ export const SkillCards: React.FC<SkillCardsProps> = ({ skills, onUseInChat, onE
     const [showTypeDropdown, setShowTypeDropdown] = useState(false);
     const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
-    // Map API response (snake_case) to frontend type (camelCase)
-    const mapApiResponseToSkill = (apiResponse: Record<string, unknown>): Skill => {
-        return {
-            id: apiResponse.id as string,
-            name: apiResponse.name as string,
-            description: apiResponse.description as string,
-            type: apiResponse.type as Skill["type"],
-            scope: apiResponse.scope as Skill["scope"],
-            ownerUserId: apiResponse.owner_user_id as string | undefined,
-            ownerAgent: apiResponse.owner_agent as string | undefined,
-            tags: (apiResponse.tags as string[]) || [],
-            steps: ((apiResponse.steps as Record<string, unknown>[]) || []).map(step => ({
-                stepNumber: step.step_number as number,
-                description: step.description as string,
-                toolName: step.tool_name as string | undefined,
-                toolParameters: step.tool_parameters as Record<string, unknown> | undefined,
-                expectedOutput: step.expected_output as string | undefined,
-                agentName: step.agent_name as string | undefined,
-            })),
-            agentChain: ((apiResponse.agent_chain as Record<string, unknown>[]) || []).map(node => ({
-                agentName: node.agent_name as string,
-                order: node.order as number,
-                role: node.role as string | undefined,
-                toolsUsed: (node.tools_used as string[]) || [],
-            })),
-            preconditions: (apiResponse.preconditions as string[]) || [],
-            postconditions: (apiResponse.postconditions as string[]) || [],
-            successCount: (apiResponse.success_count as number) || 0,
-            failureCount: (apiResponse.failure_count as number) || 0,
-            usageCount: (apiResponse.usage_count as number) || 0,
-            successRate: apiResponse.success_rate as number | undefined,
-            isActive: (apiResponse.is_active as boolean) ?? true,
-            createdAt: (apiResponse.created_at as string) || "",
-            updatedAt: (apiResponse.updated_at as string) || "",
-            metadata: apiResponse.metadata as Record<string, unknown> | undefined,
-            summary: apiResponse.summary as string | undefined,
-            markdownContent: apiResponse.markdown_content as string | undefined,
-            involvedAgents: apiResponse.involved_agents as string[] | undefined,
-        };
-    };
-
-    const handleSkillClick = async (skill: SkillSummary) => {
-        if (selectedSkillId === skill.id) {
-            // Deselect
-            setSelectedSkillId(null);
-            setSelectedSkillDetail(null);
-        } else {
-            // Select and fetch full details
-            setSelectedSkillId(skill.id);
-            setIsLoadingDetail(true);
-            try {
-                const response = await authenticatedFetch(`/api/v1/skills/${skill.id}`);
-                if (response.ok) {
-                    const apiResponse = await response.json();
-                    const detail = mapApiResponseToSkill(apiResponse);
+    const handleSkillClick = useCallback(
+        async (skill: SkillGroupSummary) => {
+            if (selectedSkillId === skill.id) {
+                // Deselect
+                setSelectedSkillId(null);
+                setSelectedSkillDetail(null);
+            } else {
+                // Select and fetch full details
+                setSelectedSkillId(skill.id);
+                setIsLoadingDetail(true);
+                try {
+                    const detail = await versionedSkillsApi.getSkillGroup(skill.id, true);
                     setSelectedSkillDetail(detail);
-                } else {
-                    // If fetch fails, use summary data as fallback
+                } catch (error) {
+                    console.error("Failed to fetch skill details:", error);
+                    // Use summary data as fallback
                     setSelectedSkillDetail({
-                        ...skill,
-                        steps: [],
-                        agentChain: [],
-                        preconditions: [],
-                        postconditions: [],
-                        successCount: 0,
-                        failureCount: 0,
+                        id: skill.id,
+                        name: skill.name,
+                        description: skill.description,
+                        category: skill.category,
+                        type: skill.type,
+                        scope: skill.scope,
+                        ownerAgentName: skill.ownerAgentName,
+                        isArchived: skill.isArchived,
+                        versionCount: skill.versionCount,
+                        successRate: skill.successRate,
                         createdAt: "",
                         updatedAt: "",
-                    } as Skill);
+                    } as SkillGroup);
+                } finally {
+                    setIsLoadingDetail(false);
                 }
-            } catch (error) {
-                console.error("Failed to fetch skill details:", error);
-                // Use summary data as fallback
-                setSelectedSkillDetail({
-                    ...skill,
-                    steps: [],
-                    agentChain: [],
-                    preconditions: [],
-                    postconditions: [],
-                    successCount: 0,
-                    failureCount: 0,
-                    createdAt: "",
-                    updatedAt: "",
-                } as Skill);
-            } finally {
-                setIsLoadingDetail(false);
             }
-        }
-    };
+        },
+        [selectedSkillId]
+    );
 
     const handleCloseSidePanel = () => {
         setSelectedSkillId(null);
@@ -145,7 +94,11 @@ export const SkillCards: React.FC<SkillCardsProps> = ({ skills, onUseInChat, onE
 
     const filteredSkills = useMemo(() => {
         return skills.filter(skill => {
-            const matchesSearch = skill.name?.toLowerCase().includes(searchQuery.toLowerCase()) || skill.description?.toLowerCase().includes(searchQuery.toLowerCase()) || skill.ownerAgent?.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch =
+                skill.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                skill.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                skill.ownerAgentName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                skill.category?.toLowerCase().includes(searchQuery.toLowerCase());
 
             const matchesScope = selectedScopes.length === 0 || selectedScopes.includes(skill.scope);
             const matchesType = selectedTypes.length === 0 || selectedTypes.includes(skill.type);
@@ -172,19 +125,79 @@ export const SkillCards: React.FC<SkillCardsProps> = ({ skills, onUseInChat, onE
 
     const isLibraryEmpty = skills.length === 0;
 
+    // Handle use in chat with full skill data
+    const handleUseInChat = useCallback(
+        (skill: SkillGroupSummary) => {
+            if (onUseInChat && selectedSkillDetail && selectedSkillDetail.id === skill.id) {
+                onUseInChat(selectedSkillDetail);
+            } else if (onUseInChat) {
+                // Fetch full details first
+                versionedSkillsApi
+                    .getSkillGroup(skill.id, true)
+                    .then(detail => {
+                        onUseInChat(detail);
+                    })
+                    .catch(error => {
+                        console.error("Failed to fetch skill for chat:", error);
+                    });
+            }
+        },
+        [onUseInChat, selectedSkillDetail]
+    );
+
+    // Handle view versions with full skill data
+    const handleViewVersions = useCallback(
+        (skill: SkillGroupSummary) => {
+            if (onViewVersions && selectedSkillDetail && selectedSkillDetail.id === skill.id) {
+                onViewVersions(selectedSkillDetail);
+            } else if (onViewVersions) {
+                // Fetch full details first
+                versionedSkillsApi
+                    .getSkillGroup(skill.id, true)
+                    .then(detail => {
+                        onViewVersions(detail);
+                    })
+                    .catch(error => {
+                        console.error("Failed to fetch skill for version history:", error);
+                    });
+            }
+        },
+        [onViewVersions, selectedSkillDetail]
+    );
+
+    // Handle export with full skill data
+    const handleExport = useCallback(
+        (skill: SkillGroupSummary) => {
+            if (onExport && selectedSkillDetail && selectedSkillDetail.id === skill.id) {
+                onExport(selectedSkillDetail);
+            } else if (onExport) {
+                // Fetch full details first
+                versionedSkillsApi
+                    .getSkillGroup(skill.id, true)
+                    .then(detail => {
+                        onExport(detail);
+                    })
+                    .catch(error => {
+                        console.error("Failed to fetch skill for export:", error);
+                    });
+            }
+        },
+        [onExport, selectedSkillDetail]
+    );
+
     return (
         <div className="absolute inset-0 h-full w-full">
-            <ResizablePanelGroup id="skillCardsPanelGroup" direction="horizontal" className="h-full">
-                <ResizablePanel defaultSize={selectedSkillId ? 70 : 100} minSize={50} maxSize={selectedSkillId ? 100 : 100} id="skillCardsMainPanel">
+            <ResizablePanelGroup id="skillGroupCardsPanelGroup" direction="horizontal" className="h-full">
+                <ResizablePanel defaultSize={selectedSkillId ? 70 : 100} minSize={50} maxSize={selectedSkillId ? 100 : 100} id="skillGroupCardsMainPanel">
                     <div className="flex h-full flex-col pt-6 pb-6 pl-6">
                         {!isLibraryEmpty && (
                             <div className="mb-4 flex items-center gap-2">
-                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="skillSearchInput" />
+                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="skillGroupSearchInput" />
 
                                 {/* Scope Filter Dropdown */}
                                 {scopes.length > 0 && (
                                     <div className="relative">
-                                        <Button onClick={() => setShowScopeDropdown(!showScopeDropdown)} variant="outline" testid="skillScopes">
+                                        <Button onClick={() => setShowScopeDropdown(!showScopeDropdown)} variant="outline" testid="skillGroupScopes">
                                             <Filter size={16} />
                                             Scope
                                             {selectedScopes.length > 0 && <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">{selectedScopes.length}</span>}
@@ -225,7 +238,7 @@ export const SkillCards: React.FC<SkillCardsProps> = ({ skills, onUseInChat, onE
                                 {/* Type Filter Dropdown */}
                                 {types.length > 0 && (
                                     <div className="relative">
-                                        <Button onClick={() => setShowTypeDropdown(!showTypeDropdown)} variant="outline" testid="skillTypes">
+                                        <Button onClick={() => setShowTypeDropdown(!showTypeDropdown)} variant="outline" testid="skillGroupTypes">
                                             <Filter size={16} />
                                             Type
                                             {selectedTypes.length > 0 && <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">{selectedTypes.length}</span>}
@@ -290,52 +303,17 @@ export const SkillCards: React.FC<SkillCardsProps> = ({ skills, onUseInChat, onE
                         ) : (
                             <div className="flex-1 overflow-y-auto">
                                 <div className="flex flex-wrap gap-6">
-                                    {/* Skill Cards */}
+                                    {/* Skill Group Cards */}
                                     {filteredSkills.map(skill => (
-                                        <SkillCard
+                                        <SkillGroupCard
                                             key={skill.id}
                                             skill={skill}
                                             isSelected={selectedSkillId === skill.id}
                                             onSkillClick={() => handleSkillClick(skill)}
-                                            onUseInChat={
-                                                onUseInChat
-                                                    ? s => {
-                                                          // Convert SkillSummary to Skill for the handler
-                                                          const fullSkill: Skill = {
-                                                              ...s,
-                                                              steps: [],
-                                                              agentChain: [],
-                                                              preconditions: [],
-                                                              postconditions: [],
-                                                              successCount: 0,
-                                                              failureCount: 0,
-                                                              createdAt: "",
-                                                              updatedAt: "",
-                                                          };
-                                                          onUseInChat(fullSkill);
-                                                      }
-                                                    : undefined
-                                            }
-                                            onExport={
-                                                onExport
-                                                    ? s => {
-                                                          // Convert SkillSummary to Skill for the handler
-                                                          const fullSkill: Skill = {
-                                                              ...s,
-                                                              steps: [],
-                                                              agentChain: [],
-                                                              preconditions: [],
-                                                              postconditions: [],
-                                                              successCount: 0,
-                                                              failureCount: 0,
-                                                              createdAt: "",
-                                                              updatedAt: "",
-                                                          };
-                                                          onExport(fullSkill);
-                                                      }
-                                                    : undefined
-                                            }
-                                            onViewVersions={onViewVersions}
+                                            onUseInChat={onUseInChat ? () => handleUseInChat(skill) : undefined}
+                                            onViewVersions={onViewVersions ? () => handleViewVersions(skill) : undefined}
+                                            onDelete={onDelete}
+                                            onExport={onExport ? () => handleExport(skill) : undefined}
                                         />
                                     ))}
                                 </div>
@@ -348,13 +326,13 @@ export const SkillCards: React.FC<SkillCardsProps> = ({ skills, onUseInChat, onE
                 {selectedSkillId && (
                     <>
                         <ResizableHandle />
-                        <ResizablePanel defaultSize={30} minSize={20} maxSize={50} id="skillDetailSidePanel">
+                        <ResizablePanel defaultSize={30} minSize={20} maxSize={50} id="skillGroupDetailSidePanel">
                             {isLoadingDetail ? (
                                 <div className="flex h-full items-center justify-center">
                                     <div className="text-muted-foreground">Loading...</div>
                                 </div>
                             ) : (
-                                <SkillDetailSidePanel skill={selectedSkillDetail} onClose={handleCloseSidePanel} onUseInChat={onUseInChat} onExport={onExport} />
+                                <SkillGroupDetailSidePanel skill={selectedSkillDetail} onClose={handleCloseSidePanel} onUseInChat={onUseInChat} onExport={onExport} onViewVersions={onViewVersions} onDelete={onDelete} />
                             )}
                         </ResizablePanel>
                     </>

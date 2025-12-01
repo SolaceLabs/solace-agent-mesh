@@ -40,7 +40,7 @@ from .routers import (
     visualization,
     projects,
     prompts,
-    skills,
+    versioned_skills,
 )
 from .routers.sessions import router as session_router
 from .routers.tasks import router as task_router
@@ -626,7 +626,7 @@ def _setup_routers() -> None:
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
     app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
-    app.include_router(skills.router, prefix=api_prefix, tags=["Skills"])
+    app.include_router(versioned_skills.router, prefix=api_prefix, tags=["Skills"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers from community repo
@@ -664,19 +664,23 @@ def _setup_skill_service(component: "WebUIBackendComponent", database_url: str) 
     """
     Initialize the skill learning service if configured.
     
+    The skill service is automatically enabled when a database is configured,
+    unless explicitly disabled via skills.enabled: false.
+    
     Args:
         component: WebUIBackendComponent instance
         database_url: Runtime database URL
     """
+    if not database_url:
+        log.debug("Skill learning service requires database configuration - skipping initialization")
+        return
+    
     app_config = _get_app_config(component)
     skills_config = app_config.get("skills", {})
     
-    if not skills_config.get("enabled", False):
-        log.debug("Skill learning service is disabled")
-        return
-    
-    if not database_url:
-        log.warning("Skill learning service requires database configuration - skipping initialization")
+    # Auto-enable skill service when database is configured, unless explicitly disabled
+    if skills_config.get("enabled") is False:
+        log.debug("Skill learning service is explicitly disabled")
         return
     
     try:

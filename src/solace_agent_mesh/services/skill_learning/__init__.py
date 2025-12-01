@@ -1,131 +1,81 @@
 """
 SAM Skill Learning System.
 
-A gateway-agnostic service that enables agents to learn from successful task executions
-and improve future task planning through skill extraction, storage, and retrieval.
-
-Main components:
-- SkillLearningService: Standalone service runner
-- SkillService: Main service for skill operations
-- SkillRepository: Database access layer
-- SkillExtractor: LLM-based skill extraction
-- FeedbackProcessor: Human feedback handling
-- EmbeddingService: Vector embeddings for search
-- StaticSkillLoader: SKILL.md file loading
-- SkillMessageHandler: Message broker integration
-
-Usage:
-    # Run as standalone service
-    python -m solace_agent_mesh.services.skill_learning.main
-    
-    # Or import and use programmatically
-    from solace_agent_mesh.services.skill_learning import SkillLearningService
-    service = SkillLearningService(config)
-    service.run_forever()
+This module provides the skill learning functionality for SAM,
+including skill extraction, storage, search, and versioning.
 """
 
+# Legacy entities (for backward compatibility)
 from .entities import (
     Skill,
     SkillType,
     SkillScope,
-    StepType,
-    AgentToolStep,
-    AgentChainNode,
-    SkillShare,
     SkillFeedback,
+    SkillShare,
     SkillUsage,
     LearningQueueItem,
+    AgentChainNode,
+    AgentToolStep,
+    StepType,
+    now_epoch_ms,
 )
 
-from .repository import (
-    SkillRepository,
-    Base,
-    SkillModel,
+# Versioned entities
+from .entities.versioned_entities import (
+    SkillGroup,
+    SkillVersion,
+    SkillGroupUser,
+    SkillGroupRole,
+    CreateSkillGroupRequest,
+    CreateVersionRequest,
 )
 
-from .services import (
-    SkillService,
-    EmbeddingService,
-    StaticSkillLoader,
-    SkillSearchService,
-)
+# Legacy service (for backward compatibility)
+from .services.skill_service import SkillService
 
-from .extraction import (
-    SkillExtractor,
-    TaskAnalyzer,
-)
+# Versioned service
+from .services.versioned_skill_service import VersionedSkillService
 
-from .feedback import (
-    FeedbackProcessor,
-)
+# Additional services
+from .services.embedding_service import EmbeddingService
+from .services.static_skill_loader import StaticSkillLoader
 
-from .broker import (
-    SkillMessageHandler,
-    SkillTopics,
-    SolaceBrokerConfig,
-    SolaceSkillLearningClient,
-    MockSolaceClient,
-    create_solace_client,
-)
+# Legacy repository
+from .repository.skill_repository import SkillRepository
 
-from .tools import (
-    SkillReadTool,
-    create_skill_read_tool,
-)
+# Versioned repository
+from .repository.versioned_repository import VersionedSkillRepository
 
-from .integration import (
-    AgentSkillInjector,
-    PromptEnhancer,
-    TaskContextAnalyzer,
-)
-
-from .config import SkillLearningConfig
-
-# Import main service (lazy to avoid circular imports)
-def _get_skill_learning_service():
-    from .main import SkillLearningService
-    return SkillLearningService
+# Skill extractor
+from .extraction.skill_extractor import SkillExtractor
 
 __all__ = [
-    # Entities
+    # Legacy entities
     "Skill",
     "SkillType",
     "SkillScope",
-    "StepType",
-    "AgentToolStep",
-    "AgentChainNode",
-    "SkillShare",
     "SkillFeedback",
+    "SkillShare",
     "SkillUsage",
     "LearningQueueItem",
-    # Repository
-    "SkillRepository",
-    "Base",
-    "SkillModel",
+    "AgentChainNode",
+    "AgentToolStep",
+    "StepType",
+    "now_epoch_ms",
+    # Versioned entities
+    "SkillGroup",
+    "SkillVersion",
+    "SkillGroupUser",
+    "SkillGroupRole",
+    "CreateSkillGroupRequest",
+    "CreateVersionRequest",
     # Services
     "SkillService",
+    "VersionedSkillService",
+    "SkillExtractor",
     "EmbeddingService",
     "StaticSkillLoader",
-    "SkillSearchService",
-    # Extraction
-    "SkillExtractor",
-    "TaskAnalyzer",
-    # Feedback
-    "FeedbackProcessor",
-    # Broker
-    "SkillMessageHandler",
-    "SkillTopics",
-    "SolaceBrokerConfig",
-    "SolaceSkillLearningClient",
-    "MockSolaceClient",
-    "create_solace_client",
-    # Tools
-    "SkillReadTool",
-    "create_skill_read_tool",
-    # Integration
-    "AgentSkillInjector",
-    "PromptEnhancer",
-    "TaskContextAnalyzer",
-    # Config
-    "SkillLearningConfig",
+    # Repositories
+    "SkillRepository",
+    "VersionedSkillRepository",
 ]

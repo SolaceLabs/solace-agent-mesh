@@ -235,3 +235,125 @@ export interface SkillHealth {
     needsAttention: boolean;
     attentionReason?: string;
 }
+
+/**
+ * Versioned Skills Types
+ * These types support the skill versioning system (skill_groups/skill_versions)
+ */
+
+/**
+ * Role for skill group access
+ */
+export type SkillGroupRole = "owner" | "editor" | "viewer";
+
+/**
+ * Individual version of a skill
+ */
+export interface SkillVersion {
+    id: string;
+    groupId: string;
+    version: number;
+    description: string;
+    markdownContent?: string;
+    summary?: string;
+    steps: SkillStep[];
+    agentChain: AgentChainNode[];
+    sourceTaskId?: string;
+    relatedTaskIds: string[];
+    involvedAgents: string[];
+    complexityScore: number;
+    createdByUserId?: string;
+    creationReason?: string;
+    createdAt: string;
+}
+
+/**
+ * Skill group summary for listing
+ */
+export interface SkillGroupSummary {
+    id: string;
+    name: string;
+    description?: string;
+    category?: string;
+    type: SkillType;
+    scope: SkillScope;
+    ownerAgentName?: string;
+    isArchived: boolean;
+    versionCount: number;
+    successRate?: number;
+    productionVersionId?: string;
+}
+
+/**
+ * Skill group (container for versions)
+ */
+export interface SkillGroup {
+    id: string;
+    name: string;
+    description?: string;
+    category?: string;
+    type: SkillType;
+    scope: SkillScope;
+    ownerAgentName?: string;
+    ownerUserId?: string;
+    isArchived: boolean;
+    versionCount: number;
+    successRate?: number;
+    createdAt: string;
+    updatedAt: string;
+    productionVersion?: SkillVersion;
+    productionVersionId?: string;
+}
+
+/**
+ * Skill group list response
+ */
+export interface SkillGroupListResponse {
+    skills: SkillGroup[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
+/**
+ * Request to create a new skill (with versioning)
+ */
+export interface CreateSkillGroupRequest {
+    name: string;
+    description: string;
+    scope?: SkillScope;
+    category?: string;
+    ownerAgent?: string;
+    markdownContent?: string;
+    summary?: string;
+    steps?: SkillStep[];
+    agentChain?: AgentChainNode[];
+}
+
+/**
+ * Request to create a new version
+ */
+export interface CreateVersionRequest {
+    description: string;
+    creationReason: string;
+    markdownContent?: string;
+    summary?: string;
+    steps?: SkillStep[];
+    agentChain?: AgentChainNode[];
+    setAsProduction?: boolean;
+}
+
+/**
+ * Request to rollback to a version
+ */
+export interface RollbackRequest {
+    versionId: string;
+}
+
+/**
+ * Request to share a skill group
+ */
+export interface ShareSkillGroupRequest {
+    targetUserId: string;
+    role?: SkillGroupRole;
+}

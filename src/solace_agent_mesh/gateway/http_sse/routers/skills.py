@@ -279,6 +279,8 @@ async def list_skills(
     - Skills shared with the user
     - Global skills
     - Agent-specific skills (if agent filter provided)
+    
+    Note: Returns empty list if skill learning service is not configured.
     """
     log_prefix = "[GET /api/v1/skills] "
     log.info("%sRequest from user %s", log_prefix, user_id)
@@ -286,9 +288,13 @@ async def list_skills(
     try:
         skill_service = get_skill_service()
         if skill_service is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Skill learning service is not available",
+            # Return empty results when skill service is not configured
+            log.debug("%sSkill service not configured, returning empty results", log_prefix)
+            return SkillSearchResponse(
+                skills=[],
+                total=0,
+                page=page,
+                page_size=page_size,
             )
         
         # Parse tags (not currently used by SkillService but kept for future)
@@ -803,6 +809,8 @@ async def semantic_search_skills(
     
     Uses vector similarity to find skills that match the query semantically,
     even if they don't contain the exact keywords.
+    
+    Note: Returns empty list if skill learning service is not configured.
     """
     log_prefix = "[GET /api/v1/skills/search/semantic] "
     log.info("%sRequest from user %s, query: %s", log_prefix, user_id, query)
@@ -810,9 +818,13 @@ async def semantic_search_skills(
     try:
         skill_service = get_skill_service()
         if skill_service is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Skill learning service is not available",
+            # Return empty results when skill service is not configured
+            log.debug("%sSkill service not configured, returning empty results", log_prefix)
+            return SkillSearchResponse(
+                skills=[],
+                total=0,
+                page=1,
+                page_size=limit,
             )
         
         skills = skill_service.semantic_search(
@@ -855,6 +867,8 @@ async def get_agent_skills(
     Returns:
     - Agent-specific skills
     - Optionally includes global skills
+    
+    Note: Returns empty list if skill learning service is not configured.
     """
     log_prefix = f"[GET /api/v1/skills/agent/{agent_name}] "
     log.info("%sRequest from user %s", log_prefix, user_id)
@@ -862,9 +876,13 @@ async def get_agent_skills(
     try:
         skill_service = get_skill_service()
         if skill_service is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Skill learning service is not available",
+            # Return empty results when skill service is not configured
+            log.debug("%sSkill service not configured, returning empty results", log_prefix)
+            return SkillSearchResponse(
+                skills=[],
+                total=0,
+                page=page,
+                page_size=page_size,
             )
         
         skills = skill_service.get_skills_for_agent(

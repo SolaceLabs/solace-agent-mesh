@@ -1,20 +1,21 @@
 import React, { useState } from "react";
-import { Lightbulb, Tag, MoreHorizontal, Users, CheckCircle, XCircle, MessageSquare, History, Download } from "lucide-react";
+import { Lightbulb, Tag, MoreHorizontal, Users, CheckCircle, XCircle, MessageSquare, History, Trash2, Download } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
-import type { SkillSummary } from "@/lib/types/skills";
+import type { SkillGroupSummary } from "@/lib/types/versioned-skills";
 
-interface SkillCardProps {
-    skill: SkillSummary;
+interface SkillGroupCardProps {
+    skill: SkillGroupSummary;
     isSelected: boolean;
     onSkillClick: () => void;
-    onUseInChat?: (skill: SkillSummary) => void;
-    onViewVersions?: (skill: SkillSummary) => void;
-    onExport?: (skill: SkillSummary) => void;
+    onUseInChat?: (skill: SkillGroupSummary) => void;
+    onViewVersions?: (skill: SkillGroupSummary) => void;
+    onDelete?: (id: string, name: string) => void;
+    onExport?: (skill: SkillGroupSummary) => void;
 }
 
-export const SkillCard: React.FC<SkillCardProps> = ({ skill, isSelected, onSkillClick, onUseInChat, onViewVersions, onExport }) => {
+export const SkillGroupCard: React.FC<SkillGroupCardProps> = ({ skill, isSelected, onSkillClick, onUseInChat, onViewVersions, onDelete, onExport }) => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
     // Format success rate as percentage
@@ -48,6 +49,38 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill, isSelected, onSkill
         }
     };
 
+    const handleUseInChat = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setDropdownOpen(false);
+        if (onUseInChat) {
+            onUseInChat(skill);
+        }
+    };
+
+    const handleViewVersions = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setDropdownOpen(false);
+        if (onViewVersions) {
+            onViewVersions(skill);
+        }
+    };
+
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setDropdownOpen(false);
+        if (onDelete) {
+            onDelete(skill.id, skill.name);
+        }
+    };
+
+    const handleExport = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setDropdownOpen(false);
+        if (onExport) {
+            onExport(skill);
+        }
+    };
+
     return (
         <GridCard isSelected={isSelected} onClick={onSkillClick}>
             <div className="flex h-full w-full flex-col">
@@ -78,39 +111,27 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill, isSelected, onSkill
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" onClick={e => e.stopPropagation()}>
                                 {onUseInChat && (
-                                    <DropdownMenuItem
-                                        onClick={e => {
-                                            e.stopPropagation();
-                                            setDropdownOpen(false);
-                                            onUseInChat(skill);
-                                        }}
-                                    >
+                                    <DropdownMenuItem onClick={handleUseInChat}>
                                         <MessageSquare size={14} className="mr-2" />
                                         Use in Chat
                                     </DropdownMenuItem>
                                 )}
                                 {onExport && (
-                                    <DropdownMenuItem
-                                        onClick={e => {
-                                            e.stopPropagation();
-                                            setDropdownOpen(false);
-                                            onExport(skill);
-                                        }}
-                                    >
+                                    <DropdownMenuItem onClick={handleExport}>
                                         <Download size={14} className="mr-2" />
                                         Export Skill
                                     </DropdownMenuItem>
                                 )}
                                 {onViewVersions && (
-                                    <DropdownMenuItem
-                                        onClick={e => {
-                                            e.stopPropagation();
-                                            setDropdownOpen(false);
-                                            onViewVersions(skill);
-                                        }}
-                                    >
+                                    <DropdownMenuItem onClick={handleViewVersions}>
                                         <History size={14} className="mr-2" />
-                                        Version History
+                                        Open Version History
+                                    </DropdownMenuItem>
+                                )}
+                                {onDelete && (
+                                    <DropdownMenuItem onClick={handleDelete}>
+                                        <Trash2 size={14} className="mr-2" />
+                                        Delete All Versions
                                     </DropdownMenuItem>
                                 )}
                             </DropdownMenuContent>
@@ -118,10 +139,10 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill, isSelected, onSkill
                     </div>
                 </div>
                 <div className="flex flex-grow flex-col overflow-hidden px-4">
-                    {skill.ownerAgent && (
+                    {skill.ownerAgentName && (
                         <div className="text-muted-foreground mb-2 flex items-center gap-1 text-xs">
                             <Users size={12} />
-                            {skill.ownerAgent}
+                            {skill.ownerAgentName}
                         </div>
                     )}
                     <div className="mb-3 line-clamp-2 text-sm leading-5">{skill.description || "No description provided."}</div>
@@ -134,13 +155,20 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill, isSelected, onSkill
                                 <Tag size={10} />
                                 {skill.scope}
                             </span>
+                            {/* Version count */}
+                            {skill.versionCount > 1 && <span className="text-muted-foreground text-xs">{skill.versionCount} versions</span>}
                             {/* Success rate */}
                             <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
                                 {skill.successRate !== undefined && skill.successRate >= 0.7 ? <CheckCircle size={12} className="text-green-500" /> : skill.successRate !== undefined ? <XCircle size={12} className="text-red-500" /> : null}
                                 {successRateDisplay}
                             </span>
-                            {/* Usage count */}
-                            {skill.usageCount > 0 && <span className="text-muted-foreground text-xs">{skill.usageCount} uses</span>}
+                            {/* Category */}
+                            {skill.category && (
+                                <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium">
+                                    <Tag size={10} />
+                                    {skill.category}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>

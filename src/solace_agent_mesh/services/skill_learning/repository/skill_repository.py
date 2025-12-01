@@ -20,6 +20,11 @@ from .models import (
     LearningQueueModel,
     SkillEmbeddingModel,
 )
+from .versioned_models import (
+    SkillGroupModel,
+    SkillVersionModel,
+    SkillGroupUserModel,
+)
 from ..entities import (
     Skill,
     SkillType,
@@ -78,7 +83,9 @@ class SkillRepository:
     
     def create_skill(self, skill: Skill) -> Skill:
         """
-        Create a new skill in the database.
+        Create a new skill in the database using the versioned tables.
+        
+        Creates both a skill_group and an initial skill_version (v1).
         
         Args:
             skill: The skill entity to create
@@ -86,11 +93,56 @@ class SkillRepository:
         Returns:
             The created skill with any database-generated fields
         """
+        import uuid
+        
         with self.get_session() as session:
-            model = self._skill_to_model(skill)
-            session.add(model)
+            # Generate IDs
+            group_id = str(uuid.uuid4())
+            version_id = skill.id  # Use the skill's ID as the version ID
+            
+            # Create skill group
+            group_model = SkillGroupModel(
+                id=group_id,
+                name=skill.name,
+                description=skill.description[:500] if skill.description else None,  # Truncate for group
+                category=None,  # Could be extracted from metadata
+                type=skill.type if isinstance(skill.type, str) else skill.type.value,
+                scope=skill.scope if isinstance(skill.scope, str) else skill.scope.value,
+                owner_agent_name=skill.owner_agent_name,
+                owner_user_id=skill.owner_user_id,
+                production_version_id=version_id,
+                is_archived=False,
+                created_at=skill.created_at,
+                updated_at=skill.updated_at,
+            )
+            session.add(group_model)
+            
+            # Create initial version (v1)
+            version_model = SkillVersionModel(
+                id=version_id,
+                group_id=group_id,
+                version=1,
+                description=skill.description,
+                markdown_content=skill.markdown_content,
+                agent_chain=[n.model_dump() for n in skill.agent_chain] if skill.agent_chain else None,
+                tool_steps=[s.model_dump() for s in skill.tool_steps] if skill.tool_steps else None,
+                summary=skill.summary,
+                source_task_id=skill.source_task_id,
+                related_task_ids=skill.related_task_ids,
+                involved_agents=skill.involved_agents,
+                embedding=skill.embedding,
+                complexity_score=skill.complexity_score or 0,
+                created_by_user_id=skill.owner_user_id,
+                creation_reason="Initial version (learned from task)",
+                created_at=skill.created_at,
+            )
+            session.add(version_model)
+            
             session.flush()
-            return self._model_to_skill(model)
+            
+            # Return the skill with updated group_id stored in a custom field
+            skill.id = version_id  # Keep the version ID as the skill ID for backward compatibility
+            return skill
     
     def get_skill(self, skill_id: str) -> Optional[Skill]:
         """
@@ -835,4 +887,33 @@ class SkillRepository:
             completed_at=model.completed_at,
             error_message=model.error_message,
             retry_count=model.retry_count,
+        )
+    
+    def _version_model_to_skill(self, version_model: SkillVersionModel, group_model: Optional[SkillGroupModel] = None) -> Skill:
+        """Convert a SkillVersionModel (and optional SkillGroupModel) to a Skill entity."""
+        return Skill(
+            id=version_model.id,
+            name=group_model.name if group_model else "Unknown",
+            description=version_model.description,
+            type=SkillType(group_model.type) if group_model else SkillType.LEARNED,
+            scope=SkillScope(group_model.scope) if group_model else SkillScope.AGENT,
+            owner_agent_name=group_model.owner_agent_name if group_model else None,
+            owner_user_id=group_model.owner_user_id if group_model else None,
+            markdown_content=version_model.markdown_content,
+            agent_chain=[AgentChainNode(**n) for n in (version_model.agent_chain or [])],
+            tool_steps=[AgentToolStep(**s) for s in (version_model.tool_steps or [])],
+            source_task_id=version_model.source_task_id,
+            related_task_ids=version_model.related_task_ids or [],
+            involved_agents=version_model.involved_agents or [],
+            summary=version_model.summary,
+            created_at=version_model.created_at,
+            updated_at=group_model.updated_at if group_model else version_model.created_at,
+            success_count=0,  # Would need to be calculated from feedback
+            failure_count=0,  # Would need to be calculated from feedback
+            user_corrections=0,  # Would need to be calculated from feedback
+            last_feedback_at=None,
+            parent_skill_id=None,
+            refinement_reason=version_model.creation_reason,
+            complexity_score=version_model.complexity_score or 0,
+            embedding=version_model.embedding,
         )

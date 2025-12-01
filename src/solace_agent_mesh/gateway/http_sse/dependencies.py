@@ -668,7 +668,7 @@ def init_skill_service(
     Called during application startup to configure the skill service.
     
     Args:
-        database_url: Database URL for skill storage
+        database_url: Database URL for skill storage (from config or fallback)
         skills_directory: Directory for static skill files
         embedding_enabled: Whether to enable embedding-based search
         embedding_provider: Embedding provider (openai, litellm)
@@ -681,16 +681,36 @@ def init_skill_service(
         return
     
     try:
+        import os
         from ...services.skill_learning import (
-            SkillService,
-            SkillRepository,
+            VersionedSkillService,
+            VersionedSkillRepository,
             EmbeddingService,
             StaticSkillLoader,
         )
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
         
-        # Initialize repository
-        repository = SkillRepository(database_url)
-        repository.create_tables()
+        # Check for SKILLS_DATABASE_URL environment variable as override
+        # This allows skills to use a separate database from the main gateway database
+        env_skills_db = os.environ.get("SKILLS_DATABASE_URL")
+        if env_skills_db:
+            actual_db_url = env_skills_db
+            log.info(f"Using SKILLS_DATABASE_URL from environment: {actual_db_url}")
+        else:
+            actual_db_url = database_url
+            log.info(f"Using database URL from config: {actual_db_url}")
+        
+        # Create engine and session factory for versioned repository
+        engine = create_engine(actual_db_url)
+        session_factory = sessionmaker(bind=engine)
+        
+        # Initialize versioned repository with session factory
+        repository = VersionedSkillRepository(session_factory)
+        
+        # Create tables if they don't exist
+        from ...services.skill_learning.repository.versioned_models import Base
+        Base.metadata.create_all(engine)
         
         # Initialize embedding service if enabled
         embedding_service = None
@@ -704,7 +724,7 @@ def init_skill_service(
             except Exception as e:
                 log.warning(f"Failed to initialize embedding service: {e}")
         
-        # Initialize static skill loader
+        # Initialize static skill loader if directory provided
         static_loader = None
         if skills_directory:
             try:
@@ -713,15 +733,14 @@ def init_skill_service(
             except Exception as e:
                 log.warning(f"Failed to initialize static skill loader: {e}")
         
-        # Create skill service
-        _skill_service_instance = SkillService(
+        # Create versioned skill service with static loader
+        _skill_service_instance = VersionedSkillService(
             repository=repository,
             embedding_service=embedding_service,
             static_loader=static_loader,
-            auto_generate_embeddings=embedding_enabled,
         )
         
-        log.info("Skill learning service initialized successfully")
+        log.info("Versioned skill learning service initialized successfully")
         
     except ImportError as e:
         log.warning(f"Skill learning service not available: {e}")
@@ -734,20 +753,30 @@ def get_skill_service():
     FastAPI dependency to get the skill service.
     
     Returns:
-        SkillService instance or raises HTTPException if not initialized
+        SkillService instance or None if not initialized
     """
     if _skill_service_instance is None:
         log.warning("Skill service not initialized")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Skill learning service not configured or available.",
-        )
+        return None
     return _skill_service_instance
 
 
 def get_skill_service_optional():
     """
     FastAPI dependency to get the skill service optionally.
+    
+    Returns:
+        SkillService instance or None if not initialized
+    """
+    return _skill_service_instance
+
+
+def get_versioned_skill_service():
+    """
+    FastAPI dependency to get the versioned skill service.
+    
+    This is an alias for get_skill_service_optional() for use with
+    the versioned skills API (v2).
     
     Returns:
         SkillService instance or None if not initialized
