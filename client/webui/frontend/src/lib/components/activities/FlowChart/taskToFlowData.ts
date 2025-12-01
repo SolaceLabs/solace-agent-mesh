@@ -446,14 +446,12 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
 }
 
 function handleArtifactNotification(step: VisualizerStep, manager: TimelineLayoutManager, nodes: Node[], edges: Edge[], edgeAnimationService: EdgeAnimationService, processedSteps: VisualizerStep[]): void {
-    console.log("[Timeline] Handling artifact notification for step:", step.id);
     const currentPhase = getCurrentPhase(manager);
     if (!currentPhase) return;
 
     const artifactData = step.data.artifactNotification;
     const artifactName = artifactData?.artifactName || "Unnamed Artifact";
 
-    // Resolve the subflow context (if we're in a peer agent subflow)
     const subflow = resolveSubflowContext(manager, step);
 
     // Find the tool node that created this artifact
@@ -461,12 +459,10 @@ function handleArtifactNotification(step: VisualizerStep, manager: TimelineLayou
     const context = subflow || currentPhase;
     let sourceToolNode: NodeInstance | undefined;
 
-    // Try to find the tool by functionCallId first
     if (step.functionCallId) {
         sourceToolNode = findToolInstanceByNameEnhanced(context.toolInstances, "", nodes, step.functionCallId) ?? undefined;
     }
 
-    // If not found by functionCallId, find the most recent tool in this context
     if (!sourceToolNode && context.toolInstances.length > 0) {
         sourceToolNode = context.toolInstances[context.toolInstances.length - 1];
     }
@@ -475,26 +471,9 @@ function handleArtifactNotification(step: VisualizerStep, manager: TimelineLayou
     let sourceHandle: string;
 
     if (sourceToolNode) {
-        // Connect from the tool node's right handle
         sourceNodeId = sourceToolNode.id;
         sourceHandle = `${sourceToolNode.id}-tool-right-output-artifact`;
-    } else {
-        // Fallback: connect directly from agent if no tool found
-        const sourceName = step.source || "UnknownSource";
-        if (subflow) {
-            sourceNodeId = subflow.peerAgent.id;
-            sourceHandle = "peer-right-output-tools";
-        } else {
-            const sourceAgent = manager.agentRegistry.findAgentByName(sourceName);
-            if (sourceAgent) {
-                sourceNodeId = sourceAgent.nodeInstance.id;
-                sourceHandle = getAgentHandle(sourceAgent.type, "output", "right");
-            } else {
-                sourceNodeId = currentPhase.orchestratorAgent.id;
-                sourceHandle = "orch-right-output-tools";
-            }
-        }
-    }
+    } else return; // Cannot create artifact node without a source tool
 
     // Create artifact node positioned to the RIGHT of the tool node
     const artifactNodeId = generateNodeId(manager, `Artifact_${artifactName}_${step.id}`);
@@ -504,29 +483,22 @@ function handleArtifactNotification(step: VisualizerStep, manager: TimelineLayou
     let artifactY: number;
 
     if (sourceToolNode) {
-        // Position artifact to the right of the tool node
         const ARTIFACT_X_OFFSET = 300; // Horizontal distance from tool to artifact
 
         if (subflow) {
-            // In a subflow, positions are relative to the group
             const toolNode = nodes.find(n => n.id === sourceToolNode.id);
             if (toolNode) {
                 artifactX = toolNode.position.x + ARTIFACT_X_OFFSET;
-                artifactY = toolNode.position.y; // Same Y level as the tool
+                artifactY = toolNode.position.y;
             } else {
                 artifactX = (sourceToolNode.xPosition ?? LANE_X_POSITIONS.TOOLS) + ARTIFACT_X_OFFSET;
                 artifactY = sourceToolNode.yPosition ?? manager.nextAvailableGlobalY;
             }
         } else {
-            // In main flow, use absolute positioning
             artifactX = (sourceToolNode.xPosition ?? LANE_X_POSITIONS.TOOLS) + ARTIFACT_X_OFFSET;
             artifactY = sourceToolNode.yPosition ?? manager.nextAvailableGlobalY;
         }
-    } else {
-        // Fallback positioning if no tool found (shouldn't happen often)
-        artifactX = LANE_X_POSITIONS.TOOLS + 250;
-        artifactY = manager.nextAvailableGlobalY;
-    }
+    } else return; // Cannot create artifact node without a source tool
 
     const artifactNode: Node = {
         id: artifactNodeId,
@@ -550,10 +522,6 @@ function handleArtifactNotification(step: VisualizerStep, manager: TimelineLayou
         width: NODE_WIDTH,
     };
 
-    // Track artifact instance (add to context for potential future references)
-    context.toolInstances.push(artifactInstance);
-
-    // Create edge from source (tool or agent) to artifact node
     createTimelineEdge(sourceNodeId, artifactInstance.id, step, edges, manager, edgeAnimationService, processedSteps, sourceHandle, `${artifactInstance.id}-artifact-left-input`);
 
     // Update maxY and maxContentXRelative to ensure group accommodates the artifact
