@@ -13,6 +13,7 @@ import { getThemeButtonHtmlStyles } from "@/lib/utils";
 
 import { EdgeAnimationService } from "./FlowChart/edgeAnimationService";
 import { BlockBuilder } from "./FlowChart/layout/BlockBuilder";
+import { adjustAgentSlots } from "./FlowChart/layout/LayoutBlock";
 import GenericFlowEdge, { type AnimatedEdgeData } from "./FlowChart/customEdges/GenericFlowEdge";
 import ConditionalNode from "./FlowChart/customNodes/ConditionalNode";
 import GenericAgentNode from "./FlowChart/customNodes/GenericAgentNode";
@@ -86,6 +87,7 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
             root.layout();
             root.resolveAbsolutePositions(300, 0); // Start with offset to accommodate User lane on left
             const nodes = root.collectNodes();
+            adjustAgentSlots(nodes);
             return { nodes, edges };
         } catch (e) {
             console.error("BlockBuilder Error:", e);

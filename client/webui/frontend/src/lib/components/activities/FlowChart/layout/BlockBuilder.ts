@@ -68,6 +68,9 @@ export class BlockBuilder {
             case "AGENT_RESPONSE_TEXT":
                 this.handleAgentResponse(step);
                 break;
+            case "TASK_COMPLETED":
+                this.handleTaskCompleted(step);
+                break;
             case "WORKFLOW_EXECUTION_START":
                 {
                     const wfName = step.data.workflowExecutionStart?.workflowName || "Workflow";
@@ -417,8 +420,14 @@ export class BlockBuilder {
     }
 
     private createEdge(source: string, target: string, stepId?: string, sourceHandle?: string, targetHandle?: string) {
-        console.log(`[BlockBuilder] Creating edge ${source} -> ${target} (step: ${stepId})`);
         const edgeId = `e_${source}_${target}`;
+        
+        // Avoid duplicates
+        if (this.edges.some(e => e.id === edgeId)) {
+            return;
+        }
+
+        console.log(`[BlockBuilder] Creating edge ${source} -> ${target} (step: ${stepId})`);
         const edge: Edge = {
             id: edgeId,
             source: source,
@@ -729,6 +738,46 @@ export class BlockBuilder {
 
             // Optional: Add a "Join" node after the parallel block
             this.addNode("genericAgentNode", step, "Join", { variant: "pill" }, taskId);
+        }
+    }
+
+    private handleTaskCompleted(step: VisualizerStep) {
+        const taskId = step.owningTaskId;
+        const taskBlock = this.taskBlockMap.get(taskId);
+        
+        // Check if this is a sub-task completion (taskBlock is innerStack of a Group)
+        if (taskBlock && taskBlock instanceof VerticalStackBlock) {
+            const groupBlock = taskBlock.parent;
+            if (groupBlock instanceof GroupBlock) {
+                // This is a subflow group
+                // Find the parent agent
+                // groupBlock.parent is the ToolStack of the parent
+                const toolStack = groupBlock.parent;
+                if (toolStack && toolStack.parent instanceof HorizontalStackBlock) {
+                    const row = toolStack.parent;
+                    if (row.children.length > 0 && row.children[0] instanceof LeafBlock) {
+                        const parentAgent = row.children[0];
+                        
+                        // Find the sub-agent node in the group to connect from
+                        // taskBlock (innerStack) -> Row -> Agent
+                        let subAgentId: string | undefined;
+                        if (taskBlock.children.length > 0) {
+                             const firstChild = taskBlock.children[0];
+                             if (firstChild instanceof HorizontalStackBlock && firstChild.children.length > 0) {
+                                 subAgentId = firstChild.children[0].id;
+                             } else if (firstChild instanceof LeafBlock) {
+                                 subAgentId = firstChild.id;
+                             }
+                        }
+                        
+                        if (subAgentId && parentAgent) {
+                             const sourceHandle = "peer-left-output";
+                             const targetHandle = `agent-in-${subAgentId}`;
+                             this.createEdge(subAgentId, parentAgent.id, step.id, sourceHandle, targetHandle);
+                        }
+                    }
+                }
+            }
         }
     }
 }

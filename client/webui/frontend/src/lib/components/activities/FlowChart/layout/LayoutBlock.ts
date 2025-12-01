@@ -65,6 +65,36 @@ export abstract class LayoutBlock {
     }
 }
 
+export function adjustAgentSlots(nodes: Node[]): void {
+    const nodeMap = new Map<string, Node>(nodes.map(n => [n.id, n]));
+
+    for (const node of nodes) {
+        if (node.data && node.data.toolSlots && Array.isArray(node.data.toolSlots)) {
+            const slots = node.data.toolSlots as any[];
+            if (slots.length === 0) continue;
+
+            for (const slot of slots) {
+                const targetNode = nodeMap.get(slot.id);
+                if (targetNode) {
+                    // Calculate relative Y offset
+                    // targetNode.position is absolute. node.position is absolute.
+                    
+                    // Use measured height if available, else style height, else default
+                    const targetHeight = targetNode.measured?.height ?? 
+                                        (parseInt(targetNode.style?.height?.toString() || "0") || NODE_HEIGHT);
+                                        
+                    const targetCenterY = targetNode.position.y + (targetHeight / 2);
+                    
+                    // We want the slot to be at targetCenterY relative to node.position.y
+                    const relativeY = targetCenterY - node.position.y;
+                    
+                    slot.yOffset = relativeY;
+                }
+            }
+        }
+    }
+}
+
 export class LeafBlock extends LayoutBlock {
     measure(): void {
         this.width = this.nodePayload?.measured?.width ?? 
