@@ -257,8 +257,8 @@ function handleToolInvocationStart(step: VisualizerStep, manager: TimelineLayout
     const toolNameFromData = step.data.toolInvocationStart?.toolName;
 
     // Skip workflow tool invocations as they are handled by WORKFLOW_EXECUTION_START
-    // Check both target and data.toolName to be sure
-    if (targetToolName.startsWith("workflow_") || (toolNameFromData && toolNameFromData.startsWith("workflow_"))) {
+    // Check both target and data.toolName to be sure. Using includes to be safe against prefixes.
+    if (targetToolName.includes("workflow_") || (toolNameFromData && toolNameFromData.includes("workflow_"))) {
         return;
     }
 
@@ -317,7 +317,7 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
     const stepSource = step.source || "UnknownSource";
     const toolName = step.data.toolResult?.toolName || stepSource;
     const targetAgentName = step.target || "OrchestratorAgent";
-    const isWorkflowReturn = toolName.startsWith("workflow_");
+    const isWorkflowReturn = toolName.includes("workflow_");
 
     if (step.data.toolResult?.isPeerResponse || isWorkflowReturn) {
         const returningFunctionCallId = step.data.toolResult?.functionCallId;
@@ -405,7 +405,7 @@ function handleToolExecutionResult(step: VisualizerStep, manager: TimelineLayout
                 sourceNodeId = workflowSubflow.finishNodeId || workflowSubflow.peerAgent.id;
             } else {
                 // Fallback: try to find the workflow agent by name if subflow lookup fails
-                const workflowName = toolName.replace("workflow_", "");
+                const workflowName = toolName.replace("peer_", "").replace("workflow_", "");
                 const agentInfo = manager.agentRegistry.findAgentByName(workflowName);
                 if (agentInfo) sourceNodeId = agentInfo.id;
             }
