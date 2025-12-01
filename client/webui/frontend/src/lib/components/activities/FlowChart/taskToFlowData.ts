@@ -254,9 +254,11 @@ function handleToolInvocationStart(step: VisualizerStep, manager: TimelineLayout
 
     const sourceName = step.source || "UnknownSource";
     const targetToolName = step.target || "UnknownTool";
+    const toolNameFromData = step.data.toolInvocationStart?.toolName;
 
     // Skip workflow tool invocations as they are handled by WORKFLOW_EXECUTION_START
-    if (targetToolName.startsWith("workflow_")) {
+    // Check both target and data.toolName to be sure
+    if (targetToolName.startsWith("workflow_") || (toolNameFromData && toolNameFromData.startsWith("workflow_"))) {
         return;
     }
 
