@@ -3,13 +3,21 @@ import type { PaginatedSessionsResponse } from "@/lib/components/chat/SessionLis
 import { authenticatedFetch } from "@/lib/utils";
 
 /* TODO:
- * Add back original error handling
  * Dynamically get Base URL
  * Convert move to different project query
  * Remove Project Provider
  * */
+export const handleAPIError = async (response: Response, defaultMessageLabel: string) => {
+    if (response.ok) return;
+
+    const errorData = await response.json();
+
+    throw new Error(errorData.message || errorData.detail || `${defaultMessageLabel}: ${response.statusText}`);
+};
 export const getProjects = async () => {
     const response = await authenticatedFetch("/api/v1/projects?include_artifact_count=true", { credentials: "include" });
+    await handleAPIError(response, "Failed to get projects");
+
     const data = await response.json();
     return data as { projects: Project[]; total: number };
 };
@@ -27,6 +35,9 @@ export const createProject = async (data: CreateProjectRequest) => {
         body: formData,
         credentials: "include",
     });
+
+    await handleAPIError(response, "Failed to create project");
+
     return await response.json();
 };
 
@@ -46,6 +57,9 @@ export const addFilesToProject = async (projectId: string, files: File[], fileMe
         body: formData,
         credentials: "include",
     });
+
+    await handleAPIError(response, "Failed to add files to project");
+
     return await response.json();
 };
 
@@ -54,6 +68,9 @@ export const removeFileFromProject = async (projectId: string, filename: string)
         method: "DELETE",
         credentials: "include",
     });
+
+    await handleAPIError(response, "Failed to remove file from project");
+
     return await response.json();
 };
 
@@ -66,6 +83,9 @@ export const updateFileMetadata = async (projectId: string, filename: string, de
         body: formData,
         credentials: "include",
     });
+
+    await handleAPIError(response, "Failed to update file description");
+
     return await response.json();
 };
 
@@ -76,6 +96,9 @@ export const updateProject = async (projectId: string, data: UpdateProjectData) 
         body: JSON.stringify(data),
         credentials: "include",
     });
+
+    await handleAPIError(response, "Failed to update project");
+
     return await response.json();
 };
 
@@ -85,20 +108,24 @@ export const deleteProject = async (projectId: string) => {
         credentials: "include",
     });
 
-    if (!response.ok) {
-        throw new Error(`Failed to delete project: ${projectId}`);
-    }
+    await handleAPIError(response, "Failed to delete project");
 };
 
 export const getProjectArtifacts = async (projectId: string) => {
     const url = `/api/v1/projects/${projectId}/artifacts`;
     const response = await authenticatedFetch(url, { credentials: "include" });
+
+    await handleAPIError(response, "Failed to get project artifacts");
+
     return (await response.json()) as ArtifactInfo[];
 };
 
 export const getProjectSessions = async (projectId: string) => {
     const url = `/api/v1/sessions?project_id=${projectId}&pageNumber=1&pageSize=100`;
     const response = await authenticatedFetch(url, { credentials: "include" });
+
+    await handleAPIError(response, "Failed to get project sessions");
+
     const json = (await response.json()) as PaginatedSessionsResponse;
     return json.data;
 };
@@ -106,10 +133,7 @@ export const getProjectSessions = async (projectId: string) => {
 export const exportProject = async (projectId: string) => {
     const response = await authenticatedFetch(`/api/v1/projects/${projectId}/export`);
 
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || "Failed to export project");
-    }
+    await handleAPIError(response, "Failed to export project");
 
     return await response.blob();
 };
@@ -125,9 +149,7 @@ export const importProject = async (file: File, options: { preserveName: boolean
         credentials: "include",
     });
 
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || "Failed to import project");
-    }
+    await handleAPIError(response, "Failed to import project");
+
     return await response.json();
 };
