@@ -491,25 +491,24 @@ export class BlockBuilder {
             // Note: addNode will handle the creation of InteractionRow and ToolsStack for this new agent
             const nodeId = this.addNode("genericAgentNode", step, label, {}, newTaskId, false);
             
-            // We need to connect the caller to this new agent
-            const callerNodeId = this.lastNodeByTaskId.get(parentTaskId);
-            if (callerNodeId) {
-                 // We need to register slot on caller agent.
-                 if (this.lastNodeBlock && this.lastNodeBlock.id === callerNodeId && this.lastNodeBlock.nodePayload) {
-                     const agentNode = this.lastNodeBlock.nodePayload;
-                     if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
-                     
-                     const slotIndex = (agentNode.data.toolSlots as any[]).length;
-                     const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
-                     const initialOffset = 25;
-                     const yOffset = initialOffset + (slotIndex * toolPitch);
-                     
-                     (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
-                     
-                     const sourceHandle = `agent-out-${nodeId}`;
-                     const targetHandle = "peer-left-input";
-                     this.createEdge(callerNodeId, nodeId, step.id, sourceHandle, targetHandle);
-                 }
+            // Find the caller agent block to add a slot
+            const agentBlock = this.findActiveAgentNode(parentContainer);
+            
+            if (agentBlock && agentBlock.nodePayload) {
+                 // Register slot on caller agent
+                 const agentNode = agentBlock.nodePayload;
+                 if (!agentNode.data.toolSlots) agentNode.data.toolSlots = [];
+                 
+                 const slotIndex = (agentNode.data.toolSlots as any[]).length;
+                 const toolPitch = NODE_HEIGHT + (VERTICAL_SPACING / 2);
+                 const initialOffset = 25;
+                 const yOffset = initialOffset + (slotIndex * toolPitch);
+                 
+                 (agentNode.data.toolSlots as any[]).push({ id: nodeId, yOffset });
+                 
+                 const sourceHandle = `agent-out-${nodeId}`;
+                 const targetHandle = "peer-left-input";
+                 this.createEdge(agentBlock.id, nodeId, step.id, sourceHandle, targetHandle);
             }
         }
     }
