@@ -259,6 +259,7 @@ function handleToolInvocationStart(step: VisualizerStep, manager: TimelineLayout
     // Skip workflow tool invocations as they are handled by WORKFLOW_EXECUTION_START
     // Check both target and data.toolName to be sure. Using includes to be safe against prefixes.
     if (targetToolName.includes("workflow_") || (toolNameFromData && toolNameFromData.includes("workflow_"))) {
+        console.log(`[Timeline] Skipping workflow tool invocation: ${targetToolName} / ${toolNameFromData}`);
         return;
     }
 

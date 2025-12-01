@@ -57,9 +57,21 @@ const getEventTimestamp = (event: A2AEventSSEPayload): string => {
  * @param allMonitoredTasks A record of all monitored tasks.
  * @param taskNestingLevels A map to store the nesting level of each task ID.
  * @param currentLevel The current nesting level for currentTaskId.
+ * @param visitedTaskIds A set of task IDs that have already been visited to prevent cycles/duplication.
  * @returns An array of A2AEventSSEPayload objects from the task and its descendants.
  */
-const collectAllDescendantEvents = (currentTaskId: string, allMonitoredTasks: Record<string, TaskFE>, taskNestingLevels: Map<string, number>, currentLevel: number): A2AEventSSEPayload[] => {
+const collectAllDescendantEvents = (
+    currentTaskId: string,
+    allMonitoredTasks: Record<string, TaskFE>,
+    taskNestingLevels: Map<string, number>,
+    currentLevel: number,
+    visitedTaskIds: Set<string> = new Set()
+): A2AEventSSEPayload[] => {
+    if (visitedTaskIds.has(currentTaskId)) {
+        return [];
+    }
+    visitedTaskIds.add(currentTaskId);
+
     const task = allMonitoredTasks[currentTaskId];
     if (!task) {
         console.warn(`[collectAllDescendantEvents] Task not found in allMonitoredTasks: ${currentTaskId}`);
@@ -78,7 +90,7 @@ const collectAllDescendantEvents = (currentTaskId: string, allMonitoredTasks: Re
         const childsParentId = getParentTaskIdFromTaskObject(potentialChildTask);
 
         if (childsParentId === currentTaskId) {
-            events = events.concat(collectAllDescendantEvents(potentialChildTask.taskId, allMonitoredTasks, taskNestingLevels, currentLevel + 1));
+            events = events.concat(collectAllDescendantEvents(potentialChildTask.taskId, allMonitoredTasks, taskNestingLevels, currentLevel + 1, visitedTaskIds));
         }
     }
     return events;
@@ -143,7 +155,8 @@ export const processTaskForVisualization = (
         parentTaskObject.taskId,
         allMonitoredTasks,
         taskNestingLevels,
-        0 // Root task is at level 0
+        0, // Root task is at level 0
+        new Set() // visitedTaskIds
     );
 
     if (combinedEvents.length === 0) {
