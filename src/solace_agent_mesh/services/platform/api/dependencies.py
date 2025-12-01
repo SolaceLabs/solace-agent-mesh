@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 # Global state
 platform_component_instance: "PlatformServiceComponent" = None
-SessionLocal: sessionmaker = None
+PlatformSessionLocal: sessionmaker = None
 
 
 def set_component_instance(component: "PlatformServiceComponent"):
@@ -50,8 +50,8 @@ def init_database(database_url: str):
     Args:
         database_url: SQLAlchemy database URL string.
     """
-    global SessionLocal
-    if SessionLocal is None:
+    global PlatformSessionLocal
+    if PlatformSessionLocal is None:
         url = make_url(database_url)
         dialect_name = url.get_dialect().name
 
@@ -87,15 +87,15 @@ def init_database(database_url: str):
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.close()
 
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        PlatformSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         log.info("Database initialized successfully")
     else:
         log.warning("Database already initialized.")
 
 
-def get_db() -> Generator[Session, None, None]:
+def get_platform_db() -> Generator[Session, None, None]:
     """
-    FastAPI dependency for database session management.
+    FastAPI dependency for platform database session management.
 
     Provides a database session with automatic commit/rollback:
     - Commits on success
@@ -103,17 +103,17 @@ def get_db() -> Generator[Session, None, None]:
     - Always closes the session
 
     Yields:
-        SQLAlchemy database session.
+        SQLAlchemy database session for platform database.
 
     Raises:
         HTTPException: 503 if database is not initialized.
     """
-    if SessionLocal is None:
+    if PlatformSessionLocal is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database not initialized.",
         )
-    db = SessionLocal()
+    db = PlatformSessionLocal()
     try:
         yield db
         db.commit()
