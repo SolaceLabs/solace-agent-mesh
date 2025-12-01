@@ -2,11 +2,6 @@ import type { ArtifactInfo, CreateProjectRequest, Project, UpdateProjectData } f
 import type { PaginatedSessionsResponse } from "@/lib/components/chat/SessionList";
 import { authenticatedFetch } from "@/lib/utils";
 
-/* TODO:
- * Dynamically get Base URL
- * Convert move to different project query
- * Remove Project Provider
- * */
 export const handleAPIError = async (response: Response, defaultMessageLabel: string) => {
     if (response.ok) return;
 
