@@ -273,13 +273,9 @@ export class BlockBuilder {
                     customSourceHandle = `agent-out-${nodeId}`;
                     customTargetHandle = type === "llmNode" ? "llm-left-input" : `${nodeId}-tool-left-input`;
 
-                    // If this is the FIRST tool call for this agent block, pull it up
-                    if (container.children.length > 1) {
-                        const prevSibling = container.children[container.children.length - 2];
-                        if (prevSibling.id === sourceNodeId) {
-                            block.pullUp = true;
-                        }
-                    }
+                    // Always pull up tools connected to an agent to align with the agent's top (or stack below previous tools)
+                    // This ignores the agent's height in the dependency calculation, allowing tools to stack alongside the agent
+                    block.pullUp = true;
                 }
             }
         }
