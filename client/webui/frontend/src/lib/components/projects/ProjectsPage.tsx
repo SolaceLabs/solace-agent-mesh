@@ -12,7 +12,7 @@ import { useChatContext } from "@/lib/hooks";
 import type { Project } from "@/lib/types/projects";
 import { Header } from "@/lib/components/header";
 import { Button } from "@/lib/components/ui";
-import { authenticatedFetch } from "@/lib/utils/api";
+import { fetchJsonWithError, fetchWithError, getErrorMessage } from "@/lib/utils/api";
 import { downloadBlob } from "@/lib/utils/download";
 
 export const ProjectsPage: React.FC = () => {
@@ -27,7 +27,7 @@ export const ProjectsPage: React.FC = () => {
     const [showImportDialog, setShowImportDialog] = useState(false);
 
     const { projects, isLoading, createProject, setActiveProject, refetch, searchQuery, setSearchQuery, filteredProjects, deleteProject } = useProjectContext();
-    const { handleNewSession, handleSwitchSession, addNotification } = useChatContext();
+    const { handleNewSession, handleSwitchSession, addNotification, displayError } = useChatContext();
     const selectedProject = useMemo(() => projects.find(p => p.id === loaderData?.projectId) || null, [projects, loaderData?.projectId]);
 
     const handleCreateProject = async (data: { name: string; description: string }) => {
@@ -102,22 +102,15 @@ export const ProjectsPage: React.FC = () => {
 
     const handleExport = async (project: Project) => {
         try {
-            const response = await authenticatedFetch(`/api/v1/projects/${project.id}/export`);
+            const response = await fetchWithError(`/api/v1/projects/${project.id}/export`);
+            const blob = await response.blob();
+            const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
+            downloadBlob(blob, filename);
 
-            if (response.ok) {
-                const blob = await response.blob();
-                const filename = `project-${project.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-${Date.now()}.zip`;
-                downloadBlob(blob, filename);
-
-                addNotification("Project exported successfully", "success");
-            } else {
-                const error = await response.json();
-                const errorMessage = error.detail || "Failed to export project";
-                addNotification(errorMessage, "error");
-            }
+            addNotification("Project exported successfully", "success");
         } catch (error) {
             console.error("Failed to export project:", error);
-            addNotification("Failed to export project", "error");
+            displayError({ title: "Failed to Export Project", error: getErrorMessage(error, "An unknown error occurred while exporting the project.") });
         }
     };
 
@@ -127,30 +120,21 @@ export const ProjectsPage: React.FC = () => {
             formData.append("file", file);
             formData.append("options", JSON.stringify(options));
 
-            const response = await authenticatedFetch("/api/v1/projects/import", {
+            const result = await fetchJsonWithError("/api/v1/projects/import", {
                 method: "POST",
                 body: formData,
             });
 
-            if (response.ok) {
-                const result = await response.json();
-
-                // Show warnings if any (combine into single notification for better UX)
-                if (result.warnings && result.warnings.length > 0) {
-                    const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
-                    addNotification(warningMessage, "info");
-                }
-
-                // Refresh projects and navigate to the newly imported one
-                await refetch();
-                navigate(`/projects/${result.projectId}`);
-
-                addNotification(`Project imported successfully with ${result.artifactsImported} artifacts`, "success");
-            } else {
-                const error = await response.json();
-                const errorMessage = error.detail || "Failed to import project";
-                throw new Error(errorMessage);
+            // Show warnings if any (combine into single notification for better UX)
+            if (result.warnings && result.warnings.length > 0) {
+                const warningMessage = result.warnings.length === 1 ? result.warnings[0] : `Import completed with ${result.warnings.length} warnings:\n${result.warnings.join("\n")}`;
+                addNotification(warningMessage, "info");
             }
+
+            // Refresh projects and navigate to the newly imported one
+            await refetch();
+            navigate(`/projects/${result.projectId}`);
+            addNotification(`Project imported successfully with ${result.artifactsImported} artifacts`, "success");
         } catch (error) {
             console.error("Failed to import project:", error);
             throw error; // Re-throw to let dialog handle it
