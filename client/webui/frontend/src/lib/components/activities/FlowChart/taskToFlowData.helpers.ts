@@ -35,6 +35,7 @@ export interface MapLayoutContext {
     baseY: number;
     currentXOffset: number;
     iterationNodeIds: string[];
+    generatedNodeId?: string;
 }
 
 // Layout Management Interfaces
@@ -715,6 +716,7 @@ export function createWorkflowNodeInContext(manager: TimelineLayoutManager, step
             baseY: nodeY_relative + NODE_HEIGHT + VERTICAL_SPACING, // Children start below map node
             currentXOffset: 0,
             iterationNodeIds: [],
+            generatedNodeId: flowNodeId,
         });
     }
 

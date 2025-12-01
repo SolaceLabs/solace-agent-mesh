@@ -643,50 +643,10 @@ function handleWorkflowNodeExecutionStart(step: VisualizerStep, manager: Timelin
     // If this is a map iteration, override previousNodeId to be the Map Node
     const parentNodeId = step.data.workflowNodeExecutionStart?.parentNodeId;
     if (parentNodeId) {
-        // Find the generated node ID for the parent map node
-        // We assume the parent map node was created recently and is in the nodes list
-        // We can find it by matching the visualizerStepId or by reconstructing the ID if we knew the counter
-        // But simpler: we stored it in mapLayouts!
-        // Wait, mapLayouts stores the generated ID? No, it stores the raw ID as key.
-        // But we can find the node in `nodes` that corresponds to the parentNodeId.
-        // Actually, `createWorkflowNodeInContext` generates IDs like `wf_node_${nodeId}`.
-        // So we can reconstruct it.
-        // However, `generateNodeId` appends a counter.
-        // We need to find the node where data.label or data.description matches?
-        // Better: `createWorkflowNodeInContext` should store the generated ID in mapLayouts.
-        // Let's assume `wf_node_${parentNodeId}` pattern but we need the exact ID.
-        // We can search `nodes` for a node where `data.visualizerStepId` corresponds to the start event of the map node?
-        // Or simpler: The Map Node was the `lastNodeId` before any iterations started.
-        // But if we have multiple maps, or other nodes...
-        // Let's look at `mapLayouts`. We can store the generated `flowNodeId` in `MapLayoutContext`.
-        // I'll update `createWorkflowNodeInContext` to do that.
-        // Assuming I did that (I didn't in the previous block, let me fix that assumption or logic).
-        // Actually, I can find the node by `wf_node_${parentNodeId}` prefix? No, `generateNodeId` uses global counter.
-        
-        // Let's search for the node in `nodes` that represents the parent map node.
-        // The parent map node would have `data.label` or `data.description` containing the ID?
-        // Or we can look at `manager.mapLayouts` if we store the generated ID there.
-        // I will update `createWorkflowNodeInContext` to store `generatedMapNodeId` in `MapLayoutContext`.
-        // Since I can't edit the previous block again in this thought process, I will assume I can find it.
-        // Wait, `createWorkflowNodeInContext` is in `taskToFlowData.helpers.ts`. I just edited it.
-        // I didn't add `generatedMapNodeId` to `MapLayoutContext`.
-        // I can find the node by iterating nodes and checking `data.visualizerStepId`? No, I don't have the parent step ID here.
-        
-        // Fallback: Iterate nodes to find one where `data.label` or `data.description` matches?
-        // Or, since `MapNode` execution happens just before iterations, `currentSubflow.lastNodeId` IS the Map Node!
-        // Unless there are multiple maps running in parallel?
-        // `DAGExecutor` executes map node, then launches iterations.
-        // So `lastNodeId` should be the Map Node.
-        // BUT, if we have 2 iterations, for the 2nd iteration, `lastNodeId` is NOT updated (per my change in helpers).
-        // So `lastNodeId` remains the Map Node!
-        // So `previousNodeId` is correct!
-        
-        // Verify: `createWorkflowNodeInContext` says:
-        // if (!parentNodeId) { subflow.lastNodeId = flowNodeId; }
-        // So for iterations, `lastNodeId` is NOT updated.
-        // So `previousNodeId` (which is `currentSubflow.lastNodeId`) will point to the node BEFORE the first iteration.
-        // Which is the Map Node.
-        // So this logic holds.
+        const mapContext = manager.mapLayouts.get(parentNodeId);
+        if (mapContext && mapContext.generatedNodeId) {
+            previousNodeId = mapContext.generatedNodeId;
+        }
     }
 
     // Create the new node
