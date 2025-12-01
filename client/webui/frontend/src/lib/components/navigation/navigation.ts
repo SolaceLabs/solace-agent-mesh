@@ -22,7 +22,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
             icon: Bot,
         },
     ];
-    
+
     // Add projects only if explicitly enabled (requires SQL persistence)
     // Default to false if flag is undefined to be safe
     const projectsEnabled = featureFlags?.projects ?? false;
@@ -33,7 +33,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
             icon: FolderOpen,
         });
     }
-    
+
     // Add prompts only if explicitly enabled (requires SQL persistence)
     // Default to false if flag is undefined to be safe
     const promptLibraryEnabled = featureFlags?.promptLibrary ?? false;
@@ -42,9 +42,10 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
             id: "prompts",
             label: "Prompts",
             icon: FileText,
+            badge: "EXPERIMENTAL",
         });
     }
-    
+
     return items;
 };
 
@@ -69,6 +70,7 @@ export const topNavigationItems: NavigationItem[] = [
         id: "prompts",
         label: "Prompts",
         icon: FileText,
+        badge: "EXPERIMENTAL",
     },
 ];
 

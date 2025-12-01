@@ -106,7 +106,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                                 {onUseInChat && (
                                     <DropdownMenuItem onClick={handleUseInChat}>
                                         <MessageSquare size={14} className="mr-2" />
-                                        Use in Chat
+                                        Use in New Chat
                                     </DropdownMenuItem>
                                 )}
                                 {onExport && (

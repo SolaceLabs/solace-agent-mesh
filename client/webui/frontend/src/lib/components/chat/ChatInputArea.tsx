@@ -48,7 +48,8 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages } = useChatContext();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, artifactsRefetch, addNotification, artifacts, setPreviewArtifact, openSidePanelTab, messages, handleNewSession } =
+        useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
@@ -90,35 +91,67 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     // Clear input when session changes (but keep track of previous session to avoid clearing on initial session creation)
     const prevSessionIdRef = useRef<string | null>(sessionId);
 
+    // Track pending prompt template data to apply after new session is created
+    const pendingPromptDataRef = useRef<{ promptText: string; groupId: string; groupName: string } | null>(null);
+
+    // Flag to indicate we're waiting for a new session to be created for a prompt template
+    const waitingForNewSessionRef = useRef(false);
+
+    // Handle pending prompt use from router state
     useEffect(() => {
-        // Check for pending prompt use from router state
         if (location.state?.promptText) {
             const { promptText, groupId, groupName } = location.state;
 
-            // Check if prompt has variables
-            const variables = detectVariables(promptText);
-            if (variables.length > 0) {
-                // Show variable dialog
-                setPendingPromptGroup({
-                    id: groupId,
-                    name: groupName,
-                    productionPrompt: { promptText: promptText },
-                } as PromptGroup);
-                setShowVariableDialog(true);
-            } else {
-                setInputValue(promptText);
-                setTimeout(() => {
-                    chatInputRef.current?.focus();
-                }, 100);
-            }
+            // Store the prompt data for use after session is created
+            pendingPromptDataRef.current = { promptText, groupId, groupName };
+            waitingForNewSessionRef.current = true;
 
-            // Clear the location state to prevent re-triggering
+            // Clear the location state immediately to prevent re-triggering
             navigate(location.pathname, { replace: true, state: {} });
-            return; // Don't clear input if we just set it
+
+            // Start a new chat session and apply prompt after it's ready
+            (async () => {
+                await handleNewSession();
+
+                // Apply the prompt data after session is created
+                if (pendingPromptDataRef.current) {
+                    const { promptText: pt, groupId: gId, groupName: gName } = pendingPromptDataRef.current;
+
+                    // Check if prompt has variables
+                    const variables = detectVariables(pt);
+                    if (variables.length > 0) {
+                        // Show variable dialog
+                        setPendingPromptGroup({
+                            id: gId,
+                            name: gName,
+                            productionPrompt: { promptText: pt },
+                        } as PromptGroup);
+                        setShowVariableDialog(true);
+                    } else {
+                        setInputValue(pt);
+                        setTimeout(() => {
+                            chatInputRef.current?.focus();
+                        }, 100);
+                    }
+
+                    // Clear the pending data
+                    pendingPromptDataRef.current = null;
+                }
+                waitingForNewSessionRef.current = false;
+            })();
+        }
+    }, [location.state, location.pathname, navigate, handleNewSession]);
+
+    // Handle session changes (for normal session switching, not prompt template usage)
+    useEffect(() => {
+        // Skip if we're waiting for a new session for a prompt template
+        if (waitingForNewSessionRef.current) {
+            prevSessionIdRef.current = sessionId;
+            return;
         }
 
-        // Only clear if session actually changed (not just initialized)
-        if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId) {
+        // Only clear if session actually changed (not just initialized) and no pending prompt
+        if (prevSessionIdRef.current && prevSessionIdRef.current !== sessionId && !pendingPromptDataRef.current) {
             setInputValue("");
             setShowPromptsCommand(false);
             setPastedArtifactItems([]);
@@ -126,7 +159,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }
         prevSessionIdRef.current = sessionId;
         setContextText(null);
-    }, [sessionId, location.state, location.pathname, navigate]);
+    }, [sessionId]);
 
     useEffect(() => {
         if (prevIsRespondingRef.current && !isResponding) {

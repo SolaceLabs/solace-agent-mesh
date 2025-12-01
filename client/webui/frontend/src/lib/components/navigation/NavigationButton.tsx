@@ -3,6 +3,7 @@ import React from "react";
 import { cn } from "@/lib/utils";
 import type { NavigationItem } from "@/lib/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/tooltip";
+import { Badge } from "@/lib/components/ui/badge";
 
 interface NavigationItemProps {
     item: NavigationItem;
@@ -11,7 +12,7 @@ interface NavigationItemProps {
 }
 
 export const NavigationButton: React.FC<NavigationItemProps> = ({ item, isActive, onItemClick }) => {
-    const { id, label, icon: Icon, disabled } = item;
+    const { id, label, icon: Icon, disabled, badge } = item;
 
     const handleClick = () => {
         if (!disabled && onItemClick) {
@@ -45,6 +46,11 @@ export const NavigationButton: React.FC<NavigationItemProps> = ({ item, isActive
                 >
                     <Icon className={cn("mb-1 h-6 w-6", isActive && "text-(--color-brand-wMain)")} />
                     <span className="text-center text-[13px] leading-tight">{label}</span>
+                    {badge && (
+                        <Badge variant="outline" className="mt-1 border-gray-400 bg-gray-700 px-0.5 py-0 text-[6px] leading-tight text-gray-200 uppercase">
+                            {badge}
+                        </Badge>
+                    )}
                 </button>
             </TooltipTrigger>
             <TooltipContent side="right">{label}</TooltipContent>

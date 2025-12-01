@@ -129,11 +129,11 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                     )}
                 </div>
 
-                {/* Start New Chat Button */}
+                {/* Use in New Chat Button */}
                 {onUseInChat && (
                     <Button onClick={handleUseInChat} className="w-full">
                         <SquarePen className="h-4 w-4" />
-                        Use in Chat
+                        Use in New Chat
                     </Button>
                 )}
 
