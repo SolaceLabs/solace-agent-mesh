@@ -259,3 +259,46 @@ export class GroupBlock extends LayoutBlock {
         this.height = Math.max(this.height, 100);
     }
 }
+
+export function adjustAgentSlots(nodes: Node[]): void {
+    const nodeMap = new Map<string, Node>(nodes.map(n => [n.id, n]));
+
+    for (const node of nodes) {
+        if (node.data && node.data.toolSlots && Array.isArray(node.data.toolSlots)) {
+            const slots = node.data.toolSlots as any[];
+            if (slots.length === 0) continue;
+
+            let maxSlotY = 0;
+
+            for (const slot of slots) {
+                const targetNode = nodeMap.get(slot.id);
+                if (targetNode) {
+                    // Calculate relative Y offset
+                    // We want the slot to align with the center of the target node
+                    // targetNode.position is absolute. node.position is absolute.
+                    
+                    // Use measured height if available, else style height, else default
+                    const targetHeight = targetNode.measured?.height ?? 
+                                        (parseInt(targetNode.style?.height?.toString() || "0") || NODE_HEIGHT);
+                                        
+                    const targetCenterY = targetNode.position.y + (targetHeight / 2);
+                    
+                    const relativeY = targetCenterY - node.position.y;
+                    
+                    slot.yOffset = relativeY;
+                    maxSlotY = Math.max(maxSlotY, relativeY);
+                }
+            }
+            
+            // Update agent node height to cover the last slot
+            // Add some padding at the bottom
+            const requiredHeight = maxSlotY + (NODE_HEIGHT / 2) + 20;
+            
+            const currentHeight = parseInt(node.style?.height?.toString() || "0") || NODE_HEIGHT;
+            
+            if (requiredHeight > currentHeight) {
+                node.style = { ...node.style, height: `${requiredHeight}px` };
+            }
+        }
+    }
+}
