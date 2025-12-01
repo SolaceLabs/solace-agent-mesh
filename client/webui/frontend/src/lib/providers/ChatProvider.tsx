@@ -971,58 +971,86 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 }
                                 case "artifact_creation_progress": {
-                                    // Only handles in-progress and failed statuses for streaming
-                                    // Completion is handled by artifact_completed signal
-                                    const { filename, status, bytes_transferred, description, artifact_chunk } = data as {
+                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk, version } = data as {
                                         filename: string;
-                                        status: "in-progress" | "failed";
+                                        status: "in-progress" | "completed" | "failed";
                                         bytes_transferred: number;
+                                        mime_type?: string;
                                         description?: string;
                                         artifact_chunk?: string;
+                                        version?: number;
                                     };
 
-                                    // Update global artifacts list with streaming data
+                                    // Track if we need to trigger auto-download after state update
+                                    let shouldAutoDownload = false;
+
+                                    // Update global artifacts list with description and accumulated content
                                     setArtifacts(prevArtifacts => {
                                         const existingIndex = prevArtifacts.findIndex(a => a.filename === filename);
                                         if (existingIndex >= 0) {
-                                            // Update existing artifact with streaming data
+                                            // Update existing artifact, preserving description if new one not provided
                                             const updated = [...prevArtifacts];
                                             const existingArtifact = updated[existingIndex];
+                                            const isDisplayed = existingArtifact.isDisplayed || false;
+
+                                            // Check if we should trigger auto-download (before state update)
+                                            if (status === "completed" && isDisplayed) {
+                                                shouldAutoDownload = true;
+                                            }
 
                                             updated[existingIndex] = {
                                                 ...existingArtifact,
                                                 description: description !== undefined ? description : existingArtifact.description,
                                                 size: bytes_transferred || existingArtifact.size,
                                                 last_modified: new Date().toISOString(),
+                                                // Ensure URI is set
                                                 uri: existingArtifact.uri || `artifact://${sessionId}/${filename}`,
-                                                // Accumulate content chunks for in-progress artifacts
-                                                accumulatedContent: status === "in-progress" && artifact_chunk ? (existingArtifact.accumulatedContent || "") + artifact_chunk : existingArtifact.accumulatedContent,
+                                                // Accumulate content chunks for in-progress and completed artifacts
+                                                accumulatedContent:
+                                                    status === "in-progress" && artifact_chunk
+                                                        ? (existingArtifact.accumulatedContent || "") + artifact_chunk
+                                                        : status === "completed" && !isDisplayed
+                                                          ? undefined // Clear accumulated content when completed if NOT displayed
+                                                          : existingArtifact.accumulatedContent, // Keep for displayed artifacts
                                                 // Mark that streaming content is plain text (not base64)
                                                 isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : existingArtifact.isAccumulatedContentPlainText,
+                                                // Update mime_type when completed
+                                                mime_type: status === "completed" && mime_type ? mime_type : existingArtifact.mime_type,
+                                                // Mark that embed resolution is needed when completed
+                                                needsEmbedResolution: status === "completed" ? true : existingArtifact.needsEmbedResolution,
                                             };
 
                                             return updated;
                                         } else {
-                                            // Create new artifact entry for streaming
+                                            // Create new artifact entry only if we have description or it's the first chunk
                                             if (description !== undefined || status === "in-progress") {
                                                 return [
                                                     ...prevArtifacts,
                                                     {
                                                         filename,
                                                         description: description || null,
-                                                        mime_type: "application/octet-stream",
+                                                        mime_type: mime_type || "application/octet-stream",
                                                         size: bytes_transferred || 0,
                                                         last_modified: new Date().toISOString(),
                                                         uri: `artifact://${sessionId}/${filename}`,
                                                         accumulatedContent: status === "in-progress" && artifact_chunk ? artifact_chunk : undefined,
                                                         isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : false,
-                                                        needsEmbedResolution: false,
+                                                        needsEmbedResolution: status === "completed" ? true : false,
                                                     },
                                                 ];
                                             }
                                         }
                                         return prevArtifacts;
                                     });
+
+                                    // Trigger auto-download AFTER state update (outside the setter)
+                                    if (shouldAutoDownload) {
+                                        setTimeout(() => {
+                                            downloadAndResolveArtifact(filename).catch(err => {
+                                                console.error(`Auto-download failed for ${filename}:`, err);
+                                            });
+                                        }, 100);
+                                    }
 
                                     setMessages(prev => {
                                         const newMessages = [...prev];
@@ -1065,6 +1093,32 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 };
                                                 agentMessage.parts.push(newPart);
                                             }
+                                        } else if (status === "completed") {
+                                            const fileAttachment: FileAttachment = {
+                                                name: filename,
+                                                mime_type,
+                                                uri: version !== undefined ? `artifact://${sessionId}/${filename}?version=${version}` : `artifact://${sessionId}/${filename}`,
+                                            };
+                                            if (artifactPartIndex > -1) {
+                                                const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
+                                                // Create a new part object with immutable update
+                                                const updatedPart: ArtifactPart = {
+                                                    ...existingPart,
+                                                    status: "completed",
+                                                    file: fileAttachment,
+                                                };
+                                                // Remove bytesTransferred for completed artifacts
+                                                delete updatedPart.bytesTransferred;
+                                                agentMessage.parts[artifactPartIndex] = updatedPart;
+                                            } else {
+                                                agentMessage.parts.push({
+                                                    kind: "artifact",
+                                                    status: "completed",
+                                                    name: filename,
+                                                    file: fileAttachment,
+                                                });
+                                            }
+                                            void artifactsRefetch();
                                         } else {
                                             // status === "failed"
                                             const errorMsg = `Failed to create artifact: ${filename}`;
@@ -1097,126 +1151,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         return finalMessages;
                                     });
                                     // Return immediately to prevent the generic status handler from running
-                                    return;
-                                }
-                                case "artifact_completed": {
-                                    // Handle artifact completion
-                                    const { filename, version, bytes_transferred, mime_type, description } = data as {
-                                        filename: string;
-                                        version: number;
-                                        bytes_transferred: number;
-                                        mime_type?: string;
-                                        description?: string;
-                                    };
-
-                                    // Track if we need to trigger auto-download after state update
-                                    let shouldAutoDownload = false;
-
-                                    // Update global artifacts list - mark as completed
-                                    setArtifacts(prevArtifacts => {
-                                        const existingIndex = prevArtifacts.findIndex(a => a.filename === filename);
-                                        if (existingIndex >= 0) {
-                                            const updated = [...prevArtifacts];
-                                            const existingArtifact = updated[existingIndex];
-                                            const isDisplayed = existingArtifact.isDisplayed || false;
-
-                                            // Check if we should trigger auto-download
-                                            if (isDisplayed) {
-                                                shouldAutoDownload = true;
-                                            }
-
-                                            updated[existingIndex] = {
-                                                ...existingArtifact,
-                                                description: description !== undefined ? description : existingArtifact.description,
-                                                size: bytes_transferred || existingArtifact.size,
-                                                last_modified: new Date().toISOString(),
-                                                uri: existingArtifact.uri || `artifact://${sessionId}/${filename}`,
-                                                mime_type: mime_type || existingArtifact.mime_type,
-                                                // Clear accumulated content when completed if NOT displayed
-                                                accumulatedContent: isDisplayed ? existingArtifact.accumulatedContent : undefined,
-                                                needsEmbedResolution: true,
-                                            };
-
-                                            return updated;
-                                        } else {
-                                            // Create new artifact entry if it doesn't exist yet
-                                            return [
-                                                ...prevArtifacts,
-                                                {
-                                                    filename,
-                                                    description: description || null,
-                                                    mime_type: mime_type || "application/octet-stream",
-                                                    size: bytes_transferred || 0,
-                                                    last_modified: new Date().toISOString(),
-                                                    uri: `artifact://${sessionId}/${filename}`,
-                                                    needsEmbedResolution: true,
-                                                },
-                                            ];
-                                        }
-                                    });
-
-                                    // Trigger auto-download if needed
-                                    if (shouldAutoDownload) {
-                                        setTimeout(() => {
-                                            downloadAndResolveArtifact(filename).catch(err => {
-                                                console.error(`Auto-download failed for ${filename}:`, err);
-                                            });
-                                        }, 100);
-                                    }
-
-                                    // Update message parts to mark artifact as completed
-                                    setMessages(prev => {
-                                        const newMessages = [...prev];
-                                        let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
-
-                                        if (agentMessageIndex === -1) {
-                                            const newAgentMessage: MessageFE = {
-                                                role: "agent",
-                                                parts: [],
-                                                taskId: currentTaskIdFromResult,
-                                                isUser: false,
-                                                isComplete: false,
-                                                isStatusBubble: false,
-                                                metadata: { lastProcessedEventSequence: currentEventSequence },
-                                            };
-                                            newMessages.push(newAgentMessage);
-                                            agentMessageIndex = newMessages.length - 1;
-                                        }
-
-                                        const agentMessage = { ...newMessages[agentMessageIndex], parts: [...newMessages[agentMessageIndex].parts] };
-                                        agentMessage.isStatusBubble = false;
-                                        const artifactPartIndex = agentMessage.parts.findIndex(p => p.kind === "artifact" && p.name === filename);
-
-                                        const fileAttachment: FileAttachment = {
-                                            name: filename,
-                                            mime_type,
-                                            uri: version !== undefined ? `artifact://${sessionId}/${filename}?version=${version}` : `artifact://${sessionId}/${filename}`,
-                                        };
-
-                                        if (artifactPartIndex > -1) {
-                                            const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
-                                            const updatedPart: ArtifactPart = {
-                                                ...existingPart,
-                                                status: "completed",
-                                                file: fileAttachment,
-                                            };
-                                            delete updatedPart.bytesTransferred;
-                                            agentMessage.parts[artifactPartIndex] = updatedPart;
-                                        } else {
-                                            agentMessage.parts.push({
-                                                kind: "artifact",
-                                                status: "completed",
-                                                name: filename,
-                                                file: fileAttachment,
-                                            });
-                                        }
-
-                                        void artifactsRefetch();
-                                        newMessages[agentMessageIndex] = agentMessage;
-                                        const finalMessages = newMessages.filter(m => !m.isStatusBubble || m.parts.some(p => p.kind === "artifact" || p.kind === "file"));
-                                        return finalMessages;
-                                    });
-
                                     return;
                                 }
                                 case "tool_invocation_start":

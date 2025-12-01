@@ -28,6 +28,7 @@ from ...agent.utils.artifact_helpers import (
     METADATA_SUFFIX,
     format_metadata_for_llm,
 )
+from ...common.data_parts import ArtifactCreationProgressData
 from ...agent.utils.context_helpers import (
     get_original_session_id,
     get_session_from_callback_context,
@@ -676,14 +677,14 @@ async def process_artifact_blocks_callback(
                 )
                 tool_call_parts.append(adk_types.Part(function_call=notify_tool_call))
 
-                # Send artifact_completed signal now that we have the function_call_id
+                # Send completion signal now that we have the function_call_id
                 # This ensures the signal and tool call arrive together
                 if block_info["status"] == "success" and a2a_context:
                     try:
-                        from ...common.data_parts import ArtifactCompletedData
-                        completed_data = ArtifactCompletedData(
+                        completed_data = ArtifactCreationProgressData(
                             filename=block_info["filename"],
                             description=block_info.get("description"),
+                            status="completed",
                             version=block_info["version"],
                             bytes_transferred=block_info.get("bytes_transferred", 0),
                             mime_type=block_info.get("mime_type"),
@@ -693,14 +694,14 @@ async def process_artifact_blocks_callback(
                             host_component, a2a_context, completed_data
                         )
                         log.info(
-                            "%s Published artifact_completed signal for fenced block: %s (function_call_id=%s)",
+                            "%s Published completion signal for fenced block: %s (function_call_id=%s)",
                             log_identifier,
                             block_info["filename"],
                             function_call_id,
                         )
                     except Exception as signal_err:
                         log.warning(
-                            "%s Failed to publish artifact_completed signal: %s",
+                            "%s Failed to publish completion signal: %s",
                             log_identifier,
                             signal_err,
                         )

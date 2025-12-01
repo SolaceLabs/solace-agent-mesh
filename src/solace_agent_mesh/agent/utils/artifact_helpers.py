@@ -341,7 +341,7 @@ async def save_artifact_with_metadata(
         # Skip if suppress_visualization_signal is True (e.g., when called from fenced block callback)
         if not suppress_visualization_signal:
             try:
-                from ...common.data_parts import ArtifactCompletedData
+                from ...common.data_parts import ArtifactCreationProgressData
                 from ...agent.adk.callbacks import _publish_data_part_status_update
 
                 # Try to get context from tool_context if available
@@ -367,8 +367,10 @@ async def save_artifact_with_metadata(
                 # Only proceed if we have both required components
                 if host_component and a2a_context:
                     # Create artifact completion signal
-                    artifact_signal = ArtifactCompletedData(
+                    artifact_signal = ArtifactCreationProgressData(
+                        type="artifact_creation_progress",
                         filename=filename,
+                        status="completed",
                         version=data_version,
                         bytes_transferred=len(content_bytes),
                         mime_type=mime_type,
