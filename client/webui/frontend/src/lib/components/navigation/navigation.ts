@@ -1,4 +1,4 @@
-import { MessageCircle, Bot, SunMoon, FolderOpen, FileText } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen, NotepadText } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
@@ -41,7 +41,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
         items.push({
             id: "prompts",
             label: "Prompts",
-            icon: FileText,
+            icon: NotepadText,
             badge: "EXPERIMENTAL",
         });
     }
@@ -69,7 +69,7 @@ export const topNavigationItems: NavigationItem[] = [
     {
         id: "prompts",
         label: "Prompts",
-        icon: FileText,
+        icon: NotepadText,
         badge: "EXPERIMENTAL",
     },
 ];

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-import { Pencil, Trash2, FileText, Tag, History, MoreHorizontal, MessageSquare, Star, Download } from "lucide-react";
+import { Pencil, Trash2, NotepadText, Tag, History, MoreHorizontal, MessageSquare, Star, Download } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -74,7 +74,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
             <div className="flex h-full w-full flex-col">
                 <div className="flex items-center justify-between px-4">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <FileText className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                        <NotepadText className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
                         <div className="min-w-0">
                             <h2 className="truncate text-lg font-semibold" title={prompt.name}>
                                 {prompt.name}
