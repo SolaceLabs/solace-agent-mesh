@@ -130,6 +130,22 @@ const FlowRenderer: React.FC<FlowChartPanelProps> = ({ processedSteps, isRightPa
     useEffect(() => {
         setNodes(memoizedFlowData.nodes);
         setEdges(computedEdges);
+
+        // Debug logging for node positions
+        if (memoizedFlowData.nodes.length > 0) {
+            console.groupCollapsed("FlowChart Node Layout Summary");
+            console.table(memoizedFlowData.nodes.map(n => ({
+                id: n.id,
+                type: n.type,
+                label: n.data.label,
+                x: n.position.x,
+                y: n.position.y,
+                width: n.style?.width,
+                height: n.style?.height,
+                parentId: n.parentId
+            })));
+            console.groupEnd();
+        }
     }, [memoizedFlowData.nodes, computedEdges, setNodes, setEdges]);
 
     const findEdgeBySourceAndHandle = useCallback(

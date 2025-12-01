@@ -649,6 +649,9 @@ export const processTaskForVisualization = (
                                     toolArguments: signalData.tool_args,
                                     isPeerInvocation: signalData.tool_name?.startsWith("peer_") || signalData.tool_name?.startsWith("workflow_"),
                                 };
+
+                                const delegationInfo = functionCallIdToDelegationInfoMap.get(signalData.function_call_id);
+
                                 visualizerSteps.push({
                                     id: `vstep-toolinvokestart-${visualizerSteps.length}-${eventId}`,
                                     type: "AGENT_TOOL_INVOCATION_START",
@@ -658,6 +661,7 @@ export const processTaskForVisualization = (
                                     target: invocationData.toolName,
                                     data: { toolInvocationStart: invocationData },
                                     rawEventIds: [eventId],
+                                    delegationInfo: delegationInfo ? [delegationInfo] : undefined,
                                     isSubTaskStep: currentEventNestingLevel > 0,
                                     nestingLevel: currentEventNestingLevel,
                                     owningTaskId: currentEventOwningTaskId,
